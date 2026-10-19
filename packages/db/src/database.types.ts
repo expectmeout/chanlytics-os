@@ -6527,6 +6527,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          appointment_word: string | null
           created_at: string
           id: string
           left_empty_at: string | null
@@ -6540,6 +6541,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          appointment_word?: string | null
           created_at?: string
           id?: string
           left_empty_at?: string | null
@@ -6553,6 +6555,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          appointment_word?: string | null
           created_at?: string
           id?: string
           left_empty_at?: string | null

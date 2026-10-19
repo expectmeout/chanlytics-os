@@ -50,19 +50,17 @@ export function campaignEnded(p: { until?: string | null }, day: string): string
 
 /**
  * Whether a campaign runs on the business's day at `now`: it is on (`state`), not past its last day (00416 `until`, by the
- * business's today), and its moment may run here (a proposal's follow-up only where deals are on, 0006). A campaign on trial
- * runs: its runs wait for a person (effectiveMode). THE rule every page and Ask ask of a campaign: Sent's week ahead, the
+ * business's today). A campaign on trial runs: its runs wait for a person (effectiveMode). THE rule every page and Ask ask of a campaign: Sent's week ahead, the
  * Library's "sends", Run now, Today's day strip, People's follow-up and Ask's rows, which each tested `state` alone and said a
  * campaign past its last day was still on (the wiring's second audit, S1-3). The home's cards say why one runs nothing
  * (lifecycle-inputs.ts cardReadOf), from the same two facts.
  */
 export function campaignRunsOn(
   p: { state: string; trigger: string; until?: string | null },
-  at: { tz: string; now: Date; dealsOn: boolean },
+  at: { tz: string; now: Date },
 ): boolean {
   if (p.state !== "running") return false;
-  if (campaignEnded(p, localDate(at.tz, at.now))) return false;
-  return triggerOf(p.trigger)?.kind !== "deal" || at.dealsOn;
+  return !campaignEnded(p, localDate(at.tz, at.now));
 }
 
 /** A campaign's day as its words say it, by the business's calendar: "Nov 30", and "Jan 4, 2027" in another year. */

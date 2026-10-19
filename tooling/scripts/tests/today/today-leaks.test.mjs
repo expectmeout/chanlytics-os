@@ -947,10 +947,9 @@ test("the runs' words read a real broadcast view model: a round trip through toB
   assert.equal(w.people, "3 people");
 });
 
-test("proposals waiting: out past a week with nothing back, said once, with the door to the list, and only where deals are on", () => {
+test("proposals waiting: out past a week with nothing back, said once, with the door to the list, in every workspace (0008, amended 18 Oct 2026)", () => {
   // A proposal out past a week with nothing back since it went (0004; contracts' proposalsWaiting over People's
   // rows). One is enough: an agency sends a few a month. The count is the rows'; the list's count is the arithmetic.
-  // People says whether deals are on (0008); the fixture says they are, and the last case says what happens where not.
   const rowsWith = (n, waiting) =>
     Array.from({ length: n }, () => ({
       consent: { state: "opted_in" },
@@ -963,7 +962,6 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     lists: [list("proposal_out", "Proposal out", rows.filter((r) => r.deal).length, act("Open the Inbox", "inbox"))],
     aggregates: { total: rows.length },
     rows,
-    dealsOn: true,
   });
   const rows = todayLeaksV2(reports({ booking: null }), people(rowsWith(3, true)), [], 4, NOW.getTime()).rows;
   const leak = rows.find((r) => r.id === "proposals-waiting");
@@ -1052,35 +1050,23 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     inHand.people.map((p) => p.id),
     ["p-two"],
   );
-  // A workspace whose customers book never hears about a proposal, whatever deals it holds (0008).
-  for (const dealsOn of [false, undefined])
-    assert.equal(
-      todayLeaksV2(
-        reports({ booking: null }),
-        { ...people(rowsWith(3, true)), dealsOn },
-        [],
-        4,
-        NOW.getTime(),
-      ).rows.find((r) => r.id === "proposals-waiting"),
-      undefined,
-      `deals ${dealsOn === false ? "off" : "never said"}: no row`,
-    );
 });
 
-/* ------------------------------ the consultations with no proposal yet (0008) ------------------------------ */
+/* ------------------------------ the consultations with nothing since (0008) ------------------------------ */
 
 const HOUR = 3_600_000;
 /**
  * Someone whose last visit, a consultation, ended at `endMs` (the people read marks it: 0004), with the deal the people
- * read carries (00156) in `over`, through contracts' toPersonRowVM: the People surface's own rows, never a stand-in.
+ * read carries (00156) in `over`, and the visit booked since in `next`, through contracts' toPersonRowVM: the People
+ * surface's own rows, never a stand-in.
  */
-const consulted = (id, name, endMs, over = {}) =>
+const consulted = (id, name, endMs, over = {}, next = null) =>
   personRow(id, name, {
     visits: {
       timezone: "America/New_York",
       source: "Google Calendar",
       state: "ok",
-      next: null,
+      next,
       last: {
         id: `v-${id}`,
         start: new Date(endMs - HOUR).toISOString(),
@@ -1111,13 +1097,12 @@ const dealSurface = (rows, over = {}) => ({
   lists: [],
   aggregates: { total: rows.length },
   rows,
-  dealsOn: true,
   ...over,
 });
 const consultsLeak = (rows, over = {}, nowMs = NOW.getTime()) =>
   todayLeaksV2(answeredWeek(), dealSurface(rows, over), [], 4, nowMs).rows.find((l) => l.id === "consults-waiting");
 
-test("consultations with no proposal yet: the next step, said with a digit, in the Pipeline's own sentence, naming its first two, only where deals are on", () => {
+test("consultations with nothing since: the next step, said with a digit, in the Pipeline's own sentence, naming its first two, in every workspace", () => {
   const rows = [
     consulted("p-b", "Bea Ortiz", daysBack(3)),
     consulted("p-a", "Abel Cruz", daysBack(5)),
@@ -1132,18 +1117,18 @@ test("consultations with no proposal yet: the next step, said with a digit, in t
   ];
   const leak = consultsLeak(rows);
   assert.ok(leak, "three consultations this week with nothing after them");
-  assert.equal(leak.text, "3 consultations in the last week ended with no proposal yet.");
+  assert.equal(leak.text, "3 consultations in the last week with nothing booked or proposed since.");
   assert.match(leak.text, /\d/, "the sentence has its number in it");
   // The number is the Pipeline's own: the same rule over the same rows, in the Pipeline's one sentence.
   const held = consultationsWithoutProposal(rows, NOW.getTime());
   assert.equal(held.length, 3);
   assert.equal(leak.math, `${consultsHeldWords(3)} · on Pipeline`);
-  assert.equal(leak.math, "3 ended in the last week, no proposal yet · on Pipeline");
+  assert.equal(leak.math, "3 ended in the last week, nothing since · on Pipeline");
   // Amber: a person should look (the one badge system).
   assert.deepEqual([leak.tag, leak.tone, leak.icon], ["Next step", "warn", "calendar"]);
   assert.equal(
     leak.ask,
-    "3 consultations in the last week ended with no proposal yet. 3 ended in the last week, no proposal yet · on Pipeline. Why is that?",
+    "3 consultations in the last week with nothing booked or proposed since. 3 ended in the last week, nothing since · on Pipeline. Why is that?",
   );
   // The count's own people: the first two the rule gives (the oldest first), each to their page.
   assert.equal(leak.peopleLead, "Consultation with");
@@ -1160,8 +1145,8 @@ test("consultations with no proposal yet: the next step, said with a digit, in t
 
   // One is enough, and one is said as one.
   const one = consultsLeak([consulted("p-b", "Bea Ortiz", daysBack(3))]);
-  assert.equal(one.text, "1 consultation in the last week ended with no proposal yet.");
-  assert.equal(one.math, "1 ended in the last week, no proposal yet · on Pipeline");
+  assert.equal(one.text, "1 consultation in the last week with nothing booked or proposed since.");
+  assert.equal(one.math, "1 ended in the last week, nothing since · on Pipeline");
   assert.deepEqual(
     one.people.map((p) => p.id),
     ["p-b"],
@@ -1172,13 +1157,17 @@ test("consultations with no proposal yet: the next step, said with a digit, in t
     undefined,
   );
   assert.equal(consultsLeak([consulted("p-e", "Eli Vega", daysBack(9))]), undefined);
-  // A workspace whose customers book never hears of one, whatever its calendar says (0008).
-  for (const dealsOn of [false, undefined])
-    assert.equal(
-      consultsLeak(rows, { dealsOn }),
-      undefined,
-      `deals ${dealsOn === false ? "off" : "never said"}: no row`,
-    );
+  // Booked again since (0008, amended 18 Oct 2026): the consultation was followed, by a booking.
+  const ahead = NOW.getTime() + 86_400_000;
+  const next = {
+    id: "v-next",
+    start: new Date(ahead).toISOString(),
+    end: new Date(ahead + HOUR).toISOString(),
+    title: "Kitchen remodel",
+    all_day: false,
+    via: "phone",
+  };
+  assert.equal(consultsLeak([consulted("p-g", "Gil Mora", daysBack(2), {}, next)]), undefined, "booked since: no row");
   // Rows that do not carry who they are or their consultation (the mockup's sample) are no row, never a throw.
   assert.equal(consultsLeak([{ consent: { state: "opted_in" } }]), undefined);
 });
@@ -1193,16 +1182,19 @@ test("REGRESSION: one number, one clock and one sentence with the Pipeline -- th
   const rows = [consulted("p-a", "Abel Cruz", edge), consulted("p-b", "Bea Ortiz", daysBack(2))];
   const leak = consultsLeak(rows, { fetchedAt }, later);
   const pipe = pipelineOf(rows, fetchedAt, "America/New_York", null).groups.find((g) => g.key === "consultations");
-  assert.equal(pipe.meta, "2 ended in the last week, no proposal yet");
+  assert.equal(pipe.meta, "2 ended in the last week, nothing since");
   assert.equal(leak.math, `${pipe.meta} · on Pipeline`, "the Pipeline's sentence, word for word");
-  assert.equal(leak.text, "2 consultations in the last week ended with no proposal yet.");
+  assert.equal(leak.text, "2 consultations in the last week with nothing booked or proposed since.");
   assert.deepEqual(
     leak.people.map((p) => p.id),
     pipe.rows.slice(0, 2).map((r) => r.id),
     "the Pipeline's first two, in its order",
   );
   // Where the surface says no moment, Today's own clock stands: the edge has left the week.
-  assert.equal(consultsLeak(rows, {}, later).text, "1 consultation in the last week ended with no proposal yet.");
+  assert.equal(
+    consultsLeak(rows, {}, later).text,
+    "1 consultation in the last week with nothing booked or proposed since.",
+  );
   // The proposals waiting are counted at the same moment: out six days and twenty-three hours when People was read.
   const waiting = personRow("p-w", "Wes Pardo", { last_inbound_at: at(12), ...dealCols("proposed", edge) });
   const waitingRow = (over) =>
@@ -1220,7 +1212,6 @@ test("the consultations row sits after the unanswered and before the proposals w
     lists: [list("proposal_out", "Proposal out", 1, null), list("quiet", "Quiet 30+ days", 9)],
     aggregates: { total: 3 },
     rows: [consulted("p-b", "Bea Ortiz", daysBack(3)), waiting],
-    dealsOn: true,
   };
   // Reports says four messages went unanswered; nothing about booking.
   const r = reports({ booking: null });
@@ -1263,7 +1254,6 @@ test("proposals waiting with the follow-up on (0006): the ones it has in hand ar
     lists: [list("proposal_out", "Proposal out", rows.length, act("Open the Inbox", "inbox"))],
     aggregates: { total: rows.length },
     rows,
-    dealsOn: true,
   });
   const leakOf = (rows) =>
     todayLeaksV2(reports({ booking: null }), people(rows), [], 4, NOW.getTime()).rows.find(

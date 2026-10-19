@@ -389,8 +389,7 @@
     "@typescript-eslint/no-base-to-string": 1
   },
   "packages/db/src/repositories/thread.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1,
-    "@typescript-eslint/no-unsafe-assignment": 1
+    "@typescript-eslint/no-unnecessary-type-assertion": 1
   },
   "packages/jobs/src/broadcast-send.ts": {
     "@typescript-eslint/require-await": 1

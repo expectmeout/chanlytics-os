@@ -54,7 +54,7 @@ const OFFERED = [
 /** What it replaced: never offered again, found by name for a workspace that added one. */
 const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "after_visit", "booking_link"];
 /** A workspace's shape as the set is offered by it: deals on, and its Google listing keeping a review link. */
-const ALL = { dealsOn: true, reviewLink: true };
+const ALL = { reviewLink: true };
 
 test("eight starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
   assert.deepEqual(
@@ -685,11 +685,10 @@ test("a template's title: the workspace's own words, set through its door, shown
   );
 });
 
-test("the set a workspace is offered (0006): the proposal follow-up only where deals are on, a utility with no figure in it", () => {
-  assert.deepEqual(
-    startersOffered({ ...ALL, dealsOn: false }).map((s) => s.key),
-    OFFERED.filter((k) => k !== "proposal_follow_up"),
-    "a workspace whose customers book is never offered it, nor has it filed with WhatsApp",
+test("the set a workspace is offered (0006): the proposal follow-up in every workspace (0008, amended 18 Oct 2026), a utility with no figure in it", () => {
+  assert.ok(
+    startersOffered(ALL).some((s) => s.key === "proposal_follow_up"),
+    "offered to every workspace",
   );
   assert.deepEqual(
     startersOffered(ALL).map((s) => s.key),
@@ -784,14 +783,12 @@ test("the review ask: a utility message about the appointment they just had, its
 });
 
 test("the review ask is offered only where the workspace's Google listing keeps a review link, which its slot is filled from; the rest of the set either way", () => {
-  for (const dealsOn of [false, true]) {
-    const withLink = startersOffered({ dealsOn, reviewLink: true }).map((s) => s.key);
-    const without = startersOffered({ dealsOn, reviewLink: false }).map((s) => s.key);
-    assert.ok(withLink.includes("after_visit_review"), `deals ${dealsOn}: offered with a link`);
-    assert.deepEqual(
-      without,
-      withLink.filter((k) => k !== "after_visit_review"),
-      `deals ${dealsOn}: without one, the set less the review ask`,
-    );
-  }
+  const withLink = startersOffered({ reviewLink: true }).map((s) => s.key);
+  const without = startersOffered({ reviewLink: false }).map((s) => s.key);
+  assert.ok(withLink.includes("after_visit_review"), "offered with a link");
+  assert.deepEqual(
+    without,
+    withLink.filter((k) => k !== "after_visit_review"),
+    "without one, the set less the review ask",
+  );
 });

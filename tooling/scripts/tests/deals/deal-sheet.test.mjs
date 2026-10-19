@@ -192,7 +192,6 @@ const fixtures = (now) => {
     receptionist_mode: null,
     workspace_reply_mode: "auto",
     deals,
-    deals_on: true,
     services: ["Ad management", "SEO"],
     ...over,
   });
@@ -1457,6 +1456,4 @@ test("a proposal's card says the workspace's pace once it has one, and waits by 
   ).cards;
   assert.ok(!card.facts.includes("Usually 12 days to a yes"));
   assert.equal(card.pace, null);
-  // Where deals are off there is no pace to say, whatever the server sent.
-  assert.equal(person({ ...nine, deals_on: false, deal_pace: { median_days: 12, yeses: 6 } }).dealPace, null);
 });

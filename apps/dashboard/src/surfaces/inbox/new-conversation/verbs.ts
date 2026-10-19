@@ -27,7 +27,7 @@ export async function findPeople(q: string): Promise<PersonRowVM[]> {
   const [r, tz] = await Promise.all([api()("GET contacts", { query: q ? { q } : undefined }), workspaceZone()]);
   if (!r.ok) return [];
   const now = new Date();
-  return r.data.people.map((p) => poolRowOf(p, { tz, now, dealsOn: !!r.data.deals_on, viewer: null, ready: null }));
+  return r.data.people.map((p) => poolRowOf(p, { tz, now, viewer: null, ready: null }));
 }
 
 /**

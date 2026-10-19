@@ -1,3 +1,4 @@
+import { visitsAt } from "../calendar-people.js";
 import { personStateFor, PERSON_STATE_LABELS } from "../../people/person-state.js";
 import { lastContactOf } from "../../people/person-row-facts.js";
 import { dealOf } from "../../deals/deal-vm.js";
@@ -42,7 +43,8 @@ export function calendarPersonFactsOf(r, tz, nowMs) {
     step: stepColumnsOf(r),
     last: { at: last.at, by: last.by },
     phone: r.phone_e164 ?? null,
-    email: r.email ?? null
+    email: r.email ?? null,
+    next_visit_at: visitsAt(r.visits ?? null, nowMs)?.next?.start ?? null
   };
 }
 export function calendarPersonOf(f, tz, nowMs) {
@@ -55,6 +57,7 @@ export function calendarPersonOf(f, tz, nowMs) {
     step: f.step ? nextStepOf(f.step, tz, nowMs) : null,
     last: Number.isFinite(at) ? `${f.last.by} \xB7 ${agoWords(at, nowMs)}` : null,
     phone: f.phone,
-    email: f.email
+    email: f.email,
+    nextVisitMs: f.next_visit_at ? Date.parse(f.next_visit_at) : null
   };
 }

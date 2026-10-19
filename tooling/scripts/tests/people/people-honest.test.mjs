@@ -216,7 +216,7 @@ const wire = ({
   calendar = "none",
   views = {},
   bookingLink = null,
-  dealsOn = false,
+  hasDeals = false,
   followUp = null,
   answer = null,
 } = {}) => {
@@ -258,7 +258,7 @@ const wire = ({
             page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more },
             calendar: cal,
             booking_link: bookingLink,
-            deals_on: dealsOn,
+            has_deals: hasDeals,
           },
         });
       }
@@ -271,7 +271,7 @@ const wire = ({
           page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length },
           calendar: cal,
           booking_link: bookingLink,
-          deals_on: dealsOn,
+          has_deals: hasDeals,
           ...(offset === 0 ? { follow_up: followUp } : {}),
         },
       });
@@ -602,12 +602,12 @@ const freshPage = async ({
   calendar = "none",
   views = {},
   bookingLink = null,
-  dealsOn = false,
+  hasDeals = false,
   search = null,
   answer = null,
 } = {}) => {
   await drained();
-  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink, dealsOn, search, answer });
+  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink, hasDeals, search, answer });
   await quietly(() => peopleOverride.apply());
   cells = [];
   flashes.length = 0;
@@ -1175,16 +1175,16 @@ const drawsAStrip = (tree) =>
       .includes("stabs"),
   ).length > 0;
 
-test("the switch between the scopes is the frame's strip of views: the page draws none of its own, on a desktop or in a phone's bar, deals on or off", async () => {
-  // What the strip holds (People, Leads, the Pipeline where deals are on), which is picked, and where a press goes are the
-  // chrome's (people-views.test.mjs); this page says them and draws nothing of them.
-  for (const dealsOn of [false, true]) {
-    await freshPage({ people: [person(1)], dealsOn });
-    assert.equal(drawsAStrip(draw()), false, `a desktop's page draws no strip (deals ${dealsOn})`);
+test("the switch between the scopes is the frame's strip of views: the page draws none of its own, on a desktop or in a phone's bar, a deal on file or none", async () => {
+  // What the strip holds (People, Leads, the Pipeline), which is picked, and where a press goes are the chrome's
+  // (people-views.test.mjs); this page says them and draws nothing of them.
+  for (const hasDeals of [false, true]) {
+    await freshPage({ people: [person(1)], hasDeals });
+    assert.equal(drawsAStrip(draw()), false, `a desktop's page draws no strip (a deal on file: ${hasDeals})`);
     await onPhone(async () => {
-      await freshPage({ people: [person(1)], dealsOn });
+      await freshPage({ people: [person(1)], hasDeals });
       const tree = draw();
-      assert.equal(drawsAStrip(tree), false, `a phone's bar draws no strip (deals ${dealsOn})`);
+      assert.equal(drawsAStrip(tree), false, `a phone's bar draws no strip (a deal on file: ${hasDeals})`);
       assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick, the frame's strip over it");
     });
   }
@@ -1208,7 +1208,7 @@ test("People's scopes are its strip's order: People, Leads, the Pipeline; a pers
 
 test("on a phone the top is the list's row and the search under the frame's strip, and the list stays over the search", () =>
   onPhone(async () => {
-    await freshPage({ people: [person(1)], dealsOn: true });
+    await freshPage({ people: [person(1)], hasDeals: true });
     went.length = 0;
     const tree = draw();
     const top = byTestId(tree, "people-phone-bar");
@@ -2218,22 +2218,20 @@ test("the New list door's address stands until a list is made, then is that list
   assert.equal(routeNow(), "clients/list:s9", "REGRESSION: clients/new-list stuck, and a reload opened the box again");
 });
 
-test("the Pipeline's address is the Pipeline's where deals are on: the list page, still mounted for the moment a move to it takes to draw, does not take it back", async () => {
+test("the Pipeline's address is the Pipeline's in every workspace: the list page, still mounted for the moment a move to it takes to draw, does not take it back", async () => {
   // Found on the real app (30 Sep 2026): pressing the Pipeline tab pushed /people/pipeline and this page replaced it with
-  // /people in the same tick, so the Pipeline could not be reached by a press. Where deals are off the address draws People
-  // and is replaced with People's own, as it always was.
-  await freshPage({ people: [person(1)], dealsOn: true });
-  addressAt("clients/pipeline");
-  draw();
-  assert.equal(
-    routeNow(),
-    "clients/pipeline",
-    "REGRESSION: the list page replaced the Pipeline's address with its own",
-  );
-  await freshPage({ people: [person(1)], dealsOn: false });
-  addressAt("clients/pipeline");
-  draw();
-  assert.equal(routeNow(), "clients", "with deals off the address draws People, and is People's own");
+  // /people in the same tick, so the Pipeline could not be reached by a press. Every workspace has the Pipeline (0008,
+  // amended 18 Oct 2026), a deal on file or none.
+  for (const hasDeals of [true, false]) {
+    await freshPage({ people: [person(1)], hasDeals });
+    addressAt("clients/pipeline");
+    draw();
+    assert.equal(
+      routeNow(),
+      "clients/pipeline",
+      `REGRESSION: the list page replaced the Pipeline's address with its own (a deal on file: ${hasDeals})`,
+    );
+  }
 });
 
 test("every list's tip is the surface's, from contracts: a built-in's line, and a saved list's from what it is", async () => {
@@ -3010,6 +3008,7 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
       { key: "email", on: false, locked: false },
       { key: "calls", on: false, locked: false },
       { key: "lists", on: false, locked: false },
+      { key: "deal", on: false, locked: false },
     ],
     "every column this workspace can show, four of them on; Visits waits for a calendar",
   );
@@ -3031,9 +3030,9 @@ test("the Columns menu is the kit's switches: it shows and hides columns, and Pe
   assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
 });
 
-test("a Deal column waits in the Columns menu only where deals are a thing here, off until asked for, and wears the stage's pill", async () => {
-  // The menu above lists no "deal": that workspace has deals_on false (a salon). Here the read says deals are a
-  // thing (0004), so the column is offered, off, and picked it says each row's stage in the one pill.
+test("a Deal column waits in the Columns menu in every workspace, off until asked for, and wears the stage's pill", async () => {
+  // Every workspace has deals (0008, amended 18 Oct 2026): the column is offered, off, and picked it says each row's
+  // stage in the one pill.
   await freshPage({
     people: [
       person(1, {
@@ -3048,7 +3047,6 @@ test("a Deal column waits in the Columns menu only where deals are a thing here,
       }),
       person(2),
     ],
-    dealsOn: true,
   });
   let tree = draw();
   assert.deepEqual(
@@ -3068,7 +3066,7 @@ test("a Deal column waits in the Columns menu only where deals are a thing here,
   assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-deal")).trim(), "", "nothing where no deal was recorded");
 });
 
-test("where deals are off, People's rows carry no deal, whatever the database holds: the lists, the row's line and Today's count read none (0008)", async () => {
+test("every workspace's People rows carry their deals, whatever the retired answer said: the row's line and Today's count read them, a search's rows too; the deal lists wait for a deal on file (0008, amended 18 Oct 2026)", async () => {
   const proposed = person(1, {
     deal_id: "d1",
     deal_stage: "proposed",
@@ -3079,7 +3077,7 @@ test("where deals are off, People's rows carry no deal, whatever the database ho
     deal_amount_cents: 120000,
     deal_per: "once",
     deal_proposal_url: "https://docs.example.com/p/one",
-    // Every open deal of theirs (0029), which deals off hides as it hides the one.
+    // Every open deal of theirs (0029).
     open_deals: [
       {
         id: "d1",
@@ -3098,38 +3096,26 @@ test("where deals are off, People's rows carry no deal, whatever the database ho
     ],
     last_inbound_text: null,
   });
-  await freshPage({ people: [proposed, person(2)], dealsOn: false });
-  const off = globalThis.window.__PEOPLE;
-  assert.equal(off.dealsOn, false);
-  assert.deepEqual(
-    off.rows.map((r) => r.deal),
-    [null, null],
-    "REGRESSION: a workspace whose customers book carried its old deals on every row",
-  );
-  assert.deepEqual(
-    off.rows.map((r) => [r.openDeals, r.dealStages]),
-    [
-      [[], []],
-      [[], []],
-    ],
-    "none of them, nor where they stand (0029)",
-  );
-  assert.ok(!off.lists.some((l) => l.id === "proposal_out"), "and no deal list");
-  assert.doesNotMatch(off.attention.p1.sentence, /Proposal out/, "the row's line says no proposal");
-  // Deals on: the same rows carry theirs.
-  await freshPage({ people: [proposed, person(2)], dealsOn: true });
-  const on = globalThis.window.__PEOPLE;
-  assert.equal(on.rows.find((r) => r.id === "p1").deal.stage, "proposed");
-  assert.equal(on.rows.find((r) => r.id === "p1").deal.proposal.url, "https://docs.example.com/p/one");
-  assert.deepEqual(
-    on.rows.find((r) => r.id === "p1").openDeals.map((d) => d.id),
-    ["d1"],
-  );
-  assert.equal(on.attention.p1.sentence, "Proposal out · 9 d");
-  // A search's rows answer to the same switch.
-  wire({ people: [], dealsOn: false, search: () => ({ people: [proposed], total: 1, has_more: false }) });
+  for (const hasDeals of [true, false]) {
+    await freshPage({ people: [proposed, person(2)], hasDeals });
+    const P = globalThis.window.__PEOPLE;
+    assert.equal(P.rows.find((r) => r.id === "p1").deal.stage, "proposed", `a deal on file: ${hasDeals}`);
+    assert.equal(P.rows.find((r) => r.id === "p1").deal.proposal.url, "https://docs.example.com/p/one");
+    assert.deepEqual(
+      P.rows.find((r) => r.id === "p1").openDeals.map((d) => d.id),
+      ["d1"],
+    );
+    assert.equal(P.attention.p1.sentence, "Proposal out · 9 d");
+    assert.equal(
+      P.lists.some((l) => l.id === "proposal_out"),
+      hasDeals,
+      "the deal lists wait for a deal on file",
+    );
+  }
+  // A search's rows read the same.
+  wire({ people: [], search: () => ({ people: [proposed], total: 1, has_more: false }) });
   const found = await peopleSearch("Person");
-  assert.equal(found.rows[0].deal, null, "a search where deals are off finds no deal either");
+  assert.equal(found.rows[0].deal.stage, "proposed", "a search finds the deal too");
 });
 
 test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {
@@ -3386,6 +3372,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
       ["email", false],
       ["calls", false],
       ["lists", false],
+      ["deal", false],
     ],
     "the visit shows; the receptionist waits in the menu",
   );
@@ -4355,7 +4342,7 @@ test("a person's lists are chips: a list is a name, at the pill's size and in no
   assert.equal(x.props["aria-label"], "Take Person off Regulars");
 });
 
-test("each row's standing with the proposal follow-up (0006): worked out where the rows are held, from the first page's facts, by the run's own rules, and only where deals are on", async () => {
+test("each row's standing with the proposal follow-up (0006): worked out where the rows are held, from the first page's facts, by the run's own rules, and only where they were read", async () => {
   const now = Date.now();
   const DAY = 86_400_000;
   const iso = (ms) => new Date(ms).toISOString();
@@ -4383,14 +4370,14 @@ test("each row's standing with the proposal follow-up (0006): worked out where t
     heard: {},
   };
   const people = [out(1), out(2), out(3, { deal_proposal_url: null })];
-  wire({ people, per: 2, dealsOn: true, followUp: facts });
+  wire({ people, per: 2, hasDeals: true, followUp: facts });
   await peopleOverride.apply();
   const by = Object.fromEntries(globalThis.window.__PEOPLE.rows.map((r) => [r.id, r.followUp]));
   assert.deepEqual([by.p1?.kind, by.p1?.asks], ["will", true], "waiting, with its link and a yes: in a run to come");
   assert.equal(by.p2?.kind, "had", "its one nudge went");
   assert.equal(by.p3, null, "no link: the follow-up does not reach them");
-  // Deals off: no standing, whatever the facts say.
-  wire({ people, dealsOn: false, followUp: facts });
+  // No facts read (no deal on file, or a run that would send nothing): no standing.
+  wire({ people, followUp: null });
   await peopleOverride.apply();
   assert.ok(globalThis.window.__PEOPLE.rows.every((r) => r.followUp === null));
 });

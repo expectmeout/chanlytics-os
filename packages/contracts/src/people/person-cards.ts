@@ -7,7 +7,7 @@
  * value. index.ts names the card types; the builders are internal.
  */
 import { visitDay, visitLine } from "../calendar/calendar-people";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+import { appointmentWords, isAppointmentWord, type AppointmentWord } from "../journey/appointment-word";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
 import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
@@ -97,13 +97,13 @@ export interface PersonCardContext {
   /** A timestamp's time and day, by the business's clock. */
   stamp: (t: number) => { time: string; day: string };
   /**
-   * Whether deals are on here (dealsAreOn, 0008): where they are off, nothing on the page says a deal -- no fact, no
-   * timeline line, no proposal -- whatever the database holds.
+   * What the workspace calls an appointment, as the person's read says it (appointment_word, the server's
+   * appointmentWordOf): every card says the one word (0041).
    */
-  dealsOn: boolean;
-  /** Their deals, newest first, as the page says them (0004); empty where deals are off. */
+  word: AppointmentWord;
+  /** Their deals, newest first, as the page says them (0004); every workspace has deals (0008, amended 18 Oct 2026). */
   deals: DealVM[];
-  /** The deal the page acts on: the listed copy of the row's, else the row's own; null where deals are off. */
+  /** The deal the page acts on: the listed copy of the row's, else the row's own; null with none. */
   current: DealVM | null;
   /** The wire the first contact came on, in words. */
   firstChannel: string;
@@ -209,16 +209,15 @@ function replyOf(
 
 /**
  * Their proposal (proposalLinkOf, 0008): the link on the deal they are deciding on while it is a proposal out, none
- * for any other deal, the person's own only with no deal at all; nothing where deals are off. Its host for the row,
- * whether it went out, and the words for when it did.
+ * for any other deal, the person's own only with no deal at all. Its host for the row, whether it went out, and the
+ * words for when it did.
  */
 function proposalOf(
   d: PersonDetailDto,
-  dealsOn: boolean,
   current: DealVM | null,
   tz: string,
 ): Pick<PersonCardContext, "proposal" | "sentWords"> {
-  const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
+  const proposalUrl = proposalLinkOf(current, d.proposal_url);
   const proposal: PersonProposalVM | null = proposalUrl
     ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) }
     : null;
@@ -244,11 +243,12 @@ export function personCardContext(
   // A card reads none of a row's reach facts (who can be sent what: the lists', Today's and the follow-up's), so it does
   // not carry the workspace's channels and counts them as before they were.
   const base = toPersonRowVM(row, tz, now, viewerId, null, names);
-  const dealsOn = !!d.deals_on;
-  const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
+  // The workspace's word, as the server read it with the person; one from before the word reads "appointment".
+  const word: AppointmentWord = isAppointmentWord(d.appointment_word) ? d.appointment_word : "appointment";
+  const deals = dealsListOf(d, tz, nowMs);
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
   // carries the version a move is checked against, which the columns do not.
-  const current = dealsOn ? (deals.find((x) => x.id === base.deal?.id) ?? base.deal) : null;
+  const current = deals.find((x) => x.id === base.deal?.id) ?? base.deal;
   return {
     profile: d,
     tz,
@@ -259,12 +259,12 @@ export function personCardContext(
     row,
     base,
     stamp: (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
-    dealsOn,
+    word,
     deals,
     current,
     firstChannel: firstChannelOf(d, base),
     reply: replyOf(d, row, base, now, nowMs),
-    ...proposalOf(d, dealsOn, current, tz),
+    ...proposalOf(d, current, tz),
   };
 }
 
@@ -446,7 +446,7 @@ export function personFactsOf({
   base,
   current,
   firstChannel,
-  dealsOn,
+  word,
 }: PersonCardContext): PersonFact[] {
   const lc = base.lastContact;
   const attempts = profile.calls.filter(neverConnected).length;
@@ -499,7 +499,7 @@ export function personFactsOf({
     const v = profile.visits;
     facts.push({
       // In the workspace's word for an appointment, as Campaigns says it (decision 0041).
-      label: appointmentWords(appointmentWordWhere(dealsOn)).next,
+      label: appointmentWords(word).next,
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
       // The cell is narrow: the time here, then how it stands if a word has been said of it and how it was matched if that
       // was a guess (the visit line's own words, person-row.ts), the service in About.
@@ -528,7 +528,7 @@ export function aboutOf({
   firstChannel,
   reply,
   proposal,
-  dealsOn,
+  word,
 }: PersonCardContext): PersonAboutFact[] {
   const about: PersonAboutFact[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
@@ -558,7 +558,7 @@ export function aboutOf({
       : v.state === "ok"
         ? "Nothing on the calendar"
         : "Calendar could not be read";
-    const W = appointmentWords(appointmentWordWhere(dealsOn));
+    const W = appointmentWords(word);
     about.push({ k: W.next, v: nextLine, next: true });
     if (v.last)
       about.push({

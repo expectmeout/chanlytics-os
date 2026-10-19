@@ -1,5 +1,5 @@
 import { visitDay, visitLine } from "../calendar/calendar-people.js";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords, isAppointmentWord } from "../journey/appointment-word.js";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock.js";
 import { proposalLinkOf, toDealVM } from "../deals/deal-vm.js";
 import { leadsRoute } from "../leads/leads.js";
@@ -66,8 +66,8 @@ function replyOf(d, row, base, now, nowMs) {
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };
 }
-function proposalOf(d, dealsOn, current, tz) {
-  const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
+function proposalOf(d, current, tz) {
+  const proposalUrl = proposalLinkOf(current, d.proposal_url);
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
   const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
   const sentWords = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
@@ -77,9 +77,9 @@ export function personCardContext(d, tz, now, viewerId, names = null) {
   const nowMs = now.getTime();
   const row = personRowOf(d);
   const base = toPersonRowVM(row, tz, now, viewerId, null, names);
-  const dealsOn = !!d.deals_on;
-  const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
-  const current = dealsOn ? deals.find((x) => x.id === base.deal?.id) ?? base.deal : null;
+  const word = isAppointmentWord(d.appointment_word) ? d.appointment_word : "appointment";
+  const deals = dealsListOf(d, tz, nowMs);
+  const current = deals.find((x) => x.id === base.deal?.id) ?? base.deal;
   return {
     profile: d,
     tz,
@@ -90,12 +90,12 @@ export function personCardContext(d, tz, now, viewerId, names = null) {
     row,
     base,
     stamp: (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
-    dealsOn,
+    word,
     deals,
     current,
     firstChannel: firstChannelOf(d, base),
     reply: replyOf(d, row, base, now, nowMs),
-    ...proposalOf(d, dealsOn, current, tz)
+    ...proposalOf(d, current, tz)
   };
 }
 export function lastExchangeOf({ profile, stamp }) {
@@ -224,7 +224,7 @@ export function personFactsOf({
   base,
   current,
   firstChannel,
-  dealsOn
+  word
 }) {
   const lc = base.lastContact;
   const attempts = profile.calls.filter(neverConnected).length;
@@ -258,7 +258,7 @@ export function personFactsOf({
     const v = profile.visits;
     facts.push({
       // In the workspace's word for an appointment, as Campaigns says it (decision 0041).
-      label: appointmentWords(appointmentWordWhere(dealsOn)).next,
+      label: appointmentWords(word).next,
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
       // The cell is narrow: the time here, then how it stands if a word has been said of it and how it was matched if that
       // was a guess (the visit line's own words, person-row.ts), the service in About.
@@ -279,7 +279,7 @@ export function aboutOf({
   firstChannel,
   reply,
   proposal,
-  dealsOn
+  word
 }) {
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
@@ -302,7 +302,7 @@ export function aboutOf({
   if (profile.visits) {
     const v = profile.visits;
     const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleWithout(v.next.title, [base.name])}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
-    const W = appointmentWords(appointmentWordWhere(dealsOn));
+    const W = appointmentWords(word);
     about.push({ k: W.next, v: nextLine, next: true });
     if (v.last)
       about.push({

@@ -25,7 +25,8 @@ import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
 
 /**
  * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
- * on the profile, deals on here, and someone looking (for "me"). Derived from a rule, never written beside it.
+ * on the profile, a deal recorded here (every workspace has deals, 0008 amended 18 Oct 2026; the deal lists fill a rail
+ * only once one is), and someone looking (for "me"). Derived from a rule, never written beside it.
  */
 export type ListNeed = "calendar" | "consult" | "deals" | "viewer";
 

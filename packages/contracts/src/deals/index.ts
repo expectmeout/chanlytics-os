@@ -16,21 +16,6 @@ export {
   DEAL_REFUSALS,
 } from "./deal-words";
 export type { DealStage, DealPer, DealSource, DealLostReason, DealClearable, DealActId } from "./deal-words";
-export {
-  isSellsBy,
-  dealsAreOn,
-  bookingLinkOptional,
-  sellsByVM,
-  sellsBySaved,
-  SELLS_BY,
-  SELLS_BY_QUESTION,
-  SELLS_BY_WORDS,
-  SELLS_BY_REFUSAL,
-  BOOKING_LINK_NEEDED,
-  SELLS_BY_FIRST,
-  CONSULT_FIRST_DEAL_HINT,
-} from "./sells-by";
-export type { SellsBy, SellsByVM } from "./sells-by";
 export { amountWords, parseAmount, amountTotalsWords } from "./deal-amount";
 export type { AmountFact } from "./deal-amount";
 export {

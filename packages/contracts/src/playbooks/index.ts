@@ -43,7 +43,6 @@ export {
   followUpRunAt,
   followUpStandOf,
   followUpWords,
-  FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_NEEDS_LINK,
   FOLLOW_UP_ONE,
   PLAYBOOK_TOUCH_WINDOW_MS,

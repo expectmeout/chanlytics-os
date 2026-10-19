@@ -36,41 +36,35 @@ const DAY = 86_400_000;
 
 /** Every moment, offered or not, in the order the product lists them. */
 const IDS = PLAYBOOK_TRIGGERS.map((t) => t.id);
-/** The moments a new playbook may start from, for a workspace whose customers book (deals off), by its calendar. */
-const OFFERED = (calendarOn, dealsOn = false) =>
-  PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn, calendarOn })).map((t) => t.id);
+/** The moments a new playbook may start from, by the workspace's calendar (every workspace has deals, 0008 amended 18 Oct 2026). */
+const OFFERED = (calendarOn) => PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { calendarOn })).map((t) => t.id);
 
-test("which moments a new playbook may start from: none retired, the proposal's only where deals are on, and of the two win-backs the one the workspace can read -- while a playbook already on any of them may exist and run (triggerOffered)", () => {
+test("which moments a new playbook may start from: none retired, the proposal's in every workspace, and of the two win-backs the one the workspace can read -- while a playbook already on any of them may exist and run (triggerOffered)", () => {
   // Without a calendar: the win-back by silence, and no appointment moment (D44). With one: by visits, and both.
-  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list"]);
-  assert.deepEqual(OFFERED(true), ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"]);
-  // Deals on add the proposal follow-up, in its place; a reach-out's two steps are never moments.
-  assert.deepEqual(
-    OFFERED(false, true),
-    [...OFFERED(false), "proposal_waiting"].sort((a, b) => IDS.indexOf(a) - IDS.indexOf(b)),
-  );
-  for (const calendarOn of [false, true])
-    for (const dealsOn of [false, true]) {
-      const here = OFFERED(calendarOn, dealsOn);
-      for (const id of ["new_week", "phoned_only", "lead_first", "after_step"])
-        assert.ok(
-          !here.includes(id),
-          `${id}: never offered for a new playbook (calendar ${calendarOn}, deals ${dealsOn})`,
-        );
-      assert.equal(here.filter(isWinBack).length, 1, "one win-back, whichever way the workspace can read it");
-    }
+  // The proposal follow-up in its place in both; a reach-out's two steps are never moments.
+  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"]);
+  assert.deepEqual(OFFERED(true), [
+    "everyone_monthly",
+    "visit_tomorrow",
+    "visited",
+    "lapsed",
+    "saved_list",
+    "proposal_waiting",
+  ]);
+  for (const calendarOn of [false, true]) {
+    const here = OFFERED(calendarOn);
+    for (const id of ["new_week", "phoned_only", "lead_first", "after_step"])
+      assert.ok(!here.includes(id), `${id}: never offered for a new playbook (calendar ${calendarOn})`);
+    assert.equal(here.filter(isWinBack).length, 1, "one win-back, whichever way the workspace can read it");
+  }
   // The two retired moments each carry their words, and are the whole set retired.
   assert.deepEqual(Object.keys(MOMENTS_RETIRED).sort(), ["new_week", "phoned_only"]);
   for (const words of Object.values(MOMENTS_RETIRED)) assert.ok(words.length > 40, words);
   assert.deepEqual(Object.keys(winBackWords("appointment")).sort(), ["lapsed", "quiet_30"]);
   // May exist and run is a wider question: a retired moment and the other win-back keep running.
   for (const id of ["new_week", "phoned_only", "quiet_30", "lapsed"])
-    assert.equal(triggerOffered(triggerOf(id), false), true, `${id}: a playbook on it still runs`);
-  assert.equal(
-    triggerOffered(triggerOf("proposal_waiting"), false),
-    false,
-    "the proposal follow-up needs deals to run",
-  );
+    assert.equal(triggerOffered(triggerOf(id)), true, `${id}: a playbook on it still runs`);
+  assert.equal(triggerOffered(triggerOf("proposal_waiting")), true, "the proposal follow-up runs in every workspace");
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.filter((t) => triggerOf(t.id).label === "Win-back").map((t) => t.id),
     ["quiet_30", "lapsed"],
@@ -79,22 +73,16 @@ test("which moments a new playbook may start from: none retired, the proposal's 
 });
 
 test("an appointment moment is offered only where a calendar is connected: without one it would skip every day (D44)", () => {
-  for (const dealsOn of [false, true]) {
-    assert.equal(
-      OFFERED(false, dealsOn).some((id) => triggerOf(id).kind === "visit"),
-      false,
-      `deals ${dealsOn}: no calendar, no appointment moment`,
-    );
-    assert.deepEqual(
-      OFFERED(true, dealsOn).filter((id) => triggerOf(id).kind === "visit"),
-      ["visit_tomorrow", "visited"],
-    );
-  }
   assert.equal(
-    triggerOffered(triggerOf("visit_tomorrow"), false),
-    true,
-    "one made before keeps running: the run never asks",
+    OFFERED(false).some((id) => triggerOf(id).kind === "visit"),
+    false,
+    "no calendar, no appointment moment",
   );
+  assert.deepEqual(
+    OFFERED(true).filter((id) => triggerOf(id).kind === "visit"),
+    ["visit_tomorrow", "visited"],
+  );
+  assert.equal(triggerOffered(triggerOf("visit_tomorrow")), true, "one made before keeps running: the run never asks");
 });
 
 test("the moments a calendar decides are one set: the two win-backs and the appointment moments, and no other moment's offer turns on it", () => {
@@ -102,10 +90,8 @@ test("the moments a calendar decides are one set: the two win-backs and the appo
     PLAYBOOK_TRIGGERS.filter(momentReadsCalendar).map((t) => t.id),
     ["quiet_30", "visit_tomorrow", "visited", "lapsed"],
   );
-  for (const dealsOn of [false, true]) {
-    const outside = (calendarOn) => OFFERED(calendarOn, dealsOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
-    assert.deepEqual(outside(false), outside(true), `deals ${dealsOn}: the calendar changes nothing else`);
-  }
+  const outside = (calendarOn) => OFFERED(calendarOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
+  assert.deepEqual(outside(false), outside(true), "the calendar changes nothing else");
 });
 
 test("a trigger says its label and hint in the workspace's word, and so do the win-back's refusals", () => {
@@ -193,7 +179,7 @@ async function surfaceFor({
   calendar,
   playbooks = [],
   pools = {},
-  dealsOn = false,
+  hasDeals = false,
   shape = {},
   settings = undefined,
   channels = [],
@@ -223,7 +209,7 @@ async function surfaceFor({
         timezone: ZONE,
         pools: { ...Object.fromEntries(IDS.map((id) => [id, EMPTY_POOL])), ...pools },
         calendar,
-        deals_on: dealsOn,
+        has_deals: hasDeals,
         lists: [],
         people_lists: [],
         ...shape,
@@ -258,8 +244,12 @@ const addOf = (home, id) => {
 const stageOf = (home, id) => home.rail.stages.find((s) => s.id === id);
 /** The moments in the product's order, as the picker and the surface list them. */
 const inOrder = (ids) => [...ids].sort((a, b) => IDS.indexOf(a) - IDS.indexOf(b));
-/** What a new playbook may start from that the home carries: a list's moment is the composer's own choice, not a line. */
-const ONHOME = (calendarOn, dealsOn = false) => OFFERED(calendarOn, dealsOn).filter((id) => id !== "saved_list");
+/**
+ * What a new playbook may start from that the home carries: a list's moment is the composer's own choice, not a line,
+ * and the proposal follow-up is a line of the journey once a deal is on file (its proposal stage, journeyOf).
+ */
+const ONHOME = (calendarOn, hasDeals = false) =>
+  OFFERED(calendarOn).filter((id) => id !== "saved_list" && (hasDeals || id !== "proposal_waiting"));
 
 test("the surface says which moments a new playbook may start from, by the workspace's calendar: connected counts whether or not its feed reads just now; every moment that may run stays, so a card can read its own", async () => {
   for (const [calendar, on] of [
@@ -271,7 +261,7 @@ test("the surface says which moments a new playbook may start from, by the works
     assert.equal(s.calendar, calendar);
     assert.deepEqual(
       s.triggers.map((t) => t.id),
-      PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, false)).map((t) => t.id),
+      PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t)).map((t) => t.id),
       `${calendar}: every moment that may run here, the retired ones among them`,
     );
     assert.deepEqual(
@@ -280,11 +270,14 @@ test("the surface says which moments a new playbook may start from, by the works
       `${calendar}: the moments offered for a new playbook`,
     );
   }
-  const deals = await surfaceFor({ calendar: "none", dealsOn: true });
-  assert.ok(deals.triggers.find((t) => t.id === "proposal_waiting").offered, "deals on: the proposal follow-up");
+  const bare = await surfaceFor({ calendar: "none" });
+  assert.ok(
+    bare.triggers.find((t) => t.id === "proposal_waiting").offered,
+    "the proposal follow-up, every workspace's",
+  );
 });
 
-test("the surface publishes the business's shape and says every appointment moment in its word: the one GET playbooks answers, else the one derivation over how its customers buy (a server from before the word)", async () => {
+test("the surface publishes the business's shape and says every appointment moment in its word: the one GET playbooks answers, else an appointment (a server from before the word)", async () => {
   const reminder = row("pb-r", "visit_tomorrow");
   const after = row("pb-a", "visited", { run_hour: 18 });
   // The word the server answers is the one said, on the cards, their schedules and the moments offered.
@@ -293,7 +286,7 @@ test("the surface publishes the business's shape and says every appointment mome
     playbooks: [reminder, after],
     shape: { appointment_word: "session", bookings_by_email: false },
   });
-  assert.deepEqual(session.shape, { calendar: "feed", dealsOn: false, word: "session" });
+  assert.deepEqual(session.shape, { calendar: "feed", hasDeals: false, word: "session" });
   assert.deepEqual(
     session.rows.map((p) => [p.triggerLabel, p.triggerHint, p.schedule]),
     [
@@ -317,16 +310,16 @@ test("the surface publishes the business's shape and says every appointment mome
     ],
   );
   assert.equal(session.triggers.find((t) => t.id === "lapsed").hint, "No session in 45 days, and nothing booked");
-  // A server from before the word: a workspace whose customers get a proposal first says meeting, and one that books says
-  // appointment, as the server would (contracts appointmentWordOf); no calendar, bookings by email, is said so.
-  const before = await surfaceFor({ calendar: "none", dealsOn: true, playbooks: [reminder] });
-  assert.deepEqual(before.shape, { calendar: "none", dealsOn: true, word: "meeting" });
-  assert.equal(before.rows[0].triggerLabel, "Meeting reminder");
+  // A server from before the word says none: an appointment (contracts appointmentWordOf); a deal on file is said; no
+  // calendar, bookings by email, is said so.
+  const before = await surfaceFor({ calendar: "none", hasDeals: true, playbooks: [reminder] });
+  assert.deepEqual(before.shape, { calendar: "none", hasDeals: true, word: "appointment" });
+  assert.equal(before.rows[0].triggerLabel, "Appointment reminder");
   const byEmail = await surfaceFor({
     calendar: "none",
     shape: { appointment_word: "appointment", bookings_by_email: true },
   });
-  assert.deepEqual(byEmail.shape, { calendar: "email", dealsOn: false, word: "appointment" });
+  assert.deepEqual(byEmail.shape, { calendar: "email", hasDeals: false, word: "appointment" });
   // Every other moment says its own words, whatever the word.
   assert.equal(session.triggers.find((t) => t.id === "quiet_30").label, triggerOf("quiet_30").label);
 });
@@ -386,9 +379,9 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
     "a calendar: the one by visits",
   );
   assert.deepEqual(
-    inOrder(turnOns(homeOf(await surfaceFor({ calendar: "none", dealsOn: true })))),
+    inOrder(turnOns(homeOf(await surfaceFor({ calendar: "none", hasDeals: true })))),
     ONHOME(false, true),
-    "deals on: the proposal follow-up is a moment too",
+    "a deal on file: the proposal follow-up is a moment of the journey too",
   );
   // A playbook already made on a retired moment is still a line on the home, and is not offered again.
   const welcome = homeOf(
@@ -616,8 +609,8 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
  * moments a new campaign may start from, whether every moment was counted, and the WhatsApp line) is contracts' one
  * reading (lifecycle-inputs.ts), which Ask's campaigns.journey reads too. Pinned as the surface made it before that
  * reading moved, over two answers on one clock: a calendar that cannot be read just now, its own lists (one archived),
- * one of People's, one deleted, a follow-up where deals are off and a paused win-back; and a server whose lists could not
- * be read, with no calendar, its bookings by a tool's emails, and a moment it could not count.
+ * one of People's, one deleted, a follow-up with no deal on file and a paused win-back; and a server whose lists could
+ * not be read, with no calendar, its bookings by a tool's emails, and a moment it could not count.
  */
 test("the home's input from GET playbooks is the one reading it was: the shape, each card's next run, off, archived list and trigger words, the moments a new campaign may start from, whether every moment was counted, and the WhatsApp line", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -663,10 +656,8 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
     shape: { lists: null, bookings_by_email: true, timezone: "" },
     channels: [{ kind: "whatsapp", status: "disconnected" }],
   });
-  const FOLLOW =
-    "Proposal follow-ups need deals: in Settings › Details, answer “How customers buy” with “Some get a proposal first”.";
   assert.deepEqual(composed(first), {
-    shape: { calendar: "feed", dealsOn: false, word: "session" },
+    shape: { calendar: "feed", hasDeals: false, word: "session" },
     timezone: "America/Los_Angeles",
     calendar: "unavailable",
     countsRead: true,
@@ -675,14 +666,14 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       ["pb-own", true, "Regulars", "today 10:00 AM", null],
       ["pb-people", false, "Lapsed customers", "today 10:00 AM", null],
       ["pb-gone", false, "A list that was deleted", "today 10:00 AM", null],
-      ["pb-follow", false, "Proposal follow-up", "today 10:00 AM", FOLLOW],
+      ["pb-follow", false, "Proposal follow-up", "today 10:00 AM", null],
       ["pb-back", false, "Win-back", "paused", null],
     ],
-    offered: ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"],
+    offered: ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list", "proposal_waiting"],
     number: true,
   });
   assert.deepEqual(composed(second), {
-    shape: { calendar: "email", dealsOn: false, word: "appointment" },
+    shape: { calendar: "email", hasDeals: false, word: "appointment" },
     timezone: "America/New_York",
     calendar: "none",
     countsRead: false,
@@ -690,15 +681,15 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       ["pb-own", false, "A list that could not be read", "today, within the hour", null],
       ["pb-quiet", false, "Win-back", "tomorrow 9:00 AM", null],
     ],
-    offered: ["quiet_30", "everyone_monthly", "saved_list"],
+    offered: ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"],
     number: false,
   });
   // The rail counts its covered moments once, as numbers, and its words and the head's sentence say that count: the
-  // receptionist and the running reminder, of first contact, the day before and after, the follow-up held where deals
-  // are off, and quiet.
+  // receptionist, the running reminder and the running follow-up (every workspace's, 0008 amended 18 Oct 2026), of
+  // first contact, the day before and after, the proposal, and quiet.
   const home = homeOf(first);
   assert.deepEqual(
     [home.rail.covered, home.rail.of, home.rail.coveredWords, home.head.sentence[0]],
-    [2, 5, "2 of 5 moments covered", { b: "2 of 5" }],
+    [3, 5, "3 of 5 moments covered", { b: "3 of 5" }],
   );
 });

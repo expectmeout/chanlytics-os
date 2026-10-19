@@ -4,9 +4,8 @@ import { autonomy } from "@/server/readers/autonomy";
 import { changePolicy, PolicyChange } from "@/server/campaigns/policy-write";
 
 /**
- * GET /api/v1/policies — the workspace autonomy matrix (E3), and whether deals are on here (0008): the pane draws the
- * follow-ups' row only where they are (0006, contracts policyClassOffered). The body is its reader's
- * (readers/autonomy.ts).
+ * GET /api/v1/policies — the workspace autonomy matrix (E3): the pane draws every row, the follow-ups' too (0006; 0008,
+ * amended 18 Oct 2026; contracts policyClassOffered). The body is its reader's (readers/autonomy.ts).
  */
 export const GET = read({
   scope: workspace,

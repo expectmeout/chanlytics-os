@@ -91,7 +91,7 @@ export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEK
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain";
 export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./config/business-tab/abilities";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./config/business-tab/booking-rules-words";
-export { bookingLinkRowWords, businessGap } from "./config/business-tab/business-gap";
+export { BOOKING_LINK_ROW_WORDS, businessGap } from "./config/business-tab/business-gap";
 export { BOOKING_CHOICES, BOOKING_CHOICE_WORDS, bookingChoiceOf, bookingChoiceWrites, bookingChoiceNeeds, PRICE_CHOICES, PRICE_CHOICE_WORDS, priceChoiceOf, priceChoiceWrites } from "./config/business-tab/choices";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts";
 export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./config/business-tab/fold-limits";
@@ -157,7 +157,6 @@ export { pipelinePeekOf, pipelinePeekDetail } from "./deals/pipeline/pipeline-pe
 export { isPipelineView, pipelineViewLabel, pipelineRoute, parsePipelineRoute, pipelineRail, PIPELINE_RAIL_SERVICES } from "./deals/pipeline/pipeline-views";
 export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./deals/pipeline/pipeline-vm";
 export { PIPELINE_WORDS } from "./deals/pipeline/pipeline-words";
-export { isSellsBy, dealsAreOn, bookingLinkOptional, sellsByVM, sellsBySaved, SELLS_BY, SELLS_BY_QUESTION, SELLS_BY_WORDS, SELLS_BY_REFUSAL, BOOKING_LINK_NEEDED, SELLS_BY_FIRST, CONSULT_FIRST_DEAL_HINT } from "./deals/sells-by";
 export { isDealSheetMode, dealSendOf, proposalFollowUp, dealNextAct, dealMenuActs, calendarPeekDeal, DEAL_SHEET_MODES, DEAL_SEND_WHY, DEAL_ACT_HINTS } from "./deals/sheet/deal-acts";
 export { dealStepOf, dealCardsOf, DEAL_CARD_WORDS } from "./deals/sheet/deal-card";
 export { dealSheetFor, dealSheetMessage, dealSheetDirty, dealSheetMerge, DEAL_SHEET_WORDS, DEAL_NOTE_MAX } from "./deals/sheet/deal-sheet";
@@ -169,7 +168,7 @@ export { MAILBOX_PROVIDERS, MAILBOX_CONNECTION_STATES, MAILBOX_HOLDS, MAILBOX_CO
 export { onDomain, bookingPageOf, bookingToolOfLink, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS } from "./google/booking-page";
 export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google";
 export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply";
-export { APPOINTMENT_WORDS, appointmentWordOf, appointmentWordWhere, appointmentWords, isAppointmentWord } from "./journey/appointment-word";
+export { APPOINTMENT_WORDS, APPOINTMENT_WORD_REFUSAL, appointmentWordOf, appointmentWordSaved, appointmentWordVM, appointmentWords, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
 export { journeyGuide } from "./journey/journey-guide";
 export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card";
@@ -272,7 +271,7 @@ export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainSt
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, runDaysAt, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";
-export { followUpNames, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups";
+export { followUpNames, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-patch";
 export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger, passesHandoverPause } from "./playbooks/playbook-purpose";
 export { eligibleForPlaybook, playbookRunReach, touchesAfterRun, theirVisitTest, visitMomentDay, visitOnDay, playbookReach, playbookReachDoor, playbookNoNumberWords, playbookPoolKey, PLAYBOOK_REACH_WORDS, PLAYBOOK_CLASS_LABEL } from "./playbooks/playbook-reach";

@@ -37,8 +37,8 @@ export function usePeopleMoved(): void {
   useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
-/** The People surface, as far as the thread's header reads it: its rows, when they were read, and whether deals are on. */
-export function peopleRead(): Partial<Pick<PeopleSurface, "rows" | "fetchedAt" | "dealsOn">> | undefined {
+/** The People surface, as far as the thread's header reads it: its rows, and when they were read. */
+export function peopleRead(): Partial<Pick<PeopleSurface, "rows" | "fetchedAt">> | undefined {
   return object("__PEOPLE");
 }
 

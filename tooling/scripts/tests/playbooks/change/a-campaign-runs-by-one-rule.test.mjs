@@ -6,9 +6,9 @@
  * refuses), was a reminder on Today's day strip and People's follow-up. Each page tested the campaign's `state` alone: its last
  * day, and whether its moment runs here, were the home's to know.
  *
- *  1. The rule: on, not past its last day by the business's day, and its moment one that runs here (a proposal's follow-up
- *     only where deals are on). Its next run says none once that day is past the last. The home's reading carries its answer
- *     on each card (`runs`), which every page reads.
+ *  1. The rule: on, and not past its last day by the business's day (a proposal's follow-up in every workspace, 0008
+ *     amended 18 Oct 2026). Its next run says none once that day is past the last. The home's reading carries its answer on
+ *     each card (`runs`), which every page reads.
  *  2. No page, Ask or server file of the dashboard, and nothing in contracts, compares a `.state` with "running" outside the
  *     rule's module and the lifecycle module that reads it, except the files below, each with what its comparison is for and
  *     how many it makes. Measured on the syntax tree. The list may only fall: a comparison the code no longer makes fails until
@@ -30,10 +30,10 @@ const { lifecyclePlaybooksOf } = await importSrc("packages/contracts/src/playboo
 const NY = "America/New_York";
 /** 3 October 2026, 2 PM in New York. */
 const NOW = new Date("2026-10-03T18:00:00.000Z");
-const at = { tz: NY, now: NOW, dealsOn: false };
+const at = { tz: NY, now: NOW };
 const campaign = (over = {}) => ({ state: "running", trigger: "quiet_30", until: null, ...over });
 
-test("a campaign runs while it is on, until its last day by the business's day, where its moment runs", () => {
+test("a campaign runs while it is on, until its last day by the business's day, whatever its moment", () => {
   assert.equal(campaignRunsOn(campaign(), at), true, "on, with no last day");
   assert.equal(campaignRunsOn(campaign({ state: "paused" }), at), false, "paused");
   assert.equal(campaignRunsOn(campaign({ until: "2026-10-03" }), at), true, "its last day is today: it still runs");
@@ -45,9 +45,8 @@ test("a campaign runs while it is on, until its last day by the business's day, 
     true,
     "the 2nd is still its day in New York",
   );
-  // A proposal's follow-up runs only where deals are on (0006).
-  assert.equal(campaignRunsOn(campaign({ trigger: "proposal_waiting" }), at), false, "deals off");
-  assert.equal(campaignRunsOn(campaign({ trigger: "proposal_waiting" }), { ...at, dealsOn: true }), true, "deals on");
+  // A proposal's follow-up runs as any campaign does (0006; 0008, amended 18 Oct 2026: every workspace has deals).
+  assert.equal(campaignRunsOn(campaign({ trigger: "proposal_waiting" }), at), true, "a proposal's follow-up");
 });
 
 test("a campaign's next run is none once the day it would fall on is past its last day", () => {
@@ -91,13 +90,9 @@ test("the home's reading carries the rule's answer on each card, which Sent's we
     NOW,
   );
   const runs = Object.fromEntries(read.cards.map((c) => [c.playbook.id, c.read.runs]));
-  assert.deepEqual(runs, { on: true, ended: false, paused: false, deal: false });
+  assert.deepEqual(runs, { on: true, ended: false, paused: false, deal: true });
   for (const c of read.cards)
-    assert.equal(
-      c.read.runs,
-      campaignRunsOn(c.playbook, { tz: NY, now: NOW, dealsOn: read.shape.dealsOn }),
-      c.playbook.id,
-    );
+    assert.equal(c.read.runs, campaignRunsOn(c.playbook, { tz: NY, now: NOW }), c.playbook.id);
 });
 
 /* ------------------------------------------------------------------------------------------------------------------------ *

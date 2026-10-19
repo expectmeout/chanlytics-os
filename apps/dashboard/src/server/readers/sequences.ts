@@ -53,15 +53,16 @@ const cited = (s: { id: string; name: string }) => ({
 export const sequences: Reader<undefined, SequencesPageDto> = {
   name: "sequences",
   async read(rc) {
-    const [rows, facts, shape] = await Promise.all([
+    const [rows, facts, word] = await Promise.all([
       sequenceOverview(rc.ctx.supabase, rc.tenantId),
       load(rc, readers.facts, undefined).then((r) => r.data),
-      load(rc, readers.businessShape, undefined).then((r) => r.data),
+      // The word its steps are said in, the workspace's own (readers/facts.ts): nothing else of its shape is said here.
+      load(rc, readers.appointmentWord, undefined).then((r) => r.data),
     ]);
     // What waits for you, as the badge counts it: a batch whose day has passed is no one's to approve.
     const days = runDaysAt(facts.timezone, rc.now);
     return {
-      data: { sequences: rows.map((r) => sequenceWaitsNow(r, days)), timezone: facts.timezone, word: shape.word },
+      data: { sequences: rows.map((r) => sequenceWaitsNow(r, days)), timezone: facts.timezone, word },
       rows: rows.map(cited),
       stamp: stamp(),
     };
@@ -106,11 +107,11 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   async read(rc, { id: asked }) {
     const own = await sequenceOverview(rc.ctx.supabase, rc.tenantId, asked);
     const id = own.length > 0 ? asked : ((await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked)) ?? asked);
-    const [rows, steps, facts, shape, policies, first, lastRunOff] = await Promise.all([
+    const [rows, steps, facts, word, policies, first, lastRunOff] = await Promise.all([
       id === asked ? own : sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
       sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
       load(rc, readers.facts, undefined).then((r) => r.data),
-      load(rc, readers.businessShape, undefined).then((r) => r.data),
+      load(rc, readers.appointmentWord, undefined).then((r) => r.data),
       // Who approves: the first step's class's mode (a class with no row is ask). A matrix that could not be read costs
       // that one line, never the record.
       load(rc, readers.policies, undefined).then(
@@ -134,7 +135,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         steps,
         mode,
         timezone: facts.timezone,
-        word: shape.word,
+        word,
         ...(first === undefined ? {} : { last_run_for: first?.last_run_for ?? null }),
         ...(first
           ? { settings: { cap_per_run: first.cap_per_run, gap_days: first.gap_days, cadence_days: first.cadence_days } }

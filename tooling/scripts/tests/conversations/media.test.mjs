@@ -241,13 +241,6 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   assert.ok(rt.includes("features: parsed?.features ?? null,") && rt.includes("features: null,"));
 });
 
-test("the owner turns it on in Workspace, and a save carries the section", () => {
-  // Since Task 3.7 it is a switch of the Business page's "Rules it always keeps" fold, which patches features.vision
-  // and nothing else (business-tab-answers.test.mjs draws it, business-tab-folds.test.mjs saves it).
-  const s = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
-  assert.ok(s.includes("vision: (config.features || {}).vision === true,"), "off unless explicitly on");
-  assert.ok(
-    s.includes("if (vision || features.vision !== undefined) next.features = { ...features, vision };"),
-    "untouched workspaces keep no section",
-  );
-});
+// The owner turns it on with the switch on What it can do's photo row (the Settings wiring review, 18 Oct 2026), which
+// patches features.vision and nothing else, and is off unless the config says true: business-tab-answers.test.mjs
+// presses it and draws it.

@@ -1,16 +1,15 @@
 /**
- * What a workspace calls an appointment (J1; decisions 40 to 42 of the spec of 9 Oct 2026): appointment, visit, meeting,
- * session or lesson. Derived now, stored later: `appointmentWordOf` reads what the workspace picked (`stored`, null until
- * the journey lane gives it a column beside `tenants.sells_by` and a Settings › Business row) and else how its customers
- * buy: a meeting where some get a proposal first (dealsAreOn, 0008), an appointment everywhere else. Words only: it
- * changes no moment, run, list or send, and the code keeps `visit` in its ids (`visit_tomorrow`, `visited`, the `visit`
- * kind). Every phrase the word makes is written once here (`appointmentWords`), so a page is handed the word and says
- * nothing of its own.
+ * What a workspace calls an appointment (J1; decisions 40 to 42 of the spec of 9 Oct 2026, and 0041 J4): appointment,
+ * visit, meeting, session or lesson. Stored now (`tenants.appointment_word`, 00458), picked on Settings › Details:
+ * `appointmentWordOf` reads what the workspace picked and, where it never did, the word the retired `tenants.sells_by`
+ * gave it (a meeting where some customers got a proposal first, 0008), until that column goes. Words only: it changes no
+ * moment, run, list or send, and the code keeps `visit` in its ids (`visit_tomorrow`, `visited`, the `visit` kind). Every
+ * phrase the word makes is written once here (`appointmentWords`), so a page is handed the word and says nothing of its
+ * own.
  *
  * Out on purpose: "call" (the glossary's Call, a phone conversation, and People's Calls), "consultation" (0004's
  * consult-first appointment and its list) and "booking" (the act and the link, `bookings.tool`). "Class" is not in the set.
  */
-import { dealsAreOn } from "../deals/sells-by";
 import { capitalize, plural } from "../shared/words";
 
 /** The words a workspace may call an appointment, in the order a picker offers them. */
@@ -24,23 +23,53 @@ export function isAppointmentWord(value: unknown): value is AppointmentWord {
 }
 
 /**
- * What the workspace calls an appointment: the word it picked, else a meeting where some of its customers get a proposal
- * first and an appointment everywhere else. The one derivation: GET playbooks, Ask's shape and core's names all ask it.
- * Nothing is backfilled, so a salon reads "appointment" until it picks.
+ * What the workspace calls an appointment: the word it picked, else the word its retired answer to how its customers
+ * buy gave it (a meeting where some got a proposal first, which 00458 stored for each of them), else an appointment.
+ * The one derivation: the server reads it once for a workspace and hands the pages the word (0041: one page, one word).
  */
 export function appointmentWordOf(o: { stored: string | null; sellsBy: string | null }): AppointmentWord {
   if (isAppointmentWord(o.stored)) return o.stored;
-  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+  // The retired column's one remaining reading, for a database 00458 has not reached: it goes with the column.
+  return o.sellsBy === "proposal" ? "meeting" : "appointment";
 }
 
-/**
- * What a page calls an appointment when all it knows of the workspace is whether deals are on (dealsAreOn): the same
- * derivation as GET playbooks' shape (appointmentWordOf with nothing stored), for the pages that read no playbooks -- the
- * person's page, People's table -- so a workspace whose customers get a proposal first reads "meeting" there as it does on
- * Campaigns (decision 0041, item 2).
- */
-export function appointmentWordWhere(dealsOn: boolean): AppointmentWord {
-  return appointmentWordOf({ stored: null, sellsBy: dealsOn ? "proposal" : null });
+/** What Settings › Details asks of the word (0041 J4; 0008, amended 18 Oct 2026). */
+const APPOINTMENT_WORD_QUESTION = "What you call a booking";
+
+/** What PATCH workspaces answers for anything but the five. */
+// trade-word: the five a workspace may pick, each named
+export const APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
+
+/** The word's row on Details: what it says, and the five to choose from. */
+export interface AppointmentWordVM {
+  question: string;
+  /** The word as the row states it: "Appointment". */
+  value: string;
+  /** The row's act, and what a screen reader hears it as. */
+  act: string;
+  name: string;
+  /** The five, each with two of the phrases it makes, as the pages say them. */
+  choices: { value: AppointmentWord; label: string; hint: string }[];
+  word: AppointmentWord;
+}
+
+export function appointmentWordVM(word: AppointmentWord): AppointmentWordVM {
+  return {
+    question: APPOINTMENT_WORD_QUESTION,
+    value: capitalize(word),
+    act: "Change",
+    name: `Change ${APPOINTMENT_WORD_QUESTION.toLowerCase()}`,
+    choices: APPOINTMENT_WORDS.map((w) => {
+      const W = appointmentWords(w);
+      return { value: w, label: W.Title, hint: `${W.next} · ${W.before.name}` };
+    }),
+    word,
+  };
+}
+
+/** The toast once a word is saved. */
+export function appointmentWordSaved(word: AppointmentWord): string {
+  return `Saved — it says “${word}” now.`;
 }
 
 /** How each word takes an article and a verb. Visit is the one that is a verb itself: "visits tomorrow", "visited". */

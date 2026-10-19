@@ -600,7 +600,7 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   assert.equal(w.tables.playbooks[0].last_run_for, null, "and does not take the day: the next press may succeed");
 });
 
-test("a proposal follow-up (0006): where deals are on, a run reaches the proposal waiting past the workspace's pace, with its link frozen on the recipient; where they are off it is off and says why", async (t) => {
+test("a proposal follow-up (0006): in every workspace, a run reaches the proposal waiting past the workspace's pace, with its link frozen on the recipient", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
   const out = (id, daysOut, over = {}) =>
     person(id, {
@@ -667,14 +667,11 @@ test("a proposal follow-up (0006): where deals are on, a run reaches the proposa
   const [, unread] = await answer(await knock(press));
   assert.deepEqual([unread.outcome, unread.eligible], ["sent", 2], "ten days out is past a week");
 
-  // Deals off: nothing runs, and the reason is the run's own.
+  // Whatever the retired answer to how customers buy said, it runs (0008, amended 18 Oct 2026): the same one reached.
   w = world({ people: { [A]: people } });
   set(w, "booking");
-  assert.deepEqual(await answer(await knock(press)), [
-    200,
-    { ok: true, outcome: "off", mode: "ask", skipped: "deals_off" },
-  ]);
-  nothingMade(w.tables);
+  const [, booked] = await answer(await knock(press));
+  assert.deepEqual([booked.outcome, booked.eligible], ["sent", 1]);
 });
 
 test("the message is read from its rows by the edge's own port, with or without a WhatsApp row: a follow-up that goes by text runs on a message with only a text version; one filed as an offer cannot go by text; a message with no row at all is a template that is gone; a row that cannot be read fails the run and takes no day", async (t) => {

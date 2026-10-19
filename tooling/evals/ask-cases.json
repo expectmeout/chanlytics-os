@@ -2086,7 +2086,6 @@
     "id": "covers_propose_deal",
     "text": "record that we sent this person a proposal for $250 today",
     "surface": "people",
-    "needs": ["deals_on"],
     "context": {
       "surface": "people",
       "route": "clients/<row:1>",

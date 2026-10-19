@@ -23,7 +23,6 @@ import {
   touchesAfterRun,
   trialDayWords,
   triggerOf,
-  triggerOffered,
   vetoRunNotice,
   visitFactsFor,
   theirVisitTest,
@@ -169,8 +168,6 @@ async function allowed(
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
-  // A proposal follow-up where deals are off has no proposals to follow: off, and the run says so (0006).
-  if (trig && !triggerOffered(trig, ctx.dealsOn)) return { ended: await r.off("deals_off") };
   return { ended: null, listIds, kept };
 }
 

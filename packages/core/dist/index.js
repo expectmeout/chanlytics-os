@@ -2608,7 +2608,6 @@ import {
   touchesAfterRun,
   trialDayWords,
   triggerOf as triggerOf3,
-  triggerOffered,
   vetoRunNotice,
   visitFactsFor,
   theirVisitTest,
@@ -2690,7 +2689,6 @@ async function allowed(r, message) {
     listIds = m.ids;
     kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: ctx.now.toISOString() };
   }
-  if (trig && !triggerOffered(trig, ctx.dealsOn)) return { ended: await r.off("deals_off") };
   return { ended: null, listIds, kept };
 }
 function draw(r, message, how, among) {
@@ -3383,7 +3381,6 @@ import {
   AppError as AppError15,
   BUILTIN_LISTS as BUILTIN_LISTS2,
   LIST_PLAYBOOK_CLASSES,
-  FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
@@ -3409,7 +3406,6 @@ import {
   playbookName,
   ruleNeeds,
   triggerOf as triggerOf4,
-  triggerOffered as triggerOffered2,
   triggerWords,
   UUID as UUID3,
   winBackWords
@@ -3423,13 +3419,11 @@ function playbookNumber(field, v, fallback) {
   return n;
 }
 async function refuseMoment(ports, trig, existing) {
-  const dealsOn = trig.kind === "deal" ? await ports.dealsOn() : false;
-  if (trig.kind === "deal" && !triggerOffered2(trig, dealsOn)) throw new AppError15("validation", FOLLOW_UP_NEEDS_DEALS);
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError15("validation", retired);
   const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
-  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  if (momentOffered(trig, { calendarOn })) return;
   const word = await ports.appointmentWord();
   if (!isWinBack(trig.id)) throw new AppError15("validation", appointmentWords(word).needsCalendar);
   const w = winBackWords(word);

@@ -5,8 +5,8 @@
  * own: People's switch, People's table in sections (table/table.tsx), People's person cell and phone card, the list
  * page's two hooks (hooks/use-controls.ts and hooks/use-place.ts: the width, the words in the box, the keys, the place
  * kept, the first rows), and the rows the People surface already holds, so nothing is fetched. Every word is contracts'
- * (pipeline.ts, pipeline-helpers.ts); the page composes them and decides nothing. Drawn only where deals are on:
- * anywhere else People's own page draws the address.
+ * (pipeline.ts, pipeline-helpers.ts); the page composes them and decides nothing. Drawn in every workspace (0008,
+ * amended 18 Oct 2026): with no deal yet, its empty state says where one starts.
  *
  * A workspace, not only a list ("The Pipeline is a workspace", 0008):
  * - its own rail (contracts pipelineRail): its groups, what waits on the owner, and each service; on a phone the same

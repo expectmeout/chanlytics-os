@@ -43,8 +43,8 @@ export interface SuggestionInput {
   scope?: AskScope | null;
   /** Operators and owners may act; a viewer is never offered a card. */
   canAct?: boolean;
-  /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
-  dealsOn?: boolean;
+  /** A deal was ever recorded here (People's surface says so): the question about proposals is offered only then. */
+  hasDeals?: boolean;
   /** On Leads: the first day's suggestion words (each a search to propose), and the latest searches' own words. */
   leadIdeas?: string[];
   leadSearches?: string[];
@@ -253,8 +253,8 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   for (const [key, icon] of PAGE_QUESTIONS[at] ?? []) add(t[key], "ask", icon);
   // Conversations and Live ask about today's calls, answered without a model when one was missed.
   if (at === "live" || at === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  // Deals are a thing here (0004): who has a proposal out, where people are looked at.
-  if (input.dealsOn && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
+  // Deals are in use here (a deal on file): who has a proposal out, where people are looked at.
+  if (input.hasDeals && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");

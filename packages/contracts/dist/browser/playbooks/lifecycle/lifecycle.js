@@ -167,7 +167,7 @@ function lifecycleStages(at) {
   );
   const defs = journeyOf({
     calendarOn: at.shape.calendar === "feed",
-    dealsOn: at.shape.dealsOn,
+    hasDeals: at.shape.hasDeals,
     word: at.shape.word,
     held
   });

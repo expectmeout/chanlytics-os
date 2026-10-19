@@ -26,16 +26,17 @@ export const GET = read({
 });
 
 /**
- * PATCH /api/v1/workspaces — {timezone?, sells_by?}, at least one. Owner-only,
+ * PATCH /api/v1/workspaces — {timezone?, appointment_word?}, at least one. Owner-only,
  * and no bucket, said out loud: each is set once and read forever.
  *
  * The two fields on the tenant row a business owns rather than Chanlytics: the
- * zone its day is measured in, and how its customers buy (0008), which decides
- * whether deals exist here at all. Name, slug and status stay concierge
+ * zone its day is measured in, and what it calls a booking (0041 J4, 00458),
+ * which changes words and nothing else. How its customers buy (0008) is no longer
+ * asked: every workspace has deals. Name, slug and status stay concierge
  * operations -- a slug is a URL and a status is a billing state -- and the
- * column grant (00084, 00160) enforces that regardless of what this route asks
+ * column grant (00084, 00458) enforces that regardless of what this route asks
  * for. Only what was sent is written, and only what was written is read back,
- * so a zone saved on a database 00160 has not reached still saves.
+ * so a zone saved on a database 00458 has not reached still saves.
  *
  * The handle is patchWorkspace in src/server/workspace/workspace-list.ts: the route is its declaration (who may, how
  * often), the verb is what it does.

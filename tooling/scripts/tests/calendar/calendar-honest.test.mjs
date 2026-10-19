@@ -614,9 +614,8 @@ const END = Date.parse("2026-09-08T19:30:00.000Z");
  * People, as far as the peek reads it: whether deals are on, and Ana's row with her deal's stage and when that stage
  * began (for a pass or an end, when it came). By default a day before the consultation ended.
  */
-const peopleWith = (stage, dealsOn = true, sinceMs = END - 86_400_000) => ({
-  dealsOn,
-  rows: [{ id: "p1", name: "Ana Ruiz", deal: stage ? { stage, sinceMs } : null }],
+const peopleWith = (stage, sinceMs = END - 86_400_000, nextVisitMs = null) => ({
+  rows: [{ id: "p1", name: "Ana Ruiz", deal: stage ? { stage, sinceMs } : null, nextVisitMs }],
 });
 let sheets = [];
 /** Draw with the clock at `nowMs`: the visit asks contracts whether the consultation is over by the clock it runs on. */
@@ -630,13 +629,13 @@ const drawnAt = (nowMs, draw) => {
   }
 };
 /**
- * The board over `week` with Ana's appointment open, in a workspace that sells by proposal (deals on) unless told not to;
+ * The board over `week` with Ana's appointment open, in a workspace whose retired answer said proposals (its word a meeting);
  * the deal sheet installed as a stand-in that counts what it is asked for; the clock at `nowMs`.
  */
-const peek = ({ week = consultWeek(), dealsOn = true, nowMs = END + HOUR } = {}) => {
+const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
   fresh(week);
   sheets = [];
-  globalThis.window.__WORKSPACES = [{ id: "t-salon", sells_by: dealsOn ? "proposal" : "booking" }];
+  globalThis.window.__WORKSPACES = [{ id: "t-salon", sells_by: "proposal" }];
   globalThis.window.__ACTIVE_WORKSPACE = "t-salon";
   globalThis.window.openDealSheet = (args) => sheets.push(args);
   let tree = drawnAt(nowMs, () => page());
@@ -652,7 +651,7 @@ const forgetPeek = () => {
 };
 const startAct = (tree) => byTestId(tree, "cal-visit-primary-proposal");
 
-test("(0008) the peek's rule: the deal's stage where deals are on and People holds them, and the sheet's own act once a consultation is over with no proposal since", () => {
+test("(0008) the peek's rule: the deal's stage where People holds them, and the sheet's own act once a consultation is over with nothing since", () => {
   const block = toCalendarVM(consultWeek(), new Date(END - 4 * HOUR)).days[1].blocks[0];
   assert.deepEqual(
     [block.consultation, block.consultService],
@@ -669,12 +668,12 @@ test("(0008) the peek's rule: the deal's stage where deals are on and People hol
   assert.deepEqual(calendarPeekDeal(block, peopleWith("lost"), after), { stage: "lost", start });
   assert.deepEqual(calendarPeekDeal(block, peopleWith("ended"), after), { stage: "ended", start });
   // A pass or an end as it ended or after: the proposal that followed it was answered. Nothing to start.
-  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost", true, END), after), { stage: "lost", start: null });
-  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost", true, END + HOUR), after), {
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost", END), after), { stage: "lost", start: null });
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost", END + HOUR), after), {
     stage: "lost",
     start: null,
   });
-  assert.deepEqual(calendarPeekDeal(block, peopleWith("ended", true, END + HOUR), after), {
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("ended", END + HOUR), after), {
     stage: "ended",
     start: null,
   });
@@ -690,7 +689,7 @@ test("(0008) the peek's rule: the deal's stage where deals are on and People hol
     ["won", END - HOUR],
   ])
     assert.equal(
-      !!calendarPeekDeal(block, peopleWith(stage, true, sinceMs), after).start,
+      !!calendarPeekDeal(block, peopleWith(stage, sinceMs), after).start,
       noProposalSince(stage ? { stage, sinceMs } : null, END),
       `${stage} at ${sinceMs - END}`,
     );
@@ -703,10 +702,11 @@ test("(0008) the peek's rule: the deal's stage where deals are on and People hol
     stage: null,
     start: null,
   });
-  // Nothing where deals are off, where People does not hold them, where nobody was matched, or before People lands.
+  // Nothing to start where they were booked again since (0008, amended 18 Oct 2026); nothing at all where People does
+  // not hold them, where nobody was matched, or before People lands.
   const nothing = { stage: null, start: null };
-  assert.deepEqual(calendarPeekDeal(block, peopleWith("proposed", false), after), nothing);
-  assert.deepEqual(calendarPeekDeal(block, { dealsOn: true, rows: [{ id: "p2", deal: null }] }, after), nothing);
+  assert.deepEqual(calendarPeekDeal(block, peopleWith(null, undefined, after + 86_400_000), after), nothing);
+  assert.deepEqual(calendarPeekDeal(block, { rows: [{ id: "p2", deal: null }] }, after), nothing);
   assert.deepEqual(calendarPeekDeal({ ...block, person: null }, peopleWith("lost"), after), nothing);
   assert.deepEqual(calendarPeekDeal(block, null, after), nothing);
 });
@@ -716,7 +716,7 @@ test("REGRESSION (0008): the proposal act closes the visit first and opens the o
   try {
     const tree = peek();
     const act = startAct(tree);
-    assert.ok(act, "a consultation over, no proposal since, deals on: the foot leads with it");
+    assert.ok(act, "a consultation over, nothing since: the foot leads with it");
     assert.equal(textOf(act), "Start a proposal");
     assert.ok(classes(hostOf(act)).includes("btn-primary"), "the visit's one primary act");
     act.props.onClick();

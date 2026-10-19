@@ -29,7 +29,7 @@ export function personFiguresOf(f) {
   if (f.visits.any)
     out.push({
       id: "visits",
-      label: personTabWord("visits", f.dealsOn),
+      label: personTabWord("visits", f.word),
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
       sub: f.visits.toMark > 0 ? `${f.visits.toMark} to mark` : f.visits.kept > 0 ? `${f.visits.kept} kept` : "none marked yet",
       to: "visits"

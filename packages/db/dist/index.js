@@ -3830,7 +3830,6 @@ import {
   DAY_MS,
   dealIsOpen,
   dealSentence,
-  dealsAreOn,
   offersFacts,
   disclosureFacts,
   pickCurrentDeal,
@@ -3884,12 +3883,6 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
     replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
   };
 }
-function sellsByOf(embedded) {
-  const t = Array.isArray(embedded) ? embedded[0] : embedded;
-  const v = t && typeof t === "object" ? t.sells_by : null;
-  return typeof v === "string" ? v : null;
-}
-var noSellsBy = (message) => /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 var noOffersColumns = (message) => /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
 var EMPTY_LEAD = {
   contactId: null,
@@ -3902,31 +3895,23 @@ var EMPTY_LEAD = {
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
   const withAnswer = await db.from("contacts").select(
-    "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
+    "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at"
   ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-  let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
+  let contact = withAnswer.data;
   let cErr = withAnswer.error;
   if (cErr && noOffersColumns(cErr.message)) {
     const unasked = await db.from("contacts").select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)"
-    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
-    cErr = unasked.error;
-  }
-  if (cErr && noSellsBy(cErr.message)) {
-    const older = await db.from("contacts").select(
       "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent"
     ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-    contact = older.data ? { ...older.data, sellsBy: null } : null;
-    cErr = older.error;
+    contact = unasked.data;
+    cErr = unasked.error;
   }
   if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
   if (!contact) return EMPTY_LEAD;
-  const dealsOn = dealsAreOn(contact.sellsBy);
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
   const { history, lastTurnAt } = conv ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering) : { history: [], lastTurnAt: null };
-  const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
+  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
   const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
   const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
@@ -3951,7 +3936,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answe
     offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
+    proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
   };
@@ -3974,8 +3959,8 @@ function dealRowFacts(d) {
   };
 }
 async function readDealForPhone(db, tenantId, phoneE164) {
-  const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-  if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
+  const { data: c } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (!c) return null;
   const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
   const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
   return d ? dealRowFacts(d) : null;
@@ -5646,6 +5631,10 @@ async function yesesSince(db, tenantId, since) {
   );
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
 }
+async function dealOnFile(db, tenantId) {
+  const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
+  return !r.error && (r.data?.length ?? 0) > 0;
+}
 async function recordDeal(db, p) {
   const { data, error } = await db.rpc("record_deal", {
     p_contact_id: p.contactId,
@@ -6337,8 +6326,9 @@ var WATCHED = [
   // member's own saved views.
   { table: "memberships", events: EVERY },
   { table: "invitations", events: EVERY },
-  // The workspace paused or resumed (billing, the back office), renamed, its zone, buying model or logo changed: the
-  // shell, the sidebar and Today's band repaint. Told when one of those moved (00431). The receptionist's stamp reads the row.
+  // The workspace paused or resumed (billing, the back office), renamed, its zone, its word for a booking or its logo
+  // changed: the shell, the sidebar and Today's band repaint. Told when one of those moved (00431, 00458). The
+  // receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES }
 ];
 var NARROWED_UPDATES = {
@@ -6416,8 +6406,8 @@ var NARROWED_UPDATES = {
   ],
   // A seat's role. Not the member's saved views or push choices, which are their own.
   memberships: ["role"],
-  // The workspace's status, name, zone, buying model and logo (00431).
-  tenants: ["status", "name", "timezone", "sells_by", "logo_path"],
+  // The workspace's status, name, zone, word for a booking and logo (00431, 00458), and sells_by until it goes.
+  tenants: ["status", "name", "timezone", "sells_by", "appointment_word", "logo_path"],
   // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
   google_reviews: ["reply_text", "replied_at"],
   // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
@@ -7086,6 +7076,7 @@ export {
   createServiceClient,
   createWorkspaceFn,
   createWorkspaceForBusiness,
+  dealOnFile,
   declineHandover,
   declinePartnerInvite,
   declinePersonName,

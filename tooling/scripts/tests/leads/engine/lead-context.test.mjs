@@ -263,15 +263,16 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
-  // Changed on purpose (0008, then 0009 for email, then the ask for the yes to offers): the workspace's answer, whether
-  // an address is on file, and their answer about offers with whether they were asked ride on the same read, one round
-  // trip on the live path. Checked as the string literal alone, not the surrounding .select(...) call, since a line
-  // this long is Prettier's to wrap however it likes.
+  // Changed on purpose (0009 for email, then the ask for the yes to offers; and on 18 Oct 2026 the workspace's answer
+  // to how its customers buy left it, every workspace having deals): whether an address is on file, and their answer
+  // about offers with whether they were asked ride on the same read, one round trip on the live path. Checked as the
+  // string literal alone, not the surrounding .select(...) call, since a line this long is Prettier's to wrap however
+  // it likes.
   assert.ok(
     src.includes(
-      '"id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"',
+      '"id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at"',
     ),
-    "read with the rest of who they are (and whether their name is the business's, 0052), how their workspace's customers buy, whether an email is on file, what they said about offers and on which channels",
+    "read with the rest of who they are (and whether their name is the business's, 0052), whether an email is on file, what they said about offers and on which channels",
   );
 });
 
@@ -353,7 +354,7 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550123";
   const PHONE_NO_EMAIL = "+13055550199";
-  // The workspace says some customers get a proposal first (0008): the deal is said. The embed rides on the contact read.
+  // Every workspace's deal is said (0008, amended 18 Oct 2026).
   const c = {
     id: "contact-1",
     tenant_id: T,
@@ -361,16 +362,14 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
     display_name: "Maria",
     wa_profile_name: null,
     email: "maria@example.com",
-    tenants: { sells_by: "proposal" },
   };
-  // No email on file, and deals off so this second read does not disturb the deals assertions below.
+  // No email on file, and no deal: this second read does not disturb the deals assertions below.
   const cNoEmail = {
     id: "contact-1b",
     tenant_id: T,
     phone_e164: PHONE_NO_EMAIL,
     display_name: "Lee",
     wa_profile_name: null,
-    tenants: { sells_by: "booking" },
   };
   const dealRow = (over) => ({
     tenant_id: T,
@@ -499,7 +498,6 @@ test("a person with open deals for three services (0029): the receptionist hears
     display_name: "Ana",
     wa_profile_name: null,
     email: null,
-    tenants: { sells_by: "proposal" },
   };
   const deal = (over) => ({
     tenant_id: T,
@@ -750,7 +748,6 @@ test("the link the receptionist sends is the deal's while it is a proposal out, 
       phone_e164: PHONE,
       display_name: "Ana",
       proposal_url: personLink,
-      tenants: { sells_by: "proposal" },
     };
     const rows = deals.map((d, i) => ({
       id: `deal-${i}`,
@@ -794,7 +791,7 @@ test("the link the receptionist sends is the deal's while it is a proposal out, 
   );
 });
 
-test("where deals are off the receptionist hears no deal and no proposal link, and the deals are not read (0008)", async () => {
+test("every workspace's receptionist hears the deal and its proposal link (0008, amended 18 Oct 2026): one read of who they are, then their deals, and the retired answer never read", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550125";
   const link = "https://docs.example.com/p/own";
@@ -810,60 +807,17 @@ test("where deals are off the receptionist hears no deal and no proposal link, a
     created_at: "2026-09-10T12:00:00Z",
     proposal_url: link,
   };
-  const read = async (tenants) => {
-    const c = { id: "contact-3", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: link, tenants };
-    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [deal] });
-    return { ctx: await readLeadContext(db, T, PHONE), db };
-  };
-  for (const tenants of [{ sells_by: "booking" }, { sells_by: null }, undefined]) {
-    const { ctx, db } = await read(tenants);
-    assert.equal(ctx.contactId, "contact-3", "who they are is read as ever");
-    assert.equal(ctx.name, "Ana");
-    assert.equal(ctx.deal, null, `${JSON.stringify(tenants)}: no deal`);
-    assert.equal(ctx.proposalUrl, null, `${JSON.stringify(tenants)}: no link`);
-    assert.equal(db.seen.filter((q) => q.table === "deals").length, 0, "the deals are not read at all");
-    assert.equal(db.seen.filter((q) => q.table === "contacts").length, 1, "one read of who they are");
-    assert.doesNotMatch(describeLead(ctx, new Date("2026-09-23T16:00:00Z")), /proposal/i);
-  }
-  const on = await read({ sells_by: "proposal" });
-  assert.equal(on.ctx.deal?.stage, "proposed");
-  assert.equal(on.ctx.proposalUrl, link);
-});
-
-test("a database 00160 has not reached: who they are is read again without the workspace's answer, and deals are off", async () => {
-  const T = "aaaaaaaa-0000-4000-8000-000000000001";
-  const PHONE = "+13055550126";
-  const c = { id: "contact-4", tenant_id: T, phone_e164: PHONE, display_name: "Lu", proposal_url: null };
-  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
-  const from = db.from;
-  // PostgREST's answer for an embedded column the database does not have.
-  db.from = (table) => {
-    const q = from(table);
-    if (table !== "contacts") return q;
-    return new Proxy(q, {
-      get(target, key) {
-        if (key !== "select") return target[key];
-        return (cols, o) =>
-          /\bsells_by\b/.test(String(cols))
-            ? {
-                eq: () => ({
-                  eq: () => ({
-                    maybeSingle: async () => ({
-                      data: null,
-                      error: { message: "column tenants_1.sells_by does not exist", code: "42703" },
-                    }),
-                  }),
-                }),
-              }
-            : target.select(cols, o);
-      },
-    });
-  };
+  const c = { id: "contact-3", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: link };
+  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [deal] });
   const ctx = await readLeadContext(db, T, PHONE);
-  assert.equal(ctx.contactId, "contact-4", "REGRESSION guard: the reply never loses who they are to the new column");
-  assert.equal(ctx.name, "Lu");
-  assert.equal(ctx.deal, null);
-  assert.equal(ctx.proposalUrl, null);
+  assert.equal(ctx.contactId, "contact-3", "who they are is read as ever");
+  assert.equal(ctx.name, "Ana");
+  assert.equal(ctx.deal?.stage, "proposed");
+  assert.equal(ctx.proposalUrl, link);
+  assert.equal(db.seen.filter((q) => q.table === "contacts").length, 1, "one read of who they are");
+  assert.equal(db.seen.filter((q) => q.table === "deals").length, 1, "and one of their deals");
+  assert.ok(!db.seen.some((q) => /sells_by/.test(String(q.columns ?? ""))), "the retired answer is never read");
+  assert.match(describeLead(ctx, new Date("2026-09-23T16:00:00Z")), /proposal/i);
 });
 
 test("readLeadContext carries what they said about offers and when they were asked, and says never-asked only where the column was read as null", async () => {
@@ -876,7 +830,6 @@ test("readLeadContext carries what they said about offers and when they were ask
     marketing_consent: "unknown",
     marketing_channels: null,
     offers_asked_at: null,
-    tenants: { sells_by: "booking" },
     ...over,
   });
   const asked = "2026-09-28T18:30:00.000Z";
@@ -915,7 +868,7 @@ test("readLeadContext carries what they said about offers and when they were ask
 for (const missing of ["offers_asked_at", "marketing_channels"])
   test(`a database the offers migration has not reached (${missing} does not exist): who they are is read again without those columns, and the receptionist is told nothing that lets it ask`, async () => {
     // The edge may deploy before its migration: a missing column costs the answer to that one question, never the
-    // recognition of the person (the same guard as the workspace's answer above).
+    // recognition of the person.
     const T = "aaaaaaaa-0000-4000-8000-000000000001";
     const PHONE = "+13055550133";
     const c = {
@@ -924,7 +877,6 @@ for (const missing of ["offers_asked_at", "marketing_channels"])
       phone_e164: PHONE,
       display_name: "Mo",
       marketing_consent: "unknown",
-      tenants: { sells_by: "booking" },
     };
     const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
     const from = db.from;
@@ -961,7 +913,7 @@ for (const missing of ["offers_asked_at", "marketing_channels"])
     assert.equal(ctx.offersAskedAt, undefined, "not null, which would say never asked: the column could not be read");
     assert.equal(reads.length, 2, "read again, once");
     assert.ok(
-      !/offers_asked_at|marketing_channels/.test(reads[1]) && /tenants\(sells_by\)/.test(reads[1]),
+      !/offers_asked_at|marketing_channels/.test(reads[1]) && /\bmarketing_consent\b/.test(reads[1]),
       "without only the columns the migration adds",
     );
     assert.equal(

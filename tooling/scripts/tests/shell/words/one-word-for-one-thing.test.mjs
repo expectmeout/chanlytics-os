@@ -20,7 +20,6 @@ import {
   ACTIVITY_PAGE_WORDS,
   LEAD_WORDS,
   LIST_GROUP_WORDS,
-  appointmentWordWhere,
   appointmentWords,
   buildNotificationFeed,
   invitationWords,
@@ -147,7 +146,7 @@ const call = (over = {}) => ({
 });
 
 const personFor = (
-  { messages = [], decisions = [], calls = [], row = {}, dealsOn = false, visits } = {},
+  { messages = [], decisions = [], calls = [], row = {}, word, visits } = {},
   viewer = ME,
   names = null,
 ) =>
@@ -180,7 +179,8 @@ const personFor = (
       decisions,
       receptionist_mode: null,
       workspace_reply_mode: "auto",
-      ...(dealsOn ? { deals_on: true } : {}),
+      // What the workspace calls a booking (tenants.appointment_word, 00458), where the read says.
+      ...(word ? { appointment_word: word } : {}),
       ...(visits ? { visits } : {}),
     },
     TZ,
@@ -418,21 +418,15 @@ test("D1-visit-words: the person's page says the workspace's word for an appoint
     ["Next appointment"],
     ["Next appointment", "Last appointment"],
   ]);
-  assert.deepEqual(labels(personFor({ visits: VISITS, dealsOn: true })), [
+  assert.deepEqual(labels(personFor({ visits: VISITS, word: "meeting" })), [
     ["Next meeting"],
     ["Next meeting", "Last meeting"],
   ]);
-  assert.equal(appointmentWordWhere(false), "appointment");
-  assert.equal(
-    appointmentWordWhere(true),
-    "meeting",
-    "where some customers get a proposal first, as GET playbooks derives it",
-  );
   // The History's filter for them is headed in the same word; the other filters keep their own.
   const filter = (id) => TIMELINE_FILTERS.find((f) => f.id === id);
-  assert.equal(timelineFilterLabel(filter("visits"), false), "Appointments");
-  assert.equal(timelineFilterLabel(filter("visits"), true), "Meetings");
-  assert.equal(timelineFilterLabel(filter("calls"), true), "Calls");
+  assert.equal(timelineFilterLabel(filter("visits"), "appointment"), "Appointments");
+  assert.equal(timelineFilterLabel(filter("visits"), "meeting"), "Meetings");
+  assert.equal(timelineFilterLabel(filter("calls"), "meeting"), "Calls");
   const W = appointmentWords("meeting");
   assert.deepEqual(
     [W.Many, W.next, W.last, W.today(1), W.today(3)],
@@ -446,19 +440,19 @@ test("D1-visit-words: the person's tab for them, its figure and an untitled one'
   // Ten messages, so the record is not thin and draws its tabs and figures; one past visit the calendar names nothing for.
   const messages = Array.from({ length: 10 }, (_, i) => message(`m${i}`, 100 + i * 10));
   const visits = { ...VISITS, all: [VISITS.next, { ...VISITS.last, title: "" }] };
-  for (const [dealsOn, Many, Title] of [
-    [false, "Appointments", "Appointment"],
-    [true, "Meetings", "Meeting"],
+  for (const [word, Many, Title] of [
+    [undefined, "Appointments", "Appointment"],
+    ["meeting", "Meetings", "Meeting"],
   ]) {
-    const p = personFor({ messages, visits, dealsOn });
+    const p = personFor({ messages, visits, word });
     const tab = (tabs) => tabs.find((t) => t.id === "visits")?.label;
     assert.deepEqual([tab(p.tabs.desk), tab(p.tabs.phone)], [Many, Many], "the tab, on a desk and a phone");
     assert.equal(p.figures.find((f) => f.id === "visits")?.label, Many, "the figure that opens it");
-    assert.equal(personTabWord("visits", dealsOn), Many, "and the tab's heading");
+    assert.equal(personTabWord("visits", word ?? "appointment"), Many, "and the tab's heading");
     const rows = [...p.visitTab.toMark, ...p.visitTab.ahead, ...p.visitTab.past];
     assert.deepEqual(rows.map((r) => r.title).sort(), [Title, VISITS.next.title].sort(), "an untitled one is the word");
   }
-  assert.equal(personTabWord("history", true), "History", "the other tabs keep their own");
+  assert.equal(personTabWord("history", "meeting"), "History", "the other tabs keep their own");
   // Not asked, with one ahead and a number: Up next asks the yes in the folded summary's words.
   const p = personFor({ messages, visits });
   const rung = p.next.rows.find((r) => r.id === "consent:visit");
@@ -471,17 +465,17 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
   const column = {
     key: "visits",
     label: "Appointments",
-    labelOf: (x) => appointmentWords(appointmentWordWhere(!!x.dealsOn)).Many,
+    labelOf: (x) => appointmentWords(x.word ?? "appointment").Many,
     sortable: true,
     needs: (x) => !!x.withCalendar,
     cell: () => null,
   };
   const heads = (x) => plShownColumns([column], {}, x).map((c) => c.label);
   assert.deepEqual(heads({ withCalendar: true }), ["Appointments"]);
-  assert.deepEqual(heads({ withCalendar: true, dealsOn: true }), ["Meetings"]);
+  assert.deepEqual(heads({ withCalendar: true, word: "meeting" }), ["Meetings"]);
   assert.deepEqual(heads({ withCalendar: false }), [], "needs a calendar, as it did");
   assert.deepEqual(
-    plColumnOptions([column], {}, { withCalendar: true, dealsOn: true }).map((o) => o.label),
+    plColumnOptions([column], {}, { withCalendar: true, word: "meeting" }).map((o) => o.label),
     ["Meetings"],
   );
   // A column with no word of its own keeps its label.
@@ -493,13 +487,13 @@ test("D1-visit-words: People's table heads the column in the workspace's word, i
   );
   // How the list is ordered, and a phone's sort that orders it so, say the same word as the column.
   assert.deepEqual(
-    [plSortedBy("visits", false), plSortedBy("visits", true), plSortedBy("last", true)],
+    [plSortedBy("visits", "appointment"), plSortedBy("visits", "meeting"), plSortedBy("last", "meeting")],
     ["Sorted by appointments", "Sorted by meetings", "Sorted by last contact"],
   );
-  const sorts = (dealsOn) =>
-    peopleSortItems({ withCalendar: true, dealsOn, sortBy: "", sortDir: "", pickSort: () => {} }).map((i) => i.label);
-  assert.equal(sorts(false).at(-1), "Soonest appointment first");
-  assert.equal(sorts(true).at(-1), "Soonest meeting first");
+  const sorts = (word) =>
+    peopleSortItems({ withCalendar: true, word, sortBy: "", sortDir: "", pickSort: () => {} }).map((i) => i.label);
+  assert.equal(sorts("appointment").at(-1), "Soonest appointment first");
+  assert.equal(sorts("meeting").at(-1), "Soonest meeting first");
 });
 
 test("REGRESSION (S9-9): a deal's stage is said in its stage's word on the sheet's receipt and its list; a thread moved says its tab's word", async () => {

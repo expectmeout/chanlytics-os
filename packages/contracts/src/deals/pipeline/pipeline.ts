@@ -1,7 +1,7 @@
 /**
  * The Pipeline (docs/decisions/0008-a-proposal-is-part-of-the-deal.md): People's rows by where their deal stands, and
  * one line over them. A view of People, never a page of its own: it is made of the People surface's rows and reads
- * nothing else, and a page draws it only where deals are on (dealsAreOn).
+ * nothing else, and every workspace has it (0008, amended 18 Oct 2026).
  *
  * Four groups, in this order, and a row in each for every open deal of a person's (0029: a client of one service with
  * a proposal out for another is in both groups, and two proposals out are two rows), else one for where they stand:
@@ -275,7 +275,7 @@ function bandsOf<T extends PipelineSource>(
 
 /**
  * The Pipeline of these rows: the line over it, its groups and their rows, and whether it is empty. `rows` are People's
- * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone; `pace` is its
+ * (PersonRowVM, as the People surface publishes them); `tz` is the workspace's zone; `pace` is its
  * pace (dealPaceOf, null without one), which says when a proposal out is waiting. `view` is the rail's pick: the
  * groups hold only its rows, and the line stays the whole Pipeline's.
  */

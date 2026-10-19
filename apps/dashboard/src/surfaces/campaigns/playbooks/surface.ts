@@ -89,7 +89,7 @@ export interface PlaybookCardVM extends PlaybookDto {
   held: number | null;
   /** Everyone its moment names, and who of them no run reaches whatever the week: the card's grey. Null when not read. */
   named: PlaybookNamed | null;
-  /** Why it runs nothing here, where its moment is not offered (a proposal follow-up where deals are off, 0006). */
+  /** Why it runs nothing here (a campaign past its last day, 00416); null where it runs. */
   off: string | null;
   /** Its list was archived (00169): paused until the list is restored or the playbook moved to another. */
   listArchived?: boolean;
@@ -195,8 +195,9 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   /**
-   * How the business works, as Campaigns' home reads it (contracts LifecycleShape, from GET playbooks' businessShape): the
-   * calendar its appointment moments are counted from, whether deals are on, and what it calls an appointment.
+   * How the business works, as Campaigns' home reads it (contracts LifecycleShape, from GET playbooks' businessShape):
+   * the calendar its appointment moments are counted from, whether a deal was ever recorded, and what it calls an
+   * appointment.
    */
   shape: LifecycleShape;
   triggers: PlaybookTriggerOption[];

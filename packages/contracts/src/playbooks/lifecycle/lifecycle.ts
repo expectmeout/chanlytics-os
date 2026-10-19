@@ -4,13 +4,14 @@
  * workspace, what goes out in the next seven days, and what came back. Every sentence and every number it says is made
  * here, from what the surfaces already carry, so the page composes and never derives (`campaignsHomeOf`).
  *
- * The moments are the journey's (journey/journey.ts journeyOf), in the order the business's customers pass through them:
- * first contact, the day before an appointment, the day after, the proposal follow-up where deals are on (Proposal
- * waiting before Quiet or lapsed), and the win-back (by visits where a calendar is connected, by silence where not: one
- * moment, isWinBack). First contact is the receptionist's, always on; it has no playbook. Each moment is led by its
- * running campaign, says how its campaigns stand, and carries a meter where it holds two or more. What each needs of a
- * person is its message's kind (purposeOfPlaybook): a yes to messages for an appointment or a proposal, a yes to offers
- * for the win-back. An appointment moment without a calendar says it needs one, never a figure it cannot count.
+ * The moments are the journey's (journey/journey.ts journeyOf), in the order the business's customers pass through
+ * them: first contact, the day before an appointment, the day after, the proposal follow-up where a deal was ever
+ * recorded (Proposal waiting before Quiet or lapsed), and the win-back (by visits where a calendar is connected, by
+ * silence where not: one moment, isWinBack). First contact is the receptionist's, always on; it has no playbook. Each
+ * moment is led by its running campaign, says how its campaigns stand, and carries a meter where it holds two or more.
+ * What each needs of a person is its message's kind (purposeOfPlaybook): a yes to messages for an appointment or a
+ * proposal, a yes to offers for the win-back. An appointment moment without a calendar says it needs one, never a
+ * figure it cannot count.
  *
  * A number the surfaces could not count is `null`, never a zero it did not count (the moments' pools say so); a surface
  * not read yet leaves its sections out, and one that failed says so.
@@ -55,7 +56,7 @@ function poolOf(playbooks: LifecyclePlaybooks, key: string) {
 
 /**
  * The playbooks as the home reads them: one on an appointment moment where no calendar feeds it runs nothing here
- * (decision 44), and says why, as a follow-up where deals are off does, so its state, its marks and Coming up follow.
+ * (decision 44), and says why, so its state, its marks and Coming up follow.
  */
 function calendarRead(playbooks: LifecyclePlaybooks, shape: LifecycleShape): LifecyclePlaybooks {
   if (shape.calendar === "feed") return playbooks;
@@ -258,7 +259,7 @@ function lifecycleStages(at: StageAt): { defs: JourneyStage[]; stages: Lifecycle
   );
   const defs = journeyOf({
     calendarOn: at.shape.calendar === "feed",
-    dealsOn: at.shape.dealsOn,
+    hasDeals: at.shape.hasDeals,
     word: at.shape.word,
     held,
   });

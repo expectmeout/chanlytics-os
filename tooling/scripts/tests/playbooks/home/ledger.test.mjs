@@ -109,7 +109,7 @@ const input = (over = {}) => ({
   messages: [],
   reachOuts: [],
   report: report(),
-  shape: { calendar: "feed", dealsOn: true, word: "appointment" },
+  shape: { calendar: "feed", hasDeals: true, word: "appointment" },
   chains: undefined,
   ...over,
 });
@@ -491,7 +491,7 @@ test("a reach-out's People cell is who is in it now (00426): its waiting and wri
 
 test("without a calendar the appointment groups say they need one, with its door and no Turn on; a campaign made there before runs nothing here", () => {
   const l = ledger({
-    shape: { calendar: "none", dealsOn: true, word: "appointment" },
+    shape: { calendar: "none", hasDeals: true, word: "appointment" },
     playbooks: playbooks([playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
   });
   for (const id of ["before", "after"])
@@ -511,7 +511,7 @@ test("without a calendar the appointment groups say they need one, with its door
   assert.deepEqual(r.people, { n: null, unit: "people" }, "REGRESSION: the row kept the 5 its card no longer says");
   const card = C.campaignsHomeOf(
     input({
-      shape: { calendar: "none", dealsOn: true, word: "appointment" },
+      shape: { calendar: "none", hasDeals: true, word: "appointment" },
       playbooks: playbooks([playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
     }),
   ).rail.stages.find((s) => s.id === "before");

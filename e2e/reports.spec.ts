@@ -595,7 +595,7 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toHaveCount(0);
 
-    // The Pipeline's address is a lens even where deals are off: its empty state, never a not-found.
+    // The Pipeline's lens is every workspace's: its empty state where no deal was recorded, never a not-found.
     await page.goto(`/w/${slug}/reports/pipeline`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("rpt-deals").or(page.getByTestId("lens-empty"))).toBeVisible();

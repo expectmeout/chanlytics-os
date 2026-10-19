@@ -336,8 +336,8 @@ export const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }: RowS
 };
 
 /**
- * Where a customer books. Whether this workspace is asked for one at all is how its customers buy (0008, the first
- * run's decision 2): the row's check, its empty state and its hint all follow the one answer. `other` is an answer to
+ * Where a customer books, optional for every business (0008, amended 18 Oct 2026; the first run's decision 2): with
+ * none, the receptionist takes their details, which the row's empty state and hint say. `other` is an answer to
  * offer where the kit draws a disagreement, while there is none: the first run's booking page found on the website
  * ({ value, sentence, use, useLabel }), taken in one press through this row's own check and save, and offered only to
  * a role that may change the business, as any disagreement's press is.
@@ -352,8 +352,8 @@ export const BtBookingLinkRow = ({
 }: RowShared & { other?: BtDisputed<string> | null }) => {
   const S = businessTabSave;
   const link = btFactOf("booking_link", brain.booking_link);
-  const sellsNow = S.answer();
-  const linkWords = BUSINESS_TAB.bookingLinkRowWords(sellsNow);
+  // Optional for every business: with none, its receptionist takes their details (0008, amended 18 Oct 2026).
+  const linkWords = BUSINESS_TAB.BOOKING_LINK_ROW_WORDS;
   return (
     <BtRow
       brain={brain}
@@ -370,7 +370,7 @@ export const BtBookingLinkRow = ({
       disputed={btDispute(link, btConflictOn("booking_link"), BT_TAKE_THEIRS) || other}
       gate={btChangeGate("booking link")}
       initial={brain.booking_link || ""}
-      check={(d: string) => S.CHECK_OF.booking_link(d, sellsNow)}
+      check={(d: string) => S.CHECK_OF.booking_link(d)}
       commit={btWordsSaved("booking_link")}
       body={btTextBox({
         placeholder: "https://your-booking-page.com",

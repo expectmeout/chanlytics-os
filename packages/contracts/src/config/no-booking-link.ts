@@ -9,8 +9,8 @@
  * it, it asks for the same things. Where the link was one offer among others -- a call back, a professional's advice,
  * a change to an appointment already booked -- the others stand alone.
  *
- * A receptionist with no link is read and saved. Who is asked for one is the pages' question, by how customers buy
- * (deals.ts bookingLinkOptional), since the config cannot see the answer.
+ * A receptionist with no link is read and saved, and every business is offered one the same way (business-gap.ts
+ * BOOKING_LINK_ROW_WORDS; 0008, amended 18 Oct 2026), whether it books or quotes.
  */
 export const NO_LINK_DETAILS = "their name, what they need, and where and when";
 

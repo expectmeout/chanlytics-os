@@ -74,7 +74,6 @@ export interface ReceptionistDraft {
   own: boolean;
   typed: string;
   link: string;
-  sells_by?: string | null;
 }
 
 /** What each fold opens with, by its id. */

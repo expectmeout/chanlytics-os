@@ -6,7 +6,8 @@
  *   1. A note for you, unacknowledged: Got it.
  *   2. Did they come? A visit of theirs that began and nobody marked: Kept / Missed.
  *   3. Each open deal's next act (dealNextAct, through the deal card), or, with none open, the one act that fits
- *      ("Start a proposal" after a consultation, or for someone at a business you are talking to).
+ *      ("Start a proposal" after a consultation nothing followed, or for someone at a business you are talking to).
+ *      Every workspace has deals (0008, amended 18 Oct 2026): the rung is drawn by what is true of the person alone.
  *   4. Their next step: Done.
  *   5. Before a visit whose message was held for want of a yes: Record a yes.
  */
@@ -45,7 +46,6 @@ export interface UpNextFacts {
   lastVisit: VisitLineVM | null;
   ahead: readonly { visit?: VisitLineVM | null; title: string; day: string; time: string }[];
   deals: { cards: DealCardVM[]; quiet: DealQuietVM | null };
-  dealsOn: boolean;
   /** They work at a business you are talking to: with no deal, a proposal is the next thing. */
   talking: boolean;
   step: PersonNextStepVM | null;
@@ -114,25 +114,23 @@ export function personNextOf(f: UpNextFacts): UpNextVM {
       sub: [asking.title, asking.time].filter(Boolean).join(" · "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" · ") },
     });
-  if (f.dealsOn) {
-    for (const c of f.deals.cards) {
-      if (!c.next) continue;
-      rows.push({
-        id: `deal:${c.id ?? c.title}`,
-        title: c.title,
-        sub: dealRungSub(c),
-        act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label },
-      });
-    }
-    const q = f.deals.quiet;
-    if (q && (q.primary || (f.talking && !q.dealId)))
-      rows.push({
-        id: "deal:quiet",
-        title: q.words,
-        sub: q.sub,
-        act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label },
-      });
+  for (const c of f.deals.cards) {
+    if (!c.next) continue;
+    rows.push({
+      id: `deal:${c.id ?? c.title}`,
+      title: c.title,
+      sub: dealRungSub(c),
+      act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label },
+    });
   }
+  const q = f.deals.quiet;
+  if (q && (q.primary || (f.talking && !q.dealId)))
+    rows.push({
+      id: "deal:quiet",
+      title: q.words,
+      sub: q.sub,
+      act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label },
+    });
   if (f.step)
     rows.push({
       id: `step:${f.step.id}`,

@@ -53,7 +53,7 @@ globalThis.window.fetch = async (url) => {
   const u = new URL(String(url), "https://app.example.com");
   if (u.pathname === "/api/v1/settings") return json({ ok: true, data: { config: { brain: {} }, version: 1 } });
   if (u.pathname === "/api/v1/team") return json({ ok: true, data: { members: [], invites: [] } });
-  if (u.pathname === "/api/v1/policies") return json({ ok: true, data: { policies, role: "owner", deals_on: false } });
+  if (u.pathname === "/api/v1/policies") return json({ ok: true, data: { policies, role: "owner" } });
   if (u.pathname === "/api/v1/channels") return json({ ok: true, data: { channels: [] } });
   if (u.pathname === "/api/v1/templates") return json({ ok: true, data: { templates: [], usedBy: {} } });
   return new Response(JSON.stringify({ ok: false, error: { code: "not_found" } }), { status: 404 });

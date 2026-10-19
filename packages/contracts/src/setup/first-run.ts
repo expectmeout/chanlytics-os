@@ -7,7 +7,7 @@
  * brings them back. Every sentence the first run says is here; the page composes (first-run.jsx).
  *
  * The business step is Find while there is a listing to link, and Check after (canvas R2, V2): what the receptionist
- * answers from, in the Business tab's own rows, and how customers buy. The receptionist it checks is set up from what is
+ * answers from, in the Business tab's own rows. The receptionist it checks is set up from what is
  * known (first-receptionist.ts), on an owner's press.
  */
 import { formatPhoneDisplay } from "../shared/phone";
@@ -18,7 +18,6 @@ import { servicesWords, type ServiceWordsInput } from "../config/business-tab/se
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAY_NAMES } from "../config/workspace-config/config-rules";
 import { ROLE_PERMS, type Role } from "../config/workspace-config/role-perms";
-import { bookingLinkOptional } from "../deals/sells-by";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "../google/google";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
@@ -183,7 +182,7 @@ export const FIRST_RUN_WORDS = {
     /** Not on Google, said, where Google can be searched: the way back to Find. */
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
-    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    groups: { facts: "Your hours and where you are", booking: "Booking and prices", offer: "What it offers" },
     /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
     chips: {
       services: "Tap what you offer. A few is enough.",
@@ -448,8 +447,8 @@ const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when
 
 /**
  * Today's door to the reminder (decision 22): New sequence opened on the day-before moment. Its sentence names no
- * appointment: Setup holds no word for one, and New sequence says the workspace's own (a meeting where deals are on,
- * journey/appointment-word.ts), so the two never disagree.
+ * appointment: Setup holds no word for one, and New sequence says the workspace's own (journey/appointment-word.ts), so
+ * the two never disagree.
  */
 const CARD_REMIND = {
   words: "Your calendar is in. Remind each customer the day before?",
@@ -534,11 +533,6 @@ export interface ReceptionistCardInputs {
   workspaceName: string | null;
   /** The workspace's clock, which the hours are in. */
   tz: string;
-  /**
-   * How the workspace's customers buy (tenants.sells_by), null where it was never said. Required: a business that
-   * quotes has no booking link by right (deals.ts bookingLinkOptional), and is reached for a quote instead.
-   */
-  sellsBy: string | null;
 }
 
 export interface ReceptionistCardVM {
@@ -577,11 +571,6 @@ function cardGreeting(
 
 /** The owner's receptionist, so far: who it is, whether it answers, what it greets with and what it knows. */
 export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardVM {
-  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
-    throw new TypeError(
-      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it.",
-    );
-  }
   const b = i.brain;
   const p = b?.profile ?? null;
   // The name the phone greets with is the receptionist's own (voice call-start reads the brain), never the
@@ -599,8 +588,9 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
   const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
   const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
   const show = (n: string | null) => (n ? (formatPhoneDisplay(n) ?? n) : null);
-  // A business that quotes, with no link, is reached for a quote: its receptionist takes their details (decision 2).
-  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
+  // With no link, whether the business books or quotes, its receptionist takes their details (decision 2; 0008, amended
+  // 18 Oct 2026).
+  const takesDetails = !!b && !b.booking_link;
   return {
     caption: "Your receptionist, so far",
     initials: name ? initialsOf(name) : "",
@@ -616,8 +606,8 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
         label: "Knows",
         value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null,
       },
-      quotes
-        ? { key: "books", label: "For a quote", value: "Takes their details" }
+      takesDetails
+        ? { key: "books", label: "To book", value: "Takes their details" }
         : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
       { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
       // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.

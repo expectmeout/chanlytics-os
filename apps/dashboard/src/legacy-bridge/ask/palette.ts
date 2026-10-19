@@ -71,7 +71,7 @@ export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
   /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
   __LIVE?: FeedLive;
-  __PEOPLE?: { rows?: Array<{ id: string; name: string }>; dealsOn?: boolean } | null;
+  __PEOPLE?: { rows?: Array<{ id: string; name: string }>; hasDeals?: boolean } | null;
   __SETTINGS?: { config?: { calendar?: { ical_url?: string }; features?: unknown } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
@@ -143,16 +143,12 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
 }
 
 /**
- * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline where People says
- * deals are on, the bit its scope strip draws by; the back office for staff, the bit Settings' rail draws by), then
- * the threads, people and calls the browser holds.
+ * What ⌘K jumps to: the pages this workspace has for this person (contracts askPages: the Pipeline everywhere; the back
+ * office for staff, the bit Settings' rail draws by), then the threads, people and calls the browser holds.
  */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
   const w = win as unknown as PaletteGlobals;
-  const out: JumpEntry[] = askPages({
-    dealsOn: !!w.__PEOPLE?.dealsOn,
-    platformAdmin: !!w.__ME?.platform_admin,
-  });
+  const out: JumpEntry[] = askPages({ platformAdmin: !!w.__ME?.platform_admin });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({
@@ -303,8 +299,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
         canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,
-        // People's surface says whether deals are on here (0008); until it does, the question is not offered.
-        dealsOn: !!w.__PEOPLE?.dealsOn,
+        // People's surface says whether a deal was ever recorded here; until it does, the question is not offered.
+        hasDeals: !!w.__PEOPLE?.hasDeals,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.ask || i.words),
         leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),

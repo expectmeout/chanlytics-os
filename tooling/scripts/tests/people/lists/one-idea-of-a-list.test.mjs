@@ -148,7 +148,7 @@ function population(n, seed = 9) {
 const DTOS = population(2000);
 const ROWS = DTOS.map((r) => toPersonRowVM(r, TZ, new Date(NOW), ME));
 const BY_ID = new Map(DTOS.map((r) => [r.id, r]));
-const CTX = { calendar: "ok", dealsOn: true, consultFirst: true, viewer: true };
+const CTX = { calendar: "ok", hasDeals: true, consultFirst: true, viewer: true };
 
 /* ------------------------------------------------------------------ the lists as they stood at 966edb3b */
 
@@ -388,7 +388,7 @@ test("a list is unknown exactly when its context cannot meet what it needs", () 
     CTX,
     { ...CTX, calendar: "unavailable" },
     { ...CTX, calendar: "none" },
-    { ...CTX, dealsOn: false },
+    { ...CTX, hasDeals: false },
     { ...CTX, consultFirst: false },
     { ...CTX, viewer: false },
   ];
@@ -424,7 +424,7 @@ test("a version 1 rule means what it meant: its fields read the same, and offers
 
 /* ------------------------------------------------------------------ one pool (phase 2) */
 
-test("one pool: the edge and the dashboard read everyone the same way -- visits marked as consultations, a viewer, no deal where deals are off", () => {
+test("one pool: the edge and the dashboard read everyone the same way -- visits marked as consultations, a viewer, and each row's deal", () => {
   const { peopleVisitsOf, poolRowsOf, poolListContext, ownAddressesOf } = contracts;
   const at = (days) => NOW + days * D;
   const item = (title, startMs, phone) => ({
@@ -448,19 +448,19 @@ test("one pool: the edge and the dashboard read everyone the same way -- visits 
   assert.equal(visits.get("c1").next.consultation, true, "a consultation says so, on the edge as on the page");
   assert.equal(visits.get("c2").last.consultation, false);
   assert.equal(visits.get("c2").next, null);
-  // The rows: for a viewer, and without deals where they are off.
+  // The rows: for a viewer, each with their deal (every workspace's, 0008 amended 18 Oct 2026).
   const withVisits = people.map((p) => ({ ...p, deal_stage: "lost", deal_id: "d", visits: visits.get(p.id) }));
-  const [off] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: null, dealsOn: false });
-  assert.deepEqual([off.deal, off.dealStage], [null, null]);
-  const [on] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: ME, dealsOn: true });
+  const [anyone] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: null });
+  assert.equal(anyone.deal?.stage, "lost", "the deal rides on every row, whoever looks");
+  const [on] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: ME });
   assert.equal(
     on.dealStage,
     "consultation",
     "a consultation ahead of someone who passed begins something new, the Pipeline's rule",
   );
-  assert.deepEqual(poolListContext({ calendar: "ok", dealsOn: true, consultFirst: true, viewer: null }), {
+  assert.deepEqual(poolListContext({ calendar: "ok", hasDeals: true, consultFirst: true, viewer: null }), {
     calendar: "ok",
-    dealsOn: true,
+    hasDeals: true,
     consultFirst: true,
     viewer: false,
   });

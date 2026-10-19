@@ -1,42 +1,51 @@
 import "server-only";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { readAllRows, recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
+import { dealOnFile, readAllRows, recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
 import {
   AppError,
   DAY_MS,
   DEAL_LOST_REASONS,
   DEAL_REFUSALS,
   PERSON_CAME_FROM_WORDS,
+  appointmentWordOf,
   cameFromOf,
   dealPaceFrom,
   isDealLostReason,
   isYes,
   medianWait,
   PACE_WINDOW_DAYS,
-  isSellsBy,
   pickCurrentDeal,
   yesWaits,
+  type AppointmentWord,
   type DealDto,
   type DealPaceDto,
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
-  type SellsBy,
 } from "@chanlytics/contracts";
 import { log } from "@/server/log";
 
 /**
- * How this workspace's customers buy (tenants.sells_by, 0008): the answer every deal gate reads through contracts'
- * dealsAreOn. Null when it was never given, and on a database 00160 has not reached: a column that is not there reads
- * as not asked, which costs the deal layer, never the page. The one read the People routes, Reports and the
- * assistant's pool share.
+ * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
+ * (appointmentWordOf): the word it picked, else the one its retired sells_by gave it, else "appointment". On a database
+ * 00458 has not reached the read asks for sells_by alone, and one that cannot be read says "appointment": either
+ * deploy order works, and a word never costs the page. The one read every server page and Ask share.
  */
-export async function sellsByOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SellsBy | null> {
-  const r = await ctx.supabase.from("tenants").select("sells_by").eq("id", tenantId).maybeSingle();
-  if (r.error || !r.data) return null;
-  const answer: unknown = (r.data as { sells_by?: unknown }).sells_by;
-  return isSellsBy(answer) ? answer : null;
+export async function appointmentWordRead(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+): Promise<AppointmentWord> {
+  const read = (columns: string) => ctx.supabase.from("tenants").select(columns).eq("id", tenantId).maybeSingle();
+  let r = await read("appointment_word, sells_by");
+  if (r.error && /\bappointment_word\b/.test(r.error.message)) r = await read("sells_by");
+  const row = (r.error ? null : r.data) as { appointment_word?: unknown; sells_by?: unknown } | null;
+  const said = (v: unknown) => (typeof v === "string" ? v : null);
+  return appointmentWordOf({ stored: said(row?.appointment_word), sellsBy: said(row?.sells_by) });
 }
+
+/** Whether a deal was ever recorded here (packages/db dealOnFile), under the member's own RLS. */
+export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<boolean> =>
+  dealOnFile(ctx.supabase, tenantId);
 
 /**
  * The workspace's pace (0008, amended): its yeses decided in the last year, under the member's own RLS, and their
@@ -87,7 +96,7 @@ export async function currentDealOf(
   }
 }
 
-/** Nothing to draw: deals are off, or none was ever recorded. A new object each time, since its lists are its own. */
+/** Nothing to draw: no deal was ever recorded. A new object each time, since its lists are its own. */
 const none = (): DealReportDto => ({
   any: false,
   sent: 0,
@@ -119,22 +128,20 @@ const CAME_FROM_ORDER = Object.keys(PERSON_CAME_FROM_WORDS) as PersonCameFrom[];
  * clients came from and why its passes passed; and beside it the stock, whenever it began: the clients now with their
  * monthly total, and every proposal still open with what it carries. Where a new client came from is their person's
  * came_from in `people`, the People rows the route already read for the booking line, so People is not read twice.
- * Drawn only where deals are on (`on`: the route's dealsAreOn, 0008) and a deal was recorded; where they are off the
- * table is not read at all. Null where the table cannot be read (an older database): the section is not drawn and the
- * report stands. Takes only the client it reads with, as the calendar's readers do.
+ * Drawn where a deal was ever recorded (every workspace has deals, 0008 amended 18 Oct 2026). Null where the table
+ * cannot be read (an older database): the section is not drawn and the report stands. Takes only the client it reads
+ * with, as the calendar's readers do.
  */
 export async function dealReport(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   days: number,
-  on: boolean,
   people: readonly Pick<PersonRowDto, "id" | "came_from">[],
   now = new Date(),
   // The instants of a window that ended before today (Reports' days a member picked), its first and the one after its
   // last; null for a period that ends today, which is the `days` up to `now`.
   span: { since: number; until: number } | null = null,
 ): Promise<DealReportDto | null> {
-  if (!on) return none();
   // Every page of them (readAllRows), by id: PostgREST answers a thousand rows whatever a select asks for, so past a
   // thousand deals every figure here counted an arbitrary thousand.
   const data = await readAllRows("deals", (from, to) =>

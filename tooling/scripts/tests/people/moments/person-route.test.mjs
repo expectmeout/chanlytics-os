@@ -41,7 +41,7 @@ test("the page takes a person, a view of People, Leads and the Pipeline (which i
     "Leads left the shell: People's page draws it (decision 0015, step 9)",
   );
   assert.equal(peopleTakes("pipeline"), true, "no surface says deals are on: the Pipeline's address draws People");
-  setSurfaceValue("people", { dealsOn: true, rows: [], lists: [], saved: [] });
+  setSurfaceValue("people", { rows: [], lists: [], saved: [] });
   assert.equal(peopleTakes("pipeline"), true, "with deals on it draws the Pipeline: the page's own since it moved");
   assert.equal(peopleTakes(UUID), true);
   setSurfaceValue("people", undefined);

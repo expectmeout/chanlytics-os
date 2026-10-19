@@ -34,8 +34,8 @@ export const isPersonParam = (param: string): boolean =>
 
 /**
  * Which params of `clients` the page draws: a person, the New list door, a view of People (a smart list, a list kept by
- * hand, a state), the Pipeline's address, which draws the Pipeline where deals are on and People where they are off, and
- * Leads (`leads` and every view of it).
+ * hand, a state), the Pipeline's address, which draws the Pipeline in every workspace, and Leads (`leads` and every view
+ * of it).
  */
 export const peopleTakes = (param: string): boolean =>
   isPersonParam(param) ||
@@ -67,15 +67,14 @@ function viewLabel(param: string): string {
 }
 
 /**
- * The crumbs of the Pipeline's address (0008): People's own where deals are off, where the address draws People; else
- * the Pipeline, and under it the view the rail picked (the crumb back to the Pipeline's own list, then the view's name).
+ * The crumbs of the Pipeline's address (0008): the Pipeline, and under it the view the rail picked (the crumb back to
+ * the Pipeline's own list, then the view's name).
  */
 function pipelineCrumbs(param: string) {
   const people = surfaceValue("people");
-  if (!people?.dealsOn) return ["People"];
   const at = P.parse(param);
   if (!at || at.view === "all") return [PEOPLE_CRUMB, "Pipeline"];
-  return [PEOPLE_CRUMB, { label: "Pipeline", to: "clients/pipeline" }, P.viewLabel(at.view, people.dealPace ?? null)];
+  return [PEOPLE_CRUMB, { label: "Pipeline", to: "clients/pipeline" }, P.viewLabel(at.view, people?.dealPace ?? null)];
 }
 
 /**
@@ -111,13 +110,13 @@ function personAsk(id: string): string | null {
 }
 
 /**
- * People | Leads (| Pipeline), the page's scopes, as the views the frame draws (PRD 6.1): the Pipeline only where deals are
- * on. None until People has landed, which is when its deals are known, so the strip never gains a tab after it is drawn.
+ * People | Leads | Pipeline, the page's scopes, as the views the frame draws (PRD 6.1), every workspace's. None until
+ * People has landed, so the strip is drawn once.
  */
 function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | null {
   const people = peopleFor();
   if (!people) return null;
-  const tabs = plScopes(!!people.dealsOn).map((s) => ({
+  const tabs = plScopes().map((s) => ({
     id: s.id,
     label: s.label,
     to: plScopeRoute(s.id),
@@ -128,7 +127,7 @@ function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | nul
 
 /**
  * The crumbs, the mount, the act and the views of an address. The mount is one for every view of People, one for the Pipeline's
- * address, drawn as the Pipeline or, where deals are off, as People, and one for Leads, because the page follows its own
+ * address, and one for Leads, because the page follows its own
  * address (people-route.tsx): a list picked is said in the path by the page, and a page mounted afresh for each would lose its
  * toast and its selection with every pick.
  */
@@ -157,11 +156,10 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
   if (param === "new-list")
     return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients", views: scopeViews("people") };
   if (/^pipeline(:|$)/.test(param)) {
-    const deals = !!peopleFor()?.dealsOn;
     return {
       crumbs: pipelineCrumbs(param),
       mount: "clients/pipeline",
-      views: scopeViews(deals ? "pipeline" : "people"),
+      views: scopeViews("pipeline"),
     };
   }
   // Every view of Leads is one mount: the page follows its address (`p-<lead>` is the lead open over the view).

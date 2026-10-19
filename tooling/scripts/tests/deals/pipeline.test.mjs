@@ -457,7 +457,7 @@ test("each group says what it comes to; only Passed or ended starts folded", () 
   assert.deepEqual(
     vm.groups.map((g) => [g.key, g.meta, g.collapsed]),
     [
-      ["consultations", "3 ended in the last week, no proposal yet", false],
+      ["consultations", "3 ended in the last week, nothing since", false],
       ["proposals", "$4,250", false],
       ["clients", "$1,340 a month", false],
       ["closed", null, true],
@@ -952,7 +952,6 @@ const detailOf = (raw, over = {}) => {
     receptionist_mode: null,
     workspace_reply_mode: "auto",
     deals,
-    deals_on: true,
     services: ["Color correction", "Extensions"],
     visits,
     ...over,
@@ -960,11 +959,11 @@ const detailOf = (raw, over = {}) => {
 };
 
 /**
- * People over the wire, as GET contacts answers: whether deals are on here, and any view saved (which lands in
+ * People over the wire, as GET contacts answers: whether a deal was ever recorded here, and any view saved (which lands in
  * `viewSaves`). And what the page's verbs ask of the door beside it: a person read (`reads`, answered by `seen.person`), a
  * person added (`added`, answered by `seen.add`) and a deal recorded (`posted`).
  */
-const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPace = null, followUp = null }) => {
+const wire = ({ people, hasDeals, total = people.length, hasMore = false, dealPace = null, followUp = null }) => {
   const seen = { viewSaves: [], reads: [], added: [], posted: [] };
   seen.rawOf = (id) => people.find((r) => r.id === id);
   seen.person = (id) => {
@@ -1011,7 +1010,7 @@ const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPac
           page: { q: null, offset: 0, limit: 1000, total, has_more: hasMore },
           calendar: { state: "ok", source: "Google Calendar" },
           booking_link: null,
-          deals_on: dealsOn,
+          has_deals: hasDeals,
           deal_pace: dealPace,
           follow_up: followUp,
         },
@@ -1208,7 +1207,7 @@ const peopleNow = () => {
 /** People published by the real surface over the wire, and a page with nothing drawn yet. */
 const fresh = async ({
   people = peopleNow(),
-  dealsOn = true,
+  hasDeals = true,
   total,
   hasMore,
   dealPace = null,
@@ -1216,7 +1215,7 @@ const fresh = async ({
 } = {}) => {
   // The last test's reads still on their way land on its wire, never on this one's.
   await settled();
-  const seen = wire({ people, dealsOn, total, hasMore, dealPace, followUp });
+  const seen = wire({ people, hasDeals, total, hasMore, dealPace, followUp });
   await quietly(() => peopleOverride.apply());
   cells = [];
   went.length = 0;
@@ -1332,7 +1331,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     "no People's rail here",
   );
   assert.deepEqual(heads(tree), [
-    { label: "Consultations", count: "2", meta: "1 ended in the last week, no proposal yet", toggle: null },
+    { label: "Consultations", count: "2", meta: "1 ended in the last week, nothing since", toggle: null },
     { label: "Proposal out", count: "2", meta: "$4,250", toggle: null },
     { label: "Clients", count: "1", meta: "$1,000 a month", toggle: null },
     { label: "Passed or ended", count: "2", meta: null, toggle: "Show" },
@@ -1548,19 +1547,13 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 deals/);
 });
 
-test("where deals are off the address draws People", async () => {
-  await fresh({ dealsOn: false });
+test("the Pipeline's address draws the Pipeline in every workspace, with no deal on file too (0008, amended 18 Oct 2026)", async () => {
+  await fresh({ hasDeals: false, people: [personRow(Date.now(), "nobody", "Nobody")] });
   globalThis.window.location.hash = "#/clients/pipeline";
-  // The route draws People's own page for this address (surfaces/people/chrome.ts peopleTakes), which says its own.
-  const tree = drawPeople();
-  assert.equal(
-    globalThis.window.location.hash,
-    "/w/studio/people",
-    "People's own address takes the Pipeline's place: replaced under the workspace's path",
-  );
-  assert.equal(byTestId(tree, "pipeline"), null);
-  assert.ok(byTestId(tree, "people-standing"), "People");
-  assert.equal(drawsAStrip(tree), false, "and its switch, without the Pipeline, is the frame's");
+  const tree = draw();
+  assert.equal(globalThis.window.location.hash, "#/clients/pipeline", "the address stays the Pipeline's");
+  assert.ok(byTestId(tree, "pipeline"), "the Pipeline");
+  assert.match(textOf(tree), /No deals yet./, "with its empty state, in contracts' words");
 });
 
 test("the rail's rows go to the Pipeline's own views (the switch to each scope is the frame's)", async () => {
@@ -2495,7 +2488,7 @@ test("a view holds only its rows, and the line stays the whole Pipeline's", () =
   );
   assert.deepEqual(shape(of("waiting")), [["proposals", ["wes", "nia"], false]]);
   assert.deepEqual(shape(of("lapsed")), [["proposals", ["lars"], false]]);
-  assert.equal(of("consultations").groups[0].meta, "3 ended in the last week, no proposal yet");
+  assert.equal(of("consultations").groups[0].meta, "3 ended in the last week, nothing since");
   for (const view of ["proposals", "waiting", "lapsed", "closed"])
     assert.deepEqual(of(view).summary, whole.summary, `${view}: the line is the whole Pipeline's`);
   // A service's deals, in every group they stand in; a consultation has no deal yet, so no service.
@@ -3423,7 +3416,6 @@ test("the bridge's pass reads each person afresh, records only a deal still a pr
     receptionist_mode: null,
     workspace_reply_mode: "auto",
     deals: people[id] ? [people[id]] : [],
-    deals_on: true,
     services: ["Color correction"],
   });
   const old = globalThis.window.fetch;
@@ -3626,7 +3618,7 @@ test("the peek hands the person's deals over once they are read: the step's fact
   );
 });
 
-test("the page waits by the workspace's pace as People reads it: the line, the rail, a search in the view and a phone's own button; none where deals are off", async () => {
+test("the page waits by the workspace's pace as People reads it: the line, the rail, a search in the view and a phone's own button", async () => {
   // Wes's proposal went eleven days ago, Nia's nine, and neither has heard back: past a week both wait; past an
   // eight-day pace and a fifth (ten days) only Wes does.
   await fresh({ dealPace: { median_days: 8, yeses: 6 } });
@@ -3658,9 +3650,7 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
     );
     assert.equal(textOf(byClass(lists, "pp-bar-pick-words")), "Nothing back in 10 days");
   });
-  // Deals off: no pace, whatever the read said. Under five yeses: a week, as before.
-  await fresh({ dealsOn: false, dealPace: { median_days: 8, yeses: 6 } });
-  assert.equal(globalThis.window.__PEOPLE.dealPace, null);
+  // Under five yeses: a week, as before.
   await fresh({ dealPace: { median_days: 8, yeses: 4 } });
   assert.ok(lineParts(draw()).includes("2 waiting over a week"));
 });

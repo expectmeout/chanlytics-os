@@ -22,7 +22,6 @@ import {
   PERSON_STATE_LABELS,
   asListRule,
   dealPaceOf,
-  dealsAreOn,
   listRuleParts,
   listUnknownWords,
   personStateFor,
@@ -312,89 +311,27 @@ const BEFORE = {
     aggregate:
       "Pipeline, Nothing back in a week: 4 on screen · 2 proposals out · $2,000 · 1 waiting over a week · 1 client · $2,500 a month · Proposal out: 2 · Clients: 1 · Passed or ended: 1",
   },
-  off: {
-    rows: [
-      {
-        source: "person://abababab-abab-4aba-8aba-abababababa1",
-        title: "Rosa",
-        text: "Rosa · Active · last contact Sep 4 · route: clients/abababab-abab-4aba-8aba-abababababa1",
-        ref: {
-          kind: "person",
-          id: "abababab-abab-4aba-8aba-abababababa1",
-          route: "clients/abababab-abab-4aba-8aba-abababababa1",
-          label: "Rosa",
-        },
-      },
-      {
-        source: "person://abababab-abab-4aba-8aba-abababababa2",
-        title: "Quinn",
-        text: "Quinn · Active · last contact 3h ago · route: clients/abababab-abab-4aba-8aba-abababababa2",
-        ref: {
-          kind: "person",
-          id: "abababab-abab-4aba-8aba-abababababa2",
-          route: "clients/abababab-abab-4aba-8aba-abababababa2",
-          label: "Quinn",
-        },
-      },
-      {
-        source: "person://abababab-abab-4aba-8aba-abababababa3",
-        title: "Lena",
-        text: "Lena · Active · last contact 3h ago · route: clients/abababab-abab-4aba-8aba-abababababa3",
-        ref: {
-          kind: "person",
-          id: "abababab-abab-4aba-8aba-abababababa3",
-          route: "clients/abababab-abab-4aba-8aba-abababababa3",
-          label: "Lena",
-        },
-      },
-      {
-        source: "person://abababab-abab-4aba-8aba-abababababa4",
-        title: "Omar",
-        text: "Omar · Active · last contact 3h ago · route: clients/abababab-abab-4aba-8aba-abababababa4",
-        ref: {
-          kind: "person",
-          id: "abababab-abab-4aba-8aba-abababababa4",
-          route: "clients/abababab-abab-4aba-8aba-abababababa4",
-          label: "Omar",
-        },
-      },
-      {
-        source: "person://abababab-abab-4aba-8aba-abababababa5",
-        title: "Mia",
-        text: "Mia · Active · last contact 3h ago · route: clients/abababab-abab-4aba-8aba-abababababa5",
-        ref: {
-          kind: "person",
-          id: "abababab-abab-4aba-8aba-abababababa5",
-          route: "clients/abababab-abab-4aba-8aba-abababababa5",
-          label: "Mia",
-        },
-      },
-    ],
-    aggregate: "Pipeline, all: 5 people on screen · people: 5",
-  },
 };
 
-test("the Pipeline context reads the board from its reader and answers what it answered before the move, byte for byte: the rows on screen in their groups, the line over the table and the groups' counts; where deals are off, People's rows", async () => {
+test("the Pipeline context reads the board from its reader and answers what it answered before the move, byte for byte: the rows on screen in their groups, the line over the table and the groups' counts; and the same board whatever the retired answer to how customers buy said (0008, amended 18 Oct 2026)", async () => {
   const got = {
     all: await pipelineContext(rcIn(ctxFor()), page(onScreen)),
     waiting: await pipelineContext(rcIn(ctxFor()), page(onScreen, "waiting")),
-    off: await pipelineContext(rcIn(ctxFor(tables("booking"))), page(onScreen)),
   };
   if (process.env.CAPTURE) console.log(`CAPTURE ${JSON.stringify(got)}`);
   for (const k of Object.keys(BEFORE)) assert.equal(JSON.stringify(got[k]), JSON.stringify(BEFORE[k]), k);
+  const booked = await pipelineContext(rcIn(ctxFor(tables("booking"))), page(onScreen));
+  assert.equal(JSON.stringify(booked), JSON.stringify(BEFORE.all), "a workspace whose answer was booking: its board");
 });
 
-test("the board is the page's: contracts pipelineOf over everyone in People, each row as People draws it for the member asking with their follow-up laid on, and the pace from People's first page, on the turn's clock; each person on it a row a citation names, and each deal one too, opened on its person's page; none where deals are off", async () => {
+test("the board is the page's: contracts pipelineOf over everyone in People, each row as People draws it for the member asking with their follow-up laid on, and the pace from People's first page, on the turn's clock; each person on it a row a citation names, and each deal one too, opened on its person's page; every workspace's", async () => {
   const r = await load(rcIn(ctxFor()), dealBoard, undefined);
   // The page's own build, over the same rows: People's first page for the pace and the follow-up (none here), and for
   // what the workspace can send on, which each row's reach is judged against (reach-any.ts).
-  const dealsOn = dealsAreOn("proposal");
   const first = (await load(rcIn(ctxFor()), people, { q: null, offset: 0 })).data;
-  const rows = HARBOR.map((p) =>
-    poolRowOf(p, { tz: TZ, now: NOW, viewer: USER, dealsOn, ready: first.channels_ready }),
-  );
+  const rows = HARBOR.map((p) => poolRowOf(p, { tz: TZ, now: NOW, viewer: USER, ready: first.channels_ready }));
   const pace = dealPaceOf(null);
-  assert.deepEqual(r.data, { deals_on: true, timezone: TZ, board: pipelineOf(rows, NOW.getTime(), TZ, pace) });
+  assert.deepEqual(r.data, { timezone: TZ, board: pipelineOf(rows, NOW.getTime(), TZ, pace) });
   assert.deepEqual(
     r.data.board.groups.map((g) => [g.label, g.rows.map((x) => x.name)]),
     [
@@ -411,8 +348,9 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
     ],
   );
   assert.ok(!r.rows.some((x) => x.id === P4 || x.id === PB), "nobody off the board, and nobody of another workspace");
-  const off = await load(rcIn(ctxFor(tables("booking"))), dealBoard, undefined);
-  assert.deepEqual([off.data, off.rows], [{ deals_on: false, timezone: TZ, board: null }, []]);
+  // Whatever the retired answer said, the same board (0008, amended 18 Oct 2026).
+  const booked = await load(rcIn(ctxFor(tables("booking"))), dealBoard, undefined);
+  assert.deepEqual([booked.data, booked.rows], [r.data, r.rows]);
 });
 
 test("a person with two open deals is two rows of the board, each the person and its own deal (0029): Ask's contact_id and every citation are theirs, never a row's id, and each row names the deal it stands for", async () => {
@@ -487,12 +425,11 @@ const ask = async (input, t = tables(), role = "operator") => {
   return { out: JSON.parse(out.result), tc };
 };
 
-test("people.pipeline answers what the board's reader answers, as the Pipeline draws it: the line over the table, the pace, each group with its count and what it comes to, and each person on it with the deal's id, service, value, time in stage, chip and next step; each person and deal a row in the read set, opened on the person's page; where deals are off, said so", async () => {
+test("people.pipeline answers what the board's reader answers, as the Pipeline draws it: the line over the table, the pace, each group with its count and what it comes to, and each person on it with the deal's id, service, value, time in stage, chip and next step; each person and deal a row in the read set, opened on the person's page; every workspace's", async () => {
   const { out, tc } = await ask({ action: "pipeline" });
   const board = (await load(rcIn(ctxFor(), "operator"), dealBoard, undefined)).data.board;
   assert.deepEqual(out, {
     route: "clients/pipeline",
-    deals_on: true,
     summary: board.summary.join(" · "),
     pace: board.pace?.words ?? null,
     groups: board.groups.map((g) => ({
@@ -536,8 +473,8 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
     label: "Rosa · Kitchen remodel",
   });
   assert.ok(!tc.read.person.has(P4) && !tc.read.person.has(PB), "nobody off the board is named");
-  const off = await ask({ action: "pipeline" }, tables("booking"));
-  assert.deepEqual([off.out.deals_on, off.out.groups, off.tc.read.person.size], [false, undefined, 0]);
+  const booked = await ask({ action: "pipeline" }, tables("booking"));
+  assert.deepEqual(booked.out, out, "whatever the retired answer said: the same Pipeline");
 });
 
 test("people.lists answers the rail People draws, over the audience pool (everyone, for the member asking): People's own lists this workspace can count with what each holds and how many, the ones it cannot count with why, and the workspace's own lists with their rule in the page's words and their count or why not, the archived by name; each list a row in the read set, opened on People at it", async () => {
@@ -550,7 +487,7 @@ test("people.lists answers the rail People draws, over the audience pool (everyo
     (l) =>
       (!l.needsCalendar || cal === "ok") &&
       (!l.needsConsultFirst || pool.consult_first) &&
-      (!l.needsDeals || pool.deals_on),
+      (!l.needsDeals || pool.has_deals),
   );
   assert.deepEqual(
     out.lists,

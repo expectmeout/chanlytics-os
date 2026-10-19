@@ -1,4 +1,4 @@
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords } from "../journey/appointment-word.js";
 import { MERGE_ANSWERS } from "../people/person-merge.js";
 import { NEEDS_TITLE } from "../shell/refusal.js";
 import { WORKS_AT_WORDS } from "./words.js";
@@ -51,7 +51,7 @@ export function combineOf(f) {
     rows: [
       named ? W.keeps : W.keepsNoName,
       W.takesThread(drop.name),
-      W.takesRecords(appointmentWords(appointmentWordWhere(f.dealsOn)).many),
+      W.takesRecords(appointmentWords(f.word).many),
       W.takesReachOut,
       W.answers,
       W.after(drop.name)

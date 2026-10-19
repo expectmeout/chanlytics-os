@@ -11,7 +11,7 @@ import { everyone } from "./everyone";
  * audience, a People list and a playbook's moment are counted over, as the send counts them. Read once a turn by its
  * arguments, so a turn that lists the audiences and then proposes a send reads it once -- the memo it replaces kept
  * one pool whatever the zone and the clock. Everyone is the turn's own read (readers/everyone.ts), which the Playbooks
- * page's pools share; the zone, the settings and how the customers buy are the turn's too (readers/facts.ts): the
+ * page's pools share; the zone, the settings and a deal on file are the turn's too (readers/facts.ts): the
  * zone up front, as the tool's context had it, and the settings only where the pool's calendar lookup would read them,
  * so a settings read that fails costs the visits, never the pool. A workspace-wide read, so no row of its own: a tool
  * that names someone from it records them itself.
@@ -19,14 +19,14 @@ import { everyone } from "./everyone";
 export const audiencePool: Reader<undefined, AudiencePool> = {
   name: "audiencePool",
   async read(rc) {
-    const [zone, sellsBy, ready] = await Promise.all([
+    const [zone, dealt, ready] = await Promise.all([
       load(rc, facts.facts, undefined),
-      load(rc, facts.sellsBy, undefined),
+      load(rc, facts.hasDeals, undefined),
       // What the workspace can send on now: each row's reach is judged against it (readers/facts.ts, the turn's own read).
       load(rc, facts.channelsReady, undefined),
     ]);
     const data = await audiencePoolFrom(rc.ctx, rc.tenantId, zone.data.timezone, rc.now, ready.data, {
-      sellsBy: sellsBy.data,
+      hasDeals: dealt.data,
       people: () => load(rc, everyone, undefined).then((r) => r.data),
       known: facts.zoneAndSettings(rc),
     });
@@ -45,14 +45,14 @@ export const listCounts: Reader<{ tokens: readonly string[] }, ListCountsDto> = 
   name: "listCounts",
   async read(rc, { tokens }) {
     const refs = tokens.map((token) => [token, parseListToken(token)] as const);
-    const [zone, sellsBy, ready, lists] = await Promise.all([
+    const [zone, dealt, ready, lists] = await Promise.all([
       load(rc, facts.facts, undefined),
-      load(rc, facts.sellsBy, undefined),
+      load(rc, facts.hasDeals, undefined),
       load(rc, facts.channelsReady, undefined),
       refs.some(([, ref]) => ref?.kind === "saved") ? savedListsFor(rc.ctx.supabase, rc.tenantId) : Promise.resolve([]),
     ]);
     const pool = await audiencePoolFrom(rc.ctx, rc.tenantId, zone.data.timezone, rc.now, ready.data, {
-      sellsBy: sellsBy.data,
+      hasDeals: dealt.data,
       people: () => load(rc, everyone, undefined).then((r) => r.data),
       known: facts.zoneAndSettings(rc),
       stale: true,

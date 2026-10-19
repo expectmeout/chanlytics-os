@@ -309,7 +309,7 @@ test("the settings read is the one read of them: it lands every template with it
     workspaces: { workspaces: globalThis.__WORKSPACES, activeWorkspaceId: "t1" },
     settings: { config: { brain: {} }, version: 1, role: "owner", facts: {}, conflicts: [] },
     team: { members: [], invites: [] },
-    policies: { policies: [], role: "owner", deals_on: false },
+    policies: { policies: [], role: "owner" },
     channels: { channels: [] },
     templates: { templates: rows, messages: campaignMessagesOf(rows), usedBy: {} },
   };

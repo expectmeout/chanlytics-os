@@ -37,6 +37,7 @@ const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = awa
 );
 const {
   MOMENTS_RETIRED,
+  PEOPLE_LISTS,
   PERSON_STATE_LABELS,
   PLAYBOOK_TRIGGERS,
   PROPOSAL_SPECS,
@@ -1006,6 +1007,20 @@ function withHeldListWord(frozen) {
 }
 
 /**
+ * 18 Oct 2026 (0008, amended: every workspace has deals): the deal lists are offered once a deal is on file, where they
+ * were offered wherever the workspace said some customers get a proposal first. This world said so and records no deal,
+ * so campaigns.audiences lists them no more: the one change to its bytes.
+ */
+function withoutDealLists(frozen) {
+  const deals = new Set(PEOPLE_LISTS.filter((l) => l.needsDeals).map((l) => l.id));
+  const said = JSON.parse(frozen);
+  return JSON.stringify({
+    ...said,
+    audiences: said.audiences.filter((a) => !(a.kind === "list" && deals.has(a.audience_id))),
+  });
+}
+
+/**
  * 7 Oct 2026 (lane 1, T6): campaigns.audiences lists the messages the composers offer, whatever channels they have versions
  * on, each with the channels it can be sent by (contracts messageHolds). Every template of this world is an approved
  * WhatsApp row alone: the one change to the bytes of the listing, `channels` after `category`. (The lane's review) Its
@@ -1182,16 +1197,17 @@ function withLastThirtyDays(frozen) {
 }
 
 /**
- * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026, the
- * lifecycle set: contracts momentOffered; this workspace sells by proposal and has no calendar). Its listing is held to
- * those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is compared byte for byte.
+ * campaigns.playbooks lists the moments a NEW playbook is offered, in the words contracts gives them now (2 Oct 2026,
+ * the lifecycle set: contracts momentOffered; this workspace has no calendar, and every workspace has deals). Its
+ * listing is held to those moments, each one's counts to what 7405e34b counted for it, and the rest of the answer is
+ * compared byte for byte.
  */
 function againstOffered(got, frozen) {
   const g = JSON.parse(got);
   const w = JSON.parse(frozen);
   assert.deepEqual(
     g.triggers.map((t) => t.trigger),
-    PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn: true, calendarOn: false })).map((t) => t.id),
+    PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { calendarOn: false })).map((t) => t.id),
     "the moments offered for a new playbook, retired ones left out",
   );
   for (const t of g.triggers) {
@@ -1290,7 +1306,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (old === "get_settings") result = withHowItAnswers(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
-    if (NAMES[old] === "sequences.lists") result = withTheYesItself(withHeldListWord(withChannels(result)));
+    if (NAMES[old] === "sequences.lists")
+      result = withoutDealLists(withTheYesItself(withHeldListWord(withChannels(result))));
     if (NAMES[old].startsWith("propose_sequence.")) result = withTheVerbsWords(result);
     // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
     // in their result and in the card they propose.
@@ -1465,10 +1482,24 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       ...withKept,
       ...withKept.filter((r) => r === "rpc:newest_messages").map(() => "escalations.select"),
     ];
+    // 18 Oct 2026 (0008, amended: every workspace has deals): where a tool read how the workspace's customers buy
+    // (tenants.sells_by), it reads what it needs of what replaced it. People's page and a playbook's card say the
+    // workspace's word (one `tenants` read, as before), and People's rows ask whether a deal was ever recorded (one
+    // `deals` read more); a pool or a list asks the second alone; the settings and the report ask neither. This world
+    // records no deal, so the moments ask whether there is one where they read its pace and its proposals out. Their
+    // bytes are unchanged, the deal lists aside (withoutDealLists).
+    const pool =
+      readsReach &&
+      (old === "list_audiences" || old === "propose_broadcast" || (old === "search_people" && !!input.list));
+    const dealt = [...withClosedHolds, ...(readsReach ? ["deals.select"] : [])];
+    const drop = (r, x) => (r.includes(x) ? r.toSpliced(r.indexOf(x), 1) : r);
+    const withoutBuys =
+      pool || NAMES[old] === "report" || NAMES[old] === "workspace.settings" ? drop(dealt, "tenants.select") : dealt;
+    const withOneDealRead = NAMES[old] === "sequences.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withClosedHolds))))
-        : withClosedHolds;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withOneDealRead))))
+        : withOneDealRead;
     const [gotResult, wantResult] = withoutStoredWords(
       old,
       ...(NAMES[old] === "sequences.moments"

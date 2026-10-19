@@ -44,25 +44,23 @@ export function personNextOf(f) {
       sub: [asking.title, asking.time].filter(Boolean).join(" \xB7 "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" \xB7 ") }
     });
-  if (f.dealsOn) {
-    for (const c of f.deals.cards) {
-      if (!c.next) continue;
-      rows.push({
-        id: `deal:${c.id ?? c.title}`,
-        title: c.title,
-        sub: dealRungSub(c),
-        act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label }
-      });
-    }
-    const q = f.deals.quiet;
-    if (q && (q.primary || f.talking && !q.dealId))
-      rows.push({
-        id: "deal:quiet",
-        title: q.words,
-        sub: q.sub,
-        act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label }
-      });
+  for (const c of f.deals.cards) {
+    if (!c.next) continue;
+    rows.push({
+      id: `deal:${c.id ?? c.title}`,
+      title: c.title,
+      sub: dealRungSub(c),
+      act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label }
+    });
   }
+  const q = f.deals.quiet;
+  if (q && (q.primary || f.talking && !q.dealId))
+    rows.push({
+      id: "deal:quiet",
+      title: q.words,
+      sub: q.sub,
+      act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label }
+    });
   if (f.step)
     rows.push({
       id: `step:${f.step.id}`,

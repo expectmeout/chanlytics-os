@@ -206,7 +206,7 @@ export function shapeBlock(shape: WorkspaceShape): string {
     `The workspace: ${oneLine(shape.name)} · zone ${shape.timezone}`,
     `Lines: ${channels.length ? channels.join(", ") : "none"}`,
     [
-      `Deals ${shape.deals_on ? "on" : "off"}`,
+      shape.has_deals ? "Deals on file" : "No deal on file yet",
       `the appointment word: ${shape.appointment_word}`,
       `calendar feed ${yes(shape.calendar_feed, "set")}`,
       `booking link ${yes(shape.booking_link, "set")}`,

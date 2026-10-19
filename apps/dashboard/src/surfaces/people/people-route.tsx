@@ -39,9 +39,8 @@ function viewOf(param: string) {
 }
 
 /**
- * What the frame mounted a route under: the Pipeline's address family is one mount (where deals are off its addresses
- * draw People), a view of People is one with or without a person peeked over it (Everyone, bare or `state:all`), and
- * every other view its own.
+ * What the frame mounted a route under: the Pipeline's address family is one mount, a view of People is one with or
+ * without a person peeked over it (Everyone, bare or `state:all`), and every other view its own.
  */
 function mountOf(route: string): string {
   if (route === "clients/pipeline" || route.startsWith("clients/pipeline:")) return "clients/pipeline";
@@ -111,8 +110,8 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   const mount = useMountKey(route);
   const person = !!param && isPersonParam(param);
   const leads = /^leads(:|$)/.test(param);
-  // The Pipeline's address draws the Pipeline where deals are on, and People's own page where they are off (0008).
-  const pipeline = /^pipeline(:|$)/.test(param) && !!live?.dealsOn;
+  // The Pipeline's address draws the Pipeline, every workspace's (0008, amended 18 Oct 2026).
+  const pipeline = /^pipeline(:|$)/.test(param);
   // What the page says to the frame's head in Glass: a person's page that its hero is the head (the frame draws the date's
   // place as the way back). The Pipeline says its own, with its act (pipeline/standing.tsx); Leads says its own too, in its
   // standing line (rail/standing.tsx); and People's list says its own, with its act, Add a person (page/people-real.tsx).

@@ -89,7 +89,7 @@ function personOf(i, line, facts) {
   const b = i.block;
   if (b.person) {
     const p = b.person;
-    const deal = facts?.deal && i.dealsOn ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
+    const deal = facts?.deal ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
     return {
       known: true,
       id: p.id,
@@ -122,7 +122,7 @@ function reminderOf(i, ended) {
   if (b.person.stopped) return SHEET_WORDS.reminder.stopped;
   const before = i.moments.find((m) => m.trigger === "visit_tomorrow");
   if (!before) return null;
-  const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) && !campaignEnded(before, shiftKey(i.day.key, -1));
+  const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs) }) && !campaignEnded(before, shiftKey(i.day.key, -1));
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 function originOf(b) {
@@ -186,7 +186,7 @@ function visitMoreOf(i, line, phone) {
     add("note", M.note);
   }
   if (phone) add("copy", M.copy);
-  if (b.person?.facts?.deal && i.dealsOn) add("deal", M.deal);
+  if (b.person?.facts?.deal) add("deal", M.deal);
   if (b.visit?.status === "kept" && line.acts.includes("missed")) add("missed", M.missed);
   if (b.visit?.status === "missed" && line.acts.includes("kept")) add("kept", M.kept);
   if (b.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
@@ -197,8 +197,8 @@ function visitMoreOf(i, line, phone) {
 }
 function proposalOf(i, facts) {
   const b = i.block;
-  const rows = b.person && facts ? [{ id: b.person.id, deal: facts.deal }] : [];
-  const start = calendarPeekDeal(b, { dealsOn: i.dealsOn, rows }, i.nowMs).start;
+  const rows = b.person && facts ? [{ id: b.person.id, deal: facts.deal, nextVisitMs: facts.nextVisitMs }] : [];
+  const start = calendarPeekDeal(b, { rows }, i.nowMs).start;
   if (!start) return { proposal: null, words: null };
   return {
     proposal: { personId: start.personId, mode: start.act.mode ?? "propose", service: start.service },

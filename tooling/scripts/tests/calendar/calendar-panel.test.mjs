@@ -212,7 +212,6 @@ function sheet(slot, over = {}, ask = {}) {
     word: "appointment",
     source: "Google Calendar",
     bookingLink: "bookingLink" in ask ? ask.bookingLink : vm.bookingLink,
-    dealsOn: ask.dealsOn ?? false,
     notes: null,
     next: null,
     moments: ask.moments ?? null,
@@ -374,7 +373,7 @@ test("(lane E) the reminder it gets, by the rule: the day-before campaign's hour
   assert.equal(reminderOf(ENDED, {}, moments("running")), undefined, "over: no reminder to come");
 });
 
-test("(0008, D1-consult-held) a consultation over with no proposal since leads with the deal sheet's own act where deals are on: kept, or with no row to mark; never one they missed, and the ask first while it is unmarked", () => {
+test("(0008, D1-consult-held) a consultation over with nothing since leads with the deal sheet's own act in every workspace: kept, or with no row to mark; never one they missed or booked again since, and the ask first while it is unmarked", () => {
   const consult = (visit, person = ana()) => ({
     title: "Kitchen remodel consult · Ana Ruiz",
     consultation: true,
@@ -382,27 +381,28 @@ test("(0008, D1-consult-held) a consultation over with no proposal since leads w
     person,
     visit,
   });
-  const on = { dealsOn: true };
-  const kept = sheet(ENDED, consult({ id: "v1", status: "kept" }), on);
+  const kept = sheet(ENDED, consult({ id: "v1", status: "kept" }));
   assert.deepEqual(kept.primary, { act: "proposal", label: "Start a proposal", quiet: false });
   assert.deepEqual(kept.proposal, { personId: "p-ana", mode: "propose", service: "Kitchen remodel" });
   assert.equal(
-    sheet(ENDED, consult(null), on).primary.act,
+    sheet(ENDED, consult(null)).primary.act,
     "proposal",
     "an event the record has not kept: nobody can mark it, so the proposal leads, as before",
   );
-  const unmarked = sheet(ENDED, consult({ id: "v1", status: "booked" }), on);
+  const unmarked = sheet(ENDED, consult({ id: "v1", status: "booked" }));
   assert.ok(unmarked.ask, "unmarked: the ask leads");
   assert.equal(unmarked.primary.act, "message", "and the proposal follows a Kept");
   for (const status of ["missed", "cancelled"])
     assert.equal(
-      sheet(ENDED, consult({ id: "v1", status }), on).proposal,
+      sheet(ENDED, consult({ id: "v1", status })).proposal,
       null,
       `REGRESSION: they did not come (${status}), and a proposal was offered`,
     );
-  assert.equal(sheet(ENDED, consult({ id: "v1", status: "kept" })).proposal, null, "deals off: none");
+  // Booked again since (0008, amended 18 Oct 2026): the consultation was followed, by a booking.
+  const again = ana({ facts: anaFacts({ next_visit_at: iso(NOW + 24 * HOUR) }) });
+  assert.equal(sheet(ENDED, consult({ id: "v1", status: "kept" }, again)).proposal, null, "booked again: none");
   assert.equal(
-    sheet(ENDED, consult({ id: "v1", status: "kept" }, ana({ facts: undefined })), on).proposal,
+    sheet(ENDED, consult({ id: "v1", status: "kept" }, ana({ facts: undefined }))).proposal,
     null,
     "a deal the board has not read is not one it can say is missing",
   );
@@ -412,17 +412,12 @@ test("(0008, D1-consult-held) a consultation over with no proposal since leads w
     deal_service: "Kitchen remodel",
     deal_proposed_at: iso(NOW - 2 * HOUR),
   };
-  const out = sheet(ENDED, consult({ id: "v1", status: "kept" }, ana({ facts: anaFacts({ deal }) })), on);
+  const out = sheet(ENDED, consult({ id: "v1", status: "kept" }, ana({ facts: anaFacts({ deal }) })));
   assert.equal(out.proposal, null, "a proposal out already is the next step");
   assert.match(out.person.deal, /^Proposal out · Kitchen remodel/, "and the deal is said beside them");
   assert.ok(
     out.more.some((m) => m.act === "deal"),
     "with its door in More",
-  );
-  assert.equal(
-    sheet(ENDED, consult({ id: "v1", status: "kept" }, ana({ facts: anaFacts({ deal }) }))).person.deal,
-    null,
-    "deals off: nothing said of one",
   );
 });
 

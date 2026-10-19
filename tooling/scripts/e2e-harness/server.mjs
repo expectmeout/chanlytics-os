@@ -21,7 +21,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dealsAreOn, err, ok } from "@chanlytics/contracts";
+import { err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
 import { buildBehaves } from "./kit-behaves.mjs";
 import { behavesDocument, galleryDocument } from "./kit-gallery.mjs";
@@ -94,13 +94,13 @@ export function answer(method, pathname, params, record) {
       status: 200,
       body: ok({
         activeWorkspaceId: WORKSPACE.id,
-        // With how its customers buy where the record says (the workspace list carries tenants.sells_by).
+        // With its word where the record says (the workspace list carries tenants.appointment_word).
         workspaces: [
           {
             id: WORKSPACE.id,
             slug: WORKSPACE.slug,
             name: WORKSPACE.name,
-            ...(record.sellsBy ? { sells_by: record.sellsBy } : {}),
+            ...(record.word ? { appointment_word: record.word } : {}),
           },
         ],
       }),
@@ -161,7 +161,8 @@ function peopleAnswer(pathname, params, record) {
         booking_link: record.config?.brain?.booking_link?.trim() || null,
         // Whether the profile lists a consult-first service (withVisits): a flag; the names stay on the server.
         consult_first: (record.config?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
-        deals_on: dealsAreOn(record.sellsBy),
+        has_deals: !!record.hasDeals,
+        appointment_word: record.word ?? "appointment",
         page: { q: params.get("q"), offset, limit: 1000, total: record.people.length, has_more: false },
       }),
     };
