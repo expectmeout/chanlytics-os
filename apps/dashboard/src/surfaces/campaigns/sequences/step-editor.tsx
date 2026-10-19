@@ -44,6 +44,7 @@ import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
+import { warmMessagePane } from "../home/campaigns-code";
 import { messagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
@@ -248,6 +249,9 @@ function EditorRight(p: {
   flash: Flash;
 }) {
   const Pane = useContext(messagePaneContext());
+  // The pane its Edit the words draws is the Library's, a chunk of its own (home/campaigns-code.tsx): fetched as the editor
+  // opens, so the press finds it in.
+  useEffect(() => warmMessagePane(), []);
   if (p.writing && Pane)
     return (
       <div className="sq-ed-preview" data-testid="sq-editor-writing">

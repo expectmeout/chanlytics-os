@@ -138,8 +138,11 @@ export function createPageSpeed(deps: SpeedDeps): PageSpeed {
       // The same thing begun again at once is one begin said twice (React's strict mode runs a mount's effects twice).
       if (had && had.key === key && now - had.begunAt < REBEGIN_MS) return;
       // A part's first thing is the page's own wait; a later one, by a new key or the part drawn afresh (a person opened
-      // from another, a list picked), is timed from the press that asked for it.
-      const within = changed || !!had;
+      // from another, a list picked), is timed from the press that asked for it. So is one first begun once the page itself
+      // was drawn: a part nothing opened as the page arrived (a thread tapped on a phone's Conversations, a sequence opened
+      // from Campaigns' list) was timed from the page's own start, the whole visit up to the press counted as its wait
+      // (production, 18 Oct 2026: Conversations' phone thread at 2.5 to 8.8 s).
+      const within = changed || !!had || v.shown;
       // Held: a part the press opened, by what it had as it began; one of the page's own, only if the page's rows were
       // held when the page began, since a part the frame's gate holds back is drawn with its rows whatever it waited.
       const held = within ? warm : warm && v.warm;

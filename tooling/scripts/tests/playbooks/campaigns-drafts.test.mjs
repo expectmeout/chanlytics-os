@@ -73,6 +73,13 @@ Object.assign(globalThis, {
 });
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
+// The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
+// door fetches them, so every draw below finds them in, as a press after that reach does.
+const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
+warmCampaignsCode("campaigns/message:any");
+await import(`${SRC}/surfaces/campaigns/home/open-sheets.tsx`);
+await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
+await new Promise((r) => setTimeout(r, 0));
 const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
