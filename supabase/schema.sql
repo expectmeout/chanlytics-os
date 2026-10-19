@@ -22264,6 +22264,13 @@ end $$;
 
 
 --
+-- Name: FUNCTION reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid) IS 'Auto-add (00459): the search whose new ready leads join a sequence to leads by themselves, or none. A member who may approve; one sequence a search.';
+
+
+--
 -- Name: reach_out_sources(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
