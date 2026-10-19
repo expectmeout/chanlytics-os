@@ -1,6 +1,6 @@
 import { clockDate, clockNear } from "../shared/clock.js";
 import { capitalize, plural } from "../shared/words.js";
-import { holdDoors, holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
+import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
 import { scheduleDays, scheduleWait } from "./sequence-schedule.js";
 import { sequenceLeftWords } from "./sequence-words.js";
 export const PLACE_WORDS = {
@@ -43,16 +43,6 @@ export function placeWordOf(r, seq, clock, named = true) {
     case "left":
       return { word: PLACE_WORDS.left, tone, line: `${seq.name} \xB7 ${sequenceLeftWords(r.why) || "taken out"}` };
   }
-}
-const HELD_CHOICE_WORDS = {
-  include: "Send as written",
-  rewrite: "Rewrite the opening",
-  skip: "Skip this email",
-  not_a_fit: "Not a fit"
-};
-export function heldChoicesOf(hold, place) {
-  const doors = isReachOutHold(hold) ? holdDoors(hold) : ["include", "skip"];
-  return doors.filter((d) => d !== "skip" || (place ?? 1) > 1).map((d) => [d, HELD_CHOICE_WORDS[d]]);
 }
 const heldWhyOf = (hold, detail) => isReachOutHold(hold) ? capitalize(holdWords(hold, detail)) : null;
 export const PLACE_RAIL_WORDS = {

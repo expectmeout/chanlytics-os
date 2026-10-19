@@ -98,10 +98,10 @@ export {
   placeStands,
   placeToneOf,
   placeWordOf,
-  heldChoicesOf,
   placeRailOf,
   placeSpanOf,
 } from "./sequence-place";
+export { heldChoicesOf } from "./sequence-held";
 export type {
   SequencePlaceDto,
   SequencePlaceRowDto,

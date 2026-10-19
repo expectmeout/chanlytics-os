@@ -7,11 +7,10 @@
  *   SequencePlaceOfDto   sequence_places_of: many leads' places, one row a lead
  *   placeWordOf          the word beside a name, its tone, and the line under it (a table's cell, the sheet's head)
  *   placeRailOf          the record's rail drawn for one lead (their place) or as they'd get it (before they join)
- *   heldChoicesOf        what a held email may become, by why it was held and the step it is
  */
 import { clockDate, clockNear } from "../shared/clock";
 import { capitalize, plural } from "../shared/words";
-import { holdDoors, holdWords, isReachOutHold, type HoldDoor } from "../reach-out/reach-out-words";
+import { holdWords, isReachOutHold } from "../reach-out/reach-out-words";
 import type { SequenceState } from "./sequence";
 import type {
   SequencePeopleGroup,
@@ -156,23 +155,6 @@ export function placeWordOf(
 }
 
 /* -------------------------------------------------------------------------------------------- a held email -- */
-
-/** What a held email may become, in the doors' words (the canvas's one meaning each: Send as written, Skip this email). */
-const HELD_CHOICE_WORDS: Record<HoldDoor, string> = {
-  include: "Send as written",
-  rewrite: "Rewrite the opening",
-  skip: "Skip this email",
-  not_a_fit: "Not a fit",
-};
-
-/**
- * The choices a held email offers, by why it was held (contracts holdDoors) and its step: Skip this email from step 2,
- * where the lead goes on to the next step (00459); at step 1 skipping would end their place, which Take out says.
- */
-export function heldChoicesOf(hold: string | null, place: number | null): [HoldDoor, string][] {
-  const doors: HoldDoor[] = isReachOutHold(hold) ? holdDoors(hold) : ["include", "skip"];
-  return doors.filter((d) => d !== "skip" || (place ?? 1) > 1).map((d) => [d, HELD_CHOICE_WORDS[d]]);
-}
 
 /** Why a held email was held, said once: "the opening says “award-winning”, which the listing doesn't back". */
 const heldWhyOf = (hold: string | null, detail: string | null): string | null =>

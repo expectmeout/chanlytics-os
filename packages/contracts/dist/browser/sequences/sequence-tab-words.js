@@ -1,5 +1,5 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
-import { heldChoicesOf } from "./sequence-place.js";
+import { heldChoicesOf } from "./sequence-held.js";
 import { leadDoorOf } from "../reach-out/reach-out-sheet.js";
 import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";

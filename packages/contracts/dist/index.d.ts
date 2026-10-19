@@ -12176,11 +12176,6 @@ named?: boolean): {
     tone: PlaceTone;
     line: string | null;
 };
-/**
- * The choices a held email offers, by why it was held (contracts holdDoors) and its step: Skip this email from step 2,
- * where the lead goes on to the next step (00459); at step 1 skipping would end their place, which Take out says.
- */
-declare function heldChoicesOf(hold: string | null, place: number | null): [HoldDoor, string][];
 /** Which way the rail is drawn: everyone's (the record's own Steps), one lead's place, or as they'd get it before joining. */
 type PlaceRailLens = "everyone" | "one" | "preview";
 /** A step on the rail for one lead, or as they'd get it: its day, its title, how it goes, and what it is doing for them. */
@@ -42237,6 +42232,18 @@ declare function sequenceResumeAsk(rec: {
     nowMs: number;
     mode: string | null;
 }): SequenceResumeAsk;
+
+/**
+ * What a held email may become, said once for the record's rail, a sequence's Leads tab and the lead sheet's dock (the
+ * lead-to-sequence canvas's one meaning each). A module of its own, so a page that draws a held email's choices (the
+ * Inbox's run rows through sequence-tab-words) loads none of a lead's place (sequence-place) or the schedule beneath it.
+ */
+
+/**
+ * The choices a held email offers, by why it was held (contracts holdDoors) and its step: Skip this email from step 2,
+ * where the lead goes on to the next step (00459); at step 1 skipping would end their place, which Take out says.
+ */
+declare function heldChoicesOf(hold: string | null, place: number | null): [HoldDoor, string][];
 
 /**
  * Send me a test (the parity review's W5; Ruben, 15 Oct 2026: email to your own address first): a customer step's message

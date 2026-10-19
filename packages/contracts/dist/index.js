@@ -40136,16 +40136,6 @@ function placeWordOf(r2, seq, clock3, named = true) {
       return { word: PLACE_WORDS.left, tone, line: `${seq.name} \xB7 ${sequenceLeftWords(r2.why) || "taken out"}` };
   }
 }
-var HELD_CHOICE_WORDS = {
-  include: "Send as written",
-  rewrite: "Rewrite the opening",
-  skip: "Skip this email",
-  not_a_fit: "Not a fit"
-};
-function heldChoicesOf(hold, place) {
-  const doors = isReachOutHold(hold) ? holdDoors(hold) : ["include", "skip"];
-  return doors.filter((d) => d !== "skip" || (place ?? 1) > 1).map((d) => [d, HELD_CHOICE_WORDS[d]]);
-}
 var heldWhyOf = (hold, detail) => isReachOutHold(hold) ? capitalize(holdWords2(hold, detail)) : null;
 var PLACE_RAIL_WORDS = {
   theirPlace: "Their place",
@@ -48008,6 +47998,18 @@ var SEQUENCE_PEOPLE_GROUPS = [
   "done",
   "left"
 ];
+
+// src/sequences/sequence-held.ts
+var HELD_CHOICE_WORDS = {
+  include: "Send as written",
+  rewrite: "Rewrite the opening",
+  skip: "Skip this email",
+  not_a_fit: "Not a fit"
+};
+function heldChoicesOf(hold, place) {
+  const doors = isReachOutHold(hold) ? holdDoors(hold) : ["include", "skip"];
+  return doors.filter((d) => d !== "skip" || (place ?? 1) > 1).map((d) => [d, HELD_CHOICE_WORDS[d]]);
+}
 
 // src/sequences/sequence-tab-words.ts
 var SEQUENCE_EDIT_WORDS = {

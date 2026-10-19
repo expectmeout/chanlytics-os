@@ -328,8 +328,9 @@ export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequen
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceRouteBack, sequenceRoute, newSequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address";
 export { SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_NEW_WORDS, isListToken, newSequenceLine } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
+export { heldChoicesOf } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, leadApprovesOf, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadFirstUnwritten, leadInsertRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep } from "./sequences/sequence-lead-build";
-export { PLACE_WORDS, PLACE_RAIL_WORDS, placeStands, placeToneOf, placeWordOf, heldChoicesOf, placeRailOf, placeSpanOf } from "./sequences/sequence-place";
+export { PLACE_WORDS, PLACE_RAIL_WORDS, placeStands, placeToneOf, placeWordOf, placeRailOf, placeSpanOf } from "./sequences/sequence-place";
 export { SCHEDULE_WORDS, scheduleDays, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule";
 export { SEQUENCE_EDIT_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_REPLIES_WORDS, historySince, historyIn, historyCovers, historyFigures, historyDays, historyDayWords, historyStamp, historyUpcomingWords, batchWent, peopleNeedsOf } from "./sequences/sequence-tab-words";
 export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, leadStepTestMail, stepTestMail } from "./sequences/sequence-test";
