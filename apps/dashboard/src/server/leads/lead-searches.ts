@@ -68,6 +68,8 @@ export interface SearchViewRow {
   long: number | null;
   /** 00172: the Ask thread the search was planned in, or null. */
   thread_id: string | null;
+  /** 00459: the sequence this search's Add goes to, or null. */
+  adds_to?: string | null;
 }
 
 /** The round's nearby areas as the view returns them: only rows shaped as an area are handed on. */
@@ -252,6 +254,7 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
       ...plans,
       plan_version: r.plan_version ?? 1,
       thread_id: r.thread_id ?? null,
+      adds_to: r.adds_to ?? null,
       round: null,
     };
   return {
@@ -264,6 +267,7 @@ export function toSearchDto(r: SearchViewRow): LeadSearchDto {
     ...plans,
     plan_version: r.plan_version ?? 1,
     thread_id: r.thread_id ?? null,
+    adds_to: r.adds_to ?? null,
     round: {
       id: r.round_id,
       seq: r.seq ?? 1,

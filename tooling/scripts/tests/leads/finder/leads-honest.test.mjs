@@ -726,6 +726,10 @@ const serveRead = (path, query) => {
     return reply(200, { ok: true, data: { ready: 0, with_unconfirmed: 0, phone_only: 0, of: 0, chain: null } });
   // The sequences Add can go to, read as the lead sheet first opens (sheet/use-aim.ts): none takes leads by hand here.
   if (path === "/api/v1/reach-outs") return reply(200, { ok: true, data: { chains: [] } });
+  // The sequences to leads the pick and the picker offer (sheet/use-aim.ts, 00459): none in this world.
+  if (path === "/api/v1/sequences") return reply(200, { ok: true, data: { sequences: [] } });
+  // A lead's place in a sequence (00459 sequence_place, the lead sheet's one reader): none of these leads is in one.
+  if (/^\/api\/v1\/leads\/[^/]+\/place$/.test(path)) return reply(200, { ok: true, data: null });
   // A person read ahead of a press (People's warmPeople, which the Pipeline's rows ask as they are rested on), who is not here.
   if (/^\/api\/v1\/contacts\/[^/]+$/.test(path)) return refusal(404, "not_found", `no ${path}`);
   unexpected.push(`GET ${path}`);
@@ -2955,24 +2959,21 @@ test("the peek is handed acts, not setters: every control it draws has a functio
 
 /* ------------------------------------ the bulk bar ------------------------------------ */
 
-test("the bulk bar acts on the leads loaded and selected; Select all N that match hands the view to the server", async () => {
+test("the bulk bar acts on the leads loaded and selected: Add them, Not a fit, Copy and Export under More; Select all N that match hands the view to the server", async () => {
   await fresh();
   byTestId(draw(), "select-all").props.onChange();
   let tree = draw();
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /5 selected/);
-  click(byTestId(tree, "leads-bulk-contacted"));
-  await settle();
-  assert.deepEqual(lastWrite(), {
-    key: "POST /api/v1/leads/bulk",
-    body: { by: "ids", action: "contacted", ids: ["l1", "l2", "l3", "l4", "l5"] },
-  });
-  assert.equal(textOf(flashes.at(-1).msg), "Marked contacted.");
-  await flashes.at(-1).undo();
-  assert.deepEqual(
-    lastWrite(),
-    { key: "POST /api/v1/lead-operations/op-b/undo", body: { version: 7 } },
-    "one operation for the lot, undone as one",
+  assert.ok(
+    find(tree, (n) => typeof n.type === "function" && n.type.name === "BulkAddDesk"),
+    "Add them to a sequence, the same picker one lead's sheet opens (the lead-to-sequence canvas's DeskBulk)",
   );
+  assert.equal(
+    byTestId(tree, "leads-bulk-contacted"),
+    null,
+    "Contacted went with the stage's menu: a sequence sets it",
+  );
+  assert.equal(byTestId(tree, "leads-bulk-write"), null, "Write to them went with the composer: Add is the one road");
   click(byTestId(draw(), "leads-select-matching"));
   tree = draw();
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /322 selected/, "every lead the view matches, not every id");
@@ -2994,7 +2995,11 @@ test("the bulk bar acts on the leads loaded and selected; Select all N that matc
     "the view's filters go to the server, never 1,240 ids",
   );
   assert.equal(byTestId(draw(), "peek-why"), null, "the list closes on the pick");
-  click(byTestId(draw(), "leads-bulk-copy"));
+  const more = find(draw(), (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "leads-bulk-more");
+  more.props.groups
+    .flatMap((g) => g.items ?? [])
+    .find((i) => i.label === "Copy emails")
+    .onSelect();
   assert.equal(
     textOf(flashes.at(-1).msg),
     "Copied 3 emails; 2 had none you can use",
@@ -3070,7 +3075,7 @@ test("a pile of leads with no address, or one that bounces, is offered Keep and 
   }
 });
 
-test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Contacted, Not a fit, More -- and Not a fit asks its five whys in the sheet; the why list was the peek's, drawn full screen", async () => {
+test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Not a fit, Add, More -- and Not a fit asks its five whys in the sheet; the why list was the peek's, drawn full screen", async () => {
   await fresh();
   globalThis.__phone = true;
   try {
@@ -3090,8 +3095,8 @@ test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Contacted, N
           ).map((n) => n.props["data-testid"]),
         ),
       ],
-      ["leads-bulk-clear", "leads-bulk-contacted", "leads-bulk-not-a-fit", "leads-bulk-more"],
-      "four acts, each a glyph over its word, Clear first",
+      ["leads-bulk-clear", "leads-bulk-not-a-fit", "leads-bulk-add", "leads-bulk-more"],
+      "four acts, each a glyph over its word, Clear first; Add opens the picker for them all (18 Oct 2026)",
     );
     assert.equal(byTestId(bar, "leads-bulk-copy"), null, "the rest are the sheet's");
     click(byTestId(tree, "leads-bulk-more"));
@@ -3106,9 +3111,8 @@ test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Contacted, N
           .split(/\s+/)
           .includes("pp-sheet-row"),
     ).map((n) => n.props["data-testid"]);
-    // Write to them (Reach out Part 7, lists.tsx) stands beside Copy emails: the page imports it, so the sheet draws it.
-    // Not a fit is the dock's own now, so More holds what is left.
-    assert.deepEqual(rows, ["leads-select-matching", "leads-bulk-copy", "leads-bulk-write", "leads-bulk-export"]);
+    // Not a fit and Add are the dock's own, so More holds what is left (Later too, where a search holds them).
+    assert.deepEqual(rows, ["leads-select-matching", "leads-bulk-copy", "leads-bulk-export"]);
     sheet.props.onClose();
     tree = draw();
     click(byTestId(tree, "leads-bulk-not-a-fit"));

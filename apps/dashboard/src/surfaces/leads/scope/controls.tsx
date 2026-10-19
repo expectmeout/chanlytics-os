@@ -3,9 +3,7 @@
  * Values ⁄ Signals, which columns show and the file, as words beside Columns (the ⋯ that folded them is gone). The page's acts, Reach out's door and Ask's (spec F1: the three's still mark, never a second live
  * canvas), stand at the right of the strip over the list, as People's Add a person does (`LeadsActs`).
  */
-import type { LeadSearchDto } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
-import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
@@ -29,21 +27,12 @@ interface ControlsProps {
 }
 
 /**
- * The page's acts on a desk, said to the frame's head (people/rail/standing.tsx): an open search's reach-out door, then
- * Find leads, which steps back from primary beside it (campaigns.css) so the view has one accent (Ruben, 6 Oct 2026: it
- * stood in the controls row, inside the pane).
+ * The page's act on a desk, said to the frame's head (people/rail/standing.tsx): Find leads (Ruben, 6 Oct 2026: it stood
+ * in the controls row, inside the pane). A search's leads go to a sequence by Add, on each lead or many at once (the
+ * lead-to-sequence canvas's one road): the head has no door of its own to a sequence.
  */
-export const LeadsActs = ({
-  canFind,
-  onFind,
-  search,
-}: {
-  canFind: boolean;
-  onFind: () => void;
-  search: LeadSearchDto | null;
-}) => (
+export const LeadsActs = ({ canFind, onFind }: { canFind: boolean; onFind: () => void }) => (
   <>
-    <ReachOutDoor search={search} />
     <button
       type="button"
       className="btn btn-primary btn-sm"

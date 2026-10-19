@@ -105,7 +105,6 @@ export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/lifecycle
 export {
   LEDGER_STATUSES,
   chainResultsOf,
-  chainResumeOf,
   isLedgerCampaign,
   ledgerRowIn,
   lifecycleChainsOf,

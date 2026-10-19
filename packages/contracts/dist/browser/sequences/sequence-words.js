@@ -13,6 +13,8 @@ export const SEQUENCE_WORDS = {
   newSequence: "New sequence",
   /** The head's way back to Leads, where a trip from a lead did not say its name. */
   backToLeads: "Leads",
+  /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
+  backToLeadsLabel: "Back to Leads",
   search: "Search sequences",
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn\u2019t be loaded right now",
@@ -476,11 +478,13 @@ export function stepsStopSentence(steps) {
   return `After step ${steps.length}`;
 }
 export const PEOPLE_GROUP_WORDS = {
-  waiting: "Wait for your OK",
+  waiting: "Waits for your OK",
   held: "Held by the check",
   to_send: "For you to send",
   replied: "Wrote back",
   next: "Up next",
+  /** Leads added that nothing has been planned for yet (00459): every lead of a draft. */
+  queued: "Added",
   in: "In it",
   done: "Done",
   left: "Left"

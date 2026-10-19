@@ -15,10 +15,10 @@ import { usePlPlace } from "../../people/hooks/use-place";
 import { LEAD_COLUMNS, LEAD_PHONE_COLUMNS } from "../cells/columns";
 import type { LeadCellCtx } from "../cells/types";
 import { leadPeekEscape } from "../peek/seams";
-import { useReachOutLeads } from "../reach-out/lines";
 import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
 import { useLeadPileView } from "../pile/page-pile";
+import { useBulkAdd } from "../scope/bulk-add";
 import { useLeadPile } from "../pile/use-pile";
 import { useLeadAim } from "../sheet/use-aim";
 import { leadActs, type LeadActs } from "./acts";
@@ -93,16 +93,12 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const st = useLeadsState();
   const { peekId, setPeekId, peekMode, setPeekMode, armed, setArmed, setLightboxId } = st;
   const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
-  // The pile (00426): while it is on for the search the address names, the read is the database's pile order, with the
-  // list its adds go to.
   // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
-  // by lead).
+  // by lead). The pile walks the rows in the order the page has them (To decide is the pile): nothing moves under it.
   const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
   const pile = useLeadPile({ flash: plFlash, aim });
-  const piled = pile.on && pile.searchId === leadView.searchId;
-  const order = piled ? { sortBy: "pile", sortDir: "asc" } : { sortBy, sortDir };
-  const pileList = piled && aim.target ? aim.target.listId : null;
-  const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash, pileList });
+  const order = { sortBy, sortDir };
+  const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash });
   const rows = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, ...order });
   const { leadShown, shownIds, viewLanded } = rows;
   // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts with
@@ -201,8 +197,6 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
       setLightbox: setLightboxId,
     });
   const openSearch = acts.searchById(leadView.searchId);
-  // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
-  const reachOut = useReachOutLeads(openSearch ? openSearch.id : null);
   // The pile (00426): what the lead sheet draws of it while it is on, the door into it, and the keys it takes.
   const piled = useLeadPileView({
     pile,
@@ -210,8 +204,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     leads,
     openSearch,
     cls: leadView.cls,
-    hasChain: !!(reachOut && reachOut.dto.lines),
-    phone: !!controls.phone,
+    peekId,
     setPeekId,
   });
   // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
@@ -245,7 +238,20 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
       canFind,
       peopleRows: people.rows,
       stageShown: columns.some((c) => c.key === "stage"),
-      reachOut,
+    },
+  });
+  // Add and Later for the leads chosen and shown (never all that match: an add is of leads, not of a view's filters); what
+  // an add leaves out stays selected.
+  const chosen = controls.allMatching ? [] : rows.leadShown.filter((l) => controls.sel.has(l.id)).map((l) => l.id);
+  const bulkAdd = useBulkAdd({
+    ids: chosen,
+    aim,
+    search: openSearch ? { id: openSearch.id, name: openSearch.name } : null,
+    flash: plFlash,
+    busy: !!st.leadBusy,
+    onDone: (keep) => {
+      setSel(new Set(keep));
+      setAllMatching(false);
     },
   });
   const routes = leadRailRoutes({ leadView, nav, searchById: acts.searchById });
@@ -287,12 +293,12 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     openSearch,
     band,
     cellCtxLeads,
-    reachOut,
     lists,
     pileSheet: piled.view,
     pileUp: piled.up,
     pileDoor: piled.door,
     aim,
+    bulkAdd: chosen.length ? bulkAdd : null,
   };
 }
 

@@ -201,7 +201,7 @@
   },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
     "lines": 165,
-    "branches": 59,
+    "branches": 58,
     "depth": 1
   },
   "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {

@@ -109,7 +109,7 @@ export const LEAD_COMPANY_WORDS = {
   profile: "Profile"
 };
 export const LEAD_ADDRESSEE_WORDS = {
-  door: "Write to them instead",
+  door: "Write here",
   /** What a role that may not is told it cannot do here (gateTitle). */
   gated: "choose who a sequence writes to",
   choosing: "Choosing\u2026",

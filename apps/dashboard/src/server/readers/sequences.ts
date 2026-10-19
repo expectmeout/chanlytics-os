@@ -29,6 +29,7 @@ import {
 } from "@chanlytics/db";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { repliedConversationsOf } from "../campaigns/broadcasts";
+import { chainsOf } from "../campaigns/reach-outs";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as readers from "./facts";
 import { playbooks as playbooksReader } from "./playbooks";
@@ -74,11 +75,22 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
  */
 async function startsWith(
   rc: ReaderContext,
-  row: Pick<SequenceRecordDto["sequence"], "starts" | "first" | "date">,
-): Promise<Pick<SequenceRecordDto, "fed_by" | "one_off">> {
+  row: Pick<SequenceRecordDto["sequence"], "id" | "starts" | "first" | "date">,
+): Promise<Pick<SequenceRecordDto, "fed_by" | "one_off" | "chain">> {
   const db = rc.ctx.supabase;
   const search = row.starts === "leads" ? row.first?.search_id : null;
-  if (search) return { fed_by: await leadsFedBy(db, rc.tenantId, search).catch(() => "search" as const) };
+  // A sequence to leads, as it is written (00459: its draft's record is its editor): each step's words, its mailboxes,
+  // pace and who signs. Unreadable costs the words alone, never the record.
+  if (search) {
+    const [fedBy, chain] = await Promise.all([
+      leadsFedBy(db, rc.tenantId, search).catch(() => "search" as const),
+      chainsOf(rc.ctx, rc.tenantId).then(
+        (all) => all.find((c) => c.root_id === row.id) ?? null,
+        () => null,
+      ),
+    ]);
+    return { fed_by: fedBy, chain };
+  }
   if (row.starts === "date" && row.date)
     return { one_off: await oneOffMessageOf(db, rc.tenantId, row.date.batch_id).catch(() => null) };
   return {};

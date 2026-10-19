@@ -47,6 +47,11 @@ export type SubTab = {
    * History, "New since you last looked").
    */
   fresh?: string;
+  /**
+   * Something there needs you: an amber dot after its figure, named by these words for a screen reader (a sequence's Leads,
+   * "Something needs you"), while the figure keeps saying how many are there.
+   */
+  need?: string;
   /** What pressing it does, on hover. */
   hint?: string;
   /** The page's test id for this tab. */
@@ -151,7 +156,11 @@ export function SubTabs(props: SubTabsProps) {
               {tab.label}
             </span>
             {tab.count === undefined ? null : <span className="subtab-count">{tab.count}</span>}
-            {tab.fresh ? <span className="subtab-dot" role="img" aria-label={tab.fresh} /> : null}
+            {tab.need ? (
+              <span className="subtab-dot is-warn" role="img" aria-label={tab.need} />
+            ) : tab.fresh ? (
+              <span className="subtab-dot" role="img" aria-label={tab.fresh} />
+            ) : null}
           </Tabs.Tab>
         ))}
         <Tabs.Indicator className="subtab-bar" />

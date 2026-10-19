@@ -16,6 +16,7 @@ import {
   SEQUENCE_ACT_WORDS as A,
   SEQUENCE_FLOW_WORDS as F,
   SEQUENCE_WORDS,
+  leadDraftDockOf,
   sequenceCancels,
   sequenceNotice,
   sequencePausedDock,
@@ -69,6 +70,11 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
   });
   // The batch waiting for an OK the notice is about, decided through the run's own verb.
   const waiting = notice?.kind === "waiting" ? notice.batchId : null;
+  // A draft to leads with an email still to write: the dock asks for it before Start (the canvas's board A).
+  const unwritten = leadDraftDockOf(row, rec.chain);
+  const unwrittenId = unwritten
+    ? ([...(rec.chain?.steps ?? [])].sort((x, y) => x.n - y.n)[unwritten.place - 1]?.id ?? null)
+    : null;
   const press = async (kind: Parameters<typeof pressed>[0], payload: Record<string, unknown>) => {
     setBusy(true);
     const ok = await pressed(kind, payload, flash, moved);
@@ -87,6 +93,11 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
     renaming,
     setRenaming,
     editStep,
+    unwritten,
+    /** Write step N: the step still to write, opened in its sheet. */
+    writeUnwritten: () => {
+      if (unwrittenId) editStep(unwrittenId);
+    },
     /** A batch approved (its receipt, and Cancel as its undo), or skipped, which sends none of it. */
     decide: async (verb: "approve" | "skip") => {
       if (!waiting) return;
@@ -144,6 +155,12 @@ const askScopeOf = (a: RecordActs): AskScope =>
 
 /** A desk's head act: Start a draft, Pause one that is on, Turn on one that is paused (asked first, decision 7). */
 function StateAct({ a }: { a: RecordActs }) {
+  if (a.unwritten)
+    return (
+      <Button size="sm" variant="primary" onClick={a.writeUnwritten} data-testid="sq-write-step" {...gate("approve")}>
+        <Icon name="pencil" size={12} /> {a.unwritten.act}
+      </Button>
+    );
   if (a.row.state === "draft")
     return (
       <Button
@@ -499,9 +516,17 @@ export function RecordNotice({ a, tab }: { a: RecordActs; tab: SequenceTab }) {
     return (
       <Notice
         line
-        label={SEQUENCE_WORDS.notStarted}
+        label={a.unwritten ? a.unwritten.line : SEQUENCE_WORDS.notStarted}
         testid="sq-notice"
-        fact={SEQUENCE_WORDS.notStarted}
+        fact={
+          a.unwritten ? (
+            <>
+              <span className="sq-needs">{a.unwritten.line}</span> · {a.unwritten.fact}
+            </>
+          ) : (
+            SEQUENCE_WORDS.notStarted
+          )
+        }
         act={
           <Button
             size="sm"
@@ -582,6 +607,15 @@ function DockSaid({ line, fact, warn }: { line: string; fact: string | null; war
 export function phoneFootOf(a: RecordActs, tab: SequenceTab): ReactNode {
   if (a.asking) return <RecordQuestion a={a} />;
   if (a.renaming) return null;
+  if (a.unwritten)
+    return (
+      <div className="sq-foot">
+        <DockSaid line={a.unwritten.line} fact={a.unwritten.fact} warn />
+        <Button variant="primary" onClick={a.writeUnwritten} data-testid="sq-write-step" {...gate("approve")}>
+          {a.unwritten.act}
+        </Button>
+      </div>
+    );
   if (a.row.state === "draft")
     return (
       <div className="sq-foot">

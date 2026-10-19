@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 
 const S = "../../../../apps/dashboard/src/surfaces";
 const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
-const { parseHome, composeRoute, chainChangeRoute } = await import(`${S}/campaigns/home/address.ts`);
+const { parseHome, composeRoute } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
 const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, sequenceLandingOf, arrivedRunOf, runLandingOf } =
@@ -68,7 +68,6 @@ test("Campaigns' sheets' addresses say the composer or a message, and spell back
     message: null,
     compose: { mode: "change", root: "ro-1" },
   });
-  assert.equal(chainChangeRoute("ro-1"), "campaigns/new:edit:ro-1");
   // A message open in a drawer of its own, by its name (the call's text's, or the one a step's editor names).
   assert.deepEqual(parseHome("message:spring_offer"), {
     group: null,

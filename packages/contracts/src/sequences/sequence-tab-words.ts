@@ -4,15 +4,9 @@
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
+import { heldChoicesOf } from "./sequence-place";
 import { leadDoorOf } from "../reach-out/reach-out-sheet";
-import {
-  HOLD_DOOR_WORDS,
-  holdDoors,
-  holdWords,
-  isReachOutHold,
-  type HoldDoor,
-  type ReachOutHold,
-} from "../reach-out/reach-out-words";
+import { holdWords, isReachOutHold, type HoldDoor, type ReachOutHold } from "../reach-out/reach-out-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { addressOf } from "../activity/record-address";
@@ -69,7 +63,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** Over the held whose hold judged the lead, never the words (LEAD_HOLDS): what may go as written in one press. */
   sendAll: (n: number) => `Send ${n} as written`,
   sending: "Sending…",
-  wentAll: (n: number) => (n === 1 ? "1 email goes as it is" : `${n} emails go as they are`),
+  wentAll: (n: number) => (n === 1 ? "1 email goes as written" : `${n} emails go as written`),
   toSend: "For you to send from your inbox",
   /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
   wroteBack: "Wrote back",
@@ -90,8 +84,11 @@ export const SEQUENCE_NEEDS_WORDS = {
 export interface SequenceHeldVM {
   id: string;
   name: string;
-  /** Its lead, where the name opens it (leadDoorOf). */
+  /** Its lead, where the name opens it (leadDoorOf); and its id, which opens its sheet over the record. */
   to: string | null;
+  leadId: string | null;
+  /** The step it is, from 1: Skip this email from step 2. */
+  place: number | null;
   why: string;
   /** Why the check held it (contracts REACH_OUT_HOLDS): what decides whether it may go as written with the rest. */
   reason: ReachOutHold;
@@ -153,9 +150,12 @@ export function peopleNeedsOf(
         id: r.send_id,
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         to: r.lead_id ? leadDoorOf(r.lead_id) : null,
+        leadId: r.lead_id,
+        place: r.place,
         why: holdWords(reason, r.hold_detail),
         reason,
-        doors: holdDoors(reason).map((d): [HoldDoor, string] => [d, HOLD_DOOR_WORDS[d]]),
+        // The choices the lead sheet offers for it, one rule (contracts heldChoicesOf): Skip this email from step 2.
+        doors: heldChoicesOf(reason, r.place),
         batchId: r.batch_id,
       },
     ];
@@ -223,6 +223,11 @@ export const SEQUENCE_PEOPLE_WORDS = {
   next: (when: string) => `next ${when}`,
   /** Why someone finished with no reason of their own: they had the last step. */
   lastStep: "had the last step",
+  /** A lead added and not planned yet, under its name: when it joined the list. */
+  added: "Added",
+  addedAt: (at: string) => `Added ${at}`,
+  /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
+  queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" },
 } as const;
 
 /** The periods History counts over: the kit's segmented choice, the last 30 days first. */

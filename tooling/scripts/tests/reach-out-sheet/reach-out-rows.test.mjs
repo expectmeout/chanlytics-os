@@ -5,9 +5,9 @@
  * `window.__reachOuts`):
  *
  * - Campaigns' sheets over Sequences (home/sheets.tsx; the home and its drawer went in decision 0060's S6, a chain being a
- *   sequence to leads there): Write to leads hands its search to them, which close New message and open the reach-out's
- *   sheet in its place; a chain's change (`campaigns/new:edit:<root>`, a sequence to leads' step's Edit) is its own sheet,
- *   and waits on the reach-outs' read; an id that is no chain's, once they are read, lands on its sequence (the composer's
+ *   sequence to leads there): Write to leads opens Leads, where a sequence to leads is made (the lead-to-sequence canvas,
+ *   18 Oct 2026); a chain's change (`campaigns/new:edit:<root>`, an older link) lands on its sequence's record, by its root
+ *   or any of its steps, once the reach-outs are read, and an id that is no chain's on its own record (the composer's
  *   Every time went: the closed-loop audit of 17 Oct 2026, G).
  * - Templates: a chain's emails are messages in the Templates list (reach-out-email-message.test.mjs: their rows, their
  *   pane and its editor, counted by contracts' emailTemplateRowsOf over the chains, which this file holds to the surface's
@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, press } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -37,12 +37,10 @@ const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 // The shell's toast is data-bits.jsx's own; the home raises its notices through it, and a test reads them here.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
-// The pages and their panes are TSX (decision 0015): Campaigns' home, Templates, and the reach-out's pane and sheet.
+// The pages and their panes are TSX (decision 0015): Campaigns' sheets and New message's Write to leads.
 const S = "../../../../apps/dashboard/src/surfaces";
 const { CampaignsSheets } = await import(`${S}/campaigns/home/sheets.tsx`);
-const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
 const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
-const { PaneSheet } = await import(`${S}/campaigns/home/pane-sheet.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const WORDS = bridge.reachOuts.words;
@@ -112,14 +110,9 @@ const verbs = (report = REPORT(), ok = true) => {
       pressed.push(["report", id]),
       ok ? { ok: true, data: { report, reach: REACH } } : { ok: false, message: "down" }
     ),
-    pause: async (id) => (pressed.push(["pause", id]), { ok: true, data: {} }),
-    resume: async (id) => (pressed.push(["resume", id]), { ok: true, data: {} }),
     remove: async (id) => (pressed.push(["remove", id]), { ok: true, data: {} }),
     reach: async (id) => (pressed.push(["reach", id]), { ...REACH, ready: 44, with_unconfirmed: 44 }),
-    update: async (id, body) => (
-      pressed.push(["update", id, body]),
-      { ok: true, data: { root_id: id, step_ids: [], rechecked: 0, start: null } }
-    ),
+    sources: async () => (pressed.push(["sources"]), []),
   });
   return pressed;
 };
@@ -134,101 +127,45 @@ const homeAt = (param = null, chains = [chainOf()]) => {
   fresh();
   return again(() => CampaignsSheets({ param }));
 };
-const homeAgain = (param = null) => again(() => CampaignsSheets({ param }));
 
-test("Write to leads hands its search to Campaigns' sheets, which close New message and open the reach-out's sheet in its place: under the composer's modal it opened hidden, its Start out of reach (census, 13 Oct 2026)", async () => {
+test("Write to leads, New message's third choice, opens Leads: a sequence to leads is made where its leads are chosen (the lead-to-sequence canvas, 18 Oct 2026)", () => {
   verbs();
   went.length = 0;
-  const search = { id: "s9", name: "Pilates studios · Denver" };
-  let tree = homeAt("new:leads");
-  const write = find(tree, (n) => n.type === WriteToLeads);
-  assert.ok(write, "Write to leads, in New message");
-  assert.equal(byTestId(tree, "ro-sheet"), null, "no sheet of its own under the composer");
-  write.props.onWrite({ search, includeUnconfirmed: true });
-  assert.deepEqual(went, ["campaigns/sequences"], "the composer's address let go of, onto Sequences");
-  tree = homeAgain("new:leads");
-  assert.equal(
-    find(tree, (n) => n.type === ReachOutSheet),
-    null,
-    "never drawn while the address still names the composer",
+  const tree = homeAt("new:leads");
+  assert.ok(
+    find(tree, (n) => n.type === WriteToLeads),
+    "Write to leads, in New message",
   );
-  // The address the close leaves: the composer closed, and the reach-out's sheet the page's, on the search handed over.
-  tree = homeAgain(null);
-  const sheet = find(tree, (n) => n.type === ReachOutSheet);
-  assert.ok(sheet, "the reach-out's sheet");
-  assert.deepEqual(sheet.props.search, search);
-  assert.equal(sheet.props.includeUnconfirmed, true, "with the unconfirmed, as the row said");
-  const composer = all(tree, (n) => n.type === PaneSheet).find((n) => n.props.testid === "cmh-composer");
-  assert.ok(!composer || composer.props.open === false, "New message is closed under it");
-  sheet.props.onClose();
-  tree = homeAgain(null);
-  assert.equal(
-    find(tree, (n) => n.type === ReachOutSheet),
-    null,
-    "and closed, it is gone",
+  fresh();
+  const rows = again(() => WriteToLeads());
+  press(byTestId(rows, "ro-source-add"));
+  assert.deepEqual(
+    went,
+    [contracts.leadsRoute({ list: "all" })],
+    "Leads you add opens Leads, where Add is the one road",
   );
 });
 
-/** The surfaces a Retry was pressed for: the frame's runner (`window.__refreshSurface`), which a failed read's Retry reads through. */
-const refreshed = [];
-const withRetry = (run) => {
-  W.__refreshSurface = async (key) => {
-    refreshed.push(key);
-  };
-  try {
-    run();
-  } finally {
-    delete W.__refreshSurface;
-  }
-};
-
-test("a reach-out's change opens its sheet at an address of its own (`campaigns/new:edit:<root>`), by its root or any of its steps", async () => {
+test("a reach-out's change (`campaigns/new:edit:<root>`, an older link) lands on its sequence's record, by its root or any of its steps", () => {
   verbs();
   went.length = 0;
-  // The address: the composer is not drawn, and the reach-out's sheet is the page's.
   const at = homeAt(`new:edit:${ROOT}`);
-  const sheet = find(at, (n) => n.type === ReachOutSheet);
-  assert.ok(sheet, "the reach-out's sheet");
-  assert.equal(sheet.props.chain.root_id, ROOT);
-  assert.deepEqual(sheet.props.search, { id: "s1", name: "Personal trainers · Austin" });
-  const hosts = all(at, (n) => n.type === PaneSheet);
-  assert.equal(
-    hosts.find((n) => n.props.testid === "cmh-composer"),
-    undefined,
-    "and no composer is drawn for a reach-out's id",
-  );
-  // Closing it leaves the address (a link that arrived here replaces it with Sequences); the door it says on a save replaces it
-  // with where it goes, so a close that is a step Back does not undo the door.
+  assert.equal(byTestId(at, "cmh-composer"), null, "no composer is drawn for a reach-out's id");
+  assert.deepEqual(went, [contracts.sequenceRoute(ROOT)], "its record, in the address's place");
   went.length = 0;
-  sheet.props.onClose();
-  assert.deepEqual(went, ["campaigns/sequences"]);
-  went.length = 0;
-  sheet.props.onGo("broadcasts/run:b2");
-  assert.deepEqual(went, ["broadcasts/run:b2"]);
+  homeAt("new:edit:n1");
+  assert.deepEqual(went, [contracts.sequenceRoute(ROOT)], "a later step's id lands on its chain's record");
 });
 
-test("a change waits on the reach-outs: reading while they are out, failed where they could not be, and an id that is no chain's, once they are read, lands on its sequence", () => {
+test("a change waits on the reach-outs while they are out; where they could not be read, or the id is no chain's, it lands on its own record", () => {
   verbs();
-  const reading = homeAt(`new:edit:${ROOT}`, UNREAD);
-  assert.ok(byTestId(reading, "cmh-composer-reading"), "not known to be missing yet");
-  assert.equal(
-    find(reading, (n) => n.type === ReachOutSheet),
-    null,
-  );
-  withRetry(() => {
-    refreshed.length = 0;
-    const failed = homeAt(`new:edit:${ROOT}`, null);
-    assert.ok(byTestId(failed, "cmh-composer-failed"));
-    press(byTestId(failed, "cmh-composer-failed-retry"));
-    assert.deepEqual(refreshed, ["reach_outs"]);
-  });
   went.length = 0;
-  const elsewhere = homeAt("new:edit:pb-7", []);
-  assert.equal(byTestId(elsewhere, "cmh-composer-reading"), null);
-  assert.equal(
-    find(elsewhere, (n) => n.type === ReachOutSheet),
-    null,
-  );
+  homeAt(`new:edit:${ROOT}`, UNREAD);
+  assert.deepEqual(went, [], "not known yet: it waits");
+  homeAt("new:edit:pb-7", null);
+  assert.deepEqual(went, ["campaigns/sequences/pb-7"], "unread for good: the id as named, never a page left blank");
+  went.length = 0;
+  homeAt("new:edit:pb-7", []);
   assert.deepEqual(
     went,
     ["campaigns/sequences/pb-7"],
@@ -238,7 +175,7 @@ test("a change waits on the reach-outs: reading while they are out, failed where
 
 /* ------------------------------ the bridge ------------------------------ */
 
-test("the bridge's verbs press the doors they name: the report, the first step's state, the chain's removal", async () => {
+test("the bridge's verbs press the doors they name: the report, the chain's removal, the record's chain, an add's check", async () => {
   realVerbs();
   const calls = [];
   W.__apiForTest = null;
@@ -258,9 +195,9 @@ test("the bridge's verbs press the doors they name: the report, the first step's
   try {
     assert.ok(api.api, "the typed client");
     await bridge.reachOuts.report(ROOT);
-    await bridge.reachOuts.pause(ROOT);
-    await bridge.reachOuts.resume(ROOT);
     await bridge.reachOuts.remove(ROOT);
+    await bridge.reachOuts.saveChain(ROOT, { signed_by: "Sam" });
+    await bridge.reachOuts.checkAdd(ROOT, ["l1", "l2"]);
   } finally {
     W.fetch = was;
   }
@@ -268,10 +205,42 @@ test("the bridge's verbs press the doors they name: the report, the first step's
     calls.map(([m, p, b]) => [m, p.replace(/^.*\/api\/v1\//, ""), b]),
     [
       ["GET", `reach-outs/${ROOT}`, null],
-      ["PUT", `playbooks/${ROOT}`, { state: "paused" }],
-      ["PUT", `playbooks/${ROOT}`, { state: "running" }],
       ["DELETE", `reach-outs/${ROOT}`, null],
+      // A sequence to leads is written on its record (00459): its chain by the sequence's id, its adds checked dry first.
+      ["PUT", `sequences/${ROOT}/chain`, { signed_by: "Sam" }],
+      ["POST", `sequences/${ROOT}/leads/check`, { lead_ids: ["l1", "l2"] }],
     ],
+  );
+});
+
+test("a search's reach is read each time it is asked, and its last answer is the next paint (How it runs' who joins)", async () => {
+  realVerbs();
+  const calls = [];
+  const was = W.fetch;
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.example");
+    calls.push([init.method || "GET", u.pathname.replace(/^.*\/api\/v1\//, ""), u.searchParams.get("search")]);
+    return new Response(JSON.stringify({ ok: true, data: REACH }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const V = bridge.reachOuts;
+  try {
+    assert.equal(V.reachHeld("search-never-read"), null, "a search this tab never read paints nothing");
+    await V.reach("s-reach");
+    assert.deepEqual(V.reachHeld("s-reach"), REACH, "what it read paints the next sheet at once");
+    await V.reach("s-reach");
+  } finally {
+    W.fetch = was;
+  }
+  assert.deepEqual(
+    calls,
+    [
+      ["GET", "reach-outs/reach", "s-reach"],
+      ["GET", "reach-outs/reach", "s-reach"],
+    ],
+    "each ask is a read (the wiring's second audit, X2-1: it was kept as first read until a write)",
   );
 });
 

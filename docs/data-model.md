@@ -1500,9 +1500,11 @@ The saved object: who was asked for, in the owner's words, and the current plan.
 | `removed_at` | timestamp with time zone | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `thread_id` | uuid | yes |  | The Ask thread the search was planned in (00172), so an answer to its question lands there. Only ever the planner's own thread; null for a search made on the page, for every search before 00172, and once the thread is gone. |
+| `adds_to` | uuid | yes |  | The sequence to leads this search's Add goes to (00459: the lead sheet's pick, kept on the search so a desk, a phone and a teammate agree); null until one is chosen, and again once that sequence is discarded. |
 
 Foreign keys:
 
+- `tenant_id`, `adds_to` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete set null
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
@@ -2907,6 +2909,7 @@ Decision 0060: each step of a sequence in its place (playbooks until 00440). A s
 | `next_template_name` | text | yes |  |  |
 | `next_template_language` | text | yes |  |  |
 | `next_params` | jsonb | yes |  |  |
+| `source_search_id` | uuid | yes |  | A sequence to leads' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here. |
 
 Foreign keys:
 
@@ -2916,6 +2919,7 @@ Foreign keys:
 - `tenant_id`, `next_template_id` → [`templates`](#templates) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `lead_search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete restrict
 - `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `source_search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete restrict
 - `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -3146,7 +3150,7 @@ Each view's definition is in `supabase/schema.sql`.
 
 ### lead_searches_view
 
-Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search's Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null.
+Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search's Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search's Add goes to.
 
 - Owned by: none
 

@@ -31,9 +31,9 @@ export interface KeyDoors {
   canFind?: boolean;
   find?: () => void;
   call?: ((id: string) => void) | null;
-  /** Under Leads, while the pile is on (00426): A, L and N press its rail, Z undoes, Esc leaves it. */
+  /** Under Leads, while the pile is on (00426): A, L and N press its rail, ⇧A opens the picker, Z undoes, Esc leaves it. */
   pile?: {
-    press: (key: "a" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5") => void;
+    press: (key: "a" | "A" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5") => void;
     undo: () => void;
     leave: () => void;
   } | null;
@@ -42,7 +42,8 @@ export interface KeyDoors {
 /** The pile's keys: its rail's three, Undo, and the way out; false for any other key. */
 function pileKey(k: NonNullable<KeyDoors["pile"]>, e: KeyboardEvent): boolean {
   const key = e.key.toLowerCase();
-  if (/^[alnc1-5]$/.test(key)) k.press(key as "a" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5");
+  if (key === "a" && e.shiftKey) k.press("A");
+  else if (/^[alnc1-5]$/.test(key)) k.press(key as "a" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5");
   else if (key === LEAD_PILE_UNDO_KEY) k.undo();
   else if (key === "escape") k.leave();
   else return false;

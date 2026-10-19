@@ -28,6 +28,7 @@ import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
 import type { SheetPileView } from "../sheet/sheet";
 import type { LeadAim } from "../sheet/use-aim";
+import type { BulkAdd } from "../scope/bulk-add";
 import {
   bulkLeads,
   checkLeadsAgain,
@@ -36,7 +37,7 @@ import {
   warmLeadsView as warmView,
   type LeadsSurface,
 } from "../surface";
-import { ReachOutLeadsStrip, type ReachOutLines } from "../reach-out/lines";
+import { AddsGoTo } from "../sheet/adds-go-to";
 import type { LeadLists } from "../reach-out/lists";
 import type { LeadRail } from "../scope/rail";
 import type { LeadActs } from "./acts";
@@ -77,7 +78,6 @@ export type LeadsPage = Controls &
     openSearch: LeadSearchDto | null;
     band: ReturnType<typeof leadBand>;
     cellCtxLeads: LeadCellCtx;
-    reachOut: ReachOutLines | null;
     lists: LeadLists;
     /**
      * The pile while it is on, as the lead sheet draws it (its line, its mode, its end), the lead that is up, and the door
@@ -88,6 +88,8 @@ export type LeadsPage = Controls &
     pileDoor: ReactNode;
     /** Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts). */
     aim: LeadAim;
+    /** Add N and Later for the leads chosen and shown (scope/bulk-add.tsx); none while nobody is. */
+    bulkAdd: BulkAdd | null;
   };
 
 /**
@@ -128,20 +130,7 @@ const isOwnList = (s: LeadSearchDto | null) => isLeadList(s);
 
 /** The rail, the list's head and the table. */
 export const leadsListProps = (p: LeadsPage) => {
-  const {
-    leads,
-    rail,
-    leadView,
-    openSearch,
-    leadShown,
-    reachOut,
-    lists,
-    setListsOpen,
-    setQ,
-    setChip,
-    setFitChip,
-    goto,
-  } = p;
+  const { leads, rail, leadView, openSearch, leadShown, lists, setListsOpen, setQ, setChip, setFitChip, goto } = p;
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the bar never
   // shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
@@ -173,7 +162,8 @@ export const leadsListProps = (p: LeadsPage) => {
     strip:
       lists.stripOf(openSearch) ||
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
-    reachOutStrip: openSearch && reachOut ? <ReachOutLeadsStrip leads={reachOut} /> : null,
+    // Where this search's Add goes (the canvas's "Adds go to ▾"): the pick, kept on the search, changed here or in the picker.
+    addsGoTo: openSearch ? <AddsGoTo aim={p.aim} flash={p.plFlash} /> : null,
     pileSheet: p.pileSheet,
     pileDoor: p.pileDoor,
     rows: leadShown,
@@ -357,7 +347,7 @@ const railDoors = (p: LeadsPage) => {
 };
 /** The selection and its bulk bar, and the rail's doors. */
 export const leadsBulkProps = (p: LeadsPage) => {
-  const { sel, setSel, setAllMatching, allMatching, phone, bulkSheet, setBulkSheet, leadShown, nav } = p;
+  const { sel, setSel, setAllMatching, allMatching, phone, bulkSheet, setBulkSheet, nav } = p;
   const bulkView = bulkViewOf(p);
   return {
     sel,
@@ -387,12 +377,9 @@ export const leadsBulkProps = (p: LeadsPage) => {
     importDoor: p.lists.importDoor,
     findPeopleDoor: p.lists.findPeopleDoor,
     listsNode: p.lists.node,
-    // Write to them (Part 7): the rows chosen and shown, never all that match (a view is not a list of ids).
-    writeToThem: p.lists.writeAct({
-      ids: allMatching ? [] : leadShown.filter((l) => sel.has(l.id)).map((l) => l.id),
-      phone,
-      shut: () => setBulkSheet(null),
-    }),
+    // Add N and Later (the canvas's DeskBulk): the rows chosen and shown, never all that match (a view is not a list of ids).
+    bulkAdd: p.bulkAdd,
+    bulkSearch: p.openSearch ? { id: p.openSearch.id, name: p.openSearch.name } : null,
     // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count.
     onExport: () => p.exportLeads(bulkView),
     ...railDoors(p),
@@ -472,23 +459,19 @@ const finderProps = (p: LeadsPage) => {
 /** A kept search's acts, the plan panel, and the peek. */
 /**
  * What the lead sheet reads beside the peek's state (sheet/sheet.tsx): the row of the lead on screen (the pile's up
- * where it is on), where Add goes, the open search's own sequence where it writes to every ready lead it finds, the
- * list the open search is, the month's leads left for Keep, and Write to the N at a first pile's end.
+ * where it is on), where Add goes (the search's pick), and the search it was opened in, which Ask's draft for New writes
+ * from.
  */
 const sheetProps = (p: LeadsPage) => {
-  const open = p.openSearch;
-  const chain = p.reachOut ? p.reachOut.dto.chain : null;
-  // A search's own sequence writes to every ready lead it finds; a list's takes the leads added to it.
-  const writes = chain && open && (chain.fed_by ? chain.fed_by === "search" : !isLeadList(open));
   const shown = p.peekId ? (p.leadShown.find((l) => l.id === p.peekId) ?? null) : null;
+  // The pile's lead while it is up and open, or its end once it is done, while the sheet is open at all (a view that
+  // changed closed it); any other lead opened is drawn as itself.
+  const piled = !!p.pileSheet && !!p.peekId && (!p.pileUp || !shown || shown.id === p.pileUp.id);
   return {
-    sheetRow: p.pileSheet ? p.pileUp : shown,
+    sheetRow: piled ? p.pileUp : shown,
     aim: p.aim,
-    searchWrites: writes && chain ? { rootId: chain.root_id, name: chain.name, chain } : null,
-    listId: open && isLeadList(open) ? open.id : null,
-    monthLeft: p.leads.month ? p.leads.month.left : null,
+    sheetSearchId: p.openSearch ? p.openSearch.id : null,
     tz: p.leads.tz,
-    writeHeld: p.lists.writeTo,
   };
 };
 

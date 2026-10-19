@@ -18,18 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate } from "../../../../../packages/contracts/src/shell/refusal.ts";
 import { stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
-import {
-  LEAD_WORDS,
-  LEAD_DRAFT_NOTE,
-  LEAD_NO_ADDRESS,
-  LEAD_NOT_A_FIT_WORDS,
-  LEAD_NOT_A_FIT_TITLE,
-  LEAD_CONTACT_STANDARD_WORDS,
-  leadDraftFooter,
-  toLeadPeekVM,
-  leadPeekMenu,
-} from "../../../../../packages/contracts/src/leads/leads.ts";
-import { LEAD_SHEET_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet.ts";
+import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
@@ -88,6 +77,8 @@ globalThis.React = {
       fn();
     }
   },
+  // A surface the sheet reads (use-surface.ts, the record's reads): what it holds now, as a store answers it.
+  useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 const on = (bag) => (name, fn) => {
@@ -126,6 +117,8 @@ globalThis.window = {
     wired.push(String(url));
     if (/^\/api\/v1\/reach-outs\/leads\?/.test(String(url)))
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
+    if (/^\/api\/v1\/leads\/[^/]+\/place\?/.test(String(url))) return json(200, { ok: true, data: null });
+    if (/^\/api\/v1\/sequences\?/.test(String(url))) return json(200, { ok: true, data: { sequences: [] } });
     return json(404, {
       ok: false,
       error: { code: "not_found", message: "The sheet asked for something this test did not expect." },
@@ -188,7 +181,6 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return (n.props?.children ?? []).map(textOf).join("");
 };
-const classed = (tree, re) => all(tree, (n) => re.test(n.props?.className || ""));
 /** A control pressed; a kit Menu's item (kitItem) is pressed through its act, as Base UI's item calls it. */
 const press = async (node) => {
   assert.ok(node, "no such control");
@@ -203,20 +195,6 @@ const kitItem = (tree, testid, label) =>
   kitMenu(tree, testid)
     ?.props.groups.flatMap((g) => g.items ?? [])
     .find((i) => i.label.includes(label)) ?? null;
-/** The ⋯'s stage: a choice of three, the one the lead is at ticked (people/menu-groups.tsx choiceOf). */
-const stageOf = (tree) => kitMenu(tree, "peek-more")?.props.groups.find((g) => g.choose)?.choose ?? null;
-const pickStage = async (P, label) => {
-  const choose = stageOf(P.draw().tree);
-  assert.ok(choose, "the ⋯ holds the stage");
-  await choose.onChoose(choose.options.find((o) => o.label === label).value);
-};
-/** A tab chosen, as the kit's capsule calls its onSelect; the sheet keeps it for this lead. */
-const tabTo = (P, id) => {
-  find(P.draw().tree, (n) => n.type === SubTabs).props.onSelect(id);
-  return P.draw().tree;
-};
-// Call opens the ways of calling (LeadCallMenu, the kit's Menu) on the Contact tab: a way is one of its items.
-const callWay = async (P, label) => press(kitItem(tabTo(P, "contact"), "peek-act-call", label));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
 };
@@ -472,15 +450,12 @@ const page = (over = {}) => {
       deck: null,
       on: acts,
       aim,
-      searchWrites: null,
       pile: null,
-      monthLeft: null,
-      listId: null,
+      searchId: SEARCH_ID,
       flash: p.flash,
       onClose: () => {
         st.peekId = null;
       },
-      writeHeld() {},
       ...more,
     });
     return { tree, acts };
@@ -500,36 +475,139 @@ const reset = () => {
   wired.length = 0;
   delete globalThis.window.ST_STORE;
 };
-/** The words of every tab, for a test that reads all the sheet says. */
-const everyTab = (P) => ["why", "contact", "sequence"].map((id) => textOf(tabTo(P, id))).join(" ");
 
 /* ======================================================= who they are ==== */
 
-test("the sheet names the business and its line, the reason, a line for the checks and one for the ways in, and the stage in its ⋯", () => {
+/** Who is looking: the role store the gate reads (legacy-verbs gate, canDo). */
+const roleIs = (role) => {
+  globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
+};
+/** The ⋯'s item by its words: the kit's Menu. */
+const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
+
+/* =================================================== the one scroll ==== */
+
+/** Every test id the sheet draws, in the order it draws them. */
+const idsOf = (tree) =>
+  all(tree, (n) => typeof n.props?.["data-testid"] === "string").map((n) => n.props["data-testid"]);
+
+test("the quick look: who, the word beside the name, the verdict, the checks line, Website and Call, the email; then one scroll", () => {
   reset();
   const { tree } = page().draw();
-  assert.equal(tree.props.role, "dialog");
-  assert.equal(/\bpl-peek\b/.test(tree.props.className), true, "the page's own overlay: PL_OVERLAY names it apart");
   assert.equal(tree.props["data-testid"], "lead-peek");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
-  // Under the name, the kind, the street and the rating (the refined canvas).
-  assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · 1200 Barton Springs Rd · 5.0 (16)");
-  // No meter in the head: the checks are a line on the card, a strong fit's with no word before the count.
-  assert.equal(byTestId(tree, "lead-sheet-fit"), null);
+  assert.match(textOf(byTestId(tree, "peek-sub")), /^Personal trainer · 1200 Barton Springs Rd · ★ 5\.0 \(16\)$/);
+  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "To decide");
+  assert.match(textOf(byTestId(tree, "lead-sheet-verdict")), /Strong fit/, "the verdict first");
   assert.equal(textOf(byTestId(tree, "lead-sheet-checks")), "7 of 7 checks");
-  assert.equal(textOf(byTestId(tree, "lead-sheet-contact-email")), "hello@travisheightscoaching.example");
-  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Independent coaching · 5.0 from 16 reviews · email checked");
-  const stage = stageOf(tree);
-  assert.deepEqual(
-    stage.options.map((o) => [o.label, o.value === stage.value]),
-    [
-      ["Ready", true],
-      ["Contacted", false],
-      ["Talking", false],
-    ],
+  assert.ok(byTestId(tree, "lead-sheet-quick"), "the quick acts at half");
+  assert.ok(byTestId(tree, "lead-sheet-website"));
+  assert.equal(
+    textOf(byTestId(tree, "lead-sheet-contact-email")).includes("hello@travisheightscoaching.example"),
+    true,
   );
-  const close = byTestId(tree, "peek-close");
-  assert.deepEqual([close.props.id, close.props["aria-label"]], ["lead-peek-close", LEAD_SHEET_WORDS.close]);
+  const order = idsOf(tree).filter((id) => id.startsWith("lead-sheet-sec-"));
+  assert.deepEqual(
+    order,
+    [
+      "lead-sheet-sec-fit",
+      "lead-sheet-sec-about",
+      "lead-sheet-sec-contact",
+      "lead-sheet-sec-sequence",
+      "lead-sheet-sec-found",
+    ],
+    "Fit, About, Contact, Sequence, How we found them: one scroll, nothing behind a tab",
+  );
+  assert.equal(
+    find(tree, (n) => n.type === SubTabs),
+    null,
+    "no tabs",
+  );
+});
+
+test("the dock for a lead to decide on: Not a fit, then Add to a sequence, which opens the picker as a step", async () => {
+  reset();
+  const P = page();
+  P.draw();
+  // Their place is read as the sheet opens (00459 sequence_place): the dock waits for it, offering nothing it could take back.
+  await settle();
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "lead-sheet-not_a_fit"));
+  assert.equal(byTestId(tree, "lead-sheet-later"), null, "Later is a pass of a search's rows: none is open here");
+  const add = byTestId(tree, "lead-sheet-pick");
+  assert.equal(textOf(add).includes(LEAD_DOCK_WORDS.addToOne), true, "nothing picked: Add to a sequence");
+  assert.equal(byTestId(tree, "lead-sheet-dock-line"), null, "a dock is for pressing: no pointer elsewhere");
+  await press(add);
+  assert.ok(byTestId(P.draw().tree, "lead-sheet-picker"), "the picker, a step of the same sheet");
+});
+
+test("a Needs review lead says so and offers Keep and Leave out; one left out says what stopped and offers Put back", async () => {
+  reset();
+  const review = page({ vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }) });
+  let tree = review.draw().tree;
+  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "To review");
+  await press(byTestId(tree, "lead-sheet-keep"));
+  await press(byTestId(tree, "lead-sheet-exclude"));
+  assert.deepEqual(
+    flashes.map((f) => f.msg),
+    [`keep ${LEAD}`, `exclude ${LEAD}`],
+  );
+  reset();
+  const out = page({
+    vm: vmOf({
+      member: { class: "excluded", fit: null, excluded_by: "chain", reason: "Part of Crunch Fitness, a chain" },
+    }),
+  });
+  tree = out.draw().tree;
+  assert.match(textOf(byTestId(tree, "lead-sheet-verdict")), /^Left out/, "the finder's own call, its verdict first");
+  await press(byTestId(tree, "lead-sheet-put_back"));
+  assert.deepEqual(
+    flashes.map((f) => f.msg),
+    [`put back ${LEAD}`],
+  );
+});
+
+test("a lead whose email bounced is a call: No email, phone only, and its press rings from the owner's phone", async () => {
+  reset();
+  const P = page({ vm: vmOf({ email_state: "invalid" }) });
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "lead-sheet-dock-line")), LEAD_DOCK_WORDS.noEmail.line);
+  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "Call first");
+  assert.equal(byTestId(tree, "lead-sheet-pick"), null, "no Add where no email can go");
+  await press(byTestId(tree, "lead-sheet-call"));
+  assert.deepEqual(dialled, ["tel:+15125550142"], "the dock's Call rings from the owner's phone");
+  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
+});
+
+test("an operator, a partner, a viewer and a role the page cannot read find no Erase in the ⋯: it is the owner's", () => {
+  for (const role of ["operator", "partner", "viewer", null]) {
+    reset();
+    roleIs(role);
+    const tree = page().draw().tree;
+    assert.equal(kitItem(tree, "peek-more", LEAD_WORDS.erase.act), null, `${role}: no Erase`);
+  }
+});
+
+test("no word the sheet says names the vendor, or a dollar", () => {
+  reset();
+  for (const email_state of ["ok", "catch_all", "unknown", "invalid", "none", "checking"]) {
+    for (const cls of ["qualified", "review", "excluded"]) {
+      const vm = vmOf({
+        email_state,
+        member: {
+          class: cls,
+          fit: cls === "qualified" ? "strong" : null,
+          excluded_by: cls === "excluded" ? "chain" : null,
+        },
+      });
+      const said = textOf(page({ vm }).draw().tree);
+      assert.equal(
+        /apify|compass|bounceverify|crawler|\$\d/i.test(said),
+        false,
+        `${email_state}/${cls}: ${said.slice(0, 120)}`,
+      );
+    }
+  }
 });
 
 test("D1-lead-person-door: the name of a lead that became a person opens them in People; a lead that has not is its name alone", async () => {
@@ -548,240 +626,6 @@ test("D1-lead-person-door: the name of a lead that became a person opens them in
   assert.equal(byTestId(plain, "peek-name-person"), null, "no person, no door");
   assert.equal(textOf(byTestId(plain, "peek-name")), "Travis Heights Coaching Co.");
 });
-
-test("the sheet reads its lead's story once, and a lead no sequence wrote to draws no block in Sequence", async () => {
-  reset();
-  // Another lead than the rest of the file's: the client shares one request between two identical reads inside two seconds.
-  const other = "5e000000-0000-4000-8000-000000000222";
-  const P = page({ vm: vmOf({ id: other }) });
-  P.draw();
-  await settle();
-  assert.deepEqual(wired, [`/api/v1/reach-outs/leads?lead=${other}&workspace=harbor`], "one read, for this lead");
-  const activity = tabTo(P, "sequence");
-  await settle();
-  assert.equal(wired.length, 1, "drawn again, it does not ask again");
-  assert.equal(byTestId(activity, "peek-reach-out"), null, "no timeline, no block");
-  assert.equal(
-    textOf(byTestId(activity, "lead-sheet-stand")),
-    "Not in a sequence yetNo sequence takes leads you add. Make one in Sequences; you come back here",
-    "where it stands, in the box's own words: in no sequence, and none takes leads you add yet",
-  );
-});
-
-/* ========================================================== the tabs ==== */
-
-test("Contact: where the sequence writes, its state in words, Copy and a draft; the phone with how it was checked and the ways to call; texts and WhatsApp locked with why", async () => {
-  reset();
-  const P = page();
-  // On the card, the ways in at a glance, one line: the address, the phone, the site; pressed, it opens Contact.
-  const line = byTestId(P.draw().tree, "lead-sheet-contact");
-  assert.deepEqual(
-    [textOf(byTestId(line, "lead-sheet-contact-email")), textOf(byTestId(line, "lead-sheet-contact-phone"))],
-    ["hello@travisheightscoaching.example", "+1 (512) 555-0142"],
-  );
-  await press(line);
-  assert.ok(byTestId(P.draw().tree, "lead-sheet-pane-contact"), "the line opens Contact");
-  const tree = tabTo(P, "contact");
-  assert.equal(
-    textOf(byTestId(tree, "peek-phone-value")),
-    "+1 (512) 555-0142",
-    "a number reads as the app writes numbers everywhere else",
-  );
-  assert.equal(textOf(byTestId(tree, "peek-phone-words")), "The same number on Google Maps and their website.");
-  assert.equal(textOf(byTestId(tree, "peek-email-value")), "hello@travisheightscoaching.example");
-  assert.equal(textOf(byTestId(tree, "peek-email-words")), P.p.vm.reach.email.tip, "the mailbox's words, under it");
-  // A line's acts are quiet marks: icon buttons, named for a screen reader and on hover (data-tip).
-  for (const [id, name] of [
-    ["peek-copy", LEAD_WORDS.copyAria],
-    ["peek-draft", LEAD_WORDS.draftAria],
-  ]) {
-    const b = byTestId(tree, id);
-    assert.deepEqual([b.props["aria-label"], b.props["data-tip"]], [name, name], id);
-    assert.equal(textOf(b), "", `${id} says its name on hover, not on the line`);
-  }
-  assert.equal(textOf(byTestId(tree, "peek-locked-words")), P.p.vm.reach.locked.line);
-  assert.equal(
-    all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a" || n.props?.onClick).length,
-    0,
-    "nothing sends a text to a lead: its line only says why",
-  );
-  await press(byTestId(tree, "peek-copy"));
-  await callWay(P, LEAD_WORDS.callWays.copy.label);
-  assert.deepEqual(copied, [`email ${LEAD}`, `phone ${LEAD}`]);
-});
-
-test("a catch-all email is amber on the card and named in Contact, with the search's own standard", () => {
-  reset();
-  const P = page({ vm: vmOf({ email_state: "catch_all" }) });
-  const email = byTestId(P.draw().tree, "lead-sheet-contact-email");
-  assert.match(email.props.className, /\blw-amber\b/, "the address in amber on the card: not as it should be");
-  const words = textOf(byTestId(tabTo(P, "contact"), "peek-email-words"));
-  assert.match(words, /Their server accepts every address, so the check can't tell\./);
-  assert.ok(
-    words.includes(LEAD_CONTACT_STANDARD_WORDS.email),
-    "and the search's own standard, as a sentence of its own",
-  );
-  reset();
-  const ok = textOf(byTestId(tabTo(page(), "contact"), "peek-email-words"));
-  assert.equal(
-    ok.includes(LEAD_CONTACT_STANDARD_WORDS.email),
-    false,
-    "beside an address that checks out the standard would be a sentence saying nothing",
-  );
-});
-
-test("Why: every check with its mark and where it came from; what was seen against what Claude read; nothing read wears a plain check", () => {
-  reset();
-  const P = page();
-  const tree = P.draw().tree;
-  assert.equal(textOf(byTestId(tree, "lead-sheet-pane-why")).includes("Checks7 of 7"), true, "the head counts them");
-  // Nothing failed, so the passed ones are open, with the legend that tells a mark seen from one Claude read.
-  const passed = byTestId(tree, "lead-sheet-passed");
-  assert.equal(passed.props.open, true);
-  assert.match(textOf(passed), /seen on the map or in the mailbox.*read by Claude from the listing and their site/);
-  const rows = classed(byTestId(tree, "peek-checks-open"), /^lw-ck /);
-  assert.equal(rows.length, CHECKS.length, "every check");
-  assert.deepEqual(
-    rows.map((r) => textOf(find(r, (x) => x.props?.className === "lw-src"))),
-    P.p.vm.groups.flatMap((g) => g.checks.map((c) => c.source)),
-    "each with where it came from",
-  );
-  const seen = rows.filter((r) => /\bseen\b/.test(r.props.className));
-  const read = rows.filter((r) => /\bread\b/.test(r.props.className));
-  assert.deepEqual(
-    seen.map((r) => textOf(r.props.children[1])),
-    ["Open for business", "In the area you asked for", "Phone matches on two sources", "Mailbox exists"],
-  );
-  assert.equal(read.length, 3);
-  assert.equal(read.flatMap((r) => classed(r, /pk-ck-check/)).length, 0, "nothing read wears a plain check mark (P2)");
-  assert.equal(seen.flatMap((r) => classed(r, /pk-ck-check/)).length, 4, "what was seen does");
-});
-
-test("a criterion Claude could not tell says so, and never a check", () => {
-  reset();
-  const unsure = CHECKS.map((c) =>
-    c.key === "independent" ? { ...c, answer: "unknown", reason: "the listing does not say" } : c,
-  );
-  const tree = page({ vm: vmOf({ member: { checks: unsure } }) }).draw().tree;
-  const ck = byTestId(tree, "peek-check-independent-open");
-  assert.match(textOf(ck), /couldn't tell/);
-  assert.equal(classed(ck, /pk-ck-ask/).length, 1, "the mark that asks");
-  assert.equal(classed(ck, /pk-ck-check/).length, 0);
-});
-
-test("the other addresses fold in Contact with why Claude picked this one; how it was found is Why's; the site and Instagram are Contact's", () => {
-  reset();
-  const P = page();
-  const reach = tabTo(P, "contact");
-  const others = byTestId(reach, "peek-others");
-  assert.equal(others.type, "details", "folded, not open");
-  assert.equal(textOf(byTestId(reach, "peek-others-summary")), "2 other addresses on their site");
-  assert.deepEqual(all(others, (n) => n.type === "li").map(textOf), [
-    "careers@travisheightscoaching.example — for job seekers",
-    "A coach's personal mailbox — not the business",
-  ]);
-  assert.equal(textOf(byTestId(reach, "peek-others-why")), "on their own domain and answers bookings");
-  const activity = tabTo(P, "why");
-  assert.ok(textOf(byTestId(activity, "lead-sheet-pane-why")).includes("On Google Maps · today"));
-  const steps = all(byTestId(activity, "peek-found"), (n) => n.props?.className === "lw-found-i");
-  assert.deepEqual(
-    steps.map((s) => textOf(s.props.children[1])),
-    [
-      "Google Maps · searching “personal trainer”",
-      "travisheightscoaching.example · an email on the contact page",
-      "Mailbox · Checked",
-    ],
-  );
-  assert.deepEqual(
-    steps.map((s) => textOf(s.props.children[2])),
-    ["2:14 PM", "2:14 PM", "2:16 PM"],
-    "the minute each happened in",
-  );
-  const about = tabTo(P, "contact");
-  assert.equal(byTestId(about, "peek-website").props.href, "https://travisheightscoaching.example");
-  assert.equal(byTestId(about, "peek-instagram").props.href, "https://instagram.example/travisheights");
-});
-
-/* ======================================================== the decisions ==== */
-
-test("a Needs review lead says so and its dock offers Keep and Leave out; a lead left out says what stopped and offers Put back", async () => {
-  reset();
-  const review = page({ vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }) });
-  let tree = review.draw().tree;
-  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "To review", "where it stands, beside the name");
-  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Couldn't check the email");
-  await press(byTestId(tree, "lead-sheet-keep"));
-  await press(byTestId(tree, "lead-sheet-exclude"));
-  assert.deepEqual(
-    flashes.map((f) => f.msg),
-    [`keep ${LEAD}`, `exclude ${LEAD}`],
-  );
-
-  reset();
-  const out = page({
-    vm: vmOf({
-      member: {
-        class: "excluded",
-        fit: null,
-        excluded_by: "chain",
-        reason: "Part of Crunch Fitness, a chain with many locations",
-      },
-    }),
-  });
-  tree = out.draw().tree;
-  assert.match(
-    textOf(byTestId(tree, "lead-sheet-checks")),
-    /^Left out — Chain gyms · /,
-    "what happened first, then the owner's own word for the criterion, on the checks line",
-  );
-  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Part of Crunch Fitness, a chain with many locations");
-  assert.match(
-    textOf(byTestId(tree, "lead-sheet-box-line")),
-    /^Left out\. /,
-    "what stopped, plainly, in the sequence box",
-  );
-  assert.equal(stageOf(tree), null, "a place left out has no stage");
-  await press(byTestId(tree, "lead-sheet-put_back"));
-  assert.deepEqual(
-    flashes.map((f) => f.msg),
-    [`put back ${LEAD}`],
-  );
-});
-
-test("an operator sees Keep, Leave out and Put back held with the gate's sentence, and pressing one does nothing; Not a fit is theirs", async () => {
-  reset();
-  globalThis.window.ST_STORE = { can: (a) => a !== "find", myRole: () => "operator" };
-  const { tree } = page({
-    vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }),
-  }).draw();
-  for (const [id, doing] of [
-    ["lead-sheet-keep", "keep this lead"],
-    ["lead-sheet-exclude", "leave this lead out"],
-  ]) {
-    const b = byTestId(tree, id);
-    assert.equal(b.props["aria-disabled"], true, id);
-    assert.equal(b.props["aria-description"], `Only an owner can ${doing}.`, id);
-  }
-  await press(byTestId(tree, "lead-sheet-keep"));
-  assert.deepEqual(flashes, [], "the gate replaced the handler");
-  // The stage door is an operator's (route-policy: POST leads/[id]/stage), and Not a fit goes through it.
-  reset();
-  globalThis.window.ST_STORE = { can: (a) => a !== "find", myRole: () => "operator" };
-  assert.notEqual(byTestId(page().draw().tree, "lead-sheet-not_a_fit").props["aria-disabled"], true);
-  reset();
-  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
-  const x = byTestId(page().draw().tree, "lead-sheet-not_a_fit");
-  assert.equal(x.props["aria-disabled"], true);
-  assert.equal(x.props["aria-description"], "Only an owner or operator can set this lead aside.");
-});
-
-/* ================================================= Erase, the owner's ==== */
-
-const roleIs = (role) => {
-  globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
-};
-/** The ⋯'s item by its words: the kit's Menu. */
-const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 
 test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the sheet and says it is gone", async () => {
   reset();
@@ -852,66 +696,6 @@ test("REVIEW: Yes, erase pressed twice sends one erase, and the question says it
   assert.equal(flashes.filter((f) => /is erased/.test(String(f.msg))).length, 1, "one toast");
 });
 
-test("an operator, a partner, a viewer and a role the page cannot read find no Erase in the ⋯: it is the owner's", () => {
-  for (const role of ["operator", "partner", "viewer", null]) {
-    reset();
-    if (role) roleIs(role);
-    const { tree } = page().draw();
-    assert.equal(kitItem(tree, "peek-more", LEAD_WORDS.erase.act), null, `${role ?? "no role"}: no Erase`);
-    assert.equal(
-      find(tree, (n) => textOf(n) === LEAD_WORDS.erase.act),
-      null,
-      `${role ?? "no role"}: no Erase anywhere`,
-    );
-  }
-  assert.deepEqual(
-    leadPeekMenu("owner").map((m) => m.id),
-    ["erase"],
-  );
-  assert.deepEqual([leadPeekMenu("operator"), leadPeekMenu(undefined)], [[], []]);
-  // A partner (decision 0012) stands below an owner on the door's own ladder: DELETE leads/[id] refuses them too.
-  assert.deepEqual(leadPeekMenu("partner"), [], "a partner is offered no Erase");
-  // A lead left out has no stage to choose, so for a member who may not erase there is nothing behind a ⋯ at all.
-  reset();
-  const out = page({ vm: vmOf({ member: { class: "excluded", fit: null, excluded_by: "chain" } }) }).draw().tree;
-  assert.equal(byTestId(out, "peek-more"), null);
-});
-
-test("a stage chosen in the ⋯ goes through the one door and says what the door said, with Undo; it never converts", async () => {
-  reset();
-  const courier = courierOf({
-    stage: () => ({
-      ok: true,
-      data: {
-        stage: "converted",
-        closed_reason: null,
-        contact_id: null,
-        existed: false,
-        converted: false,
-        op_id: "op-9",
-        version: 5,
-        toast: "Marked talking. They join People when they write or call in, or when a call goes well.",
-        undo: { op_id: "op-9", version: 5 },
-      },
-    }),
-  });
-  const P = page({ courier });
-  await pickStage(P, "Talking");
-  await settle();
-  assert.deepEqual(
-    courier.seen[0],
-    ["stage", LEAD, { kind: "stage", stage: "converted" }],
-    "a choice says Talking; it never says convert",
-  );
-  assert.equal(
-    flashes[0].msg,
-    "Marked talking. They join People when they write or call in, or when a call goes well.",
-  );
-  await flashes[0].undo();
-  assert.deepEqual(courier.seen[1], ["undo", "op-9", 5]);
-  assert.deepEqual(opened, [], "nobody was made a person");
-});
-
 test("Esc backs out one step: the question it asked, then the pane it opened, then the sheet", () => {
   reset();
   const st = { mode: "draft", armed: { kind: "call", leadId: LEAD, asked: true }, peekId: LEAD };
@@ -975,209 +759,6 @@ test("focus moves into the sheet when it opens and back to the row when it close
   );
 });
 
-test("a refused act is the route's sentence, and nothing on the page pretends it happened", async () => {
-  reset();
-  const courier = courierOf({
-    stage: () => ({ ok: false, message: "This lead is gone.", code: "not_found", status: 404 }),
-  });
-  const P = page({ courier });
-  await pickStage(P, "Contacted");
-  await settle();
-  assert.equal(flashes[0].tone, "danger");
-  assert.equal(textOf(flashes[0].msg).includes("This lead is gone."), true);
-});
-
-/* ========================================================= the draft ==== */
-
-/** Draft, pressed where it lives: the email's line on the Reach tab. */
-const draftFrom = async (P) => {
-  await press(byTestId(tabTo(P, "contact"), "peek-draft"));
-  await settle();
-};
-
-test("Draft asks the route once, shows what it wrote with the foot the law asks for, and never a field the page would have to encode", async () => {
-  reset();
-  const courier = courierOf();
-  const P = page({ courier });
-  await draftFrom(P);
-  const { tree } = P.draw();
-  assert.deepEqual(courier.seen, [["draft", LEAD, { tone: "first" }]]);
-  assert.equal(textOf(byTestId(tree, "peek-draft-to")), "hello@travisheightscoaching.example");
-  assert.equal(textOf(byTestId(tree, "peek-draft-subject")), "Missed calls at Travis Heights");
-  assert.equal(
-    textOf(byTestId(tree, "peek-draft-body")).endsWith('Not interested? Reply "no thanks" and I won\'t write again.'),
-    true,
-  );
-  assert.equal(textOf(byTestId(tree, "peek-draft-note")), LEAD_DRAFT_NOTE);
-  assert.equal(
-    all(tree, (n) => n.type === "input" || n.type === "textarea").length,
-    0,
-    "the mailto: is the route's; an edited body here would need encoding the page must not do",
-  );
-  assert.equal(
-    byTestId(tree, "peek-open-mail").props.href,
-    "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
-  );
-  assert.equal(byTestId(tree, "lead-sheet-pane-why"), null, "the draft is the sheet's body while it is open");
-  assert.ok(byTestId(tree, "lead-sheet-dock"), "and the dock stays under it");
-});
-
-test("Shorter and Warmer send what is on screen back with the tone, and the answer replaces it", async () => {
-  reset();
-  const courier = courierOf({
-    draft: (input) => ({
-      ok: true,
-      data: {
-        to: "hello@travisheightscoaching.example",
-        subject: input.tone === "shorter" ? "Quick one" : "Missed calls at Travis Heights",
-        body: input.tone === "shorter" ? "Two lines only." : "Long.",
-        mailto: "mailto:x",
-      },
-    }),
-  });
-  const P = page({ courier });
-  await draftFrom(P);
-  await press(byTestId(P.draw().tree, "peek-tone-shorter"));
-  await settle();
-  assert.deepEqual(courier.seen[1], [
-    "draft",
-    LEAD,
-    { tone: "shorter", previous: { subject: "Missed calls at Travis Heights", body: "Long." } },
-  ]);
-  assert.equal(textOf(byTestId(P.draw().tree, "peek-draft-subject")), "Quick one");
-});
-
-test("with no business address the draft asks for it in the route's words, and there is nothing to open", async () => {
-  reset();
-  const courier = courierOf({ draft: () => ({ ok: false, message: LEAD_NO_ADDRESS }) });
-  const P = page({ courier });
-  await draftFrom(P);
-  const { tree } = P.draw();
-  assert.equal(textOf(byTestId(tree, "peek-draft-error")), LEAD_NO_ADDRESS);
-  assert.equal(byTestId(tree, "peek-draft-error").props.role, "alert");
-  assert.equal(byTestId(tree, "peek-open-mail").props["aria-disabled"], true);
-});
-
-test("a lead whose email bounces is a call: the dock says so, its yes is Call, and Contact offers no Copy and no Draft", async () => {
-  reset();
-  const P = page({ vm: vmOf({ email_state: "invalid" }) });
-  const tree = P.draw().tree;
-  assert.equal(
-    textOf(byTestId(tree, "lead-sheet-dock-line")),
-    LEAD_DOCK_WORDS.noEmail.line,
-    "a phone and no email: the yes is a call",
-  );
-  assert.match(
-    byTestId(tree, "lead-sheet-contact-email").props.className,
-    /\blw-amber\b/,
-    "the address in amber on the card",
-  );
-  const reach = tabTo(P, "contact");
-  assert.match(textOf(byTestId(reach, "peek-email-words")), /That mailbox doesn't exist/);
-  assert.equal(byTestId(reach, "peek-draft"), null);
-  assert.equal(byTestId(reach, "peek-copy"), null);
-  assert.ok(byTestId(reach, "peek-act-call"), "the phone is what is left");
-  await press(byTestId(P.draw().tree, "lead-sheet-call"));
-  assert.deepEqual(dialled, ["tel:+15125550142"], "the dock's Call rings from the owner's phone");
-  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
-});
-
-test("Did you send it? is asked when the tab comes back, not when the draft opened; Yes marks them contacted with Undo", async () => {
-  reset();
-  const courier = courierOf({
-    stage: () => ({
-      ok: true,
-      data: {
-        stage: "nurture",
-        closed_reason: null,
-        contact_id: null,
-        existed: false,
-        converted: false,
-        op_id: "op-3",
-        version: 6,
-        toast: "Marked contacted.",
-        undo: { op_id: "op-3", version: 6 },
-      },
-    }),
-  });
-  const P = page({ courier });
-  await draftFrom(P);
-  assert.equal(P.st.armed, null, "Draft alone arms nothing");
-  await press(byTestId(P.draw().tree, "peek-open-mail"));
-  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["sent", false]);
-  assert.equal(byTestId(P.draw().tree, "peek-sent-ask"), null, "nothing is asked while they are away");
-
-  const stop = leadArmOnReturn(P.st.armed, P.p.setArmed);
-  for (const fn of listeners.focus || []) fn();
-  assert.equal(P.st.armed.asked, true);
-  stop();
-  P.st.mode = "info";
-  const { tree } = P.draw();
-  assert.equal(textOf(find(byTestId(tree, "peek-sent-ask"), (n) => n.props?.className === "t")), "Did you send it?");
-  await press(byTestId(tree, "peek-sent-yes"));
-  await settle();
-  assert.deepEqual(courier.seen.at(-1), ["stage", LEAD, { kind: "emailed" }]);
-  assert.equal(flashes.at(-1).msg, "Marked contacted.");
-  assert.equal(typeof flashes.at(-1).undo, "function");
-  assert.equal(P.st.armed, null);
-});
-
-test("Copy copies the subject and the body and arms the same question", async () => {
-  reset();
-  const P = page();
-  await draftFrom(P);
-  await press(byTestId(P.draw().tree, "peek-copy-draft"));
-  await settle();
-  assert.equal(copied[0].startsWith("Missed calls at Travis Heights\n\nHi,"), true);
-  assert.equal(P.st.armed.kind, "sent");
-  assert.equal(flashes.at(-1).msg, "Copied the email.");
-});
-
-/* ========================================================= the calls ==== */
-
-test("Call asks how first and rings from the owner's phone; how it went is asked when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
-  reset();
-  const P = page();
-  // Call asks how first: its button opens the ways (Base UI's menu) and rings nobody; "Call from your phone" rings.
-  const call = kitMenu(tabTo(P, "contact"), "peek-act-call");
-  assert.deepEqual(dialled, [], "REGRESSION: the panel's Call rang the business the moment it was pressed");
-  assert.deepEqual(
-    call.props.groups.map((g) => g.header),
-    [undefined],
-    "the line already says the number, so no heading repeats it",
-  );
-  assert.deepEqual(
-    call.props.groups.flatMap((g) => g.items).map((i) => `${i.label}${i.meta || ""}`),
-    Object.values(LEAD_WORDS.callWays).map((w) => `${w.label}${w.meta || ""}`),
-    "the three ways",
-  );
-  await callWay(P, LEAD_WORDS.callWays.dial.label);
-  assert.deepEqual(dialled, ["tel:+15125550142"]);
-  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
-  assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);
-  const stop = leadArmOnReturn(P.st.armed, P.p.setArmed);
-  for (const fn of listeners.visibilitychange || []) fn();
-  stop();
-  const { tree } = P.draw();
-  assert.equal(
-    textOf(find(byTestId(tree, "peek-call-ask"), (n) => n.props?.className === "t")),
-    "How did the call go?",
-  );
-  const chips = find(tree, (n) => n.props?.className === "pk-chips");
-  assert.equal(chips.props.role, "radiogroup");
-  assert.deepEqual(all(chips, (n) => n.props?.role === "radio").map(textOf), [
-    "Interested",
-    "Call back later",
-    "Not interested",
-    "Left a voicemail",
-    "No answer",
-    "Wrong number",
-  ]);
-  assert.equal(byTestId(tree, "peek-note").props.maxLength, 280);
-  assert.equal(textOf(byTestId(tree, "peek-note-left")), "Up to 280 characters");
-  assert.equal(byTestId(tree, "peek-call-save").props.disabled, true, "Save waits for an outcome");
-});
-
 test("Interested says they are in People now and offers to open them, with no Undo", async () => {
   reset();
   const courier = courierOf({
@@ -1214,51 +795,6 @@ test("Interested says they are in People now and offers to open them, with no Un
   assert.deepEqual(opened, ["c-77"]);
 });
 
-test("the other five post what they say, each with Undo; a wrong number keeps the stage and strikes the phone", async () => {
-  for (const [outcome, stage, toast] of [
-    ["call_back", "nurture", "Marked contacted."],
-    ["voicemail", "nurture", "Marked contacted."],
-    ["no_answer", "nurture", "Marked contacted."],
-    ["not_interested", "archived", "Marked as said no."],
-    ["wrong_number", "ready", "That number is marked wrong."],
-  ]) {
-    reset();
-    const courier = courierOf({
-      stage: () => ({
-        ok: true,
-        data: {
-          stage,
-          closed_reason: stage === "archived" ? "said_no" : null,
-          contact_id: null,
-          existed: false,
-          converted: false,
-          op_id: "op-5",
-          version: 8,
-          toast,
-          undo: { op_id: "op-5", version: 8 },
-        },
-      }),
-    });
-    const P = page({ courier, armed: { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" } });
-    await press(byTestId(P.draw().tree, `peek-outcome-${outcome}`));
-    await press(byTestId(P.draw().tree, "peek-call-save"));
-    await settle();
-    assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "outcome", outcome }], outcome);
-    assert.equal(flashes[0].msg, toast, outcome);
-    assert.equal(typeof flashes[0].undo, "function", outcome);
-    assert.deepEqual(opened, [], outcome);
-  }
-  reset();
-  const reach = tabTo(page({ vm: vmOf({ phone_wrong: true }) }), "contact");
-  assert.equal(/\bwrong\b/.test(byTestId(reach, "peek-phone-value").props.className), true);
-  assert.equal(byTestId(reach, "peek-act-call"), null, "a number marked wrong is not dialled again, nor copied");
-  assert.equal(
-    textOf(byTestId(reach, "peek-phone-words")),
-    "You marked this number wrong.",
-    "the struck number says why",
-  );
-});
-
 test("I didn't call clears the question and posts nothing", async () => {
   reset();
   const courier = courierOf();
@@ -1269,189 +805,6 @@ test("I didn't call clears the question and posts nothing", async () => {
 });
 
 /* ========================================================= Not a fit ====== */
-
-test("Not a fit asks why in five ways in the dock's own place, Back writes nothing, and the list teaches nothing in this release", async () => {
-  reset();
-  const P = page();
-  await press(byTestId(P.draw().tree, "lead-sheet-not_a_fit"));
-  const { tree } = P.draw();
-  assert.equal(byTestId(tree, "lead-sheet-dock"), null, "the reasons stand where the dock stood");
-  const why = byTestId(tree, "peek-why");
-  assert.deepEqual([why.props.role, why.props["aria-label"]], ["group", LEAD_NOT_A_FIT_TITLE]);
-  assert.deepEqual(
-    ["chain", "wrong_kind", "too_far", "customer", "other"].map((w) =>
-      textOf(find(byTestId(why, `peek-why-${w}`), (n) => n.type === "span")),
-    ),
-    [
-      LEAD_NOT_A_FIT_WORDS.chain,
-      LEAD_NOT_A_FIT_WORDS.wrong_kind,
-      LEAD_NOT_A_FIT_WORDS.too_far,
-      LEAD_NOT_A_FIT_WORDS.customer,
-      LEAD_NOT_A_FIT_WORDS.other,
-    ],
-  );
-  assert.equal(
-    /learn|next searches|you said/i.test(textOf(why)),
-    false,
-    "the scoped learning and the you-said chips are release C",
-  );
-  await press(byTestId(why, "peek-why-back"));
-  assert.equal(P.st.mode, "info");
-  assert.ok(byTestId(P.draw().tree, "lead-sheet-dock"), "Back puts the dock back");
-});
-
-test("Already a customer hides the place and says so; the other four close the lead and say Not a fit; each has Undo", async () => {
-  for (const [why, toast] of [
-    ["customer", "Hidden from every future search."],
-    ["chain", "Not a fit."],
-    ["wrong_kind", "Not a fit."],
-    ["too_far", "Not a fit."],
-    ["other", "Not a fit."],
-  ]) {
-    reset();
-    const courier = courierOf({
-      stage: () => ({
-        ok: true,
-        data: {
-          stage: "archived",
-          closed_reason: why === "customer" ? "customer" : "not_a_fit",
-          contact_id: null,
-          existed: false,
-          converted: false,
-          op_id: "op-6",
-          version: 9,
-          toast,
-          undo: { op_id: "op-6", version: 9 },
-        },
-      }),
-    });
-    const P = page({ courier });
-    await press(byTestId(P.draw().tree, "lead-sheet-not_a_fit"));
-    await press(byTestId(P.draw().tree, `peek-why-${why}`));
-    await settle();
-    assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "not_a_fit", why }], why);
-    assert.equal(flashes[0].msg, toast, why);
-    await flashes[0].undo();
-    assert.deepEqual(courier.seen[1], ["undo", "op-6", 9], why);
-    assert.equal(P.st.mode, "info", "the reasons close behind the answer");
-  }
-});
-
-test("no word the sheet says names the vendor, or a dollar", () => {
-  reset();
-  const states = ["ok", "catch_all", "unknown", "invalid", "none", "checking"];
-  for (const email_state of states) {
-    for (const cls of ["qualified", "review", "excluded"]) {
-      const vm = vmOf({
-        email_state,
-        member: {
-          class: cls,
-          fit: cls === "qualified" ? "strong" : null,
-          excluded_by: cls === "excluded" ? "chain" : null,
-        },
-      });
-      for (const mode of ["info", "why"]) {
-        for (const armed of [
-          null,
-          { kind: "sent", leadId: LEAD, asked: true },
-          { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" },
-        ]) {
-          const said = everyTab(page({ vm, mode, armed }));
-          assert.equal(
-            /apify|compass|bounceverify|crawler|\$\d/i.test(said),
-            false,
-            `${email_state}/${cls}/${mode}: ${said.slice(0, 120)}`,
-          );
-        }
-      }
-    }
-  }
-});
-
-/* ===================================================== About and photos ==== */
-
-// D2: who they are, from what the listing shows. Every line only when the listing said; a lead from before says nothing.
-test("About shows who they are: their own words, where, the listing unclaimed, the socials and the Maps page; the line under the name is the canvas's", () => {
-  reset();
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => ({
-    day,
-    hours: "9 AM to 6 PM",
-  }));
-  const shown = page({
-    vm: vmOf({
-      about: "Waterfront venue for weddings.",
-      street: "101 Biscayne Blvd",
-      city: "Miami",
-      state: "FL",
-      postal_code: "33132",
-      hours: days,
-      image_url: "https://lh3.example/p.jpg",
-      claimed: false,
-      facebook_url: "https://www.facebook.example/x",
-      tiktok_url: "https://www.tiktok.example/@x",
-      maps_url: "https://maps.example/?cid=1",
-    }),
-  });
-  // The refined canvas: the kind, the street and the rating; whether they are open is Contact's week, today marked.
-  assert.equal(textOf(byTestId(shown.draw().tree, "peek-sub")), "Personal trainer · 101 Biscayne Blvd · 5.0 (16)");
-  let tree = tabTo(shown, "why");
-  const facts = textOf(byTestId(tree, "peek-about"));
-  for (const said of ["Waterfront venue for weddings.", "ListingNot claimed by the owner"])
-    assert.ok(facts.includes(said), said);
-  assert.ok(
-    textOf(byTestId(tabTo(shown, "contact"), "peek-where")).includes("101 Biscayne Blvd, Miami, FL 33132"),
-    "the address is Contact's, where they are",
-  );
-  assert.deepEqual(
-    all(byTestId(tree, "peek-about"), (n) => n.props?.className === "lw-kv-k")
-      .map(textOf)
-      .filter((k) => /^Rat/.test(k)),
-    ["Rating"],
-    "the rating said once, with its low share, not again as the listing's fact",
-  );
-  tree = tabTo(shown, "contact");
-  assert.deepEqual(
-    ["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null),
-    ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"],
-  );
-
-  reset();
-  const bare = page({ vm: vmOf({}) });
-  tree = tabTo(bare, "why");
-  for (const said of ["Waterfront", "Not claimed"]) assert.equal(textOf(tree).includes(said), false, said);
-  tree = tabTo(bare, "contact");
-  for (const id of ["peek-facebook", "peek-maps", "peek-week"])
-    assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
-});
-
-test("Contact's week: seven days in their short hours, today marked, and the week's shape in one line", () => {
-  const days = [
-    { day: "Sunday", hours: "Closed" },
-    { day: "Monday", hours: "11 AM to 10 PM" },
-    { day: "Tuesday", hours: "11 AM to 10 PM" },
-    { day: "Wednesday", hours: "11 AM to 10 PM" },
-    { day: "Thursday", hours: "11 AM to 10 PM" },
-    { day: "Friday", hours: "11 AM to 11 PM" },
-    { day: "Saturday", hours: "11 AM to 11 PM" },
-  ];
-  reset();
-  const tree = tabTo(page({ vm: vmOf({ hours: days }) }), "contact");
-  assert.ok(
-    textOf(byTestId(tree, "lead-sheet-pane-contact")).includes("Open 6 days · 11–10 most days"),
-    "the week's shape, said once",
-  );
-  const rows = all(byTestId(tree, "peek-week"), (n) => n.props?.["data-testid"] === "peek-day");
-  assert.equal(rows.length, 7, "closed days included");
-  assert.deepEqual(
-    rows.map((d) => textOf(d.props.children[1])),
-    ["Closed", "11–10", "11–10", "11–10", "11–10", "11–11", "11–11"],
-  );
-  assert.deepEqual(
-    rows.map((d) => /\btoday\b/.test(d.props.className)),
-    [false, false, false, false, false, true, false],
-    "NOW is a Friday in America/Chicago",
-  );
-});
 
 test("D5: the photo expanded is a dialog of its own -- the photo or the tile, where it sits, the week's hours as bars with today marked, the listing's facts, Open in Maps -- and Esc closes it before anything else", () => {
   reset();
@@ -1558,75 +911,6 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
     setLightbox: (v) => steps.push(`lightbox:${v}`),
   });
   assert.deepEqual([out, steps], ["lightbox", ["lightbox:null"]]);
-});
-
-test("on a phone: the kit's sheet at half height over the rows, the tabs at full, a sideways swipe walks the rows, and Save and go to the next", async () => {
-  reset();
-  const moved = [];
-  const deck = { at: 3, of: 19, onPrev: () => moved.push("prev"), onNext: () => moved.push("next") };
-  const P = page();
-  const onPhone = (over = {}) => P.draw({ phone: true, deck, ...over }).tree;
-  let tree = onPhone();
-  const sheet = find(tree, (n) => n.props?.rest && n.props?.testid === "lead-peek");
-  assert.ok(sheet, "the kit's sheet, with its two rests");
-  assert.equal(sheet.props.rest.at, "half", "it opens on the card");
-  assert.ok(
-    byTestId(tree, "lead-pile-lead") && byTestId(tree, "lead-sheet-dock"),
-    "the card, and the dock at its foot",
-  );
-  // At half the three tabs sit under the card with none picked (the canvas's PhoneHalf): any of them raises the sheet.
-  assert.equal(find(tree, (n) => n.type === SubTabs).props.value, null, "the tabs wait under the card, none picked");
-
-  // A swipe across the card is the next lead or the one before, 80px under a thumb; a scroll is never a move.
-  const body = find(tree, (n) => n.props?.className === "lw-body");
-  const el = { dataset: {} };
-  const swipe = (dx, dy) => {
-    body.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el, target: null });
-    body.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
-  };
-  swipe(-120, 6);
-  assert.equal(moved.at(-1), "next", "a swipe left is the next lead");
-  swipe(140, -4);
-  assert.equal(moved.at(-1), "prev", "a swipe right is the one before");
-  const before = moved.length;
-  swipe(-40, 10);
-  swipe(-120, 300);
-  assert.equal(moved.length, before, "a short drag and a scroll move nothing");
-
-  // Raised, the three tabs read under who they are, and the dock holds still under them.
-  sheet.props.rest.onRest("full");
-  tree = onPhone();
-  assert.ok(byTestId(tree, "lead-sheet-full"), "full height");
-  const tabs = find(tree, (n) => n.type === SubTabs).props;
-  assert.equal(tabs.value, "why", "the tabs, Why picked");
-  assert.deepEqual(
-    tabs.tabs.map((t) => t.controls ?? null),
-    ["lead-sheet-pane", null, null],
-    "tabs to a screen reader, the picked one naming the pane it opens",
-  );
-  const pane = byTestId(tree, "lead-sheet-pane-why");
-  assert.deepEqual([pane.props.role, pane.props.id], ["tabpanel", "lead-sheet-pane"]);
-  assert.ok(byTestId(tree, "lead-sheet-dock"), "the dock, still");
-
-  // Back from the call: the six outcomes wear their dots, the question says what saving does, and one press saves and moves on.
-  const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
-  const ask = byTestId(onPhone({ armed }), "peek-call-ask");
-  assert.ok(
-    find(byTestId(ask, "peek-outcome-interested"), (n) => n.props?.className === "dot"),
-    "each outcome wears its dot, beside its word",
-  );
-  assert.match(textOf(ask), /Saving moves them to Talking/);
-  await press(byTestId(ask, "peek-call-save-next"));
-  assert.equal(moved.at(-1), "next", "saved, and on to the next");
-  assert.equal(
-    byTestId(onPhone({ armed, deck: { ...deck, at: 19 } }), "peek-call-save-next"),
-    null,
-    "on the last of the rows there is nowhere to go next",
-  );
-
-  // A desk has no swipe: the panel sits beside the rows.
-  const desk = P.draw({ deck }).tree;
-  assert.deepEqual([desk.props.onTouchStart, byTestId(desk, "peek-body").props.onTouchStart], [undefined, undefined]);
 });
 
 test("a lead's photo is asked for once, before it is needed, and last in line", () => {

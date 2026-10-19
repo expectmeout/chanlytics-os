@@ -436,7 +436,7 @@ export type LifecycleResume = Extract<LifecycleAct, { kind: "resume" }>;
  * A reach-out's Resume, asked in place: its name, and that its next step goes on its own day. Its row asks it, and so does
  * its drawer (reach-out/row.tsx), where Resume was a single tap with no question (the wiring's second audit, R11 S9-2).
  */
-export function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): LifecycleResume {
+function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): LifecycleResume {
   const W = LIFECYCLE_WORDS.ledger.resume;
   return {
     kind: "resume",

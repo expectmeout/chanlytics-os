@@ -1,39 +1,40 @@
 /**
- * The lead sheet (canvas B v2, "The Workbench"; the refined canvas, 17 Oct 2026), run: which of the canvas's states a lead
- * is in, by its own record, the add door's answer and its story (leadSheetStateOf); what stopped (leadSheetClosedOf); the
- * card's lines (the line under the name, the checks line with a check read shaded apart and the fit's word only when it
- * is news, the ways-in line) and Why's checks, what did not pass first (lead-sheet-card.ts); where they stand in their
- * sequence and the word beside the name, in Sequences' words; the sequence box; the dock, which holds only what needs
- * you, its keys named and a press that would fail off with why, and nothing when nothing does; the end of a pile; their
- * steps on the record's rail of days; Change's options; a row's place on Leads; and the dock as the page draws it, its
- * keys named to a screen reader and drawn nowhere (canvas B: "keys, drawn nowhere").
+ * The lead sheet (the lead-to-sequence canvas, 18 Oct 2026: one scroll, one road), run: which state a lead is in, by its own
+ * record and its place first, then the add door's answer, then its email (leadSheetStateOf); what stopped and its one fix
+ * (leadSheetClosedOf); the verdict first; the card's lines (the line under the name, the checks line, the ways-in line) and
+ * Why's checks, what did not pass first; where they stand in a sequence, said the same in every window (placeWordOf); what
+ * a held email may become (heldChoicesOf); the record's rail drawn for one lead, or as they'd get it (placeRailOf); the dock
+ * in every state of the States board, only what needs you and nothing when nothing does (leadDockOf); the word beside the
+ * name; the picker (leadPickerRowsOf); and the pile's end, by sequence (leadPileEndOf).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 const {
   leadSheetStateOf,
   leadSheetClosedOf,
+  leadVerdictOf,
   leadSheetSubOf,
   leadSheetChecksLineOf,
   leadSheetContactLineOf,
   leadSheetWhyOf,
-  leadSheetDockOf,
-  leadSheetPlaceOf,
+  leadDockOf,
   leadSheetWordOf,
-  leadSheetBoxOf,
-  leadLinePlaceOf,
-  leadSheetEndRailOf,
-  leadSheetTrackOf,
-  leadSheetOptionsOf,
-  leadSheetStandOf,
+  leadPickerRowsOf,
+  leadPileEndOf,
+  placeWordOf,
+  heldChoicesOf,
+  placeRailOf,
   LEAD_SHEET_WORDS: W,
   LEAD_DOCK_WORDS: D,
-  LEAD_PLACE_WORDS: P,
   LEAD_SHEET_CARD_WORDS,
+  PLACE_RAIL_WORDS: R,
 } = contracts;
+
+const TZ = "America/New_York";
+const NOW = Date.parse("2026-10-18T14:00:00Z");
+const clock = { tz: TZ, nowMs: NOW };
 
 const lead = (over = {}) => ({
   cls: "qualified",
@@ -44,29 +45,51 @@ const lead = (over = {}) => ({
   inSequence: false,
   ...over,
 });
-const stateOf = (over = {}, more = {}) =>
-  leadSheetStateOf({ lead: lead(over), check: undefined, email: null, story: null, ...more });
 
-test("the state: its record first, then the add door's answer, then what its email says", () => {
+/** A lead's place in a sequence (00459 sequence_place), its row filed under `group`. */
+const placeOf = (group, row = {}, more = {}) => ({
+  sequence: { id: "seq-1", name: "Bookstore intro", state: "on" },
+  place: {
+    group,
+    enrollment_id: "en-1",
+    send_id: null,
+    batch_id: null,
+    place: 1,
+    at: null,
+    why: null,
+    hold_detail: null,
+    draft: null,
+    reply: null,
+    ...row,
+  },
+  sends: [],
+  reads_replies: true,
+  owner_sends: false,
+  joined: { at: "2026-10-16T15:00:00Z", auto: false },
+  ...more,
+});
+
+const stateOf = (over = {}, more = {}) =>
+  leadSheetStateOf({ lead: lead(over), place: null, check: undefined, email: null, ...more });
+
+test("the state: its record and its place first, then the add door's answer, then what its email says", () => {
+  assert.equal(stateOf({ cls: "excluded" }), "closed", "left out by the finder");
   assert.equal(stateOf({ cls: "review" }), "review");
-  assert.equal(stateOf({ cls: "excluded" }), "closed");
   assert.equal(stateOf({ stage: "converted" }), "replied");
-  assert.equal(stateOf({}, { story: { replied: true, bounced: false } }), "replied");
+  assert.equal(stateOf({}, { place: placeOf("replied") }), "replied", "their place says they wrote back");
   assert.equal(stateOf({ stage: "archived" }), "closed");
-  assert.equal(stateOf({ inSequence: true }), "sequence");
-  // The door's answer, never a second reading of the address on the page.
-  assert.equal(stateOf({}, { check: { why: "elsewhere", chain_name: "Gyms" } }), "elsewhere");
-  assert.equal(stateOf({}, { check: { why: "already", chain_name: null } }), "sequence");
-  assert.equal(stateOf({}, { check: { why: "no_email", chain_name: null } }), "phone");
-  assert.equal(stateOf({ canCall: false }, { check: { why: "no_email", chain_name: null } }), "closed");
-  assert.equal(stateOf({}, { check: { why: "unconfirmed", chain_name: null } }), "gap");
-  assert.equal(stateOf({}, { check: { why: "customer", chain_name: null } }), "closed");
-  // Before the door answers: no address and a number is a call; an address being checked is finding one.
+  assert.equal(stateOf({}, { place: placeOf("left", { why: "bounced" }) }), "closed", "a bounce closes the lead");
+  assert.equal(stateOf({}, { place: placeOf("in") }), "sequence", "a place is a sequence's, whatever the door says");
+  assert.equal(stateOf({}, { check: { why: "elsewhere" } }), "elsewhere");
+  assert.equal(stateOf({}, { check: { why: "already" } }), "sequence");
+  assert.equal(stateOf({}, { check: { why: "checking" } }), "finding");
+  assert.equal(stateOf({}, { check: { why: "no_email" } }), "phone", "an address the door refused, with a number");
+  assert.equal(stateOf({ canCall: false }, { check: { why: "no_email" } }), "closed", "and with none");
+  assert.equal(stateOf({}, { check: { why: "unconfirmed" } }), "gap", "the sequence's own setting");
   assert.equal(stateOf({ hasEmail: false }), "phone");
   assert.equal(stateOf({ emailState: "checking" }), "finding");
-  assert.equal(stateOf({}, { email: { blocked: "Its words need their city", note: null } }), "gap");
-  assert.equal(stateOf({}, { email: { blocked: null, note: "Greets them as there" } }), "gap");
-  assert.equal(stateOf({}, { check: null, email: { blocked: null, note: null } }), "ready");
+  assert.equal(stateOf({}, { email: { blocked: "They have no city", note: null } }), "gap");
+  assert.equal(stateOf(), "ready");
 });
 
 test("what stopped, plainly, and the one fix that exists for it", () => {
@@ -81,16 +104,29 @@ test("what stopped, plainly, and the one fix that exists for it", () => {
     leadSheetClosedOf({ lead: lead({ emailState: "invalid" }), closedReason: null, blocked: null }).fix,
     "call",
   );
-  const nothing = leadSheetClosedOf({
-    lead: lead({ hasEmail: false, canCall: false }),
-    closedReason: null,
-    blocked: null,
-  });
-  assert.equal(nothing.fix, null);
+  assert.equal(
+    leadSheetClosedOf({ lead: lead({ hasEmail: false, canCall: false }), closedReason: null, blocked: null }).fix,
+    null,
+  );
   assert.equal(
     leadSheetClosedOf({ lead: lead(), closedReason: null, blocked: "They're already a customer, so Add is off." }).line,
     "They're already a customer, so Add is off.",
   );
+});
+
+test("the verdict first: Strong fit green, Worth a look and Long shot amber, Left out plain and the finder's own", () => {
+  assert.deepEqual(leadVerdictOf({ fit: { word: "Strong fit", cls: "strong" } }), {
+    word: "Strong fit",
+    tone: "ok",
+    out: false,
+  });
+  assert.equal(leadVerdictOf({ fit: { word: "Worth a look", cls: "look" } }).tone, "warn");
+  assert.equal(leadVerdictOf({ fit: { word: "Long shot", cls: "long" } }).tone, "warn");
+  assert.deepEqual(leadVerdictOf({ fit: { word: "Left out — a chain", cls: "out" } }), {
+    word: "Left out — a chain",
+    tone: "plain",
+    out: true,
+  });
 });
 
 const dot = (answer, how = "seen") => ({ answer, how });
@@ -119,7 +155,11 @@ test("the line under the name: the kind, the street and the rating, short, on a 
     rated: { score: "4.8", count: "212", reviews: "212 reviews", low: null },
     company: null,
   };
-  assert.equal(leadSheetSubOf(vm), "Hair salon · 31-12 Ditmars Blvd · 4.8 (212)", "the canvas's PhoneHalf, everywhere");
+  assert.equal(
+    leadSheetSubOf(vm),
+    "Hair salon · 31-12 Ditmars Blvd · ★ 4.8 (212)",
+    "the canvas's PhoneHalf, everywhere",
+  );
   assert.equal(
     leadSheetSubOf({ ...vm, where: null, rated: null }),
     "Hair salon · $$ · Queens, NY",
@@ -131,7 +171,11 @@ test("the checks line: a dot a check, a passed one Claude read shaded apart, the
   const line = leadSheetChecksLineOf(card());
   assert.deepEqual(line.dots, ["ok", "ok", "warn", "read"], "a check Claude read is softer than one seen");
   assert.equal(line.words, "3 of 4 checks");
-  assert.equal(line.exception, null, "a way in that couldn't tell is the ways-in line's amber, not said twice");
+  assert.equal(
+    line.exception,
+    "phone not confirmed",
+    "what did not pass, in its own short words (the canvas's PhoneHalf)",
+  );
   assert.equal(line.fit, null, "a strong fit has no word before the count");
   assert.equal(line.tip, "3 checks passed · 1 couldn't tell");
   const two = card({
@@ -141,7 +185,7 @@ test("the checks line: a dot a check, a passed one Claude read shaded apart, the
   const area = card({ groups: [{ how: "seen", checks: [check("on_maps", "yes"), check("in_area", "unknown")] }] });
   assert.equal(
     leadSheetChecksLineOf(area).exception,
-    "area unconfirmed",
+    "area not confirmed",
     "one that couldn't tell, in its own short words",
   );
   const look = card({ fit: { word: "Worth a look", cls: "look", sentence: "" } });
@@ -203,497 +247,276 @@ test("Why's checks: what did not pass first, the rest folded under how many pass
   assert.equal(leadSheetWhyOf(card({ groups: [] })), null);
 });
 
+test("where they stand, the same words in every window: what needs you by its word, else In and the sequence", () => {
+  const seq = { name: "Bookstore intro", state: "on" };
+  const word = (group, row = {}, named = true, s = seq) =>
+    placeWordOf({ group, place: 1, at: null, why: null, ...row }, s, clock, named);
+  assert.deepEqual(word("waiting"), { word: "Waits for your OK", tone: "warn", line: "Step 1 · Bookstore intro" });
+  assert.deepEqual(word("held", { place: 2 }), { word: "Held", tone: "warn", line: "Step 2 · Bookstore intro" });
+  assert.equal(word("to_send").word, "Yours to send");
+  assert.equal(word("replied").tone, "warn");
+  assert.deepEqual(word("queued"), { word: "In Bookstore intro", tone: "ok", line: "In its next batch" });
+  assert.equal(word("queued", {}, true, { name: "Gift shops", state: "draft" }).line, "Joins when you start it");
+  assert.equal(word("queued", {}, false).word, "In it", "the sheet's head, beside the name, names no sequence");
+  assert.equal(word("in").line, "Between steps");
+  assert.deepEqual(word("done"), { word: "Done", tone: "plain", line: "Bookstore intro · every step went" });
+  assert.equal(word("left").word, "Left");
+});
+
+test("a held email's choices follow why it was held, and Skip this email only from step 2", () => {
+  const words = (hold, place) => heldChoicesOf(hold, place).map(([, w]) => w);
+  assert.deepEqual(words(null, 1), ["Send as written"], "at step 1 skipping would end their place: Take out says that");
+  assert.deepEqual(words(null, 2), ["Send as written", "Skip this email"]);
+  for (const [door, w] of heldChoicesOf("unbacked_fact", 2)) assert.ok(typeof door === "string" && w.length > 0);
+});
+
+test("the rail for one lead: when they joined, what each send did, the next by when it goes; and as they'd get it", () => {
+  const steps = [
+    { id: "s1", place: 1, after_days: null, hand: null, only_if: [], kind: "reach_out" },
+    { id: "s2", place: 2, after_days: 4, hand: null, only_if: ["no_reply"], kind: "reach_out" },
+    { id: "s3", place: 3, after_days: 3, hand: { kind: "call", words: "Call them" }, only_if: [], kind: "reach_out" },
+  ];
+  const titles = new Map([[1, "A quick one for Persida"]]);
+  const preview = placeRailOf({ lens: "preview", steps, titles, seq: "on", place: null, readsReplies: false, clock });
+  assert.equal(preview.start.head, R.joinsWhenAdded);
+  assert.deepEqual(preview.steps[0].state, { tone: "next", words: R.afterOk }, "step 1 goes after your OK");
+  assert.equal(preview.steps[0].how, R.asTheyGet);
+  assert.equal(preview.steps[2].how, R.task, "the call is a task for you");
+  assert.equal(preview.end.sub, R.toldBy, "no mailbox reads replies: they are told");
+  const sent = {
+    id: "x1",
+    step_id: "s1",
+    place: 1,
+    state: "sent",
+    reason: null,
+    hold_detail: null,
+    send_at: null,
+    sent_at: "2026-10-17T15:00:00Z",
+    drafted_at: null,
+    batch_id: null,
+  };
+  const one = placeRailOf({
+    lens: "one",
+    steps,
+    titles,
+    seq: "on",
+    place: placeOf("in", { place: 2, at: "2026-10-21T13:00:00Z" }, { sends: [sent] }),
+    readsReplies: true,
+    clock,
+  });
+  assert.ok(one.start.head.startsWith("You added them"), "when they joined");
+  assert.equal(one.steps[0].state.tone, "done");
+  assert.ok(one.steps[0].state.words.startsWith("Sent"));
+  assert.equal(one.steps[1].state.tone, "next", "the next step says when it goes");
+  assert.equal(one.steps[2].state, null, "the rest wait their turn");
+  assert.equal(one.end.sub, R.readFrom);
+  const held = placeRailOf({
+    lens: "one",
+    steps,
+    titles,
+    seq: "on",
+    place: placeOf("held", { send_id: "x1" }, { sends: [{ ...sent, state: "held", sent_at: null, reason: null }] }),
+    readsReplies: true,
+    clock,
+  });
+  assert.equal(held.steps[0].state.tone, "need", "held: amber, it needs you");
+});
+
 const dockFacts = (over = {}) => ({
   state: "ready",
   place: null,
-  pile: null,
-  target: "Salon owners · Queens",
+  pick: { id: "seq-1", name: "Bookstore intro", state: "on" },
   blocked: null,
+  elsewhere: null,
   canCall: true,
   canLater: true,
   closed: null,
-  reply: null,
-  tz: "America/New_York",
-  nowMs: Date.parse("2026-10-16T14:00:00Z"),
+  reading: false,
+  tz: TZ,
+  nowMs: NOW,
   ...over,
 });
-const dockOf = (over) => leadSheetDockOf(dockFacts(over));
-const acts = (r) => r.acts.map((s) => s.act);
+const dockOf = (over) => leadDockOf(dockFacts(over));
+const acts = (d) => d.acts.map((s) => s.act);
 
-test("the dock holds what needs you: ✕, Later and Add for a lead to decide on; where Add would fail it is not offered, and why is said", () => {
+test("the dock for a lead to decide on: Not a fit, Later and Add to the pick with ▾; the picker where nothing is picked", () => {
   const ready = dockOf();
   assert.equal(ready.x, true);
-  assert.deepEqual(acts(ready), ["not_a_fit", "later", "add"]);
-  assert.deepEqual(
-    ready.acts.map((s) => s.key),
-    ["n", "l", "a"],
-  );
-  assert.deepEqual(
-    [ready.line, ready.fact],
-    ["Joins Salon owners · Queens", D.ready.fact],
-    "where Add goes, named before the press (the refined canvas, decision 04), and what follows",
-  );
-  // Their story or the sequences still being read: the dock waits and offers nothing the reads could take back.
-  const reading = dockOf({ reading: true });
-  assert.deepEqual([reading.line, reading.waiting, reading.acts], [D.reading.line, true, []]);
-  // A press that could only fail is not drawn: the dock says it can't join yet, and why, over Not a fit and Later.
-  const off = dockOf({ state: "gap", blocked: "Its words need their city" });
-  assert.deepEqual(acts(off), ["not_a_fit", "later"]);
-  assert.deepEqual([off.line, off.fact], [D.cantJoin.line, "Its words need their city"], "why, in the dock's own line");
-  // Sequences take leads you add and none is chosen for this search: the dock asks which, Change above picks it.
-  const unchosen = dockOf({ unchosen: true });
-  assert.deepEqual(
-    [unchosen.line, unchosen.fact, acts(unchosen)],
-    [D.choose.line, D.choose.fact, ["not_a_fit", "later"]],
-  );
-  const checking = dockOf({ state: "finding" });
-  assert.equal(checking.waiting, true);
-  assert.equal(checking.acts.at(-1).off, D.checking.fact, "Add waits for the mailbox's check");
+  assert.equal(ready.later, true);
+  assert.deepEqual(acts(ready), ["add"]);
+  assert.equal(ready.acts[0].label, D.addTo("Bookstore intro"));
+  assert.equal(ready.acts[0].split, true, "▾ beside Add: the picker, one press away");
+  assert.equal(ready.line, null, "a dock is for pressing: no pointer elsewhere");
+  const none = dockOf({ pick: null });
+  assert.deepEqual(acts(none), ["pick"]);
+  assert.equal(none.acts[0].label, D.addToOne);
+  const blocked = dockOf({ blocked: "They have no city, so this email would wait for you." });
+  assert.equal(blocked.line, "They have no city, so this email would wait for you.", "why Add can't go, said once");
+  assert.deepEqual(acts(blocked), ["pick"]);
+  const finding = dockOf({ state: "finding" });
+  assert.equal(finding.waiting, true);
+  assert.equal(finding.acts[0].off, D.checking, "Add waits while the mailbox is checked");
+  assert.equal(dockOf({ canLater: false }).later, false, "Later is a search's: none outside one");
+});
+
+test("the dock in the other states of the board: Call first, To review, another sequence, a closed lead", () => {
   const phone = dockOf({ state: "phone" });
-  assert.deepEqual(acts(phone), ["not_a_fit", "later", "call"], "a lead with no email can wait for later too");
-  assert.deepEqual(
-    phone.acts.map((s) => s.key),
-    ["n", "l", "c"],
-    "Call is C: A is Add, and a fast pile never dials",
-  );
-  assert.equal(dockOf({ state: "phone", canCall: false }), null);
-  assert.deepEqual(acts(dockOf({ state: "review" })), ["exclude", "keep"]);
-  assert.deepEqual(acts(dockOf({ state: "elsewhere" })), ["sequence"]);
-  assert.deepEqual(acts(dockOf({ state: "replied" })), ["call", "thread"]);
-  assert.deepEqual(acts(dockOf({ state: "replied", canCall: false })), ["thread"]);
-  const closed = dockOf({ state: "closed", closed: { title: "Left out", line: "", fix: "put_back" } });
-  assert.deepEqual(acts(closed), ["put_back"]);
-  assert.equal(dockOf({ state: "closed", closed: { title: "Asked to stop", line: "", fix: null } }), null);
-  // A lead seen through no search has no Later: two acts at most, so nothing takes its place.
-  assert.deepEqual(acts(dockOf({ canLater: false })), ["not_a_fit", "add"]);
+  assert.equal(phone.line, D.noEmail.line);
+  assert.deepEqual(acts(phone), ["call"]);
+  assert.deepEqual(acts(dockOf({ state: "phone", canCall: false })), []);
+  const review = dockOf({ state: "review" });
+  assert.deepEqual(acts(review), ["exclude", "keep"]);
+  const other = dockOf({ state: "elsewhere", elsewhere: { id: "seq-2", name: "Florists", written: false } });
+  assert.equal(other.line, "In Florists");
+  assert.equal(other.fact, "Nothing sent to them yet");
+  assert.deepEqual(acts(other), ["move"]);
+  assert.equal(other.acts[0].label, D.moveTo("Bookstore intro"));
+  const written = dockOf({ state: "elsewhere", elsewhere: { id: "seq-2", name: "Florists", written: true } });
+  assert.equal(written.line, "Written to by Florists");
+  assert.deepEqual(acts(written), ["sequence"]);
+  const closed = dockOf({
+    state: "closed",
+    closed: { title: "Not a fit", line: "Nothing is written to them.", fix: "ready" },
+  });
+  assert.deepEqual(acts(closed), ["ready"]);
+  assert.equal(dockOf({ state: "closed", closed: { title: "Gone", line: "", fix: null } }), null, "no fix, no dock");
+  assert.equal(dockOf({ reading: true }).waiting, true, "their place still being read: nothing to take back");
 });
 
-test("in a sequence the dock holds only what needs you there, and nothing while it runs", () => {
-  const place = (group, over = {}) => ({
-    group,
-    step: 1,
-    sendId: null,
-    hold: null,
-    holdDetail: null,
-    runId: null,
-    line: "",
-    ...over,
-  });
-  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("waiting") })), ["approve"]);
-  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("held", { sendId: "s1", hold: "unbacked_fact" }) })), [
-    "decide",
-  ]);
-  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("to_send", { runId: "b1" }) })), ["open_draft"]);
+test("while a sequence has them, the dock holds only what needs you there, and nothing while it runs", () => {
+  const waiting = dockOf({ place: placeOf("waiting", { place: 1 }), batchOthers: 6 });
+  assert.equal(waiting.line, "Step 1 waits for your OK");
+  assert.equal(waiting.fact, "With 6 others in today's batch");
+  assert.deepEqual(acts(waiting), ["approve"]);
+  const held = dockOf({ place: placeOf("held", { send_id: "x1", batch_id: "b1", why: "unbacked_fact", place: 1 }) });
+  assert.deepEqual(
+    held.held,
+    { sendId: "x1", batchId: "b1", hold: "unbacked_fact", place: 1 },
+    "its choices, in place",
+  );
+  assert.deepEqual(acts(dockOf({ place: placeOf("to_send", { place: 2 }) })), ["open_draft"]);
   const replied = dockOf({
-    state: "sequence",
-    place: place("replied"),
-    reply: { intent: "question", readAt: "2026-10-16T13:00:00Z" },
+    place: placeOf("replied", { reply: { intent: "question", summary: null, conversation_id: null } }),
   });
-  assert.deepEqual(acts(replied), ["call", "thread"]);
-  assert.match(replied.fact, /^A question · /);
-  for (const g of ["next", "in", "done", "left"])
-    assert.equal(dockOf({ state: "sequence", place: place(g) }), null, `${g}: nothing needs you`);
-});
-
-test("in a pile and out of one: a first pile holds for a new list, a search that writes is Its sequence, none is New", () => {
-  assert.deepEqual(acts(dockOf({ pile: "first", target: null })), ["not_a_fit", "later", "hold"]);
-  assert.deepEqual(acts(dockOf({ pile: "search" })), ["not_a_fit", "sequence"]);
-  // No sequence takes leads by hand: one is made in Sequences, from this lead, and the trip comes back.
-  const none = dockOf({ target: null });
-  assert.deepEqual(acts(none), ["not_a_fit", "later", "new_sequence"]);
-  assert.equal(none.line, D.noSequence.line);
-});
-
-test("the end of a pile: the later ones, the way out, and where the work lands, only once some landed", () => {
-  const slots = (r) => r.slots.map((s) => s.act);
-  const end = (over) => leadSheetEndRailOf({ later: 0, held: 0, target: null, added: 0, ...over });
-  assert.equal(end({ later: 2, target: "Gyms", added: 3 }).slots.at(-1).label, W.approveIn("Gyms"));
-  assert.deepEqual(slots(end({ later: 2, target: "Gyms", added: 3 })), ["later_again", "leave", "open_target"]);
-  assert.deepEqual(
-    slots(end({ later: 2, target: "Gyms" })),
-    ["later_again", "leave"],
-    "nothing added: nothing to approve",
-  );
-  assert.deepEqual(slots(end({ held: 3 })), ["leave", "write_held"]);
-  assert.deepEqual(slots(end({})), ["leave"]);
-  assert.equal(W.endTitle(4), "All 4 looked at.");
-  assert.equal(W.endTitle(0), "Nothing left to look at.");
-});
-
-const NOW = Date.parse("2026-10-16T14:00:00Z");
-const send = (n, over = {}) => ({
-  id: `s-${n}`,
-  n,
-  hand: null,
-  state: "sent",
-  reason: null,
-  send_at: null,
-  sent_at: null,
-  angle: null,
-  host: null,
-  message_id: null,
-  email_status: null,
-  bounced: false,
-  left: false,
-  ...over,
-});
-const story = (over = {}) => ({
-  lead_id: "l-1",
-  business_name: "Luxe Lane Salon",
-  stage: "nurture",
-  closed_reason: null,
-  found_at: null,
-  email_state: "ok",
-  resume_at: null,
-  booked_at: null,
-  stopped_at: null,
-  chain: {
-    root_id: "root-1",
-    name: "Salon owners · Queens",
-    state: "running",
-    steps: [
-      { n: 0, after_days: null, hand: null },
-      { n: 1, after_days: 4, hand: null },
-      { n: 2, after_days: 3, hand: "call" },
-    ],
-  },
-  search: null,
-  conversation_id: null,
-  sends: [send(0, { sent_at: "2026-10-12T13:10:00Z", left: true })],
-  readings: [],
-  can_stop: true,
-  ...over,
-});
-
-test("their steps on the record's rail of days: done, the next one, and still to come", () => {
-  const track = leadSheetTrackOf(story(), NOW, "America/New_York");
-  assert.equal(track.name, "Salon owners · Queens");
-  assert.equal(track.rootId, "root-1");
-  assert.deepEqual(
-    track.steps.map((s) => [s.day, s.label, s.look]),
-    [
-      [1, "First email", "done"],
-      [5, "Follow-up", "next"],
-      [8, "A call for you", "later"],
-    ],
-    "each step's day, as the record counts it: Day 1, then each wait added",
-  );
-  assert.match(track.steps[0].when, /Oct 12/);
-  const held = leadSheetTrackOf(
-    story({ sends: [send(0, { state: "held", reason: "unbacked_fact", send_at: "2026-10-17T13:00:00Z" })] }),
-    NOW,
-    "America/New_York",
-  );
-  assert.deepEqual(
-    [held.steps[0].sub, held.steps[0].look],
-    ["Held by the check", "next"],
-    "a held email is no plan until it is decided",
-  );
-  assert.equal(leadSheetTrackOf(story({ chain: null }), NOW, "America/New_York"), null);
-});
-
-test("Change: each sequence fed by a list, with what its email would come to for this lead", () => {
-  const chain = (id, body) => ({
-    root_id: id,
-    name: id,
-    steps: [
-      { id: `${id}-0`, n: 0, after_days: null, subject: "Hi", body, template_id: null, state: "running", hand: null },
-    ],
-    state: "running",
-    next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
-    fed_by: "list",
-    owner_sends: true,
-    mailboxes: [],
-    gap_minutes: 20,
-    signed_by: "Rae",
-  });
-  const options = leadSheetOptionsOf({
-    chains: [chain("a", "Hi {{business}}"), chain("b", "Hi {{first name}}"), chain("c", "In {{city}}")],
-    picked: "b",
-    lead: {
-      business_name: "Luxe",
-      city: null,
-      kind: "place",
-      facts: {},
-      to: "a@example.com",
-      emailState: "ok",
-      canCall: true,
-      canChoose: false,
+  assert.ok(replied.line.startsWith("Wrote back"));
+  assert.deepEqual(acts(replied), ["thread"]);
+  assert.equal(dockOf({ place: placeOf("queued") }), null, "up next: nothing needs you");
+  assert.equal(dockOf({ place: placeOf("in") }), null, "in it, replies read: nothing");
+  const byHand = placeOf(
+    "in",
+    {},
+    {
+      reads_replies: false,
+      sends: [
+        {
+          id: "x1",
+          step_id: "s1",
+          place: 1,
+          state: "sent",
+          reason: null,
+          hold_detail: null,
+          send_at: null,
+          sent_at: "2026-10-14T15:00:00Z",
+          drafted_at: null,
+          batch_id: null,
+        },
+      ],
     },
-    workspace: { businessName: "Rae's", bookingLink: null },
-    nowMs: NOW,
-    tz: "UTC",
+  );
+  const told = dockOf({ place: byHand });
+  assert.equal(told.fact, "Replies aren't read here");
+  assert.deepEqual(acts(told), ["they_wrote"], "sent by hand: only they can say a reply came");
+});
+
+test("the word beside the name: their place's word once a sequence has them, else the lead's own", () => {
+  assert.deepEqual(leadSheetWordOf({ state: "sequence", place: placeOf("held"), closed: null }), {
+    word: "Held",
+    tone: "warn",
   });
-  assert.deepEqual(
-    options.map((o) => [o.rootId, o.fill === W.fills, o.fill === W.greets, o.tone, o.on]),
+  assert.equal(leadSheetWordOf({ state: "ready", place: null, closed: null }).word, "To decide");
+  assert.equal(leadSheetWordOf({ state: "phone", place: null, closed: null }).word, "Call first");
+  assert.equal(leadSheetWordOf({ state: "review", place: null, closed: null }).word, "To review");
+  assert.equal(
+    leadSheetWordOf({ state: "closed", place: null, closed: { title: "Not a fit", line: "", fix: "ready" } }).word,
+    "Not a fit",
+  );
+});
+
+const seqRow = (over = {}) => ({
+  id: "seq-1",
+  name: "Bookstore intro",
+  starts: "leads",
+  state: "on",
+  created_at: "2026-10-01T00:00:00Z",
+  steps: 3,
+  days: 7,
+  unwritten: 0,
+  in_it: 12,
+  ...over,
+});
+
+test("the picker: every sequence to leads that has not ended, the pick first, each by its state and one line", () => {
+  const rows = leadPickerRowsOf(
     [
-      ["a", true, false, "ok", false],
-      ["b", false, true, "ok", true],
-      ["c", false, false, "warn", false],
+      seqRow({ id: "a", name: "Old one", created_at: "2026-09-01T00:00:00Z" }),
+      seqRow({
+        id: "b",
+        name: "Gift shops",
+        state: "draft",
+        in_it: 4,
+        unwritten: 1,
+        created_at: "2026-10-10T00:00:00Z",
+      }),
+      seqRow({ id: "c", name: "Portland retail", state: "paused", steps: 2, days: 3, in_it: 31 }),
+      seqRow({ id: "d", name: "Gone", state: "ended" }),
+      seqRow({ id: "e", name: "A customer's", starts: "moment" }),
+    ],
+    "a",
+  );
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["a", "b", "c"],
+    "the pick first, then the newest; none ended, none not to leads",
+  );
+  assert.equal(rows[0].picked, true);
+  assert.equal(rows[0].line, "3 steps over 7 days · 12 in it");
+  assert.deepEqual([rows[1].word, rows[1].tone, rows[1].line], ["Draft", "warn", "4 added · emails not written yet"]);
+  assert.equal(rows[2].line, "2 steps over 3 days · 31 in it · adds wait until it's on");
+});
+
+test("the pile's end, by sequence: a draft says Write the emails, one that's on Approve N, and those for later", () => {
+  const end = leadPileEndOf({
+    added: [
+      { id: "d", name: "Independent bookstores", state: "draft", n: 4, waiting: null },
+      { id: "o", name: "Bookstore intro", state: "on", n: 3, waiting: { batchId: "b1", people: 3 } },
+    ],
+    notFit: 9,
+    later: 3,
+  });
+  assert.equal(end.title, W.end.title(19));
+  assert.deepEqual(
+    end.rows.map((r) => [r.words, r.word, r.act ? r.act.kind : null]),
+    [
+      ["4 to Independent bookstores", "Draft", null],
+      ["3 to Bookstore intro", "On", "approve"],
+      ["9 not a fit", null, null],
+      ["3 for later", null, "later"],
     ],
   );
+  assert.deepEqual(end.primary, { label: W.end.write, sequenceId: "d" }, "a draft that took leads is written first");
+  const on = leadPileEndOf({
+    added: [{ id: "o", name: "Bookstore intro", state: "on", n: 2, waiting: null }],
+    notFit: 0,
+    later: 0,
+  });
+  assert.equal(on.primary, null, "each row carries its own act: no Done");
+  assert.equal(leadPileEndOf({ added: [], notFit: 0, later: 0 }).title, W.end.title(0));
 });
 
-test("where they stand, on the Sequence tab: the box's own words, so the tab and the box never disagree", () => {
-  const box = (over) => ({
-    verb: "Joins",
-    name: "Gyms",
-    rootId: "r1",
-    line: "Step 1 after your OK",
-    change: true,
-    ...over,
-  });
-  assert.deepEqual(leadSheetStandOf({ track: null, box: box() }), {
-    title: "Joins “Gyms”",
-    line: "Step 1 after your OK",
-  });
-  const none = leadSheetStandOf({ track: null, box: box({ verb: null, name: null, line: "Needs an email" }) });
-  assert.deepEqual(none, { title: "Not in a sequence yet", line: "Needs an email" }, "no sequence named");
-  const track = { name: "Gyms", line: "Step 2 on Oct 20" };
-  assert.deepEqual(leadSheetStandOf({ track, box: box() }).line, "Step 2 on Oct 20", "in one: its steps' line");
-});
-
-test("where they stand in their sequence, in the words its Leads tab files them under", () => {
-  const tz = "America/New_York";
-  const at = (o) => leadSheetPlaceOf(story(o), NOW, tz);
-  assert.equal(leadSheetPlaceOf(story({ chain: null }), NOW, tz), null, "outside a sequence: no place");
-  const queued = at({ sends: [], added_at: "2026-10-16T10:00:00Z" });
-  assert.deepEqual(
-    [queued.group, queued.line],
-    ["next", "Step 1 goes in its next batch"],
-    "on its list, nothing planned yet",
-  );
-  assert.equal(at({}).group, "in", "between steps");
-  const held = at({ sends: [send(0, { state: "held", reason: "unbacked_fact" })] });
-  assert.deepEqual([held.group, held.sendId, held.hold], ["held", "s-0", "unbacked_fact"]);
-  assert.match(held.line, /^Step 1 held: /);
-  // What the check flagged rides on the story (00457): the box and Decide name the words, not the engine's rule.
-  const flagged = at({
-    sends: [send(0, { state: "held", reason: "unbacked_fact", hold_detail: "open late on Sundays" })],
-  });
-  assert.equal(flagged.holdDetail, "open late on Sundays");
-  assert.match(flagged.line, /“open late on Sundays”/);
-  assert.equal(
-    D.decideFlag("unbacked_fact", "open late on Sundays"),
-    "The opening said “open late on Sundays”, which their record doesn't hold.",
-  );
-  const drafted = at({ sends: [send(0, { state: "drafted", run_id: "b-1" })] });
-  assert.deepEqual([drafted.group, drafted.runId], ["to_send", "b-1"]);
-  const waits = at({
-    chain: { ...story().chain, waiting_run_id: "b-2" },
-    sends: [send(0, { state: "planned", send_at: "2026-10-17T13:00:00Z" })],
-  });
-  assert.equal(waits.group, "waiting", "a planned email in a batch that waits for an OK");
-  assert.equal(at({ sends: [send(0, { state: "planned", send_at: "2026-10-17T13:00:00Z" })] }).group, "next");
-  const reading = {
-    message_id: "m",
-    read_at: "2026-10-16T12:00:00Z",
-    intent: "interested",
-    claim: "person",
-    summary: null,
-    undone: false,
-    until_at: null,
-    stops: true,
-    convert: false,
-    said_no: false,
-    can_undo: true,
-  };
-  assert.equal(at({ readings: [reading] }).group, "replied", "a reply that asks for an answer comes first");
-  assert.notEqual(at({ readings: [{ ...reading, intent: "no" }] }).group, "replied", "a no asks for none");
-  // Taken out between steps: no send of theirs moved, and their place (00455) says they left, and why.
-  const takenOut = at({ place: { id: "e1", state: "left", why: "removed", next_at: null } });
-  assert.deepEqual([takenOut.group, takenOut.line], ["left", "Taken out"]);
-  const stopped = at({ stopped_at: "2026-10-15T12:00:00Z" });
-  assert.deepEqual([stopped.group, stopped.line], ["left", "You stopped writing"]);
-  const done = at({
-    sends: [0, 1, 2].map((n) => send(n, { sent_at: "2026-10-12T13:10:00Z", left: true })),
-  });
-  assert.equal(done.group, "done", "every step went");
-});
-
-test("the word beside the name, and the sequence box: Joins, In or Left, by name, with its one line", () => {
-  const place = {
-    group: "held",
-    step: 1,
-    sendId: "s",
-    hold: "chain",
-    holdDetail: null,
-    runId: null,
-    line: "Step 1 held: …",
-  };
-  assert.deepEqual(leadSheetWordOf({ state: "sequence", place, closed: null }), { word: P.held, tone: "warn" });
-  assert.deepEqual(leadSheetWordOf({ state: "ready", place: null, closed: null }), { word: "Ready", tone: "plain" });
-  assert.equal(leadSheetWordOf({ state: "review", place: null, closed: null }).word, "To review");
-  assert.equal(leadSheetWordOf({ state: "sequence", place: { ...place, group: "next" }, closed: null }).tone, "ok");
-  const base = {
-    state: "ready",
-    place: null,
-    inSequence: null,
-    elsewhere: null,
-    target: { rootId: "r1", name: "Portland bookshops" },
-    searchWrites: null,
-    canChange: true,
-    closed: null,
-    firstSubject: null,
-    reading: false,
-  };
-  assert.deepEqual((({ verb, name, line, change }) => ({ verb, name, line, change }))(leadSheetBoxOf(base)), {
-    verb: "Joins",
-    name: "Portland bookshops",
-    line: "Step 1 after your OK",
-    change: true,
-  });
-  // Step 1 by its subject as this lead would get it, where every part of it fills (the refined canvas).
-  assert.equal(
-    leadSheetBoxOf({ ...base, firstSubject: "A quieter phone for Rose City Books" }).line,
-    "Step 1, “A quieter phone for Rose City Books”, after your OK",
-  );
-  // Still reading their story or the sequences: the box says so, never a place the reads would take back.
-  const reading = leadSheetBoxOf({ ...base, target: null, reading: true });
-  assert.deepEqual([reading.verb, reading.name, reading.line], [null, null, "Reading where they stand"]);
-  const inIt = leadSheetBoxOf({ ...base, state: "sequence", place, inSequence: { rootId: "r2", name: "Indie shops" } });
-  assert.deepEqual(
-    [inIt.verb, inIt.name, inIt.rootId, inIt.line, inIt.change],
-    ["In", "Indie shops", "r2", place.line, false],
-  );
-  // No email: no sequence is named, since none could take them, and the way on is a call.
-  const phone = leadSheetBoxOf({ ...base, state: "phone" });
-  assert.deepEqual([phone.verb, phone.name, phone.change], [null, null, false]);
-  assert.match(phone.line, /Call them instead/);
-  assert.deepEqual(leadSheetWordOf({ state: "phone", place: null, closed: null }), {
-    word: "Call first",
-    tone: "warn",
-  });
-  // Its rule keeps them out of the one chosen: named, with the reason as its line, and Change to pick another.
-  const blocked = leadSheetBoxOf({ ...base, blocked: "Already written to by Gyms" });
-  assert.deepEqual(
-    [blocked.verb, blocked.name, blocked.line, blocked.change],
-    ["Can't join yet", "Portland bookshops", "Already written to by Gyms", true],
-  );
-  assert.deepEqual(leadSheetWordOf({ state: "ready", place: null, closed: null, blocked: "x" }), {
-    word: "Can't join yet",
-    tone: "warn",
-  });
-  const unchosen = leadSheetBoxOf({ ...base, target: null, unchosen: true });
-  assert.deepEqual([unchosen.verb, unchosen.line, unchosen.change], [null, "Choose where they go", true]);
-  assert.equal(leadSheetBoxOf({ ...base, state: "review" }).line, "Once you keep it");
-  assert.equal(leadSheetBoxOf({ ...base, target: null }).verb, null, "no sequence takes leads you add yet");
-});
-
-test("a row's place on Leads says the same words from the open search's lines", () => {
-  const line = (over = {}) => ({
-    lead_id: "l",
-    stage: "ready",
-    closed_reason: null,
-    sent: 0,
-    first_sent_at: null,
-    last_sent_at: null,
-    next_at: null,
-    held: false,
-    handed: false,
-    bounced: false,
-    bounced_at: null,
-    email_state: "ok",
-    reply: null,
-    away_until: null,
-    resume_at: null,
-    booked_at: null,
-    stopped_at: null,
-    ...over,
-  });
-  const tz = "America/New_York";
-  const word = (over, waits = false) => leadLinePlaceOf(line(over), waits, NOW, tz)?.word ?? null;
-  assert.equal(word({}), null, "nothing done with it yet");
-  assert.equal(word({ held: true }), P.held);
-  assert.equal(word({ drafted: 1 }), P.to_send);
-  assert.equal(word({ added_at: "2026-10-16T10:00:00Z" }, true), P.waiting);
-  assert.equal(word({ next_at: "2026-10-17T13:00:00Z" }), P.next);
-  assert.equal(word({ sent: 1, last_sent_at: "2026-10-12T13:00:00Z" }), P.in);
-  assert.equal(word({ stopped_at: "2026-10-15T12:00:00Z", sent: 1 }), P.left);
-  assert.equal(
-    word({ sent: 1, reply: { intent: "question", claim: "person", read_at: "2026-10-16T12:00:00Z", undone: false } }),
-    P.replied,
-  );
-});
-
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
-const G = globalThis;
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-Object.assign(G, { CHANLY: { nav: () => {}, R: {} }, canDo: () => true, gate: () => ({}) });
-const { SheetDock, SheetDecide } = await import("../../../../apps/dashboard/src/surfaces/leads/sheet/dock.tsx");
-const { SheetBox } = await import("../../../../apps/dashboard/src/surfaces/leads/sheet/parts.tsx");
-
-test("the dock as the page draws it: each act names its key to a screen reader, and no key is drawn", () => {
-  fresh();
-  const dock = dockOf();
-  const pressed = [];
-  const tree = again(() => G.React.createElement(SheetDock, { dock, busy: false, onRun: (s) => pressed.push(s.act) }));
-  assert.equal(byTestId(tree, "lead-sheet-not_a_fit").props["aria-keyshortcuts"], "N");
-  assert.equal(byTestId(tree, "lead-sheet-later").props["aria-keyshortcuts"], "L");
-  assert.equal(byTestId(tree, "lead-sheet-add").props["aria-keyshortcuts"], "A");
-  assert.deepEqual(
-    all(tree, (n) => n.type === "kbd"),
-    [],
-    "keys live in the ? sheet, never drawn (canvas B)",
-  );
-  byTestId(tree, "lead-sheet-add").props.onClick();
-  assert.deepEqual(pressed, ["add"]);
-  const off = again(() =>
-    G.React.createElement(SheetDock, {
-      dock: dockOf({ blocked: "Its words need their city" }),
-      busy: false,
-      onRun: () => {},
-    }),
-  );
-  assert.equal(byTestId(off, "lead-sheet-add"), null, "no Add that could only fail");
-});
-
-test("Decide says what the check flagged where the card's box is not on screen to say it, and once where it is", () => {
-  fresh();
-  const decide = (flag) =>
-    again(() =>
-      G.React.createElement(SheetDecide, {
-        hold: "unbacked_fact",
-        flag,
-        sequence: "Portland bookshops",
-        busy: false,
-        onDecide: () => {},
-        onBack: () => {},
-      }),
-    );
-  const raised = decide(D.decideFlag("unbacked_fact", "open late on Sundays"));
-  const flag = byTestId(raised, "lead-sheet-decide-flag");
-  assert.equal(
-    textOf(flag),
-    "The opening said “open late on Sundays”, which their record doesn't hold.",
-    "a phone's full sheet, where the card is not drawn",
-  );
-  assert.equal(byTestId(decide(null), "lead-sheet-decide-flag"), null, "under the box that already says it");
-});
-
-test("the box that names no sequence is its line alone, with Change beside it where another can be picked", () => {
-  fresh();
-  const boxOf = (box, change = null) => again(() => G.React.createElement(SheetBox, { box, onOpen: () => {}, change }));
-  const named = boxOf({ verb: "Joins", name: "Gyms", rootId: "r1", line: "Step 1 after your OK", change: true });
-  assert.ok(byTestId(named, "lead-sheet-door"), "a named sequence is a door to its record");
-  const phone = boxOf({
-    verb: null,
-    name: null,
-    rootId: null,
-    line: "Needs an email to join a sequence.",
-    change: false,
-  });
-  assert.deepEqual(
-    all(phone, (n) => n.props?.className === "lw-box-h"),
-    [],
-    "no empty row over the words",
-  );
-  assert.equal(textOf(byTestId(phone, "lead-sheet-box-line")), "Needs an email to join a sequence.");
-  const change = G.React.createElement("span", { "data-testid": "lead-sheet-change" }, "Change");
-  const unchosen = boxOf({ verb: null, name: null, rootId: null, line: "Choose where they go", change: true }, change);
-  const head = find(unchosen, (n) => n.props?.className === "lw-box-h");
-  assert.ok(
-    byTestId(head, "lead-sheet-box-line") && byTestId(head, "lead-sheet-change"),
-    "the ask and Change, one row",
-  );
+test("many at once say who can't join, and what an add left out stays selected", () => {
+  assert.equal(W.bulk.noEmail(1), "1 has no email");
+  assert.equal(W.bulk.noEmail(2), "2 have no email");
+  assert.equal(W.bulk.addTo(5, "Bookstore intro"), "Add 5 to Bookstore intro");
+  assert.equal(W.bulk.stay(1), "1 couldn't join and stays selected");
+  assert.equal(W.picker.newLineMany(5), "Name it; the 5 wait in it as a draft");
 });

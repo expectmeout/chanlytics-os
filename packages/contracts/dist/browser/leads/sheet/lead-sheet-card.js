@@ -23,26 +23,30 @@ export const LEAD_SHEET_CARD_WORDS = {
 };
 const CW = LEAD_SHEET_CARD_WORDS;
 const UNSURE_WORDS = {
-  phone_two_sources: "phone unconfirmed",
-  mailbox: "mailbox unconfirmed",
-  own_address: "address unconfirmed",
-  on_maps: "listing unconfirmed",
-  in_area: "area unconfirmed",
+  phone_two_sources: "phone not confirmed",
+  mailbox: "mailbox not confirmed",
+  own_address: "address not confirmed",
+  on_maps: "listing not confirmed",
+  in_area: "area not confirmed",
   independent: "ownership unclear",
   right_kind: "kind unclear"
+};
+export const leadSheetExceptionWords = (key, label) => {
+  const short = UNSURE_WORDS[key];
+  return short ? short.charAt(0).toUpperCase() + short.slice(1) : label;
 };
 export function leadSheetSubOf(vm) {
   if (vm.company) return vm.sub;
   const [kind, ...rest] = vm.sub.split(" \xB7 ");
   const [first] = vm.where ? vm.where.line.split(",") : [];
   const street = first ? first.trim() : rest.join(" \xB7 ");
-  const rated = vm.rated ? `${vm.rated.score} (${vm.rated.count})` : null;
+  const rated = vm.rated ? `\u2605 ${vm.rated.score} (${vm.rated.count})` : null;
   return [kind, street, rated].filter(Boolean).join(" \xB7 ");
 }
 const checksOf = (vm) => vm.groups.flatMap(
   (g) => g.checks.map((c) => ({ key: c.key, label: c.label, how: g.how, answer: c.answer, source: c.source }))
 );
-const REACH_CHECKS = /* @__PURE__ */ new Set(["phone_two_sources", "mailbox"]);
+const REACH_CHECKS = /* @__PURE__ */ new Set(["mailbox"]);
 function exceptionOf(checks) {
   const unsure = checks.filter((c) => c.answer === "unknown");
   const failed = checks.filter((c) => c.answer === "no");
@@ -68,11 +72,20 @@ export function leadSheetChecksLineOf(vm) {
   };
 }
 export const leadSheetChecksSaid = (line) => `${[line.fit, line.words, line.exception].filter(Boolean).join(", ")}. ${CW.opens("Why")}`;
-export function leadSheetContactSaid(line) {
-  const way = (what, w) => `${what} ${w.text}${w.warn ? `, ${CW.notConfirmed}` : ""}`;
-  const email = line.email.text === CW.noEmail ? CW.noEmail : way(CW.email, line.email);
-  const parts = [email, line.phone ? way(CW.phone, line.phone) : null, line.site ? CW.theirSite : null];
-  return `${parts.filter(Boolean).join("; ")}. ${CW.opens("Contact")}`;
+const LEAD_EMAIL_LINE_WORDS = {
+  checked: "Checked",
+  checking: "Checking\u2026",
+  notConfirmed: "Not confirmed",
+  none: "No email found"
+};
+export function leadSheetEmailLineOf(vm) {
+  const E = LEAD_EMAIL_LINE_WORDS;
+  const address = vm.reach.email.address;
+  if (!address) return { address: null, words: E.none, tone: "plain" };
+  const state = vm.slots.mailbox.state;
+  if (state === "ok") return { address, words: E.checked, tone: "ok" };
+  if (state === "checking") return { address, words: E.checking, tone: "plain" };
+  return { address, words: E.notConfirmed, tone: "warn" };
 }
 export function leadSheetContactLineOf(vm) {
   const address = vm.reach.email.address;

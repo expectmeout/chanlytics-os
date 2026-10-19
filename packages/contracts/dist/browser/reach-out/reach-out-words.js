@@ -24,18 +24,6 @@ export const REACH_OUT_SLOTS = [
 export const REACH_OUT_SLOT_FALLBACKS = {
   "first name": "there"
 };
-export const REACH_OUT_SLOT_WORDS = {
-  opening: "written for each business",
-  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D where nobody is named`,
-  business: "their name on Google, or their company's",
-  company: "their company's name, or their business's",
-  title: "the person's title at a company; a business with nobody named is not written to with it",
-  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
-  city: "their city",
-  "your name": "the name you sign with",
-  "your business": "your business's name",
-  "booking link": "your booking link"
-};
 const REACH_OUT_SLOT_LABELS = {
   opening: "Opening",
   "first name": "First name",
@@ -389,8 +377,8 @@ export function holdDoors(h) {
   }
 }
 export const HOLD_DOOR_WORDS = {
-  include: "Include",
+  include: "Send as written",
   rewrite: "Rewrite the opening",
-  skip: "Skip",
+  skip: "Skip this email",
   not_a_fit: "Not a fit"
 };

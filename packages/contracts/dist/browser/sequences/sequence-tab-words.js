@@ -1,11 +1,7 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
+import { heldChoicesOf } from "./sequence-place.js";
 import { leadDoorOf } from "../reach-out/reach-out-sheet.js";
-import {
-  HOLD_DOOR_WORDS,
-  holdDoors,
-  holdWords,
-  isReachOutHold
-} from "../reach-out/reach-out-words.js";
+import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
 import { addressOf } from "../activity/record-address.js";
@@ -54,7 +50,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** Over the held whose hold judged the lead, never the words (LEAD_HOLDS): what may go as written in one press. */
   sendAll: (n) => `Send ${n} as written`,
   sending: "Sending\u2026",
-  wentAll: (n) => n === 1 ? "1 email goes as it is" : `${n} emails go as they are`,
+  wentAll: (n) => n === 1 ? "1 email goes as written" : `${n} emails go as written`,
   toSend: "For you to send from your inbox",
   /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
   wroteBack: "Wrote back",
@@ -80,9 +76,12 @@ export function peopleNeedsOf(rows, at) {
         id: r.send_id,
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         to: r.lead_id ? leadDoorOf(r.lead_id) : null,
+        leadId: r.lead_id,
+        place: r.place,
         why: holdWords(reason, r.hold_detail),
         reason,
-        doors: holdDoors(reason).map((d) => [d, HOLD_DOOR_WORDS[d]]),
+        // The choices the lead sheet offers for it, one rule (contracts heldChoicesOf): Skip this email from step 2.
+        doors: heldChoicesOf(reason, r.place),
         batchId: r.batch_id
       }
     ];
@@ -138,7 +137,12 @@ export const SEQUENCE_PEOPLE_WORDS = {
   /** A fold of people still to hear from it: when the soonest of them goes. */
   next: (when) => `next ${when}`,
   /** Why someone finished with no reason of their own: they had the last step. */
-  lastStep: "had the last step"
+  lastStep: "had the last step",
+  /** A lead added and not planned yet, under its name: when it joined the list. */
+  added: "Added",
+  addedAt: (at) => `Added ${at}`,
+  /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
+  queued: { draft: "they join when you start it", paused: "they wait until it's on", on: "in its next batch" }
 };
 export const SEQUENCE_HISTORY_PERIODS = [
   { id: "30", label: "30 days", days: 30 },

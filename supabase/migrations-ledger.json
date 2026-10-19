@@ -42,7 +42,8 @@
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
-    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447"
+    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
+    "00458": "taken by settings/deals-for-everyone (every workspace has deals, on production 18 Oct 2026 before its merge); the one road from a lead to a sequence landed as 00459"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -459,6 +460,7 @@
     "00454_a_customer_who_writes_while_a_person_has_the_thread_is_held_for_them.sql": "cf90453a0ed5821637f9da23035ff30cabdd24ec3468be144b38f93421fd7584",
     "00455_a_lead_s_place_in_its_sequence_stays_true.sql": "6fe35bbcba43dda7369d96a44c1b4a42ee437c92a2ff938f6d9cad69d53bea3d",
     "00456_the_relay_s_first_subscriber_goes.sql": "c62d7c62cbdc4c8eb6985aeee7bccdab79108a6e204d33db9fc38784b3740c56",
-    "00457_a_held_email_says_what_its_check_flagged.sql": "972490ede2380f81f1d5de2a7c2de658bee823762fb5ca80554421061db8a2c3"
+    "00457_a_held_email_says_what_its_check_flagged.sql": "972490ede2380f81f1d5de2a7c2de658bee823762fb5ca80554421061db8a2c3",
+    "00459_one_road_from_a_lead_to_a_sequence.sql": "008f087ab6fb8f042d68b36868dd47b774c9bb315dadd5d7bff83238cf679793"
   }
 }

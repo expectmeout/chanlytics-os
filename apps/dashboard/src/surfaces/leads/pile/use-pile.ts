@@ -1,17 +1,19 @@
 /**
- * The pile's state and acts (the lead workbench, 00426): which search is being gone through and in which pass, and what
- * was done, three deep, for Undo. Where its adds go is the lead sheet's one choice (sheet/use-aim.ts: Change, "used for
- * the rest of this pile"), or a new list of the pile's own, held and written to together at the end. The order is the
- * database's (leads_page's pile sort, read while the pile is on); which lead is up is the first of them still open in
- * this pass (contracts leadPileOpen), less the ones decided here a moment ago, so a press moves on at once and its
- * re-read only confirms it. Every act is a door that already exists: an add (reach_out_add), Later (lead_member_later),
- * Not a fit (the stage door), Keep and Leave out (the member doors); each answers its undo. Next moves past a lead
- * there is nothing to decide on, writing nothing.
+ * The pile's state and acts (the lead workbench, 00426; one road, 00459): which search is being gone through and in which
+ * pass, and what was done, three deep, for Undo. Where its adds go is the search's pick (sheet/use-aim.ts, kept on the
+ * search), made or changed in the picker, a step of the sheet. To decide is the pile (the lead-to-sequence canvas's
+ * Presses board): opening a lead to decide on starts it there (`from`), and a decision opens the next row below it, in the
+ * order the rows stand on the page, so nothing moves under the owner. Which lead is up is the first still open in this
+ * pass (contracts leadPileOpen) from that row on, less the ones decided here a moment ago, so a press moves on at once and
+ * its re-read only confirms it. Every act is a door that
+ * already exists: an add (the sequence's add door, POST sequences/:id/leads), Later (lead_member_later), Not a fit (the
+ * stage door, its reason given after in the toast), Keep and Leave out (the member doors); each answers its undo. Next
+ * moves past a lead there is nothing to decide on, writing nothing. What it added is kept by sequence, for its end.
  *
  * What a press did is the pile's own line (`said`), never a toast over the next card; a door that refuses still says so
- * as a toast, since the lead stays.
+ * as a toast, since the lead stays; Not a fit's toast asks why.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LEAD_PILE_SAID,
   leadPileOpen,
@@ -21,6 +23,7 @@ import {
   type LeadRowVM,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { pileAsk, reachOuts } from "../../campaigns/reach-out/surface";
 import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
@@ -59,85 +62,183 @@ const pileDoorFor = (searchId: string, row: LeadRowVM, a: LeadPileAct, why?: Lea
         ? excludeLead(searchId, row.id)
         : setLeadStage(row.id, { kind: "not_a_fit", why: why ?? "other" });
 
+/** How many were decided each way in a pile, for its end: added (and to which sequence) and not a fit. */
+type PileTally = { added: number; notFit: number; to: Readonly<Record<string, number>> };
+
+/**
+ * A pile as it stands: its search and pass, the row it was opened on (it walks on from there) and how many it has moved
+ * past, the leads held, what was done (three deep, for Undo), those decided here a moment ago (moved past at once, before
+ * the re-read that says so lands), what the last press did and the reason a Not a fit was last given, and its tally.
+ */
+interface PileKept {
+  searchId: string | null;
+  cls: LeadClass;
+  from: string | null;
+  count: number;
+  pass: "first" | "later";
+  held: string[];
+  done: PileDone[];
+  gone: ReadonlySet<string>;
+  said: string | null;
+  lastWhy: LeadNotAFitWhy | null;
+  tally: PileTally;
+}
+
+/** No pile: none on, nothing done. */
+const FRESH: PileKept = {
+  searchId: null,
+  cls: "qualified",
+  from: null,
+  count: 0,
+  pass: "first",
+  held: [],
+  done: [],
+  gone: new Set(),
+  said: null,
+  lastWhy: null,
+  tally: { added: 0, notFit: 0, to: {} },
+};
+
+/** The pile Leads let go of on Write the emails, for this tab: taken up once when Leads opens again, on the way back. */
+let keptPile: PileKept | null = null;
+/** Write the emails was pressed: the pile is kept as Leads goes, for the record's way back to its end. */
+let keepOnLeaving = false;
+
+/** Keep the pile for the way back: Write the emails leaves for the draft's record, whose Back returns to the end. */
+export const keepPileForTheWayBack = (): void => {
+  keepOnLeaving = true;
+};
+
+/** The pile's state, one value: taken up from the one Leads last let go of, and left for the next as this one goes. */
+function usePileState() {
+  const [p, setP] = useState<PileKept>(() => keptPile ?? FRESH);
+  const now = useRef(p);
+  now.current = p;
+  // Taken once as Leads opens; kept again only as Write the emails leaves.
+  useEffect(() => {
+    keptPile = null;
+    return () => {
+      keptPile = keepOnLeaving && now.current.searchId ? now.current : null;
+      keepOnLeaving = false;
+    };
+  }, []);
+  const put = (patch: Partial<PileKept> | ((x: PileKept) => Partial<PileKept>)) =>
+    setP((x) => ({ ...x, ...(typeof patch === "function" ? patch(x) : patch) }));
+  return { p, put };
+}
+
+type PilePut = ReturnType<typeof usePileState>["put"];
+
+/**
+ * Not a fit's reason, given after the press (the toast's): its mark undone and made again with the reason, so the pile's
+ * Undo takes back the one that stands.
+ */
+async function giveWhy(
+  pile: { done: readonly PileDone[]; put: PilePut; flash: Flash },
+  row: LeadRowVM,
+  why: LeadNotAFitWhy,
+) {
+  const { done, put, flash } = pile;
+  let at = -1;
+  done.forEach((d, i) => {
+    if (d.act === "not_a_fit" && d.leadIds.includes(row.id)) at = i;
+  });
+  const was = at >= 0 ? done[at] : null;
+  if (was && was.op) {
+    const u = await undoLeadOperation(was.op.id, was.op.version);
+    if (!u.ok) return flash(refusalToast(u, "The reason was not kept"));
+  }
+  const r = await setLeadStage(row.id, { kind: "not_a_fit", why });
+  if (!r.ok) return flash(refusalToast(r, "The reason was not kept"));
+  const op = opOf(r.data);
+  put((x) => ({ lastWhy: why, done: x.done.map((d, i) => (i === at ? { ...d, op } : d)) }));
+}
+
 export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
-  const [searchId, setSearchId] = useState<string | null>(null);
-  const [cls, setCls] = useState<LeadClass>("qualified");
-  const [pass, setPass] = useState<"first" | "later">("first");
-  const [held, setHeld] = useState<string[]>([]);
-  const [done, setDone] = useState<PileDone[]>([]);
-  // Decided here a moment ago: moved past at once, before the re-read that says so lands.
-  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+  const { p, put } = usePileState();
   const [busy, setBusy] = useState(false);
-  // What the last press did, said in the pile's own line; and the reason a Not a fit was last given, marked among five.
-  const [said, setSaid] = useState<string | null>(null);
-  const [lastWhy, setLastWhy] = useState<LeadNotAFitWhy | null>(null);
-  // How many were decided each way in this pile, for its end: added, held, later and not a fit.
-  const [tally, setTally] = useState({ added: 0, notFit: 0 });
+  const { searchId, done } = p;
 
-  const start = async (search: string, klass: LeadClass) => {
-    setSearchId(search);
-    setCls(klass);
-    setPass("first");
-    setHeld([]);
-    setDone([]);
-    setGone(new Set());
-    setSaid(null);
-    setTally({ added: 0, notFit: 0 });
+  const start = (search: string, klass: LeadClass, at: string | null = null) => {
+    put({ ...FRESH, searchId: search, cls: klass, from: at });
     aim.reset();
-    // A sequence's Add leads (Sequences, a list's door) names where this pass's adds go; New message's Leads you add, a
-    // list of the pile's own (held, then Write to the N); else the one chosen for this search, else the list's own.
-    await aim.load({ asked: pileAsk.take() });
+    // A sequence's Add leads (its record) names where this pass's adds go: it becomes the search's pick.
+    const asked = pileAsk.take();
+    if (asked && asked.id) aim.choose(asked.id);
   };
-  const stop = () => setSearchId(null);
-  const decided = (leadIds: string[], act: PileDone["act"], op: PileDone["op"]) => {
-    // A Later moves the row at once by itself (its patch writes later_at), and must come back in the later pass: only
-    // an act the row does not show at once (an add, which the re-read says) is moved past here.
-    if (act !== "later") setGone((g) => new Set([...g, ...leadIds]));
-    setDone((d) => [...d, { leadIds, act, op }].slice(-UNDO_DEPTH));
+  const stop = () => {
+    keptPile = null;
+    put({ searchId: null });
   };
+  // A Later moves the row at once by itself (its patch writes later_at), and must come back in the later pass: only an
+  // act the row does not show at once (an add, which the re-read says) is moved past here, and counted.
+  const decided = (leadIds: string[], act: PileDone["act"], op: PileDone["op"]) =>
+    put((x) => ({
+      ...(act !== "later" ? { gone: new Set([...x.gone, ...leadIds]), count: x.count + leadIds.length } : {}),
+      done: [...x.done, { leadIds, act, op }].slice(-UNDO_DEPTH),
+    }));
 
-  /** An add, of one lead or of several: its door, its words, and on to the next. */
-  const addOf = async (rows: readonly LeadRowVM[], to: AimTarget) => {
+  /** An add, of one lead or of several, to a sequence: its door, its words, and on to the next. True when any joined. */
+  const addOf = async (rows: readonly LeadRowVM[], to: Pick<AimTarget, "rootId" | "name">): Promise<boolean> => {
     const ids = rows.map((r) => r.id);
-    const r = await reachOuts.addLeads(to.rootId, ids);
-    if (!r.ok) return flash(refusalToast(r, "It could not be added"));
-    const answer: ReachOutAddDto = r.data;
+    // The sequences' own add verb (its door and its undo, as the sheet's and Ask's): the pile says what it did itself.
+    const r = await commitVerb("sequence_add", { sequence_id: to.rootId, lead_ids: ids, name: to.name });
+    if (!r.ok) {
+      flash(refusalToast(r, "It could not be added"));
+      return false;
+    }
+    const answer = r.data as ReachOutAddDto;
     const words = reachOuts.addWords(answer, to.name);
-    if (!answer.added) return flash({ tone: "warn", msg: words.text });
+    if (!answer.added) {
+      flash({ tone: "warn", msg: words.text });
+      return false;
+    }
     const one = rows.length === 1 ? rows[0] : null;
-    setSaid(one ? LEAD_PILE_SAID.add(one.name, to.name) : words.text);
-    setTally((t) => ({ ...t, added: t.added + answer.added }));
+    put((x) => ({
+      said: one ? LEAD_PILE_SAID.add(one.name, to.name) : words.text,
+      tally: {
+        ...x.tally,
+        added: x.tally.added + answer.added,
+        to: { ...x.tally.to, [to.rootId]: (x.tally.to[to.rootId] ?? 0) + answer.added },
+      },
+    }));
     decided(joinedOf(ids, answer), "add", opOf(answer));
+    return true;
   };
 
-  /** An act on the lead that is up: its door, then on to the next. A door that refuses says why, and the lead stays. */
-  const act = async (row: LeadRowVM, a: LeadPileAct, why?: LeadNotAFitWhy) => {
-    if (busy || !searchId) return;
-    if (a === "hold") {
-      setHeld((h) => (h.includes(row.id) ? h : [...h, row.id]));
-      setSaid(LEAD_PILE_SAID.hold(row.name, null));
-      return decided([row.id], a, null);
-    }
+  /**
+   * An act on the lead that is up: its door, then on to the next. A door that refuses says why, and the lead stays. An
+   * add goes to the pick, or to the sequence the picker named (`to`). True when it went through.
+   */
+  const act = async (
+    row: LeadRowVM,
+    a: LeadPileAct,
+    why?: LeadNotAFitWhy,
+    to?: Pick<AimTarget, "rootId" | "name">,
+  ): Promise<boolean> => {
+    if (busy || !searchId || a === "hold") return false;
     setBusy(true);
     try {
-      if (a === "add") return aim.target ? await addOf([row], aim.target) : undefined;
-      const r = await pileDoorFor(searchId, row, a, why);
-      if (!r.ok) return flash(refusalToast(r, "That did not go through"));
-      if (a === "not_a_fit") {
-        if (why) setLastWhy(why);
-        setTally((t) => ({ ...t, notFit: t.notFit + 1 }));
+      if (a === "add") {
+        const target = to ?? aim.target;
+        return target ? await addOf([row], target) : false;
       }
-      setSaid(LEAD_PILE_SAID[a](row.name, null));
+      const r = await pileDoorFor(searchId, row, a, why);
+      if (!r.ok) {
+        flash(refusalToast(r, "That did not go through"));
+        return false;
+      }
+      const notFit = a === "not_a_fit";
+      put((x) => ({
+        said: LEAD_PILE_SAID[a](row.name, null),
+        ...(notFit && why && why !== "other" ? { lastWhy: why } : {}),
+        ...(notFit ? { tally: { ...x.tally, notFit: x.tally.notFit + 1 } } : {}),
+      }));
       decided([row.id], a, opOf(r.data));
+      return true;
     } finally {
       setBusy(false);
     }
-  };
-
-  /** Next: past a lead there is nothing to decide on (in a sequence already, talking), writing nothing. */
-  const skip = (row: LeadRowVM) => {
-    if (busy || !searchId) return;
-    decided([row.id], "next", null);
   };
 
   /** Add them all: the leads the bulk popover says would go (contracts leadCardBulkOf), in one add, one Undo. */
@@ -155,15 +256,13 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
   const undo = async () => {
     const last = done.at(-1);
     if (!last || busy) return;
-    const back = () => {
-      setDone((d) => d.slice(0, -1));
-      setGone((g) => new Set([...g].filter((id) => !last.leadIds.includes(id))));
-      setSaid(null);
-    };
-    if (last.act === "hold") {
-      setHeld((h) => h.filter((id) => !last.leadIds.includes(id)));
-      return back();
-    }
+    const back = () =>
+      put((x) => ({
+        done: x.done.slice(0, -1),
+        gone: new Set([...x.gone].filter((id) => !last.leadIds.includes(id))),
+        count: last.act === "later" ? x.count : Math.max(0, x.count - last.leadIds.length),
+        said: null,
+      }));
     if (!last.op) return back();
     setBusy(true);
     const u = await undoLeadOperation(last.op.id, last.op.version).finally(() => setBusy(false));
@@ -174,36 +273,46 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
   };
 
   return {
+    ...p,
     on: !!searchId,
-    searchId,
-    cls,
-    pass,
-    setPass,
-    held,
-    gone,
+    setPass: (pass: "first" | "later") => put({ pass }),
     busy,
     canUndo: done.length > 0,
     /** The newest thing Undo takes back, in words: "Undo · Added Luxe Lane". */
-    undoWords: done.length ? (said ?? null) : null,
-    said,
-    lastWhy,
-    tally,
+    undoWords: done.length ? (p.said ?? null) : null,
     start,
     stop,
+    /** Another lead to decide on opened while the pile is on: it walks on from there. */
+    anchor: (at: string) => put({ from: at }),
     act,
-    skip,
+    addOf,
+    notFitWhy: (row: LeadRowVM, why: LeadNotAFitWhy) => giveWhy({ done, put, flash }, row, why),
+    /** Next: past a lead there is nothing to decide on (in a sequence already, talking), writing nothing. */
+    skip: (row: LeadRowVM) => {
+      if (!busy && searchId) decided([row.id], "next", null);
+    },
     addAll,
     undo,
   };
 }
 export type LeadPile = ReturnType<typeof useLeadPile>;
 
-/** The lead that is up: the first of the database's order still open in this pass and not decided here a moment ago. */
+/**
+ * The lead that is up: the first still open in this pass and not decided here a moment ago, from the row the pile was
+ * opened on (those above it come after the ones below).
+ */
 export function usePileUp(rows: readonly LeadRowVM[], pile: LeadPile) {
   return useMemo(() => {
-    const open = (pass: "first" | "later") =>
-      rows.filter((r) => leadPileOpen(r, { cls: pile.cls, pass }) && !pile.gone.has(r.id) && !pile.held.includes(r.id));
+    const at = new Map(rows.map((r, i) => [r.id, i]));
+    const anchor = pile.from ? (at.get(pile.from) ?? 0) : 0;
+    const open = (pass: "first" | "later") => {
+      const all = rows.filter(
+        (r) => leadPileOpen(r, { cls: pile.cls, pass }) && !pile.gone.has(r.id) && !pile.held.includes(r.id),
+      );
+      const below = all.filter((r) => (at.get(r.id) ?? 0) >= anchor);
+      return below.length === all.length ? all : [...below, ...all.filter((r) => (at.get(r.id) ?? 0) < anchor)];
+    };
     const now = open(pile.pass);
     return { up: now[0] ?? null, open: now, left: now.length, later: pile.pass === "first" ? open("later").length : 0 };
-  }, [rows, pile.cls, pile.pass, pile.gone, pile.held]);
+  }, [rows, pile.cls, pile.pass, pile.gone, pile.held, pile.from]);
 }

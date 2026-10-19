@@ -4683,6 +4683,19 @@ async function sequencePeopleOf(db, p) {
   const got = data ?? {};
   return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
 }
+async function sequencePlaceOf(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
+  const got = data;
+  return got && got.sequence && got.place ? { ...got, sends: Array.isArray(got.sends) ? got.sends : [] } : null;
+}
+async function sequencePlacesOf(db, tenantId, leadIds) {
+  if (leadIds.length === 0) return [];
+  const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
+  if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
+  const rows = data;
+  return Array.isArray(rows) ? rows : [];
+}
 async function sequenceHistoryOf(db, p) {
   const { data, error } = await db.rpc("sequence_history", {
     p_tenant_id: p.tenantId,
@@ -4752,6 +4765,32 @@ async function makeSequence(db, p) {
     p_then: p.then,
     p_start: p.start,
     ...decided(p)
+  });
+  return answer(data, error);
+}
+async function moveToSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_move", {
+    p_tenant_id: p.tenantId,
+    p_lead_id: p.leadId,
+    p_to_root: p.toRoot,
+    ...p.decision !== void 0 ? { p_decision: p.decision } : {},
+    ...p.via ? { p_via: p.via } : {}
+  });
+  return answer(data, error);
+}
+async function setChainSource(db, p) {
+  const { data, error } = await db.rpc("reach_out_source_set", {
+    p_tenant_id: p.tenantId,
+    p_root_id: p.rootId,
+    ...p.searchId ? { p_search_id: p.searchId } : {}
+  });
+  return answer(data, error);
+}
+async function aimSearchAt(db, p) {
+  const { data, error } = await db.rpc("lead_search_aim", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    ...p.sequenceId ? { p_sequence_id: p.sequenceId } : {}
   });
   return answer(data, error);
 }
@@ -6987,6 +7026,7 @@ export {
   addressesSuppressed,
   adoptPersonName,
   aiFailuresHour,
+  aimSearchAt,
   answerBookingRequest,
   answerFactSuggestion,
   answeredReachOutEmail,
@@ -7222,6 +7262,7 @@ export {
   momentSchedules,
   monthSent,
   moveSend,
+  moveToSequence,
   moveVoiceSessionContext,
   namedFetch,
   namesOfPeople,
@@ -7398,12 +7439,15 @@ export {
   sequenceOfPart,
   sequenceOverview,
   sequencePeopleOf,
+  sequencePlaceOf,
+  sequencePlacesOf,
   sequenceReached,
   sequenceRow,
   sequenceStepsOf,
   sequencesOfPerson,
   sessionHoldsPartnerSeat,
   setCallRecording,
+  setChainSource,
   setEmailOffersYes,
   setEmailUnsubscribed,
   setListRule,

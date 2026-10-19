@@ -291,6 +291,15 @@ const EXAMPLE_LEAD = {
   person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null },
 } as const;
 
+/** The made-up business a preview or a test reads as where nobody is in the sequence yet: a company, a person named. */
+export const reachOutExampleLead = (): SlotLead => ({
+  business_name: EXAMPLE_LEAD.business_name,
+  city: EXAMPLE_LEAD.city,
+  kind: "company",
+  facts: { people: [EXAMPLE_LEAD.person], addressee: 0 },
+  source: "local_businesses",
+});
+
 /**
  * The six slots' values in a preview of a step's email as one business would read it: made-up ones for what changes from
  * business to business, and the workspace's own for what it knows; a slot the workspace has nothing for is a hole, said

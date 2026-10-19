@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-282 handlers in 50 domains.
+289 handlers in 50 domains.
 
 ## activity
 
@@ -895,6 +895,14 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/route.ts`).
 
+### `POST /api/v1/lead-searches/[id]/aim`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `sequence_id` | string or null | yes |  |
+
 ### `POST /api/v1/lead-searches/[id]/answer`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `lead_answer` rate; spends nothing.
@@ -1048,6 +1056,12 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `search_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/leads/[id]/place`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/leads/[id]/place/route.ts`).
 
 ### `POST /api/v1/leads/[id]/put-back`
 
@@ -2032,6 +2046,21 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/route.ts`).
 
+### `PUT /api/v1/sequences/[id]/chain`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at least 1 characters; at most 80 characters |
+| `include_unconfirmed` | boolean | yes |  |
+| `gap_minutes` | integer | yes | ≥ -9007199254740991; ≤ 9007199254740991 |
+| `mailbox_ids` | array of string (uuid) | yes | at most 10 |
+| `owner_sends` | boolean | no |  |
+| `signed_by` | string or null | yes |  |
+| `steps` | array of object | yes | at least 1; at most 5 |
+| `source_search_id` | string or null | no |  |
+
 ### `GET /api/v1/sequences/[id]/history`
 
 Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
@@ -2039,6 +2068,22 @@ Reads; for a member of the row's own workspace; counts against the `aggregate` r
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `before` | string | no |  |
+
+### `POST /api/v1/sequences/[id]/leads`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_ids` | array of string (uuid) | yes | at least 1; at most 500 |
+
+### `POST /api/v1/sequences/[id]/leads/check`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_ids` | array of string (uuid) | yes | at least 1; at most 500 |
 
 ### `POST /api/v1/sequences/[id]/leave`
 
@@ -2048,6 +2093,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | --- | --- | --- | --- |
 | `enrollment_ids` | array of string | no | at most 500 |
 | `lead_ids` | array of string | no | at most 500 |
+
+### `POST /api/v1/sequences/[id]/move`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ### `GET /api/v1/sequences/[id]/people`
 
@@ -2110,7 +2163,9 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `step_test` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/test/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ### `POST /api/v1/sequences/[id]/steps/[step]/words`
 
@@ -2130,6 +2185,15 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `words` | string | yes | at least 8 characters; at most 500 characters |
 | `previous` | object | no |  |
 | `list` | object | no |  |
+
+### `POST /api/v1/sequences/draft-leads`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string | yes | at least 1 characters; at most 80 characters |
+| `search_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ## settings
 

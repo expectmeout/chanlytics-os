@@ -1,9 +1,8 @@
 /**
  * A step opened (the Steps redesign, his pick of A, refined, 17 Oct 2026): the kit's sheet, from the bottom on a phone and
- * a side pane on a desk, holding everything of one step: its words as one person reads them (a lead's next email as it
- * reads, a call's task), what it is in rows (when it goes, who it keeps going, how, what it is doing, what it did:
- * contracts scheduleStepFacts), and its acts in the foot: Edit, Send me a test, Take away (asked first, in the foot); a
- * sequence to leads' Edit opens its own sheet, where its emails, waits, mailboxes and pace are written whole.
+ * a side pane on a desk, holding everything of one step: its words as one person reads them (a call's task), what it is in rows (when it goes, who it keeps going, how, what it is doing, what it did:
+ * contracts scheduleStepFacts), and its acts in the foot: Edit, Send me a test, Take away (asked first, in the foot). A
+ * sequence to leads' steps are its own sheet's (leads/step-sheet.tsx).
  * Edit changes the step in the same sheet (step-editor.tsx), its Cancel and Save in the sheet's foot (the editor's
  * RecordFootContext); Add a step opens it on the step to come. Open and closed are the schedule's (steps.tsx), so the
  * sheet leaves holding what it held.
@@ -24,14 +23,12 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate, routeDoor } from "../../legacy-verbs";
-import { chainChangeRoute } from "../home/address";
+import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
 import type { StepsCtx } from "./steps";
 import { StepMessageDoor, StepWords, useStepMessageRead } from "./step-words";
-import { RecordFootContext } from "./use-record";
+import { RecordFootContext } from "./record-foot";
 import { pressed } from "./verbs";
 import type { CmOffered } from "../parts/channels";
 
@@ -60,15 +57,11 @@ interface StepSheetProps {
 const ownsWords = (step: SequenceStepDto) => step.kind === "moment" && !step.hand;
 
 /**
- * The step's words: a customer's as one person reads them, with the door to its message in Messages; a lead's next email
- * as it reads; a call's task.
+ * The step's words: a customer's as one person reads them, with the door to its message in Messages; a call's task.
  */
 function StepBody(p: { rec: SequenceRecordDto; step: SequenceStepDto; message: CmOffered | null; onEdit: () => void }) {
-  const { rec, step, message, onEdit } = p;
-  const next = rec.sequence.next;
+  const { step, message, onEdit } = p;
   if (step.hand) return <p className="sq-msg-none">{step.hand.words}</p>;
-  if (rec.sequence.starts === "leads")
-    return <LeadStepOpen batch={next && next.place === step.place ? next.id : null} />;
   return (
     <>
       {step.template_name && message ? (
@@ -148,20 +141,7 @@ function StepFoot(p: {
         testid={`sq-step-remove-${step.place}`}
       />
     );
-  // A sequence to leads is written whole in its own sheet (its emails, its waits, its mailboxes and pace): Edit opens it.
-  if (!ownsWords(step))
-    return rec.sequence.starts === "leads" ? (
-      <div className="sq-stepfoot">
-        <Button
-          variant="primary"
-          {...routeDoor(chainChangeRoute(rec.sequence.id))}
-          data-testid={`sq-step-edit-${step.place}`}
-          {...gate("approve")}
-        >
-          <Icon name="pencil" size={13} /> {SEQUENCE_WORDS.edit}
-        </Button>
-      </div>
-    ) : null;
+  if (!ownsWords(step)) return null;
   return (
     <div className="sq-stepfoot">
       <Button variant="primary" onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>

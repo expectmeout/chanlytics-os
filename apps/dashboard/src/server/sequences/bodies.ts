@@ -3,6 +3,9 @@ import { z } from "zod";
 import {
   CONSENT_CHANNELS,
   FOLLOW_UP_CONDITIONS,
+  REACH_OUT_NAME_MAX,
+  ReachOutChainSchema,
+  ReachOutStepSchema,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_DRAFT_WORDS_MAX,
   UUID,
@@ -48,6 +51,9 @@ export const STEP_CHANGE_BODY = z
 export type StepChangeBody = z.infer<typeof STEP_CHANGE_BODY>;
 
 /** POST sequences/:id/steps/:step/words: the message the step sends from now, with the values it takes. */
+/** POST sequences/:id/steps/:step/test: a lead's step is filled for one lead in it (none: an example business). */
+export const STEP_TEST_BODY = z.strictObject({ lead_id: anId("Which lead?").optional() });
+
 export const STEP_WORDS_BODY = z.strictObject({ template_id: anId("Which message?"), params: PARAMS.optional() });
 export type StepWordsBody = z.infer<typeof STEP_WORDS_BODY>;
 
@@ -82,6 +88,41 @@ export const NEW_SEQUENCE_BODY = z.strictObject({
   start: z.boolean(),
 });
 export type NewSequenceBody = z.infer<typeof NEW_SEQUENCE_BODY>;
+
+/**
+ * A sequence to leads, as POST sequences takes one (00459, `first.starts` 'leads'): its name, and how it starts: a copy of
+ * another (`from`), the words Ask drafted (`steps`), or one email still to write; on a list there is (`list_id`), else on
+ * one named for it holding the leads chosen (`lead_ids`); drawing from a search where one is named (`source_search_id`,
+ * auto-add); and the search a pile works through, whose pick it becomes (`aim_search_id`).
+ */
+export const LEAD_FIRST_BODY = z.strictObject({
+  starts: z.literal("leads"),
+  name: z.string().trim().min(1, "Name it.").max(REACH_OUT_NAME_MAX, `At most ${REACH_OUT_NAME_MAX} characters.`),
+  from: anId("Which sequence?").optional(),
+  list_id: anId("Which list?").optional(),
+  source_search_id: anId("Which search?").optional(),
+  aim_search_id: anId("Which search?").optional(),
+  lead_ids: z.array(anId("Which lead?")).max(500, "At most 500 at once.").optional(),
+  steps: z.array(ReachOutStepSchema).max(5, "At most five steps.").optional(),
+});
+
+/**
+ * PUT sequences/:id/chain: a sequence to leads as its record writes it, the chain's own body less the list (the
+ * sequence's own), with the search it adds new ready leads from, or none.
+ */
+export const LEAD_CHAIN_BODY = ReachOutChainSchema.omit({ search_id: true }).extend({
+  source_search_id: anId("Which search?").nullable().optional(),
+});
+
+/** POST sequences/draft-leads: the new sequence's name, and the search its leads came from, which Ask writes from. */
+export const DRAFT_LEADS_BODY = z.strictObject({
+  name: z.string().trim().min(1, "Name it.").max(REACH_OUT_NAME_MAX, `At most ${REACH_OUT_NAME_MAX} characters.`),
+  search_id: anId("Which search?").optional(),
+});
+
+/** POST sequences/:id/move: the lead that moves here, out of the sequence it stands in. */
+export const MOVE_BODY = z.strictObject({ lead_id: anId("Which lead?") });
+export type MoveBody = z.infer<typeof MOVE_BODY>;
 
 /**
  * POST sequences/draft: the owner's line, the draft it rewrites when they say it again (`previous`, its name and how many
