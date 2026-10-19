@@ -97,7 +97,7 @@ const problemOf = (problem: string | undefined) =>
  * The sheet's foot: the one question while Cancel asks about what was typed, else the house's pair, which a phone draws
  * with the filled act first and the two an equal pair across the foot (kit.css, data-foot-pair).
  */
-const footOf = (work: UnsavedWork, startWords: string, busy: boolean, onStart: () => void) =>
+const findFoot = (work: UnsavedWork, startWords: string, busy: boolean, onStart: () => void) =>
   work.asking ? (
     <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="find-people-leave" />
   ) : (
@@ -190,7 +190,7 @@ function FindPeopleSheet({
       close={{ label: PW.cancel, glyph: <Icon name="x" size={13} /> }}
       testid="find-people"
       {...(focusAsDrawn() ? { initialFocus: first } : {})}
-      foot={footOf(work, busy ? PW.starting : PW.start(plan.count), busy, () => void start())}
+      foot={findFoot(work, busy ? PW.starting : PW.start(plan.count), busy, () => void start())}
     >
       <Field
         label={PW.titles}
