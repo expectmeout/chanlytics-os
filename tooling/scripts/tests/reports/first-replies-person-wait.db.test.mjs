@@ -57,7 +57,8 @@ after(async () => {
 /**
  * A person with a thread: the customer's ask (carrying channel_ts, as a real inbound message does), then each reply as
  * { sender, after (seconds after the ask), body, meta, left }. A reply that was queued left later than its row says:
- * `left` is the seconds after the ask that it did, written as the message.sent event the queue stamps.
+ * `left` is the seconds after the ask that it did, written as the row's sent_at, which the send door's queued -> sent
+ * stamps (00464); a reply without one left as it was written.
  */
 async function thread(replies, askMeta = {}) {
   seq += 1;
@@ -99,26 +100,19 @@ async function thread(replies, askMeta = {}) {
     ),
   );
   for (const { sender, after: secs, body, meta = {}, left } of replies) {
-    const sent = ok(
-      await db
-        .from("messages")
-        .insert(row({ direction: "outbound", sender, status: "sent", body, meta, created_at: iso(asked + secs * MS) }))
-        .select("id")
-        .single(),
-    );
-    if (left !== undefined) {
-      ok(
-        await db.from("events").insert({
-          tenant_id: tenantId,
-          kind: "message.sent",
-          category: "message",
-          subject_type: "message",
-          subject_id: sent.id,
-          data: { sender },
-          created_at: iso(asked + left * MS),
+    ok(
+      await db.from("messages").insert(
+        row({
+          direction: "outbound",
+          sender,
+          status: "sent",
+          body,
+          meta,
+          created_at: iso(asked + secs * MS),
+          ...(left !== undefined ? { sent_at: iso(asked + left * MS) } : {}),
         }),
-      );
-    }
+      ),
+    );
   }
   return conv;
 }

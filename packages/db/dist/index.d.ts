@@ -4078,6 +4078,7 @@ type Database = {
                     meta: Json;
                     sender: string;
                     sending_at: string | null;
+                    sent_at: string | null;
                     sent_by: string | null;
                     status: string;
                     status_updated_at: string | null;
@@ -4102,6 +4103,7 @@ type Database = {
                     meta?: Json;
                     sender: string;
                     sending_at?: string | null;
+                    sent_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -4126,6 +4128,7 @@ type Database = {
                     meta?: Json;
                     sender?: string;
                     sending_at?: string | null;
+                    sent_at?: string | null;
                     sent_by?: string | null;
                     status?: string;
                     status_updated_at?: string | null;
@@ -15971,6 +15974,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 meta: Json;
                 sender: string;
                 sending_at: string | null;
+                sent_at: string | null;
                 sent_by: string | null;
                 status: string;
                 status_updated_at: string | null;
@@ -15995,6 +15999,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 meta?: Json;
                 sender: string;
                 sending_at?: string | null;
+                sent_at?: string | null;
                 sent_by?: string | null;
                 status?: string;
                 status_updated_at?: string | null;
@@ -16019,6 +16024,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 meta?: Json;
                 sender?: string;
                 sending_at?: string | null;
+                sent_at?: string | null;
                 sent_by?: string | null;
                 status?: string;
                 status_updated_at?: string | null;
@@ -26943,6 +26949,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta: Json;
             sender: string;
             sending_at: string | null;
+            sent_at: string | null;
             sent_by: string | null;
             status: string;
             status_updated_at: string | null;
@@ -26967,6 +26974,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;
@@ -26991,6 +26999,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender?: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;
@@ -33280,6 +33289,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta: Json;
             sender: string;
             sending_at: string | null;
+            sent_at: string | null;
             sent_by: string | null;
             status: string;
             status_updated_at: string | null;
@@ -33304,6 +33314,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;
@@ -33328,6 +33339,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender?: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;
@@ -39617,6 +39629,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta: Json;
             sender: string;
             sending_at: string | null;
+            sent_at: string | null;
             sent_by: string | null;
             status: string;
             status_updated_at: string | null;
@@ -39641,6 +39654,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;
@@ -39665,6 +39679,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             meta?: Json;
             sender?: string;
             sending_at?: string | null;
+            sent_at?: string | null;
             sent_by?: string | null;
             status?: string;
             status_updated_at?: string | null;

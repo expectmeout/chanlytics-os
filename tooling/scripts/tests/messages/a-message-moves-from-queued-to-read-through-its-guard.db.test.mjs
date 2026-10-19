@@ -14,6 +14,10 @@
  *   Meta's answer was lost    queued -> failed as an unknown outcome, never sent again blind
  *   Meta said "not now"       queued stays queued, handed to a fresh job; that job sends it
  *
+ * And when each row left (sent_at, 00464), as the database stamps it the first time the row holds a sent status: the
+ * held draft at the door's queued -> sent, beside the message.sent event the door writes; the answer sent now as it was
+ * written; never for a row that never left; kept through every receipt after, a late failure included.
+ *
  * Only Meta's Graph is stubbed, at the network. The owner's alert is collected rather than mailed. Everything is kept
  * in the workspace this file makes and deletes; the drafts' jobs are dispatched here, as the runner dispatches a claim.
  */
@@ -166,7 +170,18 @@ async function heldDraft(c, words) {
 }
 
 const messageRow = async (id) =>
-  ok(await db.from("messages").select("status, external_id, error, meta").eq("id", id).single());
+  ok(await db.from("messages").select("status, external_id, error, meta, created_at, sent_at").eq("id", id).single());
+/** The message.sent events the send door wrote for a row. */
+const sentEvents = async (id) =>
+  ok(
+    await db
+      .from("events")
+      .select("created_at")
+      .eq("tenant_id", T)
+      .eq("kind", "message.sent")
+      .eq("subject_type", "message")
+      .eq("subject_id", id),
+  );
 /** Meta's receipt for a message, recorded as the WhatsApp door records it. */
 const receipt = (wamid, status, errors) =>
   recordStatusByExternalId(db, T, wamid, status, errors ? { errors } : undefined);
@@ -208,11 +223,22 @@ test(
   async () => {
     const c = await customerWrites("Do you have Thursday at 3?");
     const { messageId, jobId } = await heldDraft(c, "We do. Shall I book you in?");
-    assert.equal((await messageRow(messageId)).status, "queued");
+    const queued = await messageRow(messageId);
+    assert.deepEqual([queued.status, queued.sent_at], ["queued", null], "a held draft has not left");
     assert.equal(await runJob(jobId), "done");
     const sent = await messageRow(messageId);
     assert.equal(sent.status, "sent", "the door finalized the queued row");
     assert.match(sent.external_id ?? "", /^wamid\.fixture\./);
+    assert.ok(
+      Date.parse(sent.sent_at) > Date.parse(sent.created_at),
+      `it left when the door marked it sent (${sent.sent_at}), after it was queued (${sent.created_at})`,
+    );
+    const [event] = await sentEvents(messageId);
+    assert.ok(
+      Date.parse(event.created_at) >= Date.parse(sent.sent_at) &&
+        Date.parse(event.created_at) - Date.parse(sent.sent_at) < 5_000,
+      "the door's message.sent event follows the stamp by moments, as first_replies read it before 00464",
+    );
 
     await receipt(sent.external_id, "delivered");
     await receipt(sent.external_id, "read");
@@ -226,6 +252,7 @@ test(
     const after_ = await messageRow(messageId);
     assert.equal(after_.status, "read", "the guard keeps a receipt monotone");
     assert.deepEqual(after_.meta.status_at, read.meta.status_at, "and a refused receipt stamps no time");
+    assert.equal(after_.sent_at, sent.sent_at, "the moment it left stays through every receipt");
     assert.deepEqual(swallowed, [], "the refusals were the monotone ones the receipt writer lets go, and nothing else");
     assert.deepEqual(alerts, []);
   },
@@ -238,6 +265,7 @@ test("the answer sent now: its read arrives before its delivered, and the delive
   assert.equal(out.outcome, "sent");
   const first = await messageRow(out.messageId);
   assert.deepEqual([first.status, first.external_id], ["sent", out.externalId], "written as sent, under Meta's id");
+  assert.equal(first.sent_at, first.created_at, "an answer written already sent left as it was written");
   await receipt(out.externalId, "read");
   await receipt(out.externalId, "delivered");
   const row = await messageRow(out.messageId);
@@ -260,6 +288,7 @@ test(
     const row = await messageRow(out.messageId);
     assert.equal(row.status, "failed", "failed is final for a WhatsApp message");
     assert.deepEqual(row.error, { errors });
+    assert.equal(row.sent_at, row.created_at, "it left before it failed, and keeps the moment it did");
     assert.deepEqual(swallowed, []);
   },
 );
@@ -273,6 +302,7 @@ test("Meta refused the draft: queued -> failed, and a person is asked to look", 
   assert.equal(row.status, "failed");
   assert.equal(row.error.http_status, 400);
   assert.equal(row.error.outcome, undefined, "a refusal is a known outcome");
+  assert.equal(row.sent_at, null, "a draft Meta refused never left");
   const esc = ok(
     await db.from("escalations").select("reason, state").eq("conversation_id", c.ing.conversation_id).single(),
   );
@@ -305,6 +335,7 @@ test(
     assert.equal(await runJob(jobId), "done");
     const row = await messageRow(messageId);
     assert.deepEqual([row.status, row.error.http_status, row.error.outcome], ["failed", 0, "unknown"]);
+    assert.equal(row.sent_at, null, "nothing says it left");
     const again = ok(
       await db
         .from("jobs")
@@ -323,7 +354,8 @@ test("Meta said not now: the draft stays queued and is handed to a fresh job, wh
   graphScript.set(c.digits, ["throttle", "ok"]);
   const { messageId, jobId } = await heldDraft(c, "Tomorrow at 10 is free.");
   assert.equal(await runJob(jobId), "done");
-  assert.equal((await messageRow(messageId)).status, "queued", "nothing was taken, so nothing is failed");
+  const held = await messageRow(messageId);
+  assert.deepEqual([held.status, held.sent_at], ["queued", null], "nothing was taken, so nothing is failed or sent");
   const fresh = ok(
     await db
       .from("jobs")
@@ -340,6 +372,7 @@ test("Meta said not now: the draft stays queued and is handed to a fresh job, wh
   const row = await messageRow(messageId);
   assert.equal(row.status, "sent");
   assert.match(row.external_id ?? "", /^wamid\.fixture\./);
+  assert.ok(Date.parse(row.sent_at) > Date.parse(row.created_at), "it left when the fresh job sent it");
   assert.deepEqual(
     alerts.filter((a) => a.job === jobId || a.job === fresh[0].id),
     [],
@@ -347,3 +380,49 @@ test("Meta said not now: the draft stays queued and is handed to a fresh job, wh
   );
   assert.deepEqual(swallowed, []);
 });
+
+test(
+  "a row written already sent from before (a history moved in, a fixture) left when it was written, and one written with its moment keeps it",
+  { skip },
+  async () => {
+    const c = await customerWrites("Hello from before.");
+    const row = (over) => ({
+      tenant_id: T,
+      conversation_id: c.ing.conversation_id,
+      contact_id: c.ing.contact_id,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: "From the old inbox.",
+      meta: { backfill: true },
+      ...over,
+    });
+    const before_ = new Date(Date.now() - 86_400_000).toISOString();
+    const moved = ok(
+      await db
+        .from("messages")
+        .insert(row({ status: "delivered", created_at: before_ }))
+        .select("created_at, sent_at")
+        .single(),
+    );
+    assert.equal(moved.sent_at, moved.created_at, "its own moment, not the moment it was moved in");
+    const left = new Date(Date.now() - 3_600_000).toISOString();
+    const kept = ok(
+      await db
+        .from("messages")
+        .insert(row({ status: "sent", created_at: before_, sent_at: left, meta: {} }))
+        .select("sent_at")
+        .single(),
+    );
+    assert.equal(Date.parse(kept.sent_at), Date.parse(left), "a writer that says when it left is kept");
+    const failed = ok(
+      await db
+        .from("messages")
+        .insert(row({ status: "failed", meta: {} }))
+        .select("sent_at")
+        .single(),
+    );
+    assert.equal(failed.sent_at, null, "a row written failed never left");
+  },
+);

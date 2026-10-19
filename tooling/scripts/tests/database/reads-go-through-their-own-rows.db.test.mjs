@@ -9,9 +9,13 @@
  * shows what it could use, the read looks messages up at least once a row, through whichever index the planner picks
  * (as written it read them once, to fill the CTE), and still answers what it answered.
  *
- * The door that added each person is the same: read once for the workspace and joined in a loop that went through
- * every such event for each person, it is now looked up for each person, so events are read at least once a person
- * (as written, once a partition).
+ * Neither reads the events ledger any more (00464). The door that added each person was looked up in it for each
+ * person, and when each reply left for each reply, by subject and with no time bound, so every call planned and probed
+ * each monthly partition; both facts are now on the rows themselves (contacts.acquired_via, messages.sent_at), and a
+ * read of either touches no partition of events at all. And People reads each person's messages once (00464): the
+ * newest word, the newest words in and where they last wrote were three looks beside the totals, four passes over the
+ * same messages, so the list now looks messages up once a person (fewer index reads than four looks could take), and
+ * two words at the same moment show the one written last.
  *
  * Everything happens in a transaction on this machine's database that never commits: the workspace, its people,
  * their threads and messages, and the setting go with it. Read through the CLI, as sweep-registry.db.test.mjs turns a
@@ -50,29 +54,26 @@ function rolledBack(body) {
   return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
 }
 
-/** Index scans so far in this transaction on every index of every partition of events. */
-const EVENT_SCANS = `(select coalesce(sum(pg_stat_get_xact_numscans(x.indexrelid)), 0)
-    from pg_inherits i join pg_index x on x.indrelid = i.inhrelid where i.inhparent = 'public.events'::regclass)`;
 /**
- * Rows fetched so far in this transaction from every partition of events: by a bitmap scan (counted on the table) or
- * by an index scan (counted on the index), as pg_stat_all_tables adds them into idx_tup_fetch.
+ * Reads so far in this transaction of every partition of events, by any path: sequential scans of each partition and
+ * index scans of each of its indexes.
  */
-const EVENT_ROWS = `(select coalesce(sum(pg_stat_get_xact_tuples_fetched(i.inhrelid)
-      + (select coalesce(sum(pg_stat_get_xact_tuples_fetched(x.indexrelid)), 0) from pg_index x where x.indrelid = i.inhrelid)), 0)
+const EVENT_READS = `(select coalesce(sum(pg_stat_get_xact_numscans(i.inhrelid)
+      + (select coalesce(sum(pg_stat_get_xact_numscans(x.indexrelid)), 0) from pg_index x where x.indrelid = i.inhrelid)), 0)
     from pg_inherits i where i.inhparent = 'public.events'::regclass)`;
 
 test(
-  "the People list looks each person's messages and door up for them, not in a copy of every message or a loop through every door, and still answers everyone, newest first",
+  "the People list looks each person's messages up once, for them, not in a copy of every message, reads how a door added them from their own row, and still answers everyone, newest first",
   { skip },
   () => {
     const seen = rolledBack(`
     declare
-      t uuid; cid uuid; conv uuid; newest uuid; before bigint; before_events bigint; before_event_rows bigint;
-      people int; first uuid; by_calendar int; by_wire int;
+      t uuid; cid uuid; conv uuid; newest uuid; before bigint; before_events bigint;
+      people int; first uuid; by_calendar int; by_wire int; newest_words text;
     begin
       insert into public.tenants (slug, name) values ('people-reads-' || gen_random_uuid(), 'People reads') returning id into t;
       -- Thirty people, each with a thread and three words from them; the thirtieth wrote last. Every third was added
-      -- by the calendar before they wrote.
+      -- by the calendar before they wrote: its contact.added event, which writes their acquired_via (00307).
       for i in 1..30 loop
         insert into public.contacts (tenant_id) values (t) returning id into cid;
         insert into public.conversations (tenant_id, contact_id) values (t, cid) returning id into conv;
@@ -86,59 +87,57 @@ test(
         end if;
         newest := cid;
       end loop;
+      -- The newest person's last two words came at one moment (the provider's), and were written a second apart.
+      insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at, channel_ts)
+        values (t, conv, newest, 'whatsapp', 'inbound', 'customer', 'text', 'written second', 'received', now() - interval '1 second', now()),
+               (t, conv, newest, 'whatsapp', 'inbound', 'customer', 'text', 'written first', 'received', now() - interval '2 seconds', now());
       perform set_config('enable_seqscan', 'off', true);
       before := (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass);
-      before_events := ${EVENT_SCANS};
-      before_event_rows := ${EVENT_ROWS};
+      before_events := ${EVENT_READS};
       select count(*)::int, (array_agg(l.id order by l.ordinality))[1],
-             count(*) filter (where l.came_from = 'calendar')::int, count(*) filter (where l.came_from = 'whatsapp')::int
-        into people, first, by_calendar, by_wire
+             count(*) filter (where l.came_from = 'calendar')::int, count(*) filter (where l.came_from = 'whatsapp')::int,
+             max(l.last_inbound_text) filter (where l.id = newest)
+        into people, first, by_calendar, by_wire, newest_words
         from public.people_list(t) with ordinality as l;
       seen := jsonb_build_object(
         'people', people,
         'scans', (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass) - before,
-        'event_scans', ${EVENT_SCANS} - before_events,
-        'event_rows', ${EVENT_ROWS} - before_event_rows,
-        'partitions', (select count(*) from pg_inherits where inhparent = 'public.events'::regclass),
+        'event_reads', ${EVENT_READS} - before_events,
         'by_calendar', by_calendar,
         'by_wire', by_wire,
-        'first_is_newest', first = newest);
+        'first_is_newest', first = newest,
+        'newest_words', newest_words);
     end;
   `);
     assert.equal(seen.people, 30, "everyone");
+    // One look a person is one or two index reads (a planner without statistics joins two indexes in a bitmap); four
+    // looks were never fewer than four.
     assert.ok(
-      seen.scans >= seen.people,
-      `each person's reads look up their own messages: ${seen.scans} index reads for ${seen.people} people`,
+      seen.scans >= seen.people && seen.scans < 4 * seen.people,
+      `each person's messages are looked up for them, in one look: ${seen.scans} index reads for ${seen.people} people`,
     );
+    assert.equal(seen.newest_words, "written second", "two words at one moment: the row shows the one written last");
     assert.deepEqual(
       { calendar: seen.by_calendar, whatsapp: seen.by_wire },
       { calendar: 10, whatsapp: 20 },
       "a person the calendar added came from the calendar; the rest from the wire of their first word",
     );
-    assert.ok(
-      seen.partitions < seen.people,
-      `events has ${seen.partitions} partitions, so one pass over it could look like a read a person; seed more people`,
-    );
-    assert.ok(
-      seen.event_scans >= seen.people,
-      `each person's door is looked up for them: ${seen.event_scans} index reads of events for ${seen.people} people`,
-    );
-    assert.ok(
-      seen.event_rows <= seen.by_calendar,
-      `each look-up reads that person's door alone: ${seen.event_rows} rows of events for ${seen.by_calendar} doors ` +
-        "(a loop through every door reads them all again for each person)",
+    assert.equal(
+      seen.event_reads,
+      0,
+      "how a door added each person is their own row's: the list reads no partition of events (it probed every one a person)",
     );
     assert.equal(seen.first_is_newest, true, "the person who wrote last comes first");
   },
 );
 
 test(
-  "first replies look each question's replies up for it, not in a copy of every reply, and still say who answered and how fast",
+  "first replies look each question's replies up for it, not in a copy of every reply, read when each left from its own row, and still say who answered and how fast",
   { skip },
   () => {
     const seen = rolledBack(`
     declare
-      t uuid; cid uuid; conv uuid; before bigint; asked int; by_ai int; seconds numeric;
+      t uuid; cid uuid; conv uuid; before bigint; before_events bigint; asked int; by_ai int; seconds numeric;
     begin
       insert into public.tenants (slug, name) values ('first-replies-' || gen_random_uuid(), 'First replies') returning id into t;
       -- Twelve threads, each with a question two hours ago that the receptionist answered thirty seconds later, and a
@@ -153,6 +152,7 @@ test(
       end loop;
       perform set_config('enable_seqscan', 'off', true);
       before := (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass);
+      before_events := ${EVENT_READS};
       select count(*)::int, count(*) filter (where r.who = 'ai')::int, max(r.ai_seconds)
         into asked, by_ai, seconds
         from public.first_replies(t, now() - interval '1 day') r;
@@ -160,7 +160,8 @@ test(
         'asked', asked,
         'by_ai', by_ai,
         'seconds', seconds,
-        'scans', (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass) - before);
+        'scans', (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass) - before,
+        'event_reads', ${EVENT_READS} - before_events);
     end;
   `);
     assert.deepEqual(
@@ -170,6 +171,11 @@ test(
     assert.ok(
       seen.scans >= seen.asked,
       `each question's replies are looked up for it: ${seen.scans} index reads for ${seen.asked} questions`,
+    );
+    assert.equal(
+      seen.event_reads,
+      0,
+      "when each reply left is its own row's: no partition of events is read (it probed every one a reply)",
     );
   },
 );
