@@ -463,18 +463,18 @@
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
+/* The board leaves the pane's top pixel to the pane: its specular edge is an inset shadow, drawn under what the pane
+   holds, so the heads' blur (and on a phone their solid) took it, and the outline over week and day read thinner than over
+   the month and the agenda, whose heads are clear (Ruben, 10 Oct 2026). The scroller's clear border is that pixel: what
+   scrolls is cut at its inner edge and the heads stick under it. The heads cut their own top pixel until 18 Oct, which
+   let a visit scrolled under them show through it as a sliver over the pane's edge. */
 .main-scroll > .calendar .cal-scroll {
   padding: 0 var(--space-3) var(--space-3);
+  border-top: 1px solid transparent;
 }
 /* The day heads and the hours stand over the days as clear glass, not a solid band: what scrolls under them blurs. */
 .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
   background: transparent;
-}
-/* The heads leave the pane's top pixel to the pane: its specular edge is an inset shadow, drawn under what the pane holds,
-   so the heads' blur (and on a phone their solid) took it, and the outline over week and day read thinner than over the
-   month and the agenda, whose heads are clear (Ruben, 10 Oct 2026). That pixel of a head is padding, never words. */
-.main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
-  clip-path: inset(1px 0 0);
 }
 /* On a desk alone: a phone scrolls its days sideways under the heads, and a blur redrawn on every frame of that is the
    one cost the board's motion could not spare, so there they take the pane's solid (the phone block below). */
@@ -717,6 +717,15 @@
   .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead > :not(:first-child) {
     display: none;
   }
+  /* The lane has no room here, so the head says it: a dot under the date for each thing the day holds, the run waiting
+     in the page's one amber; the head's press opens the day, whose lane says them in words (blocks.tsx headDotsOf). */
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-dayhead-dots {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    height: 5px;
+    margin-top: 3px;
+  }
   .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-appt.feed {
     padding: 2px var(--space-1);
     border-radius: var(--radius-sm);
@@ -779,8 +788,24 @@
 /* ---- A closure in a day's head ---- */
 .cal-closed { font-size: var(--text-2xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
+/* ---- A phone's week head: a dot for each thing the day's lane holds (drawn there alone; the lane says them on a desk) ---- */
+.cal-dayhead-dots { display: none; }
+.cal-dayhead-dot { flex: none; width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--ink-dim); }
+.cal-dayhead-dot[data-look="wait"] { background: var(--warn); }
+.cal-dayhead-dot[data-look="fail"] { background: var(--danger); }
+.cal-dayhead-dot[data-look="ahead"] { background: transparent; border: 1px solid var(--info); }
+.cal-dayhead-dot[data-look="allday"] { background: var(--ink-faint); }
+
 /* ---- The day lane under the dates (C1, C5, C6): the all-day events and the campaigns of the day alone, a row each; every
    lane of the week as tall as its fullest (blocks.tsx sets --cal-lane-rows), so their tops line up ---- */
+/* A row's height, read by the rows and by the lane's least height alike, so the corner's piece over the hours stands where
+   the heads' lanes stand. A touch screen's floor (legacy.css, 44px on every button) made each row 44 while the corner
+   counted 20, and a phone's Day view drew the band's line twice, 24px apart (18 Oct 2026); there a row is the house's
+   floor for a text button in a line (36, legacy.css .brief-chip). */
+.cal-grid { --cal-lane-row: 20px; }
+@media (pointer: coarse) {
+  .cal-grid { --cal-lane-row: 36px; }
+}
 .cal-daylane {
   align-self: stretch;
   display: flex;
@@ -789,15 +814,15 @@
   gap: 2px;
   min-width: 0;
   /* Its rows, the gaps between them, and its own top padding and line (a border-box's height holds both). */
-  min-height: calc(var(--cal-lane-rows, 1) * 20px + (var(--cal-lane-rows, 1) - 1) * 2px + var(--space-1) + 1px);
+  min-height: calc(var(--cal-lane-rows, 1) * var(--cal-lane-row) + (var(--cal-lane-rows, 1) - 1) * 2px + var(--space-1) + 1px);
   margin-top: auto;
   padding-top: var(--space-1);
   border-top: 1px solid var(--line);
 }
 .cal-daylane .cal-runs { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 2px; max-width: 100%; }
-.cal-daylane .cal-allday { display: flex; align-items: center; min-height: 20px; margin-top: 0; }
+.cal-daylane .cal-allday { display: flex; align-items: center; margin-top: 0; }
 /* Every row of a lane is one height, so a lane with a mark is no taller than an empty one and the band stays one line. */
-.cal-daylane :is(.cal-run, .cal-allday) { height: 20px; }
+.cal-daylane :is(.cal-run, .cal-allday) { height: var(--cal-lane-row); min-height: 0; }
 /* One band across the board: each lane's line runs to its column's edges, and the corner over the hours draws its piece,
    standing where the heads' lanes stand (the heads' foot padding). */
 .main-scroll > .calendar .cal-dayhead > .cal-daylane { margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); }
@@ -820,7 +845,7 @@
   padding: 0 var(--space-1);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--moment-tint, transparent);
   font: inherit;
   font-size: var(--text-2xs);
   line-height: 1;
@@ -830,26 +855,46 @@
   overflow: hidden;
   cursor: pointer;
 }
+/* What a visit gives up beside a moment (blocks.tsx CrBlock reads it): Day view's one wide column shares half and half; a
+   desk's week gives the moment its glyph and clock at the column's right, the visit keeping its name whole; a phone's
+   week gives nothing, the moment a badge on the column's edge (below). */
+.cal-grid { --cal-side: 68px; }
+.cal-grid.cal-grid-day { --cal-side: calc(50% - 2px); }
 .cal-moment[data-side] { left: calc(50% + 1px); }
-/* A week's column is narrow: beside a visit a moment is its glyph and its clock at the column's right, and the visit keeps
-   the rest (blocks.tsx CR_SIDE_W), its name whole; Day view, and the sheet, say the moment's words. */
 .cal-grid:not(.cal-grid-day) .cal-moment[data-side] { left: auto; width: 60px; }
 .cal-grid:not(.cal-grid-day) .cal-moment[data-side] .cal-moment-words { display: none; }
 .cal-moment > svg { flex: none; }
 .cal-moment-time { flex: none; color: var(--ink-dim); }
 .cal-moment-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.cal-moment[data-look="went"] { background: var(--info-soft); border-color: transparent; }
+.cal-moment[data-look="went"] { --moment-tint: var(--info-soft); border-color: transparent; }
 .cal-moment[data-look="ahead"] { border-style: dashed; border-color: var(--info); }
 .cal-moment[data-look="fail"] { border-color: var(--danger); color: var(--danger-ink); }
-.cal-moment[data-look="wait"] { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+.cal-moment[data-look="wait"] { --moment-tint: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
 /* Lit under a pointer only: a finger's last tap keeps nothing lit (#1718). */
 @media (hover: hover) {
   .cal-moment:hover { border-color: var(--ink-faint); }
 }
 .cal-moment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-/* A phone's week is seven narrow columns: a moment there is its glyph, its words in Day view and the sheet. */
+/* A phone's week is seven columns of about 45px: a moment there is its glyph on a 16px badge at the column's right edge,
+   over a visit rather than beside it, and its words are Day view's and the sheet's. A share of the column left a visit
+   none of it, and the touch floor drew the moment as a box an hour tall (the sample walk, 18 Oct 2026). Its tint lies on
+   the pane's solid, so a visit's name under it ends at its edge rather than showing through. */
 @media (max-width: 720px) {
-  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment { justify-content: center; padding: 0; }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) { --cal-side: 0px; }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment,
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment[data-side] {
+    left: auto;
+    right: 2px;
+    z-index: 2;
+    width: 16px;
+    height: 16px;
+    min-width: 0;
+    min-height: 0;
+    justify-content: center;
+    padding: 0;
+    border-radius: var(--radius-full);
+    background: linear-gradient(var(--moment-tint, transparent), var(--moment-tint, transparent)) var(--surface-pane-solid);
+  }
   .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment :is(.cal-moment-time, .cal-moment-words) { display: none; }
 }
 

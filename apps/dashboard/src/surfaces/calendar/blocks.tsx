@@ -97,9 +97,10 @@ function CrBlock(p: {
   const from = Math.max(hours.start, b.t) - hours.start;
   const span = Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t);
   // Overlapping blocks take lanes side by side; a block alone keeps the column. Beside a moment it gives up the moment's
-  // room: half of Day view's one wide column, a moment's glyph and clock (calendar.css) of a week's narrow one, where half
-  // cut a name to "Mar…".
-  const room = !half ? "(100% - 8px)" : wide ? "(50% - 6px)" : `(100% - ${CR_SIDE_W + 10}px)`;
+  // room, which the view says (calendar.css `--cal-side`): half of Day view's one wide column, a moment's glyph and clock
+  // of a desk's week, where half cut a name to "Mar…", and none of a phone's week, where the moment is a badge on the
+  // column's edge and a share of 45px left the visit nothing (the sample walk, 18 Oct 2026).
+  const room = half ? "(100% - 8px - var(--cal-side, 0px))" : "(100% - 8px)";
   const laned: CSSProperties =
     b.lanes > 1 || half
       ? {
@@ -174,8 +175,6 @@ interface CrLaid {
 const CR_MOMENT_H = 0.375;
 /** A moment's height and the room between two, in px, as calendar.css draws it (`.cal-moment`). */
 const CR_MOMENT_STEP = 20;
-/** A moment's width beside a visit in a week's column, its glyph and its clock, in px (calendar.css `.cal-moment[data-side]`). */
-const CR_SIDE_W = 60;
 
 /** Whether a mark stands on the board: it has a time, and the time is in the board's hours. The rest go in the day lane. */
 const onBoard = (m: CalendarRunMark, hours: Hours): boolean => m.t !== null && m.t >= hours.start && m.t < hours.end;
@@ -278,9 +277,27 @@ function dayLane(d: CalendarFrame, marks: readonly CalendarRunMark[], wide: bool
   );
 }
 
+/** How many of a day's lane items a phone's week head dots under its date. */
+const CR_HEAD_DOTS = 3;
+
+/**
+ * What a day's lane holds, as a phone's week head says it: a dot each, in the lane's order (a run waiting first), its
+ * look the mark's, and a sentence for a reader. A phone's week has no room for the lane itself (calendar.css hides it), so
+ * a run waiting for approval was nowhere on it (the sample walk, 18 Oct 2026); the head opens the day, whose lane says all.
+ */
+function headDotsOf(d: CalendarFrame, lane: readonly CalendarRunMark[]): { looks: string[]; said: string | null } {
+  const looks = [...lane.map(markLook), ...d.allDay.map(() => "allday")];
+  if (!looks.length) return { looks, said: null };
+  const waits = looks.includes("wait");
+  return {
+    looks,
+    said: waits ? "a run waits for your approval" : `${looks.length} for the whole day`,
+  };
+}
+
 /**
  * A day's head over the board: its name, which opens it in Day view (from a keyboard too), and what closes it, at its top
- * on every day; under them the day's lane, where the week has one.
+ * on every day; under them the day's lane, where the week has one, which a phone's week says as dots under the date.
  */
 function dayHead(p: {
   d: CalendarFrame;
@@ -290,6 +307,7 @@ function dayHead(p: {
   lane: readonly CalendarRunMark[] | null;
 }) {
   const { d, wide, onDay, a, lane } = p;
+  const dots = lane ? headDotsOf(d, lane) : null;
   return (
     <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""}`} data-testid="cal-dayhead">
       {/* The day's name opens it in Day view from a keyboard too (C4). */}
@@ -303,12 +321,20 @@ function dayHead(p: {
           type="button"
           className="cal-dayhead-open"
           onClick={() => onDay(d.key)}
-          aria-label={`Open ${d.long} in Day view`}
+          aria-label={`Open ${d.long} in Day view${dots?.said ? `, ${dots.said}` : ""}`}
           aria-current={d.today ? "date" : undefined}
           data-testid="cal-dayhead-open"
         >
           <span className="cal-dow">{d.dow}</span>
           <span className="cal-date tabular">{d.dayNum}</span>
+          {/* Drawn on every day of a week with a lane, empty where the day has nothing, so the dates stand level. */}
+          {dots ? (
+            <span className="cal-dayhead-dots" aria-hidden="true" data-testid="cal-dayhead-dots">
+              {dots.looks.slice(0, CR_HEAD_DOTS).map((look, i) => (
+                <span key={i} className="cal-dayhead-dot" data-look={look} />
+              ))}
+            </span>
+          ) : null}
         </button>
       )}
       {d.closed.yes && (
