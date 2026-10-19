@@ -50,6 +50,13 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
+// The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
+// door fetches them, so every draw below finds them in, as a press after that reach does.
+const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
+warmCampaignsCode("campaigns/message:any");
+await import(`${SRC}/surfaces/campaigns/home/open-sheets.tsx`);
+await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
+await new Promise((r) => setTimeout(r, 0));
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { WriteToLeads } = await import(`${SRC}/surfaces/campaigns/reach-out/sources.tsx`);

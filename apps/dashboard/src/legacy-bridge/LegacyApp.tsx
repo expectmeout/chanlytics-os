@@ -55,6 +55,8 @@ import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { audiencesOverride } from "@/surfaces/campaigns/broadcasts/audiences-surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
+import { warmCampaignsCode, warmCampaignsSoon } from "@/surfaces/campaigns/home/campaigns-code";
+import { warmSequenceRoute } from "@/surfaces/campaigns/sequences/verbs";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
@@ -249,10 +251,31 @@ const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
 // only where it is drawn (onDemand) that was never read or has aged.
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
 // And one somebody is reaching for (a pointer at its row, the phone's drawer opening) reads the same now, so the press finds
-// it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads.
-onRouteReachedFor(
-  warmWhatItDraws(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key)))),
+// it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads. Its code too, where
+// the page is a chunk of its own the boot does not carry: Campaigns' Sequences, its sheets and the Library's pane
+// (campaigns-code.tsx). And a sequence's record, which its row under the pointer reads as People's rows read a person.
+const warmItsReads = warmWhatItDraws(
+  SURFACES,
+  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))),
 );
+onRouteReachedFor((route) => {
+  warmItsReads(route);
+  warmCampaignsCode(route);
+  warmSequenceRoute(route);
+});
+// Campaigns, reached for once the frame is idle: a door on every page whose list the boot does not read and whose code it
+// does not carry, so the first press finds its page, its list and its code in, as the Inbox's are.
+warmCampaignsSoon(reachFor);
+// The page the address opens as it loads, where it is Campaigns: its code fetched now, beside the frame's own, not once the
+// page has drawn and asked for it; and a sequence's record, the reads the document's head started for it, taken into the
+// record's caches now. The record mounts only once Sequences' chunk is in, after the boot's first pass has let go of what
+// the head started and nobody took (api.ts dropPrefetched), and it asked for both again (19 Oct 2026, a local build:
+// started at 44 ms, asked again at 976 and 1,260).
+if (typeof window !== "undefined") {
+  const opened = routeOnScreen();
+  warmCampaignsCode(opened);
+  warmSequenceRoute(opened);
+}
 /** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
 
@@ -269,7 +292,7 @@ import {
   routeSurfaces,
   warmWhatItDraws,
 } from "./surface-registry";
-import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, routeOnScreen } from "./workspace";
+import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, reachFor, routeOnScreen } from "./workspace";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 
 /**
