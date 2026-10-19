@@ -5415,14 +5415,11 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
        and m.direction = 'inbound' and m.sender = 'customer'
        and public.message_is_a_persons_words(m.meta)
   ),
-  -- when each outbound row actually LEFT: the send event for the queued path, the row itself for an immediate send
+  -- when each outbound row actually LEFT: its sent_at (00464), which the send door stamps as it marks a queued row sent;
+  -- a row written already sent left as it was written
   sent as not materialized (
     select o.id, o.conversation_id, o.sender, o.created_at,
-           coalesce((select min(e.created_at) from events e
-                      where e.tenant_id = p_tenant_id
-                        and e.kind = 'message.sent'
-                        and e.subject_type = 'message'
-                        and e.subject_id = o.id), o.created_at) as sent_at,
+           coalesce(o.sent_at, o.created_at) as sent_at,
            -- the hold the owner set, as the reply was queued (draft-queue.ts); none for a reply sent at once
            case when jsonb_typeof(o.meta->'delay_ms') = 'number'
                 then (o.meta->>'delay_ms')::numeric / 1000.0 else 0 end as hold_s,
@@ -12794,6 +12791,21 @@ COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of th
 
 
 --
+-- Name: messages_note_sent_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messages_note_sent_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A row written already sent left as it was written; a row moved to a sent status leaves now.
+  NEW.sent_at := case when TG_OP = 'INSERT' then NEW.created_at else now() end;
+  return NEW;
+end $$;
+
+
+--
 -- Name: messages_reply_held_closes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -15313,7 +15325,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
       from people_page(p_tenant_id, p_contact_id, p_query, p_limit, p_offset, p_after_at, p_after_added, p_after_id) p
   ),
   ev as not materialized (
-    select m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
+    select m.id, m.contact_id, m.direction, m.sender, m.type, m.channel, m.body, m.status, m.created_at,
            e.at, e.moved_in as backfill, e.spoken,
            -- Whether the words are a person's own, not an automatic reply or a list's mail (00299).
            public.message_is_a_persons_words(m.meta) as persons_words
@@ -15338,8 +15350,8 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     oe.reason,
     oe.created_at,
     lc.id, lc.state, lc.paused_until, lc.assignee_user_id, lc.snooze_until, lc.last_wa_inbound_at,
-    lm.at, lm.direction, lm.sender,
-    li.body, li.at, lw.channel,
+    ma.last_at, ma.last_direction, ma.last_sender,
+    ma.last_in_body, ma.last_in_at, ma.last_wrote_on,
     ma.last_wrote_at,
     lk.last_at,
     lk.last_inbound_at,
@@ -15352,13 +15364,10 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     coalesce(ma.has_chat, false),
     coalesce(ma.channels, '{}'::text[]),
     ma.queued_at,
-    -- Where they came from: how they were added, else how a history moved in
-    -- began, else their first spoken event.
+    -- Where they came from: how a door added them (their acquired_via, written from the door's contact.added event by
+    -- 00307, the first word winning), else how a history moved in began, else their first spoken event.
     case
-      when ad.source = 'calendar' then 'calendar'
-      when ad.source = 'lead' then 'lead'
-      when ad.source = 'import' then 'import'
-      when ad.source is not null then 'manual'
+      when ch.acquired_via in ('calendar', 'lead', 'import', 'manual') then ch.acquired_via
       when coalesce(ma.has_backfill, false) then case when ma.backfill_first in ('call', 'whatsapp', 'sms', 'email') then ma.backfill_first else 'import' end
       when lk.first_at is not null and (ma.first_at is null or lk.first_at <= ma.first_at) then 'call'
       when ma.first_channel in ('whatsapp', 'sms', 'email') then ma.first_channel
@@ -15378,7 +15387,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     -- read for the page's people alone, by their key.
     select k.consent_channels, k.marketing_channels, k.offers_asked_at, k.email_suppressed_at,
            k.email_marketing, k.email_marketing_source, k.email_marketing_updated_at,
-           k.lead_id, k.name_source, k.name_settled_at
+           k.lead_id, k.name_source, k.name_settled_at, k.acquired_via
       from contacts k
      where k.id = c.id and k.tenant_id = p_tenant_id
   ) ch on true
@@ -15407,18 +15416,6 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) sg on true
   left join lateral (
-    -- How they were added, when a door added them: their first contact.added
-    -- event, should a door ever write two.
-    select coalesce(e.data->>'source', 'manual') as source
-      from events e
-     where e.tenant_id = p_tenant_id
-       and e.subject_type = 'contact'
-       and e.subject_id = c.id
-       and e.kind = 'contact.added'
-     order by e.created_at
-     limit 1
-  ) ad on true
-  left join lateral (
     select array_agg(distinct ci.channel order by ci.channel) as channels
       from contact_identities ci where ci.contact_id = c.id
   ) ids on true
@@ -15446,33 +15443,28 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      limit 1
   ) lc on true
   left join lateral (
-    select e.at, e.direction, e.sender
-      from ev e
-     where e.contact_id = c.id and e.at is not null and e.spoken
-     order by e.at desc
-     limit 1
-  ) lm on true
-  left join lateral (
-    select e.at, e.body, e.channel
-      from ev e
-     where e.contact_id = c.id and e.at is not null
-       and e.direction = 'inbound' and e.spoken and e.body is not null
-     order by e.at desc
-     limit 1
-  ) li on true
-  left join lateral (
-    -- Where they last WROTE: the wire of their newest own words. Not a call's note (the system's row, never spoken)
-    -- and not a program writing from their address (persons_words): an out-of-office made email "where they last
-    -- wrote", and a campaign then went there. contracts lastWroteOn is its twin.
-    select e.channel
-      from ev e
-     where e.contact_id = c.id and e.at is not null
-       and e.direction = 'inbound' and e.sender = 'customer' and e.spoken and e.persons_words
-     order by e.at desc
-     limit 1
-  ) lw on true
-  left join lateral (
-    select min(e.at) filter (where e.spoken) as first_at,
+    -- Everything the row says of a person's messages, in one pass over them (00464). It was four looks, each a pass of
+    -- its own with a message_moment call for every message, and they were most of the list's time. A newest row is the
+    -- one that happened last, then was written last, then has the greater id, so a tie picks the same row every time.
+    select -- The newest word in the thread, either way.
+           max(e.at) filter (where e.at is not null and e.spoken) as last_at,
+           (array_agg(e.direction order by e.at desc, e.created_at desc, e.id desc)
+              filter (where e.at is not null and e.spoken))[1] as last_direction,
+           (array_agg(e.sender order by e.at desc, e.created_at desc, e.id desc)
+              filter (where e.at is not null and e.spoken))[1] as last_sender,
+           -- The newest words that came in.
+           max(e.at) filter (where e.at is not null and e.direction = 'inbound' and e.spoken and e.body is not null)
+             as last_in_at,
+           (array_agg(e.body order by e.at desc, e.created_at desc, e.id desc)
+              filter (where e.at is not null and e.direction = 'inbound' and e.spoken and e.body is not null))[1]
+             as last_in_body,
+           -- Where they last WROTE: the wire of their newest own words. Not a call's note (the system's row, never spoken)
+           -- and not a program writing from their address (persons_words): an out-of-office made email "where they last
+           -- wrote", and a campaign then went there. contracts lastWroteOn is its twin.
+           (array_agg(e.channel order by e.at desc, e.created_at desc, e.id desc)
+              filter (where e.at is not null and e.direction = 'inbound' and e.sender = 'customer' and e.spoken
+                             and e.persons_words))[1] as last_wrote_on,
+           min(e.at) filter (where e.spoken) as first_at,
            min(e.created_at) as first_row_at,
            bool_or(e.backfill) as has_backfill,
            bool_or(e.type in ('text', 'template', 'media')) as has_chat,
@@ -32259,6 +32251,7 @@ CREATE TABLE public.messages (
     meta jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     sending_at timestamp with time zone,
+    sent_at timestamp with time zone,
     CONSTRAINT messages_channel_check CHECK ((channel = ANY (ARRAY['whatsapp'::text, 'voice'::text, 'sms'::text, 'email'::text, 'system'::text]))),
     CONSTRAINT messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text]))),
     CONSTRAINT messages_sender_check CHECK ((sender = ANY (ARRAY['customer'::text, 'ai'::text, 'human'::text, 'system'::text]))),
@@ -32272,6 +32265,13 @@ CREATE TABLE public.messages (
 --
 
 COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing, and a member''s call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast''s email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer).';
+
+
+--
+-- Name: COLUMN messages.sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.messages.sent_at IS 'When the row''s words left: stamped by messages_note_sent_at the first time the row holds sent, delivered or read (its own created_at for a row written already sent; the moment of the update for one moved there, the send door''s queued -> sent). Null for a row that never left. first_replies reads it (00464).';
 
 
 --
@@ -37331,6 +37331,13 @@ CREATE TRIGGER messages_note_booking_link_on_send AFTER UPDATE OF status ON publ
 --
 
 CREATE TRIGGER messages_note_first_touch AFTER INSERT ON public.messages FOR EACH ROW WHEN (((new.direction = 'inbound'::text) AND (new.sender = 'customer'::text) AND (new.contact_id IS NOT NULL) AND (new.channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])) AND (COALESCE((new.meta ->> 'backfill'::text), 'false'::text) <> 'true'::text))) EXECUTE FUNCTION public.messages_note_first_touch();
+
+
+--
+-- Name: messages messages_note_sent_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER messages_note_sent_at BEFORE INSERT OR UPDATE OF status ON public.messages FOR EACH ROW WHEN (((new.sent_at IS NULL) AND (new.direction = 'outbound'::text) AND (new.status = ANY (ARRAY['sent'::text, 'delivered'::text, 'read'::text])))) EXECUTE FUNCTION public.messages_note_sent_at();
 
 
 --
@@ -43550,6 +43557,14 @@ GRANT ALL ON FUNCTION public.messages_note_booking_link() TO service_role;
 
 REVOKE ALL ON FUNCTION public.messages_note_first_touch() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.messages_note_first_touch() TO service_role;
+
+
+--
+-- Name: FUNCTION messages_note_sent_at(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.messages_note_sent_at() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.messages_note_sent_at() TO service_role;
 
 
 --

@@ -4078,6 +4078,7 @@ export type Database = {
           meta: Json
           sender: string
           sending_at: string | null
+          sent_at: string | null
           sent_by: string | null
           status: string
           status_updated_at: string | null
@@ -4102,6 +4103,7 @@ export type Database = {
           meta?: Json
           sender: string
           sending_at?: string | null
+          sent_at?: string | null
           sent_by?: string | null
           status?: string
           status_updated_at?: string | null
@@ -4126,6 +4128,7 @@ export type Database = {
           meta?: Json
           sender?: string
           sending_at?: string | null
+          sent_at?: string | null
           sent_by?: string | null
           status?: string
           status_updated_at?: string | null

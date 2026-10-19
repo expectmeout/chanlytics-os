@@ -5,8 +5,10 @@
  * thing because the rule lives in the function: the door that added them wins
  * (the calendar, a lead, a hand), then how a history moved in from before the
  * database began, then their first spoken event -- a call, or the wire a
- * message travelled. A function body, the events it reads under a member's own
- * RLS, and an order that pages without repeating anyone are what reading source
+ * message travelled. The door is the person's own acquired_via (00464), which
+ * their door's contact.added event writes (00307) and the first word keeps, as
+ * Reports reads it. A function body, the row it reads under a member's own RLS,
+ * and an order that pages without repeating anyone are what reading source
  * cannot prove, so these run against Postgres in the database workflow; skipped
  * without a local database.
  */
@@ -54,31 +56,38 @@ after(async () => {
 });
 
 let phones = 0;
-/** A person; how a door added them (a contact.added source, `null` for an event with none, or a list of `{ source, at }` when doors wrote more than one); what they said and when. */
-const person = async (tenantId, name, { added, messages = [], calls = [] } = {}) => {
+/**
+ * A person; how a door added them (a contact.added source, `null` for an event with none, or a list of `{ source }`
+ * written in that order when doors wrote more than one); how they first reached the workspace when their row already
+ * says (`via`, written with the row, as a first message or a writer of the row does); what they said and when.
+ */
+const person = async (tenantId, name, { added, via, messages = [], calls = [] } = {}) => {
   phones += 1;
   const c = ok(
     await db
       .from("contacts")
-      .insert({ tenant_id: tenantId, display_name: name, phone_e164: `+1555013${String(phones).padStart(4, "0")}` })
+      .insert({
+        tenant_id: tenantId,
+        display_name: name,
+        phone_e164: `+1555013${String(phones).padStart(4, "0")}`,
+        ...(via ? { acquired_via: via } : {}),
+      })
       .select("id")
       .single(),
   );
   if (added !== undefined) {
     const doors = Array.isArray(added) ? added : [{ source: added }];
-    ok(
-      await db.from("events").insert(
-        doors.map(({ source, at }) => ({
+    for (const { source } of doors)
+      ok(
+        await db.from("events").insert({
           tenant_id: tenantId,
           kind: "contact.added",
           category: "contact",
           subject_type: "contact",
           subject_id: c.id,
           data: source === null ? {} : { source },
-          ...(at ? { created_at: at } : {}),
-        })),
-      ),
-    );
+        }),
+      );
   }
   if (messages.length || calls.length) {
     const conv = ok(
@@ -142,7 +151,7 @@ const movedInNote = (at) => ({
 });
 
 test(
-  "people_list says where each person came from: how a door added them, else how a history moved in began, else their first call or the wire of their first word",
+  "people_list says where each person came from: how a door added them, from their own row, else how a history moved in began, else their first call or the wire of their first word",
   { skip },
   async () => {
     const t = await tenant("came-from");
@@ -158,12 +167,16 @@ test(
       manual: await person(t, "By hand", { added: "manual" }),
       otherDoor: await person(t, "Through another door", { added: "import_csv" }),
       noSource: await person(t, "An event with no source", { added: null }),
-      // Two doors, the newer written first, so only their times can pick the calendar. Both a minute or two ago: events is partitioned by month.
-      addedTwice: await person(t, "Added twice", {
-        added: [
-          { source: "manual", at: new Date(Date.now() - 60_000).toISOString() },
-          { source: "calendar", at: new Date(Date.now() - 120_000).toISOString() },
-        ],
+      // Two doors, one after the other: the first to write is the one that added them.
+      addedTwice: await person(t, "Added twice", { added: [{ source: "calendar" }, { source: "manual" }] }),
+      // A door's word on the row with no event beside it (a writer of the row, as the sample data writes it): the row is what says.
+      doorOnTheRow: await person(t, "A lead, said on the row", { via: "lead" }),
+      // Their own words came first, and a door added them after (a lead converted onto someone who wrote first): they
+      // came from their words, as Reports says, and the door's word does not replace it.
+      wroteThenADoor: await person(t, "Wrote, then a lead", {
+        via: "whatsapp",
+        added: "lead",
+        messages: [{ channel: "whatsapp", channel_ts: T0 }],
       }),
       movedIn: await person(t, "Moved in from before", { messages: [movedInText(at(0))], calls: [{ started_at: T0 }] }),
       // A Blob-era caller who never wrote: their thread holds only the receptionist's note, beside the call's own row.
@@ -227,6 +240,8 @@ test(
         otherDoor: "manual",
         noSource: "manual",
         addedTwice: "calendar",
+        doorOnTheRow: "lead",
+        wroteThenADoor: "whatsapp",
         movedIn: "whatsapp",
         noteOnly: "call",
         noteThenText: "call",
@@ -239,7 +254,7 @@ test(
         email: "email",
         nothing: null,
       },
-      "the event wins over their words, and the oldest event over a newer one; a history moved in says how it began, a call's note as call and a word as its wire, and wins over a call; a call wins a tie; a failed send and a dial that never connected are nobody's first word",
+      "a door wins over their words, and the first door over a later one; a door said on the row is a door; their own words first stay theirs; a history moved in says how it began, a call's note as call and a word as its wire, and wins over a call; a call wins a tie; a failed send and a dial that never connected are nobody's first word",
     );
     const one = ok(await db.rpc("people_list", { p_tenant_id: t, p_contact_id: ids.calendar }));
     assert.equal(one[0].came_from, "calendar", "one person, as the profile reads them: the same answer");
@@ -247,7 +262,7 @@ test(
 );
 
 test(
-  "a member reads the same answer under their own RLS: the events the rule reads are theirs to read",
+  "a member reads the same answer under their own RLS: the row the rule reads is theirs to read",
   { skip },
   async () => {
     const t = await tenant("came-from-member");
