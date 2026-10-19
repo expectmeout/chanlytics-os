@@ -341,7 +341,7 @@ function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pan
     return pane(
       { ...(roRunHead(d, sheet) || {}), ...(roDock ? { tools: <RoRunMore d={d} sheet={roDock} /> } : {}) },
       ro,
-      roDock ? <RoRunDock d={d} sheet={roDock} seeAll={seeAll} onSeeAll={onSeeAll} /> : undefined,
+      roDock ? <RoRunDock d={d} sheet={roDock} /> : undefined,
     );
   const b = d.broadcast;
   const avm =
@@ -355,7 +355,7 @@ function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pan
     <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
       <BcSheet d={d} people={people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
     </div>,
-    phone ? bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }) : undefined,
+    phone ? bcSheetDock({ b, avm, sheet }) : undefined,
   );
 }
 

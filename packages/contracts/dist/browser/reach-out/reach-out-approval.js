@@ -2,7 +2,7 @@ import { clockNear, clockWhen } from "../shared/clock.js";
 import { HELD_REASONS } from "../broadcasts/run-words.js";
 import { plural } from "../shared/words.js";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits.js";
-import { RUN_OPEN_WORDS, RUN_WAITING_WORDS } from "../shell/campaign-rooms.js";
+import { RUN_OPEN_WORDS, RUN_WAITING_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms.js";
 import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
@@ -70,8 +70,6 @@ export function reachOutRunWordsOf(r, p) {
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r.skipped),
-    // Today's and the coming days' as the reach line counts them: "See the 30 today and 12 later".
-    see: checked.length === 0 ? null : checked.length > r.today ? `See the ${r.today} today and ${checked.length - r.today} later` : `See the ${checked.length}`,
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
     list: checked.map((x) => {
       const ms = Date.parse(x.send_at);
@@ -90,7 +88,8 @@ export function reachOutRunWordsOf(r, p) {
     // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
     approved: owner ? `${r.chain_name} approved \u2014 ${plural(r.today + r.later, "email", "emails")} to send from your inbox, handed to you as each is checked` : r.today === 0 && r.later > 0 ? `${r.chain_name} approved \u2014 ${plural(r.later, "email", "emails")} in the coming days, in their hours` : `${r.chain_name} approved \u2014 ${plural(r.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
-    listHead: r.checking > 0 ? `Who gets it \xB7 ${plural(r.checking, "more is", "more are")} being checked` : "Who gets it"
+    // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; none while nothing is checked.
+    listHead: r.checking > 0 ? `${WHO_GETS_IT_WORDS.head} \xB7 ${plural(r.checking, "more is", "more are")} being checked` : WHO_GETS_IT_WORDS.head
   };
 }
 const RETIMED = "re-timed in their hours";
@@ -227,7 +226,6 @@ const REACH_OUT_RUN_LABELS = {
   approving: "Approving\u2026",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
-  hide: "Hide the list",
   hideHeld: "Hide them",
   deciding: "Saying so\u2026",
   rechecking: "Checking again\u2026",

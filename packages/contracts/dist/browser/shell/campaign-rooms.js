@@ -104,6 +104,11 @@ export const RUN_WAITING_SHORT = "Waits for you";
 export const runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
 export const runStopDoorWords = (waits) => waits ? "Cancel it" : "Stop it";
 export const RUN_OPEN_WORDS = "Open the run";
+export const WHO_GETS_IT_WORDS = {
+  head: "Who gets it",
+  show: "Show who gets it",
+  hide: "Hide who gets it"
+};
 export const RUN_UNNAMED_WORDS = "Run";
 export function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;

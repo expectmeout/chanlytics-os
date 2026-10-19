@@ -945,13 +945,29 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u00b7 2 people"),
       textOf(byTestId(sheet, "bc-sheet-approve")),
     );
-    // Who gets it, on asking, brought into view as it opens: on a phone it opened under the message, off the screen.
-    press(byTestId(sheet, "bc-sheet-see"));
+    // Who gets it, folded under its head, its press at the head's right (19 Oct 2026: it was a half of the foot beside
+    // Approve): closed, the head alone; opened, its rows, brought into view as they open (on a phone they opened under
+    // the message, off the screen).
+    const fold = byTestId(sheet, "bc-sheet-people");
+    const foldPress = byTestId(fold, "bc-sheet-people-press");
+    assert.equal(textOf(fold).trim(), contracts.WHO_GETS_IT_WORDS.head, "closed, the head alone");
+    assert.deepEqual(
+      [foldPress.props["aria-label"], foldPress.props["aria-expanded"], fold.props["data-open"]],
+      [contracts.WHO_GETS_IT_WORDS.show, false, "false"],
+    );
+    assert.equal(all(fold, (n) => n.props?.["data-testid"] === "bc-person").length, 0, "closed, no rows");
+    assert.equal(byTestId(byTestId(sheet, "bc-sheet-acts"), "bc-sheet-see"), null, "no list press in the foot");
+    press(foldPress);
     tree = again(props);
-    assert.equal(all(byTestId(tree, "bc-sheet-people"), (n) => n.props?.["data-testid"] === "bc-person").length, 2);
+    const opened = byTestId(tree, "bc-sheet-people");
+    assert.equal(all(opened, (n) => n.props?.["data-testid"] === "bc-person").length, 2);
+    assert.deepEqual(
+      [byTestId(opened, "bc-sheet-people-press").props["aria-label"], opened.props["data-open"]],
+      [contracts.WHO_GETS_IT_WORDS.hide, "true"],
+    );
     let brought = null;
-    byTestId(tree, "bc-sheet-people").props.ref({ scrollIntoView: (how) => (brought = how) });
-    assert.deepEqual(brought, { block: "nearest" }, "the list, as it mounts, scrolled to where it is seen whole");
+    find(opened, (n) => typeof n.props?.ref === "function").props.ref({ scrollIntoView: (how) => (brought = how) });
+    assert.deepEqual(brought, { block: "nearest" }, "the rows, as they mount, scrolled to where they are seen whole");
     // Approved, the next run waiting opens.
     await press(byTestId(tree, "bc-sheet-approve"));
     assert.deepEqual(approved, ["b-wait"]);
@@ -1011,13 +1027,20 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       tree = again(props);
       const docks = all(tree, (n) => n.props?.["data-testid"] === "bc-sheet-acts");
       assert.equal(docks.length, 1, "the acts once, at the foot, not again in the sheet's body");
-      assert.equal(docks[0].props["data-foot-pair"], "", "the pane's docked pair");
-      assert.match(
-        textOf(byTestId(docks[0], "bc-sheet-goes")),
-        /^Goes /,
-        "when it goes, beside the Approve it speaks of",
+      // One row, as a sequence's record docks its Approve: when it goes, then Approve. Its line over the button made two
+      // rows in a capsule rounded as one, whose ends cut across the pill's (19 Oct 2026).
+      assert.equal(docks[0].props["data-foot-pair"], undefined, "a row, not the stacked pair");
+      assert.ok(docks[0].props.className.split(" ").includes("bc-dock-row"), docks[0].props.className);
+      const [said, act] = docks[0].props.children.filter(Boolean);
+      assert.equal(said.props["data-testid"], "bc-sheet-goes", "when it goes, first");
+      assert.equal(act.props["data-testid"], "bc-sheet-approve", "then the Approve it speaks of");
+      assert.match(textOf(said), /^Goes /, "when it goes, beside the Approve it speaks of");
+      assert.ok(byTestId(docks[0], "bc-sheet-approve"), "Approve across the foot");
+      assert.equal(
+        byTestId(docks[0], "bc-sheet-see"),
+        null,
+        "who gets it is the sheet's own fold, not a half of the foot",
       );
-      assert.ok(byTestId(docks[0], "bc-sheet-approve") && byTestId(docks[0], "bc-sheet-see"));
       assert.equal(byTestId(docks[0], "bc-sheet-skip"), null, "Skip is in the head's menu, never beside Approve");
       const more = find(tree, (n) => Array.isArray(n.props?.groups) && /^More for /.test(n.props.label ?? ""));
       assert.equal(more.props.label, "More for The month's offer", "the head's menu, named for the run");

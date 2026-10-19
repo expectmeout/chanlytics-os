@@ -3369,6 +3369,39 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 .bc-approval-people {
   margin: 0 0 var(--space-1);
 }
+/* A waiting run's dock on a phone, one row (run-sheet.tsx bcSheetDock): when it goes at the left, Approve at the right,
+   so the capsule stays one row and its round ends hold the pill's. */
+.bc-dock-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.bc-dock-said {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--ink-dim);
+  text-wrap: balance;
+}
+/* A run's dock that stands taller than one row (Skip's question, a run too late to approve, with why) rounds as the kit's
+   foot does: a phone's capsule is a pill (kit.css, [data-takeover]), whose round ends cut across the question's words
+   and the answers under it. One row is still a pill: its height takes the radius down to half of it. */
+@media (max-width: 900px) {
+  .bc-pane .cm-pane-foot:has(> .bc-approval-foot[data-foot-pair]) {
+    border-radius: var(--surface-control-radius);
+  }
+}
+/* Who gets it, folded under its head (run-sheet.tsx WhoGetsIt): the press at the head's right, inside the head's own
+   height, and no rule under a head with nothing open beneath it. */
+.bc-who-press {
+  margin: -6px -8px -6px auto;
+}
+.bc-approval-people[data-open="false"] > .bc-touched-head {
+  border-bottom: 0;
+}
 /* Everyone it touched: its filters (the kit's sub-tabs) on a line under the title, the strip's hairline theirs. */
 .bc-touched-head:has(> .bc-touched-filters) {
   padding-bottom: 0;

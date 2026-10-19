@@ -17195,6 +17195,11 @@ var RUN_WAITING_SHORT = "Waits for you";
 var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
 var runStopDoorWords = (waits) => waits ? "Cancel it" : "Stop it";
 var RUN_OPEN_WORDS = "Open the run";
+var WHO_GETS_IT_WORDS = {
+  head: "Who gets it",
+  show: "Show who gets it",
+  hide: "Hide who gets it"
+};
 var RUN_UNNAMED_WORDS = "Run";
 function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
@@ -22528,8 +22533,6 @@ function reachOutRunWordsOf(r2, p) {
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r2.skipped),
-    // Today's and the coming days' as the reach line counts them: "See the 30 today and 12 later".
-    see: checked.length === 0 ? null : checked.length > r2.today ? `See the ${r2.today} today and ${checked.length - r2.today} later` : `See the ${checked.length}`,
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
     list: checked.map((x) => {
       const ms2 = Date.parse(x.send_at);
@@ -22548,7 +22551,8 @@ function reachOutRunWordsOf(r2, p) {
     // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
     approved: owner ? `${r2.chain_name} approved \u2014 ${plural(r2.today + r2.later, "email", "emails")} to send from your inbox, handed to you as each is checked` : r2.today === 0 && r2.later > 0 ? `${r2.chain_name} approved \u2014 ${plural(r2.later, "email", "emails")} in the coming days, in their hours` : `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
-    listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
+    // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; none while nothing is checked.
+    listHead: r2.checking > 0 ? `${WHO_GETS_IT_WORDS.head} \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : WHO_GETS_IT_WORDS.head
   };
 }
 var RETIMED = "re-timed in their hours";
@@ -22685,7 +22689,6 @@ var REACH_OUT_RUN_LABELS = {
   approving: "Approving\u2026",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
-  hide: "Hide the list",
   hideHeld: "Hide them",
   deciding: "Saying so\u2026",
   rechecking: "Checking again\u2026",
@@ -61857,6 +61860,7 @@ export {
   WHATSAPP_COST_WORDS,
   WHATSAPP_LANGUAGES,
   WHATSAPP_VERSION_ALONE,
+  WHO_GETS_IT_WORDS,
   WHY_FROM_MAPS,
   WORKSPACE_ENDED_WORDS,
   WORKSPACE_LOGOS_BUCKET,

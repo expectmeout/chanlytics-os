@@ -5140,6 +5140,11 @@ footer.rec-sheet-foot .btn {
   [data-foot-pair][data-foot-pair] > :where(:not(.btn)):empty {
     display: none;
   }
+  /* A question in the pair's place (a run's Skip, asked in its dock): its words inset as the pair's line is, so they do
+     not stand on the foot's rim; its answers keep the foot's inset, as the pair's do. */
+  [data-foot-pair][data-foot-pair] > .confirm .confirm-words {
+    padding: 8px 10px 2px;
+  }
 }
 
 /* A record sheet from the bottom, on a phone (data-phone: the record kit's own width, which the component reads, as

@@ -248,13 +248,15 @@ test("on a phone a waiting reach-out run docks its acts at the pane's foot and S
     assert.equal(byTestId(docks[0], "ro-run-skip"), null, "Skip is in the head's menu, never beside Approve");
     press(byTestId(docks[0], "ro-run-approve"));
     assert.equal(sheet.approved, 1, "Approve from the dock");
-    // Who gets it, on asking from the dock, opens in the block and is brought into view as it opens.
-    press(byTestId(docks[0], "ro-run-see"));
+    // Who gets it is the block's own fold, its press at its head's right, not a half of the dock (19 Oct 2026); opened,
+    // its rows are brought into view as they open.
+    assert.equal(byTestId(docks[0], "ro-run-see"), null, "no list press in the dock");
+    press(byTestId(tree, "ro-run-list-press"));
     tree = redraw();
     const list = byTestId(tree, "ro-run-list");
-    assert.ok(list, "who gets it");
+    assert.equal(list.props["data-open"], "true", "who gets it, opened");
     let brought = null;
-    list.props.ref({ scrollIntoView: (how) => (brought = how) });
+    find(list, (n) => typeof n.props?.ref === "function").props.ref({ scrollIntoView: (how) => (brought = how) });
     assert.deepEqual(brought, { block: "nearest" });
     const more = find(tree, (n) => Array.isArray(n.props?.groups) && /^More for /.test(n.props.label ?? ""));
     assert.equal(more.props.label, "More for Reach out · Personal trainers");
@@ -281,7 +283,7 @@ test("R21: a run from an earlier day goes from now, re-timed in their hours, nev
   assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve — 30 from now");
   assert.match(textOf(byTestId(tree, "ro-run-sub")), /goes from now, re-timed in their hours/);
   assert.doesNotMatch(textOf(byTestId(tree, "ro-run-acts")), new RegExp(FIRST_TIME));
-  press(byTestId(tree, "ro-run-see"));
+  press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(lines(tree, "ro-run-person"), ["Studio Twore-timed in their hours"], "never its old time");
 });
@@ -295,12 +297,12 @@ test("R21: today's run whose first time has passed goes from now, and who gets i
   const redraw = await open({ sheet: SHEET() });
   let tree = redraw();
   assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve — 30 from now");
-  press(byTestId(tree, "ro-run-see"));
+  press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(lines(tree, "ro-run-person"), ["Studio Twore-timed in their hours"]);
 });
 
-test("who gets it: by day and time, today's and the coming days' counted as the reach line counts them", async () => {
+test("who gets it: folded under its head, then by day and time, today's and the coming days'", async () => {
   const tomorrow = FIRST_MS + 86_400_000;
   world(
     "scheduled",
@@ -315,8 +317,10 @@ test("who gets it: by day and time, today's and the coming days' counted as the 
   );
   const redraw = await open();
   let tree = redraw();
-  assert.equal(textOf(byTestId(tree, "ro-run-see")), "See the 1 today and 1 later");
-  press(byTestId(tree, "ro-run-see"));
+  const fold = byTestId(tree, "ro-run-list");
+  assert.equal(textOf(fold).trim(), contracts.WHO_GETS_IT_WORDS.head, "closed, the head alone");
+  assert.equal(byTestId(fold, "ro-run-list-press").props["aria-label"], contracts.WHO_GETS_IT_WORDS.show);
+  press(byTestId(fold, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(lines(tree, "ro-run-person"), [
     `Studio Two${contracts.clockWhen(FIRST_MS, ZONE, Date.now())}`,
@@ -330,7 +334,7 @@ test("R21: while some are being checked, Approve says so, and who gets it names 
   let tree = redraw();
   assert.equal(textOf(byTestId(tree, "ro-run-approve-note")), "12 more are being checked; they go once they pass.");
   assert.match(textOf(byTestId(tree, "ro-run-why")), /The receptionist is checking 12 more/);
-  press(byTestId(tree, "ro-run-see"));
+  press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(
     lines(tree, "ro-run-person"),
@@ -425,7 +429,7 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     press(held);
     assert.deepEqual(went, [contracts.addressOf({ kind: "lead", id: LEAD_HELD })]);
     assert.equal(went[0], `clients/leads:p-${LEAD_HELD}`);
-    press(byTestId(tree, "ro-run-see"));
+    press(byTestId(tree, "ro-run-list-press"));
     tree = redraw();
     const ready = all(tree, (n) => n.props?.["data-testid"] === "ro-run-person");
     assert.equal(ready.length, 2);
