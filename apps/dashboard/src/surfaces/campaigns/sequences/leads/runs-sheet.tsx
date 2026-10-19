@@ -1,0 +1,289 @@
+/**
+ * How it runs (the lead-to-sequence canvas's board B: one sheet, saved as you change it): who joins (unconfirmed addresses
+ * too, with how many that holds now; new ready leads from the search they came from, on their own) and how it sends
+ * (where from, the most a day, who approves as a fact that opens Autonomy, the name it signs with, the footer every email
+ * carries). Each change is the chain's own save (use-chain.ts), the auto-add switch at once.
+ */
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  LEAD_BUILD_WORDS,
+  REACH_OUT_DRAFTS_PER_DAY,
+  REACH_OUT_LANGUAGE,
+  addressOf,
+  chainPaceOf,
+  emailFoot,
+  leadApprovesOf,
+  leadPaceChoicesOf,
+  whyFrom,
+  type SequenceRecordDto,
+} from "@chanlytics/contracts";
+import { Button } from "../../../kit/button/button";
+import { Field } from "../../../kit/field/field";
+import { Icon } from "../../../kit/icon/icon";
+import { LinkButton } from "../../../kit/link-button/link-button";
+import { Picker } from "../../../kit/picker/picker";
+import { Sheet } from "../../../kit/sheet/sheet";
+import { Switch } from "../../../kit/switch/switch";
+import { focusAsDrawn, gate, navigate, openAutonomy, routeDoor } from "../../../legacy-verbs";
+import { cmChevron } from "../../parts/picks";
+import { reachOuts } from "../../reach-out/surface";
+import { brainOf } from "../../templates/words";
+import { surfaceValue } from "../../../surface-values";
+import type { LeadChain } from "./use-chain";
+
+const R = LEAD_BUILD_WORDS.runs;
+
+/** One row of the sheet: what it is (and the line under), and its control or value at its end. */
+function RunsRow(p: { k: string; sub?: string | null; end: ReactNode; testid: string }) {
+  return (
+    <div className="ld-runs-row" data-testid={p.testid}>
+      <span className="ld-runs-k">
+        <span>{p.k}</span>
+        {p.sub ? <span className="ld-runs-sub">{p.sub}</span> : null}
+      </span>
+      <span className="ld-runs-end">{p.end}</span>
+    </div>
+  );
+}
+
+/** How many of the list's leads an unconfirmed address holds now: the list's reach, read as the sheet opens. */
+function useHeldNow(listId: string | null): number | null {
+  const [reach, setReach] = useState(() => (listId ? reachOuts.reachHeld(listId) : null));
+  useEffect(() => {
+    if (!listId) return undefined;
+    let live = true;
+    void reachOuts.reach(listId).then((r) => {
+      if (live && r) setReach(r);
+    });
+    return () => {
+      live = false;
+    };
+  }, [listId]);
+  return reach ? Math.max(0, reach.with_unconfirmed - reach.ready) : null;
+}
+
+/** The search new ready leads join from: the one it adds from now, else the finder search most of its leads came from. */
+function autoAddSourceOf(rec: SequenceRecordDto): { id: string; name: string } | null {
+  const first = rec.sequence.first;
+  if (first?.source_search_id) return { id: first.source_search_id, name: first.source_name ?? "" };
+  return first?.source_could ?? null;
+}
+
+/** The footer's lines as the send writes them, or none while the business's name or address is missing. */
+function footLines(): string | null {
+  const brain = brainOf(surfaceValue("settings")?.settings);
+  try {
+    return emailFoot(
+      brain.business_name ?? "",
+      typeof brain.profile?.address === "string" ? brain.profile.address : null,
+      { kind: "cold", why: whyFrom("local_businesses"), unsubscribeUrl: null },
+      REACH_OUT_LANGUAGE,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** The footer every email carries, as a business reads it; or why there is none yet. */
+function FooterLines() {
+  const lines = footLines();
+  return lines ? (
+    <p className="ld-runs-foot" data-testid="ld-runs-footer-lines">
+      {lines}
+    </p>
+  ) : (
+    <p className="ld-runs-foot is-warn" data-testid="ld-runs-footer-lines">
+      {R.noAddress} <LinkButton {...routeDoor(addressOf({ kind: "facts" }))}>{LEAD_BUILD_WORDS.add}</LinkButton>
+    </p>
+  );
+}
+
+/** Who joins: unconfirmed addresses too (with how many that holds now), and new ready leads from its search. */
+function WhoJoins({ rec, lc }: { rec: SequenceRecordDto; lc: LeadChain }) {
+  const d = lc.draft;
+  const first = rec.sequence.first;
+  const held = useHeldNow(first?.search_id ?? null);
+  const source = autoAddSourceOf(rec);
+  return (
+    <section className="ld-runs-sec">
+      <p className="ld-runs-h">{R.who}</p>
+      <div className="ld-runs-box">
+        <RunsRow
+          k={R.unconfirmed}
+          sub={held !== null && held > 0 ? R.heldNow(held) : null}
+          testid="ld-runs-unconfirmed"
+          end={
+            <Switch
+              checked={d.include_unconfirmed}
+              onCheckedChange={(on) => lc.edit((x) => ({ ...x, include_unconfirmed: on }))}
+              label={R.unconfirmed}
+              data-testid="ld-runs-unconfirmed-switch"
+            />
+          }
+        />
+        <RunsRow
+          k={R.autoAdd}
+          sub={source ? source.name : R.noSearch}
+          testid="ld-runs-auto-add"
+          end={
+            <Switch
+              checked={!!first?.source_search_id}
+              onCheckedChange={(on) => lc.setSource(on && source ? source.id : null)}
+              readOnly={!source}
+              label={R.autoAdd}
+              data-testid="ld-runs-auto-add-switch"
+            />
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+interface RunsSheetProps {
+  open: boolean;
+  rec: SequenceRecordDto;
+  lc: LeadChain;
+  onClose: () => void;
+}
+
+export function LeadRunsSheet({ open, rec, lc, onClose }: RunsSheetProps) {
+  const d = lc.draft;
+  const [footer, setFooter] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const mailboxes = lc.chain.mailboxes;
+  const paces = leadPaceChoicesOf(mailboxes);
+  const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
+  const close = () => {
+    void lc.flush();
+    onClose();
+  };
+  const sendsFrom = [
+    { value: "inbox", label: R.inbox },
+    ...(mailboxes.length > 0 ? [{ value: "mailboxes", label: R.mailboxes(mailboxes.length) }] : []),
+  ];
+  return (
+    <Sheet
+      open={open}
+      onClose={close}
+      title={R.title}
+      sub={lc.saving === "saving" ? LEAD_BUILD_WORDS.saving : R.sub}
+      close={{ label: LEAD_BUILD_WORDS.done, glyph: <Icon name="x" size={13} /> }}
+      backCloses
+      testid="ld-runs"
+      foot={
+        <div className="ld-foot">
+          <span className="ld-foot-said" />
+          <Button variant="primary" onClick={close} data-testid="ld-runs-done">
+            {LEAD_BUILD_WORDS.done}
+          </Button>
+        </div>
+      }
+    >
+      <WhoJoins rec={rec} lc={lc} />
+      <section className="ld-runs-sec">
+        <p className="ld-runs-h">{R.sending}</p>
+        <div className="ld-runs-box">
+          <RunsRow
+            k={R.sendsFrom}
+            testid="ld-runs-from"
+            end={
+              <Picker
+                label={R.sendsFrom}
+                value={d.owner_sends || mailboxes.length === 0 ? "inbox" : "mailboxes"}
+                onValueChange={(v) => lc.edit((x) => ({ ...x, owner_sends: v === "inbox" }))}
+                groups={[{ options: sendsFrom }]}
+                chevron={cmChevron()}
+                inline
+                data-testid="ld-runs-from-pick"
+              />
+            }
+          />
+          <RunsRow
+            k={R.aDay}
+            sub={
+              d.owner_sends || paces.length === 0
+                ? R.youPace
+                : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null)
+            }
+            testid="ld-runs-day"
+            end={
+              d.owner_sends || paces.length === 0 ? (
+                <b className="tabular">{d.owner_sends ? REACH_OUT_DRAFTS_PER_DAY : share}</b>
+              ) : (
+                <Picker
+                  label={R.aDay}
+                  value={String(paces.find((p) => p.gap === d.gap_minutes)?.gap ?? paces.at(0)?.gap ?? "")}
+                  onValueChange={(v) => lc.edit((x) => ({ ...x, gap_minutes: Number(v) }))}
+                  groups={[
+                    { options: paces.map((p) => ({ value: String(p.gap), label: String(p.share), sub: p.hint })) },
+                  ]}
+                  chevron={cmChevron()}
+                  inline
+                  data-testid="ld-runs-day-pick"
+                />
+              )
+            }
+          />
+          <RunsRow
+            k={R.approves}
+            sub={R.inAutonomy}
+            testid="ld-runs-approves"
+            end={
+              <LinkButton onClick={openAutonomy} data-testid="ld-runs-approves-open">
+                {leadApprovesOf(rec.mode)}
+              </LinkButton>
+            }
+          />
+          <RunsRow
+            k={R.signed}
+            testid="ld-runs-signed"
+            end={
+              <LinkButton
+                aria-expanded={signing}
+                onClick={() => setSigning((on) => !on)}
+                data-testid="ld-runs-signed-open"
+              >
+                {d.signed_by.trim() || R.signedNone}
+              </LinkButton>
+            }
+          />
+          {signing ? (
+            <div className="ld-runs-edit">
+              <Field
+                label={R.signed}
+                value={d.signed_by}
+                maxLength={60}
+                // eslint-disable-next-line jsx-a11y-x/no-autofocus -- Change opened it to type the name
+                autoFocus={focusAsDrawn()}
+                onValueChange={(v) => lc.edit((x) => ({ ...x, signed_by: v }))}
+                data-testid="ld-runs-signed-field"
+              />
+            </div>
+          ) : null}
+          <RunsRow
+            k={R.footer}
+            testid="ld-runs-footer"
+            end={
+              <LinkButton
+                aria-expanded={footer}
+                onClick={() => setFooter((on) => !on)}
+                data-testid="ld-runs-footer-open"
+              >
+                {R.footerValue}
+              </LinkButton>
+            }
+          />
+          {footer ? <FooterLines /> : null}
+        </div>
+      </section>
+      {mailboxes.length === 0 ? (
+        <p className="ld-note">
+          <LinkButton onClick={() => navigate(addressOf({ kind: "channel" }))} {...gate("approve")}>
+            {R.connect}
+          </LinkButton>
+        </p>
+      ) : null}
+    </Sheet>
+  );
+}

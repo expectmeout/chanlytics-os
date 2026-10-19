@@ -16,6 +16,7 @@ import {
   type ReachOutSourceDto,
 } from "@chanlytics/contracts";
 import {
+  aimSearchAt,
   leadAddresseeChoose,
   leadMemberLater,
   leadsBackToday,
@@ -45,6 +46,18 @@ export async function addToReachOut(
       409,
     );
   return data;
+}
+
+/** The sequence a search's Add goes to, or none (00459 lead_search_aim): kept on the search. */
+export async function aimSearch(
+  ctx: Ctx,
+  tenantId: string,
+  searchId: string,
+  sequenceId: string | null,
+): Promise<{ search_id: string; adds_to: string | null }> {
+  const r = await aimSearchAt(ctx.supabase, { tenantId, searchId, sequenceId });
+  if (r.error) throw dbRefusal(r.error);
+  return r.data;
 }
 
 /** Later: a lead of a search put off in this pass, with its undo's id and version. */

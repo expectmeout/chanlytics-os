@@ -76,6 +76,8 @@ export interface LeadPeekVM {
   where: { line: string; href: string | null } | null;
   today: string | null;
   claimedNote: string | null;
+  /** Whether its owner claimed the listing, where the listing says: About's Listing row (the lead sheet, 00459). */
+  claimed: boolean | null;
   /* ---- D5: the peek re-cut ---- */
   /**
    * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
@@ -315,6 +317,12 @@ function leadRated(r: LeadRowDto): LeadPeekVM["rated"] {
   };
 }
 
+/** Whether its owner claimed the listing, where the listing says, and the note an unclaimed one carries. */
+const claimOf = (r: Pick<LeadRowDto, "claimed">) => ({
+  claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
+  claimed: r.claimed ?? null,
+});
+
 /** The checks' head in a line: how many passed, couldn't tell and failed; nothing where none was made. */
 function checksSummaryOf(checks: ReadonlyArray<{ answer: string }>): string {
   if (checks.length === 0) return "";
@@ -421,7 +429,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     company: leadCompanyOf(r),
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
-    claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
+    ...claimOf(r),
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
     cls: m.class,

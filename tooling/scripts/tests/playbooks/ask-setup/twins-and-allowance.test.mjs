@@ -122,7 +122,7 @@ const tables = (over = {}) => ({
   memberships: [
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
-  tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+  tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }],
   // With its postal address: a broadcast's email is the business's news, an offer at the door, whose foot names it (decision D2).
   tenant_config: [
     {

@@ -1,7 +1,8 @@
 /**
  * What the kit's toast takes, proved where the compiler reads it (toast.tsx): `useToast` takes the glyphs a toast
- * draws, one for each of the house's four tones and its ×, and answers the stack to draw and the flash that raises a
- * toast; a flash takes its words, its tone, an Undo or one act, how long it stays and a name. A glyph missing for a
+ * draws, one for each of the house's four tones (no ×: a press besides a toast takes it), and answers the stack to
+ * draw and the flash that raises a toast; a flash takes its words, its tone, an Undo or one act, how long it stays, a
+ * name and whether it stays through a press besides it (a send's Undo). A glyph missing for a
  * tone, a tone the house does not have, a toast with no words and an act with no words stop compiling.
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line
@@ -21,16 +22,18 @@ function _toastTakes(glyph: ReactElement, flash: ReturnType<typeof useToast>[1],
     Holds<Exactly<Parameters<typeof useToast>, [glyphs: ToastGlyphs]>>,
     Holds<Exactly<ReturnType<typeof useToast>, [ReactNode, (flash: ToastFlash) => void]>>,
     Holds<Exactly<ToastFlash["tone"], ToastTone | undefined>>,
-    Holds<Exactly<keyof ToastGlyphs, ToastTone | "dismiss">>,
+    Holds<Exactly<keyof ToastGlyphs, ToastTone>>,
   ];
-  const _every: ToastGlyphs = { ok: glyph, info: glyph, warn: glyph, danger: glyph, dismiss: glyph };
+  const _every: ToastGlyphs = { ok: glyph, info: glyph, warn: glyph, danger: glyph };
   flash({ msg: "Saved." });
   flash({ msg: "Not sent.", tone: "danger", action: { label: "Try again", onPress: () => undefined }, once: "send" });
   // An Undo as long as the window the page knows.
   flash({ msg: "Taken off Regulars.", undo: () => undefined, ms: window.ms });
+  // A send's Undo, which a press besides it does not take.
+  flash({ msg: "Sends in 15 s.", undo: () => undefined, ms: window.ms, stays: true });
 
-  // @ts-expect-error a glyph for each of the four tones, and the ×
-  const _short: ToastGlyphs = { ok: glyph, info: glyph, warn: glyph, dismiss: glyph };
+  // @ts-expect-error a glyph for each of the four tones
+  const _short: ToastGlyphs = { ok: glyph, info: glyph, warn: glyph };
   // @ts-expect-error its tones are the house's four
   flash({ msg: "Saved.", tone: "accent" });
   // @ts-expect-error a toast says something

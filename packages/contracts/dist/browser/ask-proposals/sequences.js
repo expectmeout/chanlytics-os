@@ -3,12 +3,14 @@ import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach
 import { toSendSaidWords } from "../reach-out/reach-out-approval.js";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address.js";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test.js";
+import { leadsRoute } from "../leads/lead-plan.js";
 import {
   asText,
   decisionOf,
   idIn,
   rec,
   refuseWith,
+  uniqueIds,
   PROPOSAL_WORDS
 } from "./spec.js";
 const STEP_FIELDS = ["after_days", "only_if", "channels", "name", "params"];
@@ -164,7 +166,12 @@ export const sequenceTestSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "sequence_id");
     const step = idIn(pl, "step_id");
-    return id && step ? { route: "POST sequences/[id]/steps/[step]/test", params: { id, step } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const lead = idIn(pl, "lead_id");
+    return id && step ? {
+      route: "POST sequences/[id]/steps/[step]/test",
+      params: { id, step },
+      ...lead ? { body: { lead_id: lead } } : {}
+    } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: (_p, data) => SEQUENCE_TEST_WORDS.sent(asText(rec(data).to) || "you"),
   open: openSequence
@@ -174,6 +181,10 @@ export const sequenceMakeSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => {
     const first = rec(pl.first);
+    if (first.starts === "leads") {
+      if (!asText(first.name).trim()) return refuseWith("Name it.");
+      return { route: "POST sequences", body: { first, then: [], start: pl.start === true } };
+    }
     if (!idIn(first, "template_id") || typeof first.trigger !== "string")
       return refuseWith("Say what starts it and the message it sends first.");
     return {
@@ -181,7 +192,18 @@ export const sequenceMakeSpec = {
       body: { first, then: Array.isArray(pl.then) ? pl.then : [], start: pl.start === true }
     };
   },
-  receipt: (_p, data) => rec(data).state === "on" ? "The sequence is on" : "Kept as a draft: nothing goes yet",
+  receipt: ({ payload: pl }, data) => {
+    const first = rec(pl.first);
+    const on = rec(data).state === "on";
+    if (first.starts !== "leads") return on ? "The sequence is on" : "Kept as a draft: nothing goes yet";
+    const name = asText(first.name).trim();
+    const added = Number(rec(data).added) || 0;
+    const lead = asText(pl.lead_name);
+    const draft = on ? "" : " (draft)";
+    if (added === 1 && lead) return `Added ${lead} to ${name}${draft}`;
+    if (added > 0) return `Added ${plural(added, "lead", "leads")} to ${name}${draft}`;
+    return on ? `\u201C${name}\u201D is on` : `\u201C${name}\u201D is a draft: nothing goes yet`;
+  },
   undo: {
     label: () => "Take it away",
     window: "ten_minutes",
@@ -236,6 +258,91 @@ export const sequenceDraftSpec = {
   receipt: () => "Drafted",
   open: () => `${SEQUENCES_ROUTE}/new`
 };
+const openLeads = ({ payload }) => {
+  const id = idIn(payload, "sequence_id");
+  return id ? sequenceRoute(id, "people") : null;
+};
+export const sequenceAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const leads = uniqueIds(pl.lead_ids);
+    return id && leads.length > 0 ? { route: "POST sequences/[id]/leads", params: { id }, body: { lead_ids: leads } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const added = Number(rec(data).added ?? 0);
+    const name = asText(pl.name) || "the sequence";
+    const lead = asText(pl.lead_name);
+    const draft = pl.draft === true ? " (draft)" : "";
+    if (added === 0) return `None could be added to ${name}`;
+    return added === 1 && lead ? `Added ${lead} to ${name}${draft}` : `Added ${plural(added, "lead", "leads")} to ${name}${draft}`;
+  },
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
+    },
+    call: (u) => ({
+      route: "POST lead-operations/[id]/undo",
+      params: { id: asText(u.op_id) },
+      body: { version: Number(u.version ?? 1) }
+    }),
+    receipt: () => "Taken back off its list. Nothing had been written to them."
+  },
+  open: openLeads
+};
+export const sequenceMoveSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const lead = idIn(pl, "lead_id");
+    return id && lead ? { route: "POST sequences/[id]/move", params: { id }, body: { lead_id: lead } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.lead_name) || "The lead"} moved to ${asText(pl.name) || "the sequence"}`,
+  undo: {
+    label: () => "Move back",
+    window: "ten_minutes",
+    record: (p, data) => {
+      const from = asText(rec(data).from);
+      const lead = idIn(p.payload, "lead_id");
+      return from && lead ? { sequence_id: from, lead_id: lead } : null;
+    },
+    call: (u) => {
+      const id = asText(u.sequence_id);
+      const lead = asText(u.lead_id);
+      return id && lead ? { route: "POST sequences/[id]/move", params: { id }, body: { lead_id: lead } } : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "Moved back"
+  },
+  open: openLeads
+};
+export const leadSearchAimSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const search = idIn(pl, "search_id");
+    return search ? { route: "POST lead-searches/[id]/aim", params: { id: search }, body: { sequence_id: idIn(pl, "sequence_id") } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => asText(pl.name) ? `Adds go to ${asText(pl.name)}` : "Adds go nowhere yet",
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: (p) => {
+      const search = idIn(p.payload, "search_id");
+      return search ? { search_id: search, was: idIn(p.payload, "was") } : null;
+    },
+    call: (u) => {
+      const search = asText(u.search_id);
+      return search ? { route: "POST lead-searches/[id]/aim", params: { id: search }, body: { sequence_id: idIn(u, "was") } } : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "The pick is as it was"
+  },
+  open: ({ payload }) => leadsRoute({ searchId: idIn(payload, "search_id"), list: "all", cls: null })
+};
 export const sequenceDiscardSpec = {
   needs: "operator",
   gate: "approve",
@@ -260,9 +367,10 @@ const openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
   return run ? `broadcasts/run:${run}` : null;
 };
+const theirs = (name) => /s$/i.test(name) ? `${name}'` : `${name}'s`;
 const DECIDED = {
-  include: (name) => `${name}'s email goes as it is`,
-  rewrite: (name) => `${name}'s opening is written again`,
+  include: (name) => `${theirs(name)} email goes as written`,
+  rewrite: (name) => `${theirs(name)} opening is written again`,
   skip: (name) => `${name} is left out of this batch`,
   not_a_fit: (name) => `${name} is set aside: not a fit`
 };

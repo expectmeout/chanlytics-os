@@ -3,7 +3,7 @@
 **Status:** built, all but step 7 (PRs #927, #933, #937, #939, #938, #934, all merged 23 September 2026), and
 amended the same day by "The Pipeline is a workspace" and on 24 September by "Your pace", both built, with what the
 first amendment's _Still held_ names still held; and on 18 October 2026 by "Deals for everyone" (below), which
-supersedes "One switch": every workspace has deals, and `tenants.sells_by` is retired. **Step 7 has not happened:** the person's own link has not retired.
+supersedes "One switch": every workspace has deals, and `tenants.sells_by` is retired (dropped by 00460). **Step 7 has not happened:** the person's own link has not retired.
 `contacts.proposal_url` and `set_person_proposal` (00154, rewritten by 00160 to write through to the deal) are still in
 the schema, `apps/dashboard/app/api/v1/contacts/[id]/details/route.ts` still calls the door, and the readers keep their
 fallback to the person's link for someone with no deal (`proposalLinkOf`); the number the step names, 00161, went to
@@ -511,12 +511,13 @@ are always there with a one-line empty state, and cards and nudges appear only w
 - **The word is the workspace's own.** `tenants.appointment_word` (00458; decision 0041's J4), picked on Details'
   What you offer ("What you call a booking", a menu of the five, `appointmentWordVM`), saved through
   `PATCH workspaces`. The three workspaces that said "proposal" have "meeting" stored, so no word they see changed.
-  `appointmentWordOf` reads the stored word, else the retired `sells_by`'s, else appointment, and every page is handed
+  `appointmentWordOf` reads the stored word, else appointment, and every page is handed
   the one word (the server's readers; the browser's `workspace-word.ts`).
 
-The create card and the first run's Check ask nothing of how customers buy. `tenants.sells_by` stays one release,
-written by nothing, read only as the word's fallback on a database 00458 has not reached; a later migration drops it
-with the fallback and `SELLS_BY`.
+The create card and the first run's Check ask nothing of how customers buy. `tenants.sells_by` stayed one release,
+written by nothing and read only as the word's fallback on a database 00458 had not reached; 00460 drops it, with the
+fallback and `SELLS_BY`. Its order is the dashboard first: a dashboard from before 00460 asks for the column, and
+its workspace list then falls back to a row without the word and the logo.
 
 **Either deploy order:** 00458 is additive (a column, its grant, a backfill of the word, `set_person_proposal` without
 its condition, the workspace's notice with the word); a dashboard before it reads `sells_by` and draws what it did, and

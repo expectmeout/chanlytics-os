@@ -629,8 +629,8 @@ test("a proposal follow-up (0006): in every workspace, a run reaches the proposa
     decided_at: iso((28 + i) * D),
   }));
   const people = [out("c1", 20), out("c2", 10), out("c3", 20, { deal_proposal_url: null })];
-  const set = (w, sellsBy) => {
-    workspace(w.tables, A, "ask", { sells_by: sellsBy });
+  const set = (w) => {
+    workspace(w.tables, A, "ask");
     w.tables.templates.push({
       tenant_id: A,
       channel: "whatsapp",
@@ -643,7 +643,7 @@ test("a proposal follow-up (0006): in every workspace, a run reaches the proposa
   };
 
   let w = world({ people: { [A]: people } });
-  set(w, "proposal");
+  set(w);
   const [status, body] = await answer(await knock(press));
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual([body.outcome, body.eligible], ["sent", 1]);
@@ -663,15 +663,9 @@ test("a proposal follow-up (0006): in every workspace, a run reaches the proposa
     people: { [A]: people },
     faults: { "deals.select": { message: "canceling statement due to statement timeout" } },
   });
-  set(w, "proposal");
+  set(w);
   const [, unread] = await answer(await knock(press));
   assert.deepEqual([unread.outcome, unread.eligible], ["sent", 2], "ten days out is past a week");
-
-  // Whatever the retired answer to how customers buy said, it runs (0008, amended 18 Oct 2026): the same one reached.
-  w = world({ people: { [A]: people } });
-  set(w, "booking");
-  const [, booked] = await answer(await knock(press));
-  assert.deepEqual([booked.outcome, booked.eligible], ["sent", 1]);
 });
 
 test("the message is read from its rows by the edge's own port, with or without a WhatsApp row: a follow-up that goes by text runs on a message with only a text version; one filed as an offer cannot go by text; a message with no row at all is a template that is gone; a row that cannot be read fails the run and takes no day", async (t) => {
@@ -716,7 +710,7 @@ test("the message is read from its rows by the edge's own port, with or without 
   const set = (rows, channels, faults = {}) => {
     // The month's texts counted (a text is metered), none sent yet.
     const w = world({ people: { [A]: people }, faults, rpcs: { campaign_month_sent: () => 0 } });
-    workspace(w.tables, A, "ask", { sells_by: "proposal" });
+    workspace(w.tables, A, "ask", { appointment_word: "meeting" });
     w.tables.lines = [
       {
         tenant_id: A,
@@ -812,7 +806,7 @@ test("a proposal is followed up once, whoever sent it (0006): not again after th
     ...over,
   });
   const set = (w, broadcast, recipient) => {
-    workspace(w.tables, A, "ask", { sells_by: "proposal" });
+    workspace(w.tables, A, "ask", { appointment_word: "meeting" });
     w.tables.templates.push({
       tenant_id: A,
       channel: "whatsapp",

@@ -15,8 +15,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
+import { toInboxThreadVM, toBroadcastVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  settle,
+  unmount,
+} from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -120,6 +130,7 @@ const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbo
 const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { getSurfaceStatuses, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
 Object.assign(globalThis, {
   location: {
@@ -294,6 +305,143 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
     chip("escalated"),
     "REGRESSION: the list filtered on the thread's STATE, which stays escalated whoever holds it, while the chip asked what waits on you",
   );
+});
+
+/**
+ * A campaign run waiting for your approval, made for today by the business's clock (contracts runsThatWait asks the days
+ * now, by the real clock, so its day is today's here too), as Sent's runs hold it.
+ */
+const waitingRun = () => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(new Date());
+  const at = new Date().toISOString();
+  return toBroadcastVM(
+    {
+      id: "b-wait",
+      name: `Win-back · ${today}`,
+      template_id: "t-1",
+      template_name: "winback_offer",
+      template_language: "en_US",
+      params: [],
+      audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
+      state: "pending_approval",
+      scheduled_for: at,
+      started_at: null,
+      finished_at: null,
+      recipient_count: 4,
+      failure: null,
+      created_at: at,
+      playbook_id: "pb-1",
+      run_for: today,
+      sequence_id: "q-1",
+      counts: { queued: 4, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
+    },
+    ZONE,
+    new Date(),
+  );
+};
+
+test("a campaign run waiting for your say is a row of Needs you: its chip counts it, the Inbox opens on it, a search stands it aside, and no card says nobody is waiting over it", () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  setSurfaceValue("broadcasts", { rows: [waitingRun()] });
+  try {
+    // Nothing but a Handled thread: the run is all that waits on you, and the Inbox opens where it is.
+    const { seen } = page([unsent]);
+    assert.equal(
+      seen.list.activeBucket,
+      "escalated",
+      "it opened on Handled, and the run waited under a tab of no number",
+    );
+    assert.equal(seen.list.buckets.find((b) => b.id === "escalated").count, 1, "the chip counts it, as the badge does");
+    assert.equal(needsYouNow(), 1, "the badge's own number");
+    const list = (q) => {
+      place.q = q;
+      fresh();
+      return again(() => InboxList(listProps({ threads: [], allThreads: [unsent], activeBucket: "escalated" })));
+    };
+    const tree = list("");
+    const rows = all(tree, (n) => n.props?.["data-testid"] === "inbox-run-row");
+    assert.equal(rows.length, 1, "the run is a row of Needs you");
+    assert.equal(textOf(rows[0]).startsWith("Win-back"), true, "called by its own name, less its day");
+    assert.equal(rows[0].props.href.endsWith("broadcasts/run:b-wait/sheet"), true, "and its door is its sheet");
+    assert.equal(
+      textOf(tree).includes("Nobody's waiting on you"),
+      false,
+      "Needs you with a run in it is not empty: no card says nobody is waiting over the run",
+    );
+    // A search finds threads: the run stands aside while one is typed.
+    const searched = list("rosa");
+    assert.equal(byTestId(searched, "inbox-runs-waiting"), null, "a search stands the run aside");
+  } finally {
+    setSurfaceValue("broadcasts", undefined);
+    globalThis.window.__tabMemory = had;
+  }
+});
+
+test("REGRESSION: a run that Sent's read brings after the Inbox opened on the runs the tab's cache restored moves it to Needs you, unless the member picked a bucket -- it sat on Handled under 'Needs you 1'", () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  // What a new tab's boot holds of Sent's runs: yesterday's, from the tab's cache (surface-cache.ts marks them ready and
+  // gives them no status), none waiting, and no read of them yet. The test reaches into the statuses for that: a tab's
+  // first read is the one thing a test cannot take back.
+  const booted = () => {
+    getSurfaceStatuses().delete("broadcasts");
+    setSurfaceValue("broadcasts", { rows: [] });
+  };
+  // A read lands: its rows first, then its status (surface-runner.ts refreshSurface).
+  const readLands = (rows) => {
+    setSurfaceValue("broadcasts", { rows });
+    setStatus("broadcasts", "live");
+  };
+  try {
+    // Every Inbox drawn above still hears the surface (the stub unmounts nothing): a read with no run waiting settles them.
+    booted();
+    readLands([]);
+    booted();
+    let { seen, render } = page([unsent]);
+    assert.equal(seen.list.activeBucket, "done", "opened where its threads are, by the runs it held, none waiting");
+    readLands([waitingRun()]);
+    render();
+    assert.equal(
+      seen.list.activeBucket,
+      "escalated",
+      "REGRESSION: the cached runs counted as read, so the read that brought today's run moved nothing",
+    );
+    // Only that first read: a run another read brings later never moves a bucket being read.
+    seen.list.onBucketChange("done");
+    delete place.bucket;
+    readLands([waitingRun()]);
+    render();
+    assert.equal(seen.list.activeBucket, "done", "a later read moves nothing");
+
+    // A bucket the member picked holds, though the first read brings a run.
+    unmount();
+    booted();
+    ({ seen, render } = page([unsent]));
+    seen.list.onBucketChange("done");
+    render();
+    readLands([waitingRun()]);
+    render();
+    assert.equal(seen.list.activeBucket, "done", "their own pick holds");
+  } finally {
+    unmount();
+    setSurfaceValue("broadcasts", undefined);
+    globalThis.window.__tabMemory = had;
+  }
 });
 
 test("Needs you holds what waits on you and nothing else: the thread you took over and a teammate's are Handled", () => {

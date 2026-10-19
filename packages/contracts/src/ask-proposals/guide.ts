@@ -36,6 +36,7 @@ const WHY = {
     "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
+  add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -107,6 +108,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "leads_check",
       "lead_addressee",
       "lead_list",
+      "lead_search_aim",
       "reach_out_said",
     ],
     pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }],
@@ -136,6 +138,8 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "sequence_start",
       "playbook_run",
       "sequence_leave",
+      "sequence_add",
+      "sequence_move",
       "sequence_send_decide",
       "sequence_send_said",
       "sequence_discard",
@@ -182,4 +186,7 @@ export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
   sequence_end: WHY.end,
+  sequence_add: WHY.add,
+  sequence_move: WHY.add,
+  lead_search_aim: WHY.add,
 };

@@ -6,8 +6,9 @@ import {
   personName,
   type LeadsQuery,
   type PersonAtLeadDto,
+  type SequencePlaceDto,
 } from "@chanlytics/contracts";
-import { peopleAtLead } from "@chanlytics/db";
+import { peopleAtLead, sequencePlaceOf } from "@chanlytics/db";
 import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
@@ -57,6 +58,33 @@ export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<ty
           label: data.row.business_name,
         },
       ],
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * GET leads/:id/place: where one lead stands in a sequence (00459 sequence_place, the one reader): the sequence its place
+ * stands in (else the last it was in), its row as that sequence's Leads tab files it, each send of its there, and how a
+ * reply is learned of. Null for a lead in no sequence. What the lead sheet's Sequence section draws, and what Ask reads
+ * of one lead's place, so both say what the record says. The sequence is the row a citation names.
+ */
+export const leadPlace: Reader<{ id: string }, SequencePlaceDto | null> = {
+  name: "lead_place",
+  async read(rc, { id }) {
+    const data = await sequencePlaceOf(rc.ctx.supabase, rc.tenantId, id);
+    return {
+      data,
+      rows: data
+        ? [
+            {
+              kind: "playbook" as const,
+              id: data.sequence.id,
+              route: addressOf({ kind: "campaign", id: data.sequence.id }),
+              label: data.sequence.name,
+            },
+          ]
+        : [],
       stamp: stamp(),
     };
   },

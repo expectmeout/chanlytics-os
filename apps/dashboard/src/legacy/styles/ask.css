@@ -145,6 +145,13 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-row-del { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-faint); cursor: pointer; }
 .ask-row.thread:hover .ask-row-del, .ask-row.thread.sel .ask-row-del { display: inline-flex; }
 @media (hover: hover) { .ask-row-del:hover { color: var(--danger); background: var(--danger-soft); } }
+/* Under a finger every conversation wears its ×: it waited for a pointer's hover or the keys' row, and a tap on the row
+   opens it, so a phone could delete nothing (Ruben, 18 Oct 2026). Quiet in the faint ink, its press wider than its 24px
+   box, and still asked about first (the Line's Confirm). */
+@media (pointer: coarse) {
+  .ask-row.thread .ask-row-del { display: inline-flex; position: relative; }
+  .ask-row.thread .ask-row-del::after { content: ""; position: absolute; inset: -6px -10px; }
+}
 .ask-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px; }
 /* Earlier's chip for the rest sits under its rows, a breath below the last. */
 .ask-row + .ask-chips { padding-top: 6px; }

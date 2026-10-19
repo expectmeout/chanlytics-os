@@ -241,7 +241,7 @@ export function vetoRunNotice(
     : "";
   return {
     subject: `Campaign “${name}” sends ${when}: ${who}`,
-    body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`,
+    body: `${who} will be sent “${name}” ${when}. Open the run to stop it before then if it should not go.${trial}`,
   };
 }
 

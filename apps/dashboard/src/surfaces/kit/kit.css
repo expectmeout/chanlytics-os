@@ -125,6 +125,11 @@ a.btn {
   opacity: 0.55;
   transition-duration: 0s;
 }
+/* Under a pointer, pressed or with its menu open as much as at rest: the rule above outranked the house's ring there, so
+   Sort with its menu open showed a key nothing (kit.spec.ts, 19 Oct 2026). */
+.btn-plain:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 
 /* The destructive act, filled: Confirm's Yes for anything that destroys or
    cannot be undone. A touch darker than the tone so its white words hold
@@ -1489,23 +1494,10 @@ a.more-item {
 .pp-toast-cta:hover {
   opacity: 0.85;
 }
-.pp-toast-x {
-  flex-shrink: 0;
-  color: var(--ink-dim);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-@media (hover: hover) {
-  .pp-toast-x:hover {
-    color: var(--ink);
-  }
-}
 /* Under a finger the Undo keeps the size it is drawn (the phone's 28px, mobile.css) and the touch floor's 44px is the
-   press round it. The house's toast has no ×: a tap anywhere besides it takes it (data-bits usePPToast; Ruben,
-   18 Oct 2026), and the ×'s rules above are the kit's own toast's. The toast takes no pan of the page under it, so a
-   pull down or a flick across is the toast's (data-bits touchSwipe). */
+   press round it. No toast has a ×: a tap anywhere besides it, or on its words, takes it (data-bits usePPToast and the
+   kit's toast.tsx; Ruben, 18 Oct 2026). The toast takes no pan of the page under it, so a pull down or a flick across
+   is the toast's (data-bits touchSwipe, Base UI's swipe). */
 @media (pointer: coarse) {
   .pp-toast {
     touch-action: none;
@@ -4236,6 +4228,10 @@ a.list-row {
   border-radius: var(--radius-full);
   background: var(--accent);
 }
+/* Something there needs you: the figure keeps saying how many are there, the dot says one of them waits on you. */
+.subtab-dot.is-warn {
+  background: var(--warn);
+}
 .subtab-bar {
   position: absolute;
   bottom: 0;
@@ -4496,6 +4492,14 @@ a.list-row {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
+}
+/* A key's focus on a chip draws the house's ring over the chip's own depth, as on a picked segment (below): the chips'
+   shadows outranked the ring's rule, so a keyboard walking a row of them saw nothing move (kit.spec.ts, 19 Oct 2026). */
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn:focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+}
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"]:focus-visible {
+  box-shadow: var(--focus-ring), var(--selected-depth);
 }
 @media (max-width: 900px) {
   .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn {
@@ -5698,13 +5702,12 @@ textarea.rec-input,
   line-height: 1.35;
   color: var(--ink-dim);
 }
-/* On a phone a figure is half a strip, and the period before was cut short beside the number ("none the 7 days befo…"):
-   it wraps there instead, at two lines at most, as the line under it does (7 Oct 2026). */
-@media (max-width: 900px) {
-  .figure-change {
-    display: -webkit-box;
-    white-space: normal;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
+/* The period before, cut short beside the number ("none the 7 days befo…"), wraps instead, at two lines at most, as the
+   line under it does: on a phone, where a figure is half a strip (7 Oct 2026), and on a desk too, where a strip of five
+   cut "was 3 of 3 the 30 days b…" beside a wider number (the sample walk, 18 Oct 2026). */
+.figure-change {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

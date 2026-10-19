@@ -27,20 +27,17 @@ import { log } from "@/server/log";
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
- * (appointmentWordOf): the word it picked, else the one its retired sells_by gave it, else "appointment". On a database
- * 00458 has not reached the read asks for sells_by alone, and one that cannot be read says "appointment": either
- * deploy order works, and a word never costs the page. The one read every server page and Ask share.
+ * (appointmentWordOf): the word it picked, else "appointment", which a row that cannot be read says too (a database
+ * 00458 has not reached among them): a word never costs the page. The one read every server page and Ask share.
  */
 export async function appointmentWordRead(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
 ): Promise<AppointmentWord> {
   const read = (columns: string) => ctx.supabase.from("tenants").select(columns).eq("id", tenantId).maybeSingle();
-  let r = await read("appointment_word, sells_by");
-  if (r.error && /\bappointment_word\b/.test(r.error.message)) r = await read("sells_by");
-  const row = (r.error ? null : r.data) as { appointment_word?: unknown; sells_by?: unknown } | null;
-  const said = (v: unknown) => (typeof v === "string" ? v : null);
-  return appointmentWordOf({ stored: said(row?.appointment_word), sellsBy: said(row?.sells_by) });
+  const r = await read("appointment_word");
+  const word = r.error ? null : (r.data as { appointment_word?: unknown } | null)?.appointment_word;
+  return appointmentWordOf(typeof word === "string" ? word : null);
 }
 
 /** Whether a deal was ever recorded here (packages/db dealOnFile), under the member's own RLS. */

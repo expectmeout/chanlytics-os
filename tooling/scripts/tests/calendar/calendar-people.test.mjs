@@ -201,7 +201,7 @@ async function profileOf(tables = {}, faults = {}) {
           created_at: "2026-01-01T00:00:00Z",
         },
       ],
-      tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, sells_by: null }],
+      tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ }],
       contacts: [
         {
           id: MARIA,
@@ -1461,7 +1461,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
         memberships: [
           { user_id: "u1", tenant_id: HARBOR, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
         ],
-        tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+        tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, appointment_word: "meeting" }],
         tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN } }],
         policies: [],
         deals: [],

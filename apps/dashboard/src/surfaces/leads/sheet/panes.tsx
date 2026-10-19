@@ -1,32 +1,29 @@
 /**
- * The lead sheet at full height (the refined canvas, 17 Oct 2026: three tabs, in Sequences' words). Why: the checks,
- * what did not pass first and the rest folded under "N passed", with one legend for a mark seen and a mark read (its
- * decision 07); the listing's reasons and its own facts, the company, and how it was found. Contact: where the sequence writes, each way in and how it was checked with its acts, the people there, the
- * address and the week, the links. Sequence: where they stand in it on the record's rail of days, Take out under it and
- * the record a press away; before a sequence has them, the email they would get, its steps and its variables. The dock
- * stays under them, so a decision is one thumb away on every tab.
+ * The lead sheet raised: a record of the lead, one scroll, nothing behind a tab (the canvas "Lead to sequence,
+ * redesigned", its PhoneFull, PhoneFullMore and PhoneInIt boards). Fit: the verdict's checks, what did not pass first and
+ * the rest folded under "N passed". About: what its listing says, said once. Contact: the address the sequence writes to
+ * and how it checked, the people there with Write here, the phone and the site. Sequence: their place, on the record's
+ * rail drawn for one lead, with Take out under it and the record a press away; before a sequence has them, the rail as
+ * they'd get it from the pick. How we found them: the trail, one small section.
  *
- * Hookless: the sheet hands down the lead, its card, its acts and what the tabs read. Every word is contracts'.
+ * Hookless: the sheet hands down the lead, its facts and its acts. Every word is contracts'.
  */
 import type { ReactNode } from "react";
 import {
-  LEAD_CARD_TABS,
-  LEAD_CARD_WORDS,
   LEAD_SHEET_CARD_WORDS as CW,
   LEAD_SHEET_WORDS as W,
-  LEAD_WORDS,
+  PLACE_RAIL_WORDS,
   leadSheetAboutOf,
-  type LeadCardTab,
+  leadSheetExceptionWords,
+  type LeadCardEmailVM,
+  type LeadCardStepVM,
   type LeadPeekVM,
-  type LeadPlaceVM,
-  type LeadSheetBoxVM,
   type LeadSheetCheckVM,
-  type LeadSheetState,
-  type LeadSheetTrackVM,
   type LeadSheetWhyVM,
 } from "@chanlytics/contracts";
+import { EmailAs } from "../../campaigns/sequences/place/email-as";
+import { PlaceRail } from "../../campaigns/sequences/place/rail";
 import { Button } from "../../kit/button/button";
-import { CopyButton } from "../../kit/copy-button/copy-button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gate } from "../../legacy-verbs";
@@ -35,81 +32,42 @@ import { ldCheckMark } from "../peek/hint";
 import { LeadPeekParts } from "../peek/info";
 import { LeadPeekCompany, LeadPeekPeople } from "../peek/people";
 import type { PeekActs } from "../peek/types";
-import type { LeadCardFacts } from "../pile/card";
-import { SheetMail, SheetParts, SheetTrack } from "./parts";
+import type { SheetFacts } from "./facts";
 
-/** The tabs' own words. */
-const TAB_WORDS = W.panes;
-
-/** What the panes read beside the lead: its card, its acts, its place in a sequence, and the email's head. */
-interface PaneProps {
-  vm: LeadPeekVM;
-  card: LeadCardFacts;
-  /** The lead's state: a lead with no email to write to is shown no sequence's email. */
-  state: LeadSheetState;
-  /** Why's checks: what did not pass, the rest, their count and whether a legend is owed. */
-  why: LeadSheetWhyVM | null;
-  on: PeekActs;
-  stand: { title: string; line: string };
-  /** The email's head: the sequence's name and what follows it, and its Change. */
-  mail: { head: string; sub: string; canChange: boolean; onChange: () => void } | null;
-  track: LeadSheetTrackVM | null;
-  place: LeadPlaceVM | null;
-  box: LeadSheetBoxVM;
-  /** The record, opened with the way back to this lead. */
-  onOpenRecord: (rootId: string) => void;
-  /** Take out of the sequence they are in: the leave verb, whose undo is Put back. */
-  onTakeOut: (() => void) | null;
-  busy: boolean;
-}
-
-/** A pane's heading, with a quiet word at its end. */
-const paneHeadOf = (words: string, end?: string | null) => (
+/** A section's heading, with a quiet word at its end. */
+const sectionHeadOf = (words: string, end?: ReactNode) => (
   <div className="lw-h">
     <span>{words}</span>
     {end ? <span className="lw-h-s">{end}</span> : null}
   </div>
 );
 
-/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
-const allOf = (vm: LeadPeekVM) =>
-  [
-    vm.name,
-    vm.sub,
-    vm.where ? vm.where.line : null,
-    vm.reach.phone ? vm.reach.phone.value : null,
-    vm.reach.email.address,
-    vm.links.website ? vm.links.website.href : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
 /** One check: its mark (seen, read, couldn't tell, failed), its words, and its source. */
-const checkRow = (c: LeadSheetCheckVM) => (
+const checkRow = (c: LeadSheetCheckVM, exception = false) => (
   <div
     key={`${c.how}-${c.key}`}
     className={`lw-ck ${c.how}${c.answer === "no" ? " no" : ""}`}
     data-testid={`peek-check-${c.key}-open`}
   >
     {ldCheckMark(c.how, c.answer)}
-    <span>{c.label}</span>
+    <span>{exception ? leadSheetExceptionWords(c.key, c.label) : c.label}</span>
     <span className="lw-src">{c.source}</span>
   </div>
 );
 
-/** Why's checks: what did not pass first, the rest folded under "N passed", and the legend where a check was read. */
-const whyChecksOf = (why: LeadSheetWhyVM) => (
-  <>
-    {paneHeadOf(CW.checksHead, why.count)}
+/** Fit: what did not pass first, the rest folded under "N passed", and the legend where a check was read. */
+const fitOf = (why: LeadSheetWhyVM) => (
+  <section className="lw-sec" aria-label={W.sections.fit} id="lead-sheet-fit" data-testid="lead-sheet-sec-fit">
+    {sectionHeadOf(W.sections.fit, W.fitChecks(why.passed.length, why.passed.length + why.exceptions.length))}
     <div className="lw-cks" data-testid="peek-checks-open">
-      {why.exceptions.map(checkRow)}
+      {why.exceptions.map((c) => checkRow(c, true))}
       {why.passed.length ? (
         <details className="lw-fold" open={!why.exceptions.length} data-testid="lead-sheet-passed">
           <summary className="lw-fold-s">
-            <Icon name="chevron" size={11} />
-            {why.fold}
+            <Icon name="check" size={11} />
+            {W.passed(why.passed.length)}
           </summary>
-          {why.passed.map(checkRow)}
+          {why.passed.map((c) => checkRow(c))}
           {why.legend ? (
             <p className="lw-legend">
               <span>
@@ -125,45 +83,34 @@ const whyChecksOf = (why: LeadSheetWhyVM) => (
         </details>
       ) : null}
     </div>
-  </>
+  </section>
 );
 
-/** Why: the checks, the listing's facts, the company, and how it was found (its reasons are the card's own line). */
-const whyPane = ({ vm, on, why }: PaneProps) => {
-  // The listing's own facts, each said once: the address and the week are Contact's.
-  const listing = leadSheetAboutOf(vm).rows.filter((r) => r.k !== "Address" && r.k !== "Hours");
+/** About: what its listing says, said once (the rating is the head's), its own words first. */
+const aboutSectionOf = (vm: LeadPeekVM, on: PeekActs) => {
+  const about = leadSheetAboutOf(vm);
+  if (!about.text && !about.rows.length && !vm.company) return null;
   return (
-    <>
-      {why ? whyChecksOf(why) : null}
-      {listing.length ? (
-        <>
-          {paneHeadOf(vm.company ? TAB_WORDS.company : TAB_WORDS.listing)}
-          <div className="lw-kv" data-testid="peek-about">
-            {listing.map((r) => (
-              <div key={`${r.k}-${r.v}`} className="lw-kv-r">
-                <span className="lw-kv-k">{r.k}</span>
-                <span>{r.v}</span>
-                <span className="lw-src">{r.from ?? ""}</span>
-              </div>
-            ))}
-          </div>
-        </>
+    <section className="lw-sec" aria-label={about.head} data-testid="lead-sheet-sec-about">
+      {sectionHeadOf(about.head, about.from)}
+      {about.text ? (
+        <p className="lw-say" data-testid="peek-about-text">
+          {about.text}
+        </p>
+      ) : null}
+      {about.rows.length ? (
+        <div className="lw-kv" data-testid="peek-about">
+          {about.rows.map((r) => (
+            <div key={`${r.k}-${r.v}`} className="lw-kv-r">
+              <span className="lw-kv-k">{r.k}</span>
+              <span>{r.v}</span>
+              <span className="lw-src">{r.from ?? ""}</span>
+            </div>
+          ))}
+        </div>
       ) : null}
       <LeadPeekCompany key={`${vm.id}-company`} company={vm.company} lead={vm} on={on} />
-      {paneHeadOf(W.activity.found, vm.foundSummary)}
-      <ol className="lw-found" data-testid="peek-found">
-        {vm.found.map((f) => (
-          <li key={f.what} className="lw-found-i">
-            <i aria-hidden="true" />
-            <span>{f.what}</span>
-            <span className="lw-src">{f.at}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="lw-quiet">
-        <CopyButton text={allOf(vm)} label={W.copyAll} said={W.copied} testid="lead-sheet-copy-all" />
-      </div>
-    </>
+    </section>
   );
 };
 
@@ -174,15 +121,15 @@ const reachRow = (p: {
   line: string;
   acts?: ReactNode;
   testid: string;
-  wrong?: boolean;
+  warn?: boolean;
 }) => (
   <div className="lw-rr" data-testid={p.testid}>
     <Icon name={p.icon} size={16} />
     <span className="lw-rr-w">
-      <span className={`lw-rr-v${p.wrong ? " wrong" : ""}`} data-testid={`${p.testid}-value`}>
+      <span className="lw-rr-v" data-testid={`${p.testid}-value`}>
         {p.value}
       </span>
-      <span className="lw-rr-s" data-testid={`${p.testid}-words`}>
+      <span className={p.warn ? "lw-rr-s lw-amber" : "lw-rr-s"} data-testid={`${p.testid}-words`}>
         {p.line}
       </span>
     </span>
@@ -190,61 +137,37 @@ const reachRow = (p: {
   </div>
 );
 
-/** The email's own acts: Copy it, and a draft for your own inbox. */
-const emailActs = ({ vm, on }: PaneProps) =>
-  vm.reach.email.canDraft ? (
-    <>
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
-        aria-label={LEAD_WORDS.copyAria}
-        data-tip={LEAD_WORDS.copyAria}
-        onClick={() => on.onCopy(vm.id)}
-        data-testid="peek-copy"
-      >
-        <Icon name="copy" size={13} />
-      </Button>
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
-        aria-label={LEAD_WORDS.draftAria}
-        data-tip={LEAD_WORDS.draftAria}
-        onClick={() => void on.onDraft(vm.id)}
-        data-testid="peek-draft"
-      >
-        <Icon name="edit" size={13} />
-      </Button>
-    </>
-  ) : null;
-
 /**
- * Contact: where the sequence writes first (the address its email goes to), then the people there, the phone (Call from
- * your phone, Copy), the site and the rest, the address with the week, and the links.
+ * Contact: the address the sequence writes to and how its mailbox checked; the people there (a company's, each with Write
+ * here; People's, each a door); the phone, not confirmed in amber, with Call; the site and the other addresses on it.
  */
-const contactPane = (p: PaneProps) => {
-  const { vm, on } = p;
+const contactOf = (vm: LeadPeekVM, f: SheetFacts, on: PeekActs) => {
   const phone = vm.reach.phone;
   const email = vm.reach.email;
-  const about = leadSheetAboutOf(vm).rows.filter((r) => r.k === "Address");
-  const links = LeadPeekParts.links(vm);
   return (
-    <>
-      {/* Where the sequence writes, while there is an address to write to; else plainly the email row, which says none. */}
-      {paneHeadOf(email.address ? TAB_WORDS.writesTo : TAB_WORDS.email)}
+    <section
+      className="lw-sec"
+      aria-label={W.sections.contact}
+      id="lead-sheet-contact"
+      data-testid="lead-sheet-sec-contact"
+    >
+      {sectionHeadOf(W.sections.contact)}
       <div className="lw-group">
-        {reachRow({ icon: "mail", value: email.value, line: email.tip, testid: "peek-email", acts: emailActs(p) })}
-      </div>
-      <LeadPeekPeople lead={vm} on={on} />
-      {paneHeadOf(W.reach.head, W.reach.sub)}
-      <div className="lw-group">
+        {email.address
+          ? reachRow({
+              icon: "mail",
+              value: email.address,
+              line: `${W.writesHere} · ${f.email.tone === "ok" ? W.checkedMailbox : f.email.words.toLowerCase()}`,
+              warn: f.email.tone === "warn",
+              testid: "peek-email",
+            })
+          : reachRow({ icon: "mail", value: email.value, line: email.tip, testid: "peek-email" })}
         {phone
           ? reachRow({
               icon: "phone",
               value: phone.value,
-              line: phone.tip,
-              wrong: phone.wrong,
+              line: phone.wrong ? phone.tip : vm.slots.phone.state === "ok" ? phone.tip : W.notConfirmed,
+              warn: !phone.wrong && vm.slots.phone.state !== "ok",
               testid: "peek-phone",
               acts: phone.wrong ? null : (
                 <LeadCallMenu
@@ -265,7 +188,7 @@ const contactPane = (p: PaneProps) => {
           ? reachRow({
               icon: "globe",
               value: vm.links.website.label,
-              line: vm.links.instagram ? LEAD_WORDS.instagram : "",
+              line: email.address && email.value ? W.emailOnSite : "",
               testid: "peek-site",
               acts: (
                 <Button
@@ -275,8 +198,8 @@ const contactPane = (p: PaneProps) => {
                   href={vm.links.website.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={TAB_WORDS.openSite}
-                  title={TAB_WORDS.openSite}
+                  aria-label={W.quick.website}
+                  title={W.quick.website}
                   data-testid="peek-website"
                 >
                   <Icon name="external" size={13} />
@@ -284,173 +207,132 @@ const contactPane = (p: PaneProps) => {
               ),
             })
           : null}
-        {reachRow({ icon: "chat", value: vm.reach.locked.title, line: vm.reach.locked.line, testid: "peek-locked" })}
       </div>
+      <LeadPeekPeople lead={vm} on={on} />
       {LeadPeekParts.others(vm)}
-      {about.length || vm.week.length ? paneHeadOf(TAB_WORDS.where, vm.weekSummary || null) : null}
-      {about.length ? (
-        <div className="lw-kv" data-testid="peek-where">
-          {about.map((r) => (
-            <div key={r.k} className="lw-kv-r">
-              <span className="lw-kv-k">{r.k}</span>
-              <span>{r.v}</span>
-              <span className="lw-src">{r.from ?? ""}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {vm.week.length ? (
-        <div className="lw-kv" data-testid="peek-week">
-          {vm.week.map((d) => (
-            <div key={d.day} className={`lw-kv-r${d.today ? " today" : ""}`} data-testid="peek-day">
-              <span className="lw-kv-k">{d.day}</span>
-              <span>{d.short}</span>
-              <span />
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {links ? (
-        <>
-          {paneHeadOf(W.about.links)}
-          {links}
-        </>
-      ) : null}
-    </>
+    </section>
   );
 };
 
-/**
- * Before a sequence has them: the email they would get, in full; its steps; each variable with its source. Nothing for a
- * lead with no email to write to: the stand above says why no sequence can take them.
- */
-const wouldGetOf = ({ card, mail, state }: PaneProps) => {
-  if (state === "phone") return null;
-  if (!card.email || !mail)
-    return <p className="lw-say quiet">{card.firstPile ? LEAD_CARD_WORDS.firstPile : W.emails.none}</p>;
-  return (
-    <>
-      <SheetMail
-        email={card.email}
-        head={mail.head}
-        sub={mail.sub}
-        canChange={mail.canChange}
-        onChange={mail.onChange}
-        full
-      />
-      {card.steps.length > 1 ? (
-        <>
-          {paneHeadOf(W.emails.steps)}
-          <ol className="lw-steps" data-testid="lead-sheet-steps">
-            {card.steps.map((s, i) => (
-              <li key={s.id} className="lw-step">
-                <span className={`lw-step-n${i === 0 ? " next" : ""}`}>{i + 1}</span>
-                <span className="lw-step-w">
-                  <b>{s.label}</b>
-                  <span className="lw-step-b">
-                    <SheetParts parts={s.body.slice(0, 6)} />
-                  </span>
-                </span>
-                <span className="lw-step-a">{s.after ?? ""}</span>
-              </li>
-            ))}
-          </ol>
-        </>
-      ) : null}
-      {card.slots.length ? (
-        <>
-          {paneHeadOf(W.emails.vars(card.peek ? card.peek.short : ""))}
-          <div className="lw-vars" data-testid="lead-sheet-slots">
-            {card.slots.map((s) => (
-              <div
-                key={s.key}
-                className={`lw-var ${s.look}`}
-                data-testid={`lead-sheet-slot-${s.key.replace(/ /g, "-")}`}
-              >
-                <span className="lw-var-k">{s.label}</span>
-                <span>{s.value ?? ""}</span>
-                <span className="lw-var-s">{s.from}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : null}
-    </>
-  );
-};
+/** What the Sequence section's record door, Take out and a step opened do. */
+interface SequenceActs {
+  onOpenRecord: (sequenceId: string) => void;
+  onTakeOut: (() => void) | null;
+  /** A step pressed: the email as they get it, opened in the section. */
+  onOpenStep: (place: number) => void;
+  openStep: number | null;
+  busy: boolean;
+}
 
-/**
- * Sequence: where they stand. In one, their steps on the record's rail of days, Take out under it while their place
- * stands, and every step and who else is in it a press away (the record, with the way back here); else the email they
- * would get. Their story's doors (the thread, a reply's undo) follow.
- */
-const sequencePane = (p: PaneProps) => {
-  const { track, place, box, on, stand } = p;
-  const out = place && (place.group === "left" || place.group === "done");
+/** One step's email for this lead, as the rail's few lines draw it. */
+const stepEmail = (s: LeadCardStepVM): LeadCardEmailVM => ({
+  head: s.label,
+  to: null,
+  subject: s.subject,
+  body: s.body,
+  when: null,
+  note: null,
+  blocked: null,
+  instead: null,
+});
+
+/** Their place, or the rail as they'd get it; the record a door away, Take out under it while their place stands. */
+function sequenceOf(f: SheetFacts, a: SequenceActs) {
+  const rail = f.rail;
+  const head = rail ? (
+    <LinkButton
+      size="inherit"
+      className="lw-every"
+      onClick={() => a.onOpenRecord(rail.sequence.id)}
+      data-testid="lead-sheet-every-step"
+    >
+      {rail.sequence.name}
+      {rail.lens === "one" ? " · Leads" : ""} <Icon name="chevron" size={11} />
+    </LinkButton>
+  ) : null;
+  const words = rail
+    ? new Map([...rail.steps].map(([place, s]) => [place, <EmailAs key={place} email={stepEmail(s)} short />]))
+    : undefined;
+  const open = rail && a.openStep !== null ? rail.steps.get(a.openStep) : null;
+  const stands = f.place && f.place.place.group !== "left" && f.place.place.group !== "done";
   return (
-    <>
-      {track ? (
-        <>
-          {paneHeadOf(TAB_WORDS.steps, stand.title)}
-          <SheetTrack track={track} />
-          {p.onTakeOut && !out ? (
-            <div className="lw-take" data-testid="lead-sheet-take-out">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={p.busy}
-                onClick={p.onTakeOut}
-                data-testid="lead-sheet-take-out-press"
-                {...gate("approve", "take this lead out")}
-              >
-                {TAB_WORDS.takeOut}
-              </Button>
-              <span className="lw-take-s">{TAB_WORDS.takeOutLine}</span>
-            </div>
-          ) : null}
-          <LinkButton
-            className="lw-every"
-            onClick={() => p.onOpenRecord(track.rootId)}
-            data-testid="lead-sheet-every-step"
-          >
-            {TAB_WORDS.everyStep(track.name)} <Icon name="chevron" size={11} />
-          </LinkButton>
-        </>
-      ) : (
-        <>
-          <div className="lw-stand" data-testid="lead-sheet-stand">
-            <b>{stand.title}</b>
-            <span>{stand.line}</span>
-          </div>
-          {box.rootId && box.name ? (
-            <LinkButton
-              className="lw-every"
-              onClick={() => box.rootId && p.onOpenRecord(box.rootId)}
-              data-testid="lead-sheet-every-step"
-            >
-              {TAB_WORDS.everyStep(box.name)} <Icon name="chevron" size={11} />
-            </LinkButton>
-          ) : null}
-          {wouldGetOf(p)}
-        </>
+    <section
+      className="lw-sec"
+      aria-label={W.sections.sequence}
+      id="lead-sheet-sequence"
+      data-testid="lead-sheet-sec-sequence"
+    >
+      {sectionHeadOf(
+        rail ? (rail.lens === "one" ? PLACE_RAIL_WORDS.theirPlace : PLACE_RAIL_WORDS.ifAdded) : W.sections.sequence,
+        head ?? (f.place ? null : W.notInOne),
       )}
-      {on.reachOut}
-    </>
+      {rail ? (
+        <PlaceRail
+          vm={rail.vm}
+          words={rail.lens === "preview" ? words : undefined}
+          onOpen={a.onOpenStep}
+          foot={
+            a.onTakeOut && stands ? (
+              <div className="lw-take" data-testid="lead-sheet-take-out">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={a.busy}
+                  onClick={a.onTakeOut}
+                  data-testid="lead-sheet-take-out-press"
+                  {...gate("approve", "take this lead out")}
+                >
+                  {PLACE_RAIL_WORDS.takeOut(rail.sequence.name)}
+                </Button>
+              </div>
+            ) : null
+          }
+        />
+      ) : (
+        <p className="lw-say quiet">{f.state === "phone" ? W.noEmailToWrite : W.noPick}</p>
+      )}
+      {open && f.card.email ? (
+        <EmailAs
+          email={{ ...f.card.email, subject: open.subject, body: open.body }}
+          whole
+          testid="lead-sheet-step-email"
+        />
+      ) : null}
+    </section>
   );
-};
+}
 
-/** The open tab's pane's id, which its tab names (sheet.tsx tabStripOf): one sheet stands on a page. */
-export const SHEET_PANE_ID = "lead-sheet-pane";
+/** How we found them: the trail, one small section, folded. */
+const foundOf = (vm: LeadPeekVM) =>
+  vm.found.length ? (
+    <details className="lw-sec lw-fold" data-testid="lead-sheet-sec-found">
+      <summary className="lw-fold-s">
+        <Icon name="chevron" size={11} />
+        {W.sections.found}
+        {vm.foundSummary ? <span className="lw-h-s">{` · ${vm.foundSummary}`}</span> : null}
+      </summary>
+      <ol className="lw-found" data-testid="peek-found">
+        {vm.found.map((f) => (
+          <li key={f.what} className="lw-found-i">
+            <i aria-hidden="true" />
+            <span>{f.what}</span>
+            <span className="lw-src">{f.at}</span>
+          </li>
+        ))}
+      </ol>
+      {LeadPeekParts.links(vm)}
+    </details>
+  ) : null;
 
-/** The open tab's pane: the panel its tab opens, named by the tab's word. */
-export const SheetPane = ({ tab, ...p }: PaneProps & { tab: LeadCardTab }) => (
-  <div
-    className="lw-pane"
-    id={SHEET_PANE_ID}
-    role="tabpanel"
-    aria-label={LEAD_CARD_TABS.find((t) => t.id === tab)?.label}
-    data-testid={`lead-sheet-pane-${tab}`}
-  >
-    {tab === "why" ? whyPane(p) : tab === "contact" ? contactPane(p) : sequencePane(p)}
-  </div>
-);
+/** The record of the lead under the quick look: Fit, About, Contact, Sequence, How we found them. */
+export function SheetRecord(p: { vm: LeadPeekVM; facts: SheetFacts; on: PeekActs; seq: SequenceActs }) {
+  return (
+    <div className="lw-record" data-testid="lead-sheet-record" aria-label={W.label}>
+      {p.facts.why ? fitOf(p.facts.why) : null}
+      {aboutSectionOf(p.vm, p.on)}
+      {contactOf(p.vm, p.facts, p.on)}
+      {sequenceOf(p.facts, p.seq)}
+      {foundOf(p.vm)}
+    </div>
+  );
+}

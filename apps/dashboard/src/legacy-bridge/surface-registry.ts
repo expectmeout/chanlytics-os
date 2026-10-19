@@ -259,9 +259,6 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   broadcasts: ["sequences", "playbooks", "channels", "audiences"],
   // Live's line, its number and its switch: the channels read, which Live is made of beside its calls.
   live: ["channels"],
-  // A search's reach-out sheet (Part 4 PR 6) writes from Setup's connected mailboxes and checks Settings' booking link: both
-  // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
-  leads: ["setup", "settings"],
   // The Reviews, Receptionist, People and Campaigns lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts,
   // receptionist-surface.ts, people-surface.ts, campaigns-surface.ts): no other lens of Reports does, and the Pipeline's row says so
   // (an empty one), or it would fall to the page's.
@@ -330,8 +327,10 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
  */
 export function routeDrawsFor(page: string, at?: string | null): readonly string[] {
   const param = paneOf(page, at);
-  // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
-  if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
+  // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People. It draws nothing beside
+  // its own surface: the reach-out sheet that wrote from Setup's mailboxes and checked Settings' link went with the
+  // composer (the lead-to-sequence canvas, 18 Oct 2026), and a sequence to leads is written on Sequences.
+  if (page === "clients" && param && /^leads(:|$)/.test(param)) return [];
   const specific = param ? ROUTE_DRAWS[`${page}/${param}`] : undefined;
   if (specific) return specific;
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];

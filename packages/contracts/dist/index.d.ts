@@ -7,14 +7,10 @@ type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
 /** Whether a value is one of the five: a stored word read back is checked, never trusted. */
 declare function isAppointmentWord(value: unknown): value is AppointmentWord;
 /**
- * What the workspace calls an appointment: the word it picked, else the word its retired answer to how its customers
- * buy gave it (a meeting where some got a proposal first, which 00458 stored for each of them), else an appointment.
- * The one derivation: the server reads it once for a workspace and hands the pages the word (0041: one page, one word).
+ * What the workspace calls an appointment: the word it picked, else an appointment. The one derivation: the server
+ * reads it once for a workspace and hands the pages the word (0041: one page, one word).
  */
-declare function appointmentWordOf(o: {
-    stored: string | null;
-    sellsBy: string | null;
-}): AppointmentWord;
+declare function appointmentWordOf(stored: string | null): AppointmentWord;
 /** What PATCH workspaces answers for anything but the five. */
 declare const APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
 /** The word's row on Details: what it says, and the five to choose from. */
@@ -4552,7 +4548,6 @@ declare const SCHEMA_SETS: {
     readonly "tenant_channels.kind": readonly ["whatsapp", "voice", "sms", "email", "instagram"];
     readonly "tenant_channels.status": readonly ["active", "disabled"];
     readonly "tenants.appointment_word": readonly ["appointment", "visit", "meeting", "session", "lesson"];
-    readonly "tenants.sells_by": readonly ["booking", "proposal"];
     readonly "tenants.status": readonly ["active", "paused", "test"];
 };
 
@@ -4637,7 +4632,7 @@ type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.
  */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "person.resolved", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "settings.fact_suggested", "settings.fact_kept", "settings.fact_dismissed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.business_linked", "contact.business_unlinked", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.note_seen", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "broadcast.stopped", "playbook.run", "channel.connected", "channel.quality_rating", "channel.standing", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "mailbox_connection.connected", "mailbox_connection.signed_out", "mailbox_connection.held", "mailbox_connection.resumed", "mailbox_connection.paused", "mailbox_connection.unpaused", "mailbox_connection.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "lead.ideas_written", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated", "appointment.changed", "escalation.opened", "member.joined", "playbook.changed", "template.submitted", "template.removed", "capability.activated", "capability.deactivated", "member.left", "reach_out.lead_stopped", "reach_out.send_decided", "reach_out.lead_added", "reach_out.lead_taken_back", "lead.kept", "lead.excluded", "lead.put_back", "lead.later", "lead.addressee_chosen", "lead.search_renamed", "lead.search_removed", "contact.kept_apart", "line.forwarding_set", "appointment.booked", "appointment.moved", "appointment.cancelled", "conversation.owner_replied", "billing.payment_failed", "billing.paid", "billing.trial_ending"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "person.resolved", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "settings.fact_suggested", "settings.fact_kept", "settings.fact_dismissed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.business_linked", "contact.business_unlinked", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.note_seen", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "broadcast.stopped", "playbook.run", "channel.connected", "channel.quality_rating", "channel.standing", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "mailbox_connection.connected", "mailbox_connection.signed_out", "mailbox_connection.held", "mailbox_connection.resumed", "mailbox_connection.paused", "mailbox_connection.unpaused", "mailbox_connection.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "lead.ideas_written", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated", "appointment.changed", "escalation.opened", "member.joined", "playbook.changed", "template.submitted", "template.removed", "capability.activated", "capability.deactivated", "member.left", "reach_out.lead_stopped", "reach_out.send_decided", "reach_out.lead_added", "reach_out.lead_taken_back", "lead.kept", "lead.excluded", "lead.put_back", "lead.later", "lead.addressee_chosen", "lead.search_renamed", "lead.search_removed", "reach_out.source_set", "contact.kept_apart", "line.forwarding_set", "appointment.booked", "appointment.moved", "appointment.cancelled", "conversation.owner_replied", "billing.payment_failed", "billing.paid", "billing.trial_ending"];
 type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -5554,6 +5549,14 @@ interface ReportVM {
         priorShare: number | null;
     };
     reasons: ReportBarVM[];
+    /**
+     * What Why it stopped draws: every reason, or the most frequent where there are more than a card holds, with the line
+     * that says so (null when every one is drawn). The table beside it keeps `reasons`, all of them.
+     */
+    reasonsShown: {
+        bars: ReportBarVM[];
+        line: string | null;
+    };
     replyTime: {
         count: number;
         median: number | null;
@@ -8510,8 +8513,6 @@ type ReachOutAddInput = z$1.infer<typeof ReachOutAddSchema>;
 
 declare const REACH_OUT_SLOTS: readonly ["opening", "business", "city", "your name", "your business", "booking link", "first name", "company", "title", "role"];
 type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
-/** What each slot is, as the sheet's chips say it on hover: who fills it, and what it says when nobody is named. */
-declare const REACH_OUT_SLOT_WORDS: Record<ReachOutSlot, string>;
 /** The ten as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */
 declare const REACH_OUT_SLOT_SET: SlotSet;
 declare const REACH_OUT_SUBJECT_MAX = 80;
@@ -8682,6 +8683,7 @@ declare const REACH_OUT_COUNTRIES_REFUSED: ReadonlySet<string>;
 declare function reachOutCountryOf(country: string | null | undefined): "free" | "held" | "refused";
 /** What an owner can do about a held send: only the doors that answer its reason. */
 declare function holdDoors(h: ReachOutHold): HoldDoor[];
+/** A held email's doors, in one meaning each (the lead-to-sequence canvas): it goes as it reads, or this one is skipped. */
 declare const HOLD_DOOR_WORDS: Record<HoldDoor, string>;
 
 /**
@@ -9066,7 +9068,7 @@ interface ReachOutSourceDto {
 /** Write to leads, New message's third choice (canvas B's Campaigns), in words. */
 declare const REACH_OUT_SOURCE_WORDS: {
     readonly addTitle: "Leads you add";
-    readonly addSub: "Pick them on Leads, one at a time or from the table, then write to them";
+    readonly addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once";
     readonly failed: "the searches and lists a sequence could start from";
     readonly none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.";
     readonly find: "Find businesses";
@@ -9077,11 +9079,6 @@ declare function reachOutSourceOf(s: ReachOutSourceDto): {
     sub: string;
     include: boolean;
 };
-/**
- * A reach-out's drawer open at who is in it (00426, canvas B's Campaigns): `campaigns/moment:<id>:people`, so a link from
- * Today, the bell or Leads lands on its People, and Back steps out of it.
- */
-declare const reachOutPeopleRoute: (rootId: string) => string;
 /** Who is in a reach-out, as its drawer lists them (00426 reach_out_chain_people). */
 interface ReachOutChainPeopleDto {
     root_id: string;
@@ -10948,7 +10945,7 @@ declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 /**
  * A deal's closed sets and their words (0004, 0008): its stages, how an amount recurs, where it came from and why
  * someone passed, each with the word a page says; the acts a deal offers and their labels; and the door's
- * refusals. The deal as a page says it is deal-vm.ts; how a workspace sells is sells-by.ts.
+ * refusals. The deal as a page says it is deal-vm.ts.
  */
 
 declare const DEAL_STAGES: readonly ["proposed", "won", "lost", "ended"];
@@ -11633,6 +11630,21 @@ declare const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A 
 /** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
 declare const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string>;
 declare const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+/**
+ * Not a fit, one tap, the reason after (the lead-to-sequence canvas): the toast's question and its short reasons, each
+ * optional; Something else is the one given with the tap.
+ */
+declare const LEAD_NOT_A_FIT_ASK: {
+    readonly said: (name: string) => string;
+    readonly why: "Why?";
+    readonly short: {
+        readonly chain: "Chain";
+        readonly wrong_kind: "Wrong kind";
+        readonly too_far: "Too far";
+        readonly customer: "A customer";
+    };
+    readonly kept: (why: string) => string;
+};
 /** The one why that hides the place from every future search; the rest teach nothing in this release. */
 declare const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy;
 declare const LEAD_REVIEW_WORD = "Needs review";
@@ -11755,6 +11767,500 @@ declare function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): {
     closedReason: string | null;
     converts: boolean;
 };
+
+/**
+ * A sequence (decision 0060): anything the workspace sends on its own. It starts for someone, takes its steps in their
+ * places, and stops. Storage keeps it in `sequences`, its steps in `sequence_steps`, what goes at one time in
+ * `sequence_batches`, each message to one person in `sequence_sends` and what came back in `sequence_replies`.
+ */
+/**
+ * How a sequence starts: at a moment of a customer's journey (before a visit, after one, a proposal out, gone quiet), when
+ * someone joins a list, when a lead joins a list, or once, on a date. `sequences.starts` holds the same four.
+ */
+declare const SEQUENCE_STARTS: readonly ["moment", "list", "leads", "date"];
+type SequenceStart = (typeof SEQUENCE_STARTS)[number];
+/**
+ * Where a sequence stands: not started, on, paused, or ended with its history kept (a one-off that went, a sequence whose
+ * first step was removed after it sent). `sequences.state` holds the same four.
+ */
+declare const SEQUENCE_STATES: readonly ["draft", "on", "paused", "ended"];
+type SequenceState = (typeof SEQUENCE_STATES)[number];
+
+/**
+ * What the sequence readers answer (00442): `sequence_overview` a row a sequence, `sequence_steps_of` its steps,
+ * `sequence_people` who is in it by where they stand, `sequence_history` what it sent, a batch a row. The page and Ask
+ * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
+ */
+
+/** A sequence's first step, as the list reads it: how it starts and the class it runs under. */
+interface SequenceFirstStepDto {
+    id: string;
+    kind: string;
+    trigger: string;
+    state: string;
+    policy_class: string;
+    run_hour: number;
+    list_id: string | null;
+    list_key: string | null;
+    /** The workspace's own list it runs on, by its name; null for none or one of People's (list_key). */
+    list_name: string | null;
+    search_id: string | null;
+    /** The lead search a sequence to leads writes to, by its name. */
+    search_name: string | null;
+    /**
+     * The search whose new ready leads join a sequence to leads without a press (00459 auto-add), by its id and name; null
+     * where nobody joins but those added. Absent from a server before 00459.
+     */
+    source_search_id?: string | null;
+    source_name?: string | null;
+    /**
+     * The search it could add from while it adds from none (How it runs' auto-add switch): the live finder search that found
+     * most of its list's leads, which no other sequence adds from. Null where there is none; absent before 00459.
+     */
+    source_could?: {
+        id: string;
+        name: string;
+    } | null;
+    owner_sends: boolean;
+    until: string | null;
+    trial_until: string | null;
+    template_name: string | null;
+    template_language: string | null;
+}
+/** A one-off's one batch: when it goes and to how many. */
+interface SequenceDateDto {
+    batch_id: string;
+    state: string;
+    at: string;
+    people: number;
+}
+/**
+ * What needs you in a sequence: batches waiting for your OK and how many people they hold, emails held by the check,
+ * emails for you to send yourself, and replies to answer; and since when the oldest of them has waited.
+ */
+interface SequenceNeedsDto {
+    waiting: number;
+    waiting_people: number;
+    held: number;
+    to_send: number;
+    replies: number;
+    oldest_at: string | null;
+    /**
+     * The batches waiting for an OK, soonest first, each with what the badge judges it by (contracts runWaitsOnYou): its
+     * step, the business's day it was made for and its moment. The server's reader counts `waiting` from those an OK can
+     * still send (sequenceWaitsNow).
+     */
+    batches: SequenceWaitingBatchDto[];
+}
+/** A batch waiting for an OK, as the overview answers it. */
+interface SequenceWaitingBatchDto {
+    id: string;
+    step_id: string | null;
+    run_for: string | null;
+    at: string;
+    people: number;
+    audience: {
+        kind: string | null;
+        trigger: string | null;
+    };
+}
+/** A sequence as the list reads it (`sequence_overview`). */
+interface SequenceRowDto {
+    id: string;
+    name: string;
+    starts: SequenceStart;
+    state: SequenceState;
+    created_at: string;
+    first: SequenceFirstStepDto | null;
+    date: SequenceDateDto | null;
+    steps: number;
+    /** The days its steps span: each wait after the first (00459); absent from a server before it. */
+    days?: number;
+    /** A sequence to leads' emails still to write, a step's body left empty (00459); absent from a server before it. */
+    unwritten?: number;
+    channels: string[];
+    needs: SequenceNeedsDto;
+    /** The batch to come: waiting for an OK, scheduled or going out. */
+    next: {
+        id: string;
+        at: string;
+        people: number;
+        state: string;
+        place: number | null;
+    } | null;
+    /** The last batch that went, with what it sent and drew back. */
+    last: {
+        id: string;
+        at: string;
+        sent: number;
+        replied: number;
+    } | null;
+    /**
+     * Who is in it now: everyone whose place stands, as its People tab files them (00459 sequence_places: a lead added and
+     * not yet planned, waiting for an OK, held, for you to send, up next or between steps); before 00459, those between steps.
+     */
+    in_it: number;
+}
+/** New words for a step that wait for WhatsApp to approve them (00441), with WhatsApp's answer so far. */
+interface SequenceNextWordsDto {
+    template_id: string | null;
+    name: string;
+    language: string;
+    status: string | null;
+    rejected_reason: string | null;
+}
+/** A step in its place (`sequence_steps_of`). */
+interface SequenceStepDto {
+    id: string;
+    place: number;
+    name: string;
+    kind: string;
+    trigger: string;
+    state: string;
+    after_days: number | null;
+    only_if: string[];
+    channels: string[];
+    template_id: string | null;
+    template_name: string | null;
+    template_language: string | null;
+    params: unknown;
+    /** A sequence to leads' last step for the team: a call or a note. */
+    hand: {
+        kind: string;
+        words: string;
+    } | null;
+    next_words: SequenceNextWordsDto | null;
+    /** What its batches of the last 30 days sent, and drew back. */
+    sent: number;
+    replied: number;
+}
+/**
+ * Where someone in a sequence stands, the People tab's groups in their order: `queued` is a lead on its list that nothing
+ * has been planned for yet (00459), every lead of a draft.
+ */
+declare const SEQUENCE_PEOPLE_GROUPS: readonly ["waiting", "held", "to_send", "replied", "next", "queued", "in", "done", "left"];
+type SequencePeopleGroup = (typeof SEQUENCE_PEOPLE_GROUPS)[number];
+/** One person or lead in a sequence (`sequence_people`). */
+interface SequencePersonDto {
+    group: SequencePeopleGroup;
+    contact_id: string | null;
+    lead_id: string | null;
+    enrollment_id: string | null;
+    send_id: string | null;
+    batch_id: string | null;
+    name: string | null;
+    place: number | null;
+    at: string | null;
+    /** Why they were held or left (a send's reason, booked, replied, removed). */
+    why: string | null;
+    hold_detail: string | null;
+    /**
+     * On a to_send row, the email as it was handed to its owner (00447): what their mail app opens with. Null on every other
+     * row, and absent from a server before 00447, where the run's sheet in Sent lays it out instead.
+     */
+    draft?: SequencePersonDraftDto | null;
+    /**
+     * On a replied row (00455), the reply that asks for an answer, the one the overview counts: what they said and the
+     * conversation it is answered in. Null on every other row, and absent from a server before 00455.
+     */
+    reply?: SequencePersonReplyDto | null;
+}
+/** A reply that waits for an answer, as a replied row carries it (00455). */
+interface SequencePersonReplyDto {
+    /** interested or question: the readings that ask for an answer. */
+    intent: string;
+    summary: string | null;
+    conversation_id: string | null;
+}
+/** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00447). */
+interface SequencePersonDraftDto {
+    to: string;
+    subject: string;
+    /** The whole email as it reads, its foot included: what the owner sends. */
+    text: string;
+    /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
+    follow_up: boolean;
+    angle: string | null;
+    drafted_at: string;
+}
+/** Who is in a sequence: each group's count whole, and its first rows. */
+interface SequencePeopleDto {
+    counts: Partial<Record<SequencePeopleGroup, number>>;
+    rows: SequencePersonDto[];
+}
+/** What became of a batch's sends (`sequence_batch_counts`). */
+interface SequenceBatchCountsDto {
+    waiting: number;
+    sent: number;
+    skipped: number;
+    failed: number;
+    held: number;
+    to_send: number;
+    delivered: number;
+    read: number;
+    replied: number;
+}
+/** A batch as History reads it. */
+interface SequenceBatchDto {
+    id: string;
+    state: string;
+    run_for: string | null;
+    at: string;
+    scheduled_for: string;
+    finished_at: string | null;
+    people: number;
+    failure: string | null;
+    place: number | null;
+    counts: Partial<SequenceBatchCountsDto>;
+}
+/**
+ * GET sequences/:id/replies: the conversations that answered a sequence over one of History's periods, by the rule its
+ * days open onto (a person's words within the reply window after a batch reached them; a lead's reply read as theirs).
+ */
+interface SequenceRepliesDto {
+    sequence_id: string;
+    name: string;
+    period: "30" | "90" | "all";
+    conversation_ids: string[];
+}
+/** What a sequence sent, newest first (`sequence_history`). */
+interface SequenceHistoryDto {
+    batches: SequenceBatchDto[];
+    more: boolean;
+}
+/** GET sequences: the workspace's sequences, the clock they are said in, and what it calls an appointment. */
+interface SequencesPageDto {
+    sequences: SequenceRowDto[];
+    timezone: string;
+    word: AppointmentWord;
+}
+/** GET sequences/:id: one sequence, its steps, who approves its batches, and the clock. */
+interface SequenceRecordDto {
+    sequence: SequenceRowDto;
+    steps: SequenceStepDto[];
+    /** The autonomy mode its first step's class runs under (policies): who approves. Null where none is set (ask). */
+    mode: string | null;
+    timezone: string;
+    /** What the workspace calls an appointment, which says when a moment's sequence starts. */
+    word: AppointmentWord;
+    /**
+     * The business day its first step last ran (`sequence_steps.last_run_for`): when its next run goes (sequenceNextOf).
+     * Absent from a server before it, which then says no next run it cannot know.
+     */
+    last_run_for?: string | null;
+    /**
+     * Why its first step's last run did nothing, where it did nothing (core runPlaybook's `skipped`, from its `playbook.run`
+     * event: no calendar, its list gone, its message not approved, the class set to Never, its last day passed); null where
+     * it ran, sent or found nobody (contracts sequenceRunOff says it). Absent from a server before it.
+     */
+    last_run_off?: string | null;
+    /**
+     * How its first step's runs go, beyond its hour: the most one run sends, the days before someone hears it again (a
+     * moment's), and the days between runs (the month's offer). What Start's Change opens with. Absent on a sequence to
+     * leads and a one-off, and from a server before it.
+     */
+    settings?: {
+        cap_per_run: number;
+        gap_days: number;
+        cadence_days: number;
+    };
+    /**
+     * A sequence to leads: what it writes to, a list its owner adds leads to (Add leads opens Leads to add to it) or its
+     * search, which the finder keeps current (contracts isLeadList over the search's `via`). Absent on any other sequence,
+     * and from a server before it, which then opens the search.
+     */
+    fed_by?: ReachOutFedBy;
+    /**
+     * A sequence to leads, as it is written (00459: the draft's record is its editor): each step's words, its mailboxes,
+     * its pace and who signs. Absent on any other sequence, and from a server before it; null where it could not be read.
+     */
+    chain?: ReachOutChainDto | null;
+    /**
+     * A one-off: its one message as its batch sends it. Absent on any other sequence, and from a server before it, which
+     * then names the sequence alone; null where the batch could not be read.
+     */
+    one_off?: SequenceOneOffDto | null;
+}
+/** A one-off's message (its batch, whose id is the sequence's): the message, the values it is filled with, how it goes. */
+interface SequenceOneOffDto {
+    template_name: string | null;
+    template_language: string | null;
+    params: unknown;
+    /** The channels its sends go by, a customer's not skipped, in CONSENT_CHANNELS' order; none until a send names one. */
+    channels: string[];
+}
+/**
+ * GET sequences/:id/reach: what Turn on asks with (contracts sequenceResumeAsk) beside what the record holds, for a
+ * sequence on a moment or a list: who its next run reaches, counted as GET playbooks counts its first step's card (its
+ * pool, for the channels it goes by), the most one run sends, and whether the workspace is paused (billing).
+ */
+interface SequenceReachDto {
+    /** Null where its moment could not be counted: the question then says when alone. */
+    candidates: number | null;
+    cap_per_run: number | null;
+    paused: boolean;
+}
+
+/** One send of the lead's in its sequence, as sequence_place answers it: the rail drawn for one lead reads these. */
+interface SequencePlaceSendDto {
+    id: string;
+    step_id: string;
+    place: number;
+    state: string;
+    reason: string | null;
+    hold_detail: string | null;
+    send_at: string | null;
+    sent_at: string | null;
+    drafted_at: string | null;
+    batch_id: string | null;
+}
+/** The lead's row, as its sequence's People tab files it (sequence_people's row, less the name it already has). */
+interface SequencePlaceRowDto {
+    group: SequencePeopleGroup;
+    enrollment_id: string | null;
+    send_id: string | null;
+    batch_id: string | null;
+    place: number | null;
+    at: string | null;
+    why: string | null;
+    hold_detail: string | null;
+    draft: SequencePersonDraftDto | null;
+    reply: SequencePersonReplyDto | null;
+}
+/**
+ * One lead's place (00459 sequence_place): the sequence it stands in (where its place stands, else the last it was in),
+ * its row, each send of its there, whether replies there are read from a connected mailbox or told (They wrote back…),
+ * and whether its owner sends its emails. Null for a lead in no sequence.
+ */
+interface SequencePlaceDto {
+    sequence: {
+        id: string;
+        name: string;
+        state: SequenceState;
+    };
+    place: SequencePlaceRowDto;
+    sends: SequencePlaceSendDto[];
+    reads_replies: boolean;
+    owner_sends: boolean;
+    /** When they joined its list: by hand, or from the search it adds from (auto-add). */
+    joined: {
+        at: string | null;
+        auto: boolean;
+    } | null;
+}
+/** Many leads' places (00459 sequence_places_of): one row a lead in a sequence, the place that stands first. */
+interface SequencePlaceOfDto {
+    lead_id: string;
+    sequence_id: string;
+    name: string;
+    state: SequenceState;
+    group: SequencePeopleGroup;
+    place: number | null;
+    at: string | null;
+    why: string | null;
+}
+/** A word's tone, as the house's tone pill draws it: amber needs you, green runs, plain is over. */
+type PlaceTone = "warn" | "ok" | "plain";
+/** Each place said beside a name, in the singular (the canvas's States board); in it, up next and added are In it. */
+declare const PLACE_WORDS: Record<SequencePeopleGroup, string>;
+/** Whether a place still stands: they are in it. */
+declare const placeStands: (g: SequencePeopleGroup) => boolean;
+/** A place's tone: amber needs you, green while it stands, plain once over. */
+declare const placeToneOf: (g: SequencePeopleGroup) => PlaceTone;
+/** What a place is read from: its row (a People row, a places_of row, sequence_place's row). */
+type PlaceRow = Pick<SequencePlaceRowDto, "group" | "place" | "at" | "why">;
+/**
+ * The word beside a lead's name and the line under it, wherever its place is said (Leads' cell, the sheet's head, the
+ * picker): what needs you by its own word, the step and the sequence under it; a place that stands as In and the
+ * sequence's name, with when; one that ended as Done or Left, with why.
+ */
+declare function placeWordOf(r: PlaceRow, seq: {
+    name: string;
+    state: SequenceState;
+}, clock: {
+    tz: string;
+    nowMs: number;
+}, 
+/** Leads' cell names the sequence in the word ("In Bookstore intro"); the sheet's head, beside its name, does not. */
+named?: boolean): {
+    word: string;
+    tone: PlaceTone;
+    line: string | null;
+};
+/** Which way the rail is drawn: everyone's (the record's own Steps), one lead's place, or as they'd get it before joining. */
+type PlaceRailLens = "everyone" | "one" | "preview";
+/** A step on the rail for one lead, or as they'd get it: its day, its title, how it goes, and what it is doing for them. */
+interface PlaceRailStepVM {
+    id: string;
+    place: number;
+    day: number;
+    title: string;
+    /** "Email", "Email · as they'd get it", "A task for you". */
+    how: string;
+    /** What it is doing for them: amber where it needs you, quiet where it is coming, done once it went. */
+    state: {
+        tone: "need" | "next" | "done";
+        words: string;
+    } | null;
+    /** The wait before it, and who it keeps going; null for the first. */
+    wait: {
+        wait: string;
+        only: string | null;
+    } | null;
+    hand: boolean;
+}
+/** The rail for one lead: where they joined, each step, and what stops it. */
+interface PlaceRailVM {
+    start: {
+        head: string;
+        sub: string | null;
+    };
+    steps: PlaceRailStepVM[];
+    end: {
+        head: string;
+        sub: string;
+    };
+}
+declare const PLACE_RAIL_WORDS: {
+    readonly theirPlace: "Their place";
+    readonly ifAdded: "If you add them";
+    readonly joinsWhenAdded: "Joins when you add them";
+    readonly checked: "Each email is checked before it goes";
+    readonly addedOn: (date: string) => string;
+    readonly joinedOn: (date: string) => string;
+    readonly added: "You added them";
+    readonly email: "Email";
+    readonly asTheyGet: "Email · as they'd get it";
+    readonly task: "A task for you";
+    readonly followUp: "Following up";
+    readonly stops: "Stops when they reply, book, bounce, unsubscribe or say no.";
+    readonly readFrom: "Replies are read from your connected mailbox.";
+    readonly toldBy: "Replies aren't read here: say so with They wrote back…";
+    readonly takeOut: (name: string) => string;
+    readonly afterOk: "Goes after your OK";
+};
+/** The step a rail reads: its place, wait, hand, conditions and kind. */
+type RailStep = Pick<SequenceStepDto, "id" | "place" | "after_days" | "hand" | "only_if" | "kind">;
+/**
+ * The record's rail drawn for one lead ("one": each step by what its send did, the next by when it goes; Start says when
+ * they joined) or as they'd get it before they join ("preview": each email as they'd get it, step 1 after your OK, a
+ * batch carrying leads you added asks first). Titles are the page's (each email's subject as this lead reads it). The
+ * end says what stops it, and how a reply is learned of: read from a connected mailbox, or told.
+ */
+declare function placeRailOf(p: {
+    lens: Exclude<PlaceRailLens, "everyone">;
+    steps: readonly RailStep[];
+    titles: ReadonlyMap<number, string>;
+    seq: SequenceState;
+    place: SequencePlaceDto | null;
+    readsReplies: boolean;
+    clock: {
+        tz: string;
+        nowMs: number;
+    };
+}): PlaceRailVM;
+/** How many steps a sequence has and the days they span, as the picker says it: "3 steps over 7 days". */
+declare function placeSpanOf(steps: number, days: number): string;
 
 /**
  * The Leads routes' inputs (a view, a stage, a bulk act, a check again, a draft, a search's name and proposal, the
@@ -12638,7 +13144,7 @@ declare const LEAD_COMPANY_WORDS: {
  * what it says once chosen, and each refusal of the door in words, by its code.
  */
 declare const LEAD_ADDRESSEE_WORDS: {
-    readonly door: "Write to them instead";
+    readonly door: "Write here";
     /** What a role that may not is told it cannot do here (gateTitle). */
     readonly gated: "choose who a sequence writes to";
     readonly choosing: "Choosing…";
@@ -12713,6 +13219,8 @@ interface LeadPeekVM {
     } | null;
     today: string | null;
     claimedNote: string | null;
+    /** Whether its owner claimed the listing, where the listing says: About's Listing row (the lead sheet, 00459). */
+    claimed: boolean | null;
     /**
      * The business's face, in the same shape the row's tile wears it: the mark over the listing's photo over initials
      * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
@@ -13279,6 +13787,12 @@ interface LeadRowDto {
     contact_id: string | null;
     /** The reach-out it goes with (00426): the one that wrote it last, else the one whose search holds it. */
     chain_id?: string | null;
+    /**
+     * Where it stands in a sequence (00459 sequence_places_of, the one reader): the sequence, its group, step, when and
+     * why, said in the words the sheet and the record say. Null in none; absent from a server before 00459, or where the
+     * places could not be read.
+     */
+    place?: SequencePlaceOfDto | null;
     /** A place or a company, and a company's people (00430, leads_page): read through contracts leadFactsOf. */
     kind?: string;
     facts?: unknown;
@@ -13367,6 +13881,11 @@ interface LeadSearchDto {
      * thread since gone. The answer to its question is sent there, and lands there when the thread is the reader's own.
      */
     thread_id: string | null;
+    /**
+     * The sequence to leads this search's Add goes to (00459 lead_searches.adds_to): the lead sheet's pick, kept on the
+     * search so a desk, a phone and a teammate agree. Null until one is chosen; absent from a server before 00459.
+     */
+    adds_to?: string | null;
     round: LeadSearchRoundDto | null;
 }
 interface LeadCounts {
@@ -18221,8 +18740,13 @@ interface ApprovalVM {
      * workspace is paused (CAMPAIGNS_PAUSED_WORDS), which approveRun refuses first.
      */
     expired: string | null;
-    /** When it goes, for the line under its name. */
+    /** When it goes, inside a sentence ("3 people · goes the moment you approve it"). */
     goes: string;
+    /**
+     * The same as a line of its own, beside the Approve it speaks of (the sheet's dock, its band's note): under the run's
+     * name it wrapped onto a line by itself on a phone.
+     */
+    goesLine: string;
     /** What skipping costs. */
     skip: string;
 }
@@ -20140,18 +20664,10 @@ interface BroadcastVM extends BroadcastDto {
     failureLabel: string | null;
 }
 /**
- * What a run is called where a sentence names it: its audience's label (a playbook's, a list's), else its own name. A
- * reach-out's run carries no label (core run-reach-out.ts writes its ids alone), so its name says it ("Early gyms ·
- * 2026-10-14"): read as the label alone, a line named nobody ("ran at 7:44 AM").
- */
-declare function runLabelOf(run: {
-    audience?: unknown;
-    name: string;
-}): string;
-/**
- * What a run is called at the head of its own page and its row in the Inbox: its own name, less the day a sequence's run
- * carries after it (core run-playbook writes "VIP color clients · 2026-10-18"), which read as a code in a phone's head. A
- * one-off keeps its name: runLabelOf would call one sent to a list by the list's.
+ * What a run is called wherever it is named (its page's head, its row in the Inbox, Today and Ask, a toast): its own name,
+ * less the day a sequence's run carries after it (core run-playbook writes "VIP color clients · 2026-10-18"), which read
+ * as a code in a phone's head. A one-off keeps its name, never its list's; a reach-out's run, whose audience carries its
+ * ids alone, its own ("Early gyms").
  */
 declare function runTitleOf(run: {
     name: string;
@@ -20533,24 +21049,6 @@ declare function replyNoticeWords(p: {
 };
 
 /**
- * A sequence (decision 0060): anything the workspace sends on its own. It starts for someone, takes its steps in their
- * places, and stops. Storage keeps it in `sequences`, its steps in `sequence_steps`, what goes at one time in
- * `sequence_batches`, each message to one person in `sequence_sends` and what came back in `sequence_replies`.
- */
-/**
- * How a sequence starts: at a moment of a customer's journey (before a visit, after one, a proposal out, gone quiet), when
- * someone joins a list, when a lead joins a list, or once, on a date. `sequences.starts` holds the same four.
- */
-declare const SEQUENCE_STARTS: readonly ["moment", "list", "leads", "date"];
-type SequenceStart = (typeof SEQUENCE_STARTS)[number];
-/**
- * Where a sequence stands: not started, on, paused, or ended with its history kept (a one-off that went, a sequence whose
- * first step was removed after it sent). `sequences.state` holds the same four.
- */
-declare const SEQUENCE_STATES: readonly ["draft", "on", "paused", "ended"];
-type SequenceState = (typeof SEQUENCE_STATES)[number];
-
-/**
  * The words of a call's outcome: the choices the phone receptionist's
  * post-call analysis picks from, what each says on a surface, and the tidy
  * of a provider summary written before the analysis carried what the caller
@@ -20760,16 +21258,6 @@ declare function heldDraftsByClass(rows: readonly HeldDraftsByIntent[]): Partial
  * changed one that happened at all. Null with none held: the row says nothing it has no evidence for.
  */
 declare function heldDraftsLine(c: HeldDraftsCount | undefined): string | null;
-
-/**
- * How a workspace's customers buy (tenants.sells_by, 00160), retired on 18 October 2026 (0008, amended: deals for
- * everyone). It was the one switch the deal layer hung on; every workspace has deals now, a missing booking link is
- * said the same way to everyone, and the word for a booking is the workspace's own (tenants.appointment_word, 00458).
- * The column stays one release, written by nothing and read only as the word's fallback (appointmentWordOf), and goes
- * with it.
- */
-/** The retired column's two answers, held to its CHECK (schema-sets.ts) until the column goes. */
-declare const SELLS_BY: readonly ["booking", "proposal"];
 
 interface CallVM {
     id: string;
@@ -21995,7 +22483,6 @@ type SchemaAgreement = [
     Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
     Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
     Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
-    Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
     Holds<Exactly<Of<typeof APPOINTMENT_WORDS>, SchemaSet<"tenants.appointment_word">>>,
     Holds<Exactly<Of<typeof MAILBOX_PROVIDERS>, SchemaSet<"mailbox_connections.provider">>>,
     Holds<Exactly<Of<typeof MAILBOX_CONNECTION_STATES>, SchemaSet<"mailbox_connections.state">>>,
@@ -22801,7 +23288,7 @@ declare function v1FromAnswer(a: AskAnswer): Pick<AskMessageVM, "text" | "citati
  * Every handler under /api/v1, keyed the way route-policy.json keys it: the dashboard's typed client's keys
  * (client/routes.generated.ts), for a contract that names a route. What each takes and answers is the dashboard's.
  */
-declare const ROUTE_KEYS: readonly ["DELETE ask/threads/[id]", "DELETE capabilities/[kind]", "DELETE contacts/[id]", "DELETE google/connection", "DELETE google/link", "DELETE lead-searches/[id]", "DELETE leads/[id]", "DELETE mailbox-connections/[id]", "DELETE me", "DELETE me/devices", "DELETE people/[id]/business", "DELETE playbooks/[id]", "DELETE reach-outs/[id]", "DELETE segments/[id]", "DELETE sequences/[id]", "DELETE sequences/[id]/steps/[step]", "DELETE team/[id]", "DELETE team/partner", "DELETE templates/[id]", "DELETE templates/versions/[id]", "DELETE workspaces/logo", "GET activity", "GET ask/follow-ups", "GET ask/openings", "GET ask/threads", "GET ask/threads/[id]", "GET billing", "GET billing/invoices", "GET broadcasts", "GET broadcasts/[id]", "GET business-record", "GET calendar", "GET calendar/runs", "GET calls", "GET calls/[id]/export", "GET calls/[id]/recording", "GET channels", "GET channels/whatsapp/signup", "GET consent/qr", "GET contacts", "GET contacts/[id]", "GET contacts/export", "GET conversations", "GET conversations/[id]", "GET conversations/[id]/export", "GET escalations", "GET export", "GET google", "GET google/callback", "GET google/connect", "GET google/locations", "GET lead-searches", "GET lead-suggestions", "GET leads", "GET leads/[id]", "GET leads/back", "GET lines/codes", "GET mailbox-connections/callback", "GET mailbox-connections/connect", "GET me/alerts", "GET messages/[id]/media", "GET metrics", "GET notifications", "GET open", "GET partner", "GET partner/invitations", "GET partner/workspaces", "GET people/[id]/reach", "GET people/list-counts", "GET platform/overview", "GET platform/tenants/[id]", "GET playbooks", "GET policies", "GET reach-out-replies", "GET reach-outs", "GET reach-outs/[id]", "GET reach-outs/[id]/people", "GET reach-outs/leads", "GET reach-outs/reach", "GET reach-outs/sources", "GET reports", "GET reports/campaigns", "GET reports/campaigns/ledger", "GET reports/headline", "GET reports/people", "GET reports/reach-outs", "GET reports/receptionist", "GET reports/reviews", "GET segments", "GET sequences", "GET sequences/[id]", "GET sequences/[id]/history", "GET sequences/[id]/people", "GET sequences/[id]/reach", "GET sequences/[id]/replies", "GET settings", "GET setup", "GET team", "GET team/partner", "GET templates", "GET today", "GET views", "GET workspaces", "PATCH lead-searches/[id]", "PATCH mailbox-connections/[id]", "PATCH partner", "PATCH team/[id]", "PATCH workspaces", "POST ask", "POST ask/messages/[id]/proposals/[pid]", "POST ask/quick", "POST ask/speech", "POST ask/voice", "POST ask/voice/end", "POST ask/voice/page", "POST ask/warm", "POST ask/warm/model", "POST billing/checkout", "POST billing/portal", "POST billing/resume", "POST billing/start-now", "POST billing/sync", "POST broadcasts", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel", "POST broadcasts/[id]/recheck", "POST calendar/notices/[id]/dismiss", "POST calendar/notices/[id]/read-again", "POST calendar/preview", "POST calendar/visits/[id]", "POST calls/[id]/end", "POST calls/[id]/hand-over", "POST calls/[id]/whisper", "POST capabilities/[kind]", "POST channels/whatsapp/connect", "POST channels/whatsapp/standing", "POST client-errors", "POST contacts", "POST contacts/[id]/call", "POST contacts/[id]/deal", "POST contacts/[id]/doubts/dismiss", "POST contacts/[id]/merge", "POST contacts/[id]/notes", "POST contacts/[id]/notes/decide", "POST contacts/[id]/notes/done", "POST contacts/[id]/notes/remove", "POST contacts/[id]/notes/seen", "POST contacts/import", "POST conversations/[id]/archive", "POST conversations/[id]/booking-request", "POST conversations/[id]/hand-back", "POST conversations/[id]/reply", "POST conversations/[id]/snooze", "POST conversations/[id]/take-over", "POST conversations/[id]/wake", "POST escalations/[id]/resolve", "POST fact-suggestions/[id]", "POST google/link", "POST google/locations", "POST google/refresh", "POST google/reviews/[id]/draft", "POST google/reviews/[id]/reply", "POST google/search", "POST handovers/[id]/accept", "POST handovers/[id]/decline", "POST lead-operations/[id]/undo", "POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/more", "POST lead-searches/[id]/stop", "POST lead-searches/[id]/undo", "POST lead-searches/chosen", "POST lead-searches/import", "POST lead-searches/people", "POST lead-suggestions", "POST leads/[id]/addressee", "POST leads/[id]/draft", "POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/later", "POST leads/[id]/put-back", "POST leads/[id]/stage", "POST leads/bulk", "POST leads/check-again", "POST leads/export", "POST lines/buy", "POST lines/forwarding", "POST lines/forwarding/test", "POST lines/register", "POST lines/retry", "POST lines/search", "POST mailbox-connections/[id]/check", "POST mailbox-connections/[id]/resume", "POST mailbox-connections/[id]/test", "POST mailboxes", "POST me/invitations/accept", "POST messages/[id]/cancel-send", "POST messages/[id]/steer", "POST notifications/test", "POST partner", "POST partner/invitations/[id]/accept", "POST partner/invitations/[id]/decline", "POST partner/workspaces", "POST partner/workspaces/[id]/resend", "POST people/[id]/draft", "POST people/[id]/message", "POST people/[id]/name", "POST people/[id]/say", "POST platform/jobs/requeue", "POST platform/lines/refile", "POST platform/lines/release", "POST platform/lines/replace", "POST platform/lines/retry", "POST platform/partners/payout", "POST platform/partners/second-factor", "POST platform/partners/standing", "POST platform/partners/status", "POST platform/waitlist/invited", "POST playbooks", "POST playbooks/[id]/run", "POST reach-out-replies/[id]/undo", "POST reach-out-sends/[id]/decide", "POST reach-out-sends/[id]/said", "POST reach-outs", "POST reach-outs/[id]/leads", "POST reach-outs/[id]/leads/check", "POST reach-outs/[id]/leads/leave", "POST reach-outs/leads/[id]/said", "POST reach-outs/leads/[id]/stop", "POST reach-outs/preview", "POST receptionist/try", "POST segments", "POST segments/draft", "POST sequences", "POST sequences/[id]/leave", "POST sequences/[id]/return", "POST sequences/[id]/steps", "POST sequences/[id]/steps/[step]/test", "POST sequences/[id]/steps/[step]/words", "POST sequences/draft", "POST settings/receptionist", "POST setup/request", "POST team/invite", "POST team/invite/[id]/resend", "POST team/leave", "POST team/partner", "POST templates", "POST templates/draft", "POST templates/message", "POST templates/starter", "POST templates/sync", "POST templates/versions", "POST templates/versions/rewrite", "POST vitals", "POST workspaces/create", "POST workspaces/logo/lookup", "PUT business-record", "PUT contacts/[id]/consent", "PUT contacts/[id]/details", "PUT contacts/[id]/marketing-consent", "PUT contacts/[id]/receptionist", "PUT contacts/[id]/seen", "PUT contacts/consent", "PUT contacts/marketing-consent", "PUT contacts/notes", "PUT contacts/receptionist", "PUT lead-suggestions", "PUT mailboxes/[id]", "PUT me", "PUT me/alerts", "PUT me/devices", "PUT notifications", "PUT people/[id]/business", "PUT playbooks/[id]", "PUT policies", "PUT reach-outs/[id]", "PUT segments/[id]", "PUT sequences/[id]/steps/[step]", "PUT settings", "PUT templates/[id]", "PUT views/[page]", "PUT workspaces/logo"];
+declare const ROUTE_KEYS: readonly ["DELETE ask/threads/[id]", "DELETE capabilities/[kind]", "DELETE contacts/[id]", "DELETE google/connection", "DELETE google/link", "DELETE lead-searches/[id]", "DELETE leads/[id]", "DELETE mailbox-connections/[id]", "DELETE me", "DELETE me/devices", "DELETE people/[id]/business", "DELETE playbooks/[id]", "DELETE reach-outs/[id]", "DELETE segments/[id]", "DELETE sequences/[id]", "DELETE sequences/[id]/steps/[step]", "DELETE team/[id]", "DELETE team/partner", "DELETE templates/[id]", "DELETE templates/versions/[id]", "DELETE workspaces/logo", "GET activity", "GET ask/follow-ups", "GET ask/openings", "GET ask/threads", "GET ask/threads/[id]", "GET billing", "GET billing/invoices", "GET broadcasts", "GET broadcasts/[id]", "GET broadcasts/touches", "GET business-record", "GET calendar", "GET calendar/runs", "GET calls", "GET calls/[id]/export", "GET calls/[id]/recording", "GET channels", "GET channels/whatsapp/signup", "GET consent/qr", "GET contacts", "GET contacts/[id]", "GET contacts/export", "GET conversations", "GET conversations/[id]", "GET conversations/[id]/export", "GET escalations", "GET export", "GET google", "GET google/callback", "GET google/connect", "GET google/locations", "GET lead-searches", "GET lead-suggestions", "GET leads", "GET leads/[id]", "GET leads/[id]/place", "GET leads/back", "GET lines/codes", "GET mailbox-connections/callback", "GET mailbox-connections/connect", "GET me/alerts", "GET messages/[id]/media", "GET metrics", "GET notifications", "GET open", "GET partner", "GET partner/invitations", "GET partner/workspaces", "GET people/[id]/reach", "GET people/list-counts", "GET platform/overview", "GET platform/tenants/[id]", "GET playbooks", "GET policies", "GET reach-out-replies", "GET reach-outs", "GET reach-outs/[id]", "GET reach-outs/[id]/people", "GET reach-outs/leads", "GET reach-outs/reach", "GET reach-outs/sources", "GET reports", "GET reports/campaigns", "GET reports/campaigns/ledger", "GET reports/headline", "GET reports/people", "GET reports/reach-outs", "GET reports/receptionist", "GET reports/reviews", "GET segments", "GET sequences", "GET sequences/[id]", "GET sequences/[id]/history", "GET sequences/[id]/people", "GET sequences/[id]/reach", "GET sequences/[id]/replies", "GET settings", "GET setup", "GET team", "GET team/partner", "GET templates", "GET today", "GET views", "GET workspaces", "PATCH lead-searches/[id]", "PATCH mailbox-connections/[id]", "PATCH partner", "PATCH team/[id]", "PATCH workspaces", "POST ask", "POST ask/messages/[id]/proposals/[pid]", "POST ask/quick", "POST ask/speech", "POST ask/voice", "POST ask/voice/end", "POST ask/voice/page", "POST ask/warm", "POST ask/warm/model", "POST billing/checkout", "POST billing/portal", "POST billing/resume", "POST billing/start-now", "POST billing/sync", "POST broadcasts", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel", "POST broadcasts/[id]/recheck", "POST calendar/notices/[id]/dismiss", "POST calendar/notices/[id]/read-again", "POST calendar/preview", "POST calendar/visits/[id]", "POST calls/[id]/end", "POST calls/[id]/hand-over", "POST calls/[id]/whisper", "POST capabilities/[kind]", "POST channels/whatsapp/connect", "POST channels/whatsapp/standing", "POST client-errors", "POST contacts", "POST contacts/[id]/call", "POST contacts/[id]/deal", "POST contacts/[id]/doubts/dismiss", "POST contacts/[id]/merge", "POST contacts/[id]/notes", "POST contacts/[id]/notes/decide", "POST contacts/[id]/notes/done", "POST contacts/[id]/notes/remove", "POST contacts/[id]/notes/seen", "POST contacts/import", "POST conversations/[id]/archive", "POST conversations/[id]/booking-request", "POST conversations/[id]/hand-back", "POST conversations/[id]/reply", "POST conversations/[id]/snooze", "POST conversations/[id]/take-over", "POST conversations/[id]/wake", "POST escalations/[id]/resolve", "POST fact-suggestions/[id]", "POST google/link", "POST google/locations", "POST google/refresh", "POST google/reviews/[id]/draft", "POST google/reviews/[id]/reply", "POST google/search", "POST handovers/[id]/accept", "POST handovers/[id]/decline", "POST lead-operations/[id]/undo", "POST lead-searches", "POST lead-searches/[id]/aim", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/more", "POST lead-searches/[id]/stop", "POST lead-searches/[id]/undo", "POST lead-searches/chosen", "POST lead-searches/import", "POST lead-searches/people", "POST lead-suggestions", "POST leads/[id]/addressee", "POST leads/[id]/draft", "POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/later", "POST leads/[id]/put-back", "POST leads/[id]/stage", "POST leads/bulk", "POST leads/check-again", "POST leads/export", "POST lines/buy", "POST lines/forwarding", "POST lines/forwarding/test", "POST lines/register", "POST lines/retry", "POST lines/search", "POST mailbox-connections/[id]/check", "POST mailbox-connections/[id]/resume", "POST mailbox-connections/[id]/test", "POST mailboxes", "POST me/invitations/accept", "POST messages/[id]/cancel-send", "POST messages/[id]/steer", "POST notifications/test", "POST partner", "POST partner/invitations/[id]/accept", "POST partner/invitations/[id]/decline", "POST partner/workspaces", "POST partner/workspaces/[id]/resend", "POST people/[id]/draft", "POST people/[id]/message", "POST people/[id]/name", "POST people/[id]/say", "POST platform/jobs/requeue", "POST platform/lines/refile", "POST platform/lines/release", "POST platform/lines/replace", "POST platform/lines/retry", "POST platform/partners/payout", "POST platform/partners/second-factor", "POST platform/partners/standing", "POST platform/partners/status", "POST platform/waitlist/invited", "POST playbooks", "POST playbooks/[id]/run", "POST reach-out-replies/[id]/undo", "POST reach-out-sends/[id]/decide", "POST reach-out-sends/[id]/said", "POST reach-outs", "POST reach-outs/[id]/leads", "POST reach-outs/[id]/leads/check", "POST reach-outs/[id]/leads/leave", "POST reach-outs/leads/[id]/said", "POST reach-outs/leads/[id]/stop", "POST reach-outs/preview", "POST receptionist/try", "POST segments", "POST segments/draft", "POST sequences", "POST sequences/[id]/leads", "POST sequences/[id]/leads/check", "POST sequences/[id]/leave", "POST sequences/[id]/move", "POST sequences/[id]/return", "POST sequences/[id]/steps", "POST sequences/[id]/steps/[step]/test", "POST sequences/[id]/steps/[step]/words", "POST sequences/draft", "POST sequences/draft-leads", "POST settings/receptionist", "POST setup/request", "POST team/invite", "POST team/invite/[id]/resend", "POST team/leave", "POST team/partner", "POST templates", "POST templates/draft", "POST templates/message", "POST templates/starter", "POST templates/sync", "POST templates/versions", "POST templates/versions/rewrite", "POST vitals", "POST workspaces/create", "POST workspaces/logo/lookup", "PUT business-record", "PUT contacts/[id]/consent", "PUT contacts/[id]/details", "PUT contacts/[id]/marketing-consent", "PUT contacts/[id]/receptionist", "PUT contacts/[id]/seen", "PUT contacts/consent", "PUT contacts/marketing-consent", "PUT contacts/notes", "PUT contacts/receptionist", "PUT lead-suggestions", "PUT mailboxes/[id]", "PUT me", "PUT me/alerts", "PUT me/devices", "PUT notifications", "PUT people/[id]/business", "PUT playbooks/[id]", "PUT policies", "PUT reach-outs/[id]", "PUT segments/[id]", "PUT sequences/[id]/chain", "PUT sequences/[id]/steps/[step]", "PUT settings", "PUT templates/[id]", "PUT views/[page]", "PUT workspaces/logo"];
 /** A route by its key: "POST conversations/[id]/reply". */
 type ApiRouteKey = (typeof ROUTE_KEYS)[number];
 
@@ -23145,7 +23632,7 @@ type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "people_search" | "reach_out_add" | "deal" | "note" | "person_details" | "list" | "run" | "playbook_channels" | "playbook_change" | "message" | "answer" | "answer_many" | "person_mode_many" | "note_many" | "person_add" | "person_merge" | "person_message" | "list_member" | "list_change" | "list_delete" | "sequence_step" | "sequence_step_remove" | "sequence_words" | "sequence_leave" | "sequence_send_decide" | "sequence_send_said" | "sequence_draft" | "sequence_make" | "sequence_start" | "sequence_discard" | "sequence_end" | "sequence_test" | "playbook_run" | "booking_request" | "fact_suggestion" | "call_hand_over" | "lead_stage" | "lead_mark" | "lead_later" | "leads_bulk" | "leads_check" | "lead_addressee" | "lead_list" | "lead_search_more" | "reach_out_make" | "reach_out_said" | "review_reply" | "follow_up" | "answer_style";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "people_search" | "reach_out_add" | "deal" | "note" | "person_details" | "list" | "run" | "playbook_channels" | "playbook_change" | "message" | "answer" | "answer_many" | "person_mode_many" | "note_many" | "person_add" | "person_merge" | "person_message" | "list_member" | "list_change" | "list_delete" | "sequence_step" | "sequence_step_remove" | "sequence_words" | "sequence_leave" | "sequence_add" | "sequence_move" | "lead_search_aim" | "sequence_send_decide" | "sequence_send_said" | "sequence_draft" | "sequence_make" | "sequence_start" | "sequence_discard" | "sequence_end" | "sequence_test" | "playbook_run" | "booking_request" | "fact_suggestion" | "call_hand_over" | "lead_stage" | "lead_mark" | "lead_later" | "leads_bulk" | "leads_check" | "lead_addressee" | "lead_list" | "lead_search_more" | "reach_out_make" | "reach_out_said" | "review_reply" | "follow_up" | "answer_style";
     /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
     needs: ProposalNeeds;
     title: string;
@@ -23347,9 +23834,9 @@ declare const PageContextSchema: z$1.ZodObject<{
         pipeline: "pipeline";
         campaigns: "campaigns";
         reports: "reports";
-        live: "live";
         conversations: "conversations";
         inbox: "inbox";
+        live: "live";
     }>;
     route: z$1.ZodString;
     view: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodString>>;
@@ -23460,6 +23947,9 @@ declare const AskSettingsChangeSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<
 }, z$1.core.$strip>, z$1.ZodObject<{
     op: z$1.ZodLiteral<"set_photos">;
     on: z$1.ZodBoolean;
+}, z$1.core.$strip>, z$1.ZodObject<{
+    op: z$1.ZodLiteral<"set_booking_link">;
+    link: z$1.ZodString;
 }, z$1.core.$strip>], "op">;
 
 interface JumpEntry {
@@ -23730,6 +24220,11 @@ type AskSettingsChange = {
 } | {
     op: "set_goal";
     goal: string;
+}
+/** The booking link {{booking link}} fills (a sequence to leads' step sheet puts it in where it is not set). */
+ | {
+    op: "set_booking_link";
+    link: string;
 } | AskAnswersChange;
 /** Which of the three messages sent in the business's name a change rewrites. */
 type AskMessageKey = (typeof FALLBACK_ROWS)[number]["key"];
@@ -24461,7 +24956,6 @@ declare const PROPOSAL_SPECS: {
     whisper: ProposalSpec;
     call_hand_over: ProposalSpec;
     policy: ProposalSpec;
-    settings: ProposalSpecAboveOperator;
     invite: ProposalSpecAboveOperator;
     broadcast: ProposalSpec;
     playbook: ProposalSpec;
@@ -24501,6 +24995,9 @@ declare const PROPOSAL_SPECS: {
     sequence_step_remove: ProposalSpec;
     sequence_words: ProposalSpec;
     sequence_leave: ProposalSpec;
+    sequence_add: ProposalSpec;
+    sequence_move: ProposalSpec;
+    lead_search_aim: ProposalSpec;
     sequence_send_decide: ProposalSpec;
     sequence_send_said: ProposalSpec;
     sequence_draft: ProposalSpec;
@@ -24515,6 +25012,7 @@ declare const PROPOSAL_SPECS: {
     booking_request: ProposalSpec;
     fact_suggestion: ProposalSpecAboveOperator;
     answer_style: ProposalSpec;
+    settings: ProposalSpecAboveOperator;
 };
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
@@ -24536,7 +25034,6 @@ declare const ASK_ONLY_SPECS: {
     whisper: ProposalSpec;
     call_hand_over: ProposalSpec;
     policy: ProposalSpec;
-    settings: ProposalSpecAboveOperator;
     invite: ProposalSpecAboveOperator;
     broadcast: ProposalSpec;
     playbook: ProposalSpec;
@@ -24585,6 +25082,9 @@ declare const PAGE_SPECS: {
     sequence_step_remove: ProposalSpec;
     sequence_words: ProposalSpec;
     sequence_leave: ProposalSpec;
+    sequence_add: ProposalSpec;
+    sequence_move: ProposalSpec;
+    lead_search_aim: ProposalSpec;
     sequence_send_decide: ProposalSpec;
     sequence_send_said: ProposalSpec;
     sequence_draft: ProposalSpec;
@@ -24599,6 +25099,7 @@ declare const PAGE_SPECS: {
     booking_request: ProposalSpec;
     fact_suggestion: ProposalSpecAboveOperator;
     answer_style: ProposalSpec;
+    settings: ProposalSpecAboveOperator;
 };
 /** A verb a page presses: commitVerb takes no other. */
 type VerbKind = keyof typeof PAGE_SPECS;
@@ -24612,7 +25113,7 @@ declare function verbSpec(kind: string): ProposalSpec | null;
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it. Ask's own kinds join it
  * as they are added, in place, so a reader holding it (window.PROPOSAL_GATE) sees them.
  */
-declare const PROPOSAL_GATE: Partial<Record<"list" | "message" | "note" | "follow_up" | "settings" | "booking_request" | "reply" | "invite" | "whisper" | "broadcast" | "playbook" | "deal" | "review_reply" | "steer" | "run" | "answer" | "lead_stage" | "policy" | "thread_verb" | "person_mode" | "lead_search" | "people_search" | "reach_out_add" | "person_details" | "playbook_channels" | "playbook_change" | "answer_many" | "person_mode_many" | "note_many" | "person_add" | "person_merge" | "person_message" | "list_member" | "list_change" | "list_delete" | "sequence_step" | "sequence_step_remove" | "sequence_words" | "sequence_leave" | "sequence_send_decide" | "sequence_send_said" | "sequence_draft" | "sequence_make" | "sequence_start" | "sequence_discard" | "sequence_end" | "sequence_test" | "playbook_run" | "fact_suggestion" | "call_hand_over" | "lead_mark" | "lead_later" | "leads_bulk" | "leads_check" | "lead_addressee" | "lead_list" | "lead_search_more" | "reach_out_make" | "reach_out_said" | "answer_style", ProposalGate>>;
+declare const PROPOSAL_GATE: Partial<Record<"list" | "message" | "note" | "follow_up" | "settings" | "booking_request" | "reply" | "invite" | "whisper" | "broadcast" | "playbook" | "deal" | "review_reply" | "steer" | "run" | "answer" | "lead_stage" | "policy" | "thread_verb" | "person_mode" | "lead_search" | "people_search" | "reach_out_add" | "person_details" | "playbook_channels" | "playbook_change" | "answer_many" | "person_mode_many" | "note_many" | "person_add" | "person_merge" | "person_message" | "list_member" | "list_change" | "list_delete" | "sequence_step" | "sequence_step_remove" | "sequence_words" | "sequence_leave" | "sequence_add" | "sequence_move" | "lead_search_aim" | "sequence_send_decide" | "sequence_send_said" | "sequence_draft" | "sequence_make" | "sequence_start" | "sequence_discard" | "sequence_end" | "sequence_test" | "playbook_run" | "fact_suggestion" | "call_hand_over" | "lead_mark" | "lead_later" | "leads_bulk" | "leads_check" | "lead_addressee" | "lead_list" | "lead_search_more" | "reach_out_make" | "reach_out_said" | "answer_style", ProposalGate>>;
 /** The kinds only Ask's cards commit, into every lookup above: the server's table at once, the browser's once loaded. */
 declare function addProposalSpecs(specs: Readonly<Record<AskOnlyKind, ProposalSpec>>): void;
 /**
@@ -26207,7 +26708,8 @@ declare function visitTitleWithout(title: string, names: readonly (string | null
  * - a one-off send (a broadcast with no campaign) at its time, in Sent's words for its state (BROADCAST_STATE_LABELS);
  * - a campaign's run waiting for approval, on its day and never at an hour (its scheduled_for is the moment it was made),
  *   the page's one amber (RUN_WAITING_WORDS), "Too late to approve" once its day has passed;
- * - the campaign runs that went, one quiet "Campaigns · N sent" a day (todayRunWords' kind), the day's sheet naming each;
+ * - the campaign runs that went, at the minute they went, those within a quarter hour one quiet "N campaigns · N sent"
+ *   (todayRunWords' kind), the day's sheet naming each;
  * - each running campaign's next run, today or tomorrow only, per campaign: "10 AM · … · to come" where its class sends
  *   by itself or after a Stop, "to approve tomorrow" where it waits for a person; never where a run row already stands for
  *   it that day or a later one, where it has ended, or while the workspace is paused;
@@ -33749,6 +34251,8 @@ declare function reachOutEmailOf(words: {
     ok: false;
     reason: "missing_value";
 };
+/** The made-up business a preview or a test reads as where nobody is in the sequence yet: a company, a person named. */
+declare const reachOutExampleLead: () => SlotLead;
 /**
  * The six slots' values in a preview of a step's email as one business would read it: made-up ones for what changes from
  * business to business, and the workspace's own for what it knows; a slot the workspace has nothing for is a hole, said
@@ -33826,6 +34330,9 @@ declare const LEAD_CARD_WORDS: {
     readonly to: "To";
     readonly subject: "Subject";
     readonly opening: "A line about them, written when its batch is planned. You read it before it goes.";
+    /** The legend under an email drawn whole (the canvas's preview as a real lead): where each marked part comes from. */
+    readonly fromRecord: "from their record";
+    readonly writtenForThem: "written for them, from the listing";
     readonly greets: (fallback: string) => string;
     readonly checking: "once their address checks out";
     readonly holes: (labels: string[]) => string;
@@ -33965,350 +34472,122 @@ declare const LEAD_CARD_MARKS_MAX = 4;
  */
 declare function leadCardMarksOf(vm: Pick<LeadPeekVM, "groups">): LeadCardMarkVM[];
 
-/** Where someone stands in a sequence, as its Leads tab files them (contracts SEQUENCE_PEOPLE_GROUPS). */
-type LeadPlaceGroup = "waiting" | "held" | "to_send" | "replied" | "next" | "in" | "done" | "left";
-/** Each place said beside a name: the group's own word, in the singular (the canvas's States board). */
-declare const LEAD_PLACE_WORDS: Record<LeadPlaceGroup, string>;
-/** Where they stand in their sequence: the place, its step, and the send that needs you there. */
-interface LeadPlaceVM {
-    group: LeadPlaceGroup;
-    /** The step they are at, from 1. */
-    step: number;
-    /** A held send to decide, or one drafted for its owner to send; null where none waits on you. */
-    sendId: string | null;
-    /** Why the check held it. */
-    hold: ReachOutHold | null;
-    holdDetail: string | null;
-    /** The batch a drafted send waits in, where its owner sends it. */
-    runId: string | null;
-    /** What it means, in one line: "Step 1 held: …", "Step 2 Thu 9:00 AM", "Left · you stopped writing". */
-    line: string;
-}
-/**
- * Where they stand in the sequence they are in, by what its sends say, in People's order (00455 sequence_people): one who
- * wrote back and waits for an answer; a send held by the check, drafted for its owner, waiting in a batch for an OK, or
- * planned; on its list with nothing planned yet; between steps; every step gone; or left, with why. Null outside a
- * sequence.
- */
-declare function leadSheetPlaceOf(t: ReachOutLeadTimelineDto | null, nowMs: number, tz: string): LeadPlaceVM | null;
-/** A word's tone, as the house's tone pill draws it: amber needs you, green runs, plain is over or not decided on yet. */
-type LeadWordTone = "warn" | "ok" | "plain";
-/**
- * The word beside the name: where they stand once a sequence has them (its group's word), else the lead's own state:
- * Ready, To review, Wrote back, or what closed it. A lead in another sequence is In it, as that sequence files it. One
- * that can't join says so in amber: Call first (no email to write to), Can't join yet (the sequence's rule keeps them
- * out until something changes).
- */
-declare function leadSheetWordOf(p: {
-    state: LeadSheetState;
-    place: LeadPlaceVM | null;
-    closed: LeadSheetClosedVM | null;
-    /** Why Add is off for this lead; null when it would go. */
-    blocked?: string | null;
-}): {
-    word: string;
-    tone: LeadWordTone;
-};
-/** The sequence box: how they stand to it, which (a door to its record), its one line, and whether Change is offered. */
-interface LeadSheetBoxVM {
-    /** "Joins", "In", "Left", "Can't join yet", or null where no sequence is named (none takes leads, none chosen, no email). */
-    verb: string | null;
-    name: string | null;
-    /** The record the name opens. */
-    rootId: string | null;
-    line: string;
-    change: boolean;
-}
-/**
- * The sequence box, by the state and the place: Joins the sequence the adds go to (Step 1 after your OK, or once kept),
- * Goes with a search's own, In the one they are in (its place's line), Left it (why), Can't join yet (its rule keeps them
- * out, the reason as its line), Needs an email (no sequence named, since none could take them), Choose where they go
- * (none chosen for this search), or no sequence yet. Change is offered where the adds may go to another.
- */
-declare function leadSheetBoxOf(p: {
-    state: LeadSheetState;
-    place: LeadPlaceVM | null;
-    /** The sequence they are in (their story's), by name and record. */
-    inSequence: {
-        rootId: string;
-        name: string;
-    } | null;
-    /** The other sequence that has them (the add door's answer). */
-    elsewhere: {
-        rootId: string | null;
-        name: string;
-    } | null;
-    /** Where the adds go: the one chosen. */
-    target: {
-        rootId: string;
-        name: string;
-    } | null;
-    /** Step 1's subject as this lead would get it, where every part of it fills; null otherwise. */
-    firstSubject: string | null;
-    /** The open search's own sequence, which takes every ready lead it finds. */
-    searchWrites: {
-        rootId: string;
-        name: string;
-    } | null;
-    canChange: boolean;
-    closed: LeadSheetClosedVM | null;
-    /** Their story or the sequences still being read. */
-    reading: boolean;
-    /** Why Add is off for this lead in the sequence chosen (its rule, or a hole in its words); null when it would go. */
-    blocked?: string | null;
-    /** Sequences take leads you add, and none is chosen for this search. */
-    unchosen?: boolean;
-}): LeadSheetBoxVM;
-/** The dock: its line and fact, a round ✕ for Not a fit where it is one, and at most two acts, the last the primary. */
-interface LeadSheetDockVM {
-    line: string;
-    fact: string;
-    /** Something is being read: a spinner beside the line, and the acts wait. */
-    waiting: boolean;
-    x: boolean;
-    acts: LeadSheetSlotVM[];
-}
-declare const LEAD_DOCK_WORDS: {
-    /** The dock names where Add goes (the refined canvas, decision 04), so a wrong default shows before the press. */
-    readonly ready: {
-        readonly line: (sequence: string) => string;
-        readonly fact: "Nothing goes until you approve";
-    };
-    readonly checking: {
-        readonly line: "Checking their mailbox";
-        readonly fact: "Add waits a few seconds";
-    };
-    readonly reading: {
-        readonly line: "Reading where they stand";
-        readonly fact: "A moment";
-    };
-    readonly noEmail: {
-        readonly line: "No email to write to";
-        readonly fact: "Call them";
-    };
-    /** Add is off in the sequence chosen: its reason is the fact, and Not a fit and Later stay. */
-    readonly cantJoin: {
-        readonly line: "Can't join yet";
-    };
-    /** None chosen for this search: Change, in the box above, picks one; Not a fit and Later stay. */
-    readonly choose: {
-        readonly line: "Which sequence?";
-        readonly fact: "Change, above, picks where they go";
-    };
-    readonly elsewhere: {
-        readonly line: "One sequence at a time";
-        readonly fact: "Take them out there to add them here";
-    };
-    readonly noSequence: {
-        readonly line: "Nothing to add to yet";
-        readonly fact: "Starts from this lead, and comes back";
-    };
-    readonly review: {
-        readonly line: "To review";
-        readonly fact: "Keep counts it, and sends it on";
-    };
-    readonly waiting: {
-        readonly line: "Waits for your OK";
-        readonly fact: "A batch, so in the sequence";
-    };
-    readonly held: {
-        readonly line: "Held by the check";
-        readonly fact: "Its email, decided here";
-    };
-    readonly toSend: {
-        readonly line: "Yours to send";
-        readonly fact: "From your own inbox";
-    };
-    readonly search: {
-        readonly line: "Goes in its next batch";
-        readonly fact: "Not a fit is how one stays out";
-    };
-    readonly first: {
-        readonly line: "On a new list of this pile's";
-        readonly fact: "You write to them once, at the end";
-    };
-    readonly replied: (intent: string | null, at: string | null) => {
-        line: string;
-        fact: string;
-    };
-    readonly approve: "Approve";
-    readonly decide: "Decide";
-    readonly openDraft: "Open the draft";
-    readonly answer: "Answer";
-    readonly call: "Call";
-    readonly add: "Add";
-    readonly later: "Later";
-    readonly notFit: "Not a fit";
-    readonly keep: "Keep";
-    readonly exclude: "Leave out";
-    readonly openIt: "Open it";
-    readonly newSequence: "New sequence";
-    readonly itsSequence: "Its sequence";
-    readonly hold: "Add to a new list";
-    readonly putBack: "Put back";
-    readonly ready_: "Move back to Ready";
-    /** Held, decided here (the canvas's HeldDecide): the same choices, and the same verb, as the sequence's Leads tab. */
-    readonly decideAsk: "What to do with its email?";
-    readonly decideOnly: (sequence: string) => string;
-    /** What the check flagged, said before the choices, so a held email is never decided blind. */
-    readonly decideFlag: (hold: ReachOutHold, detail: string | null) => string;
-    readonly back: "Back";
-    /** The desk's key row under the dock: in a pile, the dock's own keys and Undo; out of one, J and K walk the rows. */
-    readonly undoKey: "undo";
-    readonly moveKeys: "next, before";
-};
-/** What the dock is read from, beside the state and the place. */
-interface LeadSheetDockFacts {
-    state: LeadSheetState;
-    place: LeadPlaceVM | null;
-    pile: "list" | "first" | "search" | null;
-    /** Where Add would go; null where no sequence takes leads by hand. */
-    target: string | null;
-    /** Why Add is off for this lead (the door's answer, or a hole); null when it would go. */
-    blocked: string | null;
-    canCall: boolean;
-    canLater: boolean;
-    closed: LeadSheetClosedVM | null;
-    /** Their newest reading that asks for an answer: what it was read as, and when. */
-    reply: {
-        intent: string;
-        readAt: string;
-    } | null;
-    /** Their story or the sequences still being read: the dock waits, offering nothing the reads could take back. */
-    reading: boolean;
-    /** Sequences take leads you add, and none is chosen for this search: Change, in the box, picks one. */
-    unchosen?: boolean;
-    tz: string;
-    nowMs: number;
-}
-/**
- * The dock, by the lead's state and its place: Add with ✕ and Later for a lead to decide on (or why it can't go, and the
- * way on: a call, its other sequence, a new sequence), Leave out and Keep for one to review, and while a sequence has
- * them only what needs you: an OK to give, a held email to decide, a draft to send, a reply to answer. Null when nothing
- * needs you: in it, up next, done, left, or asked to stop.
- */
-declare function leadSheetDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null;
-/**
- * A row's place on Leads (the Stage cell, under its stage), from the open search's lines (00241 reach_out_search_lines),
- * in the words the sheet and the record use: Wrote back, Held, For you to send, Waits for your OK, Up next, In it, Left.
- * Null where the sequence has done nothing with the lead yet.
- */
-declare function leadLinePlaceOf(l: ReachOutLeadLineDto, chainWaits: boolean, nowMs: number, tz: string): {
-    word: string;
-    tone: LeadWordTone;
-    line: string | null;
-} | null;
-
-/** The sheet's words: its head, its tabs' headings, its blocks, and its handle. */
+/** The sheet's words: its head, its sections, the picker, New, and the pile's end. */
 declare const LEAD_SHEET_WORDS: {
-    readonly tabs: "About this lead";
+    readonly label: "About this lead";
     readonly raise: "Show everything about them";
-    readonly lower: "Back to the card";
+    readonly lower: "Back to the quick look";
     readonly close: "Close";
     readonly more: "More for this lead";
-    readonly stage: "Stage";
-    readonly why: {
-        readonly people: "People here";
-    };
-    readonly reach: {
-        readonly head: "Ways to reach them";
-        readonly sub: "best first";
-        readonly others: "Other addresses on their site";
-    };
-    readonly emails: {
-        readonly steps: "The steps";
-        readonly vars: (name: string) => string;
-        readonly to: "To";
-        readonly from: "From";
-        readonly when: "When";
-        readonly none: "Choose a sequence to see what they would get.";
-    };
-    readonly about: {
-        readonly links: "Their links";
-        readonly hours: "Their week";
-    };
-    /** The three tabs' own headings and doors (the refined canvas). */
-    readonly panes: {
-        readonly listing: "From the listing";
-        readonly company: "The company";
-        readonly writesTo: "The sequence writes to";
-        readonly email: "Email";
-        /** The site's row opens it, in a tab of its own: said once, here, and nowhere else in Contact. */
-        readonly openSite: "Open their site";
-        readonly where: "Where they are";
-        readonly steps: "Their steps";
-        readonly everyStep: (name: string) => string;
-        readonly takeOut: "Take out";
-        readonly wentOut: "What went out";
-        readonly takeOutLine: "Only of this sequence; Put back undoes. Stop writing to them anywhere is in the ⋯.";
-    };
-    readonly activity: {
-        readonly stand: "In a sequence";
-        readonly found: "How it was found";
-    };
-    readonly change: "Change";
-    readonly done: "Done";
-    readonly choose: (name: string) => string;
-    /** Change's way into Sequences (the refined canvas): a version of the one chosen, or a new one, and back here. */
-    readonly versionOf: (name: string) => string;
-    readonly versionHint: "The same steps and mailboxes, a new first email, its own list. Made in Sequences.";
-    readonly newSequence: "New sequence";
-    readonly newSequenceHint: "Starts in Sequences with this lead, and comes back";
-    readonly chooseFootPile: "Used for the rest of this pile. A sequence fed by its own search takes its leads by itself.";
-    readonly chooseFoot: "Used for the leads you open next. A sequence fed by its own search takes its leads by itself.";
-    readonly fills: "Every field fills";
-    readonly greets: "Greets them as “there”";
-    readonly needs: (labels: string) => string;
-    readonly emailOf: (name: string) => string;
-    readonly modeFirst: "No sequence takes leads you add yet. Add the ones you'd write to; you write to them once, at the end.";
-    readonly modeSearch: (name: string) => string;
-    readonly goesWith: (name: string) => string;
-    readonly phoneOnly: "No email found";
-    readonly phoneOnlyLine: "There's a number to call. Call saves what was said and moves on.";
-    readonly elsewhereIn: (name: string) => string;
-    readonly elsewhereLine: "A business is written to once, so this one stays with that sequence.";
-    readonly inSequence: (name: string) => string;
-    readonly notInYet: "Not in a sequence yet";
-    readonly stopped: "The sequence stopped";
-    readonly wroteBack: "They wrote back";
-    /** Their reply as Claude read it: a reading, so never in quotation marks as if their words. */
-    readonly readAs: "Their reply, as read";
-    /** Every lead the pile went through: added, set aside and put off alike. */
-    readonly endTitle: (looked: number) => string;
-    readonly endAdded: (name: string) => string;
-    readonly endHeld: "On your new list";
-    readonly endLater: "For later";
-    readonly endNotFit: "Not a fit";
-    readonly endNote: "Its next batch waits for your OK, because it carries leads you added.";
-    readonly endNoteFirst: "Next, write what they get. Nothing goes until you approve its first batch.";
-    readonly next: "Next";
-    readonly later: "Later";
-    readonly notFit: "Not a fit";
-    readonly add: "Add";
-    readonly hold: "Add to a new list";
-    readonly keep: "Keep";
-    readonly exclude: "Leave out";
-    readonly call: "Call";
-    readonly draft: "Draft an email";
-    readonly openIt: "Open it";
-    readonly itsSequence: "Its sequence";
-    readonly stop: "Stop writing";
-    readonly thread: "Open the thread";
-    readonly putBack: "Put back";
-    readonly ready: "Move back to Ready";
-    readonly laterAgain: (n: number) => string;
-    readonly leave: "Done for now";
-    readonly writeHeld: (n: number) => string;
-    readonly openTarget: "Open the sequence";
-    readonly approveIn: (name: string) => string;
-    readonly keepSub: (left: number) => string;
     readonly back: "Back";
-    readonly hides: "Hides it from every search";
-    readonly lastWhy: "Your last reason";
-    readonly copyAll: "Copy everything";
-    readonly copied: "Copied what is known of them";
+    /** An email drawn whole: who it is from and to. */
+    readonly emails: {
+        readonly from: "From";
+        readonly to: "To";
+    };
+    /** The quick acts at half: each opens outside the app. */
+    readonly quick: {
+        readonly website: "Website";
+        readonly call: "Call";
+        readonly maps: "Maps";
+    };
+    /** The sections of the one scroll, in their order. */
+    readonly sections: {
+        readonly fit: "Fit";
+        readonly about: "About";
+        readonly contact: "Contact";
+        readonly sequence: "Sequence";
+        readonly found: "How we found them";
+    };
+    readonly fitChecks: (passed: number, of: number) => string;
+    readonly passed: (n: number) => string;
+    readonly aboutFrom: (from: string) => string;
+    readonly listing: "Listing";
+    readonly claimed: "Claimed by the owner";
+    readonly unclaimed: "Nobody has claimed it";
+    readonly hours: "Hours";
+    /** Contact: where the sequence writes, and changing who it writes to. */
+    readonly writesHere: "The sequence writes here";
+    readonly writeHere: "Write here";
+    readonly checkedMailbox: "mailbox checked";
+    readonly notConfirmed: "Not confirmed";
+    readonly emailOnSite: "Email found on its contact page";
+    /** Sequence, before one: not in one yet, and the email they'd get from the pick. */
+    readonly notInOne: "Not in one yet";
+    readonly wouldGet: "The email they'd get";
+    readonly wouldGetOf: (name: string) => string;
+    readonly noPick: "Pick a sequence to see the email they'd get.";
+    readonly noEmailToWrite: "No email to write to: no sequence can take them. Call them instead.";
+    /** The lead's ⋯: the rare acts. */
+    readonly menu: {
+        readonly theyWrote: "They wrote back…";
+        readonly copy: "Copy details";
+        readonly copied: "Copied what is known of them";
+        readonly never: "Never write to them again";
+        readonly neverHint: "Stops every sequence";
+        readonly erase: "Erase this lead";
+    };
+    /** The picker: a step of the same sheet. */
+    readonly picker: {
+        readonly title: (name: string) => string;
+        readonly titleMany: (n: number) => string;
+        readonly sub: "Tap one to add. It becomes the pick for this search.";
+        readonly canJoin: (name: string) => string;
+        readonly yours: "Your lead sequences";
+        readonly none: "No sequence takes leads yet. Make one by name; you write its emails after the pile.";
+        readonly newOne: "New sequence";
+        readonly newLine: "Name it now; write the emails after the pile";
+        readonly newLineMany: (n: number) => string;
+        readonly pick: "the pick for this search";
+    };
+    /** Many at once, from the selection bar: the same picker and New, named by how many. */
+    readonly bulk: {
+        readonly noEmail: (n: number) => string;
+        readonly addTo: (n: number, name: string) => string;
+        readonly addAny: (n: number) => string;
+        readonly choose: "Choose where they go";
+        readonly stay: (n: number) => string;
+        readonly later: "Later";
+        readonly laterDone: (n: number) => string;
+        readonly more: "More";
+    };
+    /** New: a name and a start, mid-pile. */
+    readonly make: {
+        readonly title: "New sequence";
+        readonly sub: (name: string) => string;
+        readonly subMany: (n: number) => string;
+        readonly name: "Name";
+        readonly from: "Start from";
+        readonly copy: (name: string) => string;
+        readonly copyLine: "Same emails and waits, on a new list";
+        readonly change: "Change";
+        readonly ask: "A draft by Ask";
+        readonly askLine: "From your goal in Settings and this search";
+        readonly blank: "Blank";
+        readonly blankLine: "You write every email";
+        readonly create: (name: string) => string;
+        readonly createMany: (n: number) => string;
+        readonly drafting: "Writing a draft…";
+    };
+    /** The pile's end. */
+    readonly end: {
+        readonly title: (n: number) => string;
+        readonly toSequence: (n: number, name: string) => string;
+        readonly notFit: (n: number) => string;
+        readonly later: (n: number) => string;
+        readonly goThrough: "Go through them";
+        readonly approve: (n: number) => string;
+        readonly write: "Write the emails in Sequences";
+        readonly writeNote: (n: number) => string;
+        readonly approveNote: "Their first batch waits for your OK: it carries leads you added.";
+    };
+    /** The pile's line over the card. */
+    readonly of: (at: number, of: number, search: string) => string;
+    /** Adds go to: the pick, said on Leads over the rows. */
+    readonly addsGoTo: "Adds go to";
+    readonly noneYet: "Pick a sequence";
 };
-/** The canvas's states (its "Twelve states" board, less the pile's own: the end, and a search that already writes). */
+/** The canvas's states: what the dock is read by, beside the lead's place. */
 type LeadSheetState = "review" | "finding" | "phone" | "gap" | "elsewhere" | "sequence" | "replied" | "closed" | "ready";
 /** What the state is read from: the lead as the rows read it, and the two ways to them. */
 interface LeadSheetLead {
@@ -34317,111 +34596,114 @@ interface LeadSheetLead {
     emailState: LeadEmailState;
     hasEmail: boolean;
     canCall: boolean;
-    /** In a sequence already (lead_chain_of: one lead, one sequence). */
-    inSequence: boolean;
-}
-/** What their story with a sequence says, where there is one (reach_out_lead_timeline). */
-interface LeadSheetStory {
-    replied: boolean;
-    bounced: boolean;
 }
 /**
- * Which state the lead is in, by what is known of it in this order: its own record, the add door's answer (the one
- * predicate, never a second reading of the address here), then what the card's email says (a fallback or a hole).
+ * Which state the lead is in, by what is known of it in this order: its own record and its place (the one reader), the
+ * add door's answer (the one predicate, never a second reading of the address here), then what its email says.
  */
 declare function leadSheetStateOf(p: {
     lead: LeadSheetLead;
+    place: SequencePlaceDto | null;
     check: LeadCardCheck | undefined;
     email: Pick<LeadCardEmailVM, "blocked" | "note"> | null;
-    story: LeadSheetStory | null;
 }): LeadSheetState;
-/** What stopped, as a closed card says it, and the one fix that exists for it (none, where none does). */
+/** What stopped, as a closed lead says it, and the one fix that exists for it (none, where none does). */
 interface LeadSheetClosedVM {
     title: string;
     line: string;
     fix: "put_back" | "ready" | "call" | null;
 }
-/** What a closed card says: left out, closed with its reason, bounced, or what the door said. */
+/** What a closed lead says: left out, closed with its reason, bounced, or what the door said. */
 declare function leadSheetClosedOf(p: {
     lead: LeadSheetLead;
     closedReason: string | null;
     blocked: string | null;
 }): LeadSheetClosedVM;
-/** What a place on the rail does. */
-type LeadSheetAct = "not_a_fit" | "later" | "add" | "hold" | "keep" | "exclude" | "call" | "draft" | "next" | "sequence" | "stop" | "thread" | "put_back" | "ready" | "later_again" | "leave" | "write_held" | "open_target"
-/** The dock (the refined canvas): Approve in the record, Decide a held email here, Open the draft, a new sequence. */
- | "approve" | "decide" | "open_draft" | "new_sequence";
-/** One place on the rail: what it does, its words and glyph, its key, a second line, and why it is off. */
+/** The verdict first (the canvas's "the decision at a glance"): the fit's word, its tone, and the reason under it. */
+interface LeadVerdictVM {
+    word: string;
+    tone: "ok" | "warn" | "plain";
+    /** Left out by the finder: its own call, with its reason in the word. */
+    out: boolean;
+}
+/** Strong fit (green), Worth a look and Long shot (amber, the plain doubt), Left out and To review (plain). */
+declare function leadVerdictOf(vm: Pick<LeadPeekVM, "fit">): LeadVerdictVM;
+/** What a press of the sheet does. */
+type LeadSheetAct = "not_a_fit" | "later" | "add" | "pick" | "call" | "move" | "sequence" | "put_back" | "ready" | "keep" | "exclude" | "approve" | "open_draft" | "they_wrote" | "thread" | "next";
+/** One press of the dock: what it does, its words and glyph, its key, and why it is off. */
 interface LeadSheetSlotVM {
     act: LeadSheetAct;
     label: string;
     icon: string;
     key: "a" | "l" | "n" | "c" | "j" | null;
-    sub: string | null;
+    /** Add with ▾ beside it: the picker, one press away. */
+    split?: boolean;
     /** Why it is off, said at the control; null when it would go. */
     off: string | null;
 }
-/** A row of acts (the pile's end): the last is always the primary. */
-interface LeadSheetRailVM {
-    x: boolean;
-    slots: LeadSheetSlotVM[];
+declare const sheetSlot: (act: LeadSheetAct, label: string, icon: string, key?: LeadSheetSlotVM["key"], more?: Partial<Pick<LeadSheetSlotVM, "split" | "off">>) => LeadSheetSlotVM;
+/** One sequence the picker offers: its name, its state's word and tone, its one line, and whether it is the pick. */
+interface LeadPickerRowVM {
+    id: string;
+    name: string;
+    state: SequenceState;
+    word: string;
+    tone: "ok" | "warn" | "plain";
+    line: string;
+    picked: boolean;
 }
-/** The rail at the end of a pile: the later ones, the way out, and where the work lands. */
-declare function leadSheetEndRailOf(p: {
-    later: number;
-    held: number;
-    target: string | null;
-    /** How many this pile added to the target: Approve is offered only where there is something to approve. */
-    added: number;
-}): LeadSheetRailVM;
-/** One step of theirs in a sequence: its day and name, when, and whether it went, goes next or is still to come. */
-interface LeadSheetStepVM {
+/**
+ * The picker (the canvas's PhonePicker): every sequence to leads that has not ended, the pick first, then the newest, each
+ * with its state and one line; New sequence follows (the sheet draws it). The one place a sequence is chosen or made.
+ */
+declare function leadPickerRowsOf(rows: readonly SequenceRowDto[], picked: string | null): LeadPickerRowVM[];
+/** What one pile added to one sequence: how many, its state, and its batch waiting for an OK where there is one. */
+interface LeadPileAdded {
+    id: string;
+    name: string;
+    state: SequenceState;
     n: number;
-    /** Its day in the sequence, as the record's rail says it: Day 1, then each wait added. */
-    day: number;
-    label: string;
-    sub: string;
-    when: string;
-    look: "done" | "next" | "later";
+    /** Its batch waiting for your OK, and how many it holds: Approve N. */
+    waiting: {
+        batchId: string;
+        people: number;
+    } | null;
 }
-/** Their steps in the sequence they are in, and the one line every page says of where they stand. */
-interface LeadSheetTrackVM {
-    name: string;
-    rootId: string;
-    steps: LeadSheetStepVM[];
-    line: string | null;
+/** One row of the pile's end: its words, its tone, and its own act. */
+interface LeadPileEndRowVM {
+    key: string;
+    icon: string;
+    words: string;
+    word: string | null;
+    tone: "ok" | "warn" | "plain";
+    act: {
+        kind: "write" | "approve" | "later";
+        label: string;
+        sequenceId: string | null;
+        batchId: string | null;
+    } | null;
+}
+/** The pile's end: what went where, by sequence, the next step the real one. */
+interface LeadPileEndVM {
+    title: string;
+    rows: LeadPileEndRowVM[];
+    note: string | null;
+    /** The press under it: Write the emails for a draft that took leads; none where each row carries its act. */
+    primary: {
+        label: string;
+        sequenceId: string;
+    } | null;
 }
 /**
- * Their steps in their sequence (canvas B, "In a reach-out"): each step from the chain, marked by what its sends did;
- * the first still to come is next where nothing is planned. Null without a sequence.
+ * The pile's end (the canvas's PhoneEnd): each sequence the pile added to, with its state and its act (a draft says Write
+ * the emails, one that is on says Approve N where its first batch waits), how many were not a fit, and those for later
+ * with Go through them. The next step is the real one: a draft that took leads is written first.
  */
-declare function leadSheetTrackOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: string): LeadSheetTrackVM | null;
-/** What their story says for the state: they replied, or an email bounced. */
-declare function leadSheetStoryOf(t: ReachOutLeadTimelineDto | null): LeadSheetStory | null;
-/** What they wrote back, as the reply was read: its summary, never their words made up. Null before any reply. */
-declare function leadSheetReplyOf(t: ReachOutLeadTimelineDto | null): string | null;
-/** One sequence the adds could go to, as Change lists it: its name, its email's shape, and what it would come to. */
-interface LeadSheetOptionVM {
-    rootId: string;
-    name: string;
-    meta: string;
-    fill: string;
-    tone: "ok" | "warn";
-    on: boolean;
-}
-/**
- * Change, opened in place (canvas B: "each option says only what the engine knows"): each sequence fed by a list, with
- * its first email filled for this lead by the send's own fill: every field fills, it greets them as “there”, or the
- * value it needs. A sequence fed by its own search takes its leads by itself and is not offered.
- */
-declare function leadSheetOptionsOf(p: {
-    chains: readonly ReachOutChainDto[];
-    picked: string | null;
-    lead: LeadCardLead | null;
-    workspace: SlotWorkspace;
-    nowMs: number;
-    tz: string;
-}): LeadSheetOptionVM[];
+declare function leadPileEndOf(p: {
+    added: readonly LeadPileAdded[];
+    notFit: number;
+    later: number;
+}): LeadPileEndVM;
 /** A fact about them, and where it came from. */
 interface LeadSheetFactVM {
     k: string;
@@ -34429,22 +34711,137 @@ interface LeadSheetFactVM {
     from: string | null;
 }
 /** The place or the company as its source knows it (About): each fact with its source, nothing its source didn't say. */
-declare function leadSheetAboutOf(vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "facts" | "company" | "about">): {
+declare function leadSheetAboutOf(vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "facts" | "company" | "about" | "claimed">): {
     head: string;
     from: string;
+    text: string | null;
     rows: LeadSheetFactVM[];
 };
+
 /**
- * Where they stand with a sequence, for the Sequence tab: in one, by its steps' line; else exactly what the card's box
- * says (one derivation: the tab and the box never disagree), its verb and sequence as the title where it names one.
+ * The word beside the name: where they stand once a sequence has them (its place's own word), else the lead's own state:
+ * To decide, To review, Call first, Wrote back, or what closed it.
  */
-declare function leadSheetStandOf(p: {
-    track: LeadSheetTrackVM | null;
-    box: LeadSheetBoxVM;
+declare function leadSheetWordOf(p: {
+    state: LeadSheetState;
+    place: SequencePlaceDto | null;
+    closed: LeadSheetClosedVM | null;
 }): {
-    title: string;
-    line: string;
+    word: string;
+    tone: PlaceTone;
 };
+/** The dock: its line and fact (none where the acts say it all), Not a fit and Later as round glyphs, and its acts. */
+interface LeadSheetDockVM {
+    line: string | null;
+    fact: string | null;
+    /** Something is being read or checked: a spinner beside the line, and Add waits. */
+    waiting: boolean;
+    /** Not a fit and Later, the round glyphs before the acts, where the lead is to decide on. */
+    x: boolean;
+    later: boolean;
+    acts: LeadSheetSlotVM[];
+    /** A held email: its choices stand in the acts' place (contracts heldChoicesOf), the same verb as the record's. */
+    held: {
+        sendId: string;
+        batchId: string | null;
+        hold: string | null;
+        place: number | null;
+    } | null;
+}
+declare const LEAD_DOCK_WORDS: {
+    readonly notFit: "Not a fit";
+    readonly later: "Later";
+    readonly addTo: (name: string) => string;
+    readonly addToOne: "Add to a sequence";
+    readonly choose: "Choose where it goes";
+    readonly checking: "Checking the mailbox…";
+    readonly noEmail: {
+        readonly line: "No email";
+        readonly fact: "Phone only";
+    };
+    readonly call: "Call";
+    readonly moveTo: (name: string) => string;
+    readonly inOther: (name: string) => {
+        line: string;
+        fact: string;
+    };
+    readonly writtenBy: (name: string) => {
+        line: string;
+        fact: string;
+    };
+    readonly open: (name: string) => string;
+    readonly putBack: "Put back";
+    readonly ready: "Move back to Ready";
+    readonly review: {
+        readonly line: "To review";
+        readonly fact: "Keep it on the search?";
+    };
+    readonly exclude: "Leave out";
+    readonly keep: "Keep";
+    readonly waiting: (step: number, others: number) => {
+        line: string;
+        fact: string;
+    };
+    readonly approve: "Approve";
+    readonly toSend: (step: number) => {
+        line: string;
+        fact: string;
+    };
+    readonly openDraft: "Open the draft";
+    readonly sentByHand: (step: number, at: string | null) => {
+        line: string;
+        fact: string;
+    };
+    readonly theyWrote: "They wrote back…";
+    readonly replied: (intent: string | null, at: string | null) => {
+        line: string;
+        fact: string;
+    };
+    readonly answer: "Answer";
+    /** The desk's keys under the dock: in a pile, each act's key, ⇧A the picker, J and K, Z undo. */
+    readonly keys: {
+        readonly notFit: "not a fit";
+        readonly later: "later";
+        readonly add: "add";
+        readonly choose: "choose";
+        readonly move: "move";
+        readonly undo: "undo";
+    };
+    readonly reading: "Reading where they stand";
+};
+/** What the dock is read from, beside the state and the place. */
+interface LeadSheetDockFacts {
+    state: LeadSheetState;
+    place: SequencePlaceDto | null;
+    /** Where Add goes: the search's pick; null where nothing is picked yet. */
+    pick: {
+        id: string;
+        name: string;
+        state: SequenceState;
+    } | null;
+    /** Why Add is off for this lead in the pick (the add door's answer, or a hole); null when it would go. */
+    blocked: string | null;
+    /**
+     * The sequence that has them, where it is not the pick (their place, else the add door's answer): whether it wrote to
+     * them already, which keeps them there.
+     */
+    elsewhere: {
+        id: string | null;
+        name: string;
+        written: boolean;
+    } | null;
+    canCall: boolean;
+    /** A search holds the lead: Later puts it off in this pass. */
+    canLater: boolean;
+    closed: LeadSheetClosedVM | null;
+    /** Their place or the sequences still being read: the dock waits, offering nothing the reads could take back. */
+    reading: boolean;
+    /** How many others are in the batch that waits for an OK with them (the record's people), where it is known. */
+    batchOthers?: number;
+    tz: string;
+    nowMs: number;
+}
+declare function leadDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null;
 
 /** The card's and Why's own words. */
 declare const LEAD_SHEET_CARD_WORDS: {
@@ -34470,6 +34867,8 @@ declare const LEAD_SHEET_CARD_WORDS: {
     readonly phone: "Phone";
     readonly theirSite: "their site";
 };
+/** A check that did not pass, as Fit's row says it first: what is not so, in its short words, capitalized. */
+declare const leadSheetExceptionWords: (key: string, label: string) => string;
 /**
  * The line under the name: the kind, the street (else the area), and the rating with how many rated it, short as the
  * canvas's PhoneHalf has it ("4.7 (312)"), so the line keeps to one on a desk's panel and a phone alike.
@@ -34511,8 +34910,14 @@ interface LeadSheetContactLineVM {
     phone: LeadSheetWayVM | null;
     site: string | null;
 }
-/** The ways-in line as a screen reader hears it: each way apart, what is not confirmed said, then the tab it opens. */
-declare function leadSheetContactSaid(line: LeadSheetContactLineVM): string;
+/** The email line at half (the canvas's PhoneHalf): the address the sequence writes to, and how its mailbox checked. */
+interface LeadSheetEmailLineVM {
+    address: string | null;
+    /** "Checked", "Checking…", "Not confirmed", or that none was found. */
+    words: string;
+    tone: "ok" | "warn" | "plain";
+}
+declare function leadSheetEmailLineOf(vm: Pick<LeadPeekVM, "reach" | "slots">): LeadSheetEmailLineVM;
 declare function leadSheetContactLineOf(vm: Pick<LeadPeekVM, "reach" | "slots" | "links" | "company">): LeadSheetContactLineVM;
 /** Why's checks: the exceptions first, the passed ones folded, their count, and the legend where a check was read. */
 interface LeadSheetWhyVM {
@@ -38300,6 +38705,11 @@ declare const runApproveWords: (n: number) => string;
 /** The door to a run, said once: History's day, a campaign's ledger, a reach-out's list and the Inbox's empty pane. */
 declare const RUN_OPEN_WORDS = "Open the run";
 /**
+ * What a run's crumb and its pane's head call it before its name is read, and for one this workspace does not have:
+ * "Broadcast" named Sent's room, which a sequence's run never was.
+ */
+declare const RUN_UNNAMED_WORDS = "Run";
+/**
  * How many campaign runs wait for your say, as a sentence: what Today's calm head leads with and the Inbox's Needs-you
  * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.
@@ -39691,11 +40101,6 @@ declare function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]
 type LifecycleResume = Extract<LifecycleAct, {
     kind: "resume";
 }>;
-/**
- * A reach-out's Resume, asked in place: its name, and that its next step goes on its own day. Its row asks it, and so does
- * its drawer (reach-out/row.tsx), where Resume was a single tap with no question (the wiring's second audit, R11 S9-2).
- */
-declare function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): LifecycleResume;
 /** A campaign, as every "how many campaigns" counts it: not First contact's own rows, nor the month's offer before it is made. */
 declare const isLedgerCampaign: (r: LifecycleRow) => boolean;
 /** The ledger's status tabs, in the order they stand: All, Needs you (the one amber, decision 13), Paused. */
@@ -41236,292 +41641,6 @@ declare function followUpReach(due: readonly PersonRowVM[], step: FollowUpStep):
     }>;
 };
 
-/**
- * What the sequence readers answer (00442): `sequence_overview` a row a sequence, `sequence_steps_of` its steps,
- * `sequence_people` who is in it by where they stand, `sequence_history` what it sent, a batch a row. The page and Ask
- * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
- */
-
-/** A sequence's first step, as the list reads it: how it starts and the class it runs under. */
-interface SequenceFirstStepDto {
-    id: string;
-    kind: string;
-    trigger: string;
-    state: string;
-    policy_class: string;
-    run_hour: number;
-    list_id: string | null;
-    list_key: string | null;
-    /** The workspace's own list it runs on, by its name; null for none or one of People's (list_key). */
-    list_name: string | null;
-    search_id: string | null;
-    /** The lead search a sequence to leads writes to, by its name. */
-    search_name: string | null;
-    owner_sends: boolean;
-    until: string | null;
-    trial_until: string | null;
-    template_name: string | null;
-    template_language: string | null;
-}
-/** A one-off's one batch: when it goes and to how many. */
-interface SequenceDateDto {
-    batch_id: string;
-    state: string;
-    at: string;
-    people: number;
-}
-/**
- * What needs you in a sequence: batches waiting for your OK and how many people they hold, emails held by the check,
- * emails for you to send yourself, and replies to answer; and since when the oldest of them has waited.
- */
-interface SequenceNeedsDto {
-    waiting: number;
-    waiting_people: number;
-    held: number;
-    to_send: number;
-    replies: number;
-    oldest_at: string | null;
-    /**
-     * The batches waiting for an OK, soonest first, each with what the badge judges it by (contracts runWaitsOnYou): its
-     * step, the business's day it was made for and its moment. The server's reader counts `waiting` from those an OK can
-     * still send (sequenceWaitsNow).
-     */
-    batches: SequenceWaitingBatchDto[];
-}
-/** A batch waiting for an OK, as the overview answers it. */
-interface SequenceWaitingBatchDto {
-    id: string;
-    step_id: string | null;
-    run_for: string | null;
-    at: string;
-    people: number;
-    audience: {
-        kind: string | null;
-        trigger: string | null;
-    };
-}
-/** A sequence as the list reads it (`sequence_overview`). */
-interface SequenceRowDto {
-    id: string;
-    name: string;
-    starts: SequenceStart;
-    state: SequenceState;
-    created_at: string;
-    first: SequenceFirstStepDto | null;
-    date: SequenceDateDto | null;
-    steps: number;
-    channels: string[];
-    needs: SequenceNeedsDto;
-    /** The batch to come: waiting for an OK, scheduled or going out. */
-    next: {
-        id: string;
-        at: string;
-        people: number;
-        state: string;
-        place: number | null;
-    } | null;
-    /** The last batch that went, with what it sent and drew back. */
-    last: {
-        id: string;
-        at: string;
-        sent: number;
-        replied: number;
-    } | null;
-    /** People in it now: a step of theirs still to come. */
-    in_it: number;
-}
-/** New words for a step that wait for WhatsApp to approve them (00441), with WhatsApp's answer so far. */
-interface SequenceNextWordsDto {
-    template_id: string | null;
-    name: string;
-    language: string;
-    status: string | null;
-    rejected_reason: string | null;
-}
-/** A step in its place (`sequence_steps_of`). */
-interface SequenceStepDto {
-    id: string;
-    place: number;
-    name: string;
-    kind: string;
-    trigger: string;
-    state: string;
-    after_days: number | null;
-    only_if: string[];
-    channels: string[];
-    template_id: string | null;
-    template_name: string | null;
-    template_language: string | null;
-    params: unknown;
-    /** A sequence to leads' last step for the team: a call or a note. */
-    hand: {
-        kind: string;
-        words: string;
-    } | null;
-    next_words: SequenceNextWordsDto | null;
-    /** What its batches of the last 30 days sent, and drew back. */
-    sent: number;
-    replied: number;
-}
-/** Where someone in a sequence stands, the People tab's groups in their order. */
-declare const SEQUENCE_PEOPLE_GROUPS: readonly ["waiting", "held", "to_send", "replied", "next", "in", "done", "left"];
-type SequencePeopleGroup = (typeof SEQUENCE_PEOPLE_GROUPS)[number];
-/** One person or lead in a sequence (`sequence_people`). */
-interface SequencePersonDto {
-    group: SequencePeopleGroup;
-    contact_id: string | null;
-    lead_id: string | null;
-    enrollment_id: string | null;
-    send_id: string | null;
-    batch_id: string | null;
-    name: string | null;
-    place: number | null;
-    at: string | null;
-    /** Why they were held or left (a send's reason, booked, replied, removed). */
-    why: string | null;
-    hold_detail: string | null;
-    /**
-     * On a to_send row, the email as it was handed to its owner (00447): what their mail app opens with. Null on every other
-     * row, and absent from a server before 00447, where the run's sheet in Sent lays it out instead.
-     */
-    draft?: SequencePersonDraftDto | null;
-    /**
-     * On a replied row (00455), the reply that asks for an answer, the one the overview counts: what they said and the
-     * conversation it is answered in. Null on every other row, and absent from a server before 00455.
-     */
-    reply?: SequencePersonReplyDto | null;
-}
-/** A reply that waits for an answer, as a replied row carries it (00455). */
-interface SequencePersonReplyDto {
-    /** interested or question: the readings that ask for an answer. */
-    intent: string;
-    summary: string | null;
-    conversation_id: string | null;
-}
-/** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00447). */
-interface SequencePersonDraftDto {
-    to: string;
-    subject: string;
-    /** The whole email as it reads, its foot included: what the owner sends. */
-    text: string;
-    /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
-    follow_up: boolean;
-    angle: string | null;
-    drafted_at: string;
-}
-/** Who is in a sequence: each group's count whole, and its first rows. */
-interface SequencePeopleDto {
-    counts: Partial<Record<SequencePeopleGroup, number>>;
-    rows: SequencePersonDto[];
-}
-/** What became of a batch's sends (`sequence_batch_counts`). */
-interface SequenceBatchCountsDto {
-    waiting: number;
-    sent: number;
-    skipped: number;
-    failed: number;
-    held: number;
-    to_send: number;
-    delivered: number;
-    read: number;
-    replied: number;
-}
-/** A batch as History reads it. */
-interface SequenceBatchDto {
-    id: string;
-    state: string;
-    run_for: string | null;
-    at: string;
-    scheduled_for: string;
-    finished_at: string | null;
-    people: number;
-    failure: string | null;
-    place: number | null;
-    counts: Partial<SequenceBatchCountsDto>;
-}
-/**
- * GET sequences/:id/replies: the conversations that answered a sequence over one of History's periods, by the rule its
- * days open onto (a person's words within the reply window after a batch reached them; a lead's reply read as theirs).
- */
-interface SequenceRepliesDto {
-    sequence_id: string;
-    name: string;
-    period: "30" | "90" | "all";
-    conversation_ids: string[];
-}
-/** What a sequence sent, newest first (`sequence_history`). */
-interface SequenceHistoryDto {
-    batches: SequenceBatchDto[];
-    more: boolean;
-}
-/** GET sequences: the workspace's sequences, the clock they are said in, and what it calls an appointment. */
-interface SequencesPageDto {
-    sequences: SequenceRowDto[];
-    timezone: string;
-    word: AppointmentWord;
-}
-/** GET sequences/:id: one sequence, its steps, who approves its batches, and the clock. */
-interface SequenceRecordDto {
-    sequence: SequenceRowDto;
-    steps: SequenceStepDto[];
-    /** The autonomy mode its first step's class runs under (policies): who approves. Null where none is set (ask). */
-    mode: string | null;
-    timezone: string;
-    /** What the workspace calls an appointment, which says when a moment's sequence starts. */
-    word: AppointmentWord;
-    /**
-     * The business day its first step last ran (`sequence_steps.last_run_for`): when its next run goes (sequenceNextOf).
-     * Absent from a server before it, which then says no next run it cannot know.
-     */
-    last_run_for?: string | null;
-    /**
-     * Why its first step's last run did nothing, where it did nothing (core runPlaybook's `skipped`, from its `playbook.run`
-     * event: no calendar, its list gone, its message not approved, the class set to Never, its last day passed); null where
-     * it ran, sent or found nobody (contracts sequenceRunOff says it). Absent from a server before it.
-     */
-    last_run_off?: string | null;
-    /**
-     * How its first step's runs go, beyond its hour: the most one run sends, the days before someone hears it again (a
-     * moment's), and the days between runs (the month's offer). What Start's Change opens with. Absent on a sequence to
-     * leads and a one-off, and from a server before it.
-     */
-    settings?: {
-        cap_per_run: number;
-        gap_days: number;
-        cadence_days: number;
-    };
-    /**
-     * A sequence to leads: what it writes to, a list its owner adds leads to (Add leads opens Leads to add to it) or its
-     * search, which the finder keeps current (contracts isLeadList over the search's `via`). Absent on any other sequence,
-     * and from a server before it, which then opens the search.
-     */
-    fed_by?: ReachOutFedBy;
-    /**
-     * A one-off: its one message as its batch sends it. Absent on any other sequence, and from a server before it, which
-     * then names the sequence alone; null where the batch could not be read.
-     */
-    one_off?: SequenceOneOffDto | null;
-}
-/** A one-off's message (its batch, whose id is the sequence's): the message, the values it is filled with, how it goes. */
-interface SequenceOneOffDto {
-    template_name: string | null;
-    template_language: string | null;
-    params: unknown;
-    /** The channels its sends go by, a customer's not skipped, in CONSENT_CHANNELS' order; none until a send names one. */
-    channels: string[];
-}
-/**
- * GET sequences/:id/reach: what Turn on asks with (contracts sequenceResumeAsk) beside what the record holds, for a
- * sequence on a moment or a list: who its next run reaches, counted as GET playbooks counts its first step's card (its
- * pool, for the channels it goes by), the most one run sends, and whether the workspace is paused (billing).
- */
-interface SequenceReachDto {
-    /** Null where its moment could not be counted: the question then says when alone. */
-    candidates: number | null;
-    cap_per_run: number | null;
-    paused: boolean;
-}
-
 /** Why a run did nothing, as core runPlaybook records it (`skipped`), that a sequence's record says. */
 declare const RUN_OFF_REASONS: readonly ["no_calendar", "no_list", "list_uncounted", "template_not_approved", "number_flagged", "never", "ended"];
 type RunOffReason = (typeof RUN_OFF_REASONS)[number];
@@ -41532,6 +41651,8 @@ declare const SEQUENCE_WORDS: {
     readonly newSequence: "New sequence";
     /** The head's way back to Leads, where a trip from a lead did not say its name. */
     readonly backToLeads: "Leads";
+    /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
+    readonly backToLeadsLabel: "Back to Leads";
     readonly search: "Search sequences";
     readonly empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.";
     readonly failed: "The sequences couldn’t be loaded right now";
@@ -41709,8 +41830,9 @@ declare function sequenceRowState(row: SequenceRowDto): {
 } | null;
 /**
  * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 · 12 replied", "10 in it". A twin
- * says so first (sequenceTwinOf).
+ * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 people · 12 replied", "10 in it". A
+ * twin says so first (sequenceTwinOf). A count says what it counts: "Sent Oct 12 · 184 · 12 replied" read as a stray number
+ * under "Dec 29 · 5 people" (the sample walk, 18 Oct 2026).
  */
 declare function sequenceRowLine(row: SequenceRowDto, tz: string, nowMs: number, twin?: SequenceTwin | null): string;
 /** A sequence's head line under its name: "Before a visit · one message · since Sep 18". */
@@ -41899,8 +42021,11 @@ declare const SEQUENCE_NEEDS_WORDS: {
 interface SequenceHeldVM {
     id: string;
     name: string;
-    /** Its lead, where the name opens it (leadDoorOf). */
+    /** Its lead, where the name opens it (leadDoorOf); and its id, which opens its sheet over the record. */
     to: string | null;
+    leadId: string | null;
+    /** The step it is, from 1: Skip this email from step 2. */
+    place: number | null;
     why: string;
     /** Why the check held it (contracts REACH_OUT_HOLDS): what decides whether it may go as written with the rest. */
     reason: ReachOutHold;
@@ -41963,6 +42088,15 @@ declare const SEQUENCE_PEOPLE_WORDS: {
     readonly next: (when: string) => string;
     /** Why someone finished with no reason of their own: they had the last step. */
     readonly lastStep: "had the last step";
+    /** A lead added and not planned yet, under its name: when it joined the list. */
+    readonly added: "Added";
+    readonly addedAt: (at: string) => string;
+    /** Leads added and not planned yet, by the sequence's state: what the Added fold says beside its count. */
+    readonly queued: {
+        readonly draft: "they join when you start it";
+        readonly paused: "they wait until it's on";
+        readonly on: "in its next batch";
+    };
 };
 /** The periods History counts over: the kit's segmented choice, the last 30 days first. */
 declare const SEQUENCE_HISTORY_PERIODS: readonly [{
@@ -42110,6 +42244,18 @@ declare function sequenceResumeAsk(rec: {
 }): SequenceResumeAsk;
 
 /**
+ * What a held email may become, said once for the record's rail, a sequence's Leads tab and the lead sheet's dock (the
+ * lead-to-sequence canvas's one meaning each). A module of its own, so a page that draws a held email's choices (the
+ * Inbox's run rows through sequence-tab-words) loads none of a lead's place (sequence-place) or the schedule beneath it.
+ */
+
+/**
+ * The choices a held email offers, by why it was held (contracts holdDoors) and its step: Skip this email from step 2,
+ * where the lead goes on to the next step (00459); at step 1 skipping would end their place, which Take out says.
+ */
+declare function heldChoicesOf(hold: string | null, place: number | null): [HoldDoor, string][];
+
+/**
  * Send me a test (the parity review's W5; Ruben, 15 Oct 2026: email to your own address first): a customer step's message
  * mailed to the member who pressed it, at their own sign-in address, and to nobody else. It is filled for the example
  * person every preview fills for (templates exampleParams: Dani), and says each channel the step goes by as the person
@@ -42128,8 +42274,8 @@ declare const SEQUENCE_TEST_WORDS: {
     readonly notLive: "Tests go out from the live app only";
     readonly noAddress: "Your account has no email address to send a test to";
     readonly notSent: "The test didn't go. Try again in a minute";
-    /** Only a customer's step sends a message a test can show: a sequence to leads writes each email for its lead. */
-    readonly notCustomer: "Only a customer's step can be tested: each lead's email is written for them";
+    /** A one-off's message is tested from Messages: its step is its batch. */
+    readonly notCustomer: "Only a sequence's step can be tested here";
     readonly noMessage: "This step sends no message";
     readonly subject: (what: string) => string;
     readonly stepName: (sequence: string, place: number) => string;
@@ -42137,6 +42283,13 @@ declare const SEQUENCE_TEST_WORDS: {
     readonly subjectLine: (subject: string) => string;
     readonly button: (text: string) => string;
     readonly foot: "You got this because you pressed Send me a test.";
+    /** A lead's step: filled for one real lead, the opening as the line written for them when it goes. */
+    readonly leadHead: (business: string, lead: string) => string;
+    readonly opening: (lead: string) => string;
+    readonly holes: (lead: string, labels: string[]) => string;
+    readonly notWritten: "Write this email first";
+    readonly noFootAddress: "Add your business's address in Settings › Details: every email carries it at the foot.";
+    readonly reply: (subject: string) => string;
 };
 /** How long a test's subject and words may run: a mail far past any message's own length is not one. */
 declare const SEQUENCE_TEST_LIMITS: {
@@ -42178,6 +42331,239 @@ declare function stepTestMail(o: {
     missing: ConsentChannel;
     why: string;
 };
+/**
+ * A lead's step as its test mail (the canvas's Preview as a real lead, 18 Oct 2026: "To your own inbox, marked as a test"):
+ * the step's words filled for one lead by the send's own fill (reachOutCardEmailOf), the opening said as the line written
+ * for them when it goes, a value they lack left as written and said, and the cold foot every such email carries. A step
+ * after the first answers the first in its thread, so its subject is the first's. Refused in words where it cannot be
+ * shown: an email with no words yet, a foot with no address.
+ */
+declare function leadStepTestMail(o: {
+    sequence: string;
+    place: number;
+    business: string;
+    address: string | null;
+    words: {
+        subject: string | null;
+        body: string;
+    };
+    /** The first email's subject, which a later step answers under. */
+    thread: string | null;
+    lead: SlotLead;
+    workspace: SlotWorkspace;
+}): StepTestMail | {
+    why: string;
+};
+
+/** The record's words for a sequence to leads, said once. */
+declare const LEAD_BUILD_WORDS: {
+    /** The Start row: who joins, then the line under it. */
+    readonly startAdd: "When you add a lead to ";
+    readonly startFound: "When a lead is ready in ";
+    readonly inIt: (n: number) => string;
+    readonly pace: (share: number, owner: boolean) => string;
+    readonly noMailbox: "no mailbox to send from yet";
+    readonly howItRuns: "How it runs";
+    /** A step's box. */
+    readonly firstEmail: "First email";
+    readonly followUp: "Following up";
+    readonly notWritten: "Not written yet";
+    readonly call: "Call them";
+    readonly note: "A note for you";
+    readonly callLine: "A task on their page, due that day · always last";
+    /** The dock of a draft with an email still to write. */
+    readonly unwritten: (place: number) => string;
+    readonly thenStart: "Then Start";
+    readonly write: (place: number) => string;
+    /** Start refused while an email is still to write: the door's words. */
+    readonly writeFirst: (place: number) => string;
+    /** A step's sheet. */
+    readonly stepTitle: (place: number, hand: "call" | "note" | null) => string;
+    readonly stepSub: (day: number, people: number) => string;
+    readonly done: "Done";
+    readonly subject: "Subject";
+    readonly email: "Email";
+    readonly inThread: "It answers the email before it, in the same thread: no subject.";
+    readonly insert: "Insert";
+    readonly askRewrites: "Ask rewrites it";
+    readonly askPrompt: (place: number, name: string) => string;
+    readonly preview: "Preview";
+    readonly holdsOne: "A value that can’t be filled holds that one email for you.";
+    readonly aboutThem: "About them";
+    readonly aboutYou: "About you";
+    readonly whenFound: "when found";
+    readonly writtenForEach: "written for each";
+    readonly notSet: "not set";
+    readonly add: "Add";
+    readonly waits: "Waits";
+    readonly afterDays: (n: number) => string;
+    readonly onlyIfQuiet: "Then only if they haven’t written back";
+    readonly removeStep: "Take this step out";
+    readonly stepOut: (place: number) => string;
+    readonly handWords: "What to do";
+    readonly handHint: "Said on their page the day it comes due.";
+    readonly saving: "Saving…";
+    readonly saved: "Saved as you change it";
+    /** The booking link put in from the step: Settings keeps it. */
+    readonly bookingLink: "Your booking link";
+    readonly bookingSave: "Save to Settings";
+    readonly bookingSaved: "Booking link saved";
+    /** Preview as a real lead. */
+    readonly previewSub: (place: number) => string;
+    readonly previewOf: (name: string, at: number, of: number) => string;
+    readonly yourInbox: "your inbox";
+    readonly prev: "Previous lead";
+    readonly next: "Next lead";
+    readonly example: "An example business: nobody is in it yet";
+    readonly testLine: (place: number, name: string) => string;
+    readonly testFact: "To your own inbox, marked as a test";
+    readonly heldLine: (n: number) => string;
+    /** What holds the email previewed: a value they lack, or one of yours not set. */
+    readonly theyLack: (labels: string[]) => string;
+    readonly youUnset: (labels: string[]) => string;
+    readonly show: "Show";
+    /** How it runs. */
+    readonly runs: {
+        readonly title: "How it runs";
+        readonly sub: "Saved as you change it";
+        readonly who: "Who joins";
+        readonly unconfirmed: "Write to unconfirmed addresses too";
+        readonly heldNow: (n: number) => string;
+        readonly autoAdd: "Add new ready leads from the search";
+        readonly noSearch: "It was made from a list, not a search";
+        readonly sending: "Sending";
+        readonly sendsFrom: "Sends from";
+        readonly inbox: "Your inbox · you send";
+        readonly mailboxes: (n: number) => string;
+        readonly connect: "Connect a mailbox";
+        readonly aDay: "A day, at most";
+        readonly every: (minutes: number) => string;
+        readonly youPace: "You send each, so you are the pace";
+        readonly approves: "Who approves";
+        readonly inAutonomy: "Set in Autonomy";
+        readonly signed: "Signed";
+        readonly signedNone: "Not set";
+        readonly footer: "Footer";
+        readonly footerValue: "Why they hear from you";
+        readonly noAddress: "Add your address in Settings › Details: every email carries it at the foot.";
+    };
+};
+/** Who approves, by the mode its class runs under: none set, or one it does not know, is ask's. */
+declare const leadApprovesOf: (mode: string | null) => string;
+/** A step's words cut into words and slots by name: a box's title and its lines, as the editor's chips name them. */
+type LeadBuildPart = {
+    kind: "text";
+    text: string;
+} | {
+    kind: "slot";
+    key: string;
+    label: string;
+};
+/** The first email still to write, by its place (from 1), or null where every email is written. */
+declare function leadFirstUnwritten(steps: ReadonlyArray<{
+    hand?: unknown;
+    body: string;
+}>): number | null;
+/** One step's box on the record, as a sequence to leads draws it. */
+interface LeadBuildStepVM {
+    place: number;
+    /** The subject's words with their slots by name (the first email), or the step's own name. */
+    title: LeadBuildPart[];
+    /** The title in words, for a screen reader. */
+    named: string;
+    /** Its email's words, a few lines of them; null for a call and an email still to write. */
+    pre: LeadBuildPart[] | null;
+    unwritten: boolean;
+    hand: "call" | "note" | null;
+}
+/**
+ * Each step's box, by its id: the first email by its subject, each after it as the follow-up it is (it answers in the same
+ * thread), a call or a note by what it is, with what it says or that it is still to write.
+ */
+declare function leadBuildStepsOf(chain: Pick<ReachOutChainDto, "steps">): Map<string, LeadBuildStepVM>;
+/**
+ * The draft with another email to write: put above the call or the note that closes it (W6: the call step is always
+ * last), else at its end; five steps at most. It starts with no words, so the box says it is still to write.
+ */
+declare function reachOutInsertStep(d: ReachOutDraft): ReachOutDraft;
+/** Whether another email may be added: five steps at most. */
+declare const reachOutMayInsertStep: (d: ReachOutDraft) => boolean;
+/** The draft without the step at `i`: never the first, which is the sequence. */
+declare function reachOutRemoveStep(d: ReachOutDraft, i: number): ReachOutDraft;
+/**
+ * A step taken out, put back where it stood (its Undo): its words, wait and hand as they were, saved as a new step (the
+ * one taken out is gone from the chain); five steps at most, and never before the first.
+ */
+declare function reachOutPutBackStep(d: ReachOutDraft, i: number, step: ReachOutDraftStep): ReachOutDraft;
+/** The dock of a draft whose email is still to write: the step it asks for, then Start. Null where every one is written. */
+declare function leadDraftDockOf(row: {
+    state: string;
+}, chain: Pick<ReachOutChainDto, "steps"> | null | undefined): {
+    place: number;
+    line: string;
+    fact: string;
+    act: string;
+} | null;
+/**
+ * Where a sequence to leads starts, in its parts: who joins (each lead added to it, or the search's ready ones too, where
+ * it adds them on its own), its name, and the line under: how many are in it and the day's pace.
+ */
+declare function leadStartOf(row: {
+    name: string;
+    in_it: number;
+    first: {
+        source_name?: string | null;
+        search_name: string | null;
+    } | null;
+}, chain: Pick<ReachOutChainDto, "mailboxes" | "owner_sends" | "gap_minutes"> | null | undefined): {
+    lead: string;
+    name: string;
+    sub: string;
+};
+/** One slot the Insert list offers: its label, and what it holds for the lead previewed. */
+interface LeadInsertRowVM {
+    key: ReachOutSlot;
+    label: string;
+    /** What it says for them, or what stands in its place: "when found", "written for each", "not set". */
+    value: string;
+    look: "value" | "later" | "unset";
+    group: "them" | "you";
+}
+/**
+ * The Insert list (the canvas's step sheet): each slot under About them and About you, with the value the send's own fill
+ * gives it for the lead previewed (reachOutCardSlotsOf), or what stands in for it: a person's first name is found per lead,
+ * the opening is written for each, and a value of yours with nothing in Settings is not set, which holds every email that
+ * names it.
+ */
+declare function leadInsertRowsOf(lead: SlotLead | null, workspace: SlotWorkspace): LeadInsertRowVM[];
+/** One pace the day's row offers: the most a day it comes to across its mailboxes, and how often each writes. */
+interface LeadPaceChoice {
+    gap: number;
+    share: number;
+    hint: string;
+}
+/**
+ * How it runs' "A day, at most": each gap the database allows, as the day it comes to across the chain's mailboxes
+ * (chainPaceOf, the timetable's own count), one entry per day so two gaps that fill the same day are one choice. An owner's
+ * own inbox has none: they send each, so the day is theirs.
+ */
+declare function leadPaceChoicesOf(mailboxes: readonly ReachOutMailboxFacts[]): LeadPaceChoice[];
+/**
+ * The chain as its record holds it while it is written (the draft beside the chain it was read from): its steps as the
+ * draft has them, numbered in order, and the name it signs with, so a preview reads the words being typed.
+ */
+declare function leadDraftChainOf<C extends Pick<ReachOutChainDto, "steps" | "signed_by">>(chain: C, d: ReachOutDraft): C;
+/**
+ * One step's email as one lead gets it (the canvas's Preview as a real lead): its words filled by the send's own fill
+ * (leadCardStepsOf), under the first email's subject where it answers in that thread, and what holds it where a value
+ * they lack stands in its words. Null for a call or a note, and a place the chain does not have.
+ */
+declare function leadPreviewEmailOf(p: {
+    chain: LeadCardChain;
+    lead: LeadCardLead;
+    workspace: SlotWorkspace;
+    place: number;
+}): LeadCardEmailVM | null;
 
 /**
  * Where the Sequences page opens (decision 0060): Campaigns › Sequences, `campaigns/sequences`, the list; a sequence's
@@ -42185,38 +42571,24 @@ declare function stepTestMail(o: {
  * further still (`/history/<batch>`), and a new one at `campaigns/sequences/new`. One parser and one writer, so a link and the page read an
  * address the same way.
  *
- * A new sequence to leads is written here too, never in Leads (the lead sheet's hand-off, 17 Oct 2026: one creator): on a
- * list as it is (`new/list:<search>`), or on a list of its own that a lead goes on when it starts (`new/lead:<lead>`), and
- * as a version of a sequence (`new/version:<sequence>/lead:<lead>`): the same steps, waits and mailboxes, its own list, so
- * it is never a twin. Any of the page's addresses may end in the way back to the lead it was opened from
- * (`/back:<the Leads address's words>`), which its head says by the lead's name and Start and Cancel take.
+ * A new sequence to leads is made by name where its leads are chosen (the lead-to-sequence canvas's one road: the lead
+ * sheet's picker and New, or the bar's for many) and written on its own record, a draft. Any of the page's addresses may end
+ * in the way back to the Leads address it was opened from (`/back:<the Leads address's words>`), which its head says.
  */
 /** The list's address. */
 declare const SEQUENCES_ROUTE = "campaigns/sequences";
 /** A record's tabs, in their order (D5: the same three for every sequence). */
 declare const SEQUENCE_TABS: readonly ["steps", "people", "history"];
 type SequenceTab = (typeof SEQUENCE_TABS)[number];
-/** Who a new sequence to leads is for: a list as it is, or a lead, on a list of its own made as it starts. */
-type SequenceNewFor = {
-    list: string;
-} | {
-    lead: string;
-};
-/** A new sequence to leads, opened from Leads: who it is for, and the sequence it is a version of. */
-interface SequenceNewLeads {
-    for: SequenceNewFor;
-    version: string | null;
-}
 /**
  * What an address of the page opens: the list, a record on one of its tabs, or a new sequence (on the moment a door asks
- * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card; or to leads, from Leads); and the way back.
+ * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card); and the way back.
  */
 type SequencesPlace = ({
     view: "list";
 } | {
     view: "new";
     moment?: string;
-    leads?: SequenceNewLeads;
 } | {
     view: "record";
     id: string;
@@ -42233,11 +42605,6 @@ declare const isSequencesParam: (param: string | null) => boolean;
  * the page's. A tab it does not know is the record's first.
  */
 declare function parseSequencesRoute(route: string): SequencesPlace | null;
-/**
- * A new sequence to leads (the lead sheet's hand-off): on a list as it is, or for a lead on a list of its own, as a version
- * of a sequence where one is named.
- */
-declare function sequenceNewLeadsRoute(leads: SequenceNewLeads): string;
 /**
  * An address of the page with the way back to the Leads address it was opened from: Back, Start and Cancel return there.
  * A way back that is not a Leads address is not kept.
@@ -50415,4 +50782,4 @@ interface JobRecord {
  */
 declare function jobRecordOf(kind: string, payload: unknown): JobRecord | null;
 
-export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVATION_MILESTONES, ACTIVITY_ACTORS, ACTIVITY_FAMILIES, ACTIVITY_FOLD_KINDS, ACTIVITY_KINDS, ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, ACTIVITY_PAGE_WORDS, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTIVITY_SUBJECT_HOMES, ACTOR_TYPES, ADD_TO_PEOPLE_WORDS, ADS_ASK_MIN, ADS_ASK_MIN_CALLS, ADS_ASK_SOON_DAYS, ADS_CHANCE_Z, ADS_COPY_LIMITS, ADS_DAILY_CHOICES_MINOR, ADS_DEFAULT_CURRENCY, ADS_DEFAULT_MILES, ADS_DISPLAY_NAME_MAX, ADS_DOORS, ADS_END_SHIFTS, ADS_EXAMPLES, ADS_EXTEND_MAX_DAYS, ADS_FRESH_DAYS, ADS_GROUP_FROM, ADS_MOVE_DAYS, ADS_MOVE_STEP_MINOR, ADS_OWN_DAYS, ADS_OWN_START_MINOR, ADS_PERMISSION_WARN_DAYS, ADS_READ, ADS_ROUTE, ADS_SCOPE_ALL, ADS_SETTLE_DAYS, ADS_SOFT_NEEDS, ADS_SPECIAL_MILES, ADS_TOTAL_STEPS, ADS_WINDOW_DAYS, ADS_WORDS, ADS_ZIP_DIGITS, ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_KINDS, ALERT_PANE_WORDS, ALERT_REFUSED_WORDS, ALERT_TOPICS, ALWAYS_ON, ALWAYS_TOLD, ANALYSIS_GRACE_MS, ANGLE_WORDS_MAX, APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, APPOINTMENT_WORDS, APPOINTMENT_WORD_REFUSAL, APP_KEYS_RESIZE_CLASS, APP_ROUTE_RE, ASK, ASK_ANSWERS_ROWS, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_FOLLOW_UPS_MAX, ASK_GOAL_MAX, ASK_GOAL_WORDS, ASK_GUIDE_PAGES, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ONLY_VERBS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SENDS, ASK_SKILL_IDS, ASK_SPEECH_MAX_CHARS, ASK_SPEED, ASK_SPOKEN_TURN_BUDGET_MS, ASK_STYLE_MAX, ASK_STYLE_PAGE, ASK_SURFACES, ASK_THREAD_ROUTES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VIEW_PAGE, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, AUDIENCE_KINDS, AUTOMATIC_NAMING, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationMilestone, type ActivationRecord, type ActivityActor, type ActivityFamily, type ActivityFoldRow, type ActivityKindGroup, type ActivityLineVM, type ActivityMemberDto, type ActivityPageDto, type ActivityRowDto, type ActivitySpan, type ActivitySubjectType, type DecisionVerb as ActivityVerb, type ActorType, type AdAccountRead, type AdAccountStatus, type AdArea, type AdBudget, type AdCheck, type AdCheckId, type AdCopy, type AdDay, type AdDoor, type AdDraft, type AdDrawerVM, type AdMedia, type AdNeeds, type AdNeedsCode, type AdPatch, type AdPersonRead, type AdPersonRowVM, type AdPlatform, type AdRead, type AdRowVM, type AdSchedule, type AdShownAs, type AdStart, type AdState, type AdTheirs, type AdTone, type AdWaitingRowVM, type AddressParts, type AdsAddress, type AdsConfig, type AdsExample, type AdsGroupBy, type AdsRead, type AdsResultsVM, type AdsScope, type AdsVM, type AiUsageBody, type AlertCell, type AlertGridGroup, type AlertGridRow, type AlertGroup, type AlertRefusal, type AlertTopic, type AllowedPrice, type AmountFact, type AmountOption, type AnswerBlock, type AnswerEvent, type AnswerList, type AnswerPurpose$1 as AnswerPurpose, type AnswerRun, type AnswerSend, type ApiRouteKey, AppError, type AppointmentLike, type AppointmentPhrases, type AppointmentSource, type AppointmentState, type AppointmentStatus, type AppointmentWord, type AppointmentWordVM, type ApprovalVM, type AreaOption, type AskAnswer, type AskAnswerRead, type AskAnswersChange, type AskApply, type AskBreakdown, type AskBreakdownPart, type AskCardSheet, type AskCitation, type AskCitationKind, type AskColumn, type AskContextRowKind, type AskFigure, type AskFollowUp, type AskIntent, type AskItem, type AskLanguage, type AskMessageKey, type AskMessageVM, type AskModelProfile, type AskOpen, type AskOpeningsView, type AskPlanStamp, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskRowRef, type AskSayPreview, type AskScope, type AskScopeKind, type AskSettingsChange, AskSettingsChangeSchema, type AskShowPreview, type AskSkill, type AskSkillId, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskTurnShape, type AskTurnTokens, type AskVM, type AskWaiting, type AskedPurpose, type AssuranceLevels, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BELL_LINE_KINDS, BELL_LIST_ROWS, BELL_WINDOW_DAYS, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKED_ENDED_META, BOOKED_NEEDS_A_LINK, BOOKED_NEEDS_TODAY, BOOKED_SEEN_CAP, BOOKING_CHOICES, BOOKING_CHOICE_WORDS, BOOKING_DEFAULTS, BOOKING_LINK_ROW_WORDS, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, BOOKING_RULE_HINTS, BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, BOOKING_TOOL_WORDS, BOOKING_TRY_NOTE, BOOKS_BY_HAND, BOOKS_WITH_CALENDAR, BOOK_ONLINE, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BREATH_WHY, BROADCAST_CHUNK, BROADCAST_FAILURES, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_WORDS, BROKEN_CONFIG_WORDS, BUDGET_RULES, BUDGET_WORDS, BUILTIN_LISTS, BUSINESS_DOOR_LABEL, BUSINESS_INDUSTRIES, BUSINESS_PAGE_NOTE, BUSINESS_TYPES, type BarsVM, type BellLineVM, type BellNoteLike, type BellNotificationKind, type BellSectionVM, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BlockedVM, type BookedSeen, type BookedVisit, type BookingChoice, type BookingEmailsFacts, type BookingEmailsStep, type BookingFacts, type BookingLinkAction, type BookingReportDto, type BookingReportVM, type BookingRequestFields, type BookingRequestTerms, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BookingSighting, type BookingTool, type BookingToolCalendar, type BookingToolWay, type BookingVia, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BrainStamp, type BriefValue, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastFailure, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BudgetDial, type BudgetRule, type BusinessFieldVM, type BusinessGap, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessPersonVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordColumn, type BusinessRecordDto, type BusinessRecordVM, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALENDAR_RUN_SHEET_WORDS, CALENDAR_SETTING_ROUTE, CALENDAR_SHOW_WORDS, CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, CALENDAR_VISIT_SHEET_WORDS, CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, CALL_FACT_WORDS, CALL_HEARTBEAT_MS, CALL_MISSED_WORDS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CALL_UNANSWERED_WORDS, CAMPAIGNS_PAUSED_WORDS, CAMPAIGNS_RESULTS_PERIOD, CAMPAIGN_EMAIL_TAG, CAMPAIGN_MONTH_ALLOWANCE, CAMPAIGN_NOT_FOUND, CAMPAIGN_ROOMS, CAPABILITY_KINDS, CARRIERS, CARRIER_CONSENT_SOURCE, CARRIER_WORDS, CATCH_UP_VISITS, CHAIN_MIN_LISTINGS, CHANGED, CHANNELS_DOOR, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHANNEL_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKS, CHIPS, CHIPS_SHOWN, CHOOSE, CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, COMBINE_WORDS, COMMON_LANGUAGES, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECT, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, CONSENT_LIST_IDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FOLLOW_DAYS, CONVERSATIONAL_ASK_TITLE, CONVERSATION_GAP_MS, CONVERSATION_MOVES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, CONVERSATION_UNDER_WAY, COUNTED, CRAFT_CHANNELS, CUSTOMER_DOMAIN_DAILY_MAX, CUSTOMER_MESSAGE_SKILL, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarMomentDto, type CalendarNoticesDto, type CalendarParam, type CalendarPeekDealVM, type CalendarPerson, type CalendarPersonFactsDto, type CalendarPersonVM, type CalendarRunDto, type CalendarRunItem, type CalendarRunKind, type CalendarRunMark, type CalendarRunsDto, type CalendarServiceDto, type CalendarServiceVM, type CalendarSourceFacts, type CalendarSourceState, type CalendarSourceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallActivityProps, type CallBrief, type CallDto, type CallNotes, type CallOutcome, type CallVM, type CallerGets, type CalloutActId, type CalloutVM, type CampaignDayDto, type CampaignFigureVM, type CampaignHow, type CampaignLedgerDto, type CampaignLedgerSeriesDto, type CampaignLensInput, type CampaignLensVM, type CampaignMessage, type CampaignMessageRow, type CampaignNumberDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignStuckNowDto, type CampaignStuckRawDto, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type CellVM, type ChainIssue, type ChainProblem, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelReady, type ChannelStand, type ChannelStandingPart, type ChannelVM, type ChannelsReady, type CheckChipSetVM, type CheckChipVM, type CheckChipsVM, type CheckRowVM, type CheckoutReturn, type ChipId, type ChoiceWrite, type ChooseVM, type CleanedEmails, type ClientErrorBoundary, ClientErrorInput, type ClientErrorInputDto, type Closure, ClosureSchema, type ClosuresAheadVM, type CombineAct, type CombineVM, type ComingRowVM, type CompanyType, type ComposeLinks, type ConflictSeverity, type ConnectChoiceVM, type ConnectRowVM, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAnswer, ConsentAnswerBody, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentChannel, type ConsentFormSection, type ConsentFormVM, ConsentManyBody, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, ContactAddedData, ContactConsentChangedData, type ContactId, type ConversationDto, type ConversationMessageVM, type ConversationMoveName, type ConversationPatch, type ConversationState, type ConversationVM, type CorrectionSource, type CountCtx, type CountedVM, type CraftChannel, type CraftIssue, type CraftIssueCode, type CraftVersions, type Crumb, type CsvCell, DASH, DATA_NOT_INSTRUCTIONS, DAYS, DAY_MS, DAY_NAMES, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_CAMPAIGN_CHANNELS, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_LOOK_PREF, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEFAULT_WEEK, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, DELIVERY_REFUSALS, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, DMARC_RECOMMENDED, DOOR, DOOR_NEEDS, DOOR_ORDER, DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS, DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, DRAFT_TONES, DRAFT_WHYS, DRAWER, type DayFrameLike, type DayVM, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealMove, DealMoveBody, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeliveryRefusal, type DeskSignVM, type DnsRecordState, type DoorVM, type DoubtSeen, type DoubtSettledAs, type DraftAsk, type DraftHow, type DraftLeadFacts, type DraftTone, type DraftWhy, E164, EARLIER_FALLBACK_DEFAULTS, EDGE_ERROR_CODES, EDIT, EFFORT_MESSAGE_BETA, EMAILED_NOTIFICATION_KINDS, EMAIL_ALWAYS_KINDS, EMAIL_BODY_MAX, EMAIL_CLAIMS, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_STOP_PATTERN, EMAIL_SUBJECT_MAX, EMAIL_TEMPLATE_LIST_WORDS, EMAIL_UNSUBSCRIBE_PATTERN, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_ACTS, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_STATES, ESCALATION_SUMMARIES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVENT_SUBSCRIBERS, EVERYONE_HINT, EVERYONE_LABEL, EXAMPLE, EXPORT_HOLDS_WORDS, EXPORT_OF, EXPORT_SECTIONS, type EarlierVisitsDto, type EdgeAnswerBody, type EdgeAnswerCode, type EdgeCallCode, type EdgeErrorCode, type EdgeRefusal, type EditFootVM, type EditVM, type EffortMessage, type EmailClaim, type EmailFoot, type EmailHeld, type EmailIssue, type EmailOffers, type EmailProblem, type EmailRules, type EmailRunStop, type EmailSetupDto, type EmailStopBearing, type EmailedNotificationKind, type EndOption, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type EventSubscriber, type Exactly, type ExportLeftOut, type ExportOf, type ExportSection, FACT_SUGGEST_LIMITS, FACT_SUGGEST_MODEL, FACT_SUGGEST_SCHEMA, FACT_SUGGEST_WORDS, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FALLBACK_ROWS, FAST_MODE_BETA, FAST_MODE_PRICES, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, FIGURES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_LIVE_WORDS, FIRST_RUN_PHONE_WORDS, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_TRY_WORDS, FIRST_RUN_WORDS, FLAGS, FLAG_MECHANISMS, FOLLOWUP_ECHO, FOLLOW_UP_CONDITIONS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_WAKES, FORWARDING_MODES, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, type Fact, type FactCheck, type FactConflict, type FactCorrection, type FactLookFacts, type FactSource, type FactSuggestionDto, type FailedVM, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAppointmentRow, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedLive, type FeedMark, type FeedNames, type FeedThread, type FenceTag, type FigureVM, type FirstReceptionistKnown, type FirstRunCheckVM, type FirstRunLiveInput, type FirstRunLiveVM, type FirstRunPhoneCodeVM, type FirstRunPhoneInput, type FirstRunPhoneQuestion, type FirstRunPhoneStage, type FirstRunPhoneVM, type FirstRunPhoneWayVM, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunTryInput, type FirstRunTryStage, type FirstRunTryVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type Flag, type FlagMechanism, type FollowUpCondition, type FollowUpFactsDto, type FollowUpStand, type FollowUpStep, type FollowUpStop, type FollowUpWake, type FollowUpWorld, type FootAct, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type ForwardingProof, type FreeWindowsInput, GATE, GET_YES_NO_NUMBER_WORDS, GET_YES_PAUSED_WORDS, GET_YES_ROUTE, GMAIL_FORWARD_NOTE, GOOGLE_SHOWN_REVIEWS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, GREETING_DEFAULT, GREETING_TEMPLATE, GROUP, GUARDRAIL_KEYS, type Glyph, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReadDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GreetingNote, type GreetingNoteKey, type GreetingSource, type GroupByVM, type GroupGlyph, type GroupVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, type GuidePage, type GuideRow, HANDLED_OUTCOMES, HANDOFF_ANYWAY, HANDOFF_FORWARDS_BACK, HANDOVER_DAYS, HANDOVER_WAITING_MAX, HANDOVER_WORDS, HAND_BACK_REASONS, HAND_KINDS, HAND_WORDS_MAX, HEAD, HEARD_UNREAD_WORDS, HELD_BY_ID_MAX, HELD_DRAFTS_DAYS, HELD_ON, HELD_REASONS, HELD_WHEN_COUNTED, HELD_WORDS, HOLD_ACT_WORDS, HOLD_DOOR_WORDS, HOUR_MS, type HandKind, type Handled, type HandoffCallRowVM, type HandoffRowVM, type HandoffWordsVM, HandoverCreateSchema, HandoverResendSchema, type HandoverState, type HeadVM, type HeardTouch, type HeldDraftsByIntent, type HeldDraftsClass, type HeldDraftsCount, type HeldLineKind, type HeldNoticeDto, type HeldOn, type HeldRun, type HoldAct, type HoldDoor, type HoldFacts, type HolderNames, type Holds, type Hours, type HoursRun, HoursSchema, IDENTITY_ASSURANCES, INBOX_BUCKET_WORDS, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdeaDropped, type IdeaHistory, type IdeaLanguage, type IdeaPacket, type IdeaPassed, type IdeaSearch, type IdentityAssurance, type IdentityInput, type IdentityWords, type ImportColumns, type ImportRow, type InApp, type InAppPlatform, type InList, type InboxBlank, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, type InvitationsAcceptedDto, InviteCodeSchema, JOB_KINDS, JOB_STATES, JOURNEY_STAGE_IDS, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobEnd, type JobKind, type JobNews, type JobNewsKind, type JobRecord, type JobState, type JoinedWorkspaceDto, type JourneyGlyph, type JourneyListLike, type JourneyStage, type JourneyStageId, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JudgeVM, type JumpEntry, KEEP_ROW, type KnownFacts, LANGUAGE_GROUP_WORDS, LAST_WORDS_TITLE, LEAD_ADDRESSEE_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_BACK_WORDS, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CARD_MARKS_MAX, LEAD_CARD_TABS, LEAD_CARD_WORDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_COMPANY_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DIRECTORY_WORDS, LEAD_DOCK_WORDS, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ERASE_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FITS, LEAD_FIT_WORDS, LEAD_IDEAS_SYSTEM, LEAD_IMPORT_MAX_BYTES, LEAD_IMPORT_WORDS, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KINDS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PEOPLE_MAX, LEAD_PILE_SAID, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, LEAD_PLACEHOLDER_LOCALS, LEAD_PLACE_WORDS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROLE_WORDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SHEET_CARD_WORDS, LEAD_SHEET_WORDS, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCES, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_RETRY_MS, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_VIEW_SORTS, LEAD_WORDS, LEDGER, LEDGER_STATUSES, LEFT_OUT_FACTS, LENS_ROUTES, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, LIFECYCLE_TOAST, LIFECYCLE_WORDS, LIMIT_TIERS, LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS, LINE_CREDENTIALS_SENTENCE, LINE_FILED_NAMES, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS, LINE_RELEASE_WARN_DAYS, LINE_STEP_WORDS, LIST, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_GROUP_WORDS, LIST_NEEDS, LIST_PLAYBOOK_CLASSES, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, LOOK_OFFERED, LOOK_OPTIONS, type LanguageChoice, type LanguageGroup, type LastHoldDto, type LastWordVM, type LeadArea, type LeadBackDto, type LeadBand, type LeadCallOutcome, type LeadCardBrief, type LeadCardBulkLead, type LeadCardBulkVM, type LeadCardChain, type LeadCardCheck, type LeadCardEmailVM, type LeadCardInstead, type LeadCardLead, type LeadCardMarkVM, type LeadCardPart, type LeadCardReasonVM, type LeadCardSlotVM, type LeadCardStepVM, type LeadCardTab, type LeadChannel, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadChooseAnswer, type LeadChooseInput, LeadChooseSchema, type LeadClass, type LeadClassification, type LeadCompanyPersonVM, type LeadCompanyVM, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFacts, type LeadFit, type LeadIdeaDto, type LeadIdeasAnswer, LeadIdeasAnswerSchema, type LeadImportAnswer, type LeadImportColumns, type LeadImportInput, type LeadImportRow, LeadImportRowSchema, LeadImportSchema, type LeadKind, type LeadList, type LeadListVia, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, LeadOneQuerySchema, type LeadPeekReach, type LeadPeekVM, type LeadPeopleIndex, type LeadPeoplePlan, LeadPeoplePlanSchema, type LeadPeopleSearchInput, LeadPeopleSearchSchema, type LeadPeopleVM, type LeadPerson, type LeadPhoneState, type LeadPileAct, type LeadPileCountsDto, type LeadPileFacts, type LeadPileProgressVM, type LeadPileSlot, type LeadPinnable, type LeadPlaceGroup, type LeadPlaceVM, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRole, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSheetAct, type LeadSheetBoxVM, type LeadSheetCheckVM, type LeadSheetChecksLineVM, type LeadSheetClosedVM, type LeadSheetContactLineVM, type LeadSheetDockFacts, type LeadSheetDockVM, type LeadSheetFactVM, type LeadSheetLead, type LeadSheetOptionVM, type LeadSheetRailVM, type LeadSheetSlotVM, type LeadSheetState, type LeadSheetStepVM, type LeadSheetStory, type LeadSheetTrackVM, type LeadSheetWayVM, type LeadSheetWhyVM, type LeadSlot, type LeadSlotState, type LeadSort, type LeadSource, type LeadStage, type LeadStageInput, LeadStageInputSchema, type LeadSuggestionsDto, type LeadWeekRow, type LeadWordTone, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LedgerStatus, type LedgerWords, type LensEmpty, type LensId, type LensRange, type LensRow, type LensWho, type LifecycleAct, type LifecycleAnswer, type LifecycleAnswerRead, type LifecycleBar, type LifecycleBroadcasts, type LifecycleCameBack, type LifecycleChains, type LifecycleChannelMark, type LifecycleComing, type LifecycleComingTile, type LifecycleFailed, type LifecycleFailedRead, type LifecycleGlyph, type LifecycleGroup, type LifecycleHead, type LifecycleHome, type LifecycleInput, type LifecycleLedger, type LifecycleNamed, type LifecycleNeeds, type LifecyclePlaybook, type LifecyclePlaybooks, type LifecyclePool, type LifecycleReachTile, type LifecycleReport, type LifecycleResultsTile, type LifecycleResume, type LifecycleRow, type LifecycleRowResults, type LifecycleRun, type LifecycleRung, type LifecycleSentence, type LifecycleShape, type LifecycleSource, type LifecycleStage, type LifecycleState, type LifecycleTemplate, type LifecycleTileRead, type LifecycleTone, type LifecycleTrigger, type LifecycleWaiting, type LineCodeDto, type LineDto, type LineReleaseBilling, type LineReleaseStep, type LineReleaseWarned, type LineReleaseWordsInput, type LinkedFoot, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListCountsDto, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, type LogoLayout, type LogoLookupAnswer, type LogoLookupOutcome, type LogoMode, type LogoNote, type LogoPixels, type LookPref, type LookedAt, MAILBOX_CONNECTIONS_MAX, MAILBOX_CONNECTION_STATES, MAILBOX_CONNECT_WORDS, MAILBOX_DAILY_CAP_MAX, MAILBOX_FROM_NAME_MAX, MAILBOX_HOLDS, MAILBOX_LOCAL_PART_MAX, MAILBOX_PROVIDERS, MAILBOX_PROVIDER_WORDS, MAILBOX_RAMP, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, MESSAGE_BEGIN_WORDS, MESSAGE_CHANNELS, MESSAGE_CRAFT_JSON_SCHEMA, MESSAGE_DIRECTIONS, MESSAGE_GONE_WORDS, MESSAGE_JUDGE_JSON_SCHEMA, MESSAGE_MOMENT_WORDS, MESSAGE_RUBRIC, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MESSAGE_WORDS, MINOR_PER_UNIT, MIN_MS, MISSED_CALL_TOUCH_WORDS, MOCK_TEXTING_SENTENCE, MODELS, MODEL_CALL_OUTCOMES, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PRICES, MODEL_PURPOSES, MODEL_ROUTES, MODEL_SPEEDS, MODEL_TAKES, MODEL_TURN_WRITE_MS, MOMENTS_RETIRED, MOMENT_TRIGGERS, type MailboxConnectionDto, type MailboxConnectionState, type MailboxCounts, type MailboxDnsRecord, type MailboxDto, type MailboxHold, type MailboxProvider, type MailboxRecordRow, type MailboxWords, type MatchVia, type MediaVM, type MemberAlertsDto, type MemberJoined, type Membership, type MembershipRole, type MendBy, type MendChange, type MergedAnswers, type MessageAbout, type MessageAuthor, type MessageBrief, type MessageChannel, type MessageCraftAnswer, MessageCraftAnswerSchema, type MessageDirection, type MessageDto, type MessageJudgeAnswer, MessageJudgeAnswerSchema, type MessageRead, type MessageSender, type MessageStatus, type MessageType, type MessageVerdict, type MessagesSummaryPart, type MetricsChannelDto, type MetricsSummaryDto, type ModelCallOutcome, type ModelEffort, type ModelId, type ModelPort, type ModelPrice, type ModelPurpose, type ModelRoute, type ModelSpeed, type ModelTakes, type ModelTurnRequest, type ModelTurnResponse, type ModelUsage, type MoneyItem, type MonthSent, type MonthSentRead, NAME_SOURCES, NEEDS_TITLE, NEEDS_YOU_WORD, NEW_AD, NEW_CONVERSATION_WORDS, NEW_MESSAGE_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, NEW_REVIEW_NEWS, NEW_SINCE_WORDS, NEW_WINDOW_DAYS, NOTE_LINE_MAX, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NOTHING_WAITS_KNOWN, NOTICE_DEFAULT_LENGTH_MS, NOTICE_ENDS, NOTICE_HOLD_WORDS, NOTICE_MENDS, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, NO_AD, NO_ADS, NO_CHANNEL_REACH, NO_DAY, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, NO_TEMPLATE_WORDS, NO_USAGE, NO_WAY_TO_SEND_LINK, type NameSource, type NameableCaller, type NameableContact, type NewAdVM, type NoAdsVM, type NoMessageWords, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NoteWrite, NoteWriteBody, NotesAppendManyBody, type NotesWordsVM, type NoticeAct, type NoticeEnd, type NoticeFacts, type NoticeHold, type NoticeHome, type NoticeKind, type NoticeMend, type NoticeReading, type NoticeTone, type NoticeVM, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, type NumberStanding, OFFERS_BY_EMAIL_WORDS, OFFERS_IN_WRITING_WORDS, OFFERS_NOTICE_WORDS, OFFERS_OPT_IN_PHRASES, OFFERS_PAUSED_WORDS, OFFERS_YES_SOURCES, OFFER_GATES, OFFER_PLAN_WORDS, OPENING_CHARS_MAX, OPENING_FACT_KEYS, OPENING_PROBLEMS, OPENING_SCHEMA, OPENING_WORDS_MAX, OPEN_HOLDS_READ_MAX, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OUTREACH_WAIT_REFUSALS, OWNER_SAID_INTENTS, OWN_MESSAGE_REFUSALS, OWN_MODE_NAMED, OWN_VERSION_CHANNELS, type OfferCounts, type OfferFacts, type OfferPageButton, type OfferPageWords, type OfferPause, type OfferPauseReason, type OfferUnsubscribeView, type Ok, type OpenDealDto, type OpenHandoverDto, type OpenHold, type OpenToCustomers, type OpenWindow, type Opening, type OpeningFactKey, type OpeningProblem, type OpeningRecord, type OpeningVerdict, type OpeningWorkspace, type OptOutHow, type OptOutPerson, type OptOutSaid, type OutreachLeadFacts, type OwnAddresses, type OwnAmount, type OwnFacts, type OwnMessageVM, type OwnModesDto, type OwnVersionChannel, type OwnerSaidIntent, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PAGE_BUILD, PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_SPEED_MIN, PAGE_SPEED_READ, PAGE_VITALS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_PER_BEACON, PAGE_VITALS_READ, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARTNER_CODES_RESERVED, PARTNER_CODE_MAX, PARTNER_CODE_MIN, PARTNER_COOKIE, PARTNER_COOKIE_DAYS, PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_HOLD_DAYS, PARTNER_INVITE_DAYS, PARTNER_INVITE_WORDS, PARTNER_REVERSAL_KINDS, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_STANDING_VERBS, PARTNER_STANDING_WORDS, PARTNER_STATUSES, PARTNER_STATUS_VERBS, PARTNER_WORDS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSED_WORDS, PAUSE_HOURS_DEFAULT, PAYMENT_HOLD_WORD, PENDING_WORKSPACE_KEY, PEOPLE_ASKED_CHARS, PEOPLE_CARD, PEOPLE_COMPANY_SIZES, PEOPLE_COUNT_MAX, PEOPLE_FIND_WORDS, PEOPLE_GROUP_WORDS, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_RHYTHM_UNIT, PEOPLE_RUN_FLOOR_USD, PEOPLE_SENIORITIES, PEOPLE_SENIORITY_WORDS, PEOPLE_STATES_MAX, PEOPLE_STRIP_WORDS, PEOPLE_TAB, PEOPLE_TABS, PEOPLE_TITLES_MAX, PEOPLE_TITLE_CHARS, PERM_DOING, PERSON_ABOUT_WORDS, PERSON_ACT_WORDS, PERSON_AD_ON, PERSON_CALL_OUTCOMES, PERSON_CALL_SAID_MAX, PERSON_CALL_WORDS, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_DELETE_WORDS, PERSON_DETAIL_WORDS, PERSON_DRAFT_JSON_SCHEMA, PERSON_EXPORT_SECTIONS, PERSON_FIGURES_LABEL, PERSON_LISTS_SHEET_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_NAME_WORDS, PERSON_PEEK_WORDS, PERSON_STATE_LABELS, PERSON_TABS_LABEL, PERSON_TAB_WORDS, PERSON_WALK_WORDS, PERSON_WASH_WORDS, PHONE, PHONE_LINE_OFF, PHONE_RINGS, PHONE_VOICES, PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_WAYS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_PHONE_SORTS, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLAN_NOTE_MAX, PLAN_WORDS, PLATFORMS, PLATFORM_DAYS_READ, PLATFORM_NEW_DAYS, PLATFORM_NUMBERS, PLATFORM_OWNER, PLATFORM_QUIET_DAYS, PLATFORM_SURFACE, PLATFORM_VERDICTS, PLATFORM_WORD, PLAYBOOK_BREATH_MS, PLAYBOOK_CALENDAR_UNREAD, PLAYBOOK_CAP_CHOICES, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, PREVIEW, PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, PRICE_CHOICES, PRICE_CHOICE_WORDS, PRIMARY_PART, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROFILE_NAME_MAX, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROPOSAL_SPECS, PROPOSAL_WORDS, PROVISIONING_DEADLINE_MS, PUBLIC_FIELD_MARK, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, PUSH_RECEIPTS_AFTER_MS, PUSH_TOKEN_MAX, type PageContext, type PageContextRow, PageContextSchema, type PageDevice, type PageMessage, type PageMetric, type PageSpeedHow, type PageSpeedMetric, type PageSpeedPageVM, type PageSpeedPartVM, type PageSpeedRowDto, type PageSpeedSpotVM, type PageSpeedVM, type PageSpotRowDto, type PageTotals, type PageVital, type PageVitalDetailDto, type PageVitalLineVM, PageVitalReport, type PageVitalReportDto, type PageVitalVerdict, PageVitalsInput, type PageVitalsInputDto, type PageVitalsPageVM, type PageVitalsRowDto, type PageVitalsVM, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PartnerBalanceRow, PartnerBecomeSchema, type PartnerDto, type PartnerEarningsVM, type PartnerHandoverDto, type PartnerHandoverVM, type PartnerInvitationDto, PartnerInviteSchema, type PartnerLetterNews, PartnerLetterNewsSchema, PartnerLettersSchema, PartnerSecondFactorResetSchema, type PartnerVM, type PartnerWorkspaceMoneyDto, type PartnerWorkspaceVM, type PartnerWorkspacesVM, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleCompanySize, type PeopleDto, PeopleExportQuerySchema, type PeopleFigureVM, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PeopleNowDto, type PeoplePlanInput, type PeoplePlanned, type PeopleReportVM, type PeopleSeniority, type PeopleSeriesDto, type PeopleVM, type PersonAboutFact, type PersonActVM, type PersonAdd, PersonAddBody, type PersonAtLeadDto, type PersonBusinessDto, type PersonCallBody, type PersonCallInput, type PersonCallOutcome, PersonCallSchema, type PersonCallVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonDoubtDto, type PersonDoubtVM, type PersonDraftAnswer, PersonDraftAnswerSchema, type PersonDraftDto, type PersonDraftInput, PersonDraftInputSchema, type PersonEscalationDto, type PersonExportSection, type PersonFaceVM, type PersonFact, type PersonFigureFacts, type PersonFigureVM, type PersonFirstContact, type PersonHeadInput, type PersonHeadLine, type PersonHeadStateFacts, type PersonHeadStateVM, type PersonHeadVM, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, PersonMergeBody, type PersonMessageBody, PersonMessageBodySchema, type PersonMode, type PersonNameAct, PersonNameActSchema, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReach, type PersonReachDto, type PersonReceptionist, type PersonReceptionistMode, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonSignerDto, type PersonState, type PersonTab, type PersonTabFacts, type PersonTabVM, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitRowVM, type PersonVisitsDto, type PersonVisitsVM, PersonWorksAtSchema, type PhoneChoice, type PhoneCompany, type PhoneDto, type PhonePick, type PhoneRings, type PhoneVM, type PhoneVoice, type PhoneWay, type PipelineChip, type PipelineFilter, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type Placed, type PlanIntent, type PlanLead, type PlanMade, type PlanStep, type PlanWorld, PlatformActedData, type PlatformDayLineVM, type PlatformDayRowDto, type PlatformDaysVM, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformPartnerBalanceDto, type PlatformPartnerRowVM, type PlatformPartnerStandingVM, type PlatformPartnerWorkspaceDto, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookChannelsRead, type PlaybookDto, type PlaybookMessage, type PlaybookPatch, type PlaybookPatchKey, type PlaybookPolicyClass, type PlaybookReach, type PlaybookRunNextBy, type PlaybookState, type PlaybookTotalsDto, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PoolRecord, type PreflightFacts, type PreflightProblem, type PresetVM, type PreviewOn, type PreviewPart, type PreviewPerson, type PreviewVM, type PreviewVersions, type PriceChoice, type PriceFacts, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposalCall, type ProposalEvent, type ProposalGate, type ProposalKindAboveOperator, type ProposalNeeds, type ProposalRefusal, type ProposalSpec, type ProposalSpecAboveOperator, type ProposalTab, type ProposalThen, type ProposalUndo, ProposeAnySearchSchema, type ProposeLeadSearch, ProposeLeadSearchSchema, type ProposePeopleSearch, type PublicPageMetadata, type PublishedRecordColumn, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, type PushTarget, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, type QuietVM, RATE_HITS_RETENTION_HOURS, REACH_NOTE, REACH_OUT_ADD_WORDS, REACH_OUT_AFTER_DAYS, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REACH_OUT_BODY_MAX, REACH_OUT_CHECKS_PER_DAY, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_DAY_ROUTE, REACH_OUT_DECISIONS, REACH_OUT_DRAFTS_OPEN_MAX, REACH_OUT_DRAFTS_PER_DAY, REACH_OUT_EMAILED_WORDS, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_GAP_MINUTES, REACH_OUT_HOLDS, REACH_OUT_IS_NOT_A_MOMENT, REACH_OUT_LANGUAGE, REACH_OUT_MODEL, REACH_OUT_MONTH_EMAILS, REACH_OUT_NAME_MAX, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_PREVIEW_WORDS, REACH_OUT_READS_PER_DAY, REACH_OUT_REFUSALS, REACH_OUT_REPLY_DAYS, REACH_OUT_ROW_WORDS, REACH_OUT_RUN_REREAD_MS, REACH_OUT_SAID_OUTCOMES, REACH_OUT_SAID_WORDS, REACH_OUT_SEND_STATES, REACH_OUT_SHEET_PARTS, REACH_OUT_SHEET_WORDS, REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_SOURCE_WORDS, REACH_OUT_STEPS_MAX, REACH_OUT_STOP_WORDS, REACH_OUT_SUBJECT_MAX, REACH_OUT_TO_SEND_LABELS, REACH_OUT_UNDO_WORDS, REACH_OUT_WHY_NOT, REACH_OUT_WHY_NOT_WORDS, REACH_OUT_WORDS_MAX, READING_SCHEMA, READY_WHATSAPP_ALONE, RECENT_MAX, RECIPIENT_REASON_HEARD, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, RECORDS_WITHOUT_AN_ADDRESS, RECORD_KINDS, RECORD_REVIEW_CONFIRM, REFERRAL_ID_MAX, REFUSED, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, RENAME_WORDS, REPLIES_PAGE, REPLY_ANSWERED_MAX, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_INTENTS, REPLY_INTENT_WORDS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_REREAD_DAYS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_UNDO_REFUSALS, REPLY_UNREADS, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPLY_WORDS_MAX, REPORT_CHANNELS, REPORT_LENSES, REPORT_MIN_N, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RESULTS, RETELL_MODELS, RETENTION_DAYS, REVIEWS_WAITING_SHOWN, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, REVIEW_WITHIN, ROLES, ROLE_PERMS, ROLE_SAYS, ROLE_WORDS, ROUTE_KEYS, ROUTE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_GOING_STATES, RUN_NOW_WITHOUT_VERSION_WORDS, RUN_OPEN_WORDS, RUN_REPORT_STEPS, RUN_VERBS, RUN_WAITING_SHORT, RUN_WAITING_WORDS, type RateRowVM, type ReachBarPart, type ReachCounts, type ReachOutAddDto, type ReachOutAddInput, type ReachOutAddLeadDto, ReachOutAddSchema, type ReachOutChainDto, type ReachOutChainInput, type ReachOutChainPeopleDto, type ReachOutChainReportDto, ReachOutChainSchema, type ReachOutChainStepDto, type ReachOutChainTotalsDto, type ReachOutDayNumbers, ReachOutDecideSchema, type ReachOutDecision, type ReachOutDraft, type ReachOutDraftIssues, type ReachOutDraftStep, type ReachOutDraftedSend, type ReachOutFedBy, type ReachOutHeldSend, type ReachOutHold, type ReachOutLeadLineDto, type ReachOutLeadTimelineDto, type ReachOutLeadsDto, type ReachOutLensSourceLine, type ReachOutLensVM, type ReachOutLineReplyDto, type ReachOutMailboxFacts, type ReachOutMailboxRow, type ReachOutNextFacts, type ReachOutPeopleCountsDto, type ReachOutPersonVM, type ReachOutPreviewDto, type ReachOutPreviewInput, ReachOutPreviewSchema, type ReachOutReachDto, type ReachOutRepliesDto, type ReachOutRepliesQuery, ReachOutRepliesQuerySchema, type ReachOutReplyDto, type ReachOutReplySaidInput, ReachOutReplySaidSchema, type ReachOutReportChainDto, type ReachOutReportCounts, type ReachOutReportDto, type ReachOutReportMailboxDto, type ReachOutReportStepDto, type ReachOutRunDto, type ReachOutRunLine, type ReachOutSaidDto, type ReachOutSaidOutcome, ReachOutSaidSchema, type ReachOutSavedDto, type ReachOutSearchLinesDto, type ReachOutSendState, type ReachOutSlot, type ReachOutSourceDto, type ReachOutStandingVM, type ReachOutStartDto, type ReachOutStepCounts, type ReachOutStepDto, ReachOutStepSchema, type ReachOutStopDto, type ReachOutStoryLine, type ReachOutStripVM, type ReachOutTimelineChainDto, type ReachOutTimelineReadingDto, type ReachOutTimelineSendDto, type ReachOutTimelineVM, type ReachOutWhyNot, type ReachRow, type ReachSaid, type ReachSplit, type ReachVM, type Reading, type ReadingPlan, type ReadyRowVM, type ReceiveRow, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistDto, ReceptionistManyBody, ReceptionistModeBody, type ReceptionistReportVM, type ReceptionistSeriesDto, type ReceptionistState, type ReceptionistTone, type RecipientState, type RecordAnswers, type RecordCheckFacts, type RecordFiling, type RecordKind, type RecordRef, type RecordSavedDto, type RecordTable, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyClaim, type ReplyContext, type ReplyDoor, type ReplyFrom, type ReplyHoldDto, type ReplyIntent, type ReplyReading, type ReplyStep, type ReplyStrip, type ReplyUndoRefusal, type ReplyWhyVM, type ReportArrivalDto, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDays, type ReportDto, type ReportFactVM, type ReportHeadlineDto, type ReportHeadlineVM, type ReportHoldVM, type ReportHoursVM, type ReportLinesVM, type ReportPeriodId, type ReportPointVM, type ReportProfile, type ReportRange, type ReportSpeedPointVM, type ReportStripTile, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportWindowVM, type ReportsParts, type RequestedBooking, type ResolvedFacts, type ResultsAt, type ResultsDayVM, type ResultsDaysVM, type ResultsRowVM, type ResultsScopeVM, type ResultsStepVM, type ResultsTheirsVM, type ResultsVM, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type ReviewWaitingVM, type ReviewsLedgerDto, type ReviewsReportDto, type ReviewsReportVM, type Role, type RolePerm, type RoleSays, type RoleTableRow, type RowReachWords, type RubricCriterion, type RubricId, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunAnswer, type RunDays, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunMessage, type RunPersonVM, type RunPlan, type RunPlaybook, type RunReach, type RunReading, type RunReplyVM, type RunReportVM, type RunSplit, type RunStop, type RunStopWords, type RunTone, SAME_SITTING_MS, SAME_VISIT_MS, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, SCHEDULE_NEEDS_TOTAL, SCHEDULE_WORDS, SCHEMA_SETS, SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, SENDER_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, SEND_DAY_FRAME, SEND_WHEN_WORDS, SEND_WINDOW_MARGIN_MIN, SENTENCE, SEQUENCES_ROUTE, SEQUENCE_ACT_WORDS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_EDIT_WORDS, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_NEW_WORDS, SEQUENCE_PEOPLE_GROUPS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_REPLIES_WORDS, SEQUENCE_STARTS, SEQUENCE_STATES, SEQUENCE_STATE_WORDS, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, SEQUENCE_WAIT_DAYS, SEQUENCE_WORDS, SERVED_AT_HEADER, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SERVICES_ON_PUBLIC_PAGE, SERVICE_PRICE_EMPTY, SERVICE_SUGGESTION_TYPES, SESSION_ENDED, SETTINGS_DOOR, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHADOW_CALL, SHADOW_CONFIDENT, SHADOW_GRACE_MS, SHADOW_TIMEOUT_MS, SHADOW_WRITE_MS, SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS, SHORTCUTS, SHOWN, SIGNED_BY_MAX, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, SKILL_GUIDE_MAX, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SMS_SEGMENTS_MAX, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEECH_PURPOSES, SPEND_LEADS, SPEND_NUMBER, SPEND_TEXTING, SPEND_TRY, STANDING, STANDING_CHECKS, STARTER_LANGUAGES, STARTER_LINE_WORDS, STARTER_TEMPLATES, START_PLAN_WORDS, STATE, STATE_WORD, STEP_SHEET_WORDS, STEP_TOKEN, STOP_ALL_REFUSALS, STOP_ENDED_OFFERS_SOURCE, STOP_WORDS, SYSTEM_ONE_MODEL, SYSTEM_ONE_STATE_MAX_CHARS, type SavedListLike, type SavedListRowLike, type SayItDealAnswer, SayItDealAnswerSchema, type SayItDealFill, type SayItDto, type SayItInput, SayItInputSchema, type SayItNoteAnswer, SayItNoteAnswerSchema, type SayItNoteFill, type SayItVerb, type ScheduleCtx, type ScheduleState, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SeenMarksDto, type SeenOf, type SeenReading, type SendPurpose, type SenderLanguage, type SenderWords, type SentenceInput, type SentencePart, type SequenceBatchCountsDto, type SequenceBatchDto, type SequenceDateDto, type SequenceDraftAnswer, SequenceDraftAnswerSchema, type SequenceDraftDto, type SequenceDraftListDto, type SequenceDraftStepDto, type SequenceFirstStepDto, type SequenceGroup, type SequenceHeldVM, type SequenceHistoryDto, type SequenceHistoryFigure, type SequenceHistoryPeriod, type SequenceNeedsDto, type SequenceNeedsVM, type SequenceNewFor, type SequenceNewLeads, type SequenceNext, type SequenceNextWordsDto, type SequenceNotice, type SequenceOneOffDto, type SequencePeopleDto, type SequencePeopleGroup, type SequencePersonDraftDto, type SequencePersonDto, type SequencePersonReplyDto, type SequenceReachDto, type SequenceRecordDto, type SequenceRepliesDto, type SequenceResumeAsk, type SequenceRowDto, type SequenceStart, type SequenceState, type SequenceStepDto, type SequenceTab, type SequenceTwin, type SequenceWaitingBatchDto, type SequenceWroteBackVM, type SequencesPageDto, type SequencesPlace, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupPhoneWant, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShadowCallFor, type ShadowCallOutcome, type ShadowCallSpec, type ShadowPort, type ShadowRead, type SharedEventKind, type ShellMessage, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type Signer, type SignerFacts, type SignupInput, type SignupPosture, SignupSchema, type SkillCraftPurpose, type SkillExample, type SkillSection, type SlotEdit, type SlotKey, type SlotLead, type SlotPart, type SlotSet, type SlotValue, type SlotWorkspace, type SpanUnits, type SpeechPurpose, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type StandRowVM, type Standing, type StandingInput, type StandingInputs, type StandingVM, type StandingVerdict, type StarterEmailText, type StarterSlot, type StarterSlotKind, type StarterSmsText, type StarterTemplate, type StarterText, type StateKind, type StateVM, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepHand, type StepNoteBody, type StepPerson, type StepSheetVM, type StepTestMail, type StepTestMessage, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, type SystemOneAnswer, type SystemOneQuestion, type SystemOneRequest, type SystemOneResponse, TEAM_INVITE_DAYS, TEAM_ROLES, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUSES, TEMPLATE_STATUS_WORDS, TEMPLATE_TITLE_MAX, TEMPLATE_UNUSED_WORDS, TEMPLATE_WORDS_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_INK, THEME_OPTIONS, THINKING_TYPES, THREAD_CHANNEL_WORDS, THREAD_PANE_WORDS, TILES, TIMELINE_FILTERS, TIMETABLE_HORIZON_DAYS, TOAST_ICONS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_PINS_MAX, TODAY_STEPS_MAX, TOKENS_DAY_DEFAULT, TONES, TONE_PRESETS, TOO_EARLY_DAYS, TO_SEND_ALL_WORDS, TO_SEND_ROUTE, TRIAL_COVERS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, TRY_IT_WORDS, TRY_QUIET_AFTER_MS, TRY_SKIPPED, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateHolds, type TemplateLanguage, type TemplatePart, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantId, type TenantStatus, type TextingTermsVM, type TheirsRowVM, type TheirsVM, type Theme, type ThemePref, type ThinkingType, type ThreadHolder, type ThreadVM, type TilesVM, type TimelineFilterId, type TimelineKind, type TimetableInput, type TimetableResult, type TimetableSend, type TimetableSender, type ToSendCount, type ToSendRowVM, type ToSendRunLike, type ToastShape, type ToastTone, type TodayAwayVM, type TodayBriefRun, type TodayBriefWords, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayPin, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type TodayVisitAskVM, type TodayVisitsAskedVM, type TodayWidgetSnapshot, type Tone, type Totals, type Touches, type TryItAnswer, type TryItThen, type TryItVM, type TryTransferKey, type TypedFacts, type TypedVM, UNKNOWN_AUDIENCE_WORDS, UNREAD_READING, UNSUBSCRIBE_PAGE_HEADER, UP_NEXT_WORDS, US_STATE_ZONES, UUID, type Unread, type UnsubscribePageWords, type UnsubscribeView, type UpNextAct, type UpNextFacts, type UpNextRowVM, type UpNextVM, type UsStateCode, V0, type V0VM, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, VISION_SWITCH_WORDS, VISITS_TAB_WORDS, VISIT_ASK_WORDS, VISIT_CHANGES_TOLD, VISIT_REFUSALS, VISIT_TRIGGERS, VISIT_WORDS, VOICE_END_REASONS, type VerbCard, type VerbKind, type VersionChannel, type VersionCheck, type VersionWords, type Visit, type VisitChange, type VisitDto, type VisitLineInput, type VisitLineVM, type VisitMark, type VisitMoreAct, type VisitOnRecord, type VisitOriginDto, type VisitPrimaryAct, type VisitSheetInput, type VisitSheetPerson, type VisitSheetState, type VisitSheetVM, type VisitStateTone, type VisitStateVM, type VisitWord, type Visits, type VoiceEndReason, WABA_FIELDS, WAITING_AFTER_DAYS, WAITING_REASONS, WA_WINDOW_MS, WEEKDAY_KEYS, WEEK_MS, WHATSAPP_CONSENT_SOURCE, WHATSAPP_COST_WORDS, WHATSAPP_LANGUAGES, WHATSAPP_VERSION_ALONE, WHY_FROM_MAPS, WORKSPACE_ENDED_WORDS, WORKSPACE_LOGOS_BUCKET, WORKSPACE_PAUSED, WORKS_AT_WORDS, WRITE_HOLDS, WRITE_HOLD_WORDS, WRITE_WAY_REFUSED, type WaWindow, type WabaEventKind, type WaitSource, type WaitingPersonDto, type WaitingRowVM, type WaitingRun, type WaitingRunOffer, type WaitingThread, type Waits, type WeakerMode, type WeekHours, type WeekdayKey, type WhatWaits, type WhenItGoesReceipt, type WhoseWords, type WireFailure, type Within, type WordsIssue, type WordsMessage, type WordsProblem, type WorksAtVM, type WorkspacePartnerDto, type WorkspacePartnerState, type WorkspacePartnerVM, type WriteHold, type WriteRow, type WriteWay, type WrittenOpening, YES_WHILE_PAUSED, type YesAsk, type YouAreLiveInput, ZIPS, abandonedCall, abilityRows, aboutADayAfter, accountRows, activityDoor, activityFamily, activityFamilyKinds, activityKindGroups, activityKindWords, activityLines, activityMemberWords, activityRowsForLines, activityTone, activityWords, adAccountOf, adBarsOf, adFollowOn, adModel, adPeopleOf, adPersonInitials, adPersonWho, adPreviewOf, adQuotes, adRoute, adServiceOf, adStateOf, adWith, addDays, addProposalSpecs, addToPeopleOf, addressAlreadyKnown, addressInMessage, addressOf, adsFactOf, adsModel, adsPreviewOf, adsReportRoute, adsResultsOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, aiUsageBodyOf, alertAddressesOf, alertGrid, alertTestMail, allLeftOutWords, allVisitsIn, allWord, allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, allowedPrices, amountTotalsWords, amountWords, answerBlocks, answerCopy, answerForCards, answerFromV1, answerPlain, answerRuns, answerSaidOf, answerSoFar, answerSpoken, answerStyleOf, answerText, answerWireOf, answerWords, answeredYes, answersToRuns, appLink, applyReadState, applySettingsChange, appointmentHolds, appointmentKey, appointmentKeyOf, appointmentKeysOf, appointmentTitle, appointmentWordOf, appointmentWordSaved, appointmentWordVM, appointmentWords, approvalWordsOf, approvedWordsFor, areaCodeOf, areaOfValue, areaValueOf, areaWord, arrivedRunOf, asContactId, asListRule, asNameSource, asPersonMode, asTenantId, askCallOutcome, askCardLapsed, askColumnOf, askGoalRefusal, askGoalSaved, askIntent, askJump, askModelProfile, askPages, askRoundCap, askUndoOpen, askWhy, askedDayOf, asksTheFeed, attentionOf, attentionRow, audienceMembers, audiencePreview, audienceTrigger, autoReplyBell, autoReplyCandidates, autoReplyHold, awayUntilOf, batchWaitsUntilTonight, batchWent, bellActionOf, bellCalls, bellFeed, bellLineFor, bellOlderOf, bellSections, billingAccountDto, billingDoorOpen, billingEndedAt, billingPill, blockShareWords, bodyRefusal, bookedAfterAsk, bookedSeenOf, bookedTileOf, bookingArriving, bookingChanged, bookingChoiceNeeds, bookingChoiceOf, bookingChoiceWrites, bookingCopyTest, bookingEmailsHeldWords, bookingEmailsStep, bookingHeld, bookingLinkAction, bookingNoticeOf, bookingPageKept, bookingPageOf, bookingPageOffered, bookingRequestRefusalOf, bookingRuleRefusal, bookingRulesWords, bookingTemplate, bookingToolCalendar, bookingToolName, bookingToolOfAddress, bookingToolOfLink, bookingToolOptions, booksWithName, booksWithOf, booksWithOptions, brainMetaOf, brainOutputSchemaFor, breathSplit, breathTouchOf, breathWaitWords, broadcastFailureFix, broadcastFailureWords, broadcastName, broughtWords, budgetDial, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGap, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordOf, businessRecordProblems, businessTrailOf, businessTypeOf, busyOfAppointments, cacheHitOf, calendarLinkNote, calendarLinkShown, calendarOwnerOf, calendarParamParts, calendarPeekDeal, calendarPersonFactsOf, calendarPersonOf, calendarRunMarksOf, calendarSourceFacts, calendarSourceOf, callActivityPropsOf, callActivityStart, callAttemptWords, callBackWaits, callDays, callEndedWords, callJumpSub, callLength, callNoteLines, callNotesOf, callOfKey, callOutcomeOf, callOutcomeWords, callTodoWords, callerName, callerSentence, callsAnswer, callsStillUp, callsToday, cameFromOf, campaignChannelsOf, campaignDayWords, campaignEmailRules, campaignEnded, campaignLedgerDtoOf, campaignMessageOf, campaignMessagesOf, campaignRunsOn, campaignsHomeOf, cannotBeSentWords, cannotFoldWords, cannotRows, canonicalRoute, capabilityStatus, cardOpenRoute, cardsInPlans, chainHintOf, chainIssueWords, chainOf, chainOfMoment, chainPaceOf, chainPathWords, chainReportWordsOf, chainResultsOf, chainResumeOf, chainTotalsFromReport, chainTotalsOf, changedConfigFields, changedRecordFields, channelChoices, channelFor, channelKindWords, channelNeverCarries, channelNoun, channelRefuses, channelsGoesByWords, channelsOf, channelsOfYes, channelsReady, channelsStandingParts, channelsStandingWords, channelsWords, checkChipsOf, checkFactSuggestion, checkFix, checkNoteSuggestion, checkOk, checkOpening, checkWords, checkedWords, chipsMoreWords, citationRoute, claimsWrite, clampWords, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanFactorCode, cleanParam, cleanPartnerCode, cleanTimezone, cleanWorkspaceName, clientErrorOf, clientKeyOf, clip, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockHour, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closeSettledNotices, closedOf, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, combineOf, combinedInto, companyTypeOf, compareTemplates, compareWords, composeLinksOf, composeSystemPrompt, composerDays, confirmationNameOf, connectModel, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentGuardWords, consentPageMetadata, consentPageVM, consentRuleWords, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHappened, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationMoveAllowed, conversationOfNeedsKey, conversationPatch, conversationWaitsOnYou, costEach, countCtx, counted, countedDoor, coveredChannels, coversSpan, craftSystem, craftedVersions, csvCell, currencySymbol, customerDomainOf, customerDomainWords, customerWords, dailyLimit, dataSentences, dayFromQuestion, dayInZone, dayIntervals, dayLines, dayOfIso, dayPlusInZone, dayProblems, dayShort, dayWord, dayWords, daysBetween, daysToSunset, daysWithAppointments, daysWord, daysWords, dealCardsOf, dealFactsOf, dealFill, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFill, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, defaultWriteWire, delayWords, deltaOf, deniesAutomated, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, disclosureFacts, divertedNumbers, doorNamesNoAudience, doorNeeds, doorOf, draftAd, draftExcerpt, draftListRule, draftRefusal, draftRefusalOf, draftSendsAtMs, dueStepDay, durationLabel, durationWords, eachInTouch, earlierCost, earlierVisitsOf, editFootOf, editOf, effectiveMode, effortAbove, effortInForce, effortMessage, eligibleFor, eligibleForPlaybook, emailDomainOf, emailFoot, emailFootHtml, emailIssues, emailLeftOutOf, emailNotConfirmed, emailOffersOpen, emailRowWrittenOf, emailRunStop, emailStoppedWords, emailTemplateRowsOf, emailTemplateWords, emailWires, emailWordCount, emailsFor, emailsNotificationKind, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endedOn, endingOfRound, endsWhenOf, enrolFor, enrolPurpose, enrolRefusalWords, eraseSlot, err, escapeHtml, estimateRoundUsd, eventText, exampleParams, exampleParamsFor, exportLeftOut, exportLeftOutWords, exportedSections, extractContacts, factAlreadyNoted, factConflicts, factNeeds, factNoteChange, factSuggestSystemPrompt, factSuggestUserContent, factValue, factorCodeWords, factorStepNeeded, failedAnswer, failureWordsOf, fallbackMessages, fallbackModel, fallbacksWords, feedAdditionIsBooking, feedAppointmentRows, feedBodyProblem, feedItemOfAppointment, feedMarksOf, feedNamesOf, feedNotes, feedProblemWords, feedSourceLabel, feedStillNames, feedUrlOk, feedWithRecord, fenceActed, fenced, fencedInline, fetchPublic, figureWords, fillSlots, filterOpenings, filterTimeline, findLanguages, finishedRunHeldWhy, finiteOrNull, finiteOrZero, firstLine, firstMissing, firstNameOf, firstReadyDoor, firstReceptionistOf, firstRunKicker, firstRunLiveOf, firstRunOf, firstRunPhoneOf, firstRunStepOf, firstRunStepRoute, firstRunTryOf, firstWorkspaceDoor, fixedDaysOf, fmtClock, fmtDay, fmtSeconds, foldEffortMessages, foldName, foldWordsMessages, followUpDue, followUpIsFor, followUpKey, followUpLeaves, followUpNames, followUpReach, followUpRunAt, followUpStandOf, followUpStop, followUpWords, followUpsOf, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardStillAsked, forwardedLineOf, forwardingCarrierOf, forwardingCodes, forwardingConfirmationOf, forwardingDialLabel, forwardingMatch, forwardingProof, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromAdWords, fromSlotParts, fromZonedInput, gainedOver, goesToOf, googleAudienceWords, googleCallbackUrl, googleFillsOf, greetingFor, greetingNotes, greetingOf, groundCitations, groupMeta, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, guideBlock, handOf, handStepWords, handoffCallRow, handoffChatRow, handoffChatWords, handoffE164, handoffWords, handoverInviteEmail, handoverRoom, handoverUntilWords, hardLimitsWords, hasFastMode, hasHours, hasProfile, hasPublicPages, headlineOf, heardFor, heardSinceProposal, heardTooWords, heardWithin, heardWords, heldBackOfOneRun, heldBackWords, heldByAllowance, heldDraftOf, heldDraftWaits, heldDraftsByClass, heldDraftsLine, heldEmailsWords, heldLine, heldNoticeWords, heldPill, heldThreadIds, heldWords, hexOf, historyCovers, historyDayWords, historyDays, historyFigures, historyIn, historySince, historyStamp, historyUpcomingWords, holdActOf, holdDoors, holdMarksOf, holdNotice, holdOf, holdWaits, holdWords, holderOf, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, ideaAsk, ideaBasisOf, ideaHistoryOf, ideaJsonSchema, ideaPacket, ideaPacketText, ideaPassed, ideaPassedOf, ideasFrom, ideasRead, identityWords, importCounts, importRowsOf, inAppBootScript, inAppFrom, inLastSendingHour, inLocalWeek, inboxBlankOf, inboxBucketWord, inboxSlots, inboxTemplateParts, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, injectionQuestion, insertSlot, instructionsDraft, instructionsWords, invitationWords, invoiceStatusWords, isActivityFamily, isActivityMoney, isActivityNoise, isAdsParam, isAppointmentWord, isAskSkillId, isAutomatedSend, isBaselinePrompt, isBookingTool, isCampaignEmail, isCampaignLedgerSeriesDto, isCampaignStuckRawDto, isCarrier, isChatMessage, isCheckoutReturn, isConnected, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isDraftWhy, isE164, isEffortMessage, isEmailStopped, isForReader, isForwardingMode, isFreeMail, isFromTheirSide, isHeldDraft, isHoldRow, isIdentifierName, isLeadList, isLedgerCampaign, isLensParam, isLibrarySample, isListToken, isLiveCall, isLogoPathOf, isLookPref, isModelId, isNoticeHold, isOfferByEmail, isOpeningFactKey, isOpeningProblem, isOptedOut, isOptedOutContact, isPartnerCode, isPeopleSeriesDto, isPersonRow, isPersonsWords, isPipelineView, isPlaybookState, isPlaybookTotalsDto, isProductFallback, isPublishedFact, isPushKind, isReachOutHold, isReachOutRefusal, isReachOutRow, isReachOutRun, isRealDate, isReceptionistSeriesDto, isReplyIntent, isReplyTo, isReplyUndoRefusal, isReportDays, isReportDto, isReportPeriod, isReviewsLedgerDto, isSequencesParam, isSidebarPref, isSiteRoot, isTheirOwnWords, isThemePref, isThinShare, isTimezone, isTypingTarget, isUncounted, isUngrounded, isUnread, isUnseen, isUsablePassword, isUuid, isVoiceEndReason, isWaitRefusal, isWinBack, isWordsMessage, isYes, itemFocus, itemOfAppointment, jittered, jobNewsWords, jobRecordOf, joinedWords, journeyGuide, journeyOf, journeyStageOf, judgeAsked, judgeOpId, judgeQuestions, judgeShadowCalls, judgeShadowSpecs, judgeSystemPrompt, judgeUserContent, keepsValues, keptPhoneKind, keptUnreadOf, kindListDoor, kindsEndedBy, knownForwarding, knownTimezones, languageBase, languageLabel, languageLabels, languageName, languageTag, languageWords, lastWordsOf, lastWroteOn, leadAddresseeOf, leadAddresseeRefusal, leadAllowanceFact, leadAnd, leadAreaFrom, leadAskedFor, leadBand, leadCardBulkDoorOf, leadCardBulkOf, leadCardEmailOf, leadCardMarksOf, leadCardPartsOf, leadCardReasonOf, leadCardSlotsOf, leadCardStepsOf, leadCheckAgainCents, leadCheckWord, leadChooseAnswerWords, leadChooseNameOf, leadCompanyOf, leadDoorOf, leadDraftFooter, leadEndingLine, leadExclusionWord, leadFoundWords, leadHoursShort, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadKindKey, leadKindWord, leadLinePlaceOf, leadListEmptyOf, leadListStripOf, leadLowShare, leadLowerFirst, leadMapAcross, leadMapLegend, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadMonthPlanFacts, leadNamedPeople, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadOf, leadPeekMenu, leadPeopleIndex, leadPeopleOf, leadPhoneState, leadPileOpen, leadPileProgressOf, leadPileRailOf, leadPinTone, leadPlanAsk, leadPlanFactLine, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReplyNote, leadReviewCosts, leadReviewGroups, leadRoleOf, leadRowOf, leadSearchWords, leadSheetAboutOf, leadSheetBoxOf, leadSheetChecksLineOf, leadSheetChecksSaid, leadSheetClosedOf, leadSheetContactLineOf, leadSheetContactSaid, leadSheetDockOf, leadSheetEndRailOf, leadSheetOptionsOf, leadSheetPlaceOf, leadSheetReplyOf, leadSheetStandOf, leadSheetStateOf, leadSheetStoryOf, leadSheetSubOf, leadSheetTrackOf, leadSheetWhyOf, leadSheetWordOf, leadSlots, leadStepStand, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWeekBars, leadWeekSummary, leadWhere, leadsRoute, leadsStanding, ledgerRowIn, leftOfAd, leftOfMoney, leftOutBy, leftOutByFacts, legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash, lengthWords, lensAnswerOf, lensEmpty, lensIsShown, lensOf, lensOfRoute, lensRoute, lensesFor, libraryCount, lifecycleChainStateOf, lifecycleChainsOf, lifecycleKicker, lifecyclePlaybooksOf, lifecycleStateOf, lineCredentialFailure, lineOffGets, lineOrNull, lineReleaseAfterDays, lineReleaseDay, lineReleaseStep, lineReleaseWarning, lineReleasedWords, lineRetryRefusal, lineStuckProvisioning, linkCount, linkHost, linksIn, listAsks, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNamer, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listSpoken, listStartsSentence, listToken, listTyped, listUnknownWords, listingFactsOf, listingLine, listsFor, liveBar, liveStillUp, liveTablesOf, localDate, localDaysBetween, localHour, localToUtcMs, logoDrawRect, logoFoundOn, logoLayout, logoLookupWords, lookPrefOf, mailboxActs, mailboxConnectWords, mailboxConnectionDtoOf, mailboxDailyCap, mailboxHealthWords, mailboxHoldFixWords, mailboxHoldOf, mailboxHoldWords, mailboxRampShare, mailboxRecordRows, mailboxSendsNow, mailboxWords, mailboxesFootWords, mailtoOf, markOn, maskedEmail, matchColumns, matchPerson, matchService, matchWordsOf, mayMessageFor, mayReach, mayReceive, mayRing, maySpend, mayUseModels, mediaKind, mediaVM, medianWait, memberGetsAlerts, memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice, memberMetaOf, memberWords, membersOf, mergedAnswers, messageAboutOfClass, messageAboutOfTrigger, messageAt, messageAuthor, messageBriefText, messageCraftIssues, messageFitsMoment, messageHolds, messageJudgeQuestion, messageJudgeSystem, messageLanguageChoices, messageLanguageCode, messageLanguageOf, messageLanguagesNext, messageLanguagesOf, messageStandingWords, messageStatusLabel, messageText, messageVerdict, messageVia, messageWhy, messageWhyNot, messageWords, messagesSummaryOf, metaStatusOf, metricWordsOf, minorOfUnits, missedCall, missedCallIsNews, mmss, modelRoute, modelTakes, modelTurnRequestOf, modelTurnResponseOf, momentOffered, momentReadsCalendar, momentStartsSentence, mondayOf, moneyOf, moneyWords, monthDaysAt, monthLabelOf, monthSentAt, monthSpan, movedAddress, nameDecisionWords, nameKnownCustomers, namedProblem, namesAPerson, namesMoney, navigateLabel, needsAnswer, needsConsultation, needsCount, needsSecond, needsWords, needsYouCount, neverConnected, newAdDefaults, newAdFrom, newAdFromRoute, newAdModel, newAdRoute, newCampaignChannels, newCampaignTrialUntil, newConversationOf, newReceptionistDefaults, newSequenceLine, newSequenceRoute, newSinceOf, newestPostFor, nextMonthStart, nextNotAsked, nextOpenMoment, nextRunLabel, nextRunWords, nextStepOf, nextThemePref, noAdsOf, noChannelWords, noNumberWords, noProposalSince, noTemplateWords, noVersionWords, nonBlankOrNull, normalizeAnswer, normalizeEmail, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, notNowDayOf, notTakingSignUps, noteAsTold, noteEndedWords, noteFill, noteManyLine, noteRows, noteSheetFill, noteSuggestSystemPrompt, noteSuggestUserContent, noteWhose, notesInForce, notesWords, noticeAnswerOf, noticePrompt, noticeRoute, noticeStillWaits, noticeTone, numberHealth, numberHealthOfConfig, numberHealthWithStanding, numberedSlots, offerFor, offerGate, offerLead, offerPauseOf, offerUnsubscribeWords, offeringHorizon, offersAfterStart, offersBookingLink, offersFacts, offersLinkOn, offersNote, offersPausedLine, offersYesRefusal, ok, olderUnreadOf, onDomain, oneDoor, openAt, openDealsFromJson, openDealsOf, openItLine, openReads, openToCustomersOf, openWeekWords, openingProblemWords, openingSystemPrompt, openingUserContent, openingVerdict, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, optOutNotice, optOutOf, optOutWords, outcomeMove, outreachRefusalOf, overLimitRefusal, ownAddressesOf, ownMessageRefusal, ownModesOf, ownModesWords, ownWordsOf, ownedDomainOf, ownerPaceWords, paceWords, pageSpeedWords, pageTitle, pageTotals, pageVitalsWords, paramLabel, paramSaid, parseAds, parseAmount, parseBrainOutput, parseCsv, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseMemberAlerts, parseOpening, parsePageMessage, parseParamSpec, parseParamSpecs, parsePeopleRoute, parsePipelineRoute, parseReading, parseReplyReading, parseSequencesRoute, parseShellMessage, parseSystemOneResponse, parseTenantConfig, parseTenantConfigResult, parseTodayWidgetSnapshot, partWritten, partialSay, partnerCodeFrom, partnerCodeFromCookie, partnerEarningsWords, partnerHandoverVM, partnerInvitationWords, partnerInviteEmail, partnerJoinedWords, partnerLetter, partnerLinkFor, partnerPaneUrl, partnerPathFor, partnerPayoutOutcomeWords, partnerStandingChoices, partnerStandingOutcomeWords, partnerStatusChoices, partnerStatusOutcomeWords, partnerVM, partnerWorkspacesVM, passesHandoverPause, passwordProblem, pastAllowance, pastTarget, pastTargetPage, patchRestarts, pauseHoursOf, pauseMsOf, pausedGreetingFor, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleDtoOf, peopleEstimateUsd, peopleFromItems, peopleListAction, peopleNeedsOf, peopleNowOf, peoplePlanFrom, peoplePlanOf, peoplePlanSentence, peopleRoute, peopleSheetProblems, peopleTabWord, peopleVisitsOf, peopleWho, peopleWord, perDayOf, personActs, personCallClosesBack, personCallDays, personCallFoot, personCallLeadArgs, personCallNote, personCallOf, personCallSave, personExportLeftOut, personFaceOf, personFiguresOf, personHeadOf, personHeadStateOf, personInText, personInitials, personLikeOf, personName, personNextFor, personNextOf, personNotesVM, personNoticesOf, personOfAppointment, personReachOf, personRouteOf, personStanding, personStateFor, personTabRoute, personTabWord, personTabsOf, phoneDialable, phoneLine, phoneOf, phoneTail, phoneVoiceOf, phoneVoiceShown, pickCurrentDeal, pinTokens, pipelineBoardMore, pipelineCsv, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelinePersonOf, pipelineRail, pipelineRoute, pipelineRowId, pipelineRowNow, pipelineSorted, pipelineViewLabel, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planGroupOf, planLeadSearch, planLeavingOut, planMadeOf, planMinutes, planNoteOf, planOf, planPeopleSearch, planRun, planSaid, planSentence, planVersionOf, planWaits, planWhere, planWho, planWords, platformActionWarning, platformDaysWords, platformHealthOf, platformHealthWords, platformLineActions, platformMeta, platformNumber, platformPartnerRows, platformPartnerStanding, platformPartnerSummary, platformQueue, platformRows, platformSummary, platformsFor, playbookChannelsRead, playbookFailedAbout, playbookFailedWords, playbookListRef, playbookName, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunNext, playbookRunReach, playbookRunStop, playbookStopBy, playbooksStillSending, plural, pointsDelta, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassOffered, policyClassQuestion, policyLinks, policyModeOffered, policyModeRefusal, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, posesAsReply, previewHorizon, previewLinesOf, previewOn, previewParts, previewRefusedWords, previewSays, previewVersionsOf, priceAllowance, priceBreach, priceChoiceOf, priceChoiceWrites, priceFigures, priceNextStep, priceOf, priceWords, pricesWrittenWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptSafeName, promptTotalWords, proposalAction, proposalBelowNeeds, proposalChannelsWords, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalSpec, proposalsWaiting, proseAnswer, providerCodeOf, providerNameOf, publicObjectSrc, publicPagePath, publishesBusinessPage, purposeOfPlaybook, purposeOfTemplate, pushFor, pushOffOf, pushesFor, quantile, questionAfterProbe, quickAnswerOf, quietOf, quotesPrice, raiseOf, ratingLine, ratingWords, reachAfterBreath, reachBarParts, reachBarWords, reachByWords, reachCountsOf, reachFor, reachLineOf, reachLines, reachNoteOf, reachOutAddHandStep, reachOutAddStep, reachOutAddWords, reachOutAfterDayChoices, reachOutCameWords, reachOutChainBodyOf, reachOutCountryOf, reachOutDayWords, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutEmailOf, reachOutExampleValues, reachOutLineOf, reachOutMayAddStep, reachOutMayPickMailbox, reachOutPeopleRoute, reachOutPersonOf, reachOutPreviewOf, reachOutRootOf, reachOutRowName, reachOutRules, reachOutRunMoving, reachOutRunWordsOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutSlotFault, reachOutSourceOf, reachOutStandingOf, reachOutStepOf, reachOutStripOf, reachOutTimelineOf, reachOutVersionDraftOf, reachOutWhenOf, reachOutWhoWords, reachOutWritesFrom, reachSplit, reachSplitWords, reachedCustomer, reachedVoicemail, readAgoLabel, readTime, readingPlan, readingSystemPrompt, readingUserContent, readsAsModel, readyForMessage, readyOrWhatsApp, reasonLabelOf, reasonShort, reasonSummaryOf, receiptWords, receptionistCardOf, receptionistDtoOf, receptionistKnowsOf, receptionistOf, receptionistOn, receptionistPrimary, receptionistShadowCall, recordFilingOf, recordIdOf, recordKeyOf, recordOrNull, recordSavedOf, recordSavedWords, refusalOf, refusedWords, regionOf, registrationPathOf, registrationPreflight, relationshipOnRecord, renderOwnVersion, renderTemplate, repliesWords, replyChipOf, replyChipStateOf, replyDelayMs, replyFromLineOf, replyHoldDtoOf, replyIntentQuestion, replyLeftAsOf, replyNoticeWords, replyReadPrimary, replyReadShadowCall, replyRowOf, replyStepWords, replyStripOf, replySystemPrompt, replyTextOf, replyUserContent, replyWaitsOnYou, replyWhy, replyWindow, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportFacts, reportHourWords, reportPeriodOf, reportPickWords, reportRangeAsked, reportRangeKey, reportRangeOfKey, reportShortcuts, reportWindowOf, reportsParamParts, reportsRouteParts, requestCodeWords, requestedBookingOf, rereadAt, resendLeft, resolveFacts, resolveList, resolveParams, resolveSteps, resolveSystemPrompt, resolveTheme, resultsOf, retentionWords, reviewHeldWords, reviewIsNew, reviewNoticeIsAbout, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewRoute, reviewSnippet, reviewsAreOnRecord, reviewsWindowOf, reviewsWords, rightNowCounts, rightNowLine, roleAtLeast, roleGate, roleSays, roleTable, routeOfAddress, routeOfHash, routeOfPath, routePrefetchScript, rowReachWords, ruleFacts, ruleLists, ruleNeeds, ruleNeedsViewer, ruleParts, ruleStrength, ruleUndated, rulesKept, rulesLine, rulesWithoutFieldsWords, runApprovalRefusal, runApproveWords, runApprovedTail, runCountsOf, runDayPassed, runDaysAt, runDecidedOnItsPage, runDraftedEmails, runDueNow, runHeldEmails, runLabelOf, runLandingOf, runMarkShown, runReadingOf, runSheetRoute, runStillMoving, runStopWords, runStoppedWords, runTitleOf, runTooLate, runWaitsOnYou, runningTotal, runsThatWait, runsWaitingSentence, runsWords, saidYesOnAny, saidYesTo, saidYesWords, sameAddress, sameArea, sameListed, sameName, samePhone, sameQuestion, sameReportRange, sameVisitOnRecord, savedListAction, savedListIds, savedListLookup, savedListTip, sayItFilled, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait, scopeFromRoute, seasonHorizon, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown, seenBy, sendFailureIsOurs, sendFailureWords, sendWindowsOf, sendableTemplates, senderLanguage, senderWords, sendingEndsAt, sendsWaitWords, sentByWords, sentResultsOfSource, sentenceParts, sequenceCancels, sequenceChannelsWords, sequenceGroupOf, sequenceHeadLine, sequenceLandingOf, sequenceLeftWords, sequenceNewLeadsRoute, sequenceNextOf, sequenceNextWords, sequenceNotice, sequencePausedDock, sequenceRepliesOf, sequenceRepliesRoute, sequenceResumeAsk, sequenceRoute, sequenceRouteBack, sequenceRowLine, sequenceRowState, sequenceRunsNow, sequenceStartWords, sequenceStartsSentence, sequenceStateTone, sequenceStateWords, sequenceStopsSentence, sequenceSubLine, sequenceTwinOf, sequenceWaitWords, sequenceWaitsNow, sequenceWhoApprovesHint, serverNotificationRows, serviceLineWords, serviceNamedIn, serviceSuggestionsOf, serviceUndoName, servicesFoundWords, servicesToldWords, servicesWords, sessionEnded, settledNoticeIds, settling, setupCardOf, setupLaterOf, setupPhoneWantOf, setupSteps, sha256Hex, shadowBodies, shadowPortOf, shadowRead, shadowSwitchOn, shadowWordsOf, shareSaid, shareWords, sheetFootWords, shellStatusLine, shiftKey, shiftMonth, shortCode, shortName, shortTime, shortcutGroups, shouldLandOnFirstRun, shoutingLine, sightingStands, signerAgrees, signerOf, signupPosture, siteHost, skillGuide, skillsAsked, slotChoices, slotCount, slotKnown, slotLabel, slotLabels, slotLong, slotShort, slotToWrite, slotValueOf, slotWritten, slugTemplateName, smallestPreset, smsConsentSentence, smsSegments, smsStateRow, smsStopLine, smsVersionSegments, snoozedThreadWords, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, spokenNameOf, stageArgs, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead, standingOf, standingOfThread, standingWithRuns, starsOf, startWords, started, starterByKey, starterByName, starterCopy, starterDraft, starterEmailText, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterSmsText, starterText, startersForTrigger, startersOffered, startsOn, stateCode, stateLabel, stateOf, stateTone, stateWordList, statesAutomated, stepApprovalOf, stepDayFor, stepDayName, stepDayOf, stepDays, stepIsDue, stepLabel, stepLabelOf, stepOfferWords, stepSheetBody, stepSheetDirty, stepSheetDone, stepSheetFor, stepSheetMerge, stepTestMail, stepToken, stepWhenWords, stepsStopSentence, stopRequestQuestion, stopToldBesideState, stoppedAnswer, stoppedRunFix, storedAnswer, suggestLocalPart, sum, sumMoney, sumOf, sumsOf, systemOneDollars, systemOneState, takesBookingRequests, takesFollowUps, takesSignUps, telHref, templateBlocked, templateBodyTooLong, templateComponents, templateFooter, templateHolds, templateLanguage, templateLinkButton, templateNameOk, templateOffered, templateParts, templatePreview, templatePreviewValues, templateSends, templateSendsOf, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, templateWords, tenantStatusFor, textAsSent, textPartsAllowed, textRoom, textingTermsMetadata, textingTermsVM, textingWords, theirVisitTest, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, theyWroteLast, threadChannelOf, threadChannelWords, threadStanding, threadWait, threadWaits, threadWaitsOf, threadsWaitingOnYou, tidyCallSummary, tilesOf, timeOf, timelineFilterLabel, timetable, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignLensVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toHeadlineVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPeopleReportVM, toPersonRowVM, toPersonVM, toReachOutLensVM, toReceptionistReportVM, toReportVM, toReviewsReportVM, toRunReportVM, toSendAllOf, toSendEveryOf, toSendRowOf, toSendRunsOf, toSendSaidWords, toSendWordsOf, toSlotParts, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayBriefWords, todayDay, todayDraftsSub, todayLateRunsSub, todayLeaks, todayPeriodLine, todayPins, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, todayStepsFoot, todayStepsSub, todayVisitsAsked, todayVisitsFoot, todayVisitsSub, todayWidgetSnapshot, togglePin, tokenBudgetSpent, tokenCapOf, tokensPerReply, tomorrowAtIn, totalOf, totalsOf, touchesAfterRun, trialDayWords, trialOffer, trialWords, triggerOf, triggerOffered, triggerWords, trimmedOrNull, tryItLink, tryItVM, twinRunsWords, tzClock, tzSince, unansweredCallTodo, unknownDetails, unmetNeed, unquoted, unreadCount, unreadFor, unsubscribePageWords, unsureHoursWords, usPhone, usStateCode, usStateName, usStatesTyped, usableDeviceTimezone, usageDollars, usageOf, usageTokens, utf8Bytes, v0Of, v1FromAnswer, validateEmailVersion, validateOwnVersion, validateReachOutChain, validateReachOutWords, validateSmsVersion, validateTemplateDraft, variablesSlotCount, verbForRoute, verbSpec, verbalOptInScript, verifyCodeWords, versionComponents, versionSlotsRefusal, versionWord, versionWords, versionsOf, vetoRunNotice, viewState, viewerListWords, violatesNoPrices, visitActsOf, visitChangeNews, visitDateKey, visitDay, visitDayWord, visitDoor, visitFactsFor, visitLine, visitLineForDto, visitLineOf, visitLineOfBlock, visitLinkWords, visitMarkOfDto, visitMomentDay, visitNews, visitOnDay, visitRoute, visitSheetOf, visitStands, visitStartTime, visitStateOf, visitTime, visitTitleWithout, visitTwinWords, visitsIn, visitsOf, vitalValueWords, vitalVerdict, vitalsPageOf, waMeDigits, waMeLink, waWindow, waitAfterDays, waitWords, waitedLabel, waitingOnProposal, waitingRunOffer, waitingRunsDoor, waitsOf, waitsOnAPerson, wallClockAt, warningsMendedBy, wayOff, websiteHostOf, weekHoursOf, weekOf, whatsappLineOf, whatsappOffersOpen, whatsappStoppedRunWords, whenItGoes, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyFrom, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, whyNotFactLook, whyNotForward, whyNotLook, whyNotReceive, winBackWords, windowFor, wireFailure, withAlertAddress, withFirstAlertAddress, withReplies, withSteps, withStoredKeysKept, withTopicEmail, withTopicPush, withVisitsAsked, withVisitsOf, withoutVisitsRowsDraw, withoutWrongPerson, wordCount, wordsIssueWords, wordsMessage, wordsNeedOpening, worksAtOf, workspaceInitials, workspaceLogoPath, workspaceLogoSrc, workspacePartnerVM, workspacePath, writeReachOf, writeWayWords, writeWaysOf, writeWireName, writtenChannelOf, writtenOutDetail, yesAsked, yesCovers, yesWaitWords, yesWaits, youAreLiveEmail, youJoinedWords, zipIssue, zoneDayKey, zoneMidnight, zoneOfRegion, zoneOffsetMs, zoneSearchWords, zonedInputValue };
+export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVATION_MILESTONES, ACTIVITY_ACTORS, ACTIVITY_FAMILIES, ACTIVITY_FOLD_KINDS, ACTIVITY_KINDS, ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, ACTIVITY_PAGE_WORDS, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTIVITY_SUBJECT_HOMES, ACTOR_TYPES, ADD_TO_PEOPLE_WORDS, ADS_ASK_MIN, ADS_ASK_MIN_CALLS, ADS_ASK_SOON_DAYS, ADS_CHANCE_Z, ADS_COPY_LIMITS, ADS_DAILY_CHOICES_MINOR, ADS_DEFAULT_CURRENCY, ADS_DEFAULT_MILES, ADS_DISPLAY_NAME_MAX, ADS_DOORS, ADS_END_SHIFTS, ADS_EXAMPLES, ADS_EXTEND_MAX_DAYS, ADS_FRESH_DAYS, ADS_GROUP_FROM, ADS_MOVE_DAYS, ADS_MOVE_STEP_MINOR, ADS_OWN_DAYS, ADS_OWN_START_MINOR, ADS_PERMISSION_WARN_DAYS, ADS_READ, ADS_ROUTE, ADS_SCOPE_ALL, ADS_SETTLE_DAYS, ADS_SOFT_NEEDS, ADS_SPECIAL_MILES, ADS_TOTAL_STEPS, ADS_WINDOW_DAYS, ADS_WORDS, ADS_ZIP_DIGITS, ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_KINDS, ALERT_PANE_WORDS, ALERT_REFUSED_WORDS, ALERT_TOPICS, ALWAYS_ON, ALWAYS_TOLD, ANALYSIS_GRACE_MS, ANGLE_WORDS_MAX, APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, APPOINTMENT_WORDS, APPOINTMENT_WORD_REFUSAL, APP_KEYS_RESIZE_CLASS, APP_ROUTE_RE, ASK, ASK_ANSWERS_ROWS, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, ASK_CORE_TOOLS_CHARS_CEILING, ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_FOLLOW_UPS_MAX, ASK_GOAL_MAX, ASK_GOAL_WORDS, ASK_GUIDE_PAGES, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ONLY_VERBS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, ASK_SCOPE_KINDS, ASK_SELECTION_MAX, ASK_SENDS, ASK_SKILL_IDS, ASK_SPEECH_MAX_CHARS, ASK_SPEED, ASK_SPOKEN_TURN_BUDGET_MS, ASK_STYLE_MAX, ASK_STYLE_PAGE, ASK_SURFACES, ASK_THREAD_ROUTES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VIEW_PAGE, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, AUDIENCE_KINDS, AUTOMATIC_NAMING, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationMilestone, type ActivationRecord, type ActivityActor, type ActivityFamily, type ActivityFoldRow, type ActivityKindGroup, type ActivityLineVM, type ActivityMemberDto, type ActivityPageDto, type ActivityRowDto, type ActivitySpan, type ActivitySubjectType, type DecisionVerb as ActivityVerb, type ActorType, type AdAccountRead, type AdAccountStatus, type AdArea, type AdBudget, type AdCheck, type AdCheckId, type AdCopy, type AdDay, type AdDoor, type AdDraft, type AdDrawerVM, type AdMedia, type AdNeeds, type AdNeedsCode, type AdPatch, type AdPersonRead, type AdPersonRowVM, type AdPlatform, type AdRead, type AdRowVM, type AdSchedule, type AdShownAs, type AdStart, type AdState, type AdTheirs, type AdTone, type AdWaitingRowVM, type AddressParts, type AdsAddress, type AdsConfig, type AdsExample, type AdsGroupBy, type AdsRead, type AdsResultsVM, type AdsScope, type AdsVM, type AiUsageBody, type AlertCell, type AlertGridGroup, type AlertGridRow, type AlertGroup, type AlertRefusal, type AlertTopic, type AllowedPrice, type AmountFact, type AmountOption, type AnswerBlock, type AnswerEvent, type AnswerList, type AnswerPurpose$1 as AnswerPurpose, type AnswerRun, type AnswerSend, type ApiRouteKey, AppError, type AppointmentLike, type AppointmentPhrases, type AppointmentSource, type AppointmentState, type AppointmentStatus, type AppointmentWord, type AppointmentWordVM, type ApprovalVM, type AreaOption, type AskAnswer, type AskAnswerRead, type AskAnswersChange, type AskApply, type AskBreakdown, type AskBreakdownPart, type AskCardSheet, type AskCitation, type AskCitationKind, type AskColumn, type AskContextRowKind, type AskFigure, type AskFollowUp, type AskIntent, type AskItem, type AskLanguage, type AskMessageKey, type AskMessageVM, type AskModelProfile, type AskOpen, type AskOpeningsView, type AskPlanStamp, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskRowRef, type AskSayPreview, type AskScope, type AskScopeKind, type AskSettingsChange, AskSettingsChangeSchema, type AskShowPreview, type AskSkill, type AskSkillId, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskTurnShape, type AskTurnTokens, type AskVM, type AskWaiting, type AskedPurpose, type AssuranceLevels, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BELL_LINE_KINDS, BELL_LIST_ROWS, BELL_WINDOW_DAYS, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKED_ENDED_META, BOOKED_NEEDS_A_LINK, BOOKED_NEEDS_TODAY, BOOKED_SEEN_CAP, BOOKING_CHOICES, BOOKING_CHOICE_WORDS, BOOKING_DEFAULTS, BOOKING_LINK_ROW_WORDS, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, BOOKING_RULE_HINTS, BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, BOOKING_TOOL_WORDS, BOOKING_TRY_NOTE, BOOKS_BY_HAND, BOOKS_WITH_CALENDAR, BOOK_ONLINE, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BREATH_WHY, BROADCAST_CHUNK, BROADCAST_FAILURES, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_WORDS, BROKEN_CONFIG_WORDS, BUDGET_RULES, BUDGET_WORDS, BUILTIN_LISTS, BUSINESS_DOOR_LABEL, BUSINESS_INDUSTRIES, BUSINESS_PAGE_NOTE, BUSINESS_TYPES, type BarsVM, type BellLineVM, type BellNoteLike, type BellNotificationKind, type BellSectionVM, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BlockedVM, type BookedSeen, type BookedVisit, type BookingChoice, type BookingEmailsFacts, type BookingEmailsStep, type BookingFacts, type BookingLinkAction, type BookingReportDto, type BookingReportVM, type BookingRequestFields, type BookingRequestTerms, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BookingSighting, type BookingTool, type BookingToolCalendar, type BookingToolWay, type BookingVia, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BrainStamp, type BriefValue, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastFailure, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BudgetDial, type BudgetRule, type BusinessFieldVM, type BusinessGap, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessPersonVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordColumn, type BusinessRecordDto, type BusinessRecordVM, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALENDAR_RUN_SHEET_WORDS, CALENDAR_SETTING_ROUTE, CALENDAR_SHOW_WORDS, CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, CALENDAR_VISIT_SHEET_WORDS, CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, CALL_FACT_WORDS, CALL_HEARTBEAT_MS, CALL_MISSED_WORDS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CALL_UNANSWERED_WORDS, CAMPAIGNS_PAUSED_WORDS, CAMPAIGNS_RESULTS_PERIOD, CAMPAIGN_EMAIL_TAG, CAMPAIGN_MONTH_ALLOWANCE, CAMPAIGN_NOT_FOUND, CAMPAIGN_ROOMS, CAPABILITY_KINDS, CARRIERS, CARRIER_CONSENT_SOURCE, CARRIER_WORDS, CATCH_UP_VISITS, CHAIN_MIN_LISTINGS, CHANGED, CHANNELS_DOOR, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHANNEL_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKS, CHIPS, CHIPS_SHOWN, CHOOSE, CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, COMBINE_WORDS, COMMON_LANGUAGES, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECT, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, CONSENT_LIST_IDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FOLLOW_DAYS, CONVERSATIONAL_ASK_TITLE, CONVERSATION_GAP_MS, CONVERSATION_MOVES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, CONVERSATION_UNDER_WAY, COUNTED, CRAFT_CHANNELS, CUSTOMER_DOMAIN_DAILY_MAX, CUSTOMER_MESSAGE_SKILL, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarMomentDto, type CalendarNoticesDto, type CalendarParam, type CalendarPeekDealVM, type CalendarPerson, type CalendarPersonFactsDto, type CalendarPersonVM, type CalendarRunDto, type CalendarRunItem, type CalendarRunKind, type CalendarRunMark, type CalendarRunsDto, type CalendarServiceDto, type CalendarServiceVM, type CalendarSourceFacts, type CalendarSourceState, type CalendarSourceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallActivityProps, type CallBrief, type CallDto, type CallNotes, type CallOutcome, type CallVM, type CallerGets, type CalloutActId, type CalloutVM, type CampaignDayDto, type CampaignFigureVM, type CampaignHow, type CampaignLedgerDto, type CampaignLedgerSeriesDto, type CampaignLensInput, type CampaignLensVM, type CampaignMessage, type CampaignMessageRow, type CampaignNumberDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignStuckNowDto, type CampaignStuckRawDto, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type CellVM, type ChainIssue, type ChainProblem, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelReady, type ChannelStand, type ChannelStandingPart, type ChannelVM, type ChannelsReady, type CheckChipSetVM, type CheckChipVM, type CheckChipsVM, type CheckRowVM, type CheckoutReturn, type ChipId, type ChoiceWrite, type ChooseVM, type CleanedEmails, type ClientErrorBoundary, ClientErrorInput, type ClientErrorInputDto, type Closure, ClosureSchema, type ClosuresAheadVM, type CombineAct, type CombineVM, type ComingRowVM, type CompanyType, type ComposeLinks, type ConflictSeverity, type ConnectChoiceVM, type ConnectRowVM, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAnswer, ConsentAnswerBody, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentChannel, type ConsentFormSection, type ConsentFormVM, ConsentManyBody, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, ContactAddedData, ContactConsentChangedData, type ContactId, type ConversationDto, type ConversationMessageVM, type ConversationMoveName, type ConversationPatch, type ConversationState, type ConversationVM, type CorrectionSource, type CountCtx, type CountedVM, type CraftChannel, type CraftIssue, type CraftIssueCode, type CraftVersions, type Crumb, type CsvCell, DASH, DATA_NOT_INSTRUCTIONS, DAYS, DAY_MS, DAY_NAMES, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_CAMPAIGN_CHANNELS, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_LOOK_PREF, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEFAULT_WEEK, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, DELIVERY_REFUSALS, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, DMARC_RECOMMENDED, DOOR, DOOR_NEEDS, DOOR_ORDER, DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS, DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, DRAFT_TONES, DRAFT_WHYS, DRAWER, type DayFrameLike, type DayVM, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealMove, DealMoveBody, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeliveryRefusal, type DeskSignVM, type DnsRecordState, type DoorVM, type DoubtSeen, type DoubtSettledAs, type DraftAsk, type DraftHow, type DraftLeadFacts, type DraftTone, type DraftWhy, E164, EARLIER_FALLBACK_DEFAULTS, EDGE_ERROR_CODES, EDIT, EFFORT_MESSAGE_BETA, EMAILED_NOTIFICATION_KINDS, EMAIL_ALWAYS_KINDS, EMAIL_BODY_MAX, EMAIL_CLAIMS, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_STOP_PATTERN, EMAIL_SUBJECT_MAX, EMAIL_TEMPLATE_LIST_WORDS, EMAIL_UNSUBSCRIBE_PATTERN, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_ACTS, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_STATES, ESCALATION_SUMMARIES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVENT_SUBSCRIBERS, EVERYONE_HINT, EVERYONE_LABEL, EXAMPLE, EXPORT_HOLDS_WORDS, EXPORT_OF, EXPORT_SECTIONS, type EarlierVisitsDto, type EdgeAnswerBody, type EdgeAnswerCode, type EdgeCallCode, type EdgeErrorCode, type EdgeRefusal, type EditFootVM, type EditVM, type EffortMessage, type EmailClaim, type EmailFoot, type EmailHeld, type EmailIssue, type EmailOffers, type EmailProblem, type EmailRules, type EmailRunStop, type EmailSetupDto, type EmailStopBearing, type EmailedNotificationKind, type EndOption, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type EventSubscriber, type Exactly, type ExportLeftOut, type ExportOf, type ExportSection, FACT_SUGGEST_LIMITS, FACT_SUGGEST_MODEL, FACT_SUGGEST_SCHEMA, FACT_SUGGEST_WORDS, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FALLBACK_ROWS, FAST_MODE_BETA, FAST_MODE_PRICES, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, FIGURES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_LIVE_WORDS, FIRST_RUN_PHONE_WORDS, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_TRY_WORDS, FIRST_RUN_WORDS, FLAGS, FLAG_MECHANISMS, FOLLOWUP_ECHO, FOLLOW_UP_CONDITIONS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_WAKES, FORWARDING_MODES, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, type Fact, type FactCheck, type FactConflict, type FactCorrection, type FactLookFacts, type FactSource, type FactSuggestionDto, type FailedVM, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAppointmentRow, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedLive, type FeedMark, type FeedNames, type FeedThread, type FenceTag, type FigureVM, type FirstReceptionistKnown, type FirstRunCheckVM, type FirstRunLiveInput, type FirstRunLiveVM, type FirstRunPhoneCodeVM, type FirstRunPhoneInput, type FirstRunPhoneQuestion, type FirstRunPhoneStage, type FirstRunPhoneVM, type FirstRunPhoneWayVM, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunTryInput, type FirstRunTryStage, type FirstRunTryVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type Flag, type FlagMechanism, type FollowUpCondition, type FollowUpFactsDto, type FollowUpStand, type FollowUpStep, type FollowUpStop, type FollowUpWake, type FollowUpWorld, type FootAct, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type ForwardingProof, type FreeWindowsInput, GATE, GET_YES_NO_NUMBER_WORDS, GET_YES_PAUSED_WORDS, GET_YES_ROUTE, GMAIL_FORWARD_NOTE, GOOGLE_SHOWN_REVIEWS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, GREETING_DEFAULT, GREETING_TEMPLATE, GROUP, GUARDRAIL_KEYS, type Glyph, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReadDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GreetingNote, type GreetingNoteKey, type GreetingSource, type GroupByVM, type GroupGlyph, type GroupVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, type GuidePage, type GuideRow, HANDLED_OUTCOMES, HANDOFF_ANYWAY, HANDOFF_FORWARDS_BACK, HANDOVER_DAYS, HANDOVER_WAITING_MAX, HANDOVER_WORDS, HAND_BACK_REASONS, HAND_KINDS, HAND_WORDS_MAX, HEAD, HEARD_UNREAD_WORDS, HELD_BY_ID_MAX, HELD_DRAFTS_DAYS, HELD_ON, HELD_REASONS, HELD_WHEN_COUNTED, HELD_WORDS, HOLD_ACT_WORDS, HOLD_DOOR_WORDS, HOUR_MS, type HandKind, type Handled, type HandoffCallRowVM, type HandoffRowVM, type HandoffWordsVM, HandoverCreateSchema, HandoverResendSchema, type HandoverState, type HeadVM, type HeardTouch, type HeldDraftsByIntent, type HeldDraftsClass, type HeldDraftsCount, type HeldLineKind, type HeldNoticeDto, type HeldOn, type HeldRun, type HoldAct, type HoldDoor, type HoldFacts, type HolderNames, type Holds, type Hours, type HoursRun, HoursSchema, IDENTITY_ASSURANCES, INBOX_BUCKET_WORDS, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdeaDropped, type IdeaHistory, type IdeaLanguage, type IdeaPacket, type IdeaPassed, type IdeaSearch, type IdentityAssurance, type IdentityInput, type IdentityWords, type ImportColumns, type ImportRow, type InApp, type InAppPlatform, type InList, type InboxBlank, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, type InvitationsAcceptedDto, InviteCodeSchema, JOB_KINDS, JOB_STATES, JOURNEY_STAGE_IDS, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobEnd, type JobKind, type JobNews, type JobNewsKind, type JobRecord, type JobState, type JoinedWorkspaceDto, type JourneyGlyph, type JourneyListLike, type JourneyStage, type JourneyStageId, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JudgeVM, type JumpEntry, KEEP_ROW, type KnownFacts, LANGUAGE_GROUP_WORDS, LAST_WORDS_TITLE, LEAD_ADDRESSEE_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_BACK_WORDS, LEAD_BUILD_WORDS, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CARD_MARKS_MAX, LEAD_CARD_TABS, LEAD_CARD_WORDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_COMPANY_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DIRECTORY_WORDS, LEAD_DOCK_WORDS, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ERASE_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FITS, LEAD_FIT_WORDS, LEAD_IDEAS_SYSTEM, LEAD_IMPORT_MAX_BYTES, LEAD_IMPORT_WORDS, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KINDS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_ASK, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PEOPLE_MAX, LEAD_PILE_SAID, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROLE_WORDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SHEET_CARD_WORDS, LEAD_SHEET_WORDS, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCES, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_RETRY_MS, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_VIEW_SORTS, LEAD_WORDS, LEDGER, LEDGER_STATUSES, LEFT_OUT_FACTS, LENS_ROUTES, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, LIFECYCLE_TOAST, LIFECYCLE_WORDS, LIMIT_TIERS, LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS, LINE_CREDENTIALS_SENTENCE, LINE_FILED_NAMES, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS, LINE_RELEASE_WARN_DAYS, LINE_STEP_WORDS, LIST, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_GROUP_WORDS, LIST_NEEDS, LIST_PLAYBOOK_CLASSES, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, LOOK_OFFERED, LOOK_OPTIONS, type LanguageChoice, type LanguageGroup, type LastHoldDto, type LastWordVM, type LeadArea, type LeadBackDto, type LeadBand, type LeadBuildPart, type LeadBuildStepVM, type LeadCallOutcome, type LeadCardBrief, type LeadCardBulkLead, type LeadCardBulkVM, type LeadCardChain, type LeadCardCheck, type LeadCardEmailVM, type LeadCardInstead, type LeadCardLead, type LeadCardMarkVM, type LeadCardPart, type LeadCardReasonVM, type LeadCardSlotVM, type LeadCardStepVM, type LeadCardTab, type LeadChannel, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadChooseAnswer, type LeadChooseInput, LeadChooseSchema, type LeadClass, type LeadClassification, type LeadCompanyPersonVM, type LeadCompanyVM, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFacts, type LeadFit, type LeadIdeaDto, type LeadIdeasAnswer, LeadIdeasAnswerSchema, type LeadImportAnswer, type LeadImportColumns, type LeadImportInput, type LeadImportRow, LeadImportRowSchema, LeadImportSchema, type LeadInsertRowVM, type LeadKind, type LeadList, type LeadListVia, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, LeadOneQuerySchema, type LeadPaceChoice, type LeadPeekReach, type LeadPeekVM, type LeadPeopleIndex, type LeadPeoplePlan, LeadPeoplePlanSchema, type LeadPeopleSearchInput, LeadPeopleSearchSchema, type LeadPeopleVM, type LeadPerson, type LeadPhoneState, type LeadPickerRowVM, type LeadPileAct, type LeadPileAdded, type LeadPileCountsDto, type LeadPileEndRowVM, type LeadPileEndVM, type LeadPileFacts, type LeadPileProgressVM, type LeadPileSlot, type LeadPinnable, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRole, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSheetAct, type LeadSheetCheckVM, type LeadSheetChecksLineVM, type LeadSheetClosedVM, type LeadSheetContactLineVM, type LeadSheetDockFacts, type LeadSheetDockVM, type LeadSheetEmailLineVM, type LeadSheetFactVM, type LeadSheetLead, type LeadSheetSlotVM, type LeadSheetState, type LeadSheetWayVM, type LeadSheetWhyVM, type LeadSlot, type LeadSlotState, type LeadSort, type LeadSource, type LeadStage, type LeadStageInput, LeadStageInputSchema, type LeadSuggestionsDto, type LeadVerdictVM, type LeadWeekRow, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LedgerStatus, type LedgerWords, type LensEmpty, type LensId, type LensRange, type LensRow, type LensWho, type LifecycleAct, type LifecycleAnswer, type LifecycleAnswerRead, type LifecycleBar, type LifecycleBroadcasts, type LifecycleCameBack, type LifecycleChains, type LifecycleChannelMark, type LifecycleComing, type LifecycleComingTile, type LifecycleFailed, type LifecycleFailedRead, type LifecycleGlyph, type LifecycleGroup, type LifecycleHead, type LifecycleHome, type LifecycleInput, type LifecycleLedger, type LifecycleNamed, type LifecycleNeeds, type LifecyclePlaybook, type LifecyclePlaybooks, type LifecyclePool, type LifecycleReachTile, type LifecycleReport, type LifecycleResultsTile, type LifecycleResume, type LifecycleRow, type LifecycleRowResults, type LifecycleRun, type LifecycleRung, type LifecycleSentence, type LifecycleShape, type LifecycleSource, type LifecycleStage, type LifecycleState, type LifecycleTemplate, type LifecycleTileRead, type LifecycleTone, type LifecycleTrigger, type LifecycleWaiting, type LineCodeDto, type LineDto, type LineReleaseBilling, type LineReleaseStep, type LineReleaseWarned, type LineReleaseWordsInput, type LinkedFoot, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListCountsDto, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, type LogoLayout, type LogoLookupAnswer, type LogoLookupOutcome, type LogoMode, type LogoNote, type LogoPixels, type LookPref, type LookedAt, MAILBOX_CONNECTIONS_MAX, MAILBOX_CONNECTION_STATES, MAILBOX_CONNECT_WORDS, MAILBOX_DAILY_CAP_MAX, MAILBOX_FROM_NAME_MAX, MAILBOX_HOLDS, MAILBOX_LOCAL_PART_MAX, MAILBOX_PROVIDERS, MAILBOX_PROVIDER_WORDS, MAILBOX_RAMP, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, MESSAGE_BEGIN_WORDS, MESSAGE_CHANNELS, MESSAGE_CRAFT_JSON_SCHEMA, MESSAGE_DIRECTIONS, MESSAGE_GONE_WORDS, MESSAGE_JUDGE_JSON_SCHEMA, MESSAGE_MOMENT_WORDS, MESSAGE_RUBRIC, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MESSAGE_WORDS, MINOR_PER_UNIT, MIN_MS, MISSED_CALL_TOUCH_WORDS, MOCK_TEXTING_SENTENCE, MODELS, MODEL_CALL_OUTCOMES, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PRICES, MODEL_PURPOSES, MODEL_ROUTES, MODEL_SPEEDS, MODEL_TAKES, MODEL_TURN_WRITE_MS, MOMENTS_RETIRED, MOMENT_TRIGGERS, type MailboxConnectionDto, type MailboxConnectionState, type MailboxCounts, type MailboxDnsRecord, type MailboxDto, type MailboxHold, type MailboxProvider, type MailboxRecordRow, type MailboxWords, type MatchVia, type MediaVM, type MemberAlertsDto, type MemberJoined, type Membership, type MembershipRole, type MendBy, type MendChange, type MergedAnswers, type MessageAbout, type MessageAuthor, type MessageBrief, type MessageChannel, type MessageCraftAnswer, MessageCraftAnswerSchema, type MessageDirection, type MessageDto, type MessageJudgeAnswer, MessageJudgeAnswerSchema, type MessageRead, type MessageSender, type MessageStatus, type MessageType, type MessageVerdict, type MessagesSummaryPart, type MetricsChannelDto, type MetricsSummaryDto, type ModelCallOutcome, type ModelEffort, type ModelId, type ModelPort, type ModelPrice, type ModelPurpose, type ModelRoute, type ModelSpeed, type ModelTakes, type ModelTurnRequest, type ModelTurnResponse, type ModelUsage, type MoneyItem, type MonthSent, type MonthSentRead, NAME_SOURCES, NEEDS_TITLE, NEEDS_YOU_WORD, NEW_AD, NEW_CONVERSATION_WORDS, NEW_MESSAGE_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, NEW_REVIEW_NEWS, NEW_SINCE_WORDS, NEW_WINDOW_DAYS, NOTE_LINE_MAX, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NOTHING_WAITS_KNOWN, NOTICE_DEFAULT_LENGTH_MS, NOTICE_ENDS, NOTICE_HOLD_WORDS, NOTICE_MENDS, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, NO_AD, NO_ADS, NO_CHANNEL_REACH, NO_DAY, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, NO_TEMPLATE_WORDS, NO_USAGE, NO_WAY_TO_SEND_LINK, type NameSource, type NameableCaller, type NameableContact, type NewAdVM, type NoAdsVM, type NoMessageWords, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NoteWrite, NoteWriteBody, NotesAppendManyBody, type NotesWordsVM, type NoticeAct, type NoticeEnd, type NoticeFacts, type NoticeHold, type NoticeHome, type NoticeKind, type NoticeMend, type NoticeReading, type NoticeTone, type NoticeVM, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, type NumberStanding, OFFERS_BY_EMAIL_WORDS, OFFERS_IN_WRITING_WORDS, OFFERS_NOTICE_WORDS, OFFERS_OPT_IN_PHRASES, OFFERS_PAUSED_WORDS, OFFERS_YES_SOURCES, OFFER_GATES, OFFER_PLAN_WORDS, OPENING_CHARS_MAX, OPENING_FACT_KEYS, OPENING_PROBLEMS, OPENING_SCHEMA, OPENING_WORDS_MAX, OPEN_HOLDS_READ_MAX, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OUTREACH_WAIT_REFUSALS, OWNER_SAID_INTENTS, OWN_MESSAGE_REFUSALS, OWN_MODE_NAMED, OWN_VERSION_CHANNELS, type OfferCounts, type OfferFacts, type OfferPageButton, type OfferPageWords, type OfferPause, type OfferPauseReason, type OfferUnsubscribeView, type Ok, type OpenDealDto, type OpenHandoverDto, type OpenHold, type OpenToCustomers, type OpenWindow, type Opening, type OpeningFactKey, type OpeningProblem, type OpeningRecord, type OpeningVerdict, type OpeningWorkspace, type OptOutHow, type OptOutPerson, type OptOutSaid, type OutreachLeadFacts, type OwnAddresses, type OwnAmount, type OwnFacts, type OwnMessageVM, type OwnModesDto, type OwnVersionChannel, type OwnerSaidIntent, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PAGE_BUILD, PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_SPEED_MIN, PAGE_SPEED_READ, PAGE_VITALS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_PER_BEACON, PAGE_VITALS_READ, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARTNER_CODES_RESERVED, PARTNER_CODE_MAX, PARTNER_CODE_MIN, PARTNER_COOKIE, PARTNER_COOKIE_DAYS, PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_HOLD_DAYS, PARTNER_INVITE_DAYS, PARTNER_INVITE_WORDS, PARTNER_REVERSAL_KINDS, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_STANDING_VERBS, PARTNER_STANDING_WORDS, PARTNER_STATUSES, PARTNER_STATUS_VERBS, PARTNER_WORDS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSED_WORDS, PAUSE_HOURS_DEFAULT, PAYMENT_HOLD_WORD, PENDING_WORKSPACE_KEY, PEOPLE_ASKED_CHARS, PEOPLE_CARD, PEOPLE_COMPANY_SIZES, PEOPLE_COUNT_MAX, PEOPLE_FIND_WORDS, PEOPLE_GROUP_WORDS, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_RHYTHM_UNIT, PEOPLE_RUN_FLOOR_USD, PEOPLE_SENIORITIES, PEOPLE_SENIORITY_WORDS, PEOPLE_STATES_MAX, PEOPLE_STRIP_WORDS, PEOPLE_TAB, PEOPLE_TABS, PEOPLE_TITLES_MAX, PEOPLE_TITLE_CHARS, PERM_DOING, PERSON_ABOUT_WORDS, PERSON_ACT_WORDS, PERSON_AD_ON, PERSON_CALL_OUTCOMES, PERSON_CALL_SAID_MAX, PERSON_CALL_WORDS, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_DELETE_WORDS, PERSON_DETAIL_WORDS, PERSON_DRAFT_JSON_SCHEMA, PERSON_EXPORT_SECTIONS, PERSON_FIGURES_LABEL, PERSON_LISTS_SHEET_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_NAME_WORDS, PERSON_PEEK_WORDS, PERSON_STATE_LABELS, PERSON_TABS_LABEL, PERSON_TAB_WORDS, PERSON_WALK_WORDS, PERSON_WASH_WORDS, PHONE, PHONE_LINE_OFF, PHONE_RINGS, PHONE_VOICES, PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_WAYS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_PHONE_SORTS, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLACE_RAIL_WORDS, PLACE_WORDS, PLAN_NOTE_MAX, PLAN_WORDS, PLATFORMS, PLATFORM_DAYS_READ, PLATFORM_NEW_DAYS, PLATFORM_NUMBERS, PLATFORM_OWNER, PLATFORM_QUIET_DAYS, PLATFORM_SURFACE, PLATFORM_VERDICTS, PLATFORM_WORD, PLAYBOOK_BREATH_MS, PLAYBOOK_CALENDAR_UNREAD, PLAYBOOK_CAP_CHOICES, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLOT, PREVIEW, PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, PRICE_CHOICES, PRICE_CHOICE_WORDS, PRIMARY_PART, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROFILE_NAME_MAX, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROPOSAL_SPECS, PROPOSAL_WORDS, PROVISIONING_DEADLINE_MS, PUBLIC_FIELD_MARK, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, PUSH_RECEIPTS_AFTER_MS, PUSH_TOKEN_MAX, type PageContext, type PageContextRow, PageContextSchema, type PageDevice, type PageMessage, type PageMetric, type PageSpeedHow, type PageSpeedMetric, type PageSpeedPageVM, type PageSpeedPartVM, type PageSpeedRowDto, type PageSpeedSpotVM, type PageSpeedVM, type PageSpotRowDto, type PageTotals, type PageVital, type PageVitalDetailDto, type PageVitalLineVM, PageVitalReport, type PageVitalReportDto, type PageVitalVerdict, PageVitalsInput, type PageVitalsInputDto, type PageVitalsPageVM, type PageVitalsRowDto, type PageVitalsVM, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PartnerBalanceRow, PartnerBecomeSchema, type PartnerDto, type PartnerEarningsVM, type PartnerHandoverDto, type PartnerHandoverVM, type PartnerInvitationDto, PartnerInviteSchema, type PartnerLetterNews, PartnerLetterNewsSchema, PartnerLettersSchema, PartnerSecondFactorResetSchema, type PartnerVM, type PartnerWorkspaceMoneyDto, type PartnerWorkspaceVM, type PartnerWorkspacesVM, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleCompanySize, type PeopleDto, PeopleExportQuerySchema, type PeopleFigureVM, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PeopleNowDto, type PeoplePlanInput, type PeoplePlanned, type PeopleReportVM, type PeopleSeniority, type PeopleSeriesDto, type PeopleVM, type PersonAboutFact, type PersonActVM, type PersonAdd, PersonAddBody, type PersonAtLeadDto, type PersonBusinessDto, type PersonCallBody, type PersonCallInput, type PersonCallOutcome, PersonCallSchema, type PersonCallVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonDoubtDto, type PersonDoubtVM, type PersonDraftAnswer, PersonDraftAnswerSchema, type PersonDraftDto, type PersonDraftInput, PersonDraftInputSchema, type PersonEscalationDto, type PersonExportSection, type PersonFaceVM, type PersonFact, type PersonFigureFacts, type PersonFigureVM, type PersonFirstContact, type PersonHeadInput, type PersonHeadLine, type PersonHeadStateFacts, type PersonHeadStateVM, type PersonHeadVM, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, PersonMergeBody, type PersonMessageBody, PersonMessageBodySchema, type PersonMode, type PersonNameAct, PersonNameActSchema, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReach, type PersonReachDto, type PersonReceptionist, type PersonReceptionistMode, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonSignerDto, type PersonState, type PersonTab, type PersonTabFacts, type PersonTabVM, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitRowVM, type PersonVisitsDto, type PersonVisitsVM, PersonWorksAtSchema, type PhoneChoice, type PhoneCompany, type PhoneDto, type PhonePick, type PhoneRings, type PhoneVM, type PhoneVoice, type PhoneWay, type PipelineChip, type PipelineFilter, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type PlaceRailLens, type PlaceRailStepVM, type PlaceRailVM, type PlaceTone, type Placed, type PlanIntent, type PlanLead, type PlanMade, type PlanStep, type PlanWorld, PlatformActedData, type PlatformDayLineVM, type PlatformDayRowDto, type PlatformDaysVM, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformPartnerBalanceDto, type PlatformPartnerRowVM, type PlatformPartnerStandingVM, type PlatformPartnerWorkspaceDto, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookChannelsRead, type PlaybookDto, type PlaybookMessage, type PlaybookPatch, type PlaybookPatchKey, type PlaybookPolicyClass, type PlaybookReach, type PlaybookRunNextBy, type PlaybookState, type PlaybookTotalsDto, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PoolRecord, type PreflightFacts, type PreflightProblem, type PresetVM, type PreviewOn, type PreviewPart, type PreviewPerson, type PreviewVM, type PreviewVersions, type PriceChoice, type PriceFacts, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposalCall, type ProposalEvent, type ProposalGate, type ProposalKindAboveOperator, type ProposalNeeds, type ProposalRefusal, type ProposalSpec, type ProposalSpecAboveOperator, type ProposalTab, type ProposalThen, type ProposalUndo, ProposeAnySearchSchema, type ProposeLeadSearch, ProposeLeadSearchSchema, type ProposePeopleSearch, type PublicPageMetadata, type PublishedRecordColumn, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, type PushTarget, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, type QuietVM, RATE_HITS_RETENTION_HOURS, REACH_NOTE, REACH_OUT_ADD_WORDS, REACH_OUT_AFTER_DAYS, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REACH_OUT_BODY_MAX, REACH_OUT_CHECKS_PER_DAY, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_DAY_ROUTE, REACH_OUT_DECISIONS, REACH_OUT_DRAFTS_OPEN_MAX, REACH_OUT_DRAFTS_PER_DAY, REACH_OUT_EMAILED_WORDS, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_GAP_MINUTES, REACH_OUT_HOLDS, REACH_OUT_IS_NOT_A_MOMENT, REACH_OUT_LANGUAGE, REACH_OUT_MODEL, REACH_OUT_MONTH_EMAILS, REACH_OUT_NAME_MAX, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_PREVIEW_WORDS, REACH_OUT_READS_PER_DAY, REACH_OUT_REFUSALS, REACH_OUT_REPLY_DAYS, REACH_OUT_ROW_WORDS, REACH_OUT_RUN_REREAD_MS, REACH_OUT_SAID_OUTCOMES, REACH_OUT_SAID_WORDS, REACH_OUT_SEND_STATES, REACH_OUT_SHEET_PARTS, REACH_OUT_SHEET_WORDS, REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SOURCE_WORDS, REACH_OUT_STEPS_MAX, REACH_OUT_STOP_WORDS, REACH_OUT_SUBJECT_MAX, REACH_OUT_TO_SEND_LABELS, REACH_OUT_UNDO_WORDS, REACH_OUT_WHY_NOT, REACH_OUT_WHY_NOT_WORDS, REACH_OUT_WORDS_MAX, READING_SCHEMA, READY_WHATSAPP_ALONE, RECENT_MAX, RECIPIENT_REASON_HEARD, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, RECORDS_WITHOUT_AN_ADDRESS, RECORD_KINDS, RECORD_REVIEW_CONFIRM, REFERRAL_ID_MAX, REFUSED, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, RENAME_WORDS, REPLIES_PAGE, REPLY_ANSWERED_MAX, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_INTENTS, REPLY_INTENT_WORDS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_REREAD_DAYS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_UNDO_REFUSALS, REPLY_UNREADS, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPLY_WORDS_MAX, REPORT_CHANNELS, REPORT_LENSES, REPORT_MIN_N, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RESULTS, RETELL_MODELS, RETENTION_DAYS, REVIEWS_WAITING_SHOWN, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, REVIEW_WITHIN, ROLES, ROLE_PERMS, ROLE_SAYS, ROLE_WORDS, ROUTE_KEYS, ROUTE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_GOING_STATES, RUN_NOW_WITHOUT_VERSION_WORDS, RUN_OPEN_WORDS, RUN_REPORT_STEPS, RUN_UNNAMED_WORDS, RUN_VERBS, RUN_WAITING_SHORT, RUN_WAITING_WORDS, type RateRowVM, type ReachBarPart, type ReachCounts, type ReachOutAddDto, type ReachOutAddInput, type ReachOutAddLeadDto, ReachOutAddSchema, type ReachOutChainDto, type ReachOutChainInput, type ReachOutChainPeopleDto, type ReachOutChainReportDto, ReachOutChainSchema, type ReachOutChainStepDto, type ReachOutChainTotalsDto, type ReachOutDayNumbers, ReachOutDecideSchema, type ReachOutDecision, type ReachOutDraft, type ReachOutDraftIssues, type ReachOutDraftStep, type ReachOutDraftedSend, type ReachOutFedBy, type ReachOutHeldSend, type ReachOutHold, type ReachOutLeadLineDto, type ReachOutLeadTimelineDto, type ReachOutLeadsDto, type ReachOutLensSourceLine, type ReachOutLensVM, type ReachOutLineReplyDto, type ReachOutMailboxFacts, type ReachOutMailboxRow, type ReachOutNextFacts, type ReachOutPeopleCountsDto, type ReachOutPersonVM, type ReachOutPreviewDto, type ReachOutPreviewInput, ReachOutPreviewSchema, type ReachOutReachDto, type ReachOutRepliesDto, type ReachOutRepliesQuery, ReachOutRepliesQuerySchema, type ReachOutReplyDto, type ReachOutReplySaidInput, ReachOutReplySaidSchema, type ReachOutReportChainDto, type ReachOutReportCounts, type ReachOutReportDto, type ReachOutReportMailboxDto, type ReachOutReportStepDto, type ReachOutRunDto, type ReachOutRunLine, type ReachOutSaidDto, type ReachOutSaidOutcome, ReachOutSaidSchema, type ReachOutSavedDto, type ReachOutSearchLinesDto, type ReachOutSendState, type ReachOutSlot, type ReachOutSourceDto, type ReachOutStandingVM, type ReachOutStartDto, type ReachOutStepCounts, type ReachOutStepDto, ReachOutStepSchema, type ReachOutStopDto, type ReachOutStoryLine, type ReachOutStripVM, type ReachOutTimelineChainDto, type ReachOutTimelineReadingDto, type ReachOutTimelineSendDto, type ReachOutTimelineVM, type ReachOutWhyNot, type ReachRow, type ReachSaid, type ReachSplit, type ReachVM, type Reading, type ReadingPlan, type ReadyRowVM, type ReceiveRow, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistDto, ReceptionistManyBody, ReceptionistModeBody, type ReceptionistReportVM, type ReceptionistSeriesDto, type ReceptionistState, type ReceptionistTone, type RecipientState, type RecordAnswers, type RecordCheckFacts, type RecordFiling, type RecordKind, type RecordRef, type RecordSavedDto, type RecordTable, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyClaim, type ReplyContext, type ReplyDoor, type ReplyFrom, type ReplyHoldDto, type ReplyIntent, type ReplyReading, type ReplyStep, type ReplyStrip, type ReplyUndoRefusal, type ReplyWhyVM, type ReportArrivalDto, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDays, type ReportDto, type ReportFactVM, type ReportHeadlineDto, type ReportHeadlineVM, type ReportHoldVM, type ReportHoursVM, type ReportLinesVM, type ReportPeriodId, type ReportPointVM, type ReportProfile, type ReportRange, type ReportSpeedPointVM, type ReportStripTile, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportWindowVM, type ReportsParts, type RequestedBooking, type ResolvedFacts, type ResultsAt, type ResultsDayVM, type ResultsDaysVM, type ResultsRowVM, type ResultsScopeVM, type ResultsStepVM, type ResultsTheirsVM, type ResultsVM, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type ReviewWaitingVM, type ReviewsLedgerDto, type ReviewsReportDto, type ReviewsReportVM, type Role, type RolePerm, type RoleSays, type RoleTableRow, type RowReachWords, type RubricCriterion, type RubricId, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunAnswer, type RunDays, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunMessage, type RunPersonVM, type RunPlan, type RunPlaybook, type RunReach, type RunReading, type RunReplyVM, type RunReportVM, type RunSplit, type RunStop, type RunStopWords, type RunTone, SAME_SITTING_MS, SAME_VISIT_MS, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, SCHEDULE_NEEDS_TOTAL, SCHEDULE_WORDS, SCHEMA_SETS, SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, SENDER_WORDS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, SEND_DAY_FRAME, SEND_WHEN_WORDS, SEND_WINDOW_MARGIN_MIN, SENTENCE, SEQUENCES_ROUTE, SEQUENCE_ACT_WORDS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_EDIT_WORDS, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_NEW_WORDS, SEQUENCE_PEOPLE_GROUPS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_REPLIES_WORDS, SEQUENCE_STARTS, SEQUENCE_STATES, SEQUENCE_STATE_WORDS, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, SEQUENCE_WAIT_DAYS, SEQUENCE_WORDS, SERVED_AT_HEADER, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SERVICES_ON_PUBLIC_PAGE, SERVICE_PRICE_EMPTY, SERVICE_SUGGESTION_TYPES, SESSION_ENDED, SETTINGS_DOOR, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHADOW_CALL, SHADOW_CONFIDENT, SHADOW_GRACE_MS, SHADOW_TIMEOUT_MS, SHADOW_WRITE_MS, SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS, SHORTCUTS, SHOWN, SIGNED_BY_MAX, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, SKILL_GUIDE_MAX, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SMS_SEGMENTS_MAX, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEECH_PURPOSES, SPEND_LEADS, SPEND_NUMBER, SPEND_TEXTING, SPEND_TRY, STANDING, STANDING_CHECKS, STARTER_LANGUAGES, STARTER_LINE_WORDS, STARTER_TEMPLATES, START_PLAN_WORDS, STATE, STATE_WORD, STEP_SHEET_WORDS, STEP_TOKEN, STOP_ALL_REFUSALS, STOP_ENDED_OFFERS_SOURCE, STOP_WORDS, SYSTEM_ONE_MODEL, SYSTEM_ONE_STATE_MAX_CHARS, type SavedListLike, type SavedListRowLike, type SayItDealAnswer, SayItDealAnswerSchema, type SayItDealFill, type SayItDto, type SayItInput, SayItInputSchema, type SayItNoteAnswer, SayItNoteAnswerSchema, type SayItNoteFill, type SayItVerb, type ScheduleCtx, type ScheduleState, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SeenMarksDto, type SeenOf, type SeenReading, type SendPurpose, type SenderLanguage, type SenderWords, type SentenceInput, type SentencePart, type SequenceBatchCountsDto, type SequenceBatchDto, type SequenceDateDto, type SequenceDraftAnswer, SequenceDraftAnswerSchema, type SequenceDraftDto, type SequenceDraftListDto, type SequenceDraftStepDto, type SequenceFirstStepDto, type SequenceGroup, type SequenceHeldVM, type SequenceHistoryDto, type SequenceHistoryFigure, type SequenceHistoryPeriod, type SequenceNeedsDto, type SequenceNeedsVM, type SequenceNext, type SequenceNextWordsDto, type SequenceNotice, type SequenceOneOffDto, type SequencePeopleDto, type SequencePeopleGroup, type SequencePersonDraftDto, type SequencePersonDto, type SequencePersonReplyDto, type SequencePlaceDto, type SequencePlaceOfDto, type SequencePlaceRowDto, type SequencePlaceSendDto, type SequenceReachDto, type SequenceRecordDto, type SequenceRepliesDto, type SequenceResumeAsk, type SequenceRowDto, type SequenceStart, type SequenceState, type SequenceStepDto, type SequenceTab, type SequenceTwin, type SequenceWaitingBatchDto, type SequenceWroteBackVM, type SequencesPageDto, type SequencesPlace, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupPhoneWant, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShadowCallFor, type ShadowCallOutcome, type ShadowCallSpec, type ShadowPort, type ShadowRead, type SharedEventKind, type ShellMessage, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type Signer, type SignerFacts, type SignupInput, type SignupPosture, SignupSchema, type SkillCraftPurpose, type SkillExample, type SkillSection, type SlotEdit, type SlotKey, type SlotLead, type SlotPart, type SlotSet, type SlotValue, type SlotWorkspace, type SpanUnits, type SpeechPurpose, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type StandRowVM, type Standing, type StandingInput, type StandingInputs, type StandingVM, type StandingVerdict, type StarterEmailText, type StarterSlot, type StarterSlotKind, type StarterSmsText, type StarterTemplate, type StarterText, type StateKind, type StateVM, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepHand, type StepNoteBody, type StepPerson, type StepSheetVM, type StepTestMail, type StepTestMessage, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, type SystemOneAnswer, type SystemOneQuestion, type SystemOneRequest, type SystemOneResponse, TEAM_INVITE_DAYS, TEAM_ROLES, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUSES, TEMPLATE_STATUS_WORDS, TEMPLATE_TITLE_MAX, TEMPLATE_UNUSED_WORDS, TEMPLATE_WORDS_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_INK, THEME_OPTIONS, THINKING_TYPES, THREAD_CHANNEL_WORDS, THREAD_PANE_WORDS, TILES, TIMELINE_FILTERS, TIMETABLE_HORIZON_DAYS, TOAST_ICONS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_PINS_MAX, TODAY_STEPS_MAX, TOKENS_DAY_DEFAULT, TONES, TONE_PRESETS, TOO_EARLY_DAYS, TO_SEND_ALL_WORDS, TO_SEND_ROUTE, TRIAL_COVERS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, TRY_IT_WORDS, TRY_QUIET_AFTER_MS, TRY_SKIPPED, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateHolds, type TemplateLanguage, type TemplatePart, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantId, type TenantStatus, type TextingTermsVM, type TheirsRowVM, type TheirsVM, type Theme, type ThemePref, type ThinkingType, type ThreadHolder, type ThreadVM, type TilesVM, type TimelineFilterId, type TimelineKind, type TimetableInput, type TimetableResult, type TimetableSend, type TimetableSender, type ToSendCount, type ToSendRowVM, type ToSendRunLike, type ToastShape, type ToastTone, type TodayAwayVM, type TodayBriefRun, type TodayBriefWords, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayPin, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type TodayVisitAskVM, type TodayVisitsAskedVM, type TodayWidgetSnapshot, type Tone, type Totals, type Touches, type TryItAnswer, type TryItThen, type TryItVM, type TryTransferKey, type TypedFacts, type TypedVM, UNKNOWN_AUDIENCE_WORDS, UNREAD_READING, UNSUBSCRIBE_PAGE_HEADER, UP_NEXT_WORDS, US_STATE_ZONES, UUID, type Unread, type UnsubscribePageWords, type UnsubscribeView, type UpNextAct, type UpNextFacts, type UpNextRowVM, type UpNextVM, type UsStateCode, V0, type V0VM, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, VISION_SWITCH_WORDS, VISITS_TAB_WORDS, VISIT_ASK_WORDS, VISIT_CHANGES_TOLD, VISIT_REFUSALS, VISIT_TRIGGERS, VISIT_WORDS, VOICE_END_REASONS, type VerbCard, type VerbKind, type VersionChannel, type VersionCheck, type VersionWords, type Visit, type VisitChange, type VisitDto, type VisitLineInput, type VisitLineVM, type VisitMark, type VisitMoreAct, type VisitOnRecord, type VisitOriginDto, type VisitPrimaryAct, type VisitSheetInput, type VisitSheetPerson, type VisitSheetState, type VisitSheetVM, type VisitStateTone, type VisitStateVM, type VisitWord, type Visits, type VoiceEndReason, WABA_FIELDS, WAITING_AFTER_DAYS, WAITING_REASONS, WA_WINDOW_MS, WEEKDAY_KEYS, WEEK_MS, WHATSAPP_CONSENT_SOURCE, WHATSAPP_COST_WORDS, WHATSAPP_LANGUAGES, WHATSAPP_VERSION_ALONE, WHY_FROM_MAPS, WORKSPACE_ENDED_WORDS, WORKSPACE_LOGOS_BUCKET, WORKSPACE_PAUSED, WORKS_AT_WORDS, WRITE_HOLDS, WRITE_HOLD_WORDS, WRITE_WAY_REFUSED, type WaWindow, type WabaEventKind, type WaitSource, type WaitingPersonDto, type WaitingRowVM, type WaitingRun, type WaitingRunOffer, type WaitingThread, type Waits, type WeakerMode, type WeekHours, type WeekdayKey, type WhatWaits, type WhenItGoesReceipt, type WhoseWords, type WireFailure, type Within, type WordsIssue, type WordsMessage, type WordsProblem, type WorksAtVM, type WorkspacePartnerDto, type WorkspacePartnerState, type WorkspacePartnerVM, type WriteHold, type WriteRow, type WriteWay, type WrittenOpening, YES_WHILE_PAUSED, type YesAsk, type YouAreLiveInput, ZIPS, abandonedCall, abilityRows, aboutADayAfter, accountRows, activityDoor, activityFamily, activityFamilyKinds, activityKindGroups, activityKindWords, activityLines, activityMemberWords, activityRowsForLines, activityTone, activityWords, adAccountOf, adBarsOf, adFollowOn, adModel, adPeopleOf, adPersonInitials, adPersonWho, adPreviewOf, adQuotes, adRoute, adServiceOf, adStateOf, adWith, addDays, addProposalSpecs, addToPeopleOf, addressAlreadyKnown, addressInMessage, addressOf, adsFactOf, adsModel, adsPreviewOf, adsReportRoute, adsResultsOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, aiUsageBodyOf, alertAddressesOf, alertGrid, alertTestMail, allLeftOutWords, allVisitsIn, allWord, allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, allowedPrices, amountTotalsWords, amountWords, answerBlocks, answerCopy, answerForCards, answerFromV1, answerPlain, answerRuns, answerSaidOf, answerSoFar, answerSpoken, answerStyleOf, answerText, answerWireOf, answerWords, answeredYes, answersToRuns, appLink, applyReadState, applySettingsChange, appointmentHolds, appointmentKey, appointmentKeyOf, appointmentKeysOf, appointmentTitle, appointmentWordOf, appointmentWordSaved, appointmentWordVM, appointmentWords, approvalWordsOf, approvedWordsFor, areaCodeOf, areaOfValue, areaValueOf, areaWord, arrivedRunOf, asContactId, asListRule, asNameSource, asPersonMode, asTenantId, askCallOutcome, askCardLapsed, askColumnOf, askGoalRefusal, askGoalSaved, askIntent, askJump, askModelProfile, askPages, askRoundCap, askUndoOpen, askWhy, askedDayOf, asksTheFeed, attentionOf, attentionRow, audienceMembers, audiencePreview, audienceTrigger, autoReplyBell, autoReplyCandidates, autoReplyHold, awayUntilOf, batchWaitsUntilTonight, batchWent, bellActionOf, bellCalls, bellFeed, bellLineFor, bellOlderOf, bellSections, billingAccountDto, billingDoorOpen, billingEndedAt, billingPill, blockShareWords, bodyRefusal, bookedAfterAsk, bookedSeenOf, bookedTileOf, bookingArriving, bookingChanged, bookingChoiceNeeds, bookingChoiceOf, bookingChoiceWrites, bookingCopyTest, bookingEmailsHeldWords, bookingEmailsStep, bookingHeld, bookingLinkAction, bookingNoticeOf, bookingPageKept, bookingPageOf, bookingPageOffered, bookingRequestRefusalOf, bookingRuleRefusal, bookingRulesWords, bookingTemplate, bookingToolCalendar, bookingToolName, bookingToolOfAddress, bookingToolOfLink, bookingToolOptions, booksWithName, booksWithOf, booksWithOptions, brainMetaOf, brainOutputSchemaFor, breathSplit, breathTouchOf, breathWaitWords, broadcastFailureFix, broadcastFailureWords, broadcastName, broughtWords, budgetDial, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGap, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordOf, businessRecordProblems, businessTrailOf, businessTypeOf, busyOfAppointments, cacheHitOf, calendarLinkNote, calendarLinkShown, calendarOwnerOf, calendarParamParts, calendarPeekDeal, calendarPersonFactsOf, calendarPersonOf, calendarRunMarksOf, calendarSourceFacts, calendarSourceOf, callActivityPropsOf, callActivityStart, callAttemptWords, callBackWaits, callDays, callEndedWords, callJumpSub, callLength, callNoteLines, callNotesOf, callOfKey, callOutcomeOf, callOutcomeWords, callTodoWords, callerName, callerSentence, callsAnswer, callsStillUp, callsToday, cameFromOf, campaignChannelsOf, campaignDayWords, campaignEmailRules, campaignEnded, campaignLedgerDtoOf, campaignMessageOf, campaignMessagesOf, campaignRunsOn, campaignsHomeOf, cannotBeSentWords, cannotFoldWords, cannotRows, canonicalRoute, capabilityStatus, cardOpenRoute, cardsInPlans, chainHintOf, chainIssueWords, chainOf, chainOfMoment, chainPaceOf, chainPathWords, chainReportWordsOf, chainResultsOf, chainTotalsFromReport, chainTotalsOf, changedConfigFields, changedRecordFields, channelChoices, channelFor, channelKindWords, channelNeverCarries, channelNoun, channelRefuses, channelsGoesByWords, channelsOf, channelsOfYes, channelsReady, channelsStandingParts, channelsStandingWords, channelsWords, checkChipsOf, checkFactSuggestion, checkFix, checkNoteSuggestion, checkOk, checkOpening, checkWords, checkedWords, chipsMoreWords, citationRoute, claimsWrite, clampWords, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanFactorCode, cleanParam, cleanPartnerCode, cleanTimezone, cleanWorkspaceName, clientErrorOf, clientKeyOf, clip, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockHour, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closeSettledNotices, closedOf, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, combineOf, combinedInto, companyTypeOf, compareTemplates, compareWords, composeLinksOf, composeSystemPrompt, composerDays, confirmationNameOf, connectModel, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentGuardWords, consentPageMetadata, consentPageVM, consentRuleWords, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHappened, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationMoveAllowed, conversationOfNeedsKey, conversationPatch, conversationWaitsOnYou, costEach, countCtx, counted, countedDoor, coveredChannels, coversSpan, craftSystem, craftedVersions, csvCell, currencySymbol, customerDomainOf, customerDomainWords, customerWords, dailyLimit, dataSentences, dayFromQuestion, dayInZone, dayIntervals, dayLines, dayOfIso, dayPlusInZone, dayProblems, dayShort, dayWord, dayWords, daysBetween, daysToSunset, daysWithAppointments, daysWord, daysWords, dealCardsOf, dealFactsOf, dealFill, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFill, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, defaultWriteWire, delayWords, deltaOf, deniesAutomated, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, disclosureFacts, divertedNumbers, doorNamesNoAudience, doorNeeds, doorOf, draftAd, draftExcerpt, draftListRule, draftRefusal, draftRefusalOf, draftSendsAtMs, dueStepDay, durationLabel, durationWords, eachInTouch, earlierCost, earlierVisitsOf, editFootOf, editOf, effectiveMode, effortAbove, effortInForce, effortMessage, eligibleFor, eligibleForPlaybook, emailDomainOf, emailFoot, emailFootHtml, emailIssues, emailLeftOutOf, emailNotConfirmed, emailOffersOpen, emailRowWrittenOf, emailRunStop, emailStoppedWords, emailTemplateRowsOf, emailTemplateWords, emailWires, emailWordCount, emailsFor, emailsNotificationKind, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endedOn, endingOfRound, endsWhenOf, enrolFor, enrolPurpose, enrolRefusalWords, eraseSlot, err, escapeHtml, estimateRoundUsd, eventText, exampleParams, exampleParamsFor, exportLeftOut, exportLeftOutWords, exportedSections, extractContacts, factAlreadyNoted, factConflicts, factNeeds, factNoteChange, factSuggestSystemPrompt, factSuggestUserContent, factValue, factorCodeWords, factorStepNeeded, failedAnswer, failureWordsOf, fallbackMessages, fallbackModel, fallbacksWords, feedAdditionIsBooking, feedAppointmentRows, feedBodyProblem, feedItemOfAppointment, feedMarksOf, feedNamesOf, feedNotes, feedProblemWords, feedSourceLabel, feedStillNames, feedUrlOk, feedWithRecord, fenceActed, fenced, fencedInline, fetchPublic, figureWords, fillSlots, filterOpenings, filterTimeline, findLanguages, finishedRunHeldWhy, finiteOrNull, finiteOrZero, firstLine, firstMissing, firstNameOf, firstReadyDoor, firstReceptionistOf, firstRunKicker, firstRunLiveOf, firstRunOf, firstRunPhoneOf, firstRunStepOf, firstRunStepRoute, firstRunTryOf, firstWorkspaceDoor, fixedDaysOf, fmtClock, fmtDay, fmtSeconds, foldEffortMessages, foldName, foldWordsMessages, followUpDue, followUpIsFor, followUpKey, followUpLeaves, followUpNames, followUpReach, followUpRunAt, followUpStandOf, followUpStop, followUpWords, followUpsOf, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardStillAsked, forwardedLineOf, forwardingCarrierOf, forwardingCodes, forwardingConfirmationOf, forwardingDialLabel, forwardingMatch, forwardingProof, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromAdWords, fromSlotParts, fromZonedInput, gainedOver, goesToOf, googleAudienceWords, googleCallbackUrl, googleFillsOf, greetingFor, greetingNotes, greetingOf, groundCitations, groupMeta, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, guideBlock, handOf, handStepWords, handoffCallRow, handoffChatRow, handoffChatWords, handoffE164, handoffWords, handoverInviteEmail, handoverRoom, handoverUntilWords, hardLimitsWords, hasFastMode, hasHours, hasProfile, hasPublicPages, headlineOf, heardFor, heardSinceProposal, heardTooWords, heardWithin, heardWords, heldBackOfOneRun, heldBackWords, heldByAllowance, heldChoicesOf, heldDraftOf, heldDraftWaits, heldDraftsByClass, heldDraftsLine, heldEmailsWords, heldLine, heldNoticeWords, heldPill, heldThreadIds, heldWords, hexOf, historyCovers, historyDayWords, historyDays, historyFigures, historyIn, historySince, historyStamp, historyUpcomingWords, holdActOf, holdDoors, holdMarksOf, holdNotice, holdOf, holdWaits, holdWords, holderOf, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, ideaAsk, ideaBasisOf, ideaHistoryOf, ideaJsonSchema, ideaPacket, ideaPacketText, ideaPassed, ideaPassedOf, ideasFrom, ideasRead, identityWords, importCounts, importRowsOf, inAppBootScript, inAppFrom, inLastSendingHour, inLocalWeek, inboxBlankOf, inboxBucketWord, inboxSlots, inboxTemplateParts, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, injectionQuestion, insertSlot, instructionsDraft, instructionsWords, invitationWords, invoiceStatusWords, isActivityFamily, isActivityMoney, isActivityNoise, isAdsParam, isAppointmentWord, isAskSkillId, isAutomatedSend, isBaselinePrompt, isBookingTool, isCampaignEmail, isCampaignLedgerSeriesDto, isCampaignStuckRawDto, isCarrier, isChatMessage, isCheckoutReturn, isConnected, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isDraftWhy, isE164, isEffortMessage, isEmailStopped, isForReader, isForwardingMode, isFreeMail, isFromTheirSide, isHeldDraft, isHoldRow, isIdentifierName, isLeadList, isLedgerCampaign, isLensParam, isLibrarySample, isListToken, isLiveCall, isLogoPathOf, isLookPref, isModelId, isNoticeHold, isOfferByEmail, isOpeningFactKey, isOpeningProblem, isOptedOut, isOptedOutContact, isPartnerCode, isPeopleSeriesDto, isPersonRow, isPersonsWords, isPipelineView, isPlaybookState, isPlaybookTotalsDto, isProductFallback, isPublishedFact, isPushKind, isReachOutHold, isReachOutRefusal, isReachOutRow, isReachOutRun, isRealDate, isReceptionistSeriesDto, isReplyIntent, isReplyTo, isReplyUndoRefusal, isReportDays, isReportDto, isReportPeriod, isReviewsLedgerDto, isSequencesParam, isSidebarPref, isSiteRoot, isTheirOwnWords, isThemePref, isThinShare, isTimezone, isTypingTarget, isUncounted, isUngrounded, isUnread, isUnseen, isUsablePassword, isUuid, isVoiceEndReason, isWaitRefusal, isWinBack, isWordsMessage, isYes, itemFocus, itemOfAppointment, jittered, jobNewsWords, jobRecordOf, joinedWords, journeyGuide, journeyOf, journeyStageOf, judgeAsked, judgeOpId, judgeQuestions, judgeShadowCalls, judgeShadowSpecs, judgeSystemPrompt, judgeUserContent, keepsValues, keptPhoneKind, keptUnreadOf, kindListDoor, kindsEndedBy, knownForwarding, knownTimezones, languageBase, languageLabel, languageLabels, languageName, languageTag, languageWords, lastWordsOf, lastWroteOn, leadAddresseeOf, leadAddresseeRefusal, leadAllowanceFact, leadAnd, leadApprovesOf, leadAreaFrom, leadAskedFor, leadBand, leadBuildStepsOf, leadCardBulkDoorOf, leadCardBulkOf, leadCardEmailOf, leadCardMarksOf, leadCardPartsOf, leadCardReasonOf, leadCardSlotsOf, leadCardStepsOf, leadCheckAgainCents, leadCheckWord, leadChooseAnswerWords, leadChooseNameOf, leadCompanyOf, leadDockOf, leadDoorOf, leadDraftChainOf, leadDraftDockOf, leadDraftFooter, leadEndingLine, leadExclusionWord, leadFirstUnwritten, leadFoundWords, leadHoursShort, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadInsertRowsOf, leadKindKey, leadKindWord, leadListEmptyOf, leadListStripOf, leadLowShare, leadLowerFirst, leadMapAcross, leadMapLegend, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadMonthPlanFacts, leadNamedPeople, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadOf, leadPaceChoicesOf, leadPeekMenu, leadPeopleIndex, leadPeopleOf, leadPhoneState, leadPickerRowsOf, leadPileEndOf, leadPileOpen, leadPileProgressOf, leadPileRailOf, leadPinTone, leadPlanAsk, leadPlanFactLine, leadPlanFacts, leadPlanLikely, leadPreviewEmailOf, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReplyNote, leadReviewCosts, leadReviewGroups, leadRoleOf, leadRowOf, leadSearchWords, leadSheetAboutOf, leadSheetChecksLineOf, leadSheetChecksSaid, leadSheetClosedOf, leadSheetContactLineOf, leadSheetEmailLineOf, leadSheetExceptionWords, leadSheetStateOf, leadSheetSubOf, leadSheetWhyOf, leadSheetWordOf, leadSlots, leadStartOf, leadStepStand, leadStepTestMail, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadVerdictOf, leadWeekBars, leadWeekSummary, leadWhere, leadsRoute, leadsStanding, ledgerRowIn, leftOfAd, leftOfMoney, leftOutBy, leftOutByFacts, legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash, lengthWords, lensAnswerOf, lensEmpty, lensIsShown, lensOf, lensOfRoute, lensRoute, lensesFor, libraryCount, lifecycleChainStateOf, lifecycleChainsOf, lifecycleKicker, lifecyclePlaybooksOf, lifecycleStateOf, lineCredentialFailure, lineOffGets, lineOrNull, lineReleaseAfterDays, lineReleaseDay, lineReleaseStep, lineReleaseWarning, lineReleasedWords, lineRetryRefusal, lineStuckProvisioning, linkCount, linkHost, linksIn, listAsks, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNamer, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listSpoken, listStartsSentence, listToken, listTyped, listUnknownWords, listingFactsOf, listingLine, listsFor, liveBar, liveStillUp, liveTablesOf, localDate, localDaysBetween, localHour, localToUtcMs, logoDrawRect, logoFoundOn, logoLayout, logoLookupWords, lookPrefOf, mailboxActs, mailboxConnectWords, mailboxConnectionDtoOf, mailboxDailyCap, mailboxHealthWords, mailboxHoldFixWords, mailboxHoldOf, mailboxHoldWords, mailboxRampShare, mailboxRecordRows, mailboxSendsNow, mailboxWords, mailboxesFootWords, mailtoOf, markOn, maskedEmail, matchColumns, matchPerson, matchService, matchWordsOf, mayMessageFor, mayReach, mayReceive, mayRing, maySpend, mayUseModels, mediaKind, mediaVM, medianWait, memberGetsAlerts, memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice, memberMetaOf, memberWords, membersOf, mergedAnswers, messageAboutOfClass, messageAboutOfTrigger, messageAt, messageAuthor, messageBriefText, messageCraftIssues, messageFitsMoment, messageHolds, messageJudgeQuestion, messageJudgeSystem, messageLanguageChoices, messageLanguageCode, messageLanguageOf, messageLanguagesNext, messageLanguagesOf, messageStandingWords, messageStatusLabel, messageText, messageVerdict, messageVia, messageWhy, messageWhyNot, messageWords, messagesSummaryOf, metaStatusOf, metricWordsOf, minorOfUnits, missedCall, missedCallIsNews, mmss, modelRoute, modelTakes, modelTurnRequestOf, modelTurnResponseOf, momentOffered, momentReadsCalendar, momentStartsSentence, mondayOf, moneyOf, moneyWords, monthDaysAt, monthLabelOf, monthSentAt, monthSpan, movedAddress, nameDecisionWords, nameKnownCustomers, namedProblem, namesAPerson, namesMoney, navigateLabel, needsAnswer, needsConsultation, needsCount, needsSecond, needsWords, needsYouCount, neverConnected, newAdDefaults, newAdFrom, newAdFromRoute, newAdModel, newAdRoute, newCampaignChannels, newCampaignTrialUntil, newConversationOf, newReceptionistDefaults, newSequenceLine, newSequenceRoute, newSinceOf, newestPostFor, nextMonthStart, nextNotAsked, nextOpenMoment, nextRunLabel, nextRunWords, nextStepOf, nextThemePref, noAdsOf, noChannelWords, noNumberWords, noProposalSince, noTemplateWords, noVersionWords, nonBlankOrNull, normalizeAnswer, normalizeEmail, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, notNowDayOf, notTakingSignUps, noteAsTold, noteEndedWords, noteFill, noteManyLine, noteRows, noteSheetFill, noteSuggestSystemPrompt, noteSuggestUserContent, noteWhose, notesInForce, notesWords, noticeAnswerOf, noticePrompt, noticeRoute, noticeStillWaits, noticeTone, numberHealth, numberHealthOfConfig, numberHealthWithStanding, numberedSlots, offerFor, offerGate, offerLead, offerPauseOf, offerUnsubscribeWords, offeringHorizon, offersAfterStart, offersBookingLink, offersFacts, offersLinkOn, offersNote, offersPausedLine, offersYesRefusal, ok, olderUnreadOf, onDomain, oneDoor, openAt, openDealsFromJson, openDealsOf, openItLine, openReads, openToCustomersOf, openWeekWords, openingProblemWords, openingSystemPrompt, openingUserContent, openingVerdict, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, optOutNotice, optOutOf, optOutWords, outcomeMove, outreachRefusalOf, overLimitRefusal, ownAddressesOf, ownMessageRefusal, ownModesOf, ownModesWords, ownWordsOf, ownedDomainOf, ownerPaceWords, paceWords, pageSpeedWords, pageTitle, pageTotals, pageVitalsWords, paramLabel, paramSaid, parseAds, parseAmount, parseBrainOutput, parseCsv, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseMemberAlerts, parseOpening, parsePageMessage, parseParamSpec, parseParamSpecs, parsePeopleRoute, parsePipelineRoute, parseReading, parseReplyReading, parseSequencesRoute, parseShellMessage, parseSystemOneResponse, parseTenantConfig, parseTenantConfigResult, parseTodayWidgetSnapshot, partWritten, partialSay, partnerCodeFrom, partnerCodeFromCookie, partnerEarningsWords, partnerHandoverVM, partnerInvitationWords, partnerInviteEmail, partnerJoinedWords, partnerLetter, partnerLinkFor, partnerPaneUrl, partnerPathFor, partnerPayoutOutcomeWords, partnerStandingChoices, partnerStandingOutcomeWords, partnerStatusChoices, partnerStatusOutcomeWords, partnerVM, partnerWorkspacesVM, passesHandoverPause, passwordProblem, pastAllowance, pastTarget, pastTargetPage, patchRestarts, pauseHoursOf, pauseMsOf, pausedGreetingFor, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleDtoOf, peopleEstimateUsd, peopleFromItems, peopleListAction, peopleNeedsOf, peopleNowOf, peoplePlanFrom, peoplePlanOf, peoplePlanSentence, peopleRoute, peopleSheetProblems, peopleTabWord, peopleVisitsOf, peopleWho, peopleWord, perDayOf, personActs, personCallClosesBack, personCallDays, personCallFoot, personCallLeadArgs, personCallNote, personCallOf, personCallSave, personExportLeftOut, personFaceOf, personFiguresOf, personHeadOf, personHeadStateOf, personInText, personInitials, personLikeOf, personName, personNextFor, personNextOf, personNotesVM, personNoticesOf, personOfAppointment, personReachOf, personRouteOf, personStanding, personStateFor, personTabRoute, personTabWord, personTabsOf, phoneDialable, phoneLine, phoneOf, phoneTail, phoneVoiceOf, phoneVoiceShown, pickCurrentDeal, pinTokens, pipelineBoardMore, pipelineCsv, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelinePersonOf, pipelineRail, pipelineRoute, pipelineRowId, pipelineRowNow, pipelineSorted, pipelineViewLabel, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planGroupOf, planLeadSearch, planLeavingOut, planMadeOf, planMinutes, planNoteOf, planOf, planPeopleSearch, planRun, planSaid, planSentence, planVersionOf, planWaits, planWhere, planWho, planWords, platformActionWarning, platformDaysWords, platformHealthOf, platformHealthWords, platformLineActions, platformMeta, platformNumber, platformPartnerRows, platformPartnerStanding, platformPartnerSummary, platformQueue, platformRows, platformSummary, platformsFor, playbookChannelsRead, playbookFailedAbout, playbookFailedWords, playbookListRef, playbookName, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunNext, playbookRunReach, playbookRunStop, playbookStopBy, playbooksStillSending, plural, pointsDelta, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassOffered, policyClassQuestion, policyLinks, policyModeOffered, policyModeRefusal, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, posesAsReply, previewHorizon, previewLinesOf, previewOn, previewParts, previewRefusedWords, previewSays, previewVersionsOf, priceAllowance, priceBreach, priceChoiceOf, priceChoiceWrites, priceFigures, priceNextStep, priceOf, priceWords, pricesWrittenWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptSafeName, promptTotalWords, proposalAction, proposalBelowNeeds, proposalChannelsWords, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalSpec, proposalsWaiting, proseAnswer, providerCodeOf, providerNameOf, publicObjectSrc, publicPagePath, publishesBusinessPage, purposeOfPlaybook, purposeOfTemplate, pushFor, pushOffOf, pushesFor, quantile, questionAfterProbe, quickAnswerOf, quietOf, quotesPrice, raiseOf, ratingLine, ratingWords, reachAfterBreath, reachBarParts, reachBarWords, reachByWords, reachCountsOf, reachFor, reachLineOf, reachLines, reachNoteOf, reachOutAddHandStep, reachOutAddStep, reachOutAddWords, reachOutAfterDayChoices, reachOutCameWords, reachOutChainBodyOf, reachOutCountryOf, reachOutDayWords, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutEmailOf, reachOutExampleLead, reachOutExampleValues, reachOutInsertStep, reachOutLineOf, reachOutMayAddStep, reachOutMayInsertStep, reachOutMayPickMailbox, reachOutPersonOf, reachOutPreviewOf, reachOutPutBackStep, reachOutRemoveStep, reachOutRootOf, reachOutRowName, reachOutRules, reachOutRunMoving, reachOutRunWordsOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutSlotFault, reachOutSourceOf, reachOutStandingOf, reachOutStepOf, reachOutStripOf, reachOutTimelineOf, reachOutVersionDraftOf, reachOutWhenOf, reachOutWhoWords, reachOutWritesFrom, reachSplit, reachSplitWords, reachedCustomer, reachedVoicemail, readAgoLabel, readTime, readingPlan, readingSystemPrompt, readingUserContent, readsAsModel, readyForMessage, readyOrWhatsApp, reasonLabelOf, reasonShort, reasonSummaryOf, receiptWords, receptionistCardOf, receptionistDtoOf, receptionistKnowsOf, receptionistOf, receptionistOn, receptionistPrimary, receptionistShadowCall, recordFilingOf, recordIdOf, recordKeyOf, recordOrNull, recordSavedOf, recordSavedWords, refusalOf, refusedWords, regionOf, registrationPathOf, registrationPreflight, relationshipOnRecord, renderOwnVersion, renderTemplate, repliesWords, replyChipOf, replyChipStateOf, replyDelayMs, replyFromLineOf, replyHoldDtoOf, replyIntentQuestion, replyLeftAsOf, replyNoticeWords, replyReadPrimary, replyReadShadowCall, replyRowOf, replyStepWords, replyStripOf, replySystemPrompt, replyTextOf, replyUserContent, replyWaitsOnYou, replyWhy, replyWindow, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportFacts, reportHourWords, reportPeriodOf, reportPickWords, reportRangeAsked, reportRangeKey, reportRangeOfKey, reportShortcuts, reportWindowOf, reportsParamParts, reportsRouteParts, requestCodeWords, requestedBookingOf, rereadAt, resendLeft, resolveFacts, resolveList, resolveParams, resolveSteps, resolveSystemPrompt, resolveTheme, resultsOf, retentionWords, reviewHeldWords, reviewIsNew, reviewNoticeIsAbout, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewRoute, reviewSnippet, reviewsAreOnRecord, reviewsWindowOf, reviewsWords, rightNowCounts, rightNowLine, roleAtLeast, roleGate, roleSays, roleTable, routeOfAddress, routeOfHash, routeOfPath, routePrefetchScript, rowReachWords, ruleFacts, ruleLists, ruleNeeds, ruleNeedsViewer, ruleParts, ruleStrength, ruleUndated, rulesKept, rulesLine, rulesWithoutFieldsWords, runApprovalRefusal, runApproveWords, runApprovedTail, runCountsOf, runDayPassed, runDaysAt, runDecidedOnItsPage, runDraftedEmails, runDueNow, runHeldEmails, runLandingOf, runMarkShown, runReadingOf, runSheetRoute, runStillMoving, runStopWords, runStoppedWords, runTitleOf, runTooLate, runWaitsOnYou, runningTotal, runsThatWait, runsWaitingSentence, runsWords, saidYesOnAny, saidYesTo, saidYesWords, sameAddress, sameArea, sameListed, sameName, samePhone, sameQuestion, sameReportRange, sameVisitOnRecord, savedListAction, savedListIds, savedListLookup, savedListTip, sayItFilled, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait, scopeFromRoute, seasonHorizon, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown, seenBy, sendFailureIsOurs, sendFailureWords, sendWindowsOf, sendableTemplates, senderLanguage, senderWords, sendingEndsAt, sendsWaitWords, sentByWords, sentResultsOfSource, sentenceParts, sequenceCancels, sequenceChannelsWords, sequenceGroupOf, sequenceHeadLine, sequenceLandingOf, sequenceLeftWords, sequenceNextOf, sequenceNextWords, sequenceNotice, sequencePausedDock, sequenceRepliesOf, sequenceRepliesRoute, sequenceResumeAsk, sequenceRoute, sequenceRouteBack, sequenceRowLine, sequenceRowState, sequenceRunsNow, sequenceStartWords, sequenceStartsSentence, sequenceStateTone, sequenceStateWords, sequenceStopsSentence, sequenceSubLine, sequenceTwinOf, sequenceWaitWords, sequenceWaitsNow, sequenceWhoApprovesHint, serverNotificationRows, serviceLineWords, serviceNamedIn, serviceSuggestionsOf, serviceUndoName, servicesFoundWords, servicesToldWords, servicesWords, sessionEnded, settledNoticeIds, settling, setupCardOf, setupLaterOf, setupPhoneWantOf, setupSteps, sha256Hex, shadowBodies, shadowPortOf, shadowRead, shadowSwitchOn, shadowWordsOf, shareSaid, shareWords, sheetFootWords, sheetSlot, shellStatusLine, shiftKey, shiftMonth, shortCode, shortName, shortTime, shortcutGroups, shouldLandOnFirstRun, shoutingLine, sightingStands, signerAgrees, signerOf, signupPosture, siteHost, skillGuide, skillsAsked, slotChoices, slotCount, slotKnown, slotLabel, slotLabels, slotLong, slotShort, slotToWrite, slotValueOf, slotWritten, slugTemplateName, smallestPreset, smsConsentSentence, smsSegments, smsStateRow, smsStopLine, smsVersionSegments, snoozedThreadWords, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, spokenNameOf, stageArgs, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead, standingOf, standingOfThread, standingWithRuns, starsOf, startWords, started, starterByKey, starterByName, starterCopy, starterDraft, starterEmailText, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterSmsText, starterText, startersForTrigger, startersOffered, startsOn, stateCode, stateLabel, stateOf, stateTone, stateWordList, statesAutomated, stepApprovalOf, stepDayFor, stepDayName, stepDayOf, stepDays, stepIsDue, stepLabel, stepLabelOf, stepOfferWords, stepSheetBody, stepSheetDirty, stepSheetDone, stepSheetFor, stepSheetMerge, stepTestMail, stepToken, stepWhenWords, stepsStopSentence, stopRequestQuestion, stopToldBesideState, stoppedAnswer, stoppedRunFix, storedAnswer, suggestLocalPart, sum, sumMoney, sumOf, sumsOf, systemOneDollars, systemOneState, takesBookingRequests, takesFollowUps, takesSignUps, telHref, templateBlocked, templateBodyTooLong, templateComponents, templateFooter, templateHolds, templateLanguage, templateLinkButton, templateNameOk, templateOffered, templateParts, templatePreview, templatePreviewValues, templateSends, templateSendsOf, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, templateWords, tenantStatusFor, textAsSent, textPartsAllowed, textRoom, textingTermsMetadata, textingTermsVM, textingWords, theirVisitTest, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, theyWroteLast, threadChannelOf, threadChannelWords, threadStanding, threadWait, threadWaits, threadWaitsOf, threadsWaitingOnYou, tidyCallSummary, tilesOf, timeOf, timelineFilterLabel, timetable, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignLensVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toHeadlineVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPeopleReportVM, toPersonRowVM, toPersonVM, toReachOutLensVM, toReceptionistReportVM, toReportVM, toReviewsReportVM, toRunReportVM, toSendAllOf, toSendEveryOf, toSendRowOf, toSendRunsOf, toSendSaidWords, toSendWordsOf, toSlotParts, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayBriefWords, todayDay, todayDraftsSub, todayLateRunsSub, todayLeaks, todayPeriodLine, todayPins, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, todayStepsFoot, todayStepsSub, todayVisitsAsked, todayVisitsFoot, todayVisitsSub, todayWidgetSnapshot, togglePin, tokenBudgetSpent, tokenCapOf, tokensPerReply, tomorrowAtIn, totalOf, totalsOf, touchesAfterRun, trialDayWords, trialOffer, trialWords, triggerOf, triggerOffered, triggerWords, trimmedOrNull, tryItLink, tryItVM, twinRunsWords, tzClock, tzSince, unansweredCallTodo, unknownDetails, unmetNeed, unquoted, unreadCount, unreadFor, unsubscribePageWords, unsureHoursWords, usPhone, usStateCode, usStateName, usStatesTyped, usableDeviceTimezone, usageDollars, usageOf, usageTokens, utf8Bytes, v0Of, v1FromAnswer, validateEmailVersion, validateOwnVersion, validateReachOutChain, validateReachOutWords, validateSmsVersion, validateTemplateDraft, variablesSlotCount, verbForRoute, verbSpec, verbalOptInScript, verifyCodeWords, versionComponents, versionSlotsRefusal, versionWord, versionWords, versionsOf, vetoRunNotice, viewState, viewerListWords, violatesNoPrices, visitActsOf, visitChangeNews, visitDateKey, visitDay, visitDayWord, visitDoor, visitFactsFor, visitLine, visitLineForDto, visitLineOf, visitLineOfBlock, visitLinkWords, visitMarkOfDto, visitMomentDay, visitNews, visitOnDay, visitRoute, visitSheetOf, visitStands, visitStartTime, visitStateOf, visitTime, visitTitleWithout, visitTwinWords, visitsIn, visitsOf, vitalValueWords, vitalVerdict, vitalsPageOf, waMeDigits, waMeLink, waWindow, waitAfterDays, waitWords, waitedLabel, waitingOnProposal, waitingRunOffer, waitingRunsDoor, waitsOf, waitsOnAPerson, wallClockAt, warningsMendedBy, wayOff, websiteHostOf, weekHoursOf, weekOf, whatsappLineOf, whatsappOffersOpen, whatsappStoppedRunWords, whenItGoes, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyFrom, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, whyNotFactLook, whyNotForward, whyNotLook, whyNotReceive, winBackWords, windowFor, wireFailure, withAlertAddress, withFirstAlertAddress, withReplies, withSteps, withStoredKeysKept, withTopicEmail, withTopicPush, withVisitsAsked, withVisitsOf, withoutVisitsRowsDraw, withoutWrongPerson, wordCount, wordsIssueWords, wordsMessage, wordsNeedOpening, worksAtOf, workspaceInitials, workspaceLogoPath, workspaceLogoSrc, workspacePartnerVM, workspacePath, writeReachOf, writeWayWords, writeWaysOf, writeWireName, writtenChannelOf, writtenOutDetail, yesAsked, yesCovers, yesWaitWords, yesWaits, youAreLiveEmail, youJoinedWords, zipIssue, zoneDayKey, zoneMidnight, zoneOfRegion, zoneOffsetMs, zoneSearchWords, zonedInputValue };

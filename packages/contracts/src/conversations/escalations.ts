@@ -142,15 +142,15 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
   policy_ask:
     "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up — that someone is you.",
   person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent — answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent — they're waiting in silence.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. Nothing was sent — they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale:
-    "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
+    "This reached us hours after they sent it, too late to answer automatically. Nothing was sent — they have been waiting since then.",
   budget:
-    "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent — answer them yourself, or raise the budget under Settings › Autonomy.",
+    "The day's model budget is used up, so the receptionist paused itself. Nothing was sent — answer them yourself, or raise the budget under Settings › Autonomy.",
   callback:
     "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused:

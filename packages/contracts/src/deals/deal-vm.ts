@@ -12,7 +12,7 @@
  *
  * "Here" is now this folder. This module holds the deal as it is read and said (DealDto, DealVM, toDealVM) and
  * the sentence the receptionist hears; the modules beside it hold the rest: the closed sets and their words
- * (deal-words.ts), how a workspace sells (sells-by.ts), amounts (deal-amount.ts), the pace and a proposal's wait
+ * (deal-words.ts), amounts (deal-amount.ts), the pace and a proposal's wait
  * (deal-waits.ts), consultations and where a person stands (deal-consultations.ts) and Reports' cohort
  * (deal-report.ts); the deal sheet and the card are sheet/, and the Pipeline is pipeline/.
  */

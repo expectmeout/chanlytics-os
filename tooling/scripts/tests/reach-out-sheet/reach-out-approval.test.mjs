@@ -234,6 +234,40 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   assert.equal(ask.props.question, "Skip Reach out · Personal trainers's run?");
 });
 
+test("on a phone a waiting reach-out run docks its acts at the pane's foot and Skip in its head's menu, as a campaign run's sheet does: it stood as a slab halfway down the screen", async () => {
+  world("pending_approval");
+  const sheet = SHEET();
+  const media = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)", addEventListener() {}, removeEventListener() {} });
+  try {
+    const redraw = await open({ sheet });
+    let tree = redraw();
+    const docks = all(tree, (n) => n.props?.["data-testid"] === "ro-run-acts");
+    assert.equal(docks.length, 1, "the acts once, at the foot, not again in the block");
+    assert.equal(docks[0].props["data-foot-pair"], "", "the pane's docked pair");
+    assert.equal(byTestId(docks[0], "ro-run-skip"), null, "Skip is in the head's menu, never beside Approve");
+    press(byTestId(docks[0], "ro-run-approve"));
+    assert.equal(sheet.approved, 1, "Approve from the dock");
+    // Who gets it, on asking from the dock, opens in the block and is brought into view as it opens.
+    press(byTestId(docks[0], "ro-run-see"));
+    tree = redraw();
+    const list = byTestId(tree, "ro-run-list");
+    assert.ok(list, "who gets it");
+    let brought = null;
+    list.props.ref({ scrollIntoView: (how) => (brought = how) });
+    assert.deepEqual(brought, { block: "nearest" });
+    const more = find(tree, (n) => Array.isArray(n.props?.groups) && /^More for /.test(n.props.label ?? ""));
+    assert.equal(more.props.label, "More for Reach out · Personal trainers");
+    more.props.groups[0].items[0].onSelect();
+    assert.equal(sheet.armed, true, "the menu's Skip asks first");
+    tree = redraw();
+    const ask = all(byTestId(tree, "ro-run-acts"), (n) => n.props?.testid === "ro-run-skip")[0];
+    assert.match(ask.props.detail, /Skipping loses this run only/, "asked in the dock, with the reach-out's note");
+  } finally {
+    W.matchMedia = media;
+  }
+});
+
 test("R22: a run that includes unconfirmed addresses never says each has a checked address", async () => {
   world("pending_approval", RUN({ include_unconfirmed: true }));
   const tree = (await open({ sheet: SHEET() }))();

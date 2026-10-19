@@ -256,7 +256,6 @@ test("where you are answers each workspace's logo as the address it is served at
         name: "Harbor",
         status: "active",
         timezone: "America/New_York",
-        sells_by: null,
         logo_path: OLD_A,
       },
     ],
@@ -293,8 +292,8 @@ test("where you are answers each workspace's logo as the address it is served at
     params: {},
   });
   assert.deepEqual(
-    before.workspaces.map((w) => [w.slug, w.logo_url, w.sells_by]),
-    [["harbor", null, null]],
+    before.workspaces.map((w) => [w.slug, w.logo_url]),
+    [["harbor", null]],
     "no logo, and the rest of the row as ever",
   );
 });

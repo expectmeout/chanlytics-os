@@ -22,6 +22,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
+import { SheetSkipMore, bringListIntoView } from "../broadcasts/run-sheet";
 import { reachOuts } from "./surface";
 import { RoToSend } from "./to-send";
 
@@ -38,7 +39,7 @@ interface Said {
  * The first ready business's email as it reads: the opening marked, as a slot is on a WhatsApp run's sheet. A sequence to
  * leads draws it on the step going now (sequences/lead-step.tsx).
  */
-export function RoRunWords({ vm }: { vm: RunWords }) {
+function RoRunWords({ vm }: { vm: RunWords }) {
   return vm.words.length > 0 ? (
     <div className="bc-sheet-words" data-testid="ro-run-words">
       <p className="bc-sheet-quote">
@@ -100,7 +101,11 @@ interface HeldProps {
  */
 function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   return (
-    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-held">
+    <section
+      ref={bringListIntoView}
+      className="bc-touched bc-sheet-people bc-approval-people"
+      data-testid="ro-run-held"
+    >
       {vm.held.map((h) => (
         <div key={h.id} className="bc-person is-held" data-testid="ro-held">
           <RoName name={h.name} to={h.to} testid="ro-held-lead" />
@@ -134,7 +139,11 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
 /** Who gets it: the checked, ready sends by name and time; the rest are still being checked (R21). */
 function RoRunList({ vm }: { vm: RunWords }) {
   return (
-    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-list">
+    <section
+      ref={bringListIntoView}
+      className="bc-touched bc-sheet-people bc-approval-people"
+      data-testid="ro-run-list"
+    >
       <div className="bc-touched-head">
         <span className="bc-card-title">{vm.listHead}</span>
       </div>
@@ -256,6 +265,73 @@ interface RunProps {
   sheet?: RunSheet | null;
   acts?: ReactNode;
   onDecided?: () => void;
+  /**
+   * A phone's, while the run waits on its owner: its acts are the pane's docked foot (RoRunDock), and whether who gets it
+   * shows is the pane's, which draws the dock's button for it. Null keeps the acts in the block, as a desk draws them.
+   */
+  docked?: { seeAll: boolean; onSeeAll: () => void } | null;
+}
+
+/** Whether a reach-out run's sheet waits on its owner, an Approve to give: where a phone docks its acts (RoRunDock). */
+export const roRunWaits = (d: BroadcastDetailDto, sheet: RunSheet | null): boolean =>
+  !!(sheet && reachOuts.run(d)?.approve);
+
+/**
+ * A waiting reach-out run's acts on a phone, docked at the screen's foot as a campaign run's are (run-sheet.tsx
+ * bcSheetDock): Approve, and who gets it, an equal pair; Skip's question in their place once the head's menu asks it.
+ * They stood in a band after the emails, a solid slab halfway down the screen.
+ */
+export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet; seeAll: boolean; onSeeAll: () => void }) {
+  const { d, sheet, seeAll, onSeeAll } = p;
+  const vm = reachOuts.run(d);
+  if (!vm || !vm.approve) return null;
+  const L = vm.labels;
+  if (sheet.armed && sheet.canSend)
+    return (
+      <div className="bc-approval-foot" data-foot-pair="" data-testid="ro-run-acts">
+        <Confirm
+          question={vm.skipAsk}
+          detail={vm.note}
+          yes={L.skipYes}
+          danger
+          busy={sheet.stopping}
+          onYes={sheet.skip}
+          onNo={() => sheet.onArm(false)}
+          testid="ro-run-skip"
+        />
+      </div>
+    );
+  const said = vm.approveNote || (sheet.canSend ? null : gateTitle("approve", L.gated));
+  return (
+    <div className="bc-approval-foot" data-foot-pair="" data-testid="ro-run-acts">
+      {said ? (
+        <span className="bc-sheet-expired" data-testid="ro-run-approve-note">
+          {said}
+        </span>
+      ) : null}
+      {sheet.canSend ? (
+        <Button
+          variant="primary"
+          disabled={sheet.approving}
+          onClick={() => sheet.approve(vm.approved)}
+          data-testid="ro-run-approve"
+        >
+          <Icon name="check" size={16} /> {sheet.approving ? L.approving : vm.approve}
+        </Button>
+      ) : null}
+      {vm.see ? (
+        <Button aria-expanded={seeAll} onClick={onSeeAll} data-testid="ro-run-see">
+          {seeAll ? L.hide : vm.see}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** The head's menu for a waiting reach-out run on a phone: Skip, as a campaign run's (run-sheet.tsx SheetSkipMore). */
+export function RoRunMore({ d, sheet }: { d: BroadcastDetailDto; sheet: RunSheet }) {
+  const vm = reachOuts.run(d);
+  return vm?.approve ? <SheetSkipMore name={vm.title} sheet={sheet} /> : null;
 }
 
 /**
@@ -279,12 +355,13 @@ export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null) {
   };
 }
 
-export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => undefined }: RunProps) {
+export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => undefined, docked = null }: RunProps) {
   const vm = reachOuts.run(d);
   const b = d.broadcast;
   // A run not waiting is opened by its held (R20: the notice, Playbooks' "N wait for your say"), so they show at once.
   const [seeHeld, setSeeHeld] = useState(b.state !== "pending_approval");
-  const [seeAll, setSeeAll] = useState(false);
+  const [ownSeeAll, setSeeAll] = useState(false);
+  const seeAll = docked ? docked.seeAll : ownSeeAll;
   const doors = useRoRunDoors(b.id, onDecided);
   if (!vm) return null;
   const may = canDo("approve");
@@ -354,7 +431,9 @@ export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => un
         <RoRunHeld vm={vm} may={may} busy={doors.busy} said={doors.said} onDecide={doors.decide} />
       )}
       {seeAll && <RoRunList vm={vm} />}
-      <RoRunActs vm={vm} sheet={sheet} acts={acts} seeAll={seeAll} onSeeAll={() => setSeeAll((v) => !v)} />
+      {docked ? null : (
+        <RoRunActs vm={vm} sheet={sheet} acts={acts} seeAll={seeAll} onSeeAll={() => setSeeAll((v) => !v)} />
+      )}
     </div>
   );
 }

@@ -1233,13 +1233,17 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "the words of its email");
   assert.equal(textOf(byTestId(row, "template-channels")), "Email");
   // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
-  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("our hours start");
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onChange({
+    target: { value: "our hours start" },
+  });
   tree = redraw();
   assert.ok(rowOf(tree, HOURS), "found by its words");
-  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("no such words");
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onChange({
+    target: { value: "no such words" },
+  });
   tree = redraw();
   assert.equal(rowOf(tree, HOURS), null);
-  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onValueChange("");
+  find(tree, (n) => n.props?.["data-testid"] === "templates-search").props.onChange({ target: { value: "" } });
 
   // Opened, its email reads as any message's does, with an Edit and a Remove that need no number.
   tree = opened(redraw(), HOURS);

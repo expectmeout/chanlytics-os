@@ -269,7 +269,7 @@ globalThis.window.__chrome = { state: stateOf };
 const S = "../../../../apps/dashboard/src/surfaces";
 const { calendar } = await import(`${S}/calendar/verbs.ts`);
 const { CalendarPage } = await import(`${S}/calendar/calendar-page.tsx`);
-const { CALENDAR_PAGE, CR_WARM_MS, fitHourPx } = await import(`${S}/calendar/words.ts`);
+const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${S}/calendar/words.ts`);
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
@@ -635,7 +635,7 @@ const drawnAt = (nowMs, draw) => {
 const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
   fresh(week);
   sheets = [];
-  globalThis.window.__WORKSPACES = [{ id: "t-salon", sells_by: "proposal" }];
+  globalThis.window.__WORKSPACES = [{ id: "t-salon", appointment_word: "meeting" }];
   globalThis.window.__ACTIVE_WORKSPACE = "t-salon";
   globalThis.window.openDealSheet = (args) => sheets.push(args);
   let tree = drawnAt(nowMs, () => page());
@@ -1094,6 +1094,16 @@ test("what fits a phone's board: the room shared by the day's hours, in whole pi
   assert.equal(fitHourPx(0, 9), CR_HOUR_MIN_PX, "no room yet (nothing laid out) is the floor, never nothing");
   assert.equal(fitHourPx(-10, 9), CR_HOUR_MIN_PX, "a room the heads outgrow is the floor too");
   assert.equal(fitHourPx(500, 0), 500, "a day of no hours divides by one, never by nothing");
+});
+
+test("REGRESSION: a desk's day fits its board between 48 and 64px an hour -- at a flat 64 it always scrolled, its morning off the top", () => {
+  assert.equal(
+    fitDeskHourPx(620, 11),
+    56,
+    "eight in the morning to seven at night in a 620px board: 56 to the hour, the whole day, no scroll (Ruben's screenshots, 18 Oct 2026)",
+  );
+  assert.equal(fitDeskHourPx(1000, 9), 64, "room to spare: the stylesheet's 64, never taller");
+  assert.equal(fitDeskHourPx(450, 14), 48, "a long day in a short window: the floor, and that day scrolls");
 });
 
 test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid four times the screen's width", () => {

@@ -106,7 +106,6 @@
   "packages/contracts/src/reach-out/reach-out-draft.ts": 4,
   "packages/contracts/src/reach-out/reach-out-replies.ts": 6,
   "packages/contracts/src/reach-out/reach-out-reply-draft.ts": 2,
-  "packages/contracts/src/reach-out/reach-out-schemas.ts": 1,
   "packages/contracts/src/reach-out/reach-out-timetable.ts": 1,
   "packages/contracts/src/reach-out/reach-out-words.ts": 6,
   "packages/contracts/src/reports/reports.ts": 2,

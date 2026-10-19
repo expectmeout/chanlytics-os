@@ -2,15 +2,19 @@ import "server-only";
 import {
   AppError,
   SEQUENCE_TEST_WORDS as W,
+  leadStepTestMail,
   parseParamSpecs,
   parseTenantConfig,
   previewVersionsOf,
+  reachOutExampleLead,
   stepTestMail,
 } from "@chanlytics/contracts";
-import { messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
+import { leadSlotsOf, messageVersionRowsOf, sequenceOverview } from "@chanlytics/db";
+import { chainsOf } from "../campaigns/reach-outs";
 import { deployment } from "../env";
 import { callEdge, edgeConfigured } from "../edge";
 import { log } from "../log";
+import { requireUuid } from "../request-guards";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
 import { storedConfigOf } from "../workspace/config-row";
@@ -21,8 +25,11 @@ const TEST_TIMEOUT_MS = 12_000;
 
 type Sequence = { id: string; tenant_id: string; name: string; starts: string };
 
-/** The business a test names, and the postal address an email's foot gives, as a send reads them. */
-async function businessOf(ctx: RouteContext, tenantId: string): Promise<{ name: string; address: string | null }> {
+/** The business a test names, the postal address an email's foot gives, and its booking link, as a send reads them. */
+async function businessOf(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{ name: string; address: string | null; bookingLink: string | null }> {
   const [facts, stored] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     storedConfigOf(ctx.supabase, tenantId),
@@ -31,14 +38,46 @@ async function businessOf(ctx: RouteContext, tenantId: string): Promise<{ name: 
   return {
     name: brain?.business_name || facts.name || "your business",
     address: brain?.profile?.address?.trim() || null,
+    bookingLink: brain?.booking_link?.trim() || null,
   };
+}
+
+/**
+ * The test mail of a lead's step (the lead-to-sequence canvas's Preview as a real lead): its words as the chain holds them,
+ * filled for one lead in it by the send's own fill, or for an example business where none is named; a later step under
+ * the first's subject, as it answers in its thread. Refused in words for a call or a note, and an email with no words yet.
+ */
+async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, leadId: string | null) {
+  const id = requireUuid(stepId, "step");
+  const [chains, business, lead] = await Promise.all([
+    chainsOf(ctx, seq.tenant_id),
+    businessOf(ctx, seq.tenant_id),
+    leadId ? leadSlotsOf(ctx.supabase, seq.tenant_id, requireUuid(leadId, "lead")) : Promise.resolve(null),
+  ]);
+  const chain = chains.find((c) => c.root_id === seq.id);
+  const step = chain?.steps.find((s) => s.id === id);
+  if (!chain || !step) throw new AppError("not_found", "Step not found.", 404);
+  if (step.hand) throw new AppError("validation", W.noMessage, 422);
+  if (leadId && !lead) throw new AppError("not_found", "Lead not found.", 404);
+  const mail = leadStepTestMail({
+    sequence: seq.name,
+    place: step.n + 1,
+    business: business.name,
+    address: business.address,
+    words: { subject: step.n === 0 ? (step.subject ?? "") : null, body: step.body },
+    thread: chain.steps.find((s) => s.n === 0)?.subject ?? null,
+    lead: lead ?? reachOutExampleLead(),
+    workspace: { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink },
+  });
+  if ("why" in mail) throw new AppError("validation", mail.why, 422);
+  return mail;
 }
 
 /**
  * The test mail of a customer's step: its message read as the step sends it now (its WhatsApp version and its own email
  * and text versions, by the message's name and language), filled for the example person, under the sequence's class.
- * Refused in words where it cannot be shown: a sequence to leads, a step with no message, a version the step goes by
- * and the message lacks.
+ * Refused in words where it cannot be shown: a one-off (tested from Messages), a step with no message, a version the step
+ * goes by and the message lacks.
  */
 async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
   if (seq.starts !== "moment" && seq.starts !== "list") throw new AppError("validation", W.notCustomer, 422);
@@ -77,8 +116,13 @@ async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
  * no customer's send door, nothing kept. Only where providers are live: a preview or a laptop mails nobody, and says so.
  * The edge refusing, or not answering, is "not sent", never a guess that it went.
  */
-export async function sendStepTest(ctx: RouteContext, seq: Sequence, stepId: string): Promise<{ to: string }> {
-  const mail = await mailOf(ctx, seq, stepId);
+export async function sendStepTest(
+  ctx: RouteContext,
+  seq: Sequence,
+  stepId: string,
+  leadId: string | null = null,
+): Promise<{ to: string }> {
+  const mail = seq.starts === "leads" ? await leadMailOf(ctx, seq, stepId, leadId) : await mailOf(ctx, seq, stepId);
   if (!deployment.providersLive || !edgeConfigured()) throw new AppError("conflict", W.notLive, 409);
   const r = await callEdge(
     "/api/admin/email/test-to-self",

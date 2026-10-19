@@ -8,9 +8,8 @@
  * (POST templates/versions, which keeps what the reach-out's save guarantees: new words send what waits for the step back
  * to the check). It has no Remove, Rename or Hide of its own, no WhatsApp or Text version, and its chain's days, pace and
  * domains stay where the chain is: Edit the reach-out hands its chain as the reach_outs surface read it to the page, which
- * opens the reach-out sheet (PR 6) over it (`onEdit`; on a phone in the drawer's place: the record sheet stands on the
- * page, and opened under the drawer's modal it was hidden behind it), for a role that may change it; for anyone else, or
- * a chain whose search is gone, it opens the chain's Playbooks row. How many it has written is its chain's report, read
+ * opens its sequence's record (`onEdit`), for a role that may change it; for anyone else, or a chain whose search is
+ * gone, it opens the chain's own address. How many it has written is its chain's report, read
  * when the row opens (`useReachOutReport`, row.tsx; R23), and said only once read: nothing while it reads or when it
  * could not be read, never a 0 it did not read. Every sentence is contracts'. The rows are contracts' emailTemplateRowsOf
  * over the reach_outs surface's chains, which the settings surface's WhatsApp templates never hold.
@@ -70,7 +69,7 @@ export function ReachOutEmailRow({ t, open = false, onOpen }: RowProps) {
   const W = reachOuts.words;
   const written = open && read && read.state === "ok" ? W.emailRowWrittenOf(read.report, t.step_id) : null;
   const w = W.emailTemplateWords({ chainName: t.chain_name, stepN: t.step_n, afterDays: t.after_days });
-  const g: TemplateGroup = { key: `e:${t.template_id}`, title: titleOf(t), purpose: w.chip, starter: null, rows: [] };
+  const g: TemplateGroup = { key: `e:${t.step_id}`, title: titleOf(t), purpose: w.chip, starter: null, rows: [] };
   return (
     <div
       className={`msg-row${open ? " is-open" : ""}`}

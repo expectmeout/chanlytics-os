@@ -22,6 +22,8 @@ export const SEQUENCE_WORDS = {
   newSequence: "New sequence",
   /** The head's way back to Leads, where a trip from a lead did not say its name. */
   backToLeads: "Leads",
+  /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
+  backToLeadsLabel: "Back to Leads",
   search: "Search sequences",
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn’t be loaded right now",
@@ -351,8 +353,9 @@ export function sequenceRowState(row: SequenceRowDto): { label: string; tone: "p
 
 /**
  * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 · 12 replied", "10 in it". A twin
- * says so first (sequenceTwinOf).
+ * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 people · 12 replied", "10 in it". A
+ * twin says so first (sequenceTwinOf). A count says what it counts: "Sent Oct 12 · 184 · 12 replied" read as a stray number
+ * under "Dec 29 · 5 people" (the sample walk, 18 Oct 2026).
  */
 export function sequenceRowLine(
   row: SequenceRowDto,
@@ -367,7 +370,7 @@ export function sequenceRowLine(
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     if (row.last)
-      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} · ${row.last.replied} replied`;
+      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${plural(row.last.sent, "person", "people")} · ${row.last.replied} replied`;
     return `${clockDate(at, tz, nowMs)} · ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
@@ -721,11 +724,13 @@ export function stepsStopSentence(steps: readonly { only_if: readonly string[] }
 
 /** What a people group is called on the People tab. */
 export const PEOPLE_GROUP_WORDS: Record<SequencePeopleGroup, string> = {
-  waiting: "Wait for your OK",
+  waiting: "Waits for your OK",
   held: "Held by the check",
   to_send: "For you to send",
   replied: "Wrote back",
   next: "Up next",
+  /** Leads added that nothing has been planned for yet (00459): every lead of a draft. */
+  queued: "Added",
   in: "In it",
   done: "Done",
   left: "Left",

@@ -434,6 +434,8 @@ export const EVENT_KINDS = [
   /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
   "lead.search_renamed",
   "lead.search_removed",
+  /** A sequence to leads set to add a search's new ready leads, or not ({ search_id, by }), on its first step (00459). */
+  "reach_out.source_set",
   /** Two records a doubt named, said to be two people ({ by }), on the person. */
   "contact.kept_apart",
   /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */

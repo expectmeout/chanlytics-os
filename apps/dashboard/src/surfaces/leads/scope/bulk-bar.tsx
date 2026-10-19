@@ -1,11 +1,13 @@
 /**
- * The bulk bar (moved from legacy/pages/leads-scope.jsx, decision 0015): what a selection of leads can become (§6.4, S13) --
- * their emails on the clipboard, all contacted, all not a fit, a file. Each acts on the rows shown AND selected; the
- * header box's "Select all N that match" hands the view's filters to the server instead of a list of ids, so a view of
- * 1,240 does not become 1,240 ids in a request.
+ * The bulk bar (moved from legacy/pages/leads-scope.jsx, decision 0015; the lead-to-sequence canvas's DeskBulk, 18 Oct
+ * 2026): what a selection of leads can become -- added to a sequence (the search's pick, or any the picker lists, or a new
+ * one: bulk-add.tsx), put off for later, not a fit, and, under More, their emails on the clipboard or a file. It says how
+ * many have no email, which an add leaves selected with why. Each acts on the rows shown AND selected; the header box's
+ * "Select all N that match" hands the view's filters to the server instead of a list of ids, so a view of 1,240 does not
+ * become 1,240 ids in a request (Not a fit alone takes that; an add is of the leads shown).
  */
-import type { ReactNode } from "react";
 import {
+  LEAD_SHEET_WORDS,
   LEAD_WORDS,
   leadCheckAgainCents,
   type LeadNotAFitWhy,
@@ -15,12 +17,16 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { Menu } from "../../kit/menu/menu";
 import { gate, leaving } from "../../legacy-verbs";
 import { Sheet } from "../../kit/sheet/sheet";
 import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import { dockAct } from "../../people/bulk/phone-bulk";
 import type { ReviewDoors } from "../bench/types";
 import { LeadNotFitWhy } from "../peek/asks";
+import { BulkAddDesk, BulkChoose, type BulkAdd } from "./bulk-add";
+
+const B = LEAD_SHEET_WORDS.bulk;
 
 type BulkAction = LeadsBulkInput["action"];
 type BulkView = Extract<LeadsBulkInput, { by: "view" }>["view"];
@@ -38,7 +44,6 @@ interface BulkBarProps {
   onSelectAllMatching: () => void;
   allMatching: boolean;
   onCopyEmails: (picked: LeadRowVM[]) => void;
-  onContacted: (body: LeadsBulkInput) => unknown;
   onNotAFit: (why: LeadNotAFitWhy, body: LeadsBulkInput) => unknown;
   whyOpen: boolean;
   onWhyOpen: (open: boolean) => void;
@@ -48,7 +53,10 @@ interface BulkBarProps {
   phone?: boolean;
   sheet?: string | null;
   onSheet?: (step: string | null) => void;
-  write: ReactNode;
+  /** Add and Later for the leads chosen and shown (bulk-add.tsx); none while the selection is all that match. */
+  add: BulkAdd | null;
+  /** The search they are seen in: Later is its own; New is named for it. */
+  search: { id: string; name: string } | null;
 }
 
 /** What the bar says and acts on: the rows picked and shown, how many, and what a selection of Needs review resolves to. */
@@ -68,7 +76,88 @@ function bulkFacts(p: BulkBarProps) {
     p.allMatching
       ? { by: "view", action: action as "contacted" | "not_a_fit", view: p.view }
       : { by: "ids", action, ids };
-  return { picked, ids, count, hidden, acts, scope };
+  // Those no email can go to: an add leaves them selected, saying why; the bar says how many first.
+  const noEmail = picked.filter((l) => !l.email).length;
+  return { picked, ids, count, hidden, acts, scope, noEmail };
+}
+
+/** More, on a desk: the emails on the clipboard, and the selection's view as a file. */
+function moreMenu(p: BulkBarProps, picked: LeadRowVM[]) {
+  return (
+    <Menu
+      align="end"
+      label={B.more}
+      trigger={
+        <Button size="sm" variant="quiet" disabled={p.busy} data-testid="leads-bulk-more">
+          <Icon name="more" size={13} /> {B.more}
+        </Button>
+      }
+      groups={[
+        {
+          items: [
+            { label: "Copy emails", glyph: <Icon name="copy" size={13} />, onSelect: () => p.onCopyEmails(picked) },
+            p.canExport
+              ? {
+                  label: "Export",
+                  meta: "CSV",
+                  glyph: <Icon name="external" size={13} />,
+                  onSelect: () => p.onExport(),
+                }
+              : {
+                  label: "Export",
+                  meta: "CSV",
+                  glyph: <Icon name="external" size={13} />,
+                  gate: gate("export", "export these leads"),
+                  onSelect: () => undefined,
+                },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
+/** What resolves a Needs review selection, as a phone's sheet rows: Check again where its courier exists, Keep, Exclude. */
+function phoneReviewRows(p: BulkBarProps, f: ReturnType<typeof bulkFacts>, shut: (fn: () => unknown) => () => void) {
+  const { busy, canFind } = p;
+  const { ids, acts } = f;
+  const review = p.review as ReviewDoors;
+  const gateWork = canFind ? null : gate("find", "work these leads");
+  return (
+    <>
+      {acts.includes("check_again") && review.canCheckAgain ? (
+        <PhoneSheetRow
+          icon="refresh"
+          label={`Check ${ids.length} again`}
+          meta={`about ${leadCheckAgainCents(ids.length)}¢`}
+          disabled={busy}
+          onClick={shut(() => review.onCheckAgain(ids))}
+          testid="leads-bulk-check-again"
+          gate={gateWork}
+        />
+      ) : null}
+      {acts.includes("keep") ? (
+        <PhoneSheetRow
+          icon="check"
+          label={`Keep ${ids.length}`}
+          disabled={busy}
+          onClick={shut(() => review.onKeep(ids))}
+          testid="leads-bulk-keep"
+          gate={gateWork}
+        />
+      ) : null}
+      {acts.includes("exclude") ? (
+        <PhoneSheetRow
+          icon="x"
+          label={`Exclude ${ids.length}`}
+          disabled={busy}
+          onClick={shut(() => review.onExclude(ids))}
+          testid="leads-bulk-exclude"
+          gate={gateWork}
+        />
+      ) : null}
+    </>
+  );
 }
 
 /** A phone's sheet of the rest: everything the docked row does not hold, and Not a fit's whys as its next step. */
@@ -85,28 +174,31 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
     sheet = null,
     onSheet = () => undefined,
   } = p;
-  const { picked, ids, count, acts, scope } = f;
-  const review = p.review as ReviewDoors;
-  const gateWork = canFind ? {} : gate("find", "work these leads");
+  const { picked, count, scope } = f;
   const W = LEAD_WORDS;
   const shut = (fn: () => unknown) => () => {
     onSheet(null);
     fn();
   };
-  // One sheet, its two steps: the acts, and Not a fit's whys with the way back to them. It stays drawn as it leaves.
+  // One sheet, its steps: the acts, Not a fit's whys, and Add's picker (or New) for them all. It stays drawn as it leaves.
   const why = sheet === "why";
+  const adding = sheet === "add" && !!p.add;
   return (
     <Sheet
       backCloses
-      open={sheet === "more" || why}
+      open={sheet === "more" || why || adding}
       shape="job"
-      title={why ? W.notFitTitle || "Not a fit" : `${count.toLocaleString()} selected`}
+      title={why ? W.notFitTitle || "Not a fit" : adding ? "" : `${count.toLocaleString()} selected`}
       close={JOB_CANCEL}
       back={null}
       onClose={() => onSheet(null)}
-      testid={why ? "leads-bulk-why" : "leads-bulk-sheet"}
+      testid={why ? "leads-bulk-why" : adding ? "leads-bulk-add-sheet" : "leads-bulk-sheet"}
     >
-      {why ? (
+      {adding && p.add ? (
+        <div className="lw" data-testid="leads-bulk-picker">
+          <BulkChoose b={p.add} search={p.search} onClose={() => onSheet(null)} />
+        </div>
+      ) : why ? (
         <LeadNotFitWhy
           rows
           busy={busy}
@@ -128,35 +220,15 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
               testid="leads-select-matching"
             />
           ) : null}
-          {acts.includes("check_again") && review.canCheckAgain ? (
+          {phoneReviewRows(p, f, shut)}
+          {p.add && p.search ? (
             <PhoneSheetRow
-              icon="refresh"
-              label={`Check ${ids.length} again`}
-              meta={`about ${leadCheckAgainCents(ids.length)}¢`}
-              disabled={busy}
-              onClick={shut(() => review.onCheckAgain(ids))}
-              testid="leads-bulk-check-again"
-              gate={canFind ? null : gateWork}
-            />
-          ) : null}
-          {acts.includes("keep") ? (
-            <PhoneSheetRow
-              icon="check"
-              label={`Keep ${ids.length}`}
-              disabled={busy}
-              onClick={shut(() => review.onKeep(ids))}
-              testid="leads-bulk-keep"
-              gate={canFind ? null : gateWork}
-            />
-          ) : null}
-          {acts.includes("exclude") ? (
-            <PhoneSheetRow
-              icon="x"
-              label={`Exclude ${ids.length}`}
-              disabled={busy}
-              onClick={shut(() => review.onExclude(ids))}
-              testid="leads-bulk-exclude"
-              gate={canFind ? null : gateWork}
+              icon="clock"
+              label={B.later}
+              disabled={busy || p.add.busy}
+              onClick={shut(() => void p.add?.later())}
+              testid="leads-bulk-later"
+              gate={canFind ? null : gate("approve", "put these leads off")}
             />
           ) : null}
           <PhoneSheetRow
@@ -166,7 +238,6 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             onClick={shut(() => p.onCopyEmails(picked))}
             testid="leads-bulk-copy"
           />
-          {p.write}
           {canExport ? (
             <PhoneSheetRow
               icon="external"
@@ -186,6 +257,11 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
               testid="leads-bulk-export"
             />
           )}
+          {f.noEmail > 0 ? (
+            <p className="pp-sheet-hint pp-sheet-rows-note" data-testid="leads-bulk-no-email">
+              {B.noEmail(f.noEmail)}
+            </p>
+          ) : null}
           {f.hidden > 0 ? (
             <p className="pp-sheet-hint pp-sheet-rows-note" data-testid="leads-bulk-hidden">
               {f.hidden.toLocaleString()} more selected are not shown, and these leave them out.
@@ -200,15 +276,16 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
 
 /**
  * On a phone (spec 4.5): People's dock (people/bulk/phone-bulk.tsx), the tab bar's twin -- four equal slots, each a glyph
- * over a word: Clear, Contacted, Not a fit and More (Ruben, 10 Oct 2026: parity with People's); how many are selected is
- * the top bar's -- and a sheet with the rest. Not a fit asks its five whys as a sheet: the peek's own
+ * over a word: Clear, Not a fit, Add (the picker for them all, a step of the sheet) and More (Ruben, 10 Oct 2026: parity
+ * with People's; Contacted went with the stage's own menu, 18 Oct 2026); how many are selected is the top bar's -- and a
+ * sheet with the rest. Not a fit asks its five whys as a sheet: the peek's own
  * list (LeadNotFitWhy) wears .pl-peek, which a phone draws full screen (leads.css), so from this bar it covered the page.
  * The whys are the peek's words, from their one list (LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard
  * listener shuts the sheet on Esc. Select on, with nobody picked yet, the acts stand and wait.
  */
 function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
-  const { busy, canFind, onClear, onContacted, onSheet = () => undefined } = p;
-  const { count, scope } = f;
+  const { busy, canFind, onClear, onSheet = () => undefined } = p;
+  const { count } = f;
   const off = busy || count === 0;
   return (
     <>
@@ -230,21 +307,20 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             sheet: false,
           })}
           {dockAct({
-            icon: "check",
-            word: "Contacted",
-            onPress: () => void onContacted(scope("contacted")),
-            disabled: off,
-            testid: "leads-bulk-contacted",
-            sheet: false,
-            gate: canFind ? null : gate("find", "mark these leads contacted"),
-          })}
-          {dockAct({
             icon: "ban",
             word: "Not a fit",
             onPress: () => onSheet("why"),
             disabled: off,
             testid: "leads-bulk-not-a-fit",
             gate: canFind ? null : gate("find", "mark these leads not a fit"),
+          })}
+          {dockAct({
+            icon: "plus",
+            word: "Add",
+            onPress: () => onSheet("add"),
+            disabled: off || !p.add,
+            testid: "leads-bulk-add",
+            gate: gate("approve", "add these leads to a sequence"),
           })}
           {dockAct({
             icon: "menu",
@@ -260,16 +336,28 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
   );
 }
 
-/** A desk's bar: the count, what resolves a Needs review selection, and every act in one row. */
+/**
+ * A desk's bar (the canvas's DeskBulk): Clear, the count and how many have no email, what resolves a Needs review
+ * selection, then Not a fit, Later and Add with ▴ for the picker, and More.
+ */
 function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
-  const { busy, canFind, canExport, allMatching, total, rows, whyNot, onExport, whyOpen, onWhyOpen, view } = p;
-  const { picked, ids, count, hidden, acts } = f;
+  const { busy, canFind, allMatching, total, rows, whyNot, whyOpen, onWhyOpen, view } = p;
+  const { picked, ids, count, hidden, acts, noEmail } = f;
   const review = p.review as ReviewDoors;
   const gateWork = canFind ? {} : gate("find", "work these leads");
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
+      <Button size="sm" variant="quiet" iconOnly onClick={p.onClear} aria-label="Clear" data-testid="leads-bulk-clear">
+        <Icon name="x" size={12} />
+      </Button>
       <span className="cl-bulk-count">
         <b>{count}</b> selected
+        {noEmail > 0 ? (
+          <span className="ld-bulk-warn" data-testid="leads-bulk-no-email">
+            {" "}
+            {B.noEmail(noEmail)}
+          </span>
+        ) : null}
         {hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}
       </span>
       {!allMatching && total > rows.length && (
@@ -319,30 +407,6 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           Exclude {ids.length}
         </button>
       ) : null}
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={busy}
-        onClick={() => p.onCopyEmails(picked)}
-        data-testid="leads-bulk-copy"
-      >
-        <Icon name="copy" size={12} /> Copy emails
-      </button>
-      {p.write}
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={busy}
-        onClick={() =>
-          p.onContacted(
-            allMatching ? { by: "view", action: "contacted", view } : { by: "ids", action: "contacted", ids },
-          )
-        }
-        data-testid="leads-bulk-contacted"
-        {...(canFind ? {} : gate("find", "mark these leads contacted"))}
-      >
-        <Icon name="check" size={12} /> Mark contacted
-      </button>
       {/* The same five whys the peek asks, asked once for the whole selection: LeadNotFitWhy is the peek's own list, so the
           words are spelled in one place (Task 15 step 4). */}
       <span className="ld-bulk-nf">
@@ -372,30 +436,20 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           />
         ) : null}
       </span>
-      {canExport ? (
+      {p.add && p.search ? (
         <Button
           size="sm"
-          disabled={busy}
-          onClick={() => onExport()}
-          title="Download these leads as a CSV file"
-          data-testid="leads-bulk-export"
+          disabled={busy || p.add.busy}
+          onClick={() => void p.add?.later()}
+          data-testid="leads-bulk-later"
+          {...gate("approve", "put these leads off")}
         >
-          <Icon name="external" size={12} /> Export
+          <Icon name="clock" size={12} /> {B.later}
         </Button>
-      ) : (
-        <button
-          type="button"
-          className="btn btn-sm"
-          {...gate("export", "export these leads")}
-          data-testid="leads-bulk-export"
-        >
-          <Icon name="external" size={12} /> Export
-        </button>
-      )}
+      ) : null}
+      {p.add ? <BulkAddDesk b={p.add} search={p.search} /> : null}
+      {moreMenu(p, picked)}
       {whyNot && <span className="cl-prof-aut-hint">{whyNot}</span>}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={p.onClear} data-testid="leads-bulk-clear">
-        <Icon name="x" size={11} /> Clear
-      </button>
     </div>
   );
 }

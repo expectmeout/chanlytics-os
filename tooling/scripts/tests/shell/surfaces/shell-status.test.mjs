@@ -914,8 +914,8 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
     assert.equal(list.crumbs.at(-1), "Regulars");
     assert.equal(
       at("#/broadcasts/run:b-older").crumbs.at(-1),
-      "Broadcast",
-      "a run past the newest fifty is still named for what it is",
+      "Run",
+      "a run past the newest fifty is still named for what it is, before its own read names it",
     );
     assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
   } finally {

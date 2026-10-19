@@ -1,8 +1,7 @@
 /**
  * What a workspace calls an appointment (J1; decisions 40 to 42 of the spec of 9 Oct 2026, and 0041 J4): appointment,
- * visit, meeting, session or lesson. Stored now (`tenants.appointment_word`, 00458), picked on Settings › Details:
- * `appointmentWordOf` reads what the workspace picked and, where it never did, the word the retired `tenants.sells_by`
- * gave it (a meeting where some customers got a proposal first, 0008), until that column goes. Words only: it changes no
+ * visit, meeting, session or lesson. Stored (`tenants.appointment_word`, 00458), picked on Settings › Details:
+ * `appointmentWordOf` reads what the workspace picked, and an appointment where it never did. Words only: it changes no
  * moment, run, list or send, and the code keeps `visit` in its ids (`visit_tomorrow`, `visited`, the `visit` kind). Every
  * phrase the word makes is written once here (`appointmentWords`), so a page is handed the word and says nothing of its
  * own.
@@ -23,14 +22,11 @@ export function isAppointmentWord(value: unknown): value is AppointmentWord {
 }
 
 /**
- * What the workspace calls an appointment: the word it picked, else the word its retired answer to how its customers
- * buy gave it (a meeting where some got a proposal first, which 00458 stored for each of them), else an appointment.
- * The one derivation: the server reads it once for a workspace and hands the pages the word (0041: one page, one word).
+ * What the workspace calls an appointment: the word it picked, else an appointment. The one derivation: the server
+ * reads it once for a workspace and hands the pages the word (0041: one page, one word).
  */
-export function appointmentWordOf(o: { stored: string | null; sellsBy: string | null }): AppointmentWord {
-  if (isAppointmentWord(o.stored)) return o.stored;
-  // The retired column's one remaining reading, for a database 00458 has not reached: it goes with the column.
-  return o.sellsBy === "proposal" ? "meeting" : "appointment";
+export function appointmentWordOf(stored: string | null): AppointmentWord {
+  return isAppointmentWord(stored) ? stored : "appointment";
 }
 
 /** What Settings › Details asks of the word (0041 J4; 0008, amended 18 Oct 2026). */

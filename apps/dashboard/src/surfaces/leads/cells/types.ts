@@ -5,7 +5,6 @@
 import type { PersonRowVM } from "@chanlytics/contracts";
 import type { MenuHandle } from "../../kit/menu/menu";
 import type { TableCtx } from "../../people/types";
-import type { ReachOutLines } from "../reach-out/lines";
 
 /** The cell context of the Leads scope (the page's `cellCtxLeads`): doors to the page's latest acts, and what a cell reads. */
 export interface LeadCellCtx extends TableCtx {
@@ -24,8 +23,6 @@ export interface LeadCellCtx extends TableCtx {
   peopleRows: readonly PersonRowVM[];
   /** Whether the Stage column is drawn: then the name's tag gives way where the column says the same. */
   stageShown: boolean;
-  /** The open search's reach-out lines (Reach out Part 6, H8), or null. */
-  reachOut: ReachOutLines | null;
   onCall: (id: string) => void;
   onCopy: (id: string) => void;
   onCopyPhone: (id: string) => void;

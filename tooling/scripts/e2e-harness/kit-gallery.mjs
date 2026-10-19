@@ -330,6 +330,47 @@ const recSheetFrame = (leaving = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${going(leaving)}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"${going(leaving)}>` +
   `${SHEET_PARTS}</section>`;
+/** A sheet whose title is a kicker, its tools under it, and a foot of a page's own pair of acts under a line. */
+const kickerToolsSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" aria-modal="true" aria-label="Add people" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Add people</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-tools">${kitBox("Find a person", "")}</div>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair=""><span>3 people picked</span><span aria-live="polite"></span>` +
+  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-primary">Add 3</button></div></footer></section>`;
+/** A sheet whose foot holds a page's line over the kit's own Save and Cancel (RecordSheet's `foot` beside its save). */
+const footLineSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Services</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><span>The receptionist reads them from the next call.</span><div class="rec-foot">` +
+  `<button type="button" class="btn btn-sm btn-primary">Save</button>` +
+  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button></div></footer></section>`;
+/** A desk's MoreMenu open inside a sheet (the Hours sheet's times): on the pop's solid, its wash past the sheet's edges. */
+const menuInSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Hours" tabindex="-1">` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Hours</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div class="more-wrap">` +
+  `<button type="button" class="rec-input rec-select" aria-haspopup="menu" aria-expanded="true">5 PM ${icon("chevron-down", 10)}</button>` +
+  `<div class="more-backdrop" role="presentation"></div>` +
+  `<div class="more-menu align-left" role="menu">` +
+  ["4:30 PM", "5 PM", "5:30 PM"]
+    .map(
+      (label) =>
+        `<button class="more-item" role="menuitemradio" aria-checked="${label === "5 PM"}">${icon("check", 13)}` +
+        `<span class="more-item-label">${label}</span></button>`,
+    )
+    .join("") +
+  `</div></div></div></section>`;
 /**
  * A phone's small job in the kit's sheet: a field, its one wide button, and a question it asks (Delete the list). Until
  * 5 Oct 2026 People's PhoneSheet drew it, and a twin held the two equal, frame, head and body, before PhoneSheet went.
@@ -356,7 +397,7 @@ const SHEET_TOAST =
   `<div class="pp-toast-stack"><div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
   `<span class="pp-toast-msg"><b>Follow-up visit</b> is 45 minutes now</span>` +
   `<button type="button" class="pp-toast-cta">Undo</button>` +
-  `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div></div>`;
+  `</div></div>`;
 /* ---- the kit's components on Base UI, as they draw themselves (step 2.5; kit-behaves.tsx draws the same) ---- */
 
 /** Where a popup stands in its stage: Base UI places its positioner against the window with a style of its own. */
@@ -485,10 +526,6 @@ const kitMenu = () =>
   kitItem("copy", "Copy number") +
   kitItem("calendar", "Send booking link", { after: `<span class="more-item-meta">By text</span>` }) +
   kitItem("pause", "Pause the receptionist", { after: `<span class="more-item-hint">until 10:00</span>` }) +
-  kitItem("user", "Operator", {
-    tone: " more-item-two",
-    after: `<span class="more-item-meta">Answers and approves conversations, tunes autonomy</span>`,
-  }) +
   `</div>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
@@ -561,11 +598,15 @@ const kitMenuSet = () =>
     .join("") +
   `</div></div></div>`;
 
-/** The kit's Popover, open under its control: Base UI's dialog on the panel's pop. */
-const kitPopover = () =>
-  `<button type="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" class="btn btn-sm">Hours</button>` +
-  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
-  `<div class="panel panel-pop panel-sm" role="dialog" tabindex="-1" aria-label="Hours">` +
+/**
+ * The kit's Popover, open under its control: Base UI's dialog on the panel's pop, on the positioner that writes where it
+ * grows from (`--transform-origin`). `leaving`: on its way out (Base UI's `data-ending-style`), faded and a few
+ * percent small, which a still page draws as nothing over its control.
+ */
+const kitPopover = (leaving = false) =>
+  `<button type="button" tabindex="0" aria-haspopup="dialog" aria-expanded="${!leaving}" class="btn btn-sm">Hours</button>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px; --transform-origin: 0% -8px;")}>` +
+  `<div class="panel panel-pop panel-sm" role="dialog" tabindex="-1" aria-label="Hours"${leaving ? ' data-ending-style=""' : ""}>` +
   `<p class="gx-pop-words">Open today until six.</p>` +
   `<button type="button" class="btn btn-sm">Change the hours</button></div></div>`;
 
@@ -593,7 +634,7 @@ const kitDatePicker = () => {
     `</div>`;
   return (
     `<button type="button" tabindex="0" aria-haspopup="dialog" aria-expanded="true" class="btn btn-sm">Go to a date</button>` +
-    `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+    `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px; --transform-origin: 0% -8px;")}>` +
     `<div class="panel panel-pop panel-sm date-pick" role="dialog" tabindex="-1" aria-label="Go to a date">` +
     `<div class="date-pick-head"><span class="date-pick-title" aria-live="polite">October 2026</span>` +
     `<span class="date-pick-nav">` +
@@ -731,8 +772,9 @@ const kitSelect = () =>
   `<button type="button" tabindex="0" role="combobox" aria-expanded="true" aria-haspopup="listbox" ` +
   `class="rec-input rec-select" data-popup-open=""><span>Consultation</span><span aria-hidden="true">${icon("chevron-down", 12)}</span>` +
   `</button><span class="rec-hint">What the proposal is for.</span></div>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" ${placed("top: 88px; left: 16px; --anchor-width: 240px;")}>` +
-  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1">` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1" data-sheet="">` +
   `<div class="rec-combo-list" role="listbox">` +
   kitOption("Consultation", "45m", { chosen: true, walked: true, focus: 0 }) +
   kitOption("Follow-up visit", "30m", { focus: -1 }) +
@@ -781,8 +823,9 @@ const kitPicker = () =>
   `aria-haspopup="listbox" aria-label="The hour it runs: 10:00" class="token" data-popup-open="" data-pressed="">` +
   `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret" data-popup-open="">` +
   `${icon("chevron-down", 11)}</span></button></span>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
   `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
-  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1" data-open="">` +
+  `<div class="panel panel-pop panel-flush rec-combo-pop" role="presentation" tabindex="-1" data-open="" data-sheet="">` +
   `<div role="listbox" class="rec-combo-list">` +
   pickGroup("Morning", [
     pickOption("09:00"),
@@ -801,9 +844,10 @@ const kitPickerFind = () =>
   `aria-haspopup="dialog" aria-label="The moment it runs on: Win-back" class="token" data-popup-open="" ` +
   `data-pressed=""><span class="token-face">Win-back</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button></span>` +
-  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px; --transform-origin: 0% -6px;")}>` +
   `<div class="panel panel-pop panel-flush rec-combo-pop" role="dialog" aria-label="The moment it runs on" ` +
-  `tabindex="-1" data-open=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
+  `tabindex="-1" data-open="" data-sheet=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
   `${icon("search", 12)}</span><input class="rec-combo-input" role="combobox" aria-expanded="true" ` +
   `aria-haspopup="listbox" aria-autocomplete="list" autocomplete="off" spellcheck="false" ` +
   `placeholder="Find a moment" aria-label="The moment it runs on" value=""></span>` +
@@ -833,9 +877,10 @@ const kitPickerNone = () =>
   `aria-haspopup="dialog" aria-label="The moment it runs on: Win-back" class="token" data-popup-open="" ` +
   `data-pressed=""><span class="token-face">Win-back</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button></span>` +
-  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px;")}>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" data-open="" ${placed("top: 60px; left: 16px; --transform-origin: 0% -6px;")}>` +
   `<div class="panel panel-pop panel-flush rec-combo-pop" role="dialog" aria-label="The moment it runs on" ` +
-  `tabindex="-1" data-open=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
+  `tabindex="-1" data-open="" data-sheet=""><span class="rec-combo-field"><span class="rec-combo-glass" aria-hidden="true">` +
   `${icon("search", 12)}</span><input class="rec-combo-input" role="combobox" aria-expanded="true" ` +
   `aria-haspopup="listbox" aria-autocomplete="list" autocomplete="off" spellcheck="false" ` +
   `placeholder="Find a moment" aria-label="The moment it runs on" value="Birthday"></span>` +
@@ -856,14 +901,12 @@ const kitPickerInline = () =>
   `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button>, up to 25 people a run.</span>`;
 
-/** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
+/** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo (no ×). */
 const kitToast = () =>
   `<div class="pp-toast-stack" role="region" tabindex="-1" aria-live="polite" aria-label="Notifications">` +
   `<div class="pp-toast pp-toast-ok" data-tone="ok" role="dialog" tabindex="0" aria-modal="false">${icon("check", 13)}` +
   `<span class="pp-toast-msg">Saved for every line.</span>` +
-  `<button type="button" tabindex="0" class="pp-toast-cta">Undo</button>` +
-  `<button type="button" tabindex="0" aria-hidden="true" aria-label="Dismiss" class="pp-toast-x">${icon("x", 11)}` +
-  `</button></div></div>`;
+  `<button type="button" tabindex="0" class="pp-toast-cta">Undo</button></div></div>`;
 
 /** A switch of the kit's (Base UI's Switch): on or off, read-only or not. */
 const kitSwitch = (on, label, readOnly = false) =>
@@ -875,11 +918,12 @@ const kitSwitches = () =>
   kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
 
 /** One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after. */
-const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh } = {}) =>
+const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
   `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
-  `${fresh ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
+  `${need ? `<span class="subtab-dot is-warn" role="img" aria-label="${need}"></span>` : ""}` +
+  `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
 
 /** A strip of the kit's sub-tabs: Base UI's tablist, its tabs, and the indicator that is the bar under the picked one. */
 const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", direction = "none" } = {}) =>
@@ -994,7 +1038,7 @@ export const FAMILIES = [
         id: "btn-plain",
         html:
           `<button type="button" class="btn btn-sm btn-plain">Select</button>` +
-          `<button type="button" class="btn btn-sm btn-plain" aria-haspopup="menu" aria-expanded="true">Sort</button>` +
+          `<button type="button" class="btn btn-sm btn-plain" aria-haspopup="menu" aria-expanded="true" data-popup-open="">Sort</button>` +
           `<button type="button" class="btn btn-sm btn-plain">Export</button>`,
       },
       { id: "btn-danger", html: `<button type="button" class="btn btn-danger">${icon("x", 13)}Yes, delete</button>` },
@@ -1050,7 +1094,7 @@ export const FAMILIES = [
         id: "btn-disabled",
         html:
           `<button type="button" class="btn" disabled>Export</button> ` +
-          `<button type="button" class="btn btn-primary" disabled>Save</button> ` +
+          `<button type="button" class="btn btn-primary" disabled>${icon("check", 13)}Save</button> ` +
           `<button type="button" class="btn btn-ghost" disabled>Cancel</button> ` +
           `<button type="button" class="btn btn-sm btn-danger" disabled>Yes, delete</button>`,
       },
@@ -1308,6 +1352,18 @@ export const FAMILIES = [
           `<button class="more-item" role="menuitem">${icon("copy", 13)}<span class="more-item-label">Drawn unseen until it is placed</span></button>` +
           `</div></div>`,
       },
+      {
+        id: "more-menu-sheet",
+        stage: "pop",
+        width: "phone",
+        html:
+          `<div class="more-wrap"><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-haspopup="menu" aria-expanded="true" aria-label="More">${icon("more", 14)}</button>` +
+          `<div class="more-backdrop" role="presentation" data-sheet=""></div>` +
+          `<div class="more-menu align-right" role="menu" data-sheet="">` +
+          `<button class="more-item" role="menuitem">${icon("edit", 13)}<span class="more-item-label">Rename the list</span></button>` +
+          `<button class="more-item" role="menuitem">${icon("copy", 13)}<span class="more-item-label">Copy the week</span></button>` +
+          `</div></div>`,
+      },
       // A phone's menu (data-sheet, held in its entry here rather than at the screen's foot): a choice with what it does
       // under its words, as a sentence beside them goes under on a phone (the fitted sheets, 14 Oct 2026).
       {
@@ -1405,7 +1461,7 @@ export const FAMILIES = [
     family: "Toast",
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
-      "each with its ×. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
+      "none with a ×: a press besides a toast takes it. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
       "a phone (record.css and kit.css, :root:has(.rec-sheet) and :root:has(.sheet)). Its place with none open is " +
       "drawn by the style-equality recorder's toast scene, not here.",
     entries: [
@@ -1417,17 +1473,17 @@ export const FAMILIES = [
           `<div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
           `<span class="pp-toast-msg"><b>Sam Ortega</b> is off Regulars</span>` +
           `<button type="button" class="pp-toast-cta">Undo</button>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-info" data-tone="info" role="status">${icon("info", 13)}` +
           `<span class="pp-toast-msg">Saved. <a class="pp-toast-link" href="#kit">See it on Today</a></span>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-warn" data-tone="warn" role="status">${icon("alert", 13)}` +
           `<span class="pp-toast-msg">Sent to 11 of 12: one has no number.</span>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-danger" data-tone="danger" role="status">${icon("alert", 13)}` +
           `<span class="pp-toast-msg"><b>Not stopped</b> — That didn't go through.</span>` +
           `<button type="button" class="pp-toast-cta">Try again</button>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `</div>`,
       },
     ],
@@ -1559,6 +1615,18 @@ export const FAMILIES = [
             kitSubtab("Visits", { count: 2 }),
           ],
           { width: "70px" },
+        ),
+      },
+      {
+        id: "subtabs-need",
+        html: kitSubtabs(
+          "Bookstore intro",
+          [
+            kitSubtab("Steps", { on: true }),
+            kitSubtab("Leads", { count: 13, need: "Something needs you" }),
+            kitSubtab("History"),
+          ],
+          { width: "58px" },
         ),
       },
       {
@@ -1965,6 +2033,16 @@ export const FAMILIES = [
           `<button type="button" class="btn btn-sm btn-ghost copy-btn" aria-live="polite" data-copied="true">` +
           `${icon("check", 12)} Copied</button>`,
       },
+      {
+        id: "copy-in-menu",
+        stage: "pop",
+        html:
+          `<div class="more-menu align-left" role="menu" style="position: static;">` +
+          `<button type="button" role="menuitem" tabindex="-1" class="more-item" data-copied="true">${icon("copy", 13)}` +
+          `<span class="more-item-label" aria-live="polite">${icon("check", 12)} Copied</span></button>` +
+          `<button type="button" role="menuitem" tabindex="-1" class="more-item">${icon("phone", 13)}` +
+          `<span class="more-item-label">Call from your phone</span></button></div>`,
+      },
     ],
   },
   {
@@ -2075,7 +2153,10 @@ export const FAMILIES = [
       },
       {
         id: "link-btn-inherit",
-        html: `<a class="link-btn link-btn-inherit" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>`,
+        html:
+          `<div class="list-row list-row-bare"><div class="list-row-name">` +
+          `<a class="link-btn link-btn-inherit" href="#kit">Win-back, for everyone quiet for 30 days with nothing booked</a>` +
+          `</div><div class="list-row-facts"><span>On</span><span>12 people</span></div></div>`,
       },
     ],
   },
@@ -2240,6 +2321,9 @@ export const FAMILIES = [
       { id: "sheet-phone-leaving", stage: "sheet", width: "phone", html: sheet({ leaving: true }) },
       { id: "sheet-job", stage: "sheet", width: "phone", html: jobSheet() },
       { id: "sheet-job-leaving", stage: "sheet", width: "phone", html: jobSheet(true) },
+      { id: "sheet-kicker-tools", stage: "sheet", html: kickerToolsSheet() },
+      { id: "sheet-foot-line", stage: "sheet", html: footLineSheet() },
+      { id: "sheet-menu", stage: "sheet", width: "desk", html: menuInSheet() },
     ],
   },
   /* ---- the kit's components with behaviour of their own, on Base UI (step 2.5) ----
@@ -2281,6 +2365,14 @@ export const FAMILIES = [
     family: "Popover, on Base UI",
     about: "The kit's Popover (surfaces/kit/popover/popover.tsx), open: Base UI's popover on the panel's pop.",
     entries: [{ id: "popover-kit", stage: "pop", html: kitPopover() }],
+  },
+  {
+    family: "Popover, as it leaves",
+    about:
+      "The kit's Popover and DatePicker on their way out (kit.css, how they come and go): Base UI marks the popup " +
+      "data-ending-style as it closes, and it fades and draws a few percent small toward its control " +
+      "(--transform-origin), so a still page draws only the control it leaves.",
+    entries: [{ id: "popover-kit-leaving", stage: "pop", html: kitPopover(true) }],
   },
   {
     family: "Date picker, on Base UI",

@@ -84,12 +84,9 @@ export function parseHome(param: string | null): HomeAddress {
 /** The route a composer is spelled as: the shell's, `campaigns/new…`. */
 function composerRoute(c: NonNullable<HomeAddress["compose"]>): string {
   if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
-  if (c.mode === "change") return chainChangeRoute(c.root);
+  if (c.mode === "change") return `${HOME_ROUTE}/new:edit:${c.root}`;
   return `${HOME_ROUTE}/new:leads`;
 }
-
-/** A reach-out's change, in its own sheet over Sequences: a sequence to leads' step's Edit opens it. */
-export const chainChangeRoute = (root: string): string => `${HOME_ROUTE}/new:edit:${root}`;
 
 /** The composer on a mode: Send once (on an audience a send is for), or Write to leads. */
 export const composeRoute = (mode: "once" | "leads", on: { to?: string | null } = {}): string =>

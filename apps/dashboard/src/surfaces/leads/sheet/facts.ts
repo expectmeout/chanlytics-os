@@ -1,59 +1,50 @@
 /**
- * What the lead sheet draws, worked out once a draw from what the page hands it (sheet.tsx): the lead's card (its
- * reason and email, pile/card.tsx), its state and what stopped, the line under its name, its checks and ways-in lines
- * and Why's checks (lead-sheet-card.ts), its steps in a sequence
- * and its place there, the word beside its name, the sequence box, the dock, what it wrote back, where it stands, and
- * Change's options. Every rule is contracts' (lead-sheet.ts, lead-sheet-dock.ts, lead-card.ts); this only gathers their
- * inputs from the page's reads.
+ * What the lead sheet draws, worked out once a draw from what the page and its reads hand it (sheet.tsx): the quick look
+ * (the verdict, the reason, the checks line, the email line), the head's word, the dock, and the Sequence section's rail:
+ * their place in the sequence they are in (the one reader, 00459 sequence_place), or before one, the pick's steps as they
+ * would get them. Every rule is contracts' (lead-sheet.ts, lead-sheet-dock.ts, lead-sheet-card.ts, sequence-place.ts,
+ * lead-card.ts); this only gathers their inputs from the reads.
  */
 import {
-  leadSheetBoxOf,
+  leadCardStepsOf,
+  leadDockOf,
   leadSheetChecksLineOf,
   leadSheetClosedOf,
-  leadSheetContactLineOf,
-  leadSheetDockOf,
-  leadSheetEndRailOf,
-  leadSheetOptionsOf,
-  leadSheetPlaceOf,
-  leadSheetReplyOf,
-  leadSheetStandOf,
+  leadSheetEmailLineOf,
   leadSheetStateOf,
-  leadSheetStoryOf,
   leadSheetSubOf,
-  leadSheetTrackOf,
   leadSheetWhyOf,
   leadSheetWordOf,
+  leadVerdictOf,
+  placeRailOf,
+  placeStands,
   type LeadCardCheck,
-  type LeadCardPart,
+  type LeadCardStepVM,
   type LeadPeekVM,
   type LeadRowVM,
   type LeadSheetChecksLineVM,
   type LeadSheetClosedVM,
-  type LeadSheetContactLineVM,
-  type LeadSheetLead,
-  type LeadPlaceVM,
-  type LeadSheetBoxVM,
   type LeadSheetDockVM,
-  type LeadSheetOptionVM,
-  type LeadSheetRailVM,
+  type LeadSheetEmailLineVM,
+  type LeadSheetLead,
   type LeadSheetState,
-  type LeadWordTone,
-  type LeadSheetTrackVM,
   type LeadSheetWhyVM,
+  type LeadVerdictVM,
+  type PlaceRailVM,
+  type PlaceTone,
   type ReachOutChainDto,
-  type ReachOutLeadTimelineDto,
+  type SequencePlaceDto,
+  type SequenceRecordDto,
+  type SequenceState,
 } from "@chanlytics/contracts";
+import { subjectWords } from "../../campaigns/sequences/place/email-as";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";
 import { leadDtoFor } from "../surface";
 import type { LeadAim } from "./use-aim";
 
-/** A pile's own: what kind of pile it is, and its end's numbers. */
+/** A pile's own: how many are left for later, for its end. */
 export interface SheetPileFacts {
-  mode: "list" | "first" | "search";
   later: number;
-  held: number;
-  /** How many this pile added to the sequence chosen: its end offers Approve only where there is something to approve. */
-  added: number;
 }
 
 /** What the sheet is handed to work its facts out from. */
@@ -62,13 +53,25 @@ interface SheetInputs {
   vm: LeadPeekVM;
   tz: string;
   aim: LeadAim;
-  story: ReachOutLeadTimelineDto | null;
-  /** Whether this lead's story has been read (none is told apart from not yet). */
-  storyRead: boolean;
-  /** The open search's own sequence, where it writes to every ready lead it finds. */
-  searchWrites: { rootId: string; name: string; chain: ReachOutChainDto | null } | null;
+  /** Their place (GET leads/:id/place), and whether it has been read: none is told apart from not yet. */
+  place: { read: boolean; place: SequencePlaceDto | null };
+  /**
+   * The record of the sequence the rail draws (its steps and words): the one their place stands in, else the pick's. Null
+   * while it is read.
+   */
+  railRecord: SequenceRecordDto | null;
+  /** How many others wait for an OK in their batch (the record's people), where it is known. */
+  batchOthers?: number;
   pile: SheetPileFacts | null;
-  monthLeft: number | null;
+}
+
+/** The Sequence section's rail: which lens, the sequence it draws, its rows, and each email's words for this lead. */
+export interface SheetRail {
+  lens: "one" | "preview";
+  sequence: { id: string; name: string; state: SequenceState };
+  vm: PlaceRailVM;
+  /** Each email of the sequence for this lead, by its place: what a step opened shows. */
+  steps: ReadonlyMap<number, LeadCardStepVM>;
 }
 
 export interface SheetFacts {
@@ -76,70 +79,144 @@ export interface SheetFacts {
   check: LeadCardCheck | undefined;
   state: LeadSheetState;
   closed: LeadSheetClosedVM | null;
-  /** The line under the name, the card's checks and ways-in lines, and Why's checks. */
+  verdict: LeadVerdictVM;
+  /** The line under the name, the checks line, the email line, and Fit's checks. */
   sub: string;
   checks: LeadSheetChecksLineVM | null;
-  contact: LeadSheetContactLineVM;
+  email: LeadSheetEmailLineVM;
   why: LeadSheetWhyVM | null;
-  /** Their place in the sequence they are in, and the word beside their name. */
-  place: LeadPlaceVM | null;
-  word: { word: string; tone: LeadWordTone };
-  /** The sequence box on the card: the door to the record, and Change. */
-  box: LeadSheetBoxVM;
-  /** Only what needs you; null when nothing does. */
+  /** The word beside their name, and its tone. */
+  word: { word: string; tone: PlaceTone };
+  place: SequencePlaceDto | null;
+  /** The sequence that has them, where it is not the pick. */
+  elsewhere: { id: string | null; name: string; written: boolean } | null;
+  /** Only what to press; null when nothing needs you. */
   dock: LeadSheetDockVM | null;
-  track: LeadSheetTrackVM | null;
-  reply: string | null;
-  stand: { title: string; line: string };
-  options: LeadSheetOptionVM[];
-  /** Email 1's head: the sequence's name, what follows it, and whether Change opens here. */
-  mail: { head: string; sub: string; canChange: boolean } | null;
+  rail: SheetRail | null;
 }
 
-/** The lead as the state reads it: its class, stage and address, a number to call, and a sequence it is in. */
-function sheetLeadOf(i: SheetInputs): LeadSheetLead {
-  const story = i.story;
-  const inStory = !!(story && story.chain && !story.stopped_at && story.closed_reason !== "said_no");
+/** The send states that have written to a lead, or are about to: a business gets one sequence. */
+const WRITTEN = new Set(["claimed", "queued", "sent", "handed", "drafted"]);
+
+/** The lead as the state reads it: its class, stage and address, and a number to call. */
+const sheetLeadOf = (vm: LeadPeekVM): LeadSheetLead => ({
+  cls: vm.cls,
+  stage: vm.stage,
+  emailState: vm.reach.email.state,
+  hasEmail: !!vm.reach.email.address,
+  canCall: !!(vm.reach.phone && vm.reach.phone.tel && !vm.reach.phone.wrong),
+});
+
+/**
+ * The sequence that has them, where it is not the pick: their place's (standing, or one that wrote to them, which keeps
+ * them there), else the add door's answer naming another.
+ */
+function elsewhereOf(i: SheetInputs, check: LeadCardCheck | undefined): SheetFacts["elsewhere"] {
+  const pick = i.aim.target;
+  const place = i.place.place;
+  if (place) {
+    // With no pick (over a record, or none chosen yet) their own sequence is no other one.
+    if (!pick || place.sequence.id === pick.rootId) return null;
+    const written = place.sends.some((s) => WRITTEN.has(s.state));
+    if (!placeStands(place.place.group) && !written) return null;
+    return { id: place.sequence.id, name: place.sequence.name, written };
+  }
+  if (check && (check.why === "elsewhere" || check.why === "written") && check.chain_name)
+    return { id: check.chain_id ?? null, name: check.chain_name, written: check.why === "written" };
+  return null;
+}
+
+/** The sequence the rail draws: the one their place stands in, else the pick; its record where it is the one read. */
+export const railSequenceOf = (i: Pick<SheetInputs, "place" | "aim">): string | null =>
+  i.place.place ? i.place.place.sequence.id : i.aim.target ? i.aim.target.rootId : null;
+
+/** The record the rail draws from, where it is the sequence's own. */
+const railRecordOf = (i: SheetInputs, id: string): SequenceRecordDto | null =>
+  i.railRecord && i.railRecord.sequence.id === id ? i.railRecord : null;
+
+/** Each email of a sequence for this lead, by the step's place. */
+function stepsByPlace(
+  chain: ReachOutChainDto | null,
+  steps: SequenceRecordDto["steps"],
+  leadId: string,
+): Map<number, LeadCardStepVM> {
+  const lead = leadCardLeadOf(leadId);
+  const out = new Map<number, LeadCardStepVM>();
+  if (!chain || !lead) return out;
+  for (const s of leadCardStepsOf({ chain, lead, workspace: leadCardWorkspace() })) {
+    const step = steps.find((x) => x.id === s.id);
+    if (step) out.set(step.place, s);
+  }
+  return out;
+}
+
+/** The rail's titles: each email's subject as this lead reads it, else what the step is. */
+const titlesOf = (emails: ReadonlyMap<number, LeadCardStepVM>): Map<number, string> =>
+  new Map(
+    [...emails].flatMap(([place, s]) => {
+      const t = subjectWords(s.subject);
+      return t ? [[place, t] as [number, string]] : [];
+    }),
+  );
+
+/**
+ * The Sequence section's rail: their place, drawn on the record's rail for one lead, where a sequence has them; else, with
+ * a pick and an email to write to, the pick's steps as they would get them. None while their place or the pick's record
+ * is still being read, and none for a lead no sequence can take.
+ */
+function railOf(i: SheetInputs, state: LeadSheetState, nowMs: number): SheetRail | null {
+  // Never the pick's preview while their place is still being read: it may be a place of their own.
+  if (!i.place.read) return null;
+  const clock = { tz: i.tz, nowMs };
+  const place = i.place.place;
+  if (place) {
+    const rec = railRecordOf(i, place.sequence.id);
+    if (!rec) return null;
+    const steps = stepsByPlace(rec.chain ?? null, rec.steps, i.vm.id);
+    return {
+      lens: "one",
+      sequence: place.sequence,
+      vm: placeRailOf({
+        lens: "one",
+        steps: rec.steps,
+        titles: titlesOf(steps),
+        seq: place.sequence.state,
+        place,
+        readsReplies: place.reads_replies,
+        clock,
+      }),
+      steps,
+    };
+  }
+  const pick = i.aim.target;
+  if (!pick || state === "phone" || state === "closed" || state === "elsewhere") return null;
+  const rec = railRecordOf(i, pick.rootId);
+  if (!rec) return null;
+  const recSteps = rec.steps;
+  const steps = stepsByPlace(rec.chain ?? pick.chain, recSteps, i.vm.id);
   return {
-    cls: i.vm.cls,
-    stage: i.vm.stage,
-    emailState: i.vm.reach.email.state,
-    hasEmail: !!i.vm.reach.email.address,
-    canCall: !!(i.vm.reach.phone && i.vm.reach.phone.tel),
-    inSequence: !!(i.row && i.row.chainId) || inStory,
+    lens: "preview",
+    sequence: { id: pick.rootId, name: pick.name, state: pick.row.state },
+    vm: placeRailOf({
+      lens: "preview",
+      steps: recSteps,
+      titles: titlesOf(steps),
+      seq: pick.row.state,
+      place: null,
+      readsReplies: false,
+      clock,
+    }),
+    steps,
   };
 }
 
-/**
- * Email 1's head: whose it is, and "· email 1". None for a lead with no email to write to: a sequence's email to someone
- * it can never reach is noise. Change is the box's alone, so the email's head offers none.
- */
-function mailOf(card: LeadCardFacts, name: string | null, state: string): SheetFacts["mail"] {
-  if (!card.email || !name || state === "phone") return null;
-  return { head: name, sub: "· email 1", canChange: false };
-}
-
-/** Step 1's subject as this lead would get it, where every part of it fills: words and values alone. */
-const subjectOf = (parts: LeadCardPart[] | null | undefined): string | null =>
-  parts && parts.length && parts.every((p) => p.kind === "text" || p.kind === "value")
-    ? parts
-        .map((p) => (p.kind === "text" || p.kind === "value" ? p.text : ""))
-        .join("")
-        .trim() || null
-    : null;
-
 /** The card, the door's answer and the lead's state: what the rest of the facts are read from. */
 function cardStateOf(i: SheetInputs) {
-  const target = i.aim.target;
-  const writes = i.searchWrites;
-  // The email shown is the one the lead would get: the search's own sequence where it writes to every lead, else the
-  // sequence the adds go to.
-  const chain = writes && writes.chain ? writes.chain : target ? target.chain : null;
-  // By the lead's id: a lead opened whose row the table no longer shows (a filter, a link) is still the whole card.
-  const check = target && !writes ? i.aim.checkOf(i.vm.id) : undefined;
-  const card = leadCardFor(i.vm.id, chain, i.tz, check);
-  const lead = sheetLeadOf(i);
-  const state = leadSheetStateOf({ lead, check, email: card.email, story: leadSheetStoryOf(i.story) });
+  const pick = i.aim.target;
+  const check = pick ? i.aim.checkOf(i.vm.id) : undefined;
+  const card = leadCardFor(i.vm.id, pick ? pick.chain : null, i.tz, check);
+  const lead = sheetLeadOf(i.vm);
+  const state = leadSheetStateOf({ lead, place: i.place.place, check, email: card.email });
   const blocked = card.email ? card.email.blocked : null;
   const dto = leadDtoFor(i.vm.id);
   const closed =
@@ -149,108 +226,43 @@ function cardStateOf(i: SheetInputs) {
   return { card, check, lead, state, blocked, closed };
 }
 
-/** Their newest reading that asks for an answer, for the dock's line: what it was read as, and when. */
-const replyOf = (story: ReachOutLeadTimelineDto | null) => {
-  const r = story
-    ? [...story.readings].reverse().find((x) => !x.undone && (x.claim === "person" || x.claim === "owner"))
-    : null;
-  return r ? { intent: r.intent, readAt: r.read_at } : null;
-};
-
-/**
- * Still reading: a lead the row says a sequence has whose story has not come back, or a lead to add before the sequences
- * the adds could go to are known. The box and the dock say so, never a place the reads would take back.
- */
-const stillReadingOf = (i: SheetInputs, c: ReturnType<typeof cardStateOf>): boolean =>
-  (!i.storyRead && !!(i.row && i.row.chainId)) ||
-  (i.aim.targets === null && !i.searchWrites && !c.lead.inSequence && c.state !== "closed");
-
-/**
- * Sequences take leads you add and none is chosen for the open search (never a guess: use-aim.ts), outside a pile of the
- * search's own sequence or its own new list: the box and the dock ask where they go.
- */
-const unchosenOf = (i: SheetInputs): boolean =>
-  !i.searchWrites && !i.aim.target && !i.aim.newList && (i.aim.targets ?? []).length > 0;
-
-/** The dock for the lead's state and place, in its pile or out of one. */
-function sheetDockFor(
-  i: SheetInputs,
-  c: ReturnType<typeof cardStateOf>,
-  place: LeadPlaceVM | null,
-  nowMs: number,
-): LeadSheetDockVM | null {
-  const target = i.aim.target;
-  return leadSheetDockOf({
-    state: c.state,
-    place,
-    pile: i.searchWrites ? "search" : i.pile ? i.pile.mode : null,
-    target: target ? target.name : null,
-    blocked: c.blocked,
-    canCall: c.lead.canCall,
-    canLater: !!(i.row && i.row.searchId),
-    closed: c.closed,
-    reply: replyOf(i.story),
-    reading: stillReadingOf(i, c),
-    unchosen: unchosenOf(i),
-    tz: i.tz,
-    nowMs,
-  });
-}
-
-/** Change's options: each sequence fed by a list, with what its first email would come to for this lead. */
-const sheetOptionsFor = (i: SheetInputs, nowMs: number): LeadSheetOptionVM[] =>
-  leadSheetOptionsOf({
-    chains: (i.aim.targets ?? []).map((t) => t.chain),
-    picked: i.aim.target ? i.aim.target.rootId : null,
-    lead: leadCardLeadOf(i.vm.id),
-    workspace: leadCardWorkspace(),
-    nowMs,
-    tz: i.tz,
-  });
-
 /** The sheet's facts, from the page's reads. */
 export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   const c = cardStateOf(i);
-  const target = i.aim.target;
-  const writes = i.searchWrites;
-  const track = c.lead.inSequence && i.story ? leadSheetTrackOf(i.story, nowMs, i.tz) : null;
-  const place = track ? leadSheetPlaceOf(i.story, nowMs, i.tz) : null;
-  const canChange = !writes && (!i.pile || i.pile.mode === "list") && (i.aim.targets ?? []).length > 0;
-  const box = leadSheetBoxOf({
+  const pick = i.aim.target;
+  const place = i.place.place;
+  const elsewhere = elsewhereOf(i, c.check);
+  // Still reading: their place, or the sequences Add could go to, for a lead not closed. Nothing is offered the reads
+  // could take back.
+  const reading = !i.place.read || (i.aim.targets === null && !place && c.state !== "closed");
+  const dock = leadDockOf({
     state: c.state,
     place,
-    inSequence: track ? { rootId: track.rootId, name: track.name } : null,
-    elsewhere: c.check && c.check.chain_name ? { rootId: c.check.chain_id ?? null, name: c.check.chain_name } : null,
-    target: target ? { rootId: target.rootId, name: target.name } : null,
-    firstSubject: c.card.email ? subjectOf(c.card.email.subject) : null,
-    searchWrites: writes ? { rootId: writes.rootId, name: writes.name } : null,
-    canChange,
-    closed: c.closed,
-    reading: stillReadingOf(i, c),
+    pick: pick ? { id: pick.rootId, name: pick.name, state: pick.row.state } : null,
     blocked: c.blocked,
-    unchosen: unchosenOf(i),
+    elsewhere,
+    canCall: c.lead.canCall,
+    canLater: !!(i.row && i.row.searchId),
+    closed: c.closed,
+    reading,
+    batchOthers: i.batchOthers,
+    tz: i.tz,
+    nowMs,
   });
   return {
     card: c.card,
     check: c.check,
     state: c.state,
     closed: c.closed,
+    verdict: leadVerdictOf(i.vm),
     sub: leadSheetSubOf(i.vm),
     checks: leadSheetChecksLineOf(i.vm),
-    contact: leadSheetContactLineOf(i.vm),
+    email: leadSheetEmailLineOf(i.vm),
     why: leadSheetWhyOf(i.vm),
+    word: leadSheetWordOf({ state: c.state, place, closed: c.closed }),
     place,
-    word: leadSheetWordOf({ state: c.state, place, closed: c.closed, blocked: c.blocked }),
-    box,
-    dock: sheetDockFor(i, c, place, nowMs),
-    track,
-    reply: leadSheetReplyOf(i.story),
-    stand: leadSheetStandOf({ track, box }),
-    options: sheetOptionsFor(i, nowMs),
-    mail: mailOf(c.card, writes ? writes.name : target ? target.name : null, c.state),
+    elsewhere,
+    dock,
+    rail: railOf(i, c.state, nowMs),
   };
 }
-
-/** The rail at a pile's end. */
-export const endRailOf = (pile: SheetPileFacts, target: string | null): LeadSheetRailVM =>
-  leadSheetEndRailOf({ later: pile.later, held: pile.held, target, added: pile.added });

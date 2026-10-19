@@ -10,12 +10,14 @@ import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach
 import { toSendSaidWords } from "../reach-out/reach-out-approval";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test";
+import { leadsRoute } from "../leads/lead-plan";
 import {
   asText,
   decisionOf,
   idIn,
   rec,
   refuseWith,
+  uniqueIds,
   PROPOSAL_WORDS,
   type ProposalCall,
   type ProposalRefusal,
@@ -226,8 +228,14 @@ export const sequenceTestSpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "sequence_id");
     const step = idIn(pl, "step_id");
+    // A lead's step is filled for the lead previewed (the draft's record's Preview as a real lead).
+    const lead = idIn(pl, "lead_id");
     return id && step
-      ? { route: "POST sequences/[id]/steps/[step]/test", params: { id, step } }
+      ? {
+          route: "POST sequences/[id]/steps/[step]/test",
+          params: { id, step },
+          ...(lead ? { body: { lead_id: lead } } : {}),
+        }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: (_p, data) => SEQUENCE_TEST_WORDS.sent(asText(rec(data).to) || "you"),
@@ -243,6 +251,11 @@ export const sequenceMakeSpec: ProposalSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => {
     const first = rec(pl.first);
+    // A sequence to leads by name (00459): a copy, Ask's words or one email still to write, on its list, a draft.
+    if (first.starts === "leads") {
+      if (!asText(first.name).trim()) return refuseWith("Name it.");
+      return { route: "POST sequences", body: { first, then: [], start: pl.start === true } };
+    }
     if (!idIn(first, "template_id") || typeof first.trigger !== "string")
       return refuseWith("Say what starts it and the message it sends first.");
     return {
@@ -250,7 +263,19 @@ export const sequenceMakeSpec: ProposalSpec = {
       body: { first, then: Array.isArray(pl.then) ? pl.then : [], start: pl.start === true },
     };
   },
-  receipt: (_p, data) => (rec(data).state === "on" ? "The sequence is on" : "Kept as a draft: nothing goes yet"),
+  receipt: ({ payload: pl }, data) => {
+    const first = rec(pl.first);
+    const on = rec(data).state === "on";
+    if (first.starts !== "leads") return on ? "The sequence is on" : "Kept as a draft: nothing goes yet";
+    // The canvas's receipt for New, mid-pile: who went in it, and that it is a draft.
+    const name = asText(first.name).trim();
+    const added = Number(rec(data).added) || 0;
+    const lead = asText(pl.lead_name);
+    const draft = on ? "" : " (draft)";
+    if (added === 1 && lead) return `Added ${lead} to ${name}${draft}`;
+    if (added > 0) return `Added ${plural(added, "lead", "leads")} to ${name}${draft}`;
+    return on ? `“${name}” is on` : `“${name}” is a draft: nothing goes yet`;
+  },
   undo: {
     label: () => "Take it away",
     window: "ten_minutes",
@@ -326,6 +351,122 @@ export const sequenceDraftSpec: ProposalSpec = {
   open: () => `${SEQUENCES_ROUTE}/new`,
 };
 
+/** Where a lead verb's Open goes: the sequence's Leads tab. */
+const openLeads = ({ payload }: { payload: Record<string, unknown> }): string | null => {
+  const id = idIn(payload, "sequence_id");
+  return id ? sequenceRoute(id, "people") : null;
+};
+
+/**
+ * Leads added to a sequence to leads (00426 reach_out_add, 00459 one road: every sequence to leads holds its list, a draft
+ * too): the one verb Add is, from the lead sheet, the picker, the bulk bar and Ask. The add sends nothing: its next
+ * batch plans the first email and waits for your OK (one carrying leads you added asks first). Undo takes them back off
+ * its list while nothing has left for them (lead_undo).
+ */
+export const sequenceAddSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const leads = uniqueIds(pl.lead_ids);
+    return id && leads.length > 0
+      ? { route: "POST sequences/[id]/leads", params: { id }, body: { lead_ids: leads } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const added = Number(rec(data).added ?? 0);
+    const name = asText(pl.name) || "the sequence";
+    const lead = asText(pl.lead_name);
+    const draft = pl.draft === true ? " (draft)" : "";
+    if (added === 0) return `None could be added to ${name}`;
+    return added === 1 && lead
+      ? `Added ${lead} to ${name}${draft}`
+      : `Added ${plural(added, "lead", "leads")} to ${name}${draft}`;
+  },
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      return typeof d.op_id === "string" ? { op_id: d.op_id, version: Number(d.version ?? 1) } : null;
+    },
+    call: (u) => ({
+      route: "POST lead-operations/[id]/undo",
+      params: { id: asText(u.op_id) },
+      body: { version: Number(u.version ?? 1) },
+    }),
+    receipt: () => "Taken back off its list. Nothing had been written to them.",
+  },
+  open: openLeads,
+};
+
+/**
+ * A lead nothing was sent to, out of the sequence it stands in and into this one (00459 sequence_move): one press, the
+ * lead sheet's Move to. Undo moves it back the same way, while nothing has been sent to it there.
+ */
+export const sequenceMoveSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const lead = idIn(pl, "lead_id");
+    return id && lead
+      ? { route: "POST sequences/[id]/move", params: { id }, body: { lead_id: lead } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.lead_name) || "The lead"} moved to ${asText(pl.name) || "the sequence"}`,
+  undo: {
+    label: () => "Move back",
+    window: "ten_minutes",
+    record: (p, data) => {
+      const from = asText(rec(data).from);
+      const lead = idIn(p.payload, "lead_id");
+      return from && lead ? { sequence_id: from, lead_id: lead } : null;
+    },
+    call: (u) => {
+      const id = asText(u.sequence_id);
+      const lead = asText(u.lead_id);
+      return id && lead
+        ? { route: "POST sequences/[id]/move", params: { id }, body: { lead_id: lead } }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "Moved back",
+  },
+  open: openLeads,
+};
+
+/**
+ * Where a search's Add goes (00459 lead_search_aim): a sequence to leads, or none, kept on the search so a desk, a phone
+ * and a teammate agree. Undo puts back the pick it had (`was`).
+ */
+export const leadSearchAimSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const search = idIn(pl, "search_id");
+    return search
+      ? { route: "POST lead-searches/[id]/aim", params: { id: search }, body: { sequence_id: idIn(pl, "sequence_id") } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => (asText(pl.name) ? `Adds go to ${asText(pl.name)}` : "Adds go nowhere yet"),
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: (p) => {
+      const search = idIn(p.payload, "search_id");
+      return search ? { search_id: search, was: idIn(p.payload, "was") } : null;
+    },
+    call: (u) => {
+      const search = asText(u.search_id);
+      return search
+        ? { route: "POST lead-searches/[id]/aim", params: { id: search }, body: { sequence_id: idIn(u, "was") } }
+        : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "The pick is as it was",
+  },
+  open: ({ payload }) => leadsRoute({ searchId: idIn(payload, "search_id"), list: "all", cls: null }),
+};
+
 /** A sequence that never sent, taken away whole: a draft let go. Nothing undoes it; one that sent is paused instead. */
 export const sequenceDiscardSpec: ProposalSpec = {
   needs: "operator",
@@ -361,9 +502,12 @@ const openRun = ({ payload }: { payload: Record<string, unknown> }): string | nu
 };
 
 /** What deciding a held email did, by the answer given: said with the business's name where the press carries it. */
+/** A name's possessive, as the receipt says it: "Lamplight Books' email", "Persida's email". */
+const theirs = (name: string) => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
+
 const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
-  include: (name) => `${name}'s email goes as it is`,
-  rewrite: (name) => `${name}'s opening is written again`,
+  include: (name) => `${theirs(name)} email goes as written`,
+  rewrite: (name) => `${theirs(name)} opening is written again`,
   skip: (name) => `${name} is left out of this batch`,
   not_a_fit: (name) => `${name} is set aside: not a fit`,
 };

@@ -136,14 +136,14 @@ const HARBOR = [
   }),
 ];
 
-function tables(sellsBy = "proposal") {
+function tables() {
   return {
     memberships: [
       { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
     ],
     tenants: [
-      { id: A, name: "Harbor", timezone: TZ, sells_by: sellsBy },
-      { id: B, name: "Bayside", timezone: "Europe/Madrid", sells_by: "proposal" },
+      { id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" },
+      { id: B, name: "Bayside", timezone: "Europe/Madrid", appointment_word: "meeting" },
     ],
     tenant_config: [],
     tenant_channels: [],
@@ -320,8 +320,6 @@ test("the Pipeline context reads the board from its reader and answers what it a
   };
   if (process.env.CAPTURE) console.log(`CAPTURE ${JSON.stringify(got)}`);
   for (const k of Object.keys(BEFORE)) assert.equal(JSON.stringify(got[k]), JSON.stringify(BEFORE[k]), k);
-  const booked = await pipelineContext(rcIn(ctxFor(tables("booking"))), page(onScreen));
-  assert.equal(JSON.stringify(booked), JSON.stringify(BEFORE.all), "a workspace whose answer was booking: its board");
 });
 
 test("the board is the page's: contracts pipelineOf over everyone in People, each row as People draws it for the member asking with their follow-up laid on, and the pace from People's first page, on the turn's clock; each person on it a row a citation names, and each deal one too, opened on its person's page; every workspace's", async () => {
@@ -348,9 +346,6 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
     ],
   );
   assert.ok(!r.rows.some((x) => x.id === P4 || x.id === PB), "nobody off the board, and nobody of another workspace");
-  // Whatever the retired answer said, the same board (0008, amended 18 Oct 2026).
-  const booked = await load(rcIn(ctxFor(tables("booking"))), dealBoard, undefined);
-  assert.deepEqual([booked.data, booked.rows], [r.data, r.rows]);
 });
 
 test("a person with two open deals is two rows of the board, each the person and its own deal (0029): Ask's contact_id and every citation are theirs, never a row's id, and each row names the deal it stands for", async () => {
@@ -473,8 +468,6 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
     label: "Rosa · Kitchen remodel",
   });
   assert.ok(!tc.read.person.has(P4) && !tc.read.person.has(PB), "nobody off the board is named");
-  const booked = await ask({ action: "pipeline" }, tables("booking"));
-  assert.deepEqual(booked.out, out, "whatever the retired answer said: the same Pipeline");
 });
 
 test("people.lists answers the rail People draws, over the audience pool (everyone, for the member asking): People's own lists this workspace can count with what each holds and how many, the ones it cannot count with why, and the workspace's own lists with their rule in the page's words and their count or why not, the archived by name; each list a row in the read set, opened on People at it", async () => {

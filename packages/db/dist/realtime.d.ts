@@ -3360,6 +3360,7 @@ type Database = {
             };
             lead_searches: {
                 Row: {
+                    adds_to: string | null;
                     asked: string;
                     card: string;
                     created_at: string;
@@ -3373,6 +3374,7 @@ type Database = {
                     via: string;
                 };
                 Insert: {
+                    adds_to?: string | null;
                     asked: string;
                     card: string;
                     created_at?: string;
@@ -3386,6 +3388,7 @@ type Database = {
                     via: string;
                 };
                 Update: {
+                    adds_to?: string | null;
                     asked?: string;
                     card?: string;
                     created_at?: string;
@@ -3399,6 +3402,13 @@ type Database = {
                     via?: string;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "lead_searches_adds_to_fkey";
+                        columns: ["tenant_id", "adds_to"];
+                        isOneToOne: false;
+                        referencedRelation: "sequences";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
                     {
                         foreignKeyName: "lead_searches_tenant_id_fkey";
                         columns: ["tenant_id"];
@@ -6052,6 +6062,7 @@ type Database = {
                     run_hour: number;
                     sequence_id: string;
                     signed_by: string | null;
+                    source_search_id: string | null;
                     state: string;
                     template_id: string | null;
                     template_language: string | null;
@@ -6096,6 +6107,7 @@ type Database = {
                     run_hour?: number;
                     sequence_id: string;
                     signed_by?: string | null;
+                    source_search_id?: string | null;
                     state?: string;
                     template_id?: string | null;
                     template_language?: string | null;
@@ -6140,6 +6152,7 @@ type Database = {
                     run_hour?: number;
                     sequence_id?: string;
                     signed_by?: string | null;
+                    source_search_id?: string | null;
                     state?: string;
                     template_id?: string | null;
                     template_language?: string | null;
@@ -6191,6 +6204,20 @@ type Database = {
                         columns: ["tenant_id", "sequence_id"];
                         isOneToOne: false;
                         referencedRelation: "sequences";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "sequence_steps_source_same_workspace";
+                        columns: ["tenant_id", "source_search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "sequence_steps_source_same_workspace";
+                        columns: ["tenant_id", "source_search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -6504,7 +6531,6 @@ type Database = {
                     locale: string;
                     logo_path: string | null;
                     name: string;
-                    sells_by: string | null;
                     slug: string;
                     status: string;
                     timezone: string;
@@ -6518,7 +6544,6 @@ type Database = {
                     locale?: string;
                     logo_path?: string | null;
                     name: string;
-                    sells_by?: string | null;
                     slug: string;
                     status?: string;
                     timezone?: string;
@@ -6532,7 +6557,6 @@ type Database = {
                     locale?: string;
                     logo_path?: string | null;
                     name?: string;
-                    sells_by?: string | null;
                     slug?: string;
                     status?: string;
                     timezone?: string;
@@ -6574,6 +6598,7 @@ type Database = {
         Views: {
             lead_searches_view: {
                 Row: {
+                    adds_to: string | null;
                     answered: string | null;
                     asked: string | null;
                     card: string | null;
@@ -6613,6 +6638,13 @@ type Database = {
                     with_phone: number | null;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "lead_searches_adds_to_fkey";
+                        columns: ["tenant_id", "adds_to"];
+                        isOneToOne: false;
+                        referencedRelation: "sequences";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
                     {
                         foreignKeyName: "lead_searches_tenant_id_fkey";
                         columns: ["tenant_id"];
@@ -7983,6 +8015,14 @@ type Database = {
                     p_run_id: string;
                 };
                 Returns: boolean;
+            };
+            lead_search_aim: {
+                Args: {
+                    p_search_id: string;
+                    p_sequence_id?: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
             };
             lead_search_choose: {
                 Args: {
@@ -9533,6 +9573,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            reach_out_chain_of: {
+                Args: {
+                    p_root_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             reach_out_chain_people: {
                 Args: {
                     p_limit?: number;
@@ -9675,6 +9722,14 @@ type Database = {
                     p_root_id: string;
                 };
                 Returns: Json;
+            };
+            reach_out_list_for: {
+                Args: {
+                    p_by: string;
+                    p_name: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
             };
             reach_out_month_sent: {
                 Args: {
@@ -9911,6 +9966,14 @@ type Database = {
                     p_outcome: string;
                     p_reason?: string;
                     p_send_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_source_set: {
+                Args: {
+                    p_root_id: string;
+                    p_search_id?: string;
+                    p_tenant_id: string;
                 };
                 Returns: Json;
             };
@@ -10302,6 +10365,17 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sequence_create_leads: {
+                Args: {
+                    p_decision: Json;
+                    p_first: Json;
+                    p_start: boolean;
+                    p_tenant_id: string;
+                    p_undo_of: string;
+                    p_via: string;
+                };
+                Returns: Json;
+            };
             sequence_discard: {
                 Args: {
                     p_decision?: Json;
@@ -10413,6 +10487,16 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sequence_move: {
+                Args: {
+                    p_decision?: Json;
+                    p_lead_id: string;
+                    p_tenant_id: string;
+                    p_to_root: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             sequence_overview: {
                 Args: {
                     p_sequence_id?: string;
@@ -10424,6 +10508,42 @@ type Database = {
                 Args: {
                     p_limit?: number;
                     p_sequence_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            sequence_place: {
+                Args: {
+                    p_lead_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            sequence_places: {
+                Args: {
+                    p_lead_ids?: string[];
+                    p_sequence_id?: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    at: string;
+                    batch_id: string;
+                    contact_id: string;
+                    draft: Json;
+                    enrollment_id: string;
+                    grp: string;
+                    hold_detail: string;
+                    lead_id: string;
+                    place: number;
+                    reply: Json;
+                    send_id: string;
+                    sequence_id: string;
+                    why: string;
+                }[];
+            };
+            sequence_places_of: {
+                Args: {
+                    p_lead_ids: string[];
                     p_tenant_id: string;
                 };
                 Returns: Json;

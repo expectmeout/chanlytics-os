@@ -4048,16 +4048,14 @@ test("the deal lists reach Ask once a deal is on file -- campaigns.audiences and
     proposed_at: iso(NOW.getTime() - 86_400_000),
     created_at: iso(NOW.getTime() - 86_400_000),
   };
-  const booking = await ask(
-    tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "booking" }], deals: [deal] }),
-  );
+  const booking = await ask(tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ }], deals: [deal] }));
   // The three lists a deal on file makes. Consultation booked also needs a calendar and a consult-first service, and
   // this workspace has neither.
   assert.deepEqual(booking.named, ["proposal_out", "clients", "deal_ended"]);
   assert.equal(booking.clients.error, undefined, booking.clients.error);
   assert.deepEqual(booking.clients.people, [], "the list is offered; nobody is a client yet");
   // The retired answer alone, with no deal, offers none of them.
-  const agency = await ask(tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }] }));
+  const agency = await ask(tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }] }));
   assert.deepEqual(agency.named, []);
 });
 
@@ -4258,7 +4256,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
   ].join("\r\n");
   const base = tables();
   const t = tables({
-    tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+    tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }],
     tenant_config: [
       {
         ...base.tenant_config[0],
@@ -4674,9 +4672,9 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     lost_reason: null,
   };
   const base = tables();
-  const world = (calendar, sellsBy = "proposal") =>
+  const world = (calendar) =>
     tables({
-      tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: sellsBy }],
+      tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }],
       tenant_config: [
         {
           ...base.tenant_config[0],
@@ -4776,10 +4774,8 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
   // No calendar: the line says why there is nothing to count, in the page's words.
   const bare = await turnOver(world(false));
   assert.equal(bare.read.booking, "Add a calendar link under Settings › Hours & booking to see who booked.");
-  // Every workspace has deals (0008, amended 18 Oct 2026): where the retired answer said its customers book, the Deals
-  // section is drawn all the same.
-  const booked = await turnOver(world(false, "booking"));
-  assert.equal(booked.read.deals.stock, "1 client now · $2,500 a month.");
+  // Every workspace has deals (0008, amended 18 Oct 2026): the Deals section is drawn without a calendar too.
+  assert.equal(bare.read.deals.stock, "1 client now · $2,500 a month.");
 });
 
 test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
@@ -5552,7 +5548,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   const columns = (table) => seen.filter((q) => q.table === table).map((q) => q.columns);
   assert.deepEqual(
     [[...columns("tenants")].sort(), columns("tenant_config")],
-    [["appointment_word, sells_by", "name, timezone"], ["tenant_id, config, version, updated_at, updated_by"]],
+    [["appointment_word", "name, timezone"], ["tenant_id, config, version, updated_at, updated_by"]],
     "the config is the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config (the row, as the server reads it for a member: workspace/config-row.ts), as the page's read does; and the word, through its reader",
   );
   const reads = ctx.supabase.seen.length;
@@ -5791,7 +5787,7 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   };
   const rpcs = { ...RPCS, people_list: () => [rosaRow] };
   // A proposal is a deal's (0008), said in every workspace (amended 18 Oct 2026).
-  const harbor = [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }];
+  const harbor = [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }];
   const withLink = tables({
     tenants: harbor,
     contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
@@ -5846,7 +5842,7 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   assert.ok(said.about.includes("Proposal: quotes.example.com"), `About: ${said.about}`);
 
   // Where the retired answer said its customers book, or was never given, the deal is said all the same.
-  for (const tenants of [[{ id: A, name: "Harbor", timezone: TZ, sells_by: "booking" }], undefined]) {
+  for (const tenants of [[{ id: A, name: "Harbor", timezone: TZ }], undefined]) {
     const any = await runTool(
       newToolContext(
         ctxFor(
@@ -6163,7 +6159,7 @@ test("the proposal follow-up in Ask (0006): listed in every workspace and counte
     { id: "dl1", tenant_id: A, contact_id: LUIS, stage: "proposed", proposed_at: iso(NOW.getTime() - 10 * DAY) },
   ];
   const on = (over = {}) =>
-    tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }], deals, ...over });
+    tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }], deals, ...over });
   const context = (t) => newToolContext(ctxFor(t, { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
   const listed = async (t) =>
     JSON.parse((await runTool(context(t), { name: "sequences", input: { action: "moments" } })).result);

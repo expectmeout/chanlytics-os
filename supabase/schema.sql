@@ -9360,6 +9360,43 @@ COMMENT ON FUNCTION public.lead_runs_guard() IS 'The claim and the webhook token
 
 
 --
+-- Name: lead_search_aim(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.lead_searches s
+                  where s.id = p_search_id and s.tenant_id = p_tenant_id and s.removed_at is null) then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  -- A sequence to leads of this workspace that has not ended (a draft collects, a paused one waits), or none.
+  if p_sequence_id is not null and not exists (
+       select 1 from public.sequences q
+        where q.id = p_sequence_id and q.tenant_id = p_tenant_id and q.starts = 'leads' and q.state <> 'ended') then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  update public.lead_searches set adds_to = p_sequence_id where id = p_search_id and tenant_id = p_tenant_id;
+  return jsonb_build_object('search_id', p_search_id, 'adds_to', p_sequence_id);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid) IS 'The sequence a search''s Add goes to (00459), or none: a member''s, for a search and a sequence to leads of their workspace that has not ended.';
+
+
+--
 -- Name: lead_search_choose(uuid, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18828,7 +18865,7 @@ begin
   if not found or s.removed_at is not null then
     return jsonb_build_object('error', 'list_gone');
   end if;
-  -- A finder search never gains a lead it did not find: its reach-out already writes to every ready lead it holds.
+  -- Every sequence's list is a list since 00459; one left on a finder search would gain leads it did not find.
   if s.via not in ('chosen', 'import') then
     return jsonb_build_object('error', 'fed_by_search', 'search_id', s.id);
   end if;
@@ -18852,6 +18889,14 @@ begin
              when w.why is not null and w.why <> 'checking' then w.why
              when exists (select 1 from public.lead_search_members m
                            where m.search_id = s.id and m.lead_id = w.lead_id and m.blanked_at is null) then 'already'
+             -- Drawn from its search already (00459 auto-add), and not taken out of the list.
+             when r.source_search_id is not null
+                  and exists (select 1 from public.lead_search_members m
+                               where m.search_id = r.source_search_id and m.lead_id = w.lead_id and m.class = 'qualified'
+                                 and m.counted and m.blanked_at is null and m.later_at is null)
+                  and not exists (select 1 from public.lead_search_members m
+                                   where m.search_id = s.id and m.lead_id = w.lead_id and m.blanked_at is not null)
+               then 'already'
              when not exists (select 1 from public.lead_search_members m
                                 join public.lead_searches q on q.id = m.search_id and q.removed_at is null
                                where m.tenant_id = r.tenant_id and m.lead_id = w.lead_id and m.counted
@@ -18864,7 +18909,8 @@ begin
       -- Another reach-out whose search holds the lead: one reach-out per lead, whichever way it came in.
       left join lateral (
         select p.id, p.name from public.sequence_steps p
-          join public.lead_search_members m on m.search_id = p.lead_search_id and m.lead_id = w.lead_id
+          join public.lead_search_members m
+            on m.search_id in (p.lead_search_id, p.source_search_id) and m.lead_id = w.lead_id
          where p.tenant_id = r.tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first' and p.id <> r.id
            and m.blanked_at is null and m.class = 'qualified' and m.counted
          order by m.created_at desc
@@ -18942,12 +18988,24 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with members as (
-    select sm.lead_id, sm.fit
+  -- The search's leads, and (00459) where it is a sequence's list that draws from a search, that search's ready leads:
+  -- each joins without a press, unless it is put off for later there or was taken out of the list (blanked on it).
+  with src as (
+    select r.source_search_id as id from public.sequence_steps r
+     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
+       and r.lead_search_id = p_search_id and r.source_search_id is not null
+  ),
+  members as (
+    select distinct on (sm.lead_id) sm.lead_id, sm.fit
       from public.lead_search_members sm
       join public.lead_searches s on s.id = sm.search_id and s.tenant_id = sm.tenant_id and s.removed_at is null
-     where sm.tenant_id = p_tenant_id and sm.search_id = p_search_id
+     where sm.tenant_id = p_tenant_id
        and sm.class = 'qualified' and sm.counted and sm.blanked_at is null
+       and (sm.search_id = p_search_id
+            or (sm.search_id in (select src.id from src) and sm.later_at is null
+                and not exists (select 1 from public.lead_search_members x
+                                 where x.search_id = p_search_id and x.lead_id = sm.lead_id and x.blanked_at is not null)))
+     order by sm.lead_id, case sm.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end
   )
   select l.id, lower(btrim(l.email)), l.business_name, l.city, l.region, l.hours
     from members m
@@ -19109,6 +19167,49 @@ COMMENT ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointment
 
 
 --
+-- Name: reach_out_chain_of(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_chain_of(p_tenant_id uuid, p_root_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with recursive c as (
+    select st.id, st.template_id, st.hand, st.after_days, st.gap_minutes, st.mailbox_ids, st.owner_sends, st.signed_by,
+           st.include_unconfirmed, 0 as n
+      from public.sequence_steps st
+     where st.id = p_root_id and st.tenant_id = p_tenant_id and st.kind = 'reach_out' and st.trigger = 'lead_first'
+    union all
+    select st.id, st.template_id, st.hand, st.after_days, st.gap_minutes, st.mailbox_ids, st.owner_sends, st.signed_by,
+           st.include_unconfirmed, c.n + 1
+      from public.sequence_steps st join c on st.after_step_id = c.id
+  ),
+  steps as (
+    select c.n,
+           case when c.hand is not null
+                then jsonb_build_object('hand', c.hand, 'after_days', c.after_days)
+                else jsonb_strip_nulls(jsonb_build_object(
+                       'subject', case when c.n = 0 then coalesce((select x->>'text' from jsonb_array_elements(t.components) x
+                                                                    where x->>'type' = 'HEADER' limit 1), '') end,
+                       'body', coalesce((select x->>'text' from jsonb_array_elements(t.components) x
+                                          where x->>'type' = 'BODY' limit 1), ''),
+                       'after_days', c.after_days))
+           end as step
+      from c left join public.templates t on t.id = c.template_id
+  )
+  select case when exists (select 1 from c) then
+    jsonb_build_object(
+      'gap_minutes', (select c.gap_minutes from c where c.n = 0),
+      'mailbox_ids', (select to_jsonb(c.mailbox_ids) from c where c.n = 0),
+      'owner_sends', (select c.owner_sends from c where c.n = 0),
+      'signed_by', (select c.signed_by from c where c.n = 0),
+      'include_unconfirmed', (select c.include_unconfirmed from c where c.n = 0),
+      'steps', (select jsonb_agg(s.step order by s.n) from steps s))
+  end
+$$;
+
+
+--
 -- Name: reach_out_chain_people(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19138,8 +19239,11 @@ begin
     )
     select jsonb_build_object(
       'root_id', v_root.id,
-      'fed_by', case when v_q.via in ('chosen', 'import') then 'list' else 'search' end,
-      'search', case when v_q.id is not null then jsonb_build_object('id', v_q.id, 'name', v_q.name) end,
+      'fed_by', case when v_root.source_search_id is not null or v_q.via not in ('chosen', 'import')
+                     then 'search' else 'list' end,
+      'search', coalesce((select jsonb_build_object('id', q.id, 'name', q.name) from public.lead_searches q
+                           where q.id = v_root.source_search_id),
+                         case when v_q.id is not null then jsonb_build_object('id', v_q.id, 'name', v_q.name) end),
       'counts', jsonb_build_object(
         'waiting', (select count(*) from p where p.grp = 'waiting'),
         'writing', (select count(*) from p where p.grp = 'writing'),
@@ -19586,16 +19690,26 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
                    and not d.bounced as writes
             from (
       select l.id as lead_id, s.contact_id, lower(btrim(l.email)) as email, l.region, l.hours,
-             s.message_id as parent_message_id, s.sent_at, s.mailbox_id, l.country,
+             coalesce(s.message_id, w.message_id) as parent_message_id, coalesce(s.sent_at, w.sent_at) as sent_at,
+             coalesce(s.mailbox_id, w.mailbox_id) as mailbox_id, l.country,
              public.outreach_lead_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)), l.id) as facts,
              exists (select 1 from public.sequence_sends b join public.messages bm on bm.id = b.message_id
                       where b.lead_id is not null and ( b.sequence_id = s.sequence_id and b.lead_id = l.id
                         and bm.status = 'failed' and bm.error->>'provider' in ('bounced', 'failed'))) as bounced
         from public.sequence_sends s
         join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
-        join public.messages m on m.id = s.message_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = p_parent_id and s.state = 'sent'
-         and s.sent_at <= now() - make_interval(days => p_after_days)
+        -- A step its owner skipped (00459) is followed as the email before it was: its thread, its mailbox.
+        left join lateral (
+          select x.message_id, x.sent_at, x.mailbox_id from public.sequence_sends x
+           where x.sequence_id = s.sequence_id and x.lead_id = s.lead_id and x.state = 'sent'
+           order by x.sent_at desc limit 1) w on s.state = 'skipped'
+        join public.messages m on m.id = coalesce(s.message_id, w.message_id)
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = p_parent_id
+         and ((s.state = 'sent' and s.sent_at <= now() - make_interval(days => p_after_days))
+              or (s.state = 'skipped' and s.reason = 'owner_skipped'
+                  and exists (select 1 from public.sequence_enrollments e2
+                               where e2.tenant_id = p_tenant_id and e2.sequence_id = s.sequence_id and e2.lead_id = l.id
+                                 and e2.state = 'in' and e2.next_at <= now())))
          and s.contact_id is not null
          -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not
          -- followed up, even with nothing of theirs pending when they left.
@@ -19811,7 +19925,7 @@ begin
   end if;
   select s.sequence_id as root_id into v_root from public.sequence_sends s
    where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
-     and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
+     and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back', 'moved')))
    order by s.created_at desc
    limit 1;
   v_sent := v_root is not null;
@@ -19819,13 +19933,17 @@ begin
   if v_root is null then
     select p.id, m.created_at into v_root, v_added
       from public.sequence_steps p
-      join public.lead_search_members m on m.search_id = p.lead_search_id and m.lead_id = v_lead.id
+      join public.lead_search_members m on m.search_id in (p.lead_search_id, p.source_search_id) and m.lead_id = v_lead.id
      where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
        and m.blanked_at is null and m.class = 'qualified' and m.counted
      order by m.created_at desc
      limit 1;
   end if;
-  select q.via into v_via from public.sequence_steps p join public.lead_searches q on q.id = p.lead_search_id
+  select q.via into v_via from public.sequence_steps p
+    join public.lead_searches q on q.id = case when p.source_search_id is null
+                     or exists (select 1 from public.lead_search_members x
+                                 where x.search_id = p.lead_search_id and x.lead_id = v_lead.id and x.blanked_at is null)
+                   then p.lead_search_id else p.source_search_id end
    where p.id = v_root;
   return jsonb_build_object(
     'lead_id', v_lead.id,
@@ -19869,7 +19987,10 @@ begin
     'search', coalesce(
       (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
          from public.sequence_steps p
-         join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id
+         join public.lead_searches q on q.tenant_id = p_tenant_id and q.id = case when p.source_search_id is null
+                     or exists (select 1 from public.lead_search_members x
+                                 where x.search_id = p.lead_search_id and x.lead_id = v_lead.id and x.blanked_at is null)
+                   then p.lead_search_id else p.source_search_id end
          left join public.lead_search_members sm on sm.search_id = q.id and sm.lead_id = v_lead.id
         where p.id = v_root),
       (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
@@ -20030,6 +20151,34 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) IS 'Leave out (00426), the drawer''s door on a lead waiting in a reach-out fed by a list: off its list (blanked), a send planned, held or drafted (00429) for it in a live run skipped as taken back, with an operation of kind leave whose undo (lead_undo, its maker''s or find''s) puts it back; one on its way or sent stays (on_its_way, sent: Stop writing is the correction there). An operator''s, as the add is.';
+
+
+--
+-- Name: reach_out_list_for(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_list_for(p_tenant_id uuid, p_name text, p_by uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name   text := left(coalesce(nullif(btrim(p_name), ''), 'Leads you add'), 120);
+  v_plan   jsonb;
+  v_search uuid;
+  v_round  uuid;
+begin
+  v_plan := jsonb_build_object('version', 1, 'card', 'local_businesses', 'list', 'chosen', 'name', v_name, 'asked', '',
+    'terms', '[]'::jsonb, 'count', 0, 'contact', 'email', 'criteria', '[]'::jsonb, 'exclusions', '[]'::jsonb);
+  insert into public.lead_searches (tenant_id, created_by, via, card, name, asked, plan)
+  values (p_tenant_id, p_by, 'chosen', 'local_businesses', v_name, '', v_plan)
+  returning id into v_search;
+  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, month, day, platform_day)
+  values (p_tenant_id, v_search, 1, 'main', v_plan, 1, 0, 'queued', public.lead_month(p_tenant_id, now()),
+          public.lead_day(p_tenant_id, now()), to_char(now() at time zone 'UTC', 'YYYY-MM-DD'))
+  returning id into v_round;
+  update public.lead_rounds set state = 'ended', ending = 'target_reached', ended_at = now() where id = v_round;
+  return v_search;
+end $$;
 
 
 --
@@ -21572,6 +21721,7 @@ declare
   v_ids      uuid[] := '{}';
   v_changed  uuid[] := '{}';
   v_reset    int := 0;
+  v_source   uuid;
 begin
   -- Who may: the one table of permissions (00201 has_permission's approve, a playbook's own: owner, operator, partner).
   if p_tenant_id is null or p_user_id is null or not public.has_permission(p_user_id, p_tenant_id, 'approve') then
@@ -21595,6 +21745,14 @@ begin
     if not exists (select 1 from public.lead_searches s
                     where s.id = v_search and s.tenant_id = p_tenant_id and s.removed_at is null) then
       raise exception 'Search not found.' using errcode = 'P0002';
+    end if;
+    -- Made on a finder search (00459): a list of its own, drawing from that search, so it takes the leads you add too.
+    if exists (select 1 from public.lead_searches s where s.id = v_search and s.via not in ('chosen', 'import')) then
+      if exists (select 1 from public.sequence_steps r where r.source_search_id = v_search) then
+        raise exception 'This search has a reach-out already.' using errcode = '23505';
+      end if;
+      v_source := v_search;
+      v_search := public.reach_out_list_for(p_tenant_id, v_name, p_user_id);
     end if;
   else
     select lead_search_id, signed_by into v_search, v_signed_was from public.sequence_steps
@@ -21734,6 +21892,9 @@ begin
     v_ids := v_ids || v_id;
   end loop;
 
+  if v_source is not null then
+    update public.sequence_steps set source_search_id = v_source where id = v_ids[1];
+  end if;
   -- A new name to sign with changes every step's words as a business reads them.
   if v_root is not null and v_signed is distinct from v_signed_was then v_changed := v_ids; end if;
   if cardinality(v_changed) > 0 then
@@ -21816,7 +21977,7 @@ begin
   end if;
   select * into v_root from public.sequence_steps p
    where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
-     and p.lead_search_id = p_search_id
+     and (p.lead_search_id = p_search_id or p.source_search_id = p_search_id)
    order by p.created_at desc
    limit 1;
   if not found then
@@ -22067,6 +22228,49 @@ COMMENT ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p
 
 
 --
+-- Name: reach_out_source_set(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(auth.uid(), p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.sequence_steps r where r.id = p_root_id and r.tenant_id = p_tenant_id
+                    and r.kind = 'reach_out' and r.trigger = 'lead_first') then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  if p_search_id is not null and not exists (
+       select 1 from public.lead_searches s where s.id = p_search_id and s.tenant_id = p_tenant_id
+          and s.removed_at is null and s.via not in ('chosen', 'import')) then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  if p_search_id is not null and exists (select 1 from public.sequence_steps r
+                                          where r.source_search_id = p_search_id and r.id <> p_root_id) then
+    raise exception 'Another sequence adds from that search already.' using errcode = '23505';
+  end if;
+  update public.sequence_steps set source_search_id = p_search_id where id = p_root_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'reach_out.source_set', 'lead', 'playbook', p_root_id,
+          jsonb_build_object('search_id', p_search_id, 'by', auth.uid()));
+  return jsonb_build_object('root_id', p_root_id, 'source_search_id', p_search_id);
+end $$;
+
+
+--
+-- Name: FUNCTION reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid) IS 'Auto-add (00459): the search whose new ready leads join a sequence to leads by themselves, or none. A member who may approve; one sequence a search.';
+
+
+--
 -- Name: reach_out_sources(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22144,7 +22348,7 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
       when exists (select 1 from public.sequence_sends ro
                     where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id
-                      and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back'))))
+                      and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back', 'moved'))))
         then 'written'
       -- One business written to once: the finder saw it share a number, an own-domain address or a site with another.
       when exists (select 1 from public.lead_search_members m
@@ -24906,8 +25110,12 @@ begin
     raise exception 'sequence_create: a sequence is named whole, with five steps after its first at most'
       using errcode = '22004';
   end if;
+  -- A sequence to leads (00459): the one creator makes it too, on its list, a draft until Start.
+  if p_first->>'starts' = 'leads' then
+    return public.sequence_create_leads(p_tenant_id, p_first, p_start, p_decision, p_via, p_undo_of);
+  end if;
   if p_first->>'trigger' in ('lead_first', 'after_step') then
-    raise exception 'A sequence to leads is made from a search.' using errcode = '23514';
+    raise exception 'A sequence to leads is made with starts ''leads''.' using errcode = '23514';
   end if;
   -- Each message is the workspace's own, named as its row names it, never as the body says.
   select * into v_t from public.templates
@@ -24963,6 +25171,98 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.sequence_create(p_tenant_id uuid, p_first jsonb, p_then jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A new customer''s sequence made whole (0060, S4): its first step (a moment, as start_playbook takes it) and up to five steps after it, each a wait, what must still hold and a message of this workspace, under the first step''s class, hour and cap; kept as a draft (its first step paused, the sequence ''draft'', nothing sent) or started. By an acting member; the steps'' checks and keys judge each row; the make_sequence decision rides in the same transaction. Answers id, steps and state.';
+
+
+--
+-- Name: sequence_create_leads(uuid, jsonb, boolean, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_create_leads(p_tenant_id uuid, p_first jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor   uuid := auth.uid();
+  v_name    text := left(btrim(coalesce(p_first->>'name', '')), 80);
+  v_from    uuid := nullif(p_first->>'from', '')::uuid;
+  v_list    uuid := nullif(p_first->>'list_id', '')::uuid;
+  v_source  uuid := nullif(p_first->>'source_search_id', '')::uuid;
+  v_aim     uuid := nullif(p_first->>'aim_search_id', '')::uuid;
+  v_leads   uuid[] := coalesce(array(select x::uuid from jsonb_array_elements_text(coalesce(p_first->'lead_ids', '[]'::jsonb)) x), '{}');
+  v_boxes   uuid[];
+  v_chain   jsonb;
+  v_made    jsonb;
+  v_saved   jsonb;
+  v_root    uuid;
+  v_n       int;
+  v_counted int := 0;
+  v_left    jsonb := '{}'::jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_actor, p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if char_length(v_name) = 0 then
+    raise exception 'A sequence is named.' using errcode = '22023';
+  end if;
+  if v_source is not null and exists (select 1 from public.sequence_steps r where r.source_search_id = v_source) then
+    raise exception 'Another sequence adds from that search already.' using errcode = '23505';
+  end if;
+  if v_from is not null then
+    v_chain := public.reach_out_chain_of(p_tenant_id, v_from);
+    if v_chain is null then
+      raise exception 'Sequence not found.' using errcode = 'P0002';
+    end if;
+  else
+    -- Sent from the workspace's connected mailboxes; with none, handed to the owner to send from their own inbox.
+    select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+      from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+    v_chain := jsonb_build_object(
+      'gap_minutes', 12,
+      'mailbox_ids', to_jsonb(v_boxes),
+      'owner_sends', cardinality(v_boxes) = 0,
+      'steps', case when jsonb_typeof(p_first->'steps') = 'array' and jsonb_array_length(p_first->'steps') > 0
+                    then p_first->'steps'
+                    else jsonb_build_array(jsonb_build_object('subject', '', 'body', '')) end);
+  end if;
+  if v_list is null then
+    if cardinality(v_leads) > 0 then
+      v_made := public.lead_search_choose(p_tenant_id, v_name, v_leads);
+      if v_made ? 'error' then
+        raise exception '%', v_made->>'sentence' using errcode = '22023';
+      end if;
+      v_list := (v_made->>'search_id')::uuid;
+      v_counted := coalesce((v_made->>'counted')::int, 0);
+      v_left := coalesce(v_made->'left_out', '{}'::jsonb);
+    else
+      v_list := public.reach_out_list_for(p_tenant_id, v_name, v_actor);
+    end if;
+  elsif not exists (select 1 from public.lead_searches s where s.id = v_list and s.tenant_id = p_tenant_id
+                       and s.removed_at is null and s.via in ('chosen', 'import')) then
+    raise exception 'List not found.' using errcode = 'P0002';
+  end if;
+  v_saved := public.reach_out_save(p_tenant_id, v_actor,
+               v_chain || jsonb_build_object('search_id', v_list, 'name', v_name));
+  v_root := (v_saved->>'root_id')::uuid;
+  v_n := jsonb_array_length(v_saved->'step_ids');
+  update public.sequence_steps
+     set state = case when p_start then 'running' else 'paused' end, source_search_id = v_source
+   where id = v_root;
+  if not p_start then
+    update public.sequences set state = 'draft' where id = v_root;
+  end if;
+  if v_aim is not null then
+    update public.lead_searches set adds_to = v_root
+     where id = v_aim and tenant_id = p_tenant_id and removed_at is null;
+  end if;
+  return jsonb_build_object('id', v_root, 'steps', v_n, 'state', case when p_start then 'on' else 'draft' end,
+                            'list_id', v_list, 'added', v_counted, 'left_out', v_left)
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', v_root, 'make_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('steps', v_n, 'started', p_start, 'starts', 'leads'),
+         p_via, p_undo_of);
+end $$;
 
 
 --
@@ -25235,6 +25535,26 @@ begin
         returning m.id, m.lead_id)
       select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'lead_id', o.lead_id)), '[]'::jsonb), count(*)
         into v_members, v_off from off o;
+      -- A lead its search feeds (00459 auto-add), not on the list and nothing planned for it, is kept out by a blanked
+      -- row on the list, so the search does not bring it back; Put back unblanks it with the rest.
+      if v_root.source_search_id is not null then
+        with kept as (
+          insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, class, reason, counted,
+                                                  blanked_at)
+          select v_root.lead_search_id, x, null, p_tenant_id, 'qualified', '', false, now()
+            from unnest(p_lead_ids) as x
+           where not exists (select 1 from public.lead_search_members m
+                              where m.search_id = v_root.lead_search_id and m.lead_id = x)
+             and exists (select 1 from public.lead_search_members m
+                          where m.search_id = v_root.source_search_id and m.lead_id = x and m.blanked_at is null)
+             and not exists (select 1 from public.sequence_enrollments e
+                              where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id and e.lead_id = x)
+          on conflict (search_id, lead_id) do nothing
+          returning id, lead_id)
+        select v_members || coalesce(jsonb_agg(jsonb_build_object('id', k.id, 'lead_id', k.lead_id)), '[]'::jsonb),
+               v_off + count(*)
+          into v_members, v_off from kept k;
+      end if;
       -- The list's own event, as Leave out writes it (reach_out_leave_out).
       if v_off > 0 then
         insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -25277,6 +25597,64 @@ COMMENT ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, 
 
 
 --
+-- Name: sequence_move(uuid, uuid, uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_from  uuid;
+  v_left  jsonb;
+  v_added jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_actor, p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.sequence_steps r where r.id = p_to_root and r.tenant_id = p_tenant_id
+                    and r.kind = 'reach_out' and r.trigger = 'lead_first') then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  -- One business gets one sequence: a lead written to, or handed an email to send, stays where it is.
+  if exists (select 1 from public.sequence_sends s
+              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+                and s.state in ('claimed', 'queued', 'sent', 'handed', 'drafted')) then
+    raise exception 'They were written to already: a business gets one sequence.' using errcode = '23505';
+  end if;
+  select e.sequence_id into v_from from public.sequence_enrollments e
+   where e.tenant_id = p_tenant_id and e.lead_id = p_lead_id and e.state = 'in' and e.sequence_id <> p_to_root
+   order by e.entered_at desc limit 1;
+  if v_from is null then
+    select r.sequence_id into v_from from public.sequence_steps r
+      join public.lead_search_members m on m.search_id = r.lead_search_id and m.lead_id = p_lead_id and m.blanked_at is null
+     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first' and r.id <> p_to_root
+     order by m.created_at desc limit 1;
+  end if;
+  if v_from is null then
+    raise exception 'They are in no other sequence.' using errcode = 'P0002';
+  end if;
+  v_left := public.sequence_leave(p_tenant_id, v_from, '{}'::uuid[], 'moved',
+                                  coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('moved_to', p_to_root),
+                                  p_via, null, array[p_lead_id]);
+  -- Off the old list too, so no sequence holds them but the new one (a place that stood stays on its list otherwise).
+  update public.lead_search_members m set blanked_at = now(), version = m.version + 1
+    from public.sequence_steps r
+   where r.id = v_from and m.search_id = r.lead_search_id and m.lead_id = p_lead_id and m.blanked_at is null;
+  v_added := public.reach_out_add(p_to_root, array[p_lead_id], false);
+  if coalesce((v_added->>'added')::int, 0) = 0 then
+    raise exception 'They can''t join that sequence.' using errcode = '22023';
+  end if;
+  return jsonb_build_object('from', v_from, 'to', p_to_root, 'decision_id', v_left->>'decision_id',
+                            'op_id', v_added->>'op_id');
+end $$;
+
+
+--
 -- Name: sequence_overview(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -25291,9 +25669,16 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
   steps as (
     select s.sequence_id, count(*) as n,
            array(select distinct c from public.sequence_steps x, unnest(x.channels) c
-                  where x.sequence_id = s.sequence_id order by c) as channels
+                  where x.sequence_id = s.sequence_id order by c) as channels,
+           -- The days its steps span (00459): each wait after the first, as the record's rail adds them.
+           coalesce(sum(s.after_days) filter (where s.after_step_id is not null), 0) as days,
+           -- A sequence to leads' emails still to write (00459): a step's body left empty, as a new draft's is.
+           count(*) filter (where s.kind = 'reach_out' and s.hand is null
+                              and coalesce(btrim((select x->>'text' from jsonb_array_elements(t.components) x
+                                                   where x->>'type' = 'BODY' limit 1)), '') = '') as unwritten
       from public.sequence_steps s
       join q on q.id = s.sequence_id
+      left join public.templates t on t.id = s.template_id
      group by s.sequence_id
   ),
   -- Each batch waiting for an OK, as the badge judges one (contracts runWaitsOnYou, by the business's day): its step,
@@ -25348,12 +25733,14 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
   last_counts as (
     select public.sequence_batch_counts(p_tenant_id, coalesce(array_agg(l.id), '{}')) as counts from last l
   ),
+  -- Who is in it (00459): everyone whose place stands, as its People tab files them (sequence_places): a lead added and
+  -- not yet planned, waiting for an OK, held, for you to send, up next or between steps. Not who left, finished, or wrote
+  -- back and waits for an answer.
   in_it as (
-    select e.sequence_id, count(*) as n
-      from public.sequence_enrollments e
-      join q on q.id = e.sequence_id
-     where e.state = 'in'
-     group by e.sequence_id
+    select p.sequence_id, count(*) as n
+      from public.sequence_places(p_tenant_id, p_sequence_id, null) p
+     where p.grp not in ('done', 'left', 'replied')
+     group by p.sequence_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', q.id,
@@ -25373,6 +25760,22 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
              'list_name', (select g.name from public.segments g where g.id = f.list_id),
              'search_id', f.lead_search_id,
              'search_name', (select ls.name from public.lead_searches ls where ls.id = f.lead_search_id),
+             'source_search_id', f.source_search_id,
+             'source_name', (select ls.name from public.lead_searches ls where ls.id = f.source_search_id),
+             -- The search it could add from, while it adds from none (How it runs' auto-add switch): the live finder
+             -- search that found most of its list's leads, and that no other sequence adds from already.
+             'source_could', case when f.lead_search_id is null or f.source_search_id is not null then null else (
+               select jsonb_build_object('id', ls.id, 'name', ls.name)
+                 from public.lead_search_members m
+                 join public.lead_search_members o
+                   on o.tenant_id = m.tenant_id and o.lead_id = m.lead_id and o.search_id <> m.search_id
+                 join public.lead_searches ls on ls.id = o.search_id
+                where m.search_id = f.lead_search_id and m.tenant_id = q.tenant_id
+                  and ls.removed_at is null and ls.via not in ('chosen', 'import')
+                  and not exists (select 1 from public.sequence_steps r where r.source_search_id = ls.id)
+                group by ls.id, ls.name
+                order by count(*) desc, ls.name
+                limit 1) end,
              'owner_sends', f.owner_sends,
              'until', f.until,
              'trial_until', f.trial_until,
@@ -25383,6 +25786,8 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
                                        'people', d.recipient_count)
                from public.sequence_batches d where d.id = q.id) end,
            'steps', coalesce(st.n, 0),
+           'days', coalesce(st.days, 0),
+           'unwritten', coalesce(st.unwritten, 0),
            'channels', coalesce(to_jsonb(st.channels), '[]'::jsonb),
            'needs', jsonb_build_object(
              'waiting', coalesce(w.n, 0),
@@ -25417,7 +25822,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, or a one-off''s date), where it stands, its steps and channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it. Newest first. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, or a one-off''s date), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
 
 
 --
@@ -25429,100 +25834,15 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
     SET search_path TO ''
     AS $$
   with lim as (select least(greatest(coalesce(p_limit, 50), 1), 200) as n),
-  -- Each person's latest send in the sequence: where they stand now.
-  latest as (
-    select distinct on (coalesce(s.lead_id, s.contact_id))
-           s.id as send_id, s.batch_id, s.step_id, s.contact_id, s.lead_id, s.state, s.reason, s.hold_detail,
-           s.send_at, s.sent_at, s.drafted_at, s.created_at, s.draft, s.angle, b.state as batch_state, b.scheduled_for
-      from public.sequence_sends s
-      join public.sequence_batches b on b.id = s.batch_id
-     where s.tenant_id = p_tenant_id and s.sequence_id = p_sequence_id
-     order by coalesce(s.lead_id, s.contact_id), s.created_at desc, s.id desc
-  ),
-  placed as (
-    select l.*, st.place,
-           case
-             when l.state = 'held' then 'held'
-             when l.state = 'drafted' then 'to_send'
-             when l.batch_state = 'pending_approval' and l.state in ('queued', 'planned') then 'waiting'
-             when l.state in ('queued', 'planned', 'claimed') and l.batch_state not in ('canceled', 'failed') then 'next'
-             else null
-           end as grp,
-           coalesce(l.drafted_at, l.send_at, l.scheduled_for, l.created_at) as at
-      from latest l
-      left join public.sequence_steps st on st.id = l.step_id
-  ),
-  enrolled as (
-    select e.id as enrollment_id, e.contact_id, e.lead_id, e.state, e.place, e.why, e.next_at, e.sent_at,
-           coalesce(e.ended_at, e.moved_at) as at
-      from public.sequence_enrollments e
-     where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id
-  ),
-  -- Someone in it between steps (no send of theirs pending), and those done or out, from their enrollments.
-  between as (
-    select e.* from enrolled e
-     where e.state = 'in'
-       and not exists (select 1 from placed p where p.grp is not null
-                         and coalesce(p.lead_id, p.contact_id) = coalesce(e.lead_id, e.contact_id))
-  ),
-  -- Someone whose reply asks for an answer (00455), as the overview counts one (00442 sequence_overview's
-  -- replies): a person interested or asking, read in the last 14 days, not answered or undone. Their newest.
-  replied as (
-    select distinct on (coalesce(r.lead_id, r.contact_id))
-           r.contact_id, r.lead_id, r.conversation_id, r.intent, r.summary, r.read_at, st.place
-      from public.sequence_replies r
-      join public.sequence_sends s on s.id = r.send_id and s.tenant_id = p_tenant_id and s.sequence_id = p_sequence_id
-      left join public.sequence_steps st on st.id = s.step_id
-     where r.tenant_id = p_tenant_id and r.undone_at is null and r.answered_message_id is null
-       and r.claim in ('person', 'owner') and r.intent in ('interested', 'question')
-       and r.read_at > now() - interval '14 days'
-     order by coalesce(r.lead_id, r.contact_id), r.read_at desc
-  ),
-  rows_of as (
-    -- An email handed to its owner, whole (00429 sequence_sends_drafted_is_whole): what their mail app opens with.
-    select p.grp, p.contact_id, p.lead_id, p.place, p.at, p.reason as why, p.hold_detail, p.send_id, p.batch_id,
-           null::uuid as enrollment_id, null::jsonb as reply,
-           case when p.grp = 'to_send' and jsonb_typeof(p.draft) = 'object'
-                     and jsonb_typeof(p.draft -> 'to') = 'string' and jsonb_typeof(p.draft -> 'subject') = 'string'
-                     and jsonb_typeof(p.draft -> 'text') = 'string'
-                then jsonb_build_object(
-                       'to', p.draft ->> 'to',
-                       'subject', p.draft ->> 'subject',
-                       'text', p.draft ->> 'text',
-                       'follow_up', coalesce(jsonb_typeof(p.draft -> 'parent_id') = 'string', false),
-                       'angle', p.angle,
-                       'drafted_at', coalesce(p.drafted_at, p.created_at))
-           end as draft
-      from placed p where p.grp is not null
-    union all
-    select 'in', b.contact_id, b.lead_id, b.place, coalesce(b.next_at, b.at), null, null, null, null, b.enrollment_id,
-           null::jsonb, null::jsonb
-      from between b
-    union all
-    select case when e.state = 'done' then 'done' else 'left' end, e.contact_id, e.lead_id, e.place, e.at, e.why,
-           null, null, null, e.enrollment_id, null::jsonb, null::jsonb
-      from enrolled e where e.state in ('done', 'left')
-    union all
-    -- Their place, while it stands, so Take out reaches them here too.
-    select 'replied', rp.contact_id, rp.lead_id, rp.place, rp.read_at, rp.intent, null, null, null,
-           (select e.enrollment_id from enrolled e
-             where e.state = 'in' and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
-             limit 1),
-           jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id),
-           null::jsonb
-      from replied rp
-  ),
   named as (
     select r.*,
            coalesce(c.display_name, c.wa_profile_name, ld.business_name) as name,
            row_number() over (partition by r.grp
-                              order by case when r.grp in ('done', 'left') then r.at end desc nulls last, r.at, r.contact_id, r.lead_id) as pos
-      from rows_of r
+                              order by case when r.grp in ('done', 'left') then r.at end desc nulls last, r.at,
+                                       r.contact_id, r.lead_id) as pos
+      from public.sequence_places(p_tenant_id, p_sequence_id, null) r
       left join public.contacts c on c.id = r.contact_id and c.erased_at is null
       left join public.leads ld on ld.id = r.lead_id
-     -- Who wrote back shows there alone, not again where their place stands.
-     where r.grp = 'replied' or not exists (select 1 from replied rp
-                                            where coalesce(rp.lead_id, rp.contact_id) = coalesce(r.lead_id, r.contact_id))
   )
   select jsonb_build_object(
     'counts', coalesce((select jsonb_object_agg(g.grp, g.n) from (select grp, count(*) as n from named group by grp) g),
@@ -25550,6 +25870,201 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: replied (a reply that asks for an answer, as the overview counts one, with their newest reading: 00455), waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out: never a send of a batch cut off, 00453), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+
+
+--
+-- Name: sequence_place(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_place(p_tenant_id uuid, p_lead_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with p as (
+    select r.*, q.name as sequence_name, q.state as sequence_state
+      from public.sequence_places(p_tenant_id, null, array[p_lead_id]) r
+      join public.sequences q on q.id = r.sequence_id
+     order by case when r.grp in ('done', 'left') then 1 else 0 end, r.at desc nulls last
+     limit 1
+  ),
+  root as (
+    select st.owner_sends, st.mailbox_ids, st.lead_search_id, st.source_search_id
+      from public.sequence_steps st join p on st.id = p.sequence_id
+  )
+  select case when p.sequence_id is null then null else jsonb_build_object(
+    'sequence', jsonb_build_object('id', p.sequence_id, 'name', p.sequence_name, 'state', p.sequence_state),
+    'place', jsonb_build_object('group', p.grp, 'enrollment_id', p.enrollment_id, 'send_id', p.send_id,
+                                'batch_id', p.batch_id, 'place', p.place, 'at', p.at, 'why', p.why,
+                                'hold_detail', p.hold_detail, 'draft', p.draft, 'reply', p.reply),
+    'sends', coalesce((select jsonb_agg(jsonb_build_object(
+                         'id', s.id, 'step_id', s.step_id, 'place', st.place, 'state', s.state, 'reason', s.reason,
+                         'hold_detail', s.hold_detail, 'send_at', s.send_at, 'sent_at', s.sent_at,
+                         'drafted_at', s.drafted_at, 'batch_id', s.batch_id) order by st.place, s.created_at)
+                         from public.sequence_sends s
+                         join public.sequence_steps st on st.id = s.step_id
+                        where s.tenant_id = p_tenant_id and s.sequence_id = p.sequence_id and s.lead_id = p_lead_id),
+                       '[]'::jsonb),
+    'reads_replies', coalesce((select exists (select 1 from public.mailbox_connections c
+                                               where c.tenant_id = p_tenant_id and c.state = 'connected'
+                                                 and c.id = any (root.mailbox_ids)) from root), false),
+    'owner_sends', coalesce((select root.owner_sends from root), false),
+    -- When they joined its list, by hand, or from the search it adds from (auto-add): the rail's Start says which.
+    'joined', (select jsonb_build_object('at', coalesce(lm.created_at, sm.created_at),
+                                         'auto', lm.created_at is null and sm.created_at is not null)
+                 from root
+                 left join public.lead_search_members lm on lm.search_id = root.lead_search_id and lm.lead_id = p_lead_id
+                 left join public.lead_search_members sm on sm.search_id = root.source_search_id and sm.lead_id = p_lead_id
+                limit 1)) end
+    from (select 1) one
+    left join p on true
+$$;
+
+
+--
+-- Name: sequence_places(uuid, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFAULT NULL::uuid, p_lead_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(grp text, sequence_id uuid, contact_id uuid, lead_id uuid, enrollment_id uuid, send_id uuid, batch_id uuid, place integer, at timestamp with time zone, why text, hold_detail text, draft jsonb, reply jsonb)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with latest as (
+    select distinct on (s.sequence_id, coalesce(s.lead_id, s.contact_id))
+           s.sequence_id, s.id as send_id, s.batch_id, s.step_id, s.contact_id, s.lead_id, s.state, s.reason,
+           s.hold_detail, s.send_at, s.sent_at, s.drafted_at, s.created_at, s.draft, s.angle, b.state as batch_state,
+           b.scheduled_for
+      from public.sequence_sends s
+      join public.sequence_batches b on b.id = s.batch_id
+     where s.tenant_id = p_tenant_id
+       and (p_sequence_id is null or s.sequence_id = p_sequence_id)
+       and (p_lead_ids is null or s.lead_id = any (p_lead_ids))
+     order by s.sequence_id, coalesce(s.lead_id, s.contact_id), s.created_at desc, s.id desc
+  ),
+  placed as (
+    select l.*, st.place,
+           case
+             when l.state = 'held' then 'held'
+             when l.state = 'drafted' then 'to_send'
+             when l.batch_state = 'pending_approval' and l.state in ('queued', 'planned') then 'waiting'
+             when l.state in ('queued', 'planned', 'claimed') and l.batch_state not in ('canceled', 'failed') then 'next'
+             else null
+           end as grp,
+           coalesce(l.drafted_at, l.send_at, l.scheduled_for, l.created_at) as at
+      from latest l
+      left join public.sequence_steps st on st.id = l.step_id
+  ),
+  -- Each one's latest place in each sequence: someone who came back (started again, moved back) is where they are now.
+  enrolled as (
+    select distinct on (e.sequence_id, coalesce(e.lead_id, e.contact_id))
+           e.id as enrollment_id, e.sequence_id, e.contact_id, e.lead_id, e.state, e.place, e.why, e.next_at,
+           e.sent_at, coalesce(e.ended_at, e.moved_at) as at
+      from public.sequence_enrollments e
+     where e.tenant_id = p_tenant_id
+       and (p_sequence_id is null or e.sequence_id = p_sequence_id)
+       and (p_lead_ids is null or e.lead_id = any (p_lead_ids))
+     order by e.sequence_id, coalesce(e.lead_id, e.contact_id), e.entered_at desc, e.id desc
+  ),
+  between as (
+    select e.* from enrolled e
+     where e.state = 'in'
+       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = e.sequence_id
+                         and coalesce(p.lead_id, p.contact_id) = coalesce(e.lead_id, e.contact_id))
+  ),
+  replied as (
+    select distinct on (s.sequence_id, coalesce(r.lead_id, r.contact_id))
+           s.sequence_id, r.contact_id, r.lead_id, r.conversation_id, r.intent, r.summary, r.read_at, st.place
+      from public.sequence_replies r
+      join public.sequence_sends s on s.id = r.send_id and s.tenant_id = p_tenant_id
+                                  and (p_sequence_id is null or s.sequence_id = p_sequence_id)
+      left join public.sequence_steps st on st.id = s.step_id
+     where r.tenant_id = p_tenant_id and r.undone_at is null and r.answered_message_id is null
+       and r.claim in ('person', 'owner') and r.intent in ('interested', 'question')
+       and r.read_at > now() - interval '14 days'
+       and (p_lead_ids is null or r.lead_id = any (p_lead_ids))
+     order by s.sequence_id, coalesce(r.lead_id, r.contact_id), r.read_at desc
+  ),
+  listed as (
+    select r.sequence_id, m.lead_id, m.created_at
+      from public.sequence_steps r
+      join public.lead_search_members m on m.search_id = r.lead_search_id and m.tenant_id = r.tenant_id
+     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
+       and (p_sequence_id is null or r.sequence_id = p_sequence_id)
+       and (p_lead_ids is null or m.lead_id = any (p_lead_ids))
+       and m.blanked_at is null and m.class = 'qualified' and m.counted
+       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = r.sequence_id
+                         and p.lead_id = m.lead_id)
+       -- Never planned here, or moved out and back since (its place there left as moved, the list holding it again).
+       and not exists (select 1 from enrolled e where e.sequence_id = r.sequence_id and e.lead_id = m.lead_id
+                         and not (e.state = 'left' and e.why = 'moved'))
+  ),
+  rows_of as (
+    select p.grp, p.sequence_id, p.contact_id, p.lead_id, null::uuid as enrollment_id, p.send_id, p.batch_id, p.place,
+           p.at, p.reason as why, p.hold_detail,
+           case when p.grp = 'to_send' and jsonb_typeof(p.draft) = 'object'
+                     and jsonb_typeof(p.draft -> 'to') = 'string' and jsonb_typeof(p.draft -> 'subject') = 'string'
+                     and jsonb_typeof(p.draft -> 'text') = 'string'
+                then jsonb_build_object(
+                       'to', p.draft ->> 'to',
+                       'subject', p.draft ->> 'subject',
+                       'text', p.draft ->> 'text',
+                       'follow_up', coalesce(jsonb_typeof(p.draft -> 'parent_id') = 'string', false),
+                       'angle', p.angle,
+                       'drafted_at', coalesce(p.drafted_at, p.created_at))
+           end as draft,
+           null::jsonb as reply
+      from placed p where p.grp is not null
+    union all
+    select 'in', b.sequence_id, b.contact_id, b.lead_id, b.enrollment_id, null, null, b.place, coalesce(b.next_at, b.at),
+           null, null, null::jsonb, null::jsonb
+      from between b
+    union all
+    select case when e.state = 'done' then 'done' else 'left' end, e.sequence_id, e.contact_id, e.lead_id,
+           e.enrollment_id, null, null, e.place, e.at, e.why, null, null::jsonb, null::jsonb
+      from enrolled e where e.state in ('done', 'left')
+       and not exists (select 1 from listed l where l.sequence_id = e.sequence_id and l.lead_id = e.lead_id)
+    union all
+    select 'queued', l.sequence_id, null, l.lead_id, null, null, null, 1, l.created_at, null, null, null::jsonb,
+           null::jsonb
+      from listed l
+    union all
+    select 'replied', rp.sequence_id, rp.contact_id, rp.lead_id,
+           (select e.enrollment_id from enrolled e
+             where e.state = 'in' and e.sequence_id = rp.sequence_id
+               and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
+             limit 1),
+           null, null, rp.place, rp.read_at, rp.intent, null, null::jsonb,
+           jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id)
+      from replied rp
+  )
+  -- Who wrote back shows there alone, not again where their place stands.
+  select r.grp, r.sequence_id, r.contact_id, r.lead_id, r.enrollment_id, r.send_id, r.batch_id, r.place, r.at, r.why,
+         r.hold_detail, r.draft, r.reply
+    from rows_of r
+   where r.grp = 'replied'
+      or not exists (select 1 from replied rp where rp.sequence_id = r.sequence_id
+                       and coalesce(rp.lead_id, rp.contact_id) = coalesce(r.lead_id, r.contact_id))
+$$;
+
+
+--
+-- Name: sequence_places_of(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_places_of(p_tenant_id uuid, p_lead_ids uuid[]) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'lead_id', b.lead_id, 'sequence_id', b.sequence_id, 'name', b.name, 'state', b.state, 'group', b.grp,
+           'place', b.place, 'at', b.at, 'why', b.why) order by b.lead_id), '[]'::jsonb)
+    from (
+      select distinct on (r.lead_id) r.lead_id, r.sequence_id, q.name, q.state, r.grp, r.place, r.at, r.why
+        from public.sequence_places(p_tenant_id, null, coalesce(p_lead_ids, '{}'::uuid[])) r
+        join public.sequences q on q.id = r.sequence_id
+       where r.lead_id is not null
+       order by r.lead_id, case when r.grp in ('done', 'left') then 1 else 0 end, r.at desc nulls last
+    ) b
+$$;
 
 
 --
@@ -25834,6 +26349,24 @@ begin
          set state = 'done', why = null, ended_at = coalesce(ended_at, now()), place = greatest(place, v_place),
              sent_at = coalesce(NEW.sent_at, now()), next_at = null
        where id = v_e.id;
+    end if;
+  elsif NEW.state = 'skipped' and NEW.reason = 'owner_skipped' and NEW.lead_id is not null and v_place > 1 then
+    -- Skip this email, from step 2 (00459): their place goes on to the next step after its wait, as a send would have
+    -- moved it, or is done after the last.
+    if v_e.state = 'in' and v_e.place <= v_place then
+      select true, n.after_days into v_has_next, v_next_days
+        from public.sequence_steps n
+       where n.sequence_id = NEW.sequence_id and n.place = v_place + 1;
+      if coalesce(v_has_next, false) then
+        update public.sequence_enrollments
+           set place = greatest(place, v_place), next_at = now() + make_interval(days => coalesce(v_next_days, 0))
+         where id = v_e.id;
+      else
+        update public.sequence_enrollments
+           set state = 'done', why = null, ended_at = coalesce(ended_at, now()), place = greatest(place, v_place),
+               next_at = null
+         where id = v_e.id;
+      end if;
     end if;
   elsif NEW.state in ('skipped', 'failed')
         and not (NEW.lead_id is null and NEW.state = 'failed' and NEW.reason = 'outcome_unknown') then
@@ -30774,6 +31307,7 @@ CREATE TABLE public.lead_searches (
     removed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     thread_id uuid,
+    adds_to uuid,
     CONSTRAINT lead_searches_asked_check CHECK ((char_length(asked) <= 400)),
     CONSTRAINT lead_searches_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 120))),
     CONSTRAINT lead_searches_via_check CHECK ((via = ANY (ARRAY['people'::text, 'ask'::text, 'import'::text, 'chosen'::text])))
@@ -30799,6 +31333,13 @@ COMMENT ON COLUMN public.lead_searches.via IS 'How the search was made: people (
 --
 
 COMMENT ON COLUMN public.lead_searches.thread_id IS 'The Ask thread the search was planned in (00172), so an answer to its question lands there. Only ever the planner''s own thread; null for a search made on the page, for every search before 00172, and once the thread is gone.';
+
+
+--
+-- Name: COLUMN lead_searches.adds_to; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_searches.adds_to IS 'The sequence to leads this search''s Add goes to (00459: the lead sheet''s pick, kept on the search so a desk, a phone and a teammate agree); null until one is chosen, and again once that sequence is discarded.';
 
 
 --
@@ -31058,7 +31599,8 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
     COALESCE(c.strong, (0)::bigint) AS strong,
     COALESCE(c.look, (0)::bigint) AS look,
     COALESCE(c.long, (0)::bigint) AS long,
-    s.thread_id
+    s.thread_id,
+    s.adds_to
    FROM (((public.lead_searches s
      LEFT JOIN LATERAL ( SELECT r_1.id,
             r_1.seq,
@@ -31103,7 +31645,7 @@ CREATE VIEW public.lead_searches_view WITH (security_invoker='true') AS
 -- Name: VIEW lead_searches_view; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null.';
+COMMENT ON VIEW public.lead_searches_view IS 'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null. adds_to (00459): the sequence this search''s Add goes to.';
 
 
 --
@@ -32743,6 +33285,7 @@ CREATE TABLE public.sequence_steps (
     next_template_name text,
     next_template_language text,
     next_params jsonb,
+    source_search_id uuid,
     CONSTRAINT sequence_steps_cadence_days_check CHECK (((cadence_days >= 1) AND (cadence_days <= 90))),
     CONSTRAINT sequence_steps_cap_per_run_check CHECK (((cap_per_run >= 1) AND (cap_per_run <= 500))),
     CONSTRAINT sequence_steps_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
@@ -32773,6 +33316,7 @@ CASE kind
         ELSE ((after_step_id IS NULL) AND (after_days IS NULL))
     END), false)
 END),
+    CONSTRAINT sequence_steps_source_is_a_lead_first_step CHECK (((source_search_id IS NULL) OR ((kind = 'reach_out'::text) AND (trigger = 'lead_first'::text)))),
     CONSTRAINT sequence_steps_state_check CHECK ((state = ANY (ARRAY['running'::text, 'paused'::text]))),
     CONSTRAINT sequence_steps_template_or_hand CHECK (
 CASE
@@ -32879,6 +33423,13 @@ COMMENT ON COLUMN public.sequence_steps.only_if IS 'A customer''s step after the
 --
 
 COMMENT ON COLUMN public.sequence_steps.next_template_id IS 'New words for this step that wait for WhatsApp to approve them (0060): the step keeps sending its message (template_*) until WhatsApp approves these, which then become its message. Null: nothing waits.';
+
+
+--
+-- Name: COLUMN sequence_steps.source_search_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_steps.source_search_id IS 'A sequence to leads'' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here.';
 
 
 --
@@ -33179,13 +33730,11 @@ CREATE TABLE public.tenants (
     locale text DEFAULT 'en'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    sells_by text,
     left_empty_at timestamp with time zone,
     logo_path text,
     appointment_word text,
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
-    CONSTRAINT tenants_sells_by_check CHECK (((sells_by IS NULL) OR (sells_by = ANY (ARRAY['booking'::text, 'proposal'::text])))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
 );
 
@@ -33195,13 +33744,6 @@ CREATE TABLE public.tenants (
 --
 
 COMMENT ON COLUMN public.tenants.timezone IS 'IANA zone. Decides what "today" means in metrics (00009), which closures are upcoming, and the hours the receptionist states. Owner-settable since 00084; validated as a real zone by the contracts layer, which is the only place that can ask Intl.';
-
-
---
--- Name: COLUMN tenants.sells_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.tenants.sells_by IS 'Retired 18 Oct 2026 (0008, amended: deals for everyone). Was how this workspace''s customers buy (booking or proposal), the switch the deal layer hung on. Written by nothing; read only as appointment_word''s fallback, and dropped with it.';
 
 
 --
@@ -35846,7 +36388,7 @@ CREATE INDEX sequence_sends_message ON public.sequence_sends USING btree (messag
 -- Name: sequence_sends_one_first; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX sequence_sends_one_first ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((lead_id IS NOT NULL) AND (step_id = sequence_id) AND (NOT ((state = 'skipped'::text) AND (reason = ANY (ARRAY['run_canceled'::text, 'owner_took_back'::text])))));
+CREATE UNIQUE INDEX sequence_sends_one_first ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((lead_id IS NOT NULL) AND (step_id = sequence_id) AND (NOT ((state = 'skipped'::text) AND (reason = ANY (ARRAY['run_canceled'::text, 'owner_took_back'::text, 'moved'::text])))));
 
 
 --
@@ -35917,6 +36459,13 @@ CREATE UNIQUE INDEX sequence_steps_one_follow_up ON public.sequence_steps USING 
 --
 
 CREATE UNIQUE INDEX sequence_steps_one_next ON public.sequence_steps USING btree (after_step_id) WHERE (after_step_id IS NOT NULL);
+
+
+--
+-- Name: sequence_steps_one_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequence_steps_one_source ON public.sequence_steps USING btree (source_search_id) WHERE (source_search_id IS NOT NULL);
 
 
 --
@@ -37533,7 +38082,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_config FOR EA
 -- Name: tenants workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, sells_by, appointment_word, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.sells_by IS DISTINCT FROM new.sells_by) OR (old.appointment_word IS DISTINCT FROM new.appointment_word) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, appointment_word, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.appointment_word IS DISTINCT FROM new.appointment_word) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -38190,6 +38739,14 @@ ALTER TABLE ONLY public.lead_search_members
 
 ALTER TABLE ONLY public.lead_search_members
     ADD CONSTRAINT lead_search_members_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: lead_searches lead_searches_adds_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lead_searches
+    ADD CONSTRAINT lead_searches_adds_to_fkey FOREIGN KEY (tenant_id, adds_to) REFERENCES public.sequences(tenant_id, id) ON DELETE SET NULL (adds_to);
 
 
 --
@@ -39030,6 +39587,14 @@ ALTER TABLE ONLY public.sequence_steps
 
 ALTER TABLE ONLY public.sequence_steps
     ADD CONSTRAINT sequence_steps_sequence_id_same_workspace FOREIGN KEY (tenant_id, sequence_id) REFERENCES public.sequences(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_steps sequence_steps_source_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_steps
+    ADD CONSTRAINT sequence_steps_source_same_workspace FOREIGN KEY (tenant_id, source_search_id) REFERENCES public.lead_searches(tenant_id, id) ON DELETE RESTRICT;
 
 
 --
@@ -42191,6 +42756,15 @@ GRANT ALL ON FUNCTION public.lead_runs_guard() TO service_role;
 
 
 --
+-- Name: FUNCTION lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_search_choose(p_tenant_id uuid, p_name text, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
 --
 
@@ -43695,6 +44269,14 @@ GRANT ALL ON FUNCTION public.reach_out_booked_from(p_tenant_id uuid, p_appointme
 
 
 --
+-- Name: FUNCTION reach_out_chain_of(p_tenant_id uuid, p_root_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_chain_of(p_tenant_id uuid, p_root_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_chain_of(p_tenant_id uuid, p_root_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION reach_out_chain_people(p_tenant_id uuid, p_root_id uuid, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -43819,6 +44401,14 @@ GRANT ALL ON FUNCTION public.reach_out_lead_timeline(p_tenant_id uuid, p_lead_id
 REVOKE ALL ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_list_for(p_tenant_id uuid, p_name text, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_list_for(p_tenant_id uuid, p_name text, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_list_for(p_tenant_id uuid, p_name text, p_by uuid) TO service_role;
 
 
 --
@@ -44045,6 +44635,15 @@ GRANT ALL ON FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision te
 REVOKE ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.reach_out_source_set(p_tenant_id uuid, p_root_id uuid, p_search_id uuid) TO service_role;
 
 
 --
@@ -44455,6 +45054,14 @@ GRANT ALL ON FUNCTION public.sequence_create(p_tenant_id uuid, p_first jsonb, p_
 
 
 --
+-- Name: FUNCTION sequence_create_leads(p_tenant_id uuid, p_first jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_create_leads(p_tenant_id uuid, p_first jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_create_leads(p_tenant_id uuid, p_first jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -44514,6 +45121,15 @@ GRANT ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid
 
 
 --
+-- Name: FUNCTION sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -44529,6 +45145,33 @@ GRANT ALL ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id u
 REVOKE ALL ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_place(p_tenant_id uuid, p_lead_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_place(p_tenant_id uuid, p_lead_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_place(p_tenant_id uuid, p_lead_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_place(p_tenant_id uuid, p_lead_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_places_of(p_tenant_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_places_of(p_tenant_id uuid, p_lead_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_places_of(p_tenant_id uuid, p_lead_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_places_of(p_tenant_id uuid, p_lead_ids uuid[]) TO service_role;
 
 
 --
@@ -46815,13 +47458,6 @@ GRANT UPDATE(name) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
-
-
---
--- Name: COLUMN tenants.sells_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(sells_by) ON TABLE public.tenants TO authenticated;
 
 
 --

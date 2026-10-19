@@ -14,6 +14,9 @@ import {
 import { dealSpec, noteSpec, personModeSpec } from "./person.js";
 import { playbookChangeSpec, playbookRunSpec, runSpec } from "./campaigns.js";
 import {
+  leadSearchAimSpec,
+  sequenceAddSpec,
+  sequenceMoveSpec,
   sequenceDiscardSpec,
   sequenceEndSpec,
   sequenceDraftSpec,
@@ -27,6 +30,7 @@ import {
   sequenceTestSpec,
   sequenceWordsSpec
 } from "./sequences.js";
+import { settingsSpec } from "./workspace.js";
 export const PAGE_SPECS = {
   // People's: a person's answers, mode, notes and deal, many at once, added and merged, and a list's members.
   answer: answerSpec,
@@ -44,6 +48,10 @@ export const PAGE_SPECS = {
   sequence_step_remove: sequenceStepRemoveSpec,
   sequence_words: sequenceWordsSpec,
   sequence_leave: sequenceLeaveSpec,
+  // One road from a lead to a sequence (00459): Add, Move to, and where a search's Add goes.
+  sequence_add: sequenceAddSpec,
+  sequence_move: sequenceMoveSpec,
+  lead_search_aim: leadSearchAimSpec,
   sequence_send_decide: sequenceSendDecideSpec,
   sequence_send_said: sequenceSendSaidSpec,
   sequence_draft: sequenceDraftSpec,
@@ -62,7 +70,10 @@ export const PAGE_SPECS = {
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
   // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
-  answer_style: answerStyleSpec
+  answer_style: answerStyleSpec,
+  // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence
+  // canvas: "a field in the step sheet, saved to Settings").
+  settings: settingsSpec
 };
 const more = {};
 export function proposalSpec(kind) {

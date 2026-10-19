@@ -73,7 +73,7 @@ globalThis.__WORKSPACES = [
     name: "Harbor Studio",
     status: "active",
     timezone: "America/New_York",
-    sells_by: "proposal",
+    appointment_word: "meeting",
     role: "owner",
   },
 ];
@@ -446,7 +446,7 @@ test("the strip's figures: five counts, each named by its metric, the period bef
   assert.deepEqual(figures(), [
     ["customer_messages", "Customer messages", "17up from 7", "on 6 of 7 days"],
     ["calls", "Calls", "3none the 7 days before", "7 min on the phone · 1 to voicemail"],
-    ["new_people", "New people", "2down from 3", "first contact in this period, by evidence"],
+    ["new_people", "New people", "2down from 3", "first got in touch in this period"],
     ["booked", "Booked", "3", "of 8 who asked"],
     ["handovers", "Needed you", "3none the 7 days before", "times the receptionist stopped"],
   ]);
