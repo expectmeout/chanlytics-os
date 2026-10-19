@@ -168,14 +168,8 @@ test("a campaign the readers spell outbound/<id> and the cards spell campaigns/m
 test("Open goes when an item has the same place under the other spelling, and a card's Open hides behind it", () => {
   const { answer, cardOpen } = oneDoor(
     answerOf([src("playbook", ID, `outbound/${ID}`)], { to: `campaigns/moment:${ID}`, label: "Open it", now: false }),
-    [
-      {
-        id: "c1",
-        kind: "playbook",
-        payload: {},
-        outcome: { state: "done", receipt: "Made.", atMs: 1, undo: { playbook_id: ID } },
-      },
-    ],
+    // The turn's card, with where its Open goes (the proposals' own rule, asserted below), as the page hands it in.
+    [{ id: "c1", open: `campaigns/moment:${ID}` }],
   );
   assert.equal(answer.do.open, null, "the item is already the door to that campaign");
   assert.equal(

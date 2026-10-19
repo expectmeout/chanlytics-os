@@ -109,7 +109,11 @@ test("one door: an item keeps its door, Open goes when an item has its route, a 
     { id: "p2", kind: "playbook", payload: {} },
     { id: "p3", kind: "reply", payload: { conversation_id: ID } },
   ];
-  const { answer, cardOpen } = oneDoor(a, cards);
+  // Each card with where its Open goes, the proposals' own rule, as the page that draws them hands it in.
+  const { answer, cardOpen } = oneDoor(
+    a,
+    cards.map((c) => ({ id: c.id, open: cardOpenRoute(c) })),
+  );
   assert.equal(answer.do.open, null, "the item is already the door to the thread");
   assert.deepEqual(
     cardOpen,

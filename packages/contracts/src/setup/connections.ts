@@ -30,7 +30,7 @@ import { formatPhoneDisplay } from "../shared/phone";
 import { bookingToolName } from "../calendar/booking-notice";
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
-import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run";
+import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 
 export type ConnectionKind =
   "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";

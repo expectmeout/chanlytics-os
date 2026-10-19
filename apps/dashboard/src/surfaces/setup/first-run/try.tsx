@@ -251,19 +251,19 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel }: TryProps) =>
   };
   // Where a caller who asks for a person goes: the Business tab's own row and patch (an empty number takes a message).
   const choose = (o: Transfer["options"][number]) => {
-    const S = businessTabSave();
-    if (!S || !canDo("settings")) return;
+    if (!canDo("settings")) return;
+    const { saver, PATCH_OF } = businessTabSave;
     // The saver goes on the settings read's config: without it, nothing would be sent, so it says so instead.
-    if (!S.saver.base()) {
+    if (!saver.base()) {
       flash({ tone: "danger", msg: <>{W.notReadYet}</> });
       return;
     }
     setPicked(o.key);
     settled({
       send: () =>
-        S.saver.save({
+        saver.save({
           row: "handoff_number",
-          change: S.PATCH_OF.handoff_number(o.to || ""),
+          change: PATCH_OF.handoff_number(o.to || ""),
           said: null,
           done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
           flash: (f: unknown) => {

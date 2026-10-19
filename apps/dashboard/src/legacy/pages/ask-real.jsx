@@ -1024,4 +1024,4 @@ const AskReal = ({ open, onClose }) => {
   return arLineView(ln);
 };
 
-window.AskBar = AskReal; // the Line is what the frame draws
+window.AskLineReal = AskReal; // the Line, which the frame's AskBar draws once it is in (legacy-bridge/ask/line.tsx)

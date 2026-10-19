@@ -34,15 +34,14 @@ const LISTS: Record<ChipList, { row: (name: string) => unknown; nameOf: (r: unkn
 function chipPress(o: { list: ChipList; chip: CheckChipVM; flash: (f: LegacyFlash) => void; words: ChipWords }) {
   const { list, chip, flash, words } = o;
   if (!canDo("settings")) return;
-  const S = businessTabSave();
-  if (!S) return;
+  const S = businessTabSave;
   const L = LISTS[list];
   const same = (r: unknown) => sameListed(L.nameOf(r), chip.name);
   const refusals = (f: unknown) => {
     if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") flash(f as LegacyFlash);
   };
   // `edit` is run once, now, on the list as the next save finds it, and hands back the list the press leaves.
-  const send = (edit: (rows: unknown[]) => unknown[], done: (() => void) | null = null) => {
+  const send = (edit: (rows: unknown[]) => unknown[], done?: () => void) => {
     const opened = S.draftOf(list, S.saver.base());
     S.saver.save(S.foldJob(list, edit(opened), { opened, said: null, done, flash: refusals }));
   };

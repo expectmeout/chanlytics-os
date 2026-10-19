@@ -29,7 +29,6 @@ import {
   type AskCitationKind,
   type AskReadSet,
 } from "./citations";
-import { cardOpenRoute } from "../ask-proposals/page-specs";
 import type { PlanLead } from "../journey/journey-plan";
 import { planCountWords } from "./plan-steps";
 import { rightNowCounts, rightNowLine, type AskWaiting } from "./ask-waiting";
@@ -195,11 +194,12 @@ function nextQuestions(next: string[], places: string[]): string[] {
  * words and draws its door only when nothing else offers that route; a next question that points at an offered place
  * goes. Returns the answer as drawn and, per card, whether its Open is drawn. A place is its canonical route (canonicalRoute):
  * the readers spell a campaign `outbound/<id>` and the cards `campaigns/moment:<id>`, which are one place, and so are
- * `people/<id>` and `clients/<id>`; the routes the answer carries are left as they were written.
+ * `people/<id>` and `clients/<id>`; the routes the answer carries are left as they were written. A card comes with where
+ * its Open goes (contracts cardOpenRoute), from its caller: the cards' specs come with the Line, Ask's answers with every page.
  */
 export function oneDoor(
   a: AskAnswer,
-  cards: ReadonlyArray<Pick<AskProposal, "id" | "kind" | "payload">> = [],
+  cards: ReadonlyArray<{ id: string; open: string | null }> = [],
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
   const offered = new Set<string>();
   const items = a.show.items.map((it) => {
@@ -210,10 +210,9 @@ export function oneDoor(
   const open = a.do.open && !offered.has(canonicalRoute(a.do.open.to)) ? a.do.open : null;
   if (open) offered.add(canonicalRoute(open.to));
   const cardOpen: Record<string, boolean> = {};
-  for (const c of cards) {
-    const to = cardOpenRoute(c);
-    cardOpen[c.id] = !!to && !offered.has(canonicalRoute(to));
-    if (to && cardOpen[c.id]) offered.add(canonicalRoute(to));
+  for (const { id, open: to } of cards) {
+    cardOpen[id] = !!to && !offered.has(canonicalRoute(to));
+    if (to && cardOpen[id]) offered.add(canonicalRoute(to));
   }
   const receipt = (s: AskSource | null): AskSource | null => {
     if (!s) return null;

@@ -64,24 +64,22 @@ export type {
 export {
   businessNameOf,
   unsureHoursWords,
-  firstRunStepOf,
   firstRunKicker,
   firstRunOf,
   setupCardOf,
   receptionistCardOf,
-  shouldLandOnFirstRun,
   FIRST_RUN_ROUTE,
   firstRunStepRoute,
   FIRST_RUN_FIND_ROUTE,
-  FIRST_RUN_LANDED_KEY,
-  FINISH_SETTING_UP,
   FIRST_RUN_STEPS,
   SETUP_CARD_ORDER,
   FIRST_RUN_WORDS,
   FIRST_RUN_HELPERS,
 } from "./first-run";
+export { FIRST_RUN_TITLE, FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, shouldLandOnFirstRun } from "./first-run-door";
+export { firstRunStepOf } from "./first-run-route";
+export type { FirstRunStepKey } from "./first-run-route";
 export type {
-  FirstRunStepKey,
   FirstRunStepState,
   FirstRunCheckVM,
   FirstRunStepVM,

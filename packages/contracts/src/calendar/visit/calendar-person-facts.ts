@@ -16,7 +16,7 @@ import { personStateFor, PERSON_STATE_LABELS, type PersonState } from "../../peo
 import { lastContactOf } from "../../people/person-row-facts";
 import { dealOf, type DealColumns, type DealVM } from "../../deals/deal-vm";
 import { nextStepOf, type PersonNextStepVM, type StepColumns } from "../../notes/steps";
-import { businessTrailOf } from "../../person-page/business";
+import { businessTrailOf } from "../../person-page/business-trail";
 import { asNameSource } from "../../person-page/words";
 import { agoWords } from "../../shared/time";
 
@@ -24,7 +24,7 @@ import { agoWords } from "../../shared/time";
 export interface CalendarPersonFactsDto {
   /** Their standing, as People's list says it (person-state.ts personStateFor), at the read's clock. */
   state: PersonState;
-  /** The business they work at, as it trails their name (person-page/business.ts businessTrailOf); null for none. */
+  /** The business they work at, as it trails their name (person-page/business-trail.ts); null for none. */
   business: string | null;
   /** Their deal's columns as people_list carries them (the newest open or current deal), or null without one. */
   deal: Partial<DealColumns> | null;

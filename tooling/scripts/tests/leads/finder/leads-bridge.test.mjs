@@ -63,7 +63,6 @@ globalThis.window = {
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
 const {
-  leadsOverride,
   forgetLeadsViews,
   leadsBootView,
   bulkLeads,
@@ -80,6 +79,7 @@ const {
   undoLeadOperation,
   warmLeadsView,
 } = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { leadsOverride } = await import("../../../../../apps/dashboard/src/surfaces/leads/override.ts");
 const { surfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /* -------------------------------- fixtures ------------------------------- */

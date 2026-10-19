@@ -30,7 +30,7 @@
     "unknownAs": 2
   },
   "apps/dashboard/src/legacy-bridge/ask.ts": {
-    "unknownAs": 2
+    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/ask/palette.ts": {
     "unknownAs": 3
@@ -280,12 +280,6 @@
     "nonNull": 4
   },
   "packages/contracts/src/deals/pipeline/pipeline-board.ts": {
-    "nonNull": 1
-  },
-  "packages/contracts/src/people/lists/list-rules.ts": {
-    "nonNull": 1
-  },
-  "packages/contracts/src/people/lists/lists.ts": {
     "nonNull": 1
   },
   "packages/contracts/src/people/person-cards.ts": {

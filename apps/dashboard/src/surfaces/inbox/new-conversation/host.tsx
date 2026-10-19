@@ -8,7 +8,9 @@
  * three pages that draw the act, the sheet made the bundler divide a chunk the whole route shares, and People, Sent and
  * Templates each loaded a second copy of it (thirteen to twenty kilobytes gzipped, 7 October 2026).
  */
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 import { ixKeyLeft } from "../keys";
 import { canDo, currentRoute, useToast } from "../shell";
 import {
@@ -19,16 +21,11 @@ import {
   useNewConversation,
 } from "./store";
 
-type SheetModule = typeof import("./sheet");
-let sheetModule: SheetModule | null = null;
-let sheetLoading: Promise<SheetModule> | null = null;
-
-/** What the act opens, loaded once for the tab. */
-function loadNewConversation(): Promise<SheetModule> {
-  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
-  sheetLoading ??= import("./sheet").then(({ NewConversationSheet }) => (sheetModule = { NewConversationSheet }));
-  return sheetLoading;
-}
+/**
+ * What the act opens, loaded once for the tab; a fetch that failed is asked for again by the next warm or press. What it
+ * reads of the module is named, so the dead-exports check (knip) sees the use.
+ */
+const sheetCode = codeOnce(() => import("./sheet").then(({ NewConversationSheet }) => ({ NewConversationSheet })));
 
 /** The Inbox's three tabs: where N is the page's key for a new conversation. */
 const ON_THE_INBOX = /^(inbox|conversations|live)(\/|$)/;
@@ -49,20 +46,15 @@ function onNewKey(e: KeyboardEvent): void {
 export function NewConversationHost() {
   const ask = useNewConversation();
   const [toast, flash] = useToast();
-  const [, landed] = useState(0);
   useEffect(() => {
     window.addEventListener("keydown", onNewKey);
-    const forget = onWarmAsked(() => void loadNewConversation());
+    const forget = onWarmAsked(sheetCode.warm);
     return () => {
       window.removeEventListener("keydown", onNewKey);
       forget();
     };
   }, []);
-  useEffect(() => {
-    if (!ask.open || sheetModule) return;
-    void loadNewConversation().then(() => landed((n) => n + 1));
-  }, [ask.open]);
-  const Opened = sheetModule?.NewConversationSheet;
+  const Opened = useCode(sheetCode, ask.open).loaded?.NewConversationSheet;
   return (
     <>
       {Opened && ask.session > 0 ? (

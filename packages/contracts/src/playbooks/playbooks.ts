@@ -11,7 +11,7 @@
 import type { ParamSpec } from "../templates/templates";
 import { visitStartTime, type VisitDto } from "../calendar/calendar-people";
 import { visitServiceOf } from "../calendar/visit/visit-service";
-import type { ListRef } from "../people/lists/lists";
+import type { ListRef } from "../people/lists/list-token";
 import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, triggerOf } from "./playbook-triggers";

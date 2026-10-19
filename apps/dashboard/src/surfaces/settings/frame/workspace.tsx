@@ -16,7 +16,8 @@ import { RecordTip } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { BtCreateCard } from "../business/create";
-import { brokenConfigWords, settingsNow, setupApi, setupNow } from "../business/shell";
+import { setupVerbs } from "../../setup/surface";
+import { brokenConfigWords, settingsNow, setupNow } from "../business/shell";
 import { BusinessTab, type BusinessPart } from "../business/tab";
 
 type Flash = (f: LegacyFlash) => void;
@@ -98,9 +99,8 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
   const repairAsked = setupNow()?.dto?.requests?.repair ?? null;
   if (!W) return null;
   const askRepair = async () => {
-    const setup = setupApi();
-    if (!canDo("approve") || !setup) return;
-    const r = await setup.request("repair");
+    if (!canDo("approve")) return;
+    const r = await setupVerbs.request("repair");
     flash(
       r.ok
         ? {

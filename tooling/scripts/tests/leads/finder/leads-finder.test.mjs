@@ -72,7 +72,7 @@ const { leadStrip, LEAD_ROUND_MAKERS } =
   await import("../../../../../apps/dashboard/src/surfaces/leads/finder/strip.ts");
 const { leadAnswerPlan, leadFinderApprove } =
   await import("../../../../../apps/dashboard/src/surfaces/leads/finder/amend.ts");
-const { LEADS_GLOBALS } = await import("../../../../../apps/dashboard/src/surfaces/leads/globals.ts");
+const { ASK_LINE_GLOBALS } = await import("../../../../../apps/dashboard/src/legacy-bridge/ask/line-globals.ts");
 // The real glyphs, the kit's (surfaces/kit/icon): the page imports it, so a page's icon draws as it does there.
 const { Icon } = await import("../../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
@@ -750,10 +750,10 @@ test("near the month's limit the card offers what is left and says when the lead
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
 });
 
-test("Ask draws the finder's own plan card by name until it moves: surfaces/leads/globals.ts publishes it, and called as a function, as Ask's palette calls it, it draws the plan", () => {
-  assert.equal(LEADS_GLOBALS.LeadPlanCard, LeadPlanCard, "the card the finder draws, not a second one");
+test("Ask draws the finder's own plan card by name until it moves: legacy-bridge/ask/line-globals.ts publishes it with the Line, and called as a function, as Ask's palette calls it, it draws the plan", () => {
+  assert.equal(ASK_LINE_GLOBALS.LeadPlanCard, LeadPlanCard, "the card the finder draws, not a second one");
   frames.begin();
-  const tree = LEADS_GLOBALS.LeadPlanCard({
+  const tree = ASK_LINE_GLOBALS.LeadPlanCard({
     plan: PLAN,
     view: { title: "Find 200 personal trainers" },
     facts: FACTS,

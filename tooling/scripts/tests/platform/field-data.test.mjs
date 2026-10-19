@@ -35,6 +35,23 @@ const { platformVitals } = await import(at("apps/dashboard/src/server/platform/v
 const vitalsRoute = await import(at("apps/dashboard/app/api/v1/vitals/route.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 const { createFieldData, beaconTo, flushWhenHidden } = await import(at("apps/dashboard/src/client/field-data.ts"));
+// The report's check is a chunk the collector fetches as it is made (vital-check.ts): handed in, already in, where a test
+// says what is sent at once, as a later page's collector finds it; or held back, as a first load's is until it lands.
+const { codeOnce } = await import(at("apps/dashboard/src/lib/code-once.ts"));
+const checkIn = codeOnce(() => import(at("apps/dashboard/src/client/vital-check.ts")));
+await checkIn();
+/** The check's code as a first load has it: not in until the test lets it land. */
+const checkLanding = () => {
+  let land = () => {};
+  const code = codeOnce(
+    () =>
+      new Promise((r) => {
+        land = () => r(checkIn.now());
+      }),
+  );
+  code.warm();
+  return { code, land: () => land() };
+};
 
 beforeEach(() => setRateStore(memoryStore()));
 after(() => setServiceClient(null));
@@ -260,7 +277,7 @@ test("the timings ride on the overview, and a read that fails takes nothing else
 
 test("the collector: the latest report under each id, sent once at each value, in the order the card says them", () => {
   const sent = [];
-  const fd = createFieldData("inbox", (body) => sent.push(body));
+  const fd = createFieldData("inbox", (body) => sent.push(body), {}, checkIn);
   fd.flush();
   assert.deepEqual(sent, [], "nothing reported, nothing sent");
   fd.note(load(1, "TTFB", 180));
@@ -401,7 +418,7 @@ test("the card: unread says so, a quiet week says so, and a week of loads is a s
 
 test("the collector says the load's device and build, holds a beacon's worth at most, and sends more in several", () => {
   const sent = [];
-  const fd = createFieldData("today", (body) => sent.push(body), { device: "phone", build: "b220a8b74abc" });
+  const fd = createFieldData("today", (body) => sent.push(body), { device: "phone", build: "b220a8b74abc" }, checkIn);
   for (let i = 0; i < PAGE_VITALS_PER_BEACON - 1; i += 1) fd.note({ ...load(i, "READY", 10 + i), part: "queue" });
   assert.equal(sent.length, 0, "a beacon's worth less one waits for the page to be put away");
   fd.note(load(99, "READY", 5));
@@ -426,4 +443,30 @@ test("the collector says the load's device and build, holds a beacon's worth at 
     [{ wait: "contacts" }],
     "the same value gone elsewhere is news",
   );
+});
+
+test("before its check is in, the collector holds what it is told and checks it once the check comes; a flush before then sends each as it is, once", async () => {
+  // A first load's collector: the check is a chunk of its own, asked for as the collector is made (vital-check.ts).
+  const sent = [];
+  const fd = createFieldData("inbox", (body) => sent.push(body), {}, checkLanding().code);
+  fd.note(load(1, "TTFB", 180));
+  fd.note(load(2, "LCP", -3));
+  fd.flush();
+  assert.deepEqual(
+    sent,
+    [{ page: "inbox", vitals: [load(1, "TTFB", 180), load(2, "LCP", -3)] }],
+    "a page put away at once still says what it measured: as it is, for the route to check again",
+  );
+  fd.flush();
+  assert.equal(sent.length, 1, "and once");
+  // Told before the check came, checked once it has: what the route would refuse is dropped here, as always.
+  const later = [];
+  const landing = checkLanding();
+  const held = createFieldData("today", (body) => later.push(body), {}, landing.code);
+  held.note(load(3, "FCP", 900));
+  held.note(load(4, "CLS", Number.NaN));
+  landing.land();
+  await new Promise((r) => setImmediate(r));
+  held.flush();
+  assert.deepEqual(later, [{ page: "today", vitals: [load(3, "FCP", 900)] }]);
 });

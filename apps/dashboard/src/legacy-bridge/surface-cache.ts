@@ -12,9 +12,14 @@
  * then paints real (seconds-old) data immediately and revalidates in the
  * background — no seed frame, no skeleton, no transition.
  *
- * sessionStorage, not localStorage, on purpose: this holds real customer
- * messages. It must survive a refresh (it does — sessionStorage is per-tab and
- * persists across reloads) and die with the tab.
+ * Kept in the browser's local storage, one slot per workspace, so a new tab and the next visit paint at once too: a
+ * first load on a phone waited a second or two for its reads where a reload of a warm tab drew in under one (field data,
+ * 12-19 Oct 2026; the loadability review, 19 Oct 2026). It holds real customer messages, so it is kept only while the
+ * session that read them is: every sign-in clears it before anything is read (login's signInLanding, Google's start), and
+ * a sign-out, a 401, a switch of workspace or of person seals it (sealSurfaceCache). The proxy sends a visitor with no
+ * session to sign in before this page loads, so nobody without one is painted it. A snapshot older than a day is never
+ * drawn (MAX_AGE_MS): what a page paints from it is read again at once, and a day is as stale as it may look meanwhile.
+ * Build-keyed, so a deploy starts cold. Per-tab memory (a view's place, a draft) stays the tab's own (tab-memory.ts).
  */
 
 import { clearReadCaches } from "./read-cache";
@@ -23,9 +28,23 @@ import type { SurfaceKey } from "../surfaces/surface-values";
 import { clearTabMemory } from "./tab-memory";
 import { getActiveWorkspace } from "./workspace";
 import { publicEnv } from "@/lib/public-env";
+import { DAY_MS } from "@chanlytics/contracts";
 
-// Storage slot name (not a credential — the secret scanner reads "KEY" as one).
-const CACHE_NAME = "chanlytics.surfaces.v1";
+// Storage slot names (not a credential — the secret scanner reads "KEY" as one): one per workspace, by the address's word.
+const CACHE_PREFIX = "chanlytics.surfaces.v2:";
+/** The slot of the workspace the address names; the home's own where it names none. */
+const slotName = (): string => `${CACHE_PREFIX}${getActiveWorkspace() ?? "-"}`;
+/** The oldest snapshot drawn: a day. Older, the page waits for its reads as a first visit does. */
+const MAX_AGE_MS = DAY_MS;
+
+/** The browser's local storage, or null where it is refused (a private window, a sandbox, a test's stand-in). */
+function cacheStore(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
 /**
  * Where a surface's typed value (surface-values.ts) sits in its snapshot, beside the window globals it also owns: what a
  * surface's own trim (`trimSnapshot`, Leads' first hundred rows) reads and rewrites.
@@ -47,6 +66,8 @@ const MAX_WAIT_MS = 5000;
 
 interface CacheBlob {
   build: string;
+  /** When it was written (ms): a snapshot older than MAX_AGE_MS is not drawn. */
+  savedAt: number;
   /**
    * The workspace the address named when these rows were read (`/w/<slug>`, as written there; null off a workspace
    * page): every read names the address's workspace (client/api.ts), so it is the workspace the rows are of. A load at
@@ -69,14 +90,15 @@ let parsedCopy: { raw: string; blob: CacheBlob | null } | null = null;
 /** The slot, parsed; `own` for a copy of its own, which the page's globals may take and change. */
 function readCacheBlob(own = false): CacheBlob | null {
   try {
-    const raw = sessionStorage.getItem(CACHE_NAME);
+    const raw = cacheStore()?.getItem(slotName());
     if (!raw) return null;
     if (!own && parsedCopy?.raw === raw) return parsedCopy.blob;
     const parsed = JSON.parse(raw) as CacheBlob;
     // A deploy can change a viewmodel's shape; restoring the old shape would
     // render garbage or throw inside a legacy component. Build-keyed, so a
-    // new deploy simply starts cold.
-    const blob = parsed && parsed.build === BUILD && parsed.surfaces ? parsed : null;
+    // new deploy simply starts cold. And a day old at most.
+    const fresh = typeof parsed?.savedAt === "number" && Date.now() - parsed.savedAt < MAX_AGE_MS;
+    const blob = parsed && parsed.build === BUILD && parsed.surfaces && fresh ? parsed : null;
     if (!own) parsedCopy = { raw, blob };
     return blob;
   } catch {
@@ -96,18 +118,44 @@ function write(blob: CacheBlob): void {
         .map(([k, v]) => [k, JSON.stringify(v).length] as const)
         .sort((a, b) => b[1] - a[1]);
       if (!sizes.length) {
-        sessionStorage.removeItem(CACHE_NAME);
+        cacheStore()?.removeItem(slotName());
         return;
       }
       console.warn("surface_cache_oversize", raw.length, sizes[0][0]);
       delete blob.surfaces[sizes[0][0]];
       raw = JSON.stringify(blob);
     }
-    sessionStorage.setItem(CACHE_NAME, raw);
+    setSlot(raw);
     parsedCopy = { raw, blob };
   } catch {
     /* quota or private mode — caching is an optimisation, never a requirement */
   }
+}
+
+/**
+ * The slot written; where the browser's quota refuses it, the other workspaces' slots go first and it is tried once more:
+ * the workspace on screen is the one worth painting next.
+ */
+function setSlot(raw: string): void {
+  const local = cacheStore();
+  if (!local) return;
+  const name = slotName();
+  try {
+    local.setItem(name, raw);
+  } catch {
+    for (const other of slotsOf(local)) if (other !== name) local.removeItem(other);
+    local.setItem(name, raw);
+  }
+}
+
+/** Every workspace's slot this browser holds. */
+function slotsOf(local: Storage): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < local.length; i++) {
+    const name = local.key(i);
+    if (name?.startsWith(CACHE_PREFIX)) names.push(name);
+  }
+  return names;
 }
 
 /** What this tab has cached and not written yet: the freshest copy, so every read here looks at it first. */
@@ -140,7 +188,7 @@ function dropSlot(): void {
   pending = null;
   parsedCopy = null;
   try {
-    sessionStorage.removeItem(CACHE_NAME);
+    cacheStore()?.removeItem(slotName());
   } catch {
     /* nothing to drop */
   }
@@ -250,6 +298,7 @@ export function snapshotSurface(
   // A new object over the one kept, never the kept one changed: what was written stays what it says.
   keep({
     build: BUILD,
+    savedAt: Date.now(),
     at: addressed(),
     tenant: tenant || (was?.tenant ?? tenant),
     surfaces: { ...was?.surfaces, [key]: trim ? trim(snap) : snap },
@@ -263,7 +312,7 @@ export function resnapshotSurface(key: string, globals: string[], tenant: string
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
-  keep({ ...blob, surfaces: { ...blob.surfaces, [key]: snap } });
+  keep({ ...blob, savedAt: Date.now(), surfaces: { ...blob.surfaces, [key]: snap } });
 }
 
 /** The workspace the server resolved for the rows cached at this address; null where nothing is cached for it. */
@@ -272,15 +321,23 @@ export function cachedTenant(): string | null {
   return ofThisAddress(blob) ? blob.tenant : null;
 }
 
-/** Sign-out, 401, and tenant mismatch all clear it — cached customer data must
- *  never outlive the session that was allowed to see it. */
+/** Sign-in, sign-out, 401, and tenant mismatch all clear it — cached customer data must
+ *  never outlive the session that was allowed to see it. Every workspace's slot goes. */
 export function clearSurfaceCache(): void {
   // What waits to be written goes first: a write after the clear would put the rows back.
   if (writeTimer) clearTimeout(writeTimer);
   writeTimer = null;
   pending = null;
+  parsedCopy = null;
   try {
-    sessionStorage.removeItem(CACHE_NAME);
+    // Every workspace's rows this browser kept: whoever comes next, signed in again or someone else, starts cold. This
+    // address's by its name too, whatever the store says of its length.
+    const local = cacheStore();
+    if (local) for (const name of new Set([slotName(), ...slotsOf(local)])) local.removeItem(name);
+  } catch {
+    /* nothing to clear */
+  }
+  try {
     // What the pages kept in this tab (a view's place, a draft) goes with the rows it was kept beside.
     clearTabMemory(sessionStorage);
   } catch {

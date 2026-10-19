@@ -23,7 +23,9 @@
  * pages read at module scope — which makes "added at the bottom" as loud as
  * "not added at all".
  *
- * The bridge keeps one list, `manifest.ts`, every file a workspace draws. The
+ * The bridge keeps two lists: `manifest.ts`, every file the frame draws, and
+ * `ask/line-code.ts`, Ask's Line, a chunk of its own the frame fetches (the
+ * loadability review, 19 Oct 2026); the harness loads the second after the first. The
  * mockup's own files (legacy/demo/) and their list, `manifest-demo.ts`, went on
  * 17 October 2026 (the closed-loop audit's S2, Ruben's word).
  *
@@ -58,7 +60,7 @@ import {
 import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
 import { parse as parseTs } from "../_ast.mjs";
-import { legacyDocument, send, serveStatic } from "../../serve-legacy.mjs";
+import { askLineGlobalsBundle, legacyDocument, send, serveStatic } from "../../serve-legacy.mjs";
 import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 
 const LEGACY = "apps/dashboard/src/legacy";
@@ -89,8 +91,8 @@ const importsOf = (list) =>
       s.moduleSpecifier.text === "./seed-globals" ? STUBS : s.moduleSpecifier.text.replace(/^@\/legacy\//, ""),
     );
 
-/** Every legacy file the bridge loads for every workspace, in order. */
-const manifest = importsOf("manifest.ts");
+/** Every legacy file the bridge loads for every workspace, in order: the frame's, then Ask's Line's, less the parts it publishes first. */
+const manifest = [...importsOf("manifest.ts"), ...importsOf("ask/line-code.ts").filter((f) => f !== "./line-globals")];
 
 /** The shell, which is where a deleted page keeps its last reference. */
 const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
@@ -304,8 +306,8 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 4],
-    "data/leads-globals.js",
-    "Ask's palette draws Leads' plan card by name, TSX since decision 0015 (surfaces/leads/globals.ts)",
+    "data/ask-line-globals.js",
+    "Ask's Line draws its charts, its hold to talk and Leads' plan card by name (legacy-bridge/ask/line-globals.ts)",
   );
 });
 
@@ -323,18 +325,7 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
   const win = { React };
   // In the browser `window` is the global scope, so the bundle's bare `React` is the page's.
   vm.runInNewContext(await kitGlobalsBundle(), { window: win, React, console });
-  for (const name of [
-    "Icon",
-    "FailedRead",
-    "SegmentBar",
-    "LineChart",
-    "BarList",
-    "StatePill",
-    "Confirm",
-    "MoreMenu",
-    "PolicyChip",
-    "RecordSwitch",
-  ])
+  for (const name of ["Icon", "FailedRead", "StatePill", "Confirm", "MoreMenu", "PolicyChip", "RecordSwitch"])
     assert.equal(typeof win[name], "function", `${name} is published`);
   // And only those: a name no page here reads is not published (O4b). The empty state, the field error, a thread's media,
   // the attention row, the agenda's rows and the record kit (the row, the fields, the fold, the sheet, the registry that
@@ -356,6 +347,11 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "__settingsUnsaved",
     "__settingsSaving",
     "__recordFolds",
+    // The parts only Ask's Line draws come with the Line (ask/line-globals.ts), below.
+    "SegmentBar",
+    "LineChart",
+    "BarList",
+    "useHoldToTalk",
   ])
     assert.equal(win[name], undefined, `${name} is no global`);
   assert.equal(
@@ -369,8 +365,13 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "a glyph is an <svg> from the page's own createElement",
   );
   assert.equal(win.Icon({ name: "no-such-glyph" }).children.length, 1, "an unknown name is the circle");
+  // The Line's parts, on the same React: its charts, its hold to talk and Leads' plan card, published as the Line loads.
+  const line = { React };
+  vm.runInNewContext(await askLineGlobalsBundle(), { window: line, React, console });
+  for (const name of ["SegmentBar", "LineChart", "BarList", "useHoldToTalk", "LeadPlanCard"])
+    assert.equal(typeof line[name], "function", `${name} is published with the Line`);
   assert.equal(
-    win.SegmentBar({ title: "T", rows: [{ key: "a", value: 0 }], config: {} }),
+    line.SegmentBar({ title: "T", rows: [{ key: "a", value: 0 }], config: {} }),
     null,
     "a bar of nothing is nothing",
   );

@@ -37,7 +37,7 @@ installLegacyReact({
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { todayOverride } = await import("../../../../apps/dashboard/src/surfaces/today/surface.ts");
+const { todayOverride } = await import("../../../../apps/dashboard/src/surfaces/today/override.ts");
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh, DEFAULT_REFRESH_TABLES } = await import(

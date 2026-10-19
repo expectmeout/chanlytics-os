@@ -17,14 +17,22 @@ import { openWeekWords } from "../config/business-tab/open-week";
 import { servicesWords, type ServiceWordsInput } from "../config/business-tab/services-words";
 import type { Hours } from "../config/workspace-config/business-profile";
 import { DAY_NAMES } from "../config/workspace-config/config-rules";
-import { ROLE_PERMS, type Role } from "../config/workspace-config/role-perms";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "../google/google";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
-import { FIND_PARAM, FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route";
+import {
+  FIND_PARAM,
+  FIRST_RUN_FIND_ROUTE,
+  FIRST_RUN_ROUTE,
+  FIRST_RUN_STEP_KEYS,
+  firstRunStepOf,
+  firstRunStepRoute,
+  type FirstRunStepKey,
+} from "./first-run-route";
+import { FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, FIRST_RUN_TITLE } from "./first-run-door";
 export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 
 /** What the business goes by here: the receptionist's own name, else the workspace's (typed at sign-up). */
@@ -34,14 +42,6 @@ export function businessNameOf(
 ): string | null {
   return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
 }
-
-/** The tab's own memory that this session has landed on the first run once: Today does not send it back again. */
-export const FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-
-/** What a door to the first run says, wherever it is: Connections, the bell, Today's card. */
-export const FINISH_SETTING_UP = "Finish setting up";
-
-export type FirstRunStepKey = "business" | "phone" | "try" | "live";
 
 /** What is left once the receptionist answers, on Live: Setup's rows no step asks for. */
 const LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"] as const;
@@ -58,31 +58,35 @@ interface FirstRunStepDef {
   needs: readonly string[];
 }
 
-export const FIRST_RUN_STEPS: readonly FirstRunStepDef[] = [
-  {
-    key: "business",
+/** Each step's own, by its key (FIRST_RUN_STEP_KEYS says their order). */
+const STEP_DEFS: Record<FirstRunStepKey, Omit<FirstRunStepDef, "key">> = {
+  business: {
     name: "Your business",
     lead: "What your receptionist says about you: your name, when you're open, what you offer.",
     rows: ["facts", "google"],
     needs: ["facts"],
   },
-  {
-    key: "phone",
+  phone: {
     name: "Your phone",
     lead: "The number your customers call, and how those calls reach your receptionist.",
     rows: ["billing", "line", "keep"],
     needs: ["billing", "line"],
   },
-  {
-    key: "try",
+  try: {
     name: "Try it",
     lead: "Call it from your own phone and hear what your customers will hear.",
     rows: ["try", "handoff"],
     needs: ["receptionist", "try"],
   },
   // The last step is where the others lead: nothing to finish, only what is left after it.
-  { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] },
-];
+  live: { name: "Live", lead: "", rows: LIVE_ROWS, needs: [] },
+};
+
+/** The first run's steps, in their order. Marked pure: a bundle that inlines contracts and draws no step drops it. */
+export const FIRST_RUN_STEPS: readonly FirstRunStepDef[] = /* @__PURE__ */ FIRST_RUN_STEP_KEYS.map((key) => ({
+  key,
+  ...STEP_DEFS[key],
+}));
 
 /**
  * Today's card, in the order each row helps most: the test call first, until one has come in (the first run lets it be
@@ -103,7 +107,7 @@ export const SETUP_CARD_ORDER = [
 ] as const;
 
 export const FIRST_RUN_WORDS = {
-  title: "Setting up",
+  title: FIRST_RUN_TITLE,
   later: "Finish later",
   laterShort: "Later",
   back: "Back",
@@ -300,12 +304,6 @@ const stepDone = (vm: SetupVM, def: FirstRunStepDef): boolean =>
     // Today's row outlives) or on Today's card (the row itself put off).
     return !r || r.state === "ready" || (id === "try" && (vm.trySkipped || r.later));
   });
-
-/** The step a `#/start/<step>` address names, or null for anything else. */
-export function firstRunStepOf(param: string | null | undefined): FirstRunStepKey | null {
-  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
-  return hit ? hit.key : null;
-}
 
 /** "Step 2 of 4 · Your phone": where a step stands in the first run, said the one way (the phone's header, sign-up's name screen). */
 export function firstRunKicker(key: FirstRunStepKey): string {
@@ -620,22 +618,6 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
     ],
     foot: "Fills in as you go. You can change any of it later in Settings.",
   };
-}
-
-/**
- * Whether this arrival lands on the first run: an owner, a receptionist that answers nowhere yet, a plain arrival
- * (Today or nothing), and not already sent there this session. Everyone else gets Today. Setup's rule, moved with the
- * page it lands on.
- */
-export function shouldLandOnFirstRun(
-  role: string | null | undefined,
-  answering: boolean,
-  route: string,
-  landed: boolean,
-): boolean {
-  // Whoever may set the workspace up: its owner, and the partner who brought it (0012).
-  if (landed || answering || !ROLE_PERMS[role as Role]?.settings) return false;
-  return route === "" || route === "today";
 }
 
 /** The first run's rules and words, as the bridge publishes them for the pages (window.__firstRun). */

@@ -11,7 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact } from "../_legacy-react.mjs";
 
-const CACHE = "chanlytics.surfaces.v1";
+// The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
+const CACHE = "chanlytics.surfaces.v2:studio";
 const storage = () => {
   const m = new Map();
   return {
@@ -23,6 +24,7 @@ const storage = () => {
 };
 installLegacyReact();
 globalThis.sessionStorage = storage();
+globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
@@ -32,7 +34,7 @@ const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
 // Importing the overrides declares the mirrors, as the app's boot does.
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 const { broadcastsOverride } = await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
-const { reachOutsOverride } = await import(`${S}/surfaces/campaigns/reach-out/surface.ts`);
+const { reachOutsOverride } = await import(`${S}/surfaces/campaigns/reach-out/override.ts`);
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
 const { settingsOverride } = await import(`${S}/legacy-bridge/surfaces/settings.ts`);
 
@@ -81,7 +83,7 @@ test("the tab's cache keeps each value beside the globals a surface owns, and gi
   cache.snapshotSurface("playbooks", playbooksOverride.globals ?? [], "t-salon", undefined, playbooksOverride.value);
   cache.snapshotSurface("reach_outs", reachOutsOverride.globals ?? [], "t-salon", undefined, reachOutsOverride.value);
   cache.flushSurfaceCache();
-  const kept = JSON.parse(globalThis.sessionStorage.peek(CACHE));
+  const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
   assert.deepEqual(kept.surfaces.playbooks, { $value: PLAYBOOKS }, "the value, under its reserved name");
   assert.deepEqual(kept.surfaces.reach_outs, { $value: CHAINS });
   values.setSurfaceValue("playbooks", undefined);
@@ -96,10 +98,10 @@ test("the tab's cache keeps each value beside the globals a surface owns, and gi
 });
 
 test("Live is never kept: the runner snapshots nothing of a surface with no global and no value", () => {
-  const before = globalThis.sessionStorage.peek(CACHE);
+  const before = globalThis.localStorage.peek(CACHE);
   values.setSurfaceValue("live", { now: [{ callId: "c1" }], recent: [], fetchedAtMs: 1 });
   cache.snapshotSurface("live", liveOverride.globals ?? [], "t-salon", undefined, liveOverride.value);
   cache.flushSurfaceCache();
-  assert.equal(globalThis.sessionStorage.peek(CACHE), before, "nothing to keep, nothing written");
+  assert.equal(globalThis.localStorage.peek(CACHE), before, "nothing to keep, nothing written");
   values.setSurfaceValue("live", undefined);
 });

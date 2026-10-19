@@ -10,6 +10,7 @@
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
  */
 import type { HTMLAttributes } from "react";
+import { codeOnce } from "@/lib/code-once";
 import { canDo, navigate } from "../legacy-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
 
@@ -210,4 +211,25 @@ export function policy():
     set: (id: string, mode: string) => void;
   }>("POLICY");
   return p;
+}
+
+/**
+ * The Inbox's and Conversations' demo seed (sample.ts: the seeded threads and calls, and the one thread the mockup changes
+ * while it is read), fetched only in a demo session: imported by the Inbox's page, it was part of every workspace's first
+ * load of the Inbox (the loadability review, 19 Oct 2026). As it lands, sample.ts hands its rows to the store
+ * (store.ts holdDemoSeed) and the pages that drew none are told, as a read's landing tells them.
+ */
+export const demoCode = codeOnce(() =>
+  import("./sample").then((m) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("surface:inbox"));
+      window.dispatchEvent(new CustomEvent("surface:conversations"));
+    }
+    return m;
+  }),
+);
+
+/** In a demo session, the seed fetched now: the Inbox's and Conversations' pages ask as they load. */
+export function warmDemo(): void {
+  if (demoSession()) demoCode.warm();
 }

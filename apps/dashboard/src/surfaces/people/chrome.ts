@@ -15,10 +15,10 @@ import {
   personRouteOf,
   shortName,
 } from "@chanlytics/contracts";
+import { demoCode } from "./hooks/demo";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
 import { P } from "./pipeline/pipe";
-import { peopleSample } from "./sample";
 import type { PeopleSurface } from "./surface";
 import { heldPerson } from "./person/read";
 import type { SurfaceViews } from "../routes";
@@ -49,9 +49,21 @@ export const peopleTakes = (param: string): boolean =>
   /^(seg|list|state):/.test(param) ||
   /^(pipeline|leads)(:|$)/.test(param);
 
+/**
+ * A demo's People (sample.ts), once its code is in. Only a demo session's crumbs read it here, and the sample is built
+ * from every part of a person's page, so it is fetched as a demo first asks rather than carried by every page's first
+ * load (the loadability review, 19 Oct 2026); the crumb names its list or person from the next draw.
+ */
+function demoPeopleNow(): PeopleSurface | undefined {
+  const sample = demoCode.now();
+  if (sample) return sample.demoPeople();
+  demoCode.warm();
+  return undefined;
+}
+
 /** What People is, for a crumb: the surface once it has landed, else, in a demo, the sample the page draws. */
 const peopleFor = (): PeopleSurface | undefined =>
-  surfaceValue("people") ?? (demoSession() ? peopleSample() : undefined);
+  surfaceValue("people") ?? (demoSession() ? demoPeopleNow() : undefined);
 
 /**
  * The words a view of People goes by in the crumbs, by its token alone (`seg:<id>`, `list:<id>`, `state:<tab>`, never

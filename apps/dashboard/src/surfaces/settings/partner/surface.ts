@@ -35,7 +35,7 @@ import { switchWorkspace, type SurfaceOverride, type Workspace } from "@/legacy-
 import { api, read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
-import { createClient } from "@/lib/supabase/client";
+import { browserClient } from "@/lib/supabase/browser-client";
 import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@/auth/second-factor";
 import { windowObject, windowValue } from "../../legacy-verbs";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
@@ -151,14 +151,14 @@ export const partnerVerbs: PartnerApi = {
     words: SECOND_FACTOR_WORDS,
     state: async () => {
       try {
-        return await factorState(createClient());
+        return await factorState(await browserClient());
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
       }
     },
     start: async () => {
       try {
-        return await startEnrolment(createClient());
+        return await startEnrolment(await browserClient());
       } catch {
         return {
           ok: false,
@@ -169,7 +169,7 @@ export const partnerVerbs: PartnerApi = {
     },
     confirm: async (factorId, code) => {
       try {
-        return await confirmEnrolment(createClient(), factorId, code);
+        return await confirmEnrolment(await browserClient(), factorId, code);
       } catch {
         return "We could not check that code just now. Try again in a minute.";
       }

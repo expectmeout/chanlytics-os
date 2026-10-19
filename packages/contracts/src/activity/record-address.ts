@@ -2,7 +2,7 @@ import { visitRoute } from "../calendar/appointment-key";
 import { pipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelineRowId } from "../deals/pipeline/pipeline-vm";
 import { leadsRoute } from "../leads/lead-plan";
-import { listToken } from "../people/lists/lists";
+import { listToken } from "../people/lists/list-token";
 import { personTabRoute, type PersonTab } from "../person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
 import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address";

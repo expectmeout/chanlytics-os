@@ -11,8 +11,7 @@
  * `__listRoute` is People's rule (where a list's own route lands: plListRoute), which the shell's Lists redirect and the
  * demo's seeded Lists page still ask for by name.
  */
-import { DealSheetHost, openDealSheet } from "./deal-sheet/deal-sheet";
-import { StepSheetHost, openStepSheet } from "./step-sheet/step-sheet";
+import { DealSheetHost, StepSheetHost, askDealSheet, askStepSheet } from "./sheets/doors";
 import { plListRoute, plScopeRoute, plScopes } from "./words";
 
 export const PEOPLE_GLOBALS = {
@@ -22,9 +21,10 @@ export const PEOPLE_GLOBALS = {
   // where a list's own route lands (the shell's segments/<id>, legacy-verbs.ts listRoute)
   __listRoute: plListRoute,
   // the two sheets the frame draws once, and the verbs that ask for them (the Inbox's thread, the Calendar, the Pipeline
-  // and the person's deal card open them by name)
+  // and the person's deal card open them by name): their code comes once the frame is idle, or at the first ask
+  // (sheets/doors.tsx)
   DealSheetHost,
   StepSheetHost,
-  openDealSheet,
-  openStepSheet,
+  openDealSheet: askDealSheet,
+  openStepSheet: askStepSheet,
 };

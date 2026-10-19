@@ -4,7 +4,7 @@ import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts.js";
 import { OFFER_PLAN_WORDS, dayReadWrong, isTheAsk } from "../broadcasts/offer-plan-words.js";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for.js";
 import { JOURNEY_PLAN_WORDS, journeyPlan } from "../journey/journey-plan.js";
-import { parseListToken } from "../people/lists/lists.js";
+import { parseListToken } from "../people/lists/list-token.js";
 import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule.js";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers.js";
 import { wallClockAt } from "../shared/clock.js";

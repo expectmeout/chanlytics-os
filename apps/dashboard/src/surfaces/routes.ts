@@ -12,7 +12,7 @@
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
  * page does not take stays with the frame's table, which draws its row or says it is not found.
  */
-import { CAMPAIGN_ROOMS, FIRST_RUN_WORDS, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, FIRST_RUN_TITLE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import { broadcastsChrome, campaignsChrome, messagesChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
@@ -184,7 +184,7 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   segments: { activeNav: "clients", crumbs: ["People"], pane: true, takes: () => true },
   // The first run (setup/first-run/): every step's address (`start/phone`) is its page, which the frame draws full screen,
   // without its chrome; the crumb names the tab.
-  start: { activeNav: "home", crumbs: [FIRST_RUN_WORDS.title], pane: false, params: true, mount: "start" },
+  start: { activeNav: "home", crumbs: [FIRST_RUN_TITLE], pane: false, params: true, mount: "start" },
   // Settings, the shell's `admin` (path word `settings`): every pane's address (`admin/billing`) is the one page, which
   // follows its address; the crumb names the pane by Settings' own rule (settings/frame/tabs.ts).
   admin: {

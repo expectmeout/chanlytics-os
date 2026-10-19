@@ -30,6 +30,8 @@ export async function buildFixture(record) {
       "@chanlytics/contracts/write-rules": "./packages/contracts/src/write-rules.ts",
       // The kinds only Ask's cards commit, which the verb walk asks for by import() (contracts' ask-only entry).
       "@chanlytics/contracts/ask-only": "./packages/contracts/src/ask-proposals/ask-only.ts",
+      // The pages' verb specs, which the verb walk loads by import(): the index itself, so one table.
+      "@chanlytics/contracts/page-specs": "./packages/contracts/src/index.ts",
       "@chanlytics/contracts": "./packages/contracts/src/index.ts",
       "@": "./apps/dashboard/src",
     },

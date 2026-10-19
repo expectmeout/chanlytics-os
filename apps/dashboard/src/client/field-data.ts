@@ -10,16 +10,18 @@
  * app sent to the background. The server keeps each under its id, so a grown INP replaces the INP it sent before
  * rather than counting twice.
  *
- * Pure but for what the host hands it: the beacon and the window in a browser, a list and a stub in a test.
+ * Pure but for what the host hands it: the beacon and the window in a browser, a list and a stub in a test. The report's
+ * check is fetched as this is made (vital-check.ts, a chunk of its own, with zod); a report noted before it is in waits
+ * for it, and a beacon sent before it is in carries those as they are, which the route checks again.
  */
 import {
   PAGE_METRICS,
   PAGE_VITALS_PER_BEACON,
-  PageVitalReport,
   type PageDevice,
   type PageVitalReportDto,
   type PageVitalsInputDto,
 } from "@chanlytics/contracts";
+import { codeOnce, type CodeOnce } from "../lib/code-once";
 import { ROUTES } from "./routes.generated";
 
 export interface FieldData {
@@ -40,11 +42,31 @@ const HELD_MAX = 1000;
 /** The order the card says the metrics in: the browser's five, then the shell's two. */
 const METRIC_RANK: ReadonlyMap<string, number> = new Map(PAGE_METRICS.map((m, i) => [m, i]));
 
+/** The report's check (vital-check.ts): the report as the route takes it, or null for one it would refuse. */
+type CheckCode = CodeOnce<Pick<typeof import("./vital-check"), "checkVital">>;
+
+/** The check's code: fetched once and shared; a fetch that failed is asked for again by the next page's field data. */
+const checkCode: CheckCode = codeOnce(() => import("./vital-check"));
+
+type Noted = Parameters<FieldData["note"]>[0];
+
 export function createFieldData(
   page: string,
   send: (body: PageVitalsInputDto) => void,
   facts: LoadFacts = {},
+  code: CheckCode = checkCode,
 ): FieldData {
+  // The check, where its code is in already (a later page's field data); else none yet, and what is told waits for it.
+  let checkNow = code.now()?.checkVital ?? null;
+  // Noted before the check came: checked once it does, or sent as they are by a flush before that.
+  let early: Noted[] = [];
+  const beacon = (vitals: PageVitalReportDto[]) =>
+    send({
+      page,
+      ...(facts.device ? { device: facts.device } : {}),
+      ...(facts.build ? { build: facts.build } : {}),
+      vitals,
+    });
   const latest = new Map<string, PageVitalReportDto>();
   // What each id was last sent at: its value and what its time went on, as one string.
   const sent = new Map<string, string>();
@@ -61,9 +83,15 @@ export function createFieldData(
   };
   const fd: FieldData = {
     note(report) {
-      const r = PageVitalReport.safeParse(report);
-      if (!r.success) return;
-      latest.set(r.data.id, r.data);
+      if (!checkNow) {
+        // Held as the reports after it are, up to the same ceiling: a check that never comes costs no more than they do.
+        if (early.length >= HELD_MAX) early.shift();
+        early.push(report);
+        return;
+      }
+      const r = checkNow(report);
+      if (!r) return;
+      latest.set(r.id, r);
       if (latest.size > HELD_MAX) letGo();
       // A beacon's worth waiting: sent now, so a tab never put away still says what it measured.
       let waiting = 0;
@@ -71,21 +99,34 @@ export function createFieldData(
       if (waiting >= PAGE_VITALS_PER_BEACON) fd.flush();
     },
     flush() {
+      if (!checkNow && early.length) {
+        // Noted before the check came: as they are (the route checks the beacon again), each id once, its latest value.
+        const byId = new Map(early.map((r) => [r.id, r]));
+        early = [];
+        const raw = [...byId.values()];
+        for (let at = 0; at < raw.length; at += PAGE_VITALS_PER_BEACON)
+          beacon(raw.slice(at, at + PAGE_VITALS_PER_BEACON));
+      }
       const due = [...latest.values()]
         .filter((r) => sent.get(r.id) !== said(r))
         .sort((a, b) => (METRIC_RANK.get(a.name) ?? 0) - (METRIC_RANK.get(b.name) ?? 0));
       for (let at = 0; at < due.length; at += PAGE_VITALS_PER_BEACON) {
         const vitals = due.slice(at, at + PAGE_VITALS_PER_BEACON);
         for (const v of vitals) sent.set(v.id, said(v));
-        send({
-          page,
-          ...(facts.device ? { device: facts.device } : {}),
-          ...(facts.build ? { build: facts.build } : {}),
-          vitals,
-        });
+        beacon(vitals);
       }
     },
   };
+  if (!checkNow)
+    code().then(
+      (m) => {
+        checkNow = m.checkVital;
+        const waiting = early;
+        early = [];
+        for (const r of waiting) fd.note(r);
+      },
+      () => {},
+    );
   return fd;
 }
 

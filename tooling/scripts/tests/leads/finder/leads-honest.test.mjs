@@ -47,7 +47,8 @@ import { keysDrawn } from "../../_keys.mjs";
 const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { PeopleReal } = await importSrc("apps/dashboard/src/surfaces/people/page/people-real.tsx");
-const { forgetLeadsViews, leadsOverride, leadsView } = await importSrc("apps/dashboard/src/surfaces/leads/surface.ts");
+const { forgetLeadsViews, leadsView } = await importSrc("apps/dashboard/src/surfaces/leads/surface.ts");
+const { leadsOverride } = await importSrc("apps/dashboard/src/surfaces/leads/override.ts");
 
 /** What a page reads the address through (data/constants.jsx), for the `CHANLY` this file makes up. */
 const address = await legacyAddress();

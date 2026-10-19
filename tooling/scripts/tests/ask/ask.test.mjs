@@ -1385,16 +1385,17 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   assert.equal(existsSync("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
-  assert.ok(
-    real.includes("window.AskBar = AskReal;"),
-    "a real workspace's AskBar is the Line, with no seeded file to choose it",
-  );
+  // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, published by seed-globals.ts), with no seeded
+  // file to choose it: the Line is ask-real.jsx's, under its own name.
+  assert.ok(real.includes("window.AskLineReal = AskReal;"), "the Line is ask-real.jsx's");
   // A quick answer never spends a model turn: executed in ask-palette.test.mjs ("the Line at rest").
   assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
-  const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
+  // The Line is a chunk of its own (ask/line-code.ts), fetched by the frame's ask/line.tsx: the frame's manifest carries
+  // none of it (the loadability review, 19 Oct 2026).
+  const line = readCode("apps/dashboard/src/legacy-bridge/ask/line-code.ts");
   for (const part of ["ask-text", "ask-hooks", "ask-turn", "ask-home", "ask-real"])
-    assert.ok(manifest.includes(`import "@/legacy/pages/${part}.jsx";`), part);
-  assert.ok(manifest.indexOf("ask-real.jsx") > manifest.indexOf("ask-home.jsx"), "the shell loads after its parts");
+    assert.ok(line.includes(`import "@/legacy/pages/${part}.jsx";`), part);
+  assert.ok(line.indexOf("ask-real.jsx") > line.indexOf("ask-home.jsx"), "the shell loads after its parts");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installAsk();"));
   assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./ask";'));
   const wr = readCode("apps/dashboard/src/server/with-route.ts");

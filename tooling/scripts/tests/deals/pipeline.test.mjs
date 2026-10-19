@@ -3466,7 +3466,7 @@ test("the bridge's pass reads each person afresh, records only a deal still a pr
   }
 });
 
-test("the bridge publishes the deal kit the pages read, the card's next act with it, and no verb nothing reads", async () => {
+test("the bridge publishes the deal kit the pages still read by name (the thread's Deal group), and no verb nothing reads", async () => {
   const { installPeopleCourier } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const keep = {};
   const names = ["__deal", "__recordDeal", "__passDeals", "__personDetail", "__peekPerson", "__warmPerson"];
@@ -3475,8 +3475,15 @@ test("the bridge publishes the deal kit the pages read, the card's next act with
     for (const k of ["__passDeals", "__personDetail", "__peekPerson"]) delete globalThis.window[k];
     installPeopleCourier();
     // The bridge's own contracts, by name: this file and the bridge load the package as two module instances.
-    assert.equal(globalThis.window.__deal.next.name, dealNextAct.name, "a phone's peek pins the card's own next act");
-    assert.equal(globalThis.window.__deal.menu.name, dealMenuActs.name);
+    assert.equal(
+      globalThis.window.__deal.menu.name,
+      dealMenuActs.name,
+      "the thread's Deal group reads its acts by name",
+    );
+    // The card's next act, the sheet's rules and the cards' words are imported where they are drawn (person-deal.tsx,
+    // the sheets): the frame stopped carrying them for every page (the loadability review, 19 Oct 2026).
+    assert.equal(globalThis.window.__deal.next, undefined, "the card's next act is imported, not published");
+    assert.equal(globalThis.window.__deal.sheet, undefined);
     assert.equal(typeof globalThis.window.__warmPerson, "function", "the shell's routeDoor warms a person by it");
     // The pages import these (people-detail.ts passDeals, personDetail, peekPerson): the window names went with the
     // last page that read them there (O4b).

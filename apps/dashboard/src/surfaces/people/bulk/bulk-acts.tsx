@@ -13,7 +13,8 @@ import { lists } from "../people-lists";
 import { plMakeListWith, plUndoList } from "../lists/doors";
 import { PL_BATCH, plCsv } from "../words";
 import { downloadCsv } from "../../kit/download";
-import { openStepSheet } from "../step-sheet/step-sheet";
+// Through the door the frame holds (sheets/doors.tsx): the press waits for the sheet to listen, however early it comes.
+import { askStepSheet } from "../sheets/doors";
 import type { BulkCtx, BulkProps, BulkState } from "./bulk-state";
 import type { SavedList } from "../types";
 
@@ -245,7 +246,7 @@ function personActs(b: BulkCtx) {
   const addNote = () => {
     if (busy) return;
     onSheet(null);
-    openStepSheet({
+    askStepSheet({
       personIds: batch,
       onDone: (r) => {
         flash({

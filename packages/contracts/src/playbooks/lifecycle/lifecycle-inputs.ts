@@ -10,7 +10,7 @@
  * calendar is none, no lists are none, no deal is none recorded, and no word is an appointment.
  */
 import { appointmentWordOf, type AppointmentWord } from "../../journey/appointment-word";
-import { PEOPLE_LISTS } from "../../people/lists/lists";
+import { PEOPLE_LISTS } from "../../people/lists/builtin-lists";
 import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../playbook-schedule";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers";
 import type { PlaybookDto } from "../playbooks";

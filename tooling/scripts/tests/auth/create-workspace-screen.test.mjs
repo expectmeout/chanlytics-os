@@ -521,7 +521,10 @@ test("a partner's link: the screen asks before the partner joins the team, sends
 
 /* ------------------------------ a handover (0016) ------------------------------ */
 
-const { useHandoverAsk } = screenModule;
+// The handover is its own module: the frame asks it on every boot, and fetches the create screen only to draw it.
+const { useHandoverAsk } = await import(
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/legacy-bridge/invitations/handover.tsx")).href
+);
 const WAITING = {
   tenantId: "11111111-1111-4111-8111-111111111111",
   workspace: "Luna Studio",

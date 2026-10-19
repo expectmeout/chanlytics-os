@@ -1,7 +1,7 @@
 /**
  * A row put off is the member's, on every device: the Setup surface reads their saved view beside the workspace's
  * facts (GET views), and Later or Skip saves the whole list through the door People's own view goes through
- * (PUT views/setup), one save at a time. Run here: the surface's own installSetup, setupOverride and setupVerbs
+ * (PUT views/setup), one save at a time. Run here: the surface's own installSetup and setupOverride (override.ts) and setupVerbs
  * (surfaces/setup/surface.ts), over a fetch that answers as the routes do -- with the landing on the first run, and
  * what the surface no longer publishes for the pages that draw it (the first run reads contracts' helpers itself).
  * The value is the seam's (surface-values.ts), and `window.__SETUP` its mirror.
@@ -103,7 +103,8 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { installSetup, setupOverride, setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+const { installSetup, setupOverride } = await importSrc("apps/dashboard/src/surfaces/setup/override.ts");
 // The seam's own store, the module instance the surface writes (surface-values.ts): a first read is "no value yet".
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 installSetup(globalThis.window);
@@ -308,9 +309,9 @@ test("a quiet look reads Setup again for a step that waits, and one that fails c
 
 // Was "the first run's helpers are published for the pages that draw it" (window.__firstRun = contracts' helpers). The
 // first run and Today's card import FIRST_RUN_HELPERS and FORWARDING_WORDS themselves now, so the surface publishes
-// neither; what it still hands the Settings JSX is its verbs, as the module's own object.
-test("the surface publishes its verbs for Settings, and no longer the first run's helpers or the forwarding words", () => {
-  assert.equal(w.__setup, setupVerbs, "the verbs, as the module's object (the Settings panes still read __setup)");
+// neither; and Settings imports the verbs (settings/business/who.tsx, frame/workspace.tsx), so nothing is published at all.
+test("the surface publishes nothing on the window: not its verbs, the first run's helpers or the forwarding words", () => {
+  assert.equal(w.__setup, undefined, "Settings imports the verbs (setupVerbs), the one object every reader holds");
   assert.equal(w.__firstRun, undefined, "the first run reads contracts' helpers by import");
   assert.equal(w.__forwarding, undefined, "the forwarding card imports its words");
 });

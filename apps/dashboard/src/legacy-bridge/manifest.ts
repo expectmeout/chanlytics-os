@@ -25,11 +25,8 @@ import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 
 import "@/legacy/data/constants.jsx";
-import "@/legacy/pages/ask-text.jsx";
-import "@/legacy/pages/ask-hooks.jsx";
-import "@/legacy/pages/ask-turn.jsx";
-import "@/legacy/pages/ask-home.jsx";
-import "@/legacy/pages/ask-real.jsx";
+// Ask's Line (the five pages/ask-*.jsx) is a chunk of its own, fetched once the frame is idle or the Line is first opened
+// (ask/line.tsx, published as the shell's AskBar by seed-globals).
 // People is TSX (surfaces/people): its list, its Leads scope, the Pipeline and a person's page; the parts the shell still
 // draws by name are published by seed-globals from people-globals.ts before any of these loads.
 

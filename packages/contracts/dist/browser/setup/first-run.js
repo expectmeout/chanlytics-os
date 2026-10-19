@@ -4,46 +4,52 @@ import { initialsOf } from "../conversations/thread-contact.js";
 import { openWeekWords } from "../config/business-tab/open-week.js";
 import { servicesWords } from "../config/business-tab/services-words.js";
 import { DAY_NAMES } from "../config/workspace-config/config-rules.js";
-import { ROLE_PERMS } from "../config/workspace-config/role-perms.js";
 import { checkChipsOf } from "./check-chips.js";
 import { bookingPageOffered } from "../google/google.js";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live.js";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try.js";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone.js";
 import { TRY_SKIPPED } from "./setup.js";
-import { FIND_PARAM, FIRST_RUN_FIND_ROUTE, FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route.js";
+import {
+  FIND_PARAM,
+  FIRST_RUN_FIND_ROUTE,
+  FIRST_RUN_ROUTE,
+  FIRST_RUN_STEP_KEYS,
+  firstRunStepOf,
+  firstRunStepRoute
+} from "./first-run-route.js";
+import { FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, FIRST_RUN_TITLE } from "./first-run-door.js";
 export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 export function businessNameOf(receptionistName, workspaceName) {
   return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
 }
-export const FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-export const FINISH_SETTING_UP = "Finish setting up";
 const LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
-export const FIRST_RUN_STEPS = [
-  {
-    key: "business",
+const STEP_DEFS = {
+  business: {
     name: "Your business",
     lead: "What your receptionist says about you: your name, when you're open, what you offer.",
     rows: ["facts", "google"],
     needs: ["facts"]
   },
-  {
-    key: "phone",
+  phone: {
     name: "Your phone",
     lead: "The number your customers call, and how those calls reach your receptionist.",
     rows: ["billing", "line", "keep"],
     needs: ["billing", "line"]
   },
-  {
-    key: "try",
+  try: {
     name: "Try it",
     lead: "Call it from your own phone and hear what your customers will hear.",
     rows: ["try", "handoff"],
     needs: ["receptionist", "try"]
   },
   // The last step is where the others lead: nothing to finish, only what is left after it.
-  { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
-];
+  live: { name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
+};
+export const FIRST_RUN_STEPS = /* @__PURE__ */ FIRST_RUN_STEP_KEYS.map((key) => ({
+  key,
+  ...STEP_DEFS[key]
+}));
 export const SETUP_CARD_ORDER = [
   "try",
   "whatsapp",
@@ -56,7 +62,7 @@ export const SETUP_CARD_ORDER = [
   "yes"
 ];
 export const FIRST_RUN_WORDS = {
-  title: "Setting up",
+  title: FIRST_RUN_TITLE,
   later: "Finish later",
   laterShort: "Later",
   back: "Back",
@@ -162,10 +168,6 @@ const stepDone = (vm, def) => (
     return !r || r.state === "ready" || id === "try" && (vm.trySkipped || r.later);
   })
 );
-export function firstRunStepOf(param) {
-  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
-  return hit ? hit.key : null;
-}
 export function firstRunKicker(key) {
   const i = FIRST_RUN_STEPS.findIndex((s) => s.key === key);
   return `Step ${i + 1} of ${FIRST_RUN_STEPS.length} \xB7 ${FIRST_RUN_STEPS[i].name}`;
@@ -345,10 +347,6 @@ export function receptionistCardOf(i) {
     ],
     foot: "Fills in as you go. You can change any of it later in Settings."
   };
-}
-export function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
-  return route === "" || route === "today";
 }
 export const FIRST_RUN_HELPERS = {
   of: firstRunOf,

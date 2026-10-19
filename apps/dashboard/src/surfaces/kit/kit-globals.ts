@@ -4,7 +4,8 @@
  * What is shared moves once. The icons, the failed read and the segmented bar were written for the shell
  * (`components/icons.jsx`, `data-bits.jsx`, `chart-core.jsx`); Reports needed them in TSX, so they moved into the kit
  * (`src/surfaces/kit`), where they are the one implementation. The pages that have not moved read them as they always did, as
- * `Icon`, `FailedRead` and `SegmentBar` on `window`: this is that line, and it is deleted with the last page that reads a name.
+ * `Icon` and `FailedRead` on `window`: this is that line, and it is deleted with the last page that reads a name. The parts
+ * only Ask's Line draws (the segmented bar, the answer's charts, the hold to talk) come with the Line (legacy-bridge/ask/line-globals.ts).
  * The app publishes it from seed-globals.ts, before any page loads; the standalone mockup gets the same object from a bundle
  * its server builds (tooling/scripts/serve-legacy.mjs, `data/kit-globals.js`). The state pill, the confirm, the more menu and
  * the policy chip (`StatePill`, `Confirm`, `MoreMenu`, `PolicyChip`: data-bits.jsx's too) moved when the Inbox needed them in
@@ -23,16 +24,12 @@
  * hands data-bits `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
  * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (app-shell.jsx PhoneTabs).
  */
-import { BarList } from "./charts/bar";
-import { SegmentBar } from "./charts/card";
-import { LineChart } from "./charts/line";
 import { Confirm } from "./confirm/confirm";
 import { FailedRead } from "./empty/empty";
 import { Icon } from "./icon/icon";
 import { MoreMenu } from "./more-menu/more-menu";
 import { viewDeck } from "./motion/view-deck";
 import { StatePill } from "./pill/state-pill";
-import { useHoldToTalk } from "./talk/use-hold-to-talk";
 import { PolicyChip } from "./policy-chip/policy-chip";
 import { RecordSwitch } from "./record/field";
 import { TabBar } from "./tab-bar/tab-bar";
@@ -42,16 +39,11 @@ import { ViewTabs } from "./view-tabs/view-tabs";
 export const KIT_GLOBALS = {
   Icon,
   FailedRead,
-  SegmentBar,
-  // Ask's charts (the answer canvas, C3): a line for one count over time and bars for a few things compared.
-  LineChart,
-  BarList,
   StatePill,
   Confirm,
   MoreMenu,
   PolicyChip,
   RecordSwitch,
-  useHoldToTalk,
   ViewTabs,
   viewPager,
   viewDeck,

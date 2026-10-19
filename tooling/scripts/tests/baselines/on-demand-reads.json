@@ -194,5 +194,21 @@
     "kind": "on-open",
     "fresh": "Read once, by the call's id, as its card opens on a call a list gave without its turns; kept for the tab.",
     "why": "An ended call's words do not change, and everything else about the call stays the Conversations surface's, which hears the calls table."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts GET reach-outs/[id]": {
+    "kind": "follows",
+    "follows": "reach_outs",
+    "fresh": "Read as a chain's row opens on Campaigns, the last answer kept on screen while it is read again; then, while it is open, at most every 30 seconds as Leads or the reach-outs publish a read (row.tsx useReachOutReport over read-again.ts).",
+    "why": "A chain's report counts what its runs wrote and what came back, each a record the reach-outs surface hears (a run made, approved or sent, a reply read or undone, a chain paused); the window keeps a lead run's batches from reading it again on every one."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts GET reach-outs/reach": {
+    "kind": "on-open",
+    "fresh": "Read as a sequence's runs sheet opens (sequences/leads/runs-sheet.tsx), painted first from this tab's last answer for that list (read-cache.ts).",
+    "why": "It says how many of the list's leads wait on an address to be confirmed, one line beside the sheet's choice; the sheet is open for the moment a choice takes, and its next opening reads it again."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts GET reach-outs/sources": {
+    "kind": "on-open",
+    "fresh": "Read as New message's Write to leads opens, and again by its retry after a read that failed (sources.tsx).",
+    "why": "What a reach-out can start from is each search or list with someone to write to and no sequence yet; the choice is open for the moment a pick takes, and a search that gains leads meanwhile is there the next time Write to leads opens."
   }
 }
