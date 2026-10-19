@@ -1846,6 +1846,7 @@ Foreign keys:
 | `meta` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `sending_at` | timestamp with time zone | yes |  | When the one run that took this queued row to the wire claimed it (00352): set where status = 'queued' and it is null, so a second job naming the row sends nothing, and a member's call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast's email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer). |
+| `sent_at` | timestamp with time zone | yes |  | When the row's words left: stamped by messages_note_sent_at the first time the row holds sent, delivered or read (its own created_at for a row written already sent; the moment of the update for one moved there, the send door's queued -> sent). Null for a row that never left. first_replies reads it (00464). |
 
 Foreign keys:
 

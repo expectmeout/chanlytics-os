@@ -192,30 +192,17 @@ test("reply time runs from the moment the reply left, not from the draft", { ski
         created_at: minutesAgo(10),
       }),
     );
-    // A veto-window reply: drafted at +1 min (the row), sent at +7 min (the event).
-    const ai = ok(
-      await db
-        .from("messages")
-        .insert({
-          ...base,
-          direction: "outbound",
-          sender: "ai",
-          status: "sent",
-          body: "we open at 9:30",
-          created_at: minutesAgo(9),
-        })
-        .select("id")
-        .single(),
-    );
+    // A veto-window reply: drafted at +1 min (the row's created_at), sent at +7 min (its sent_at, which the send door's
+    // queued -> sent stamps, 00464).
     ok(
-      await db.from("events").insert({
-        tenant_id: tenantId,
-        kind: "message.sent",
-        category: "message",
-        subject_type: "message",
-        subject_id: ai.id,
-        data: { sender: "ai" },
-        created_at: minutesAgo(3),
+      await db.from("messages").insert({
+        ...base,
+        direction: "outbound",
+        sender: "ai",
+        status: "sent",
+        body: "we open at 9:30",
+        created_at: minutesAgo(9),
+        sent_at: minutesAgo(3),
       }),
     );
 
