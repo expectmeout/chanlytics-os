@@ -219,6 +219,29 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
     failure:
       /^rec-[a-z-]+: .* (?:[a-z-]+: planting --rec-key changed nothing|border-left: planting --line-strong changed nothing)/,
   },
+  {
+    by:
+      "legacy.css, `@media (pointer: coarse) { html.legacy-on button, html.legacy-on .btn { min-height: 44px } }`: the " +
+      "shell's touch floor, which outranks the kit's own thumb's size (.btn-touch, a notice's acts) at the same 44px",
+    until:
+      "Phase 4's step for the frame (0015 step 13), where legacy.css leaves with the shell and the kit keeps its own floor",
+    runs: /^phone /,
+    failure:
+      /^(?:btn-touch|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,
+  },
+];
+/**
+ * Where a control's focus draws no ring by design, each with the decision that made it so: a failure one of these
+ * explains, in the runs it names, is expected, and an entry no run meets any more fails the test.
+ */
+const RINGLESS: { why: string; runs: RegExp; failure: RegExp }[] = [
+  {
+    why:
+      "kit.css, `@media (pointer: coarse) { .search > .search-box:focus-within }`: under a finger the search keeps its " +
+      "resting edge while it is typed in, the caret its focus (#1560, 11 Oct 2026: the search is the field from the first press)",
+    runs: /^phone /,
+    failure: /^search[a-z-]*: div\.search > label\.search-box > span\.search-field > input draws no ring/,
+  },
 ];
 const twinsQ = async (width: Width): Promise<KitAsk> => {
   const { EDGE_TOLERANCE, LAID_OUT } = await recorder();
@@ -346,19 +369,28 @@ test("a toast raised over an open sheet stands clear of its foot, where its Save
   }
 });
 
-test("every control an entry draws shows the house's ring when a key focuses it: Glass, both widths and themes", async ({
+test("every control an entry draws shows the house's ring when a key focuses it, but the designed ringless: Glass, both widths and themes", async ({
   browser,
   baseURL,
 }) => {
-  const failures: string[] = [];
+  const failures: { run: string; text: string }[] = [];
   const counts: string[] = [];
   await eachRun(browser, baseURL, GLASS, async (page, run) => {
     const found = await page.evaluate(focusRings);
     counts.push(`${label(run)} ${found.focusables}`);
-    failures.push(...found.failures.map((f) => `${label(run)}: ${f}`));
+    failures.push(...found.failures.map((text) => ({ run: label(run), text })));
   });
+  const designed = (r: (typeof RINGLESS)[number], f: { run: string; text: string }) =>
+    r.runs.test(f.run) && r.failure.test(f.text);
   console.log(`rings: the controls a key focused, per run: ${counts.join(", ")}`);
-  expect(failures, "a control whose focus draws no ring").toEqual([]);
+  expect(
+    failures.filter((f) => !RINGLESS.some((r) => designed(r, f))).map((f) => `${f.run}: ${f.text}`),
+    "a control whose focus draws no ring",
+  ).toEqual([]);
+  expect(
+    RINGLESS.filter((r) => !failures.some((f) => designed(r, f))).map((r) => `${r.why}: meets nothing any more`),
+    "a ringless control no run meets: take it out of RINGLESS",
+  ).toEqual([]);
 });
 
 test("every word an entry draws reads 4.5:1, a large one 3:1, on the ground under it: Glass, both widths and themes", async ({

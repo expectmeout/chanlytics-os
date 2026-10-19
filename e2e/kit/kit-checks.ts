@@ -854,9 +854,9 @@ export const NO_WORDS_CSS =
 /**
  * One kit entry, brought to the top of the window, where the look's strongest light stands (the blue pool: the ground
  * a light look's dark words and a dark look's light words read worst on), and its words read for the contrast check:
- * each text of the entry that says a letter or a number and is seen (the element at the middle of the words is theirs,
- * or holds them: words behind a wash, a sheet or a picture are not on their own ground), with its colour, opacity, size
- * and box in the shot. Then the words are hidden (NO_WORDS), so what the spec shoots next is the ground alone;
+ * each text of the entry that says a letter or a number and is seen (drawn at some opacity: a popup on its way out is
+ * at none; and the element at the middle of the words is theirs, or holds them: words behind a wash, a sheet or a
+ * picture are not on their own ground), with its colour, opacity, size and box in the shot. Then the words are hidden (NO_WORDS), so what the spec shoots next is the ground alone;
  * groundsUnder shows them again.
  */
 export function placeEntry(ask: { entry: string; hide: string }): {
@@ -904,6 +904,7 @@ export function placeEntry(ask: { entry: string; hide: string }): {
     if (!hit || !(hit === el || hit.contains(el))) continue;
     let opacity = 1;
     for (let e: Element | null = el; e; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity);
+    if (!opacity) continue;
     const size = parseFloat(cs.fontSize);
     const chain: Element[] = [];
     for (let e: Element | null = el; e && e !== stage; e = e.parentElement) chain.unshift(e);
