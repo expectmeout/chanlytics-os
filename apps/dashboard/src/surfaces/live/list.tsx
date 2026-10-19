@@ -12,12 +12,6 @@ import { StoppedMark } from "../kit/pill/stopped-mark";
 import { businessTrailFor, usePeopleTrails } from "../people/business-trail";
 import { LrPill, lrClock } from "./call-parts";
 
-// The last thing the caller said, for the row's second line: what the call is about, in their words.
-const lrLastSaid = (c: LiveCallVM) => {
-  const said = [...(c.transcript || [])].reverse().find((t) => t.speaker === "client" && t.text);
-  return said ? said.text : null;
-};
-
 interface LrRowProps {
   c: LiveCallVM;
   active: boolean;
@@ -50,7 +44,8 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
     const row = list ? list.querySelector<HTMLElement>(`[data-call-id="${next}"]`) : null;
     if (row) row.focus();
   };
-  const said = lrLastSaid(c);
+  // The last thing the caller said, for the row's second line: what the call is about, in their words.
+  const said = c.saidLast;
   return (
     <button
       type="button"

@@ -82,5 +82,7 @@ test("the list's own addresses keep their crumbs, mounts and act", () => {
     { label: "People", to: "clients" },
     "New list",
   ]);
-  assert.equal(peopleChrome({ param: "pipeline", backToPeople: back }).mount, "clients/pipeline");
+  // People's three scopes are one mount: the page keeps them and shows the one asked for (people-route.tsx, 18 Oct 2026).
+  assert.equal(peopleChrome({ param: "pipeline", backToPeople: back }).mount, "clients");
+  assert.equal(peopleChrome({ param: "leads:s-1", backToPeople: back }).mount, "clients");
 });

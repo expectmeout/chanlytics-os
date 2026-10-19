@@ -56,6 +56,15 @@ async function assertMeasuredOnly(page: Page, where: string) {
  * line is the head's sentence now"); it stays in the page hidden, so a count of it still tells a real page from none.
  */
 const headSentence = (page: Page) => page.locator(".pg-head .pg-sentence");
+/**
+ * How many people the table on screen holds: what it tells a screen reader (`aria-rowcount`, its heads the first row). A
+ * long list draws only the rows near the screen and holds the room of the rest (kit/rows/shown-rows.ts), so its drawn
+ * rows are no count of it; with nobody in it, it says nothing and holds none.
+ */
+async function rowsHeld(page: Page): Promise<number> {
+  const said = await page.locator(".cl-table:visible").getAttribute("aria-rowcount");
+  return said === null ? 0 : Number(said) - 1;
+}
 const PEOPLE_SAID = /\d+ (person|people)\b/;
 
 test.describe("People on a real workspace", () => {
@@ -112,7 +121,7 @@ test.describe("People on a real workspace", () => {
 
     // The one line's count equals the rows shown when nothing is filtered, and
     // it is the only place the page says it besides the table's own foot.
-    const shown = await page.locator(".cl-table tbody tr:not(:has(.empty))").count();
+    const shown = await rowsHeld(page);
     const standing = (await headSentence(page).innerText()).trim();
     expect(standing).toMatch(new RegExp(`^${shown} (person|people)\\b`));
     await expect(page.locator(".cl-head-stats")).toHaveCount(0);
@@ -534,7 +543,7 @@ test.describe("People on a real workspace", () => {
       await needs.click();
       // Needs you is a list (decision 0009): the count opens it, by its own address.
       await expect.poll(() => routeOf(page.url())).toBe("clients/seg:needs_you");
-      await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(n);
+      await expect.poll(() => rowsHeld(page), { message: "the list holds exactly them" }).toBe(n);
       for (const p of await page.locator(".cl-row-bucket-pill").allInnerTexts())
         expect(p.trim().toLowerCase()).toBe("needs you");
       await needs.click();

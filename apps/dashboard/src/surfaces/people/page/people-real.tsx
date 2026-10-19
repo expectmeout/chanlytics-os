@@ -6,6 +6,7 @@
  * frame's head (people-head.tsx: its name, its sentence and its act), and the elements it returns, one concern to a function
  * (screen.tsx).
  */
+import { asScopeView } from "../scope-view";
 import { usePeopleStanding } from "./people-head";
 import { peopleAct, peopleScreen } from "./screen";
 import { usePeopleState } from "./state";
@@ -15,5 +16,6 @@ export function PeopleReal(props: PeopleRealProps) {
   const s = usePeopleState(props);
   // The list says People's standing to the frame's head itself, since its act is the page's (Add a person, on a desk).
   usePeopleStanding("people", peopleAct(s));
-  return peopleScreen(s);
+  // A scope People's page keeps: its root is the deck's view (scope-view.ts).
+  return asScopeView(peopleScreen(s), props.scopeView);
 }

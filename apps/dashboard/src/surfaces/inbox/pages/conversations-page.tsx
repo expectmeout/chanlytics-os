@@ -33,6 +33,10 @@ import {
 } from "../cv-rules";
 import { useCvPick, type CvPick } from "./conversations-pick";
 import { pickAll, pickBox, pickKeys } from "./pick";
+import { useCvVisible } from "./calls-saying";
+import { useShownCvRows } from "./cv-shown";
+import { RowGap } from "../../kit/rows/row-gap";
+import type { ShownRows } from "../../kit/rows/shown-rows";
 import { seePerson, unreadHere, useSeeOpen, useSeen } from "../../seen";
 import {
   appNavigate,
@@ -181,9 +185,14 @@ interface CvRowProps {
   pick: { picked: boolean; onToggle: () => void } | null;
   tabStop: boolean;
   onKey: (e: KeyboardEvent<HTMLDivElement>) => void;
+  /** Where it stands in the list, and what measures it once drawn (cv-shown.ts). */
+  index: number;
+  measure: (el: Element | null) => void;
+  /** How many rows the list has, of which only those near the screen are drawn: what a screen reader counts. */
+  count: number;
 }
 
-const CvRow = ({ c, active, onSelect, pick, tabStop, onKey }: CvRowProps) => {
+const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, count }: CvRowProps) => {
   const lead = cvLeadOf(c);
   const dec = cvDecision(lead);
   const calls = cvCallsWords(c);
@@ -195,8 +204,12 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey }: CvRowProps) => {
       // Selected is a word for a row that can be: one nothing a pick does applies to says neither.
       aria-selected={pick ? picked : undefined}
       aria-current={active ? "true" : undefined}
+      aria-setsize={count}
+      aria-posinset={index + 1}
       tabIndex={tabStop ? 0 : -1}
       data-row-id={c.id}
+      ref={measure}
+      data-index={index}
       onClick={() => onSelect(c.id)}
       onKeyDown={onKey}
     >
@@ -404,12 +417,13 @@ function listPane(p: {
   /** The person's row open, which the part open is one of. */
   selectedRow: ConversationRow | undefined;
   openRow: (id: string) => void;
-  /** The rows' ref: they swap in with a rise as the channel changes (kit/motion). */
-  swap: ReturnType<typeof useSwapMotion<HTMLDivElement>>;
+  /** The rows drawn (cv-shown.ts), and the list's ref, which the swap motion shares (kit/motion). */
+  shown: ShownRows;
+  listRef: (el: HTMLDivElement | null) => void;
   /** The pick (pick.tsx): the rows chosen for an act over several, the bar over them, and the question an archive asks. */
   pick: CvPick;
 }) {
-  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, swap, pick } = p;
+  const { data, rows, query, setQuery, channel, counts, selectedRow, openRow, pick, shown, listRef } = p;
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = data;
   // Each row on screen as a pick reads it, worked out once and kept by the row's id: null for one that wears no box.
   const picks = new Map(rows.map((c) => [c.id, pick.of(c)]));
@@ -468,12 +482,16 @@ function listPane(p: {
       {/* A listbox while it holds rows, as the Inbox's is; with none, what it says instead is no option of one. */}
       <div
         className="cv-rows"
-        ref={swap}
+        ref={listRef}
         role={rows.length > 0 ? "listbox" : undefined}
         aria-label={rows.length > 0 ? "Conversations" : undefined}
         aria-multiselectable={rows.length > 0 || undefined}
       >
-        {rows.map((c, i) => {
+        {shown.parts.map((part) => {
+          if (part.kind === "gap") return <RowGap key={part.key} height={part.height} />;
+          const i = part.index;
+          const c = rows[i];
+          if (!c) return null;
           const picked = picks.get(c.id) ?? null;
           return (
             <CvRow
@@ -484,6 +502,9 @@ function listPane(p: {
               pick={picked && { picked: pick.selected.includes(picked.id), onToggle: () => pick.toggle(picked.id) }}
               tabStop={c.id === tabStopId}
               onKey={(e) => onKey(e, i)}
+              index={i}
+              measure={shown.measure}
+              count={rows.length}
             />
           );
         })}
@@ -683,24 +704,8 @@ export const ConversationsPage = ({
 
   const matchesChannel = (c: ConversationRow) => inChannel(c, channel);
 
-  // Kept on the rows themselves: each read publishes new ones. Kept on a counter only a decision moved, the list and the
-  // tabs' counts were the first read's for as long as the page was open (5 Oct 2026), and so was a call open beside them.
-  // One row per person (cvOnePerPerson), folded from what the tab and the search kept.
-  const visible = useMemo(() => {
-    let list = CONVERSATIONS.filter((c) => inChannel(c, channel));
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.who.toLowerCase().includes(q) ||
-          c.snippet.toLowerCase().includes(q) ||
-          (c.summary && (c.summary.headline + " " + c.summary.bullets.join(" ")).toLowerCase().includes(q)) ||
-          (c.transcript || []).some((l) => l.text.toLowerCase().includes(q)) ||
-          (c.messages || []).some((m) => m.text.toLowerCase().includes(q)),
-      );
-    }
-    return cvOnePerPerson(list);
-  }, [CONVERSATIONS, channel, query]);
+  // The tab's rows the box's words leave, one per person (calls-saying.ts useCvVisible).
+  const visible = useCvVisible(CONVERSATIONS, channel, query);
 
   // The conversation asked for stays open while the box's words hide its row (the Inbox keeps a moved thread the same
   // way): the pane fell to the first match, another customer's thread with its reply box, the moment a search stopped
@@ -751,6 +756,7 @@ export const ConversationsPage = ({
   );
   const [toastNode, flash] = useToast();
   const pick = useCvPick({ everyone, channel, unread: cvUnread, flash });
+  const shownRows = useShownCvRows(visible, selectedRow?.id, swap);
   return (
     <div className="conversations" data-takeover={phoneOpen || undefined}>
       {listPane({
@@ -762,7 +768,8 @@ export const ConversationsPage = ({
         counts,
         selectedRow,
         openRow: openByHand,
-        swap,
+        shown: shownRows.shown,
+        listRef: shownRows.ref,
         pick,
       })}
       {/* On a phone the reading pane is hidden until a row is opened (mobile.css), and it was mounted all the same, keyed

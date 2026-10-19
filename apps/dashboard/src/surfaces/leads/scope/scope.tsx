@@ -82,7 +82,6 @@ const railRowsOf = (p: P, phone: boolean) => (
 const tableOf = (p: P, phone: boolean, sections: Sections) => (
   <PeopleTable
     busy={!!p.loading}
-    budget={p.rowBudget}
     noun="lead"
     columns={p.columns}
     ctx={sections ? { ...p.cellCtx, sectioned: true } : p.cellCtx}
@@ -551,6 +550,8 @@ export const LeadsScope = (p: P) => {
   const railRows = railRowsOf(p, phone);
   return (
     <div
+      ref={p.scopeView?.ref}
+      data-slide={p.scopeView?.slide}
       className={p.firstDay ? "clients leads-scope no-rail" : "clients leads-scope"}
       data-loading={p.loading ? "1" : undefined}
       data-first-day={p.firstDay ? "" : undefined}

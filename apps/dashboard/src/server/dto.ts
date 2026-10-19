@@ -269,6 +269,30 @@ export function stripWordTimings(raw: unknown): CallDto["transcript_object"] {
   });
 }
 
+/** The longest a call's last line runs in a list read before it is cut. */
+const SAID_LAST_MAX = 240;
+
+/**
+ * A call as a list read gives it (GET calls without `ids`: Conversations, Live, Today), its turns left on the server once
+ * it has ended: how many there were, whether the caller said anything (contracts abandonedCall reads it as it read the
+ * turns) and the caller's last line (Live's row), the turns themselves only while the call goes on, where Live draws them
+ * as they come. An ended call's turns were most of the read by weight, and the read is made again with every message the
+ * workspace hears (the strips review, 18 Oct 2026); a call's card asks for them by its id as it opens, whole.
+ */
+export function listedCall(dto: CallDto): CallDto {
+  const turns = dto.transcript_object;
+  if (dto.status === "ongoing" || dto.status === "registered" || !turns || !turns.length) return dto;
+  const spoken = turns.filter((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
+  const last = spoken.at(-1)?.content?.trim() ?? null;
+  return {
+    ...dto,
+    transcript_object: null,
+    turns: turns.length,
+    caller_spoke: spoken.length > 0,
+    said_last: last && last.length > SAID_LAST_MAX ? `${last.slice(0, SAID_LAST_MAX - 1)}…` : last,
+  };
+}
+
 export function toCallDto(c: CallRow): CallDto {
   const rec = c.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
   // The address the caller spelled out, from the post-call analysis (voice-shell CALL_ANALYSIS_FIELDS): a string

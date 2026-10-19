@@ -26,6 +26,7 @@ import type { PipelineScopeProps } from "./scope-state";
 import { pipelineScreen } from "./scope-screen";
 import { usePipelineStanding } from "./standing";
 import { usePartShown } from "../../use-surface";
+import { asScopeView } from "../scope-view";
 
 export const PipelineScope = (props: PipelineScopeProps) => {
   const s = usePipelineState(props);
@@ -33,5 +34,6 @@ export const PipelineScope = (props: PipelineScopeProps) => {
   usePipelineStanding(s.r.all.line, { openNew: s.newActs.openNew, gate: s.newGate });
   // The Pipeline's first part (client/page-speed.ts): drawn from People's rows, which it is drawn only once it has.
   usePartShown("pipeline", "board", true);
-  return pipelineScreen(s);
+  // A scope People's page keeps: its root is the deck's view (scope-view.ts).
+  return asScopeView(pipelineScreen(s), props.scopeView);
 };

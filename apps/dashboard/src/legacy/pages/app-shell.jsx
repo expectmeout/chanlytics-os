@@ -520,14 +520,16 @@ const usePageFocus = (page, routeLoading) => {
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
  * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
+ * A strip's view still reading is that view, its reading pane drawn in it: one mount and one motion a press (18 Oct 2026).
  */
 const useViewFade = ({ page, param }, mountKey, routeLoading, placed) => {
-  const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
   const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
   // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side,
   // whether the tab was tapped or the page swiped, never after a reading pane.
   const place = window.stripPlace ? window.stripPlace(page, param) : null;
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
+  const onStrip = !!place && !!viewRef.current.place && viewRef.current.place.strip === place.strip;
+  const viewKey = routeLoading && !onStrip ? `${mountKey}/reading` : mountKey;
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
     const slide = prev.key !== null && !prev.reading && window.stripSlide ? window.stripSlide(prev.place, place) : null;
@@ -537,13 +539,14 @@ const useViewFade = ({ page, param }, mountKey, routeLoading, placed) => {
     viewRef.current = {
       key: viewKey,
       family,
-      reading: routeLoading,
+      reading: routeLoading && !onStrip,
       place,
       stay: !routeLoading && prev.key !== null && ((prev.family === family && !prev.reading) || cut) && !slide,
       slide,
     };
   }
-  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide, routeStrip: place ? place.strip : null };
+  // People keeps its three scopes mounted (people-route.tsx): a scope still reading is the page's to say, never the frame's.
+  return { viewKey, routeStay: viewRef.current.stay, routeSlide: viewRef.current.slide, routeStrip: place ? place.strip : null, readsInPlace: routeLoading && onStrip && page === "clients" };
 };
 
 // ---- The chrome ---------------------------------------------------------------
@@ -615,7 +618,7 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
 
 const appChrome = (s) => {
   const { theme, themePref, onTheme, look, onLook, sidebar, onSidebar, navOpen, setNavOpen, askOpen, setAskOpen, openAsk, inboxNeeds, navigate, onPlace, PhoneFace } = s;
-  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, surfaceUnavailable, ask } = s;
+  const { page, param, views, activeNav, crumbs, pane, primaryAction, content, viewKey, routeStay, routeSlide, routeStrip, routeLoading, readsInPlace, surfaceUnavailable, ask } = s;
   const glass = look === "glass";
   return (
     <div className="app-root" data-theme={theme} data-look={look}>
@@ -681,7 +684,7 @@ const appChrome = (s) => {
         >
           {glassHead({ glass, pane, where: "inside", page, param, views, navigate, primaryAction })}
           <ShellErrorBoundary>
-            {routeLoading
+            {routeLoading && !readsInPlace
               ? <div className="route-reading" role="status">Reading…</div>
               : surfaceUnavailable
                 ? <SurfaceUnavailable onNavigate={navigate} />

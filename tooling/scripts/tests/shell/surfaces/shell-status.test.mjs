@@ -952,10 +952,12 @@ test("every view of Leads is one mount: a search, a list, a class or an open lea
       assert.equal(view.key, all.key, `${param} is the Leads page already on screen`);
       assert.ok(view.page, "the same page, which follows the address it is on (people-route.tsx)");
     }
-    assert.notEqual(
+    // People and Leads are one view of the frame: the page keeps both scopes, each its own component with its own sort and
+    // columns, and shows the one asked for (people-route.tsx, the strips review of 18 Oct 2026).
+    assert.equal(
       at("#/clients").key,
       all.key,
-      "People and Leads are two pages: each starts from its own sort and columns",
+      "People and Leads are one view of the frame, the page keeping its scopes",
     );
     assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
     // People's views are the page's, which follows its own address (surfaces/people/people-route.tsx): one mount for the
@@ -1975,12 +1977,13 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   const slides = (t) => view(t).props["data-slide"] ?? null;
   const { tree } = mount("#/clients");
   assert.equal(stays(tree), false, "a page opened cold fades in");
+  // People's scopes are one view of the frame since the page keeps them (people-route.tsx, 18 Oct 2026): the frame's view
+  // stays where it is, and the scope arriving comes in from its tab's side by the deck inside it (people/scope-view.ts).
   const leads = go("#/clients/leads");
-  assert.equal(stays(leads), false, "Leads beside People arrives, as Conversations beside Needs you does");
-  assert.equal(slides(leads), "next", "from the side its tab stands on");
+  assert.equal(view(leads).props.key, view(tree).props.key, "Leads is the view already on screen");
+  assert.equal(slides(leads), null, "the frame slides nothing: the page moves its own scope");
   const back = go("#/clients");
-  assert.equal(stays(back), false, "and back");
-  assert.equal(slides(back), "prev");
+  assert.equal(view(back).props.key, view(tree).props.key, "and back");
   assert.equal(
     stays(go("#/clients/c-aisha")),
     false,
@@ -2026,15 +2029,15 @@ test("given the router's route, the frame draws that route and no other: an addr
   placeAt("#/clients");
   assert.equal(view(draw("clients")).props.key, "clients");
   // The address moves first, as a pushed entry does before the router draws it.
-  placeAt("#/clients/leads");
+  placeAt("#/inbox");
   fire("popstate");
   assert.equal(view(draw("clients")).props.key, "clients", "the heard address does not move the view");
-  // The router lands: Leads, under its own mount.
-  assert.equal(view(draw("clients/leads")).props.key, "clients/leads");
+  // The router lands: the Inbox, under its own mount.
+  assert.equal(view(draw("inbox")).props.key, "inbox");
   // And Back, as the router says it.
   placeAt("#/clients");
   fire("popstate");
-  assert.equal(view(draw("clients/leads")).props.key, "clients/leads", "nor does Back before the router has it");
+  assert.equal(view(draw("inbox")).props.key, "inbox", "nor does Back before the router has it");
   assert.equal(view(draw("clients")).props.key, "clients");
 });
 
@@ -2056,14 +2059,19 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
     for (const param of ["pipeline", "pipeline:v-proposals", "pipeline:v-proposals:p-5b3c1a2e"])
       assert.equal(peopleTakes(param), true, `the route takes ${param}`);
     assert.equal(peopleTakes("pipelines"), true, "an id that starts with the word is a person's: the page's");
-    assert.equal(peopleTakes("leads"), true, "Leads is the page's too, one mount of its own (decision 0015, step 9)");
-    assert.equal(chrome("leads").mount, "clients/leads");
-    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
+    assert.equal(peopleTakes("leads"), true, "Leads is the page's too (decision 0015, step 9)");
+    // People's three scopes are one mount: the page keeps them and shows the one asked for (people-route.tsx, 18 Oct 2026).
+    assert.equal(chrome("leads").mount, "clients");
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients" });
     // Every view of the Pipeline, and a person open over one, is the page already there: it follows its address (contracts
     // pipelineRoute), and the crumbs name the view.
     const viewed = chrome("pipeline:v-proposals:p-5b3c1a2e");
     assert.equal(viewed.mount, chrome("pipeline").mount, "one mount for the whole address family");
-    assert.notEqual(viewed.mount, chrome("seg:opted_in").mount, "the Pipeline and People are two mounts, as Leads is");
+    assert.equal(
+      viewed.mount,
+      chrome("seg:opted_in").mount,
+      "the Pipeline and People are one mount, as Leads and People are",
+    );
     assert.deepEqual(viewed.crumbs, [PEOPLE, { label: "Pipeline", to: "clients/pipeline" }, "Proposal out"]);
     assert.deepEqual(
       chrome("pipeline:v-bogus").crumbs,
@@ -2079,9 +2087,10 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
       dealPace: { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" },
     });
     assert.equal(chrome("pipeline:v-waiting").crumbs.at(-1), "Nothing back in 10 days");
-    // Before People has landed the crumbs still say the Pipeline: nothing it holds decides them.
+    // Before People has landed the crumbs still say the Pipeline: nothing it holds decides them. People's one mount: the
+    // page keeps its three scopes (people-route.tsx, the strips review of 18 Oct 2026).
     setSurfaceValue("people", undefined);
-    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients" });
   } finally {
     setSurfaceValue("people", undefined);
   }

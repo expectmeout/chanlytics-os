@@ -276,7 +276,6 @@ function peopleScroll(s: PeopleState) {
     setListId,
     phone,
     listStep,
-    rowBudget,
     columns,
     layout,
     cellCtx,
@@ -329,7 +328,6 @@ function peopleScroll(s: PeopleState) {
 
       <PeopleTable
         swapRef={swap}
-        budget={rowBudget}
         noun="person"
         columns={columns}
         ctx={cellCtx}

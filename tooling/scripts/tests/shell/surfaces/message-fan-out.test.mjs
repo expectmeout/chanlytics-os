@@ -23,6 +23,8 @@ import { registeredSurfaces } from "../hearing/_reads.mjs";
 
 const heard = new Map();
 const win = {
+  // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+  __afterTheMoveMs: 0,
   __ACTIVE_WORKSPACE: "ws-1",
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {

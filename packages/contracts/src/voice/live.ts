@@ -130,6 +130,9 @@ export interface LiveCallVM {
   /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
   lengthWords: string | null;
   transcript: LiveTurnVM[];
+  /** The last thing the caller said: the last of their turns, or what a list's ended call carries in their place
+   *  (CallDto.said_last). Live's row says it under the name. */
+  saidLast: string | null;
 }
 
 export interface LiveLineVM {
@@ -294,6 +297,13 @@ function summaryStateOf(c: {
   return c.live || (c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS) ? "pending" : "none";
 }
 
+/** The call's turns, and the last thing the caller said: the last of their turns, else what a list's call carries in their place. */
+function turnsAndLastOf(dto: CallDto): Pick<LiveCallVM, "transcript" | "saidLast"> {
+  const transcript = turnsOf(dto);
+  const said = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: said ? said.text : (dto.said_last ?? null) };
+}
+
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -348,7 +358,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto),
+    ...turnsAndLastOf(dto),
   };
 }
 

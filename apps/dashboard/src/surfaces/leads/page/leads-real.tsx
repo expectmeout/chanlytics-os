@@ -18,6 +18,7 @@ import { leadPeekEscape } from "../peek/seams";
 import { useReachOutLeads } from "../reach-out/lines";
 import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
+import type { ScopeView } from "../../people/scope-view";
 import { useLeadPileView } from "../pile/page-pile";
 import { useLeadPile } from "../pile/use-pile";
 import { useLeadAim } from "../sheet/use-aim";
@@ -41,6 +42,8 @@ interface LeadsRealProps {
   /** The address the page shows (`clients/leads…`): which search, list and class, and the lead open over them. */
   leadsRoute?: string | null;
   onNavigate?: LeadsNav | null;
+  /** What People's page says of this scope it keeps (people/scope-view.ts): the deck's seat and the side it comes in from. */
+  scopeView?: ScopeView;
 }
 
 const NO_PROFILE = (): void => undefined;
@@ -116,7 +119,6 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     landed: viewLanded,
     selectionOf: `${viewRoute}|${chip}`,
     extra: { map: mapOpen },
-    windowed: true,
     onPlace: (at, again) => {
       setMapOpen(!!at.map);
       if (again) {
@@ -272,7 +274,6 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     ...rows,
     cursor: place.cursor,
     setCursor: place.setCursor,
-    rowBudget: place.rowBudget,
     toggleAll: place.toggleAll,
     people,
     leads,
@@ -296,10 +297,17 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   };
 }
 
-export const LeadsReal = ({ onOpenProfile = NO_PROFILE, leadsRoute = null, onNavigate = null }: LeadsRealProps) => {
+export const LeadsReal = ({
+  onOpenProfile = NO_PROFILE,
+  leadsRoute = null,
+  onNavigate = null,
+  scopeView,
+}: LeadsRealProps) => {
   const p = useLeadsPage(useLeadsView({ leadsRoute, onNavigate }), onOpenProfile);
+  // A scope People's page keeps: its root is the deck's view (people/scope-view.ts).
   return (
     <LeadsScope
+      scopeView={scopeView}
       {...leadsListProps(p)}
       {...leadsBandProps(p)}
       {...leadsBulkProps(p)}

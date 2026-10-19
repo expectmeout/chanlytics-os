@@ -120,6 +120,8 @@ test("marked on the Calendar, the composers are left for the pages that draw the
   // (whereDrawn) would have left the strip on the old count. Its queue draws Sent's runs, which count no visit, and none of the
   // audiences, which are the composer's.
   const win = {
+    // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;
@@ -203,6 +205,8 @@ test("off those pages the reads are forgotten, not made: each is read as its pag
 
 test("a Reports read forgotten off its page is kept for it: the overview reads once as Reports comes on screen", () => {
   const win = {
+    // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;
@@ -305,6 +309,8 @@ test("the playbooks and the audiences hear the appointments the live feed tells 
 
 test("an appointment passed over on another page is read once when the playbooks' page comes on screen; People owes nothing", () => {
   const win = {
+    // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;

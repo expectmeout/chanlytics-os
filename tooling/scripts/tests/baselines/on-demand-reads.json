@@ -164,5 +164,15 @@
     "kind": "link",
     "fresh": "A link to the workspace's file, made when it is fetched.",
     "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET calls": {
+    "kind": "search",
+    "fresh": "Asked a beat after the last key in Conversations' box, for the calls whose stored transcript says the box's words; asked again for each new words, never kept.",
+    "why": "A list's ended calls come without their turns (GET calls answers how many there were), so the box asks the server for the calls that say its words; the answer is a search's, as the box's other matches are, and is gone when the words change."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call-turns.ts GET calls": {
+    "kind": "on-open",
+    "fresh": "Read once, by the call's id, as its card opens on a call a list gave without its turns; kept for the tab.",
+    "why": "An ended call's words do not change, and everything else about the call stays the Conversations surface's, which hears the calls table."
   }
 }

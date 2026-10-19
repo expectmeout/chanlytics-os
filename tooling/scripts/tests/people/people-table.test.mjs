@@ -4,8 +4,8 @@
  * Four of its helpers closed over People's own PL_COLUMNS, so the Leads scope could not draw the table with columns
  * of its own; every one of them now takes the column list, and the table says what it calls its rows (the foot's
  * count, the select-all label, and the row id the page's cursor effect looks up). Drawn on the shared stub React
- * (_legacy-react.mjs), over the real TSX: surfaces/people/table/table.tsx (the table), columns.ts (the helpers) and
- * row-window.ts (the first draw's budget).
+ * (_legacy-react.mjs), over the real TSX: surfaces/people/table/table.tsx (the table), columns.ts (the helpers) and the
+ * kit's window of a long list's rows (kit/rows/shown-rows.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,9 +20,21 @@ const { plColumnChoices, plColumnOptions, plFirstDir, plShownColumns, plSortKeys
   "apps/dashboard/src/surfaces/people/table/columns.ts",
 );
 const { resolveColumnWidths } = await importSrc("apps/dashboard/src/surfaces/people/table/layout.ts");
-const { PL_FIRST_ROWS, PL_WINDOW_ROWS, usePlRowWindow } = await importSrc(
-  "apps/dashboard/src/surfaces/people/table/row-window.ts",
-);
+const { useShownRows } = await importSrc("apps/dashboard/src/surfaces/kit/rows/shown-rows.ts");
+
+/** A browser that can watch a list's box (the window is drawn only there): a ResizeObserver that never says anything. */
+const watching = (run) => {
+  const kept = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  try {
+    return run();
+  } finally {
+    globalThis.ResizeObserver = kept;
+  }
+};
 
 /* --------------------------------- the table --------------------------------- */
 
@@ -241,16 +253,48 @@ test("a heading that sorts is a button with aria-sort on its th and its arrow; o
   );
 });
 
-test("a budget draws that many rows and no more; a budget past the rows, or none, draws them all", () => {
-  // The page's first draw on a fresh mount (row-window.ts usePlRowWindow) hands the table PL_FIRST_ROWS; the rest come a
-  // frame later. The foot's count and the select-all still read every row.
-  const many = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, name: `Person ${i}`, state: "new" }));
-  const drawn = (tree) => all(tree, (n) => n.type === "tr" && /^person-m/.test(String(n.props?.id || ""))).length;
-  assert.equal(drawn(table({ rows: many, total: 25, budget: 24 })), 24, "the first 24");
-  assert.equal(drawn(table({ rows: many, total: 25, budget: 25 })), 25, "a budget the rows fit in");
-  assert.equal(drawn(table({ rows: many, total: 25 })), 25, "no budget: every row");
-  assert.match(textOf(table({ rows: many, total: 25, budget: 24 })), /25 people/, "the foot counts every row");
-  assert.equal(PL_FIRST_ROWS, 24, "the first draw's budget, published for the page");
+test("a long list draws its first screen and the cursor's row, with the room of the others held; a short list, or one no browser can watch, draws every row", () => {
+  // Every row was built on each press of People's tab (the strips review, 18 Oct 2026). Before the list has found where it
+  // scrolls it draws its first screen and the cursor's row wherever it is, the rest held as room (tr.pl-foot); once it has, the
+  // rows on screen (shown-rows.ts, a browser's own). The foot's count and the select-all still read every row.
+  const many = Array.from({ length: 100 }, (_, i) => ({ id: `m${i}`, name: `Person ${i}`, state: "new" }));
+  const drawn = (tree) => all(tree, (n) => n.type === "tr" && /^person-m/.test(String(n.props?.id || "")));
+  const gaps = (tree) => all(tree, (n) => n.type === "tr" && /\bpl-foot\b/.test(String(n.props?.className || "")));
+  watching(() => {
+    const tree = table({ rows: many, total: 100, cursor: "m80" });
+    assert.equal(drawn(tree).length, 41, "the first screen and the cursor's row, not a hundred");
+    assert.ok(
+      drawn(tree).some((r) => r.props.id === "person-m80"),
+      "the cursor's row is drawn where it is: its keys find it",
+    );
+    assert.equal(gaps(tree).length, 2, "the room before the cursor's row and after it");
+    assert.ok(
+      gaps(tree).every((g) => g.props["aria-hidden"] === "true"),
+      "nothing for a screen reader to say",
+    );
+    assert.match(textOf(tree), /100 people/, "the foot counts every row");
+    // A screen reader counts the list, not the screen of it drawn: the table says how many rows it has (its heads are the
+    // first), and each row drawn where it stands.
+    assert.equal(find(tree, (n) => n.type === "table").props["aria-rowcount"], 101, "a hundred rows and the heads");
+    assert.equal(
+      find(tree, (n) => n.type === "tr" && n.props?.["aria-rowindex"] === 1)?.type,
+      "tr",
+      "the heads are row 1",
+    );
+    assert.equal(drawn(tree)[0].props["aria-rowindex"], 2, "the first person row 2");
+    assert.equal(
+      drawn(tree).find((r) => r.props.id === "person-m80").props["aria-rowindex"],
+      82,
+      "and the cursor's row says where it stands, though the rows before it are not drawn",
+    );
+    const short = many.slice(0, 25);
+    assert.equal(drawn(table({ rows: short, total: 25 })).length, 25, "a short list is drawn whole");
+  });
+  assert.equal(
+    drawn(table({ rows: many, total: 100 })).length,
+    100,
+    "a browser that cannot watch a box draws every row",
+  );
 });
 
 /* ------------------------------------------------------------------------------------------------ in sections */
@@ -333,31 +377,26 @@ test("sections: one body each, under a head row with no id that names it, counts
   assert.match(textOf(find(t, (n) => n.props?.className === "cl-table-foot")), /^3 people/);
 });
 
-test("in sections the first row drawn is the tab stop, and a first draw's budget runs across them in turn", () => {
+test("in sections every row is drawn, each section a body of its own, and the first row drawn is the tab stop", () => {
+  // The Pipeline's groups are a page of deals: a table in sections draws every row (the window of a long list's rows is
+  // the flat table's, kit/rows/shown-rows.ts).
   const many = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}`, name: `${p} ${i}`, state: "new" }));
   const s = (key, rows, collapsed = false) => ({ key, label: key, meta: null, rows, collapsed });
   const first = many("a", 20);
   const second = many("b", 10);
   const third = many("c", 5);
   const drawn = (tree) => idsIn(tree).length;
-  const t = table({
-    rows: [...first, ...second, ...third],
-    total: 35,
-    budget: 24,
-    sections: [s("a", first), s("b", second), s("c", third)],
-  });
-  assert.equal(drawn(t), 24, "twenty from the first, four from the second");
-  assert.deepEqual(
-    bodies(t).map((x) => x.props["data-section"]),
-    ["a", "b"],
-    "a section the budget cannot reach waits for the next draw, head and all",
-  );
   const all35 = table({
     rows: [...first, ...second, ...third],
     total: 35,
     sections: [s("a", first), s("b", second), s("c", third)],
   });
   assert.equal(drawn(all35), 35);
+  assert.deepEqual(
+    bodies(all35).map((x) => x.props["data-section"]),
+    ["a", "b", "c"],
+    "a body for each section",
+  );
   const stops = all(all35, (n) => n.type === "tr" && n.props?.tabIndex === 0).map((n) => n.props.id);
   assert.deepEqual(stops, ["person-a0"], "one tab stop: the first row, until there is a cursor");
   const cursorOn = table({
@@ -613,37 +652,26 @@ test("a list drawn in groups rises group by group as its view changes, and the t
   );
 });
 
-test("a long list draws its first rows, a few screens the next frame, and the rest of its window once the page is idle", () => {
-  // At 200 rows a switch to Leads spent 0.7 s of a 4x-slowed CPU on style and layout drawing the whole window after its
-  // first paint (5 Oct 2026): the rest waits for an idle moment, where nobody waits on it.
-  const frames = [];
-  const idles = [];
-  const kept = ["requestAnimationFrame", "cancelAnimationFrame", "requestIdleCallback", "cancelIdleCallback"].map(
-    (k) => [k, globalThis[k]],
-  );
-  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
-  globalThis.cancelAnimationFrame = () => undefined;
-  globalThis.requestIdleCallback = (fn) => idles.push(fn);
-  globalThis.cancelIdleCallback = () => undefined;
-  try {
-    fresh();
-    const ids = Array.from({ length: 500 }, (_, i) => `p${i}`);
-    let budget = null;
-    const Probe = () => {
-      budget = usePlRowWindow({ place: null, windowed: true, ids, cursor: null }).budget;
-      return null;
-    };
-    const draw = () => again(() => globalThis.React.createElement(Probe, {}));
-    draw();
-    assert.equal(budget, PL_FIRST_ROWS, "the first rows, painted at once");
-    assert.equal(idles.length, 0, "nothing waits for idle before the first frame");
-    frames.splice(0).forEach((fn) => fn());
-    draw();
-    assert.ok(budget > PL_FIRST_ROWS && budget < PL_WINDOW_ROWS, `a few screens, the next frame (${budget})`);
-    idles.splice(0).forEach((fn) => fn());
-    draw();
-    assert.equal(budget, PL_WINDOW_ROWS, "the rest of the window, once the page is idle");
-  } finally {
-    for (const [k, v] of kept) globalThis[k] = v;
-  }
+test("the window's first draw: its first screen, the rows it keeps wherever they are, and the room between at the guessed height", () => {
+  // What a list draws before it has found where it scrolls (shown-rows.ts firstParts); the browser draws it once, and the
+  // window of the rows on screen replaces it before the first paint.
+  fresh();
+  let parts = null;
+  const Probe = ({ count, keep }) => {
+    parts = useShownRows({ count, estimate: 40, keep }).parts;
+    return null;
+  };
+  const draw = (count, keep) => again(() => globalThis.React.createElement(Probe, { count, keep }));
+  watching(() => {
+    draw(500, [450]);
+    assert.deepEqual(
+      parts.slice(38).map((p) => (p.kind === "row" ? p.index : `gap ${p.height}`)),
+      [38, 39, `gap ${410 * 40}`, 450, `gap ${49 * 40}`],
+      "forty rows, the room to the kept row, the kept row, the room after it",
+    );
+    draw(30, [12]);
+    assert.equal(parts.length, 30, "under forty rows: every row, nothing held");
+  });
+  draw(500, [450]);
+  assert.equal(parts.length, 500, "no way to watch the list: every row");
 });

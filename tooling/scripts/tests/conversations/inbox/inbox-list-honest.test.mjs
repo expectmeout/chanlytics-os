@@ -494,6 +494,16 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
     [false, false, true],
     "selected means picked for a bulk act",
   );
+  // The list draws only the rows near the screen once it is long (kit/rows/shown-rows.ts): each row says its place in all of them.
+  assert.deepEqual(
+    rows.map((r) => [r.props["aria-posinset"], r.props["aria-setsize"]]),
+    [
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ],
+    "each row's place in the whole list, for a screen reader",
+  );
   const list = {
     querySelector: (sel) => {
       const m = /data-thread-id="([^"]+)"/.exec(sel);

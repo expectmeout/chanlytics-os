@@ -2,16 +2,18 @@
  * The table for any rows, for People and for Leads (a scope of People): the columns they are given, what a cell needs
  * (`ctx`), a selection, a keyboard cursor and a way to open a row (moved whole from legacy/pages/people-table.jsx,
  * decision 0015). Its state is the page's: the sort, the columns, their widths and order (`layout`, use-layout.ts), the
- * cursor and the selection are held in hooks/, and so is how many rows it draws (row-window.ts), where the page's one
- * keyboard listener can move them. It stays a `<table class="cl-table">`, so the page's selectors and the phone's card
+ * cursor and the selection are held in hooks/, where the page's one keyboard listener can move them. A long list draws the
+ * rows on screen and a few either side (kit/rows/shown-rows.ts), the cursor's row always among them. It stays a `<table class="cl-table">`, so the page's selectors and the phone's card
  * rules hold; on a desktop it is a fixed layout, each column the width table/layout.ts settles from what the column
  * declares, the room the table has and what the member dragged.
  */
 import { memo, useCallback } from "react";
 import type { KeyboardEvent, ReactElement, ReactNode, RefObject } from "react";
-import { holdStill } from "../../legacy-verbs";
+import { holdStill, warmsOnReach } from "../../legacy-verbs";
 import { EmptyState } from "../../kit/empty/empty";
 import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
+import { RowGap } from "../../kit/rows/row-gap";
+import { useShownRows } from "../../kit/rows/shown-rows";
 import type { TableColumn, TableCtx, TableEmpty, TableRow } from "../types";
 import { ColumnEdge, fitWidthOf, holdingEdge } from "./edge";
 import { PL_DRAG_MIN_PX, plClampWidth, resolveColumnWidths } from "./layout";
@@ -69,6 +71,11 @@ export interface TableSection<R extends TableRow> {
 
 interface RowProps<R extends TableRow, X extends TableCtx> {
   p: R;
+  /** Where the row stands in the list, and what measures it once drawn (kit/rows/shown-rows.ts). */
+  index: number;
+  measure: (el: Element | null) => void;
+  /** Its row among the table's, heads included, where the table draws only some of them (`aria-rowindex`). */
+  rowIndex?: number;
   columns: readonly TableColumn<R, X>[];
   ctx: X | null;
   words: Nouns;
@@ -90,6 +97,9 @@ interface RowProps<R extends TableRow, X extends TableCtx> {
  */
 function PeopleRow<R extends TableRow, X extends TableCtx>({
   p,
+  index,
+  measure,
+  rowIndex,
   columns,
   ctx,
   words,
@@ -107,6 +117,9 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   const pick = selected ? "chosen" : selecting ? "choose" : undefined;
   return (
     <tr
+      ref={measure}
+      data-index={index}
+      aria-rowindex={rowIndex}
       id={`${words.id ?? words.one}-${p.id}`}
       className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`}
       aria-selected={selectable ? selected : undefined}
@@ -115,7 +128,8 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
         if (ctx && ctx.onWarm) ctx.onWarm(p.id);
         if (!focused) onCursor(p.id);
       }}
-      onPointerEnter={ctx && ctx.onWarm ? () => ctx.onWarm?.(p.id) : undefined}
+      // A pointer that rests on the row warms it, never a finger (legacy-verbs warmsOnReach).
+      onPointerEnter={ctx && ctx.onWarm ? (e) => warmsOnReach(e) && ctx.onWarm?.(p.id) : undefined}
       onClick={(e) => {
         // The words selected are this row's own (a drag across a number to copy it); the page's other words are not.
         if (!pickedWords(e && e.currentTarget)) onOpen(p.id);
@@ -139,40 +153,19 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
 }
 const PeopleRowMemo = memo(PeopleRow) as typeof PeopleRow;
 
-/** The rows drawn: all of them, or a window and, at its foot, a row with nothing in it that is watched. */
-const plWindowRows = <R extends TableRow>(
-  rows: readonly R[],
-  budget: number,
-  row: (p: R, i: number) => ReactElement,
-  span: number,
-): ReactElement[] =>
-  budget < rows.length
-    ? [
-        ...rows.slice(0, budget).map(row),
-        <tr key="pl-foot" id="pl-foot" className="pl-foot" aria-hidden="true">
-          <td colSpan={span} />
-        </tr>,
-      ]
-    : rows.map(row);
-
 /**
  * The table's sections, one <tbody> each: a header row (a <th scope="rowgroup"> across every column, with no id), then
- * the section's rows unless it is collapsed. A first draw's budget runs across the sections in turn, and a section it
- * cannot reach waits for the next draw whole, header and all.
+ * the section's rows unless it is collapsed. Every row of a section is drawn: the Pipeline's groups are a page of deals.
  */
 const plSectionBodies = <R extends TableRow>(
   sections: readonly TableSection<R>[],
   span: number,
-  budget: number,
   row: (p: R, i: number) => ReactElement,
 ): ReactElement[] => {
   const out: ReactElement[] = [];
-  let left = budget;
   let at = 0;
   for (const s of sections) {
-    if (!s.collapsed && left <= 0) break;
-    const shown = s.collapsed ? [] : left < s.rows.length ? s.rows.slice(0, left) : s.rows;
-    left -= shown.length;
+    const shown = s.collapsed ? [] : s.rows;
     const first = at;
     const { onToggle } = s;
     at += shown.length;
@@ -216,7 +209,6 @@ const plSectionBodies = <R extends TableRow>(
 };
 
 interface PeopleTableProps<R extends TableRow, X extends TableCtx> {
-  budget?: number;
   columns: readonly TableColumn<R, X>[];
   ctx: X | null;
   rows: readonly R[];
@@ -248,6 +240,28 @@ interface PeopleTableProps<R extends TableRow, X extends TableCtx> {
   swapRef?: RefObject<HTMLTableElement | null> | null;
   /** The widths, the order and the row height (use-layout.ts): a desktop's. None draws the table as the browser sizes it. */
   layout?: TableLayout | null;
+}
+
+/** A row's height before it is measured: a phone's card, else a desktop's row at its density (layout.ts). */
+const rowHeightOf = (layout: TableLayout | null): number => (!layout ? 84 : layout.density === "compact" ? 37 : 49);
+
+/**
+ * The rows the table draws (kit/rows/shown-rows.ts): those on screen and a few either side, the cursor's always (its keys
+ * find it) or, with no cursor, the first (the table's one tab stop). A table in sections draws every row.
+ */
+function useTableRows<R extends TableRow>(
+  rows: readonly R[],
+  cursor: string | null,
+  layout: TableLayout | null,
+  inSections: boolean,
+) {
+  const cursorAt = cursor === null ? -1 : rows.findIndex((r) => r.id === cursor);
+  return useShownRows({
+    count: inSections ? 0 : rows.length,
+    estimate: rowHeightOf(layout),
+    keyOf: (i) => rows[i]?.id ?? String(i),
+    keep: cursorAt >= 0 ? [cursorAt] : [0],
+  });
 }
 
 /** What of the table rises on a swap (kit/motion use-swap-motion.ts `parts`): its row groups, never its heads. */
@@ -307,13 +321,14 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
   onSort: (key: string) => void;
   layout: TableLayout | null;
   widths: readonly number[] | null;
+  indexed: boolean; // one body drawn in part says each row's place: the heads are row 1
 }) {
-  const { words, columns, selectable, rows, sel, onToggleAll, sortBy, sortDir, onSort, layout, widths } = p;
+  const { words, columns, selectable, rows, sel, onToggleAll, sortBy, sortDir, onSort, layout, widths, indexed } = p;
   const picked = rows.filter((r) => sel.has(r.id)).length;
   const keys = columns.map((c) => c.key);
   return (
     <thead>
-      <tr>
+      <tr aria-rowindex={indexed ? 1 : undefined}>
         {selectable && (
           <th className="cl-sel">
             <input
@@ -450,7 +465,6 @@ function tableHead<R extends TableRow, X extends TableCtx>(p: {
  * `busy`: the rows drawn are the last view's while the one asked for is on its way. `sections`: the rows in groups.
  */
 export function PeopleTable<R extends TableRow, X extends TableCtx>({
-  budget = Infinity,
   columns,
   ctx,
   rows,
@@ -494,10 +508,14 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet.
   const selecting = selectMode || rows.some((p) => sel.has(p.id));
   const span = columns.length + (selectable ? 1 : 0);
-  const row = (p: R, i: number) => (
+  const shown = useTableRows(rows, cursor, layout, !!sections);
+  const row = (p: R, i: number, rowIndex?: number) => (
     <PeopleRowMemo
       key={p.id}
       p={p}
+      index={i}
+      measure={shown.measure}
+      rowIndex={rowIndex}
       columns={columns}
       ctx={ctx}
       words={words}
@@ -512,6 +530,10 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
       rowClass={rowClass}
     />
   );
+  // One body drawn in part says how many rows it has and where each drawn one stands, so a screen reader counts the list
+  // and not the screen of it drawn (the heads are row 1). The Pipeline's sections draw every row, and say nothing more.
+  const sectioned = !!sections && sections.some((s) => s.rows.length > 0);
+  const indexed = !sectioned && rows.length > 0;
   const emptyRow = () => (
     <tr>
       <td colSpan={span} className="pl-nobody-cell">
@@ -542,18 +564,42 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
       >
         {/* pl-table is the phone's hook: on a narrow screen these rows stop being a sideways scroll and stack, so the
             state is on the row instead of off the right edge. */}
-        <table className="cl-table pl-table" ref={tableRef} aria-label={words.list} {...attrs.table}>
+        <table
+          className="cl-table pl-table"
+          ref={tableRef}
+          aria-label={words.list}
+          aria-rowcount={indexed ? rows.length + 1 : undefined}
+          {...attrs.table}
+        >
           {tableColgroup(widths, columns, selectable)}
-          {tableHead({ words, columns, selectable, rows, sel, onToggleAll, sortBy, sortDir, onSort, layout, widths })}
+          {tableHead({
+            words,
+            columns,
+            selectable,
+            rows,
+            sel,
+            onToggleAll,
+            sortBy,
+            sortDir,
+            onSort,
+            layout,
+            widths,
+            indexed,
+          })}
           {/* What a view on its way dims (components.css [data-loading] [data-dims]): the rows, never the heads. */}
-          {sections && sections.some((s) => s.rows.length > 0) ? (
-            plSectionBodies(sections, span, budget, row)
+          {sectioned ? (
+            plSectionBodies(sections, span, row)
           ) : (
-            <tbody data-dims>
+            <tbody data-dims ref={shown.listRef}>
               {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                   by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                   J and K move focus with the cursor (the page's effect on `cursor`). */}
-              {plWindowRows(rows, budget, row, span)}
+              {shown.parts.map((part) => {
+                if (part.kind === "gap")
+                  return <RowGap key={part.key} height={part.height} span={span} className="pl-foot" />;
+                const p = rows[part.index];
+                return p ? row(p, part.index, part.index + 2) : null;
+              })}
               {rows.length === 0 && emptyRow()}
             </tbody>
           )}
