@@ -23,7 +23,7 @@ import {
   type RecipientState,
   type RunAnswer,
 } from "@chanlytics/contracts";
-import { readAllRows, runCounts, runWaitingCounts, threadIdsWaitingOnYou } from "@chanlytics/db";
+import { readAllRows, runCounts, runWaitingCounts, threadIdsWaitingOnYou, waitingRunsOf } from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
@@ -423,24 +423,55 @@ async function sheetCountsOf(
   return counted[id] ?? emptyCounts();
 }
 
+/** A workspace's runs as Sent's rows read them, for a query to finish: one table, one set of columns, every list of runs. */
+const runRows = (ctx: RouteContext, tenantId: string) =>
+  ctx.supabase.from("sequence_batches").select(ROW_COLUMNS).eq("tenant_id", tenantId);
+
+/**
+ * The runs still waiting for a word that are older than the newest fifty (packages/db waitingRunsOf, the one rule the
+ * server's Today and Ask count by: waiting for approval, or a going reach-out run whose emails are held or handed to its
+ * owner), as Sent's rows. Null where they could not be read, said in the log: the list stands without them.
+ */
+async function waitingBeyond(ctx: RouteContext, tenantId: string, shown: readonly BroadcastRow[]) {
+  try {
+    const seen = new Set(shown.map((r) => r.id));
+    const ids = (await waitingRunsOf(ctx.supabase, tenantId)).map((r) => r.id).filter((id) => !seen.has(id));
+    if (!ids.length) return [];
+    const { data, error } = await runRows(ctx, tenantId).in("id", ids).order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as BroadcastRow[];
+  } catch (e) {
+    log.error("broadcasts_waiting_read_failed", {
+      tenant_id: tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
 /**
  * The recent fifty, newest first: the Broadcasts page's history -- and whether
  * older broadcasts exist beyond it. The page summed these fifty under headings
  * that read as everything; one row past the fifty is how it knows to say "latest".
+ *
+ * And after them every older run still waiting for a word (waitingBeyond), so what the badge, the Inbox's run rows,
+ * Today's queue and the bell judge waiting is every run that waits, as the server's Today and Ask count them: a reach-out
+ * run holding emails a week on fell out of the fifty, and out of all of them, while Ask still named it (the Inbox's run
+ * review, 19 Oct 2026). Older than every one of the fifty, they keep the list newest first; `more` still says whether
+ * older runs exist at all.
  */
 export async function listBroadcasts(
   ctx: RouteContext,
   tenantId: string,
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
-  const { data: rows, error } = await ctx.supabase
-    .from("sequence_batches")
-    .select(ROW_COLUMNS)
-    .eq("tenant_id", tenantId)
+  const { data: rows, error } = await runRows(ctx, tenantId)
     .order("created_at", { ascending: false })
     .limit(RECENT + 1);
   if (error) throw new Error(error.message);
   const all = (rows ?? []) as BroadcastRow[];
-  const counted = await withCounts(ctx, tenantId, all.slice(0, RECENT));
+  const recent = all.slice(0, RECENT);
+  const beyond = all.length > RECENT ? await waitingBeyond(ctx, tenantId, recent) : [];
+  const counted = await withCounts(ctx, tenantId, [...recent, ...(beyond ?? [])]);
   return { broadcasts: await withHeld(ctx, tenantId, counted), more: all.length > RECENT };
 }
 

@@ -1631,7 +1631,9 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     scheduled_for: iso(0),
     moved_from: null,
   });
-  broadcasts.cancel = acceptThenRead({ was: "pending_approval" });
+  const stops = [];
+  const stopThenRead = acceptThenRead({ was: "sending" });
+  broadcasts.cancel = (id, opts) => (stops.push(id), stopThenRead(id, opts));
   answers.set("b-wait", [{ ok: true, data: detailOf(waiting, []) }]);
   // The run waiting on you, open on its sheet beside Sequences' list, where it is approved.
   const props = { initialSegment: null, initialRun: "b-wait" };
@@ -1650,6 +1652,19 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     while (reread.length) reread.shift()();
     await settle();
     assert.equal(toasts.length, 1, "and said once");
+    // The way back, as Send once's toast offers it: "Stop it" for a run that goes now, "Cancel it" for one still to go.
+    const goes = bcWhenWords({ recipient_count: 3, scheduled_for: iso(0), moved_from: null });
+    assert.equal(
+      toasts[0].action?.label,
+      contracts.runStopDoorWords(goes !== contracts.SENDING_NOW_WORDS),
+      "REGRESSION: an approval's toast offered no way back",
+    );
+    toasts[0].action.onClick();
+    await settle();
+    while (reread.length) reread.shift()();
+    await settle();
+    assert.deepEqual(stops, ["b-wait"], "the run just approved");
+    assert.match(textOf(toasts.at(-1).msg), /stops after this batch/);
   } finally {
     Object.assign(broadcasts, keep);
   }

@@ -12,8 +12,10 @@ import { useMemo, useReducer, useRef, useState } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   LIFECYCLE_WORDS,
+  SENDING_NOW_WORDS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
+  runStopDoorWords,
   runStopWords,
   runStoppedWords,
   runHeldEmails,
@@ -243,6 +245,8 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
             <b>{t.lead}</b> {t.rest}
           </>
         ),
+        // The way back, as the run's sheet and Send once offer it: the same stop as a run still to come has on its row.
+        action: { label: runStopDoorWords(when !== SENDING_NOW_WORDS), onClick: () => stop(r) },
       });
     };
     const res = await api.approve(r.id, { onAccepted: say });

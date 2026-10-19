@@ -254,3 +254,75 @@ test(
     });
   },
 );
+
+test(
+  "a run that is decided closes the rows about it (00461): approved or skipped it leaves pending_approval, and one that ends closes its held-emails row; no other run's, no other kind's",
+  { skip },
+  async () => {
+    const template = ok(
+      await db
+        .from("templates")
+        .insert({ tenant_id: T, channel: "whatsapp", name: "offer", language: "en_US", meta_status: "approved" })
+        .select("id")
+        .single(),
+      "the template",
+    ).id;
+    const run = async (state) =>
+      ok(
+        await db
+          .from("sequence_batches")
+          .insert({
+            tenant_id: T,
+            name: "Win-back · 2026-10-19",
+            template_id: template,
+            template_name: "offer",
+            template_language: "en_US",
+            state,
+            scheduled_for: new Date(Date.now() + DAY).toISOString(),
+          })
+          .select("id")
+          .single(),
+        `a run ${state}`,
+      ).id;
+    const runs = {
+      approved: await run("pending_approval"),
+      skipped: await run("pending_approval"),
+      waiting: await run("pending_approval"),
+      going: await run("scheduled"),
+    };
+    const about = (id) => ({ type: "broadcast", id });
+    const rows = {
+      approved: await notice("playbook", "Campaign “Win-back” is ready: 4 people", about(runs.approved)),
+      skipped: await notice("playbook", "Campaign “Win-back” is ready: 4 people", about(runs.skipped)),
+      waiting: await notice("playbook", "Campaign “Win-back” is ready: 2 people", about(runs.waiting)),
+      news: await notice("broadcast_sent", "Win-back went out", about(runs.approved)),
+      held: await notice("playbook", "2 emails wait for your say", about(runs.going)),
+    };
+    assert.deepEqual(kindsEndedBy("run"), ["playbook"], "the trigger's kind, as contracts says it");
+    const move = async (id, state) =>
+      ok(await db.from("sequence_batches").update({ state }).eq("tenant_id", T).eq("id", id).select("id"), state);
+    const closed = async () => {
+      const by = await closedOf(Object.values(rows));
+      return Object.fromEntries(Object.entries(rows).map(([k, id]) => [k, by[id]]));
+    };
+    await move(runs.approved, "scheduled");
+    await move(runs.skipped, "canceled");
+    // A going run sends on: its held-emails row still asks.
+    await move(runs.going, "sending");
+    assert.deepEqual(await closed(), { approved: true, skipped: true, waiting: false, news: false, held: false });
+    // It ends: nothing about it can be asked any more.
+    await move(runs.going, "sent");
+    assert.equal((await closed()).held, true, "an ended run's held-emails row closes");
+    // A row is closed once: a later move of the same run writes no second close.
+    const first = ok(
+      await db.from("notifications").select("closed_at").eq("id", rows.approved).single(),
+      "the row",
+    ).closed_at;
+    await move(runs.approved, "sending");
+    const again = ok(
+      await db.from("notifications").select("closed_at").eq("id", rows.approved).single(),
+      "the row",
+    ).closed_at;
+    assert.equal(again, first);
+  },
+);
