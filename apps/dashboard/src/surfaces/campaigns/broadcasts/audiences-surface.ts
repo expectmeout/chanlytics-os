@@ -92,7 +92,7 @@ export interface AudiencesSurface {
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
   /**
-   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
+   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts/touches' `touched_at`); false counts the
    * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
    */
   heardRead: boolean;
@@ -198,10 +198,13 @@ export const audiencesOverride: SurfaceOverride = {
     ],
   }),
   apply: async () => {
-    // GET broadcasts for who heard from a run this week and what the workspace can send on, which each audience is judged
-    // against; asked beside Sent's own read of it, the two share one request (client/api.ts).
-    const [bc, people, saved, tz] = await Promise.all([
+    // GET broadcasts for what the workspace can send on, which each audience is judged against (asked beside Sent's own read
+    // of it, the two share one request: client/api.ts), and who heard from a run this week, its own read: every touch of the
+    // week, which nothing but an audience's count reads, so Sent's runs (which the Inbox waits for) carry none of it. A
+    // refusal of it is touches not read, as the server says one it could not read: the composer says nothing of who heard.
+    const [bc, heard, people, saved, tz] = await Promise.all([
       read("GET broadcasts"),
+      read("GET broadcasts/touches").catch(() => ({ touched_at: null })),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
       // Whose visit is today and what is due, by the business's clock (zone.ts).
@@ -227,7 +230,7 @@ export const audiencesOverride: SurfaceOverride = {
     // which channel depends on the set (reachFor). Who a run reached from a week ago on, or is due to, and when, for the
     // note on how many of an audience hear from one within a week of the send, either side (contracts heardFor, at the
     // picked time).
-    const touches = bc.touched_at ?? {};
+    const touches = heard.touched_at ?? {};
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
       optionReadings(rows, { kind, id, ids }, { ready, touches });
     const audiences: AudienceOption[] = [
@@ -290,7 +293,7 @@ export const audiencesOverride: SurfaceOverride = {
       reach: reachCountsOf(rows),
       listsRead: !(saved instanceof Error),
       // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
-      heardRead: bc.touched_at !== null,
+      heardRead: heard.touched_at !== null,
       fetchedAt: now.getTime(),
     });
   },

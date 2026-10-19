@@ -11,7 +11,7 @@ import { useEffect, useReducer, useState } from "react";
 import {
   TO_SEND_ALL_WORDS,
   runDraftedEmails,
-  runLabelOf,
+  runTitleOf,
   toSendAllOf,
   type BroadcastDetailDto,
   type BroadcastVM,
@@ -57,7 +57,7 @@ function ToSendRunPart({
     };
   }, [run.id, asks]);
   const d = answer && answer.ok ? answer.data : null;
-  const name = d?.reach_out?.chain_name || runLabelOf(run);
+  const name = d?.reach_out?.chain_name || runTitleOf(run);
   // Which of its emails: a first email and its nudge are two parts of one reach-out (null until the detail is read).
   const step = d?.reach_out ? d.reach_out.step_n : null;
   // The detail's own count once read (it leaves out a draft the send door would refuse now), the list's before.

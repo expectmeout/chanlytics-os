@@ -26,7 +26,7 @@ import {
   rightNowLine,
   runHeldEmails,
   runDraftedEmails,
-  runLabelOf,
+  runTitleOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -63,7 +63,7 @@ interface Run {
   when: string;
   counts: { sent: number; replied: number };
   audience?: { label?: string } | null;
-  /** Its own name: what says a reach-out's run, whose audience carries no label (contracts runLabelOf). */
+  /** Its own name, less the day a sequence's run carries after it: what the run is called (contracts runTitleOf). */
   name: string;
 }
 
@@ -210,7 +210,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: runLabelOf(r),
+      label: runTitleOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

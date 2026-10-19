@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import {
-  runLabelOf,
+  runTitleOf,
   type BroadcastVM,
   type TodayFigureId,
   type TodayFigureVM,
@@ -66,7 +66,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           <Icon name="bolt" size={13} />
         </span>
         <span className="brief-beat-text">
-          <b>{r.playbook_id ? runLabelOf(r) : r.name}</b> {r.playbook_id ? "ran" : "went out"}
+          <b>{runTitleOf(r)}</b> {r.playbook_id ? "ran" : "went out"}
           {" at "}
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}

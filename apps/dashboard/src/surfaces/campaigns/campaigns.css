@@ -1843,8 +1843,11 @@ html.legacy-on .tpl-fresh {
   line-height: var(--leading-snug);
   color: var(--ink-dim);
 }
+/* A value filled in, lit where it stands: its light spills into the space either side of it rather than pushing the words
+   apart, so the comma after a name sits where it would without it ("Hi Diego , a quick note" with a gap of its own). */
 .bc-sheet-slot {
-  padding: 0 3px;
+  margin-inline: -2px;
+  padding: 0 2px;
   border-radius: var(--radius-xs);
   background: var(--bg-active);
   color: var(--ink);

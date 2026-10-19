@@ -12,6 +12,7 @@ import {
   type ReachOutReachDto,
   type ReachOutSavedDto,
 } from "./reach-out-dtos";
+import { RUN_OPEN_WORDS } from "../shell/campaign-rooms";
 import type { HandKind, StepHand } from "./reach-out-hand";
 import { REACH_OUT_SHEET_WORDS, startWords } from "./reach-out-sheet";
 import {
@@ -372,7 +373,7 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
     : { tone: "good" as const, text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
   return run
-    ? { ...said, to: `broadcasts/run:${run}`, label: "Open the run" }
+    ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS }
     : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
 }
 

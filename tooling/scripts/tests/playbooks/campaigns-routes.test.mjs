@@ -21,6 +21,7 @@ const S = "../../../../apps/dashboard/src/surfaces";
 const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
 const { parseHome, composeRoute, chainChangeRoute } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { rememberRun } = await import(`${S}/campaigns/broadcasts/run-names.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
 const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, sequenceLandingOf, arrivedRunOf, runLandingOf } =
   await import("@chanlytics/contracts");
@@ -187,7 +188,8 @@ test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes,
   // Beside Sequences' list: Campaigns' strip, on Sequences, and the page its panes.
   assert.equal(b("get-yes").views.picked, "sequences");
   assert.equal(b("run:b-1").pane, true);
-  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Broadcast"], "a run nothing holds yet");
+  // A run nothing holds yet is a run, not "Broadcast": Sent's room, which a sequence's run never was.
+  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Run"], "a run nothing holds yet");
   assert.deepEqual(b("get-yes").crumbs, [HOME, "Get their yes"]);
   assert.deepEqual(b("to-send").crumbs, [HOME, "To send"]);
   assert.deepEqual(b("s1").crumbs, ["Campaigns"], "an audience nothing holds yet");
@@ -202,7 +204,13 @@ test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes,
     ],
   });
   assert.deepEqual(b("run:b-1").crumbs, [HOME, "Win-back · Sep 10"]);
-  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Broadcast"]);
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Run"]);
+  // A run older than Sent's newest fifty is named as its own read names it (broadcasts/run-names.ts), as Sent's row would:
+  // one that went keeps its day, one waiting on its page is called as its sheet's head calls it.
+  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "sent" });
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours · 2026-09-01"]);
+  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "pending_approval" });
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours"]);
   assert.deepEqual(b("s1").crumbs, [HOME, "Regulars"]);
   assert.deepEqual(b("new_week").crumbs, [HOME, "New this week"]);
   assert.deepEqual(

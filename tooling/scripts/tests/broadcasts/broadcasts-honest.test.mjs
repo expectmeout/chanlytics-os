@@ -913,9 +913,16 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       "where it sits among the runs waiting",
     );
     assert.equal(paneTitle(tree), "The month's offer");
-    // What made the run, first on the sheet's line: a campaign, never a playbook to its reader (decision 19).
-    assert.match(textOf(sheet), /Campaign · /);
+    // What made the run, first on the sheet's line, in its own words: never a playbook to its reader (decision 19), and no
+    // "Campaign ·" before it or when it goes after it, which wrapped onto a line of its own on a phone. When it goes is
+    // said beside the Approve it speaks of, as a line of its own.
+    const hint = textOf(byTestId(sheet, "bc-sheet-hint"));
+    assert.ok(hint && !/Campaign · |Playbook · |goes /.test(hint), hint);
     assert.doesNotMatch(textOf(sheet), /Playbook · /);
+    assert.match(
+      textOf(byTestId(sheet, "bc-sheet-goes")),
+      /^Goes (the moment you approve it|at .+ once you approve it)\. /,
+    );
     const reach = textOf(byTestId(sheet, "bc-sheet-reach"));
     assert.ok(
       reach.includes("2will get it") &&
@@ -3734,8 +3741,8 @@ test("the send screen says how many of an audience heard from a playbook or a br
       waName: null,
     },
   ];
-  // Counted over who it reaches: Cy heard from a run, but no offer reaches Cy. Who heard and when, as GET broadcasts'
-  // `touched_at` says it (db recentTouches); the composer counts them for the send's own time (contracts heardFor).
+  // Counted over who it reaches: Cy heard from a run, but no offer reaches Cy. Who heard and when, as GET
+  // broadcasts/touches' `touched_at` says it (db recentTouches); the composer counts them for the send's own time (contracts heardFor).
   const touched = { b: [iso(-2 * D)], c: [iso(-2 * D)] };
   const heardNow = (p) => contracts.heardFor(p.heardTouches, NOW, NOW).heard;
   const offers = contracts.audiencePreview(rows, "everyone", null, null, "marketing", HOW, 5, touched);
@@ -3963,7 +3970,7 @@ const viaRows = () =>
 /** An audience as the surface publishes it (broadcasts/surface.ts): WhatsApp alone, and the preview for each other set. */
 const viaAudience = (rows, ready, touched = {}) => {
   // A broadcast is the business's own news (surface.ts passes "ours", decision D1). Who heard from a run lately and when,
-  // as GET broadcasts' `touched_at` says it: nobody, unless a test says who.
+  // as GET broadcasts/touches' `touched_at` says it: nobody, unless a test says who.
   const reading = (purpose, channels) =>
     contracts.audiencePreview(rows, "everyone", null, null, purpose, { channels, ready, about: "ours" }, 5, touched);
   const preview = {

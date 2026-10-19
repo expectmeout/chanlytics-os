@@ -6,6 +6,7 @@ import { FINISH_SETTING_UP } from "../setup/first-run";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
+import { RUN_OPEN_WORDS } from "../shell/campaign-rooms";
 import { invitationExpired } from "../shell/identity";
 import { noticeTone } from "../waits/notice-tones";
 /**
@@ -598,7 +599,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^campaigns\/message:/, "Open the message"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
-  [/^broadcasts\/run:/, "Open the run"],
+  [/^broadcasts\/run:/, RUN_OPEN_WORDS],
   // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],

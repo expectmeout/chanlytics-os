@@ -858,7 +858,7 @@ const NOTIFICATIONS = [
     route: "outbound",
     about: { type: "broadcast", broadcast: 3 },
     title: "Playbook “Win-back · quiet 30 days” is ready: 1 person",
-    body: "1 person has become eligible for “Win-back · quiet 30 days”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
+    body: "1 person has become eligible for “Win-back · quiet 30 days”. Approve or skip the run from your Inbox or Today. Nothing is sent until you do.",
   },
   {
     kind: "call",

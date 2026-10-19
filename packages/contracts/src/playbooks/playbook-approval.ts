@@ -13,6 +13,7 @@ import { GET_YES_ROUTE } from "../people/people-lists";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
 import { runApproveWords } from "../shell/campaign-rooms";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
+import { capitalize } from "../shared/words";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
@@ -69,8 +70,13 @@ export interface ApprovalVM {
    * workspace is paused (CAMPAIGNS_PAUSED_WORDS), which approveRun refuses first.
    */
   expired: string | null;
-  /** When it goes, for the line under its name. */
+  /** When it goes, inside a sentence ("3 people · goes the moment you approve it"). */
   goes: string;
+  /**
+   * The same as a line of its own, beside the Approve it speaks of (the sheet's dock, its band's note): under the run's
+   * name it wrapped onto a line by itself on a phone.
+   */
+  goesLine: string;
   /** What skipping costs. */
   skip: string;
 }
@@ -429,6 +435,13 @@ export function toApprovalVM(
   const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
   const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
   const runFor = b.run_for ?? "";
+  const goes = late
+    ? `made for ${opts.day(runFor)}`
+    : opts.paused
+      ? "waits until billing resumes"
+      : opts.open.moved
+        ? `goes at ${opts.open.time} once you approve it`
+        : "goes the moment you approve it";
   return {
     will,
     byChannel: by
@@ -448,13 +461,8 @@ export function toApprovalVM(
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
     approve: refusal ? null : runApproveWords(will),
     expired: refusal,
-    goes: late
-      ? `made for ${opts.day(runFor)}`
-      : opts.paused
-        ? "waits until billing resumes"
-        : opts.open.moved
-          ? `goes at ${opts.open.time} once you approve it`
-          : "goes the moment you approve it",
+    goes,
+    goesLine: capitalize(goes),
     skip: "Skipping loses this run only — the campaign keeps running.",
   };
 }

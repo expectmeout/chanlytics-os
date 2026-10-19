@@ -323,9 +323,24 @@ function bcSheetActs(p: {
           </Button>
         </div>
       )}
-      <span className="bc-sheet-note">{sheet.canSend ? avm.skip : gateTitle("approve", "approve or skip a run")}</span>
+      <span className="bc-sheet-note" data-testid="bc-sheet-goes">
+        {sheet.canSend
+          ? avm.approve
+            ? `${avm.goesLine}. ${avm.skip}`
+            : avm.skip
+          : gateTitle("approve", "approve or skip a run")}
+      </span>
     </div>
   );
+}
+
+/**
+ * A list a press opens (who gets it, who is held), brought into view as it opens, the window's own scroll padding keeping
+ * it clear of the frame's top and the foot: on a phone it opened under the message, off the screen, and the press seemed
+ * to do nothing. A ref of its own, the same one each render, so it runs as the list mounts and not again.
+ */
+export function bringListIntoView(el: HTMLElement | null): void {
+  if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 }
 
 /** What the dock and the menu read of the sheet. */
@@ -368,6 +383,11 @@ export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk)
         </span>
       ) : null}
       {sheet.canSend && avm.approve ? (
+        <span className="bc-sheet-note" data-testid="bc-sheet-goes">
+          {avm.goesLine}
+        </span>
+      ) : null}
+      {sheet.canSend && avm.approve ? (
         <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
           <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
         </Button>
@@ -384,11 +404,20 @@ export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk)
   );
 }
 
-/** The head's menu on a phone, as a sequence's record has one: Skip, which asks in the dock. None for a role that may not. */
-export function BcSheetMore({ b, avm, sheet }: Pick<BcSheetActsAsk, "b" | "avm" | "sheet">) {
-  // A run too late to approve has Skip in the dock already.
-  if (!sheet.canSend || !avm.approve) return null;
-  const name = runTitleOf(b);
+/** What Skip's menu reads of a waiting run's sheet: a campaign run's (BcSheetAsk) or a reach-out run's. */
+interface SkipAsk {
+  canSend: boolean;
+  stopping: boolean;
+  approving: boolean;
+  onArm: (on: boolean) => void;
+}
+
+/**
+ * The head's menu on a phone, as a sequence's record has one: Skip, which asks in the dock. A campaign run's sheet and a
+ * reach-out run's draw it alike; none for a role that may not.
+ */
+export function SheetSkipMore({ name, sheet }: { name: string; sheet: SkipAsk }) {
+  if (!sheet.canSend) return null;
   return (
     <Menu
       label={`More for ${name}`}
@@ -415,6 +444,11 @@ export function BcSheetMore({ b, avm, sheet }: Pick<BcSheetActsAsk, "b" | "avm" 
   );
 }
 
+/** The campaign run's menu: none for a run too late to approve, whose dock holds Skip already. */
+export function BcSheetMore({ b, avm, sheet }: Pick<BcSheetActsAsk, "b" | "avm" | "sheet">) {
+  return avm.approve ? <SheetSkipMore name={runTitleOf(b)} sheet={sheet} /> : null;
+}
+
 interface BcSheetProps {
   /** A phone's: the acts are the pane's docked foot (bcSheetDock) and Skip is in its head's menu (BcSheetMore), not here. */
   docked: boolean;
@@ -430,20 +464,26 @@ interface BcSheetProps {
 export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll, docked }: BcSheetProps) {
   const b = d.broadcast;
   const pb = sheet.playbook;
-  const hint =
-    pb && pb.triggerHint ? pb.triggerHint.charAt(0).toLowerCase() + pb.triggerHint.slice(1) : b.audience.label;
+  // What made its list, as its sequence says it ("Last visit 30+ days ago"), else the list it goes to. It said "Campaign ·"
+  // before it and when it goes after it, which wrapped onto a line of its own on a phone: when it goes is said beside the
+  // Approve it speaks of (the dock, the band's note).
+  const hint = pb && pb.triggerHint ? pb.triggerHint : b.audience.label;
   const says = sheet.template && sheet.template.body_preview ? bcSheetSays(sheet.template, avm, sheet) : null;
   return (
     <div className="bc-sheet bc-approval" data-testid="bc-sheet">
       <div className="bc-sheet-body bc-approval-body">
-        <div className="bc-sheet-sub">
-          Campaign · {hint} · {avm.goes}
+        <div className="bc-sheet-sub" data-testid="bc-sheet-hint">
+          {hint}
         </div>
         {bcSheetReach(avm)}
         {says && bcSheetWords(says, avm)}
       </div>
       {seeAll && (
-        <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="bc-sheet-people">
+        <section
+          ref={bringListIntoView}
+          className="bc-touched bc-sheet-people bc-approval-people"
+          data-testid="bc-sheet-people"
+        >
           <div className="bc-touched-head">
             <span className="bc-card-title">Who gets it</span>
           </div>

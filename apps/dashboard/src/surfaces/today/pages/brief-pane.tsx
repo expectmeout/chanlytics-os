@@ -19,7 +19,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import {
   TO_SEND_ALL_WORDS,
   mmss,
-  runLabelOf,
+  runTitleOf,
   toSendRunsOf,
   type TodayBriefRun,
   type TodayBriefWords,
@@ -149,7 +149,7 @@ export const TodayBriefPane = () => {
     ...waiting
       .filter((r) => !toSend || !toSend.runs.includes(r))
       .map((r) => ({
-        label: runLabelOf(r),
+        label: runTitleOf(r),
         ...TODAY_HELPERS.runs(r).brief,
       })),
   ];
