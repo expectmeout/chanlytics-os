@@ -24,7 +24,7 @@
     "@supabase/supabase-js": "^2.117.2"
   },
   "devDependencies": {
-    "tsup": "^8.3.0",
+    "tsup": "^9.0.0",
     "typescript": "catalog:"
   }
 }
