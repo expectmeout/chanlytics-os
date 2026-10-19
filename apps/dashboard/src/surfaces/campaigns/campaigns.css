@@ -2047,10 +2047,9 @@ html.legacy-on .bc-nobody-door {
 .msg-row:last-child {
   border-bottom: 0;
 }
-@media (hover: hover) {
-  .msg-row:hover {
-    background: var(--bg-hover);
-  }
+/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026). */
+.msg-row:hover {
+  background: var(--bg-hover);
 }
 /* A language something sends is missing or not approved: those sends are refused or
    skipped. The row is the hover's grey, standing still. */
