@@ -1,13 +1,14 @@
 "use client";
 
-import { TemplatesPage } from "@/surfaces/campaigns/templates/templates-page";
+import { usePathname } from "next/navigation";
+import { RetiredRouteDoor } from "@/surfaces/campaigns/home/door";
 
 /**
- * /w/<slug>/templates: the messages a workspace sends, in every language, with what sends each one (decision 0015, step 7):
- * its code is `src/surfaces/campaigns/templates/`, and the frame in the layout draws its chrome around this page. The
- * shell's route is still `messages`; the path says the product's word, and `/w/<slug>/messages` and `#/messages` move to it
- * for ever.
+ * /w/<slug>/templates: the Library's old address. Messages is a view of Campaigns beside Sequences now, at
+ * `campaigns/messages` (19 Oct 2026), kept drawn under Campaigns' one mount so a switch between the two loads nothing. An
+ * address is moved there as the frame loads (contracts movedAddress, doorOf), and every move the app makes to `messages`
+ * lands there too (workspace.ts goToRoute), so this page is only the door for one that arrives otherwise.
  */
 export default function Page() {
-  return <TemplatesPage />;
+  return <RetiredRouteDoor pathname={usePathname()} />;
 }

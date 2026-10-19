@@ -14998,6 +14998,8 @@ var ASK_PAGE_ROUTES = [
   "campaigns",
   // Campaigns › Sequences (decision 0060): everything that sends on its own.
   "campaigns/sequences",
+  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages` below, a door to it.
+  "campaigns/messages",
   "outbound",
   "broadcasts",
   "messages",
@@ -24809,6 +24811,8 @@ function rightNowCounts(w) {
 }
 
 // src/shell/address.ts
+var MESSAGES_ROUTE = "campaigns/messages";
+var isMessagesParam = (param) => !!param && /^messages(\/|$)/.test(param);
 var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
@@ -24820,6 +24824,7 @@ var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/"))
 var SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
 function doorOf(route) {
   const head = headOf(route);
+  if (head === "messages") return route === head ? MESSAGES_ROUTE : null;
   const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "broadcasts") {
     return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
@@ -25515,10 +25520,11 @@ var ASK_PAGES2 = [
     sub: "everything that sends on its own",
     also: ["automations", "follow-ups", "drip", "sent", "broadcasts"]
   },
-  // Campaigns' Messages (D4: it was the Library), found too by the names it went by, which people learned and still type.
+  // Campaigns' Messages (D4: it was the Library), its other view, found too by the names it went by, which people learned
+  // and still type.
   {
     label: "Messages",
-    to: "messages",
+    to: MESSAGES_ROUTE,
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
     also: ["templates", "library", "wording"]
@@ -54990,6 +54996,8 @@ var PREFETCH_READS = {
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now.
+  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
   admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"]
 };
@@ -55037,6 +55045,8 @@ function routePrefetchScript() {
     // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
+    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
+    'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).
@@ -55152,6 +55162,7 @@ function vitalsPageOf(route) {
   const rest = at3 < 0 ? "" : path.slice(at3 + 1);
   if (head === "") return "today";
   if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
   const word = ROUTE_WORDS[head] ?? head;
   return PAGE_NAME.test(word) ? word : "other";
 }
@@ -55166,7 +55177,9 @@ var PRIMARY_PART = {
   person: "hero",
   calendar: "board",
   // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list"
+  campaigns: "list",
+  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
+  templates: "list"
 };
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -61133,6 +61146,7 @@ export {
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
   MERGE_WORDS,
+  MESSAGES_ROUTE,
   MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_CRAFT_JSON_SCHEMA,
@@ -62479,6 +62493,7 @@ export {
   isLiveCall,
   isLogoPathOf,
   isLookPref,
+  isMessagesParam,
   isModelId,
   isNoticeHold,
   isOfferByEmail,

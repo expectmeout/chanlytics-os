@@ -70,8 +70,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   studio: "demo",
   campaigns: "real", // Campaigns: Sequences (decision 0060) and the sheets it opens over it, the composer and a message, over the playbooks', broadcasts', library's and reach-outs' surfaces
   outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
-  // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
-  "campaigns/sequences": "real",
+  "campaigns/sequences": "real", // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface
+  "campaigns/messages": "real", // Campaigns › Messages (D4: the Library), a view kept beside Sequences under Campaigns' one mount (19 Oct 2026)
   content: "demo",
   broadcasts: "real", // Sent's sheets (a run's, To send, Get their yes) beside Sequences' list; its own address lands on Sequences
   messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
@@ -130,9 +130,9 @@ export const ROUTE_SURFACE: Record<string, string> = {
   broadcasts: "broadcasts",
   // Campaigns is Sequences' list (decision 0060): the gate waits for it; the sheets it opens over it read theirs (ROUTE_DRAWS).
   campaigns: "sequences",
-  // Its Sequences view (0060) is its own list: the gate waits for it, never the home's moments.
-  "campaigns/sequences": "sequences",
-  // The templates ride on the settings surface; the page waits for it like Settings does.
+  "campaigns/sequences": "sequences", // its Sequences view (0060) is its own list: the gate waits for it, never the home's moments
+  // Messages, at its address and at its old route: the templates ride on the settings surface; the page waits for it like Settings does.
+  "campaigns/messages": "settings",
   messages: "settings",
   outbound: "playbooks",
   calendar: "calendar",
@@ -250,9 +250,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
   // switch, and the messages a step may send (offered-templates.ts).
   "campaigns/sequences": ["sequences", "settings"],
-  // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook. The Library's
-  // number notice and a message's drawer are made of the channels read.
+  // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's.
   messages: ["reach_outs", "playbooks", "channels"],
+  "campaigns/messages": ["reach_outs", "playbooks", "channels"],
   // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
   // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
   // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).

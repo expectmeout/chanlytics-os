@@ -44,6 +44,8 @@ export const ASK_PAGE_ROUTES = [
   "campaigns",
   // Campaigns › Sequences (decision 0060): everything that sends on its own.
   "campaigns/sequences",
+  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages` below, a door to it.
+  "campaigns/messages",
   "outbound",
   "broadcasts",
   "messages",

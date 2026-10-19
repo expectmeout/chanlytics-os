@@ -28,6 +28,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
 import { routeDoor } from "../../legacy-verbs";
+import { useRecordsAhead } from "./use-record";
 
 /** The glyph a row's kind wears: a moment's, a list's, a date's, a lead's. */
 const GLYPH: Record<SequenceRowDto["starts"], string> = {
@@ -87,6 +88,9 @@ export function SequencesList({ page, openId }: SequencesListProps) {
     }
     return SEQUENCE_GROUPS.flatMap((g) => (by.get(g)?.length ? [{ group: g, rows: by.get(g) ?? [] }] : []));
   }, [page.sequences, words]);
+  // The rows shown, in their order, read ahead once the frame is idle so a press opens a record the tab holds (use-record.ts).
+  // Ended ones, folded at the foot, are history: none is read ahead.
+  useRecordsAhead(groups.flatMap(({ group, rows }) => (group === "ended" ? [] : rows.map(({ row }) => row.id))));
   return (
     <>
       <div className="sq-list-head">

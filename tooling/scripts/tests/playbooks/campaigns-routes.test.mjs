@@ -11,7 +11,8 @@
  *   campaigns/moment:<id>, campaigns/in:<group>  the home's, landing on the sequence, or on Sequences
  *   broadcasts[/run:<id>|/get-yes|/to-send]  Sent's sheets         crumbs: Campaigns [› …]; Sent's list lands on Sequences
  *   broadcasts/<list>                        a door: campaigns/new:to:<list>
- *   messages (the path's templates)          Messages              crumbs: Campaigns › Messages
+ *   campaigns/messages               Messages, its other view      crumbs: Campaigns › Messages
+ *   messages (the path's templates)          a door: campaigns/messages
  *   outbound[/<id>] (the path's playbooks)   a door: campaigns, campaigns/moment:<id>
  */
 import { test, afterEach } from "node:test";
@@ -185,9 +186,18 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
     [
       ["sequences", "Sequences", "campaigns/sequences"],
-      ["messages", "Messages", "messages"],
+      ["messages", "Messages", "campaigns/messages"],
     ],
   );
+  // Messages is the strip's other view on the same mount (19 Oct 2026): its own tab lit, the same one head, the pane.
+  for (const p of ["messages", "messages/x"]) {
+    const at = c(p);
+    assert.deepEqual(at.crumbs, [HOME, "Messages"], p);
+    assert.equal(at.mount, "campaigns", `${p}: one mount with Sequences, so a switch keeps both drawn`);
+    assert.equal(at.views?.picked, "messages", p);
+    assert.equal(at.pane, true, p);
+    assert.equal(at.act, null, p);
+  }
 });
 
 /* ---------------------------------------------------- the rooms ---------------------------------------------------- */
@@ -300,6 +310,7 @@ test("the frame takes every address of Campaigns, and of its rooms: a sequence, 
     "broadcasts/run:b-1/sheet",
     "broadcasts/get-yes",
     "broadcasts/s1",
+    "campaigns/messages",
     "messages",
     "outbound",
     "outbound/pb-1",
@@ -332,6 +343,8 @@ test("a move between two addresses of Campaigns is the page's own: opening a seq
     "a step's message over its sequence",
   );
   assert.ok(onOnePage("campaigns/new:to:s1", "campaigns"));
+  assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Sequences and Messages are one mount's two views");
+  assert.ok(onOnePage("campaigns/sequences/q-1", "campaigns/messages"));
   assert.ok(!onOnePage("campaigns", "broadcasts/get-yes"), "a room is its own page");
   assert.ok(!onOnePage("broadcasts/run:b-1", "campaigns"));
 });
@@ -351,7 +364,7 @@ test("the old Playbooks addresses land on Campaigns: outbound on campaigns, outb
     "campaigns/moment:pb-1",
     "broadcasts",
     "broadcasts/run:b-1",
-    "messages",
+    "campaigns/messages",
     "clients/c-1",
     "today",
   ]) {
@@ -362,7 +375,9 @@ test("the old Playbooks addresses land on Campaigns: outbound on campaigns, outb
   assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/moment:pb-1");
   assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/new");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
-  assert.equal(workspacePath("acme", "messages"), "/w/acme/templates", "Messages keeps the product's word in its path");
+  // Messages is Campaigns' other view (19 Oct 2026): its old route is a door to it.
+  assert.equal(doorOf("messages"), "campaigns/messages");
+  assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
 });
 
 test("broadcasts/<audience>, which People and a list write to message these people, is a door to Campaigns' composer on that audience; a run, Get their yes and Sent itself stay", () => {
@@ -415,10 +430,11 @@ test("a bookmark, a bell row or an email link that says the old route moves to t
   assert.equal(moved({ pathname: "/w/acme/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
   assert.equal(moved({ pathname: "/w/acme/playbooks" }), "/w/acme/campaigns");
   assert.equal(moved({ pathname: "/w/acme/playbooks/pb-1", hash: "#x" }), "/w/acme/campaigns/moment:pb-1#x");
-  // The rooms and Campaigns are where they are; Messages' old name still moves to its word.
+  // The rooms and Campaigns are where they are; Messages' old names move to Campaigns' view.
   assert.equal(moved({ pathname: "/w/acme/campaigns/moment:pb-1" }), null);
   assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }), "/w/acme/broadcasts/run:b-1");
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/templates");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/messages");
+  assert.equal(moved({ pathname: "/w/acme/templates" }), "/w/acme/campaigns/messages");
   assert.equal(routeOfPath("/w/acme/campaigns/moment:pb-1"), "campaigns/moment:pb-1");
   assert.equal(routeOfHash("#/campaigns"), "campaigns");
 });

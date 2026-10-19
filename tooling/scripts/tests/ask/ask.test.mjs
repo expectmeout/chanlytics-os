@@ -226,8 +226,10 @@ const REACHED = {
   "campaigns/sequences": ["Sequences", "campaigns/sequences"],
   // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
   broadcasts: ["Sequences", "campaigns/sequences"],
-  // Messages (D4: it was the Library), still found by the names it went by (ask-palette.test.mjs).
-  messages: ["Messages", "messages"],
+  // Messages (D4: it was the Library), Campaigns' other view, still found by the names it went by (ask-palette.test.mjs),
+  // and its old route a door to it.
+  "campaigns/messages": ["Messages", "campaigns/messages"],
+  messages: ["Messages", "campaigns/messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],

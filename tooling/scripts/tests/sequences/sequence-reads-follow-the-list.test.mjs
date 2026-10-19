@@ -13,8 +13,12 @@
  * thing from one answer. A day of History that ended months ago was read whole again at every move of the list. It follows
  * the door's own rule now, its sheet's (contracts runStillMoving): read as it opens, and again as the list moves only while
  * the batch is underway or within the reply window after it ended.
+ *
+ * The list's sequences, read ahead (sequences/verbs.ts warmRecordsAhead): on a phone a row has no pointer to reach it before
+ * the press, so a sequence opened waited for its record behind "Reading…" (480 to 570 ms on a local build, 19 Oct 2026). The
+ * list reads them once the frame is idle, one after another, each with who is in it where its Steps draws them.
  */
-import { test, beforeEach, describe } from "node:test";
+import { test, beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { REPLY_WINDOW_MS } from "@chanlytics/contracts";
@@ -33,6 +37,7 @@ const values = await import(`${S}/surfaces/surface-values.ts`);
 const { sequencesOverride } = await import(`${S}/surfaces/campaigns/sequences/surface.ts`);
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { useBatchRead, useSequenceRead } = await import(`${S}/surfaces/campaigns/sequences/use-record.ts`);
+const { warmRecordsAhead } = await import(`${S}/surfaces/campaigns/sequences/verbs.ts`);
 
 describe("the list and an open sequence", () => {
   /** A sequence's row as GET sequences answers it: what the list says of it, made anew by each read as JSON is. */
@@ -233,5 +238,78 @@ describe("a batch of it, through its own door", () => {
     draw("old");
     await settle();
     assert.deepEqual(reads, ["old", "recent", "old"], "a day opened again is read again, painted from what is held");
+  });
+});
+
+describe("the list's sequences, read ahead", () => {
+  /** What the doors were asked, in order: `record <id>` or `people <id>`. */
+  let asked = [];
+  /**
+   * A sequence's record as GET sequences/[id] answers it: a sequence on a date where its id says `date`, else on a moment,
+   * of one step where its id ends `-1`, else of two.
+   */
+  const recordOf = (id) => ({
+    sequence: { id, starts: id.startsWith("date") ? "date" : "moment" },
+    steps: id.endsWith("-1") ? [{ id: "s1" }] : [{ id: "s1" }, { id: "s2" }],
+  });
+  const json = (body) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  /** Until `done` holds, or three seconds have gone. */
+  const until = async (done) => {
+    for (let i = 0; i < 300 && !done(); i += 1) await new Promise((r) => setTimeout(r, 10));
+  };
+  let theirs;
+  beforeEach(() => {
+    asked = [];
+    theirs = globalThis.window.fetch;
+    globalThis.window.fetch = async (url) => {
+      const [id, people] = new URL(String(url), "https://app.chanlytics.com").pathname
+        .replace("/api/v1/sequences/", "")
+        .split("/");
+      asked.push(`${people ? "people" : "record"} ${id}`);
+      return json({ ok: true, data: people ? { people: [] } : recordOf(id) });
+    };
+  });
+  afterEach(() => {
+    globalThis.window.fetch = theirs;
+    delete globalThis.document.visibilityState;
+  });
+
+  test("one after another, in the list's order, each with who is in it where its Steps draws them, and none it holds", async () => {
+    warmRecordsAhead(["ahead-a", "ahead-b-1", "date-ahead-c"]);
+    await until(() => asked.length === 4);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(
+      asked,
+      ["record ahead-a", "people ahead-a", "record ahead-b-1", "record date-ahead-c"],
+      "a sequence of one step, or on a date, draws nobody in line on its Steps: its record alone",
+    );
+    asked = [];
+    warmRecordsAhead(["ahead-a", "ahead-b-1", "ahead-d-1"]);
+    await until(() => asked.length === 1);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(asked, ["record ahead-d-1"], "the two it holds paint at once and are read again as they open");
+  });
+
+  test("twelve at most, and none once it is stopped or the tab is put away", async () => {
+    const many = Array.from({ length: 14 }, (_, i) => `many-${i}-1`);
+    warmRecordsAhead(many);
+    await until(() => asked.length === 12);
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(
+      asked,
+      many.slice(0, 12).map((id) => `record ${id}`),
+    );
+    asked = [];
+    const stop = warmRecordsAhead(["stop-a-1", "stop-b-1"]);
+    await until(() => asked.length === 1);
+    stop();
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(asked, ["record stop-a-1"]);
+    asked = [];
+    globalThis.document.visibilityState = "hidden";
+    warmRecordsAhead(["hidden-a-1"]);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(asked, [], "a tab put away reads nothing ahead");
   });
 });

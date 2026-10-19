@@ -16,6 +16,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
 import { useRecSheetEscape } from "../../kit/record/focus";
 import { cx } from "../../kit/variants";
+import type { ScopeView } from "../../people/scope-view";
 
 /** The kit's one breakpoint: under it the open thing is the screen, over it a pane beside the list. */
 const CM_PHONE_QUERY = "(max-width: 900px)";
@@ -53,6 +54,16 @@ export function useCmPhone(): boolean {
   return phone;
 }
 
+/**
+ * A page of Campaigns as one of its kept views (Sequences, Messages: home/route.tsx): the deck's seat and the side it comes
+ * in from (people/scope-view.ts), and whether it is the view shown. A view kept hidden never says it takes the screen over:
+ * the frame reads `data-takeover` anywhere under it (mobile.css: the strip and the phone's tab bar step down), and a record
+ * left open in Sequences hidden behind Messages took both away from Messages.
+ */
+export interface CmView extends ScopeView {
+  shown?: boolean;
+}
+
 interface CmSplitProps {
   /** The tab's list: its head (the filters, the search), its rows and its foot. */
   list: ReactNode;
@@ -61,19 +72,26 @@ interface CmSplitProps {
   /** The page's own class and test id, on the root the frame's .main-scroll holds. */
   className?: string;
   testid?: string;
+  /**
+   * Where the page is a view of Campaigns kept beside another (Sequences, Messages: home/route.tsx), the deck's seat and the
+   * side it comes in from (people/scope-view.ts), on the root, which is the view the deck moves.
+   */
+  view?: CmView;
 }
 
 /**
  * The page: the list's pane and, while something is open, its pane. The root is the page's (the direct child of the
  * frame's .main-scroll), so it is what says the screen is taken over.
  */
-export function CmSplit({ list, open, className, testid }: CmSplitProps) {
+export function CmSplit({ list, open, className, testid, view }: CmSplitProps) {
   const opened = open !== null && open !== undefined && open !== false;
   return (
     <div
+      ref={view?.ref}
+      data-slide={view?.slide}
       className={cx("cm-split", className)}
       data-open={opened ? "true" : undefined}
-      data-takeover={opened ? "true" : undefined}
+      data-takeover={opened && view?.shown !== false ? "true" : undefined}
       data-testid={testid}
     >
       <Panel as="section" size="flush" className="cm-list">

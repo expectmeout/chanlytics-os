@@ -3,7 +3,9 @@
  * first:
  *   - Sequences, the page Campaigns lands on (route.tsx), and its list beside a sheet of Sent's (broadcasts-page.tsx);
  *   - the sheets Campaigns opens over it, the composer and a message's drawer (open-sheets.tsx);
- *   - a message's own pane, the Library's (parts/message-in-place.tsx), which the drawer and Sequences' step editor draw.
+ *   - a message's own pane, the Library's (parts/message-in-place.tsx), which the drawer and Sequences' step editor draw;
+ *   - Messages, the Library's page as the view of Campaigns it is beside Sequences (templates/templates-page.tsx), which
+ *     Campaigns draws ahead, hidden, once the frame is idle on it (route.tsx), so a switch to it shows a view already drawn.
  * Each is asked for ahead of the press: as a pointer or a thumb reaches a door to the page that draws it (LegacyApp's reach,
  * warmCampaignsCode), and Sequences once the frame is idle (warmCampaignsSoon, which reaches for Campaigns itself: its page,
  * its read and its code). The Inbox's code comes with the boot and its rows are read at boot, so its page arrives drawn;
@@ -43,6 +45,7 @@ function codeChunk<T>(fetchIt: () => Promise<T>): Chunk<T> {
 const sequences = codeChunk(() => import("../sequences/sequences-page"));
 const sheets = codeChunk(() => import("./open-sheets"));
 const pane = codeChunk(() => import("../parts/message-in-place"));
+const messages = codeChunk(() => import("../templates/templates-page"));
 
 const PageWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesPage })));
 const ListPaneWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesListPane })));
@@ -91,6 +94,11 @@ export function useOpenSheets(wanted: boolean) {
   return useChunkPart(sheets, "OpenSheets", wanted).part;
 }
 
+/** Messages' view (the Library's page) while `wanted`: null until its chunk is in. */
+export function useMessagesView(wanted: boolean) {
+  return useChunkPart(messages, "TemplatesPage", wanted).part;
+}
+
 /** A message's pane, the Library's, where its chunk is out: the shell's quiet words after their beat, then the pane. */
 export function MessageInPlaceWhenRead(p: MessageInPlaceProps) {
   const { part: Pane, failed, retry } = useChunkPart(pane, "MessageInPlace", true);
@@ -121,6 +129,7 @@ const OPENS_A_SHEET = /^campaigns\/(new|message)(:|$)/;
 /** A route somebody is reaching for: the code it draws, fetched now. A fetch that fails is the page's to ask again. */
 export function warmCampaignsCode(route: string): void {
   if (DRAWS_SEQUENCES.test(route)) sequences.warm();
+  if (/^campaigns\/messages(\/|$)/.test(route)) messages.warm();
   if (!OPENS_A_SHEET.test(route)) return;
   sheets.warm();
   if (route.startsWith("campaigns/message")) pane.warm();
