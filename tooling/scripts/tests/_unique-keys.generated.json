@@ -2429,7 +2429,8 @@
                   },
                   "values": [
                     "run_canceled",
-                    "owner_took_back"
+                    "owner_took_back",
+                    "moved"
                   ]
                 }
               ]
@@ -2533,6 +2534,22 @@
       "where": {
         "notNull": {
           "column": "after_step_id"
+        }
+      }
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_one_source",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "source_search_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "source_search_id"
         }
       }
     },

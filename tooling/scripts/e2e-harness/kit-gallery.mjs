@@ -873,11 +873,12 @@ const kitSwitches = () =>
   kitSwitch(false, "Send it now") + kitSwitch(true, "Remind them the day before") + kitSwitch(true, "Take calls", true);
 
 /** One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after. */
-const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh } = {}) =>
+const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
   `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
-  `${fresh ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
+  `${need ? `<span class="subtab-dot is-warn" role="img" aria-label="${need}"></span>` : ""}` +
+  `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}</button>`;
 
 /** A strip of the kit's sub-tabs: Base UI's tablist, its tabs, and the indicator that is the bar under the picked one. */
 const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", direction = "none" } = {}) =>
@@ -1557,6 +1558,18 @@ export const FAMILIES = [
             kitSubtab("Visits", { count: 2 }),
           ],
           { width: "70px" },
+        ),
+      },
+      {
+        id: "subtabs-need",
+        html: kitSubtabs(
+          "Bookstore intro",
+          [
+            kitSubtab("Steps", { on: true }),
+            kitSubtab("Leads", { count: 13, need: "Something needs you" }),
+            kitSubtab("History"),
+          ],
+          { width: "58px" },
         ),
       },
       {

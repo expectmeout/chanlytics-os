@@ -382,7 +382,8 @@ export const leadsOverride: SurfaceOverride = {
   events: ["surface:leads"],
   // Heard while Leads is on screen, read once as it comes back (PAGE_HEARS): a running search, a page every few seconds, was
   // read in every tab whatever page was open (the wiring's second audit, S10-5).
-  ...declareReads("leads", { reads: ["lead"], fresh: "its-page" }),
+  // Each row says where its lead stands in a sequence (00459 sequence_places_of): the sequences, batches and replies too.
+  ...declareReads("leads", { reads: ["lead", "campaign", "send", "reach_out"], fresh: "its-page" }),
   debounceMs: 800,
   apply: async () => {
     // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read

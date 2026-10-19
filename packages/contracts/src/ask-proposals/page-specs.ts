@@ -24,6 +24,9 @@ import {
 import { dealSpec, noteSpec, personModeSpec } from "./person";
 import { playbookChangeSpec, playbookRunSpec, runSpec } from "./campaigns";
 import {
+  leadSearchAimSpec,
+  sequenceAddSpec,
+  sequenceMoveSpec,
   sequenceDiscardSpec,
   sequenceEndSpec,
   sequenceDraftSpec,
@@ -38,6 +41,7 @@ import {
   sequenceWordsSpec,
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
+import { settingsSpec } from "./workspace";
 
 /**
  * The verbs a page presses (commitVerb, legacy-bridge/verbs), each a card Ask may propose too. Each keeps its own type,
@@ -60,6 +64,10 @@ export const PAGE_SPECS = {
   sequence_step_remove: sequenceStepRemoveSpec,
   sequence_words: sequenceWordsSpec,
   sequence_leave: sequenceLeaveSpec,
+  // One road from a lead to a sequence (00459): Add, Move to, and where a search's Add goes.
+  sequence_add: sequenceAddSpec,
+  sequence_move: sequenceMoveSpec,
+  lead_search_aim: leadSearchAimSpec,
   sequence_send_decide: sequenceSendDecideSpec,
   sequence_send_said: sequenceSendSaidSpec,
   sequence_draft: sequenceDraftSpec,
@@ -79,6 +87,9 @@ export const PAGE_SPECS = {
   fact_suggestion: factSuggestionSpec,
   // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
   answer_style: answerStyleSpec,
+  // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence
+  // canvas: "a field in the step sheet, saved to Settings").
+  settings: settingsSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;
 
 /** A verb a page presses: commitVerb takes no other. */

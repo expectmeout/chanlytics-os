@@ -79,6 +79,12 @@ export const LEAD_NOT_A_FIT_WORDS = {
   other: "Something else"
 };
 export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+export const LEAD_NOT_A_FIT_ASK = {
+  said: (name) => `${name}: not a fit.`,
+  why: "Why?",
+  short: { chain: "Chain", wrong_kind: "Wrong kind", too_far: "Too far", customer: "A customer" },
+  kept: (why) => `Kept as ${why.toLowerCase()}`
+};
 export const LEAD_SUPPRESSING_WHY = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";

@@ -270,6 +270,7 @@ import {
   warmWhatItDraws,
 } from "./surface-registry";
 import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, routeOnScreen } from "./workspace";
+import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -451,6 +452,8 @@ function useShellApp(
           <NewConversationHost />
           {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
           <BookingToolHost route={route} />
+          {/* A lead's sheet over whichever page its address opens it on (`?lead=`, leads/sheet/over-mount.tsx). */}
+          <LeadOverMount />
           {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
           <JoinedNote />
           {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}

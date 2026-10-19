@@ -38,6 +38,8 @@ export type ViewTab = {
   tone?: "warn";
   /** Something is happening there now: a call on the line. */
   live?: boolean;
+  /** Something there needs you: an amber dot after its figure, named by these words for a screen reader. */
+  need?: string;
   /** What the view is, on hover. */
   tip?: string;
   testid?: string;
@@ -153,6 +155,7 @@ export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, te
               {tab.count}
             </span>
           ) : null}
+          {tab.need ? <span className="subtab-dot is-warn" role="img" aria-label={tab.need} /> : null}
         </a>
       ))}
     </nav>

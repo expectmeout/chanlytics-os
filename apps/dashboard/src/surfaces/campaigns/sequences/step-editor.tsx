@@ -12,7 +12,7 @@
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
  * message (core templateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
- * foot (use-record.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
+ * foot (record-foot.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
  * phone, so the press is at the thumb however long the step's fields run.
  */
 import { useContext, useEffect, useMemo, useState } from "react";
@@ -48,7 +48,8 @@ import { messagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
-import { RecordFootContext, useBatchRead } from "./use-record";
+import { RecordFootContext } from "./record-foot";
+import { useBatchRead } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;

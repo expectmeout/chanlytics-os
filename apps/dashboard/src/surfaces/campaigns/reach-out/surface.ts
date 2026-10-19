@@ -60,9 +60,6 @@ import {
   stepLabelOf,
   HAND_WORDS_MAX,
   REACH_OUT_STOP_WORDS,
-  reachOutStripOf,
-  reachOutTimelineOf,
-  reachOutStandingOf,
   reachOutAddWords,
   isLeadList,
   LEAD_IMPORT_WORDS,
@@ -80,23 +77,17 @@ import {
   leadImportSaveLabel,
   leadListEmptyOf,
   leadListStripOf,
-  type LeadChooseInput,
   type LeadImportInput,
-  type ReachOutLeadLineDto,
-  type ReachOutLeadTimelineDto,
-  type ReachOutLeadsDto,
   type ReachOutAddDto,
   type ReachOutChainPeopleDto,
   type ReachOutChainDto,
-  type ReachOutChainInput,
   type OwnerSaidIntent,
   type ReachOutReplySaidInput,
-  type ReachOutPreviewInput,
   type ReachOutReachDto,
   type ReachOutSourceDto,
   type BroadcastDetailDto,
-  leadLinePlaceOf,
 } from "@chanlytics/contracts";
+import type { Input } from "@/client/api";
 import { api, read } from "@/legacy-bridge/api";
 import { readCache } from "@/legacy-bridge/read-cache";
 import { declareReads } from "@/legacy-bridge/surface-registry";
@@ -149,8 +140,6 @@ const reaches = readCache<ReachOutReachDto>("reach_out_reach");
 
 /** Where the viewer's next pile on Leads adds (00426): a sequence's Add leads names it (a per-viewer convenience). */
 const PILE_TARGET_KEY = "leads.pile.target";
-/** The word for a list of the pile's own: New message's Leads you add (Write to the N makes it). */
-export const PILE_NEW_LIST = "new";
 
 /** A sequence named for the pile's next pass, by its root (or PILE_NEW_LIST), and its name for the page's line. */
 export interface PileAsk {
@@ -203,31 +192,14 @@ export const pileAsk = {
 /** The business's zone, as the shell's clock holds it. */
 const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
 
-/**
- * Leads while a reach-out writes, and one lead's story (Part 6, H8, H9): each read when a page asks, never held, and
- * null when it could not be read, so the page draws nothing of it rather than a line it did not read.
- */
-async function readLeads(query: { search?: string; lead?: string }): Promise<ReachOutLeadsDto | null> {
-  try {
-    return await read("GET reach-outs/leads", { query });
-  } catch (e) {
-    console.error("reach_out_leads_failed", e instanceof Error ? e.message : e);
-    return null;
-  }
-}
-
 export const reachOuts = {
+  /** The business's clock: what a lead's day and time are said in, off the page that read it. */
+  zone: businessZone,
+  /** Ask's draft of a new sequence to leads' emails, from the goal and the search (New's "A draft by Ask"). */
+  draftLeads: (body: { name: string; search_id?: string }) => api()("POST sequences/draft-leads", { body, once: true }),
   /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
   report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),
-  pause: (rootId: string) => api()("PUT playbooks/[id]", { params: { id: rootId }, body: { state: "paused" } }),
-  resume: (rootId: string) => api()("PUT playbooks/[id]", { params: { id: rootId }, body: { state: "running" } }),
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),
-  /** A new chain, saved and its first step run now (R13, R14): the answer carries what the run did. */
-  save: (body: ReachOutChainInput) => api()("POST reach-outs", { body, once: true }),
-  /** A chain changed whole: new words send what waits back to the check (R5); a dropped step's work goes (R17). */
-  update: (rootId: string, body: ReachOutChainInput) => api()("PUT reach-outs/[id]", { params: { id: rootId }, body }),
-  /** One business's email as the chain would write it (R11): it spends the model, so it is asked for by a press. */
-  preview: (body: ReachOutPreviewInput) => api()("POST reach-outs/preview", { body, once: true }),
   /** A search's reach as this tab last read it, if it has: what a door or a sheet paints first. */
   reachHeld: (searchId: string): ReachOutReachDto | null => reaches.peek(searchId),
   /**
@@ -244,28 +216,8 @@ export const reachOuts = {
       return null;
     }
   },
-  /** An open search's chain and its leads' lines (Part 6, H8): null when it could not be read. */
-  leadLines: (searchId: string) => readLeads({ search: searchId }),
-  /** One lead's story for its peek (H9): null when it could not be read, or the workspace holds no such lead. */
-  leadTimeline: async (leadId: string): Promise<ReachOutLeadTimelineDto | null> =>
-    (await readLeads({ lead: leadId }))?.timeline ?? null,
   /** "Stop writing to them" (H10): the door's answer, or its refusal in contracts' words. */
   stopLead: (leadId: string) => api()("POST reach-outs/leads/[id]/stop", { params: { id: leadId } }),
-  /** Leads added to a list-fed reach-out (00426): what joined, with its undo, or the door's refusal in words. */
-  addLeads: (rootId: string, leadIds: string[]) =>
-    api()("POST reach-outs/[id]/leads", { params: { id: rootId }, body: { lead_ids: leadIds } }),
-  /** What adding them would do, nothing written (00426, dry): how many would join, and why each other would not. */
-  checkAdd: (rootId: string, leadIds: string[]) =>
-    api()("POST reach-outs/[id]/leads/check", { params: { id: rootId }, body: { lead_ids: leadIds } }),
-  /** The workspace's reach-outs as Playbooks lists them, read now (the pile's targets): null when they could not be. */
-  chainsNow: async (): Promise<ReachOutChainDto[] | null> => {
-    try {
-      return (await read("GET reach-outs")).chains;
-    } catch (e) {
-      console.error("reach_out_chains_failed", e instanceof Error ? e.message : e);
-      return null;
-    }
-  },
   /** Leave out (00426): one lead off a list-fed reach-out's list before anything left for it, with its undo. */
   leaveOut: (rootId: string, leadId: string) =>
     api()("POST reach-outs/[id]/leads/leave", { params: { id: rootId }, body: { lead_id: leadId } }),
@@ -281,6 +233,12 @@ export const reachOuts = {
       return null;
     }
   },
+  /** A sequence to leads' chain, saved as its record writes it (00459 PUT sequences/:id/chain: every word checked). */
+  saveChain: (sequenceId: string, body: Input<"PUT sequences/[id]/chain">) =>
+    api()("PUT sequences/[id]/chain", { params: { id: sequenceId }, body }),
+  /** What adding these leads to a sequence would do, written nowhere (00459's add door, dry): each card's answer. */
+  checkAdd: (sequenceId: string, leadIds: string[]) =>
+    api()("POST sequences/[id]/leads/check", { params: { id: sequenceId }, body: { lead_ids: leadIds } }),
   /** What an add said, dry or done, in one sentence. */
   addWords: (a: ReachOutAddDto, chainName: string) => reachOutAddWords(a, chainName),
   /** Who is in a reach-out (00426), its drawer's People: null when it could not be read. */
@@ -295,14 +253,6 @@ export const reachOuts = {
       return null;
     }
   },
-  /** Where a lead stands in its reach-out, the one line every page says (00426), by the business's clock. */
-  standingOf: (t: ReachOutLeadTimelineDto) => reachOutStandingOf(t, Date.now(), businessZone()),
-  /** A lead's line under its stage, the strip and the peek's block, by the business's clock. */
-  /** A row's place in the sequence, in the words the lead sheet and the record use (contracts leadLinePlaceOf). */
-  placeOf: (line: ReachOutLeadLineDto, chainWaits: boolean) =>
-    leadLinePlaceOf(line, chainWaits, Date.now(), businessZone()),
-  stripOf: (d: ReachOutLeadsDto) => (d.lines ? reachOutStripOf(d.lines, d.chain, Date.now(), businessZone()) : null),
-  timelineOf: (t: ReachOutLeadTimelineDto) => reachOutTimelineOf(t, Date.now(), businessZone()),
   /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00429). */
   sayReply: (leadId: string, body: ReachOutReplySaidInput) =>
     api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body, once: true }),
@@ -362,13 +312,12 @@ export const reachOuts = {
     return stop;
   },
   /**
-   * A list of your own (Part 7, 00242): a file's rows, or leads chosen on Leads, as a search a reach-out writes to. The
-   * two doors answer or refuse in words (the typed client's result); the rest is contracts' reading of a file
-   * (lead-import.ts) and every sentence the import sheet, *Write to them* and a list's strip say.
+   * A list of your own (Part 7, 00242): a file's rows as a search a sequence writes to. The door answers or refuses in
+   * words (the typed client's result); the rest is contracts' reading of a file (lead-import.ts) and every sentence the
+   * import sheet and a list's strip say.
    */
   lists: {
     importLeads: (body: LeadImportInput) => api()("POST lead-searches/import", { body, once: true }),
-    chooseLeads: (body: LeadChooseInput) => api()("POST lead-searches/chosen", { body }),
     planOf: leadImportPlanOf,
     ready: leadImportReady,
     countWords: leadImportCountWords,

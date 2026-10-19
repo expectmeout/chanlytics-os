@@ -15,26 +15,10 @@ export function parseSequencesRoute(route) {
   if (!id) return { view: "list", ...back };
   if (id === "new" || id.startsWith("new:")) {
     const [, kind, moment] = id.split(":");
-    const leads = newLeadsOf(words.slice(3, backAt >= 0 ? backAt : void 0));
-    return { view: "new", ...kind === "moment" && moment ? { moment } : {}, ...leads ? { leads } : {}, ...back };
+    return { view: "new", ...kind === "moment" && moment ? { moment } : {}, ...back };
   }
   const on = isTab(tab) ? tab : "steps";
   return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
-}
-function newLeadsOf(words) {
-  const word = (key) => {
-    const w = words.find((x) => x.startsWith(`${key}:`));
-    return w ? w.slice(key.length + 1) || null : null;
-  };
-  const list = word("list");
-  const lead = word("lead");
-  const version = word("version");
-  if (lead) return { for: { lead }, version };
-  return list && !version ? { for: { list }, version: null } : null;
-}
-export function sequenceNewLeadsRoute(leads) {
-  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
-  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
 }
 export function sequenceRouteBack(route, back) {
   if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;

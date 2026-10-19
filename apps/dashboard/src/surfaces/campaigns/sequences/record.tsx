@@ -10,7 +10,7 @@
  * viewPager) and each move replacing the address, so Back is the list; a swipe right from the first carries the whole pane
  * back to the list, drawn under it as it goes (split.tsx cmGoing). A tab's read starts as a finger reaches it, so the
  * view arrives with its rows. What needs you is the dock at the foot, where a question an act asks and a step's Save
- * stand too (use-record.ts RecordFootContext); the notice above the tabs is a desk's.
+ * stand too (record-foot.ts RecordFootContext); the notice above the tabs is a desk's.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -39,7 +39,9 @@ import { SequenceHistory } from "./history";
 import { SequencePeople } from "./people";
 import { HeadActs, RecordNotice, RecordQuestion, RenameForm, phoneFootOf, useRecordActs } from "./record-acts";
 import { SequenceSteps } from "./steps";
-import { RecordFootContext, useSequenceRead } from "./use-record";
+import { RecordFootContext } from "./record-foot";
+import { recordBackNow } from "./trip";
+import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -50,25 +52,22 @@ const TAB_ORDER: readonly SequenceTab[] = ["steps", "people", "history"];
 const sequenceTabOf = (id: string): SequenceTab => TAB_ORDER.find((t) => t === id) ?? "steps";
 
 /**
- * A sequence's tabs: Steps, People (Leads) counting what needs you in amber or who is in it, and History. People's and
- * History's reads start as a finger or a pointer reaches their tab (the strip's `warm`), so a swipe lands on their rows.
+ * A sequence's tabs: Steps, People (Leads) saying who is in it, with an amber dot where something there needs you (one
+ * meaning each: the number is who is in it, the dot that something waits on you), and History. People's and History's
+ * reads start as a finger or a pointer reaches their tab (the strip's `warm`), so a swipe lands on their rows.
  */
 function tabsOf(rec: SequenceRecordDto) {
   const row = rec.sequence;
   const warm = (read: (id: string) => Promise<unknown>) => () => void read(row.id);
-  // The People tab counts the emails that need you where any do (amber, as every count of it is), and who is in it
-  // otherwise. A batch waiting for an OK is the notice's: its size counts everyone it was made for, held back or not.
-  const needPeople = row.needs.held + row.needs.to_send;
+  // What needs you there: an email held or for you to send, a batch waiting for an OK, a reply to answer.
+  const needs = row.needs.held + row.needs.to_send + row.needs.waiting + row.needs.replies;
   return [
     { id: "steps", label: SEQUENCE_WORDS.tabs.steps, href: routeDoor(sequenceRoute(row.id)).href },
     {
       id: "people",
       label: peopleTabWord(row),
-      ...(needPeople > 0
-        ? { count: needPeople, tone: "warn" as const, hint: SEQUENCE_WORDS.filters.needs }
-        : row.in_it > 0
-          ? { count: row.in_it }
-          : {}),
+      ...(row.in_it > 0 ? { count: row.in_it } : {}),
+      ...(needs > 0 ? { need: SEQUENCE_WORDS.filters.needs, hint: SEQUENCE_WORDS.filters.needs } : {}),
       href: routeDoor(sequenceRoute(row.id, "people")).href,
       warm: warm(verbs.people),
     },
@@ -146,7 +145,10 @@ function OpenRecord(p: {
     [tab, phone, row.id],
   );
   const a = useRecordActs(rec, flash, moved, editStep);
-  const close = () => navigate(SEQUENCES_ROUTE);
+  // On a phone the record is the screen and its Back the only way out: a record Leads opened goes back there (every trip
+  // comes back, and a pile's end says "Back brings you here"); a desk says that way in the head, and Close is the list.
+  const wayBack = phone ? recordBackNow(row.id) : null;
+  const close = () => navigate(wayBack ?? SEQUENCES_ROUTE);
   // A step opened to be changed holds the foot for its Cancel and Save (step-editor.tsx), at either width.
   const [editing, setEditing] = useState(false);
   const [footEl, setFootEl] = useState<HTMLDivElement | null>(null);
@@ -171,6 +173,7 @@ function OpenRecord(p: {
       tools={<HeadActs a={a} phone={phone} />}
       foot={foot}
       onClose={close}
+      closeLabel={wayBack ? SEQUENCE_WORDS.backToLeadsLabel : undefined}
       swipe={swipe}
       testid="sq-record"
       className="sq-record"

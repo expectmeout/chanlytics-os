@@ -145,6 +145,7 @@ const WORDS = {
   "lead.addressee_chosen": "A company's reach-out was set to write to someone else",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
+  "reach_out.source_set": "A sequence was set to add a search's new leads, or to stop",
   "contact.kept_apart": "Two records were kept as two people",
   "line.forwarding_set": "Call forwarding was set up",
   "appointment.booked": "A booking arrived by email",

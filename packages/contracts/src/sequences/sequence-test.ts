@@ -14,6 +14,16 @@ import { noVersionWords } from "../templates/message-versions";
 import { templateParts } from "../templates/template-parts";
 import { exampleParams, type ParamSpec } from "../templates/templates";
 import { messageAboutOfClass } from "./follow-up";
+import { emailFoot } from "../templates/email-foot";
+import { whyFrom } from "../reach-out/reach-out";
+import {
+  REACH_OUT_LANGUAGE,
+  REACH_OUT_OPENING_MARK,
+  REACH_OUT_VALUE_MARKS,
+  reachOutCardEmailOf,
+  type SlotLead,
+  type SlotWorkspace,
+} from "../reach-out/reach-out-rules";
 
 /** What the press and its mail say. */
 export const SEQUENCE_TEST_WORDS = {
@@ -25,8 +35,8 @@ export const SEQUENCE_TEST_WORDS = {
   notLive: "Tests go out from the live app only",
   noAddress: "Your account has no email address to send a test to",
   notSent: "The test didn't go. Try again in a minute",
-  /** Only a customer's step sends a message a test can show: a sequence to leads writes each email for its lead. */
-  notCustomer: "Only a customer's step can be tested: each lead's email is written for them",
+  /** A one-off's message is tested from Messages: its step is its batch. */
+  notCustomer: "Only a sequence's step can be tested here",
   noMessage: "This step sends no message",
   subject: (what: string) => `Test: ${what}`,
   stepName: (sequence: string, place: number) => `${sequence}, step ${place}`,
@@ -35,6 +45,15 @@ export const SEQUENCE_TEST_WORDS = {
   subjectLine: (subject: string) => `Subject: ${subject}`,
   button: (text: string) => `[${text}]`,
   foot: "You got this because you pressed Send me a test.",
+  /** A lead's step: filled for one real lead, the opening as the line written for them when it goes. */
+  leadHead: (business: string, lead: string) =>
+    `A test of what ${business} sends ${lead}, filled in from their record. Nobody else got it.`,
+  opening: (lead: string) => `[A line about ${lead}, written for them when it goes]`,
+  holes: (lead: string, labels: string[]) =>
+    `${lead} has nothing for ${labels.join(" and ")}, so this email would wait for you.`,
+  notWritten: "Write this email first",
+  noFootAddress: "Add your business's address in Settings › Details: every email carries it at the foot.",
+  reply: (subject: string) => `Re: ${subject}`,
 } as const;
 
 /** How long a test's subject and words may run: a mail far past any message's own length is not one. */
@@ -123,5 +142,67 @@ export function stepTestMail(o: {
   return {
     subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
     text: [W.head(o.business), ...blocks, `—\n${W.foot}`].join("\n\n\n").slice(0, SEQUENCE_TEST_LIMITS.text),
+  };
+}
+
+/**
+ * A lead's step as its test mail (the canvas's Preview as a real lead, 18 Oct 2026: "To your own inbox, marked as a test"):
+ * the step's words filled for one lead by the send's own fill (reachOutCardEmailOf), the opening said as the line written
+ * for them when it goes, a value they lack left as written and said, and the cold foot every such email carries. A step
+ * after the first answers the first in its thread, so its subject is the first's. Refused in words where it cannot be
+ * shown: an email with no words yet, a foot with no address.
+ */
+export function leadStepTestMail(o: {
+  sequence: string;
+  place: number;
+  business: string;
+  address: string | null;
+  words: { subject: string | null; body: string };
+  /** The first email's subject, which a later step answers under. */
+  thread: string | null;
+  lead: SlotLead;
+  workspace: SlotWorkspace;
+}): StepTestMail | { why: string } {
+  const W = SEQUENCE_TEST_WORDS;
+  if (!o.words.body.trim()) return { why: W.notWritten };
+  const name = o.lead.business_name?.trim() || W.stepName(o.sequence, o.place);
+  const plain = (t: string) =>
+    t
+      .split(REACH_OUT_VALUE_MARKS[0])
+      .join("")
+      .split(REACH_OUT_VALUE_MARKS[1])
+      .join("")
+      .split(REACH_OUT_OPENING_MARK)
+      .join(W.opening(name));
+  const email = reachOutCardEmailOf(o.words, o.lead, o.workspace);
+  const thread =
+    o.words.subject === null && o.thread
+      ? reachOutCardEmailOf({ subject: o.thread, body: "" }, o.lead, o.workspace).subject
+      : null;
+  const subject =
+    email.subject !== null ? plain(email.subject) : thread ? W.reply(plain(thread)) : W.stepName(o.sequence, o.place);
+  let foot: string;
+  try {
+    foot = emailFoot(
+      o.business,
+      o.address,
+      { kind: "cold", why: whyFrom(o.lead.source), unsubscribeUrl: null },
+      REACH_OUT_LANGUAGE,
+    );
+  } catch {
+    return { why: W.noFootAddress };
+  }
+  const holes = email.holes.length
+    ? W.holes(
+        name,
+        email.holes.map((k) => `{{${k}}}`),
+      )
+    : null;
+  return {
+    subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
+    text: [W.leadHead(o.business, name), holes, W.subjectLine(subject), plain(email.body), foot, `—\n${W.foot}`]
+      .filter((s): s is string => !!s)
+      .join("\n\n\n")
+      .slice(0, SEQUENCE_TEST_LIMITS.text),
   };
 }

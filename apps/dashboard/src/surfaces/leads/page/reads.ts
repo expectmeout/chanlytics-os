@@ -11,7 +11,6 @@ import { leadPhotoWarm } from "../peek/seams";
 import { leadsMore, leadsView, type LeadsSurface } from "../surface";
 import { leadCallHandle } from "../cells/call-menu";
 import type { LeadCallHandle, LeadCellCtx } from "../cells/types";
-import type { ReachOutLines } from "../reach-out/lines";
 import type { LeadView } from "./state";
 
 /** How long a row is rested on before its photo is asked for: a pointer swept down the list asks for none. */
@@ -149,10 +148,7 @@ type LeadCellDoors = Pick<
   | "onExclude"
   | "onPutBack"
 >;
-type CellValues = Pick<
-  LeadCellCtx,
-  "values" | "mixedFits" | "hasCenter" | "canFind" | "peopleRows" | "stageShown" | "reachOut"
->;
+type CellValues = Pick<LeadCellCtx, "values" | "mixedFits" | "hasCenter" | "canFind" | "peopleRows" | "stageShown">;
 type Kept = (CellValues & { ctx: LeadCellCtx }) | null;
 
 const sameValues = (k: CellValues, v: CellValues) =>
@@ -161,8 +157,7 @@ const sameValues = (k: CellValues, v: CellValues) =>
   k.hasCenter === v.hasCenter &&
   k.canFind === v.canFind &&
   k.peopleRows === v.peopleRows &&
-  k.stageShown === v.stageShown &&
-  k.reachOut === v.reachOut;
+  k.stageShown === v.stageShown;
 
 /**
  * A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the page's
@@ -170,7 +165,7 @@ const sameValues = (k: CellValues, v: CellValues) =>
  * left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004): People publishes a
  * fresh array each time it lands, so the context is new then and the rows redraw -- on a cold load of Leads the rows paint
  * before the people. `stageShown` is whether the Stage column is drawn: then it says each lead's state, and the name's tag
- * gives way, so a row says it once. `reachOut` is the open search's reach-out lines (Reach out Part 6, H8). `callMenu` ties
+ * gives way, so a row says it once. `callMenu` ties
  * the rows' Call to their one menu, the same handle for the page's life.
  */
 const leadCellCtxFor = (
@@ -183,11 +178,10 @@ const leadCellCtxFor = (
     canFind: boolean;
     peopleRows: readonly PersonRowVM[];
     stageShown?: boolean;
-    reachOut?: ReachOutLines | null;
   },
   callMenu: LeadCallHandle,
 ): LeadCellCtx => {
-  const now: CellValues = { ...v, stageShown: v.stageShown ?? false, reachOut: v.reachOut ?? null };
+  const now: CellValues = { ...v, stageShown: v.stageShown ?? false };
   const k = kept.current;
   if (k && sameValues(k, now)) return k.ctx;
   const door = (name: keyof LeadCellDoors) => (id: string) => {

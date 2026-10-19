@@ -110,4 +110,13 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
     text: z.string().max(PROFILE_LIMITS.message),
   }),
   z.object({ op: z.literal("set_photos"), on: z.boolean() }),
+  // The booking link a sequence to leads' step names (the lead-to-sequence canvas): a web address, or empty to clear it.
+  z.object({
+    op: z.literal("set_booking_link"),
+    link: z
+      .string()
+      .trim()
+      .max(500)
+      .refine((v) => v === "" || /^https?:\/\/\S+$/.test(v), "A web address, starting https://"),
+  }),
 ]);

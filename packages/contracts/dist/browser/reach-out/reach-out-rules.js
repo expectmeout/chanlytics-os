@@ -102,6 +102,13 @@ const EXAMPLE_LEAD = {
   // A person at it, so the person slots show a name, not their fallback.
   person: { name: "Dana Reyes", first_name: "Dana", title: "Owner", role: "owner", email: null, profile_url: null }
 };
+export const reachOutExampleLead = () => ({
+  business_name: EXAMPLE_LEAD.business_name,
+  city: EXAMPLE_LEAD.city,
+  kind: "company",
+  facts: { people: [EXAMPLE_LEAD.person], addressee: 0 },
+  source: "local_businesses"
+});
 export function reachOutExampleValues(workspace) {
   return reachOutValues(
     {
