@@ -26,6 +26,7 @@ import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import { personRouteOf } from "../person-page/route";
+import { parseSequencesRoute } from "../sequences/sequence-address";
 import type { AskLanguage } from "./ask-language";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { TemplateStatus } from "../shared/enums";
@@ -465,8 +466,8 @@ type ChainRead = Pick<ReachOutChainDto, "root_id" | "name">;
 
 /**
  * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
- * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`,
- * a campaign `campaigns/moment:<id>`; People's, its Leads and Pipeline peeks among them, are clientsScope's, never a
+ * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run its home under its sequence
+ * (`campaigns/sequences/<id>/runs/<run>`; Sent's `broadcasts/run:<id>` before it), a campaign `campaigns/moment:<id>`; People's, its Leads and Pipeline peeks among them, are clientsScope's, never a
  * second reading. A reach-out opens in a campaign's drawer at the same address, and no campaigns read holds it: where
  * the chains the page read (`chains`) name it, its scope is the page at that address, named for it, whose row the page's
  * context carries (the moment spec, A2), never a campaign nothing reads.
@@ -514,6 +515,10 @@ function campaignsScope(
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
     return { kind: "ad", id: param.slice(7), label: label || "this ad" };
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): the run, as Sent's sheet of it was.
+  const place = page === "campaigns" ? parseSequencesRoute(`campaigns/${param}`) : null;
+  if (place?.view === "record" && place.run && UUID.test(place.run))
+    return { kind: "run", id: place.run, label: label || "this run" };
   return null;
 }
 

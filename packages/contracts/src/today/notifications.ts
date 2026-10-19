@@ -602,6 +602,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/activity/, "Open Activity"],
   [/^admin\/team/, "Open Team"],
   [/^admin\/billing/, "Open Billing"],
+  // To send, a part of Needs you (the Campaigns wiring review's lane 4): every email handed to its owner, one list.
+  [/^inbox\/to-send$/, "Open To send"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
@@ -611,10 +613,12 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^campaigns\/message:/, "Open the message"],
   // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
   [/^campaigns\/messages(\/|$)/, "Open Messages"],
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): the door says it opens the run.
+  [/^campaigns\/sequences\/[^/]+\/runs\/[^/]+/, RUN_OPEN_WORDS],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],
-  // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
+  // Every email handed to its owner, from each reach-out they send themselves (00429): one list, kept as Sent's.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],
   // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
@@ -626,6 +630,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
   // Leads is a scope of People, and its rows name it: a finished search said "Open People" over a door to Leads.
   [/^clients\/leads/, "Open Leads"],
+  // Get their yes, People's sheet (the Campaigns wiring review's lane 7).
+  [/^clients\/get-yes$/, "Open Get their yes"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
   [/^today/, "Open Today"],

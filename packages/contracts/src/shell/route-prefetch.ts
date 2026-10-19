@@ -43,6 +43,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
   clients: ["contacts", "segments", "views"],
+  // Get their yes over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): People's reads, and Sent's,
+  // which holds the number and the opt-in its code carries.
+  "clients/get-yes": ["contacts", "segments", "views", "broadcasts"],
   segments: ["contacts", "segments", "views"],
   // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
   leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
@@ -66,23 +69,6 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
-  // reaches (People's book, its lists and the week's touches, their own read), the channels read and the settings read,
-  // which holds the messages it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its
-  // searches as it is chosen. Each surface's first reads.
-  "campaigns/new": [
-    "sequences",
-    "channels",
-    "settings",
-    "broadcasts",
-    "broadcasts/touches",
-    "contacts",
-    "segments",
-    "reach-outs",
-    "team",
-    "policies",
-    "templates?all=1",
-  ],
   // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
   // settings read its pane is drawn from and the channels read's numbers.
   "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
@@ -182,10 +168,15 @@ export function routePrefetchScript(): string {
       `B=${JSON.stringify(PREFETCH_BESIDE)},O=Object.prototype.hasOwnProperty;`,
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
-    // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read. The
-    // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
+    // Get their yes is a sheet over People's list, which opens on Sent's read too.
+    'if(s==="clients"&&l==="get-yes")s="clients/get-yes";',
+    // Sequences is Campaigns' view with a surface of its own: its list, a record, a run at its home and the one New all open
+    // on its read (their screens ask for the rest as they are drawn). A message is a sheet over its list that opens on its
+    // own (`message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
-    'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
+    // The composer's old address (`campaigns/new…`) lands on the one New, Sequences' too (the Campaigns wiring review's lane 6).
+    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences";',
+    'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
     'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A

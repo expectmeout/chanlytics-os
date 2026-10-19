@@ -146,7 +146,7 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     pane: true,
     chrome: () => messagesChrome(),
   },
-  // Sent's sheets (a run's, To send, Get their yes, an audience's send): its list lands on Sequences (decision 0060, D3).
+  // Sent, whose every address lands on the page that took it over (decision 0060, D3; the Campaigns wiring review's lanes).
   broadcasts: {
     activeNav: "broadcasts",
     crumbs: [CAMPAIGN_ROOMS.home],

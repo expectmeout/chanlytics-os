@@ -18,15 +18,26 @@
  * Pure: the shell reads it over `window.location`, and the tests over a made-up one.
  */
 
-import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address";
+import {
+  SEQUENCES_ROUTE,
+  TO_SEND_PARAM,
+  TO_SEND_ROUTE,
+  newForLeadsRoute,
+  newSequenceRoute,
+  runRoute,
+  sendOnceRoute,
+  sequenceRoute,
+} from "../sequences/sequence-address";
+import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
 
 /**
  * Messages' address (D4: the Library is Messages): a view of Campaigns beside Sequences, under the one mount Campaigns' views
  * share, as Ads is at `campaigns/ads`, so a switch between the two reveals a view kept drawn rather than loading a page (the
  * tabs review of 19 Oct 2026: a phone showed nothing for 600 ms between them). Its old route, `messages`, whose path was
  * `/w/<slug>/templates`, lands here for ever (retiredRouteOf, below). Declared here, beside the route words, so the boot does
- * not carry Campaigns' words: from them it carried those into the error screen's chunk (+3.7 KB on every first load). The one
- * module this one imports is Sequences' addresses (sequence-address.ts), which imports nothing.
+ * not carry Campaigns' words: from them it carried those into the error screen's chunk (+3.7 KB on every first load). The
+ * modules this one imports are Sequences' and People's addresses (sequence-address.ts, people/lists/people-route.ts),
+ * which import nothing.
  */
 export const MESSAGES_ROUTE = "campaigns/messages";
 
@@ -56,12 +67,6 @@ export const ROUTE_WORDS: Readonly<Record<string, string>> = {
 const headOf = (route: string): string => (route.includes("/") ? route.slice(0, route.indexOf("/")) : route);
 
 /**
- * Sent's own views, which are no audience: Get their yes (people-lists GET_YES_ROUTE), and the one To send of the emails
- * handed to their owner (reach-out-approval TO_SEND_ROUTE).
- */
-const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
-
-/**
  * Where a retired address lands, in one move, or null where the address is a page's own (the Campaigns wiring review's
  * lane 1, 19 Oct 2026). The one table of them: every edge reads it, `movedAddress` as a page loads, `canonicalRoute` for
  * a move the app makes, `workspacePath` for a link, and Campaigns' and Sent's pages for an address that reaches them
@@ -75,8 +80,14 @@ const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
  * - The composer's Every time (`campaigns/new:every`, `new:moment:<trigger>`) is New sequence, on that moment (the
  *   closed-loop audit of 17 Oct 2026, G).
  * - Sent's list (`broadcasts`) is Sequences (D3: a run is a day of its sequence's History), and `broadcasts/<audience>`,
- *   which People and a list wrote to message these people, Send once on that audience. A run (`broadcasts/run:<id>`), Get
- *   their yes and To send stay where they are: a run's link lands by what the run is (runLandingOf), which no address says.
+ *   which People and a list wrote to message these people, Send once on that audience. A run's sheet in Sent
+ *   (`broadcasts/run:<id>`, `/sheet` after it) is the run's home under its sequence (lane 2: the run's one screen, which
+ *   follows what it is, so nothing lands by state any more), the run naming the sequence until the page writes its own.
+ *   To send is a part of the Inbox's Needs you (`inbox/to-send`, lane 4), and Get their yes a sheet over People's list
+ *   (`clients/get-yes`, lane 7): Sent draws nothing of its own.
+ * - A day of a sequence's History (`campaigns/sequences/<id>/history/<batch>`) is that run, at its home.
+ * - The composer (`campaigns/new`, `new:to:<audience>`, `new:leads`) is the one New, for whom it named (lane 6), and a
+ *   reach-out's change (`new:edit:<root>`) its sequence's record.
  *
  * - Messages (D4: the Library is Messages) is a view of Campaigns (19 Oct 2026): `messages`, and the Library's path
  *   `templates`, land on `campaigns/messages`; nothing was ever under it, so `messages/<word>` lands nowhere, as before.
@@ -99,13 +110,31 @@ function retiredPathOf(path: string): string | null {
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
     if (!param) return SEQUENCES_ROUTE;
-    return param.startsWith("run:") || SENT_OWN_WORDS.has(param) ? null : sendOnceRoute(param);
+    if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
+    // Sent's own views went too (the Campaigns wiring review's lanes 4 and 7): To send is a part of the Inbox's Needs you
+    // (Ruben's call 3), and Get their yes is People's (call 6). Any other word is an audience, which New's Send once is
+    // asked to message.
+    if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
+    if (param === GET_YES_PARAM) return GET_YES_ROUTE;
+    return sendOnceRoute(param);
   }
   if (head !== "campaigns") return null;
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  if (param === "sequences") {
+    const [, , id, tab, day] = path.split("/");
+    return id && tab === "history" && day ? runRoute(day, id) : null;
+  }
   const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
   if (param === "new:every") return newSequenceRoute();
+  // The composer's sheet went into the one New (the Campaigns wiring review's lane 6): Send once, on its audience, and
+  // Write to leads land on New for them; a reach-out's change lands on its sequence's record, which reads a sequence by
+  // the id of any of its steps.
+  if (param === "new") return sendOnceRoute();
+  if (param.startsWith("new:to:")) return sendOnceRoute(param.slice("new:to:".length) || null);
+  if (param === "new:leads") return newForLeadsRoute();
+  const change = /^new:edit:(.+)$/.exec(param);
+  if (change?.[1]) return sequenceRoute(change[1]);
   const on = /^new:moment:([^:/]+)$/.exec(param);
   return on?.[1] ? newSequenceRoute(on[1]) : null;
 }

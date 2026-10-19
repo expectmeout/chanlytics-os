@@ -294,6 +294,7 @@ import {
 } from "./surface-registry";
 import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, reachFor, routeOnScreen } from "./workspace";
 import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
+import { SeeOverMount } from "@/surfaces/see/see-mount";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -477,6 +478,9 @@ function useShellApp(
           <BookingToolHost route={route} />
           {/* A lead's sheet over whichever page its address opens it on (`?lead=`, leads/sheet/over-mount.tsx). */}
           <LeadOverMount />
+          {/* A run or a message open over whichever page it was pressed on (`?see=`, surfaces/see/see-mount.tsx: the Campaigns
+              wiring review's rule C), with the frame's own toast host, so what it says outlives the sheet. */}
+          <SeeOverMount />
           {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
           <JoinedNote />
           {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}

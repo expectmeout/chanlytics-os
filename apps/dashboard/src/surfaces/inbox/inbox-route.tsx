@@ -6,7 +6,7 @@
  */
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isUuid, newConversationOf, routeOfPath, sequenceRepliesOf } from "@chanlytics/contracts";
+import { isToSendParam, isUuid, newConversationOf, routeOfPath, sequenceRepliesOf } from "@chanlytics/contracts";
 import { loadPrefs } from "@/legacy-bridge/device-prefs";
 import { recordNamedBy, useReadNamedRecord } from "../use-named-record";
 import { useSurface } from "../use-surface";
@@ -44,7 +44,9 @@ export function InboxRoute() {
   // `inbox/from:<sequence>` lists that sequence's replies (contracts sequenceRepliesOf): a filter, never a thread.
   const from = asked ? null : sequenceRepliesOf(param);
   const replies = useSequenceReplies(from);
-  const threadParam = from ? null : ixRouteThread(asked ? null : param, inboxData().THREADS).id;
+  // `inbox/to-send` is Needs you with its To send open (the Campaigns wiring review's lane 4): a part, never a thread.
+  const toSend = isToSendParam(param);
+  const threadParam = from || toSend ? null : ixRouteThread(asked ? null : param, inboxData().THREADS).id;
   // A thread older than the newest hundred is read by its id (the surface does it as it is read; this is for a link taken after:
   // a bell row, a person's "Open the thread"), so the Inbox opens the thread a link names and the notice is for one that is not
   // this workspace's (finding A2c).
@@ -62,6 +64,7 @@ export function InboxRoute() {
         showAgentRail={prefs.showInboxAgentRail}
         initialThreadId={threadParam}
         replies={replies}
+        toSendOpen={toSend}
         opening={opening}
         onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
       />

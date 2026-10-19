@@ -1,8 +1,8 @@
 /**
  * Where the Sequences page opens (decision 0060): Campaigns › Sequences, `campaigns/sequences`, the list; a sequence's
- * record at `campaigns/sequences/<id>`, its People and History tabs one word further, a day of its History open one word
- * further still (`/history/<batch>`), and a new one at `campaigns/sequences/new`. One parser and one writer, so a link and the page read an
- * address the same way.
+ * record at `campaigns/sequences/<id>`, its People and History tabs one word further, one of its runs two words further
+ * (`/runs/<run>`: the run's one screen, the Campaigns wiring review's lane 2), and a new one at `campaigns/sequences/new`.
+ * One parser and one writer, so a link and the page read an address the same way.
  *
  * A new sequence to leads is made by name where its leads are chosen (the lead-to-sequence canvas's one road: the lead
  * sheet's picker and New, or the bar's for many) and written on its own record, a draft. Any of the page's addresses may end
@@ -17,11 +17,21 @@ const SEQUENCE_TABS = ["steps", "people", "history"] as const;
 export type SequenceTab = (typeof SEQUENCE_TABS)[number];
 
 /**
- * What an address of the page opens: the list, a record on one of its tabs, or a new sequence (on the moment a door asks
- * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card); and the way back.
+ * Who a new sequence is for, where the door that opened New said (the Campaigns wiring review's rule F, lane 6, 19 Oct
+ * 2026: one New, which asks who and when): `once`, a message sent once, now or on a day, to a list or the people who said
+ * yes (Send once is New with "now"), on the audience the door named; `leads`, the leads a search found. Unsaid, New asks.
+ */
+export type NewWho = "once" | "leads";
+
+/**
+ * What an address of the page opens: the list, a record on one of its tabs, one of its runs (`run`: the run's screen, open
+ * over the record's History, where its days are), or New (on the moment a door asks for, `new:moment:<trigger>`: Setup's
+ * first reminder, Ask's moment card; or for whom a door asks, `new:once[:to:<audience>]`, `new:leads`); and the way back.
  */
 export type SequencesPlace = (
-  { view: "list" } | { view: "new"; moment?: string } | { view: "record"; id: string; tab: SequenceTab; day?: string }
+  | { view: "list" }
+  | { view: "new"; moment?: string; who?: NewWho; to?: string }
+  | { view: "record"; id: string; tab: SequenceTab; run?: string }
 ) & {
   /** The Leads address it was opened from, where Back, Start and Cancel return; absent where none was named. */
   back?: string;
@@ -37,8 +47,9 @@ export const isSequencesParam = (param: string | null): boolean => param === "se
 const isTab = (word: string | undefined): word is SequenceTab => SEQUENCE_TABS.some((t) => t === word);
 
 /**
- * What a route of the page opens (`campaigns/sequences`, `/<id>`, `/<id>/people`, `/new`); null for a route that is not
- * the page's. A tab it does not know is the record's first.
+ * What a route of the page opens (`campaigns/sequences`, `/<id>`, `/<id>/people`, `/<id>/runs/<run>`, `/new`); null for a
+ * route that is not the page's. A tab it does not know is the record's first. A day of History an older address names
+ * (`/history/<batch>`, which the table of retired addresses moves on) is that run.
  */
 export function parseSequencesRoute(route: string): SequencesPlace | null {
   const [path = ""] = route.split("?");
@@ -49,13 +60,22 @@ export function parseSequencesRoute(route: string): SequencesPlace | null {
   const [root, view, id, tab, day] = backAt >= 0 ? words.slice(0, backAt) : words;
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list", ...back };
-  if (id === "new" || id.startsWith("new:")) {
-    // A moment rides in the word itself (`new:moment:<trigger>`).
-    const [, kind, moment] = id.split(":");
-    return { view: "new", ...(kind === "moment" && moment ? { moment } : {}), ...back };
-  }
-  const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...(on === "history" && day ? { day } : {}), ...back };
+  if (id === "new" || id.startsWith("new:")) return { ...newPlaceOf(id), ...back };
+  if ((tab === "runs" || tab === "history") && day) return { view: "record", id, tab: "history", run: day, ...back };
+  return { view: "record", id, tab: isTab(tab) ? tab : "steps", ...back };
+}
+
+/**
+ * New, by the word its address holds: a moment rides in it (`new:moment:<trigger>`), and so does who it is for
+ * (`new:once`, `new:once:to:<audience>`, an audience's id holding colons of its own, `seg:<list>`; `new:leads`).
+ */
+function newPlaceOf(word: string): Extract<SequencesPlace, { view: "new" }> {
+  const [, kind, ...rest] = word.split(":");
+  if (kind === "moment" && rest[0]) return { view: "new", moment: rest[0] };
+  if (kind === "leads") return { view: "new", who: "leads" };
+  if (kind !== "once") return { view: "new" };
+  const to = rest[0] === "to" ? rest.slice(1).join(":") : "";
+  return to ? { view: "new", who: "once", to } : { view: "new", who: "once" };
 }
 
 /**
@@ -67,14 +87,9 @@ export function sequenceRouteBack(route: string, back: string | null): string {
   return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
 }
 
-/**
- * A sequence's address, on a tab; the first tab is the record's own address. A day of its History, open, is one word
- * further (`/history/<batch>`): a word of the path, which the page reads as it reads the tab.
- */
-export const sequenceRoute = (id: string, tab: SequenceTab = "steps", day?: string | null): string =>
-  tab === "steps"
-    ? `${SEQUENCES_ROUTE}/${id}`
-    : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+/** A sequence's address, on a tab; the first tab is the record's own address. */
+export const sequenceRoute = (id: string, tab: SequenceTab = "steps"): string =>
+  tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
 
 /**
  * New sequence's address, on a moment a door asks for: what starts it chosen, the owner's line for that moment written in
@@ -84,25 +99,27 @@ export const newSequenceRoute = (moment?: string | null): string =>
   moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 
 /**
- * A link to a run (a bell row, Today, the Inbox, Ask, a report, the Calendar): `broadcasts/run:<id>`, which lands by what
- * the run is once it is read (runLandingOf): on its sheet while it waits for a decision, on its day of its sequence's
- * History once it went. The one writer of it (the Campaigns wiring review's lane 1, 19 Oct 2026): every place that links
- * to a run calls this, so the run's own address, when it has one, is changed here alone.
+ * A run's home (the Campaigns wiring review's lane 2, 19 Oct 2026): its one screen, under its sequence,
+ * `campaigns/sequences/<sequence>/runs/<run>`, which follows what the run is -- decided there while it waits for an OK,
+ * stopped there while it goes, its report once it went. A one-off send is a sequence of one step, so its run is the same.
+ * A writer that does not know the sequence names the run in its place: the server reads a sequence by the id of any of
+ * its parts, and the page then writes its own. The one writer: every link to a run calls this (a bell row, Today, the
+ * Inbox, Ask, a report, the Calendar, History's days).
  */
-export const runRoute = (id: string): string => `broadcasts/run:${id}`;
+export const runRoute = (id: string, sequenceId?: string | null): string =>
+  `${SEQUENCES_ROUTE}/${sequenceId || id}/runs/${id}`;
 
 /**
- * A run's sheet in Sent, where a link lands on it whether or not Sequences is drawn (the run's address with `/sheet`, a
- * word the sheet's page reads past): History's Open the run, and People's door to a batch it holds no draft of.
- */
-export const runSheetRoute = (id: string): string => `${runRoute(id)}/sheet`;
-
-/**
- * Send once's address: the composer over Sequences, on the audience it is for (`campaigns/new:to:<audience>`, a list's or
- * an audience's id, the way People and a list ask to message these people) or on none (`campaigns/new`). The one writer.
+ * Send once's address: New, for a message sent once (the Campaigns wiring review's rule F, lane 6), on the audience it is
+ * for (`campaigns/sequences/new:once:to:<audience>`, a list's or an audience's id, the way People and a list ask to message
+ * these people) or on none. It was the composer's sheet over Sequences (`campaigns/new`, `new:to:<audience>`), whose
+ * addresses land here (shell/address.ts). The one writer.
  */
 export const sendOnceRoute = (audience?: string | null): string =>
-  audience ? `campaigns/new:to:${audience}` : "campaigns/new";
+  audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
+
+/** New for leads: a sequence written to the leads a search found (the composer's Write to leads, `campaigns/new:leads`). */
+export const newForLeadsRoute = (): string => `${SEQUENCES_ROUTE}/new:leads`;
 
 /**
  * A message of the Library, open in its own drawer over Sequences by its name (`campaigns/message:<name>`): a template's
@@ -117,6 +134,17 @@ export const messageRoute = (name: string): string => `campaigns/message:${name}
  */
 export const sequenceRepliesRoute = (id: string, period: "30" | "90" | "all" = "30"): string =>
   `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+
+/**
+ * The emails handed to their owner to send from their own inbox (00429), every reach-out's: a part of the Inbox's Needs
+ * you, open (the Campaigns wiring review's rule D and Ruben's call 3, 19 Oct 2026). It had a page of its own in Sent's
+ * mount, `broadcasts/to-send`, which lands here (shell/address.ts). A word of the Inbox's path, as `from:<id>` is.
+ */
+export const TO_SEND_PARAM = "to-send";
+export const TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
+
+/** Whether an Inbox param is To send's: Needs you, with its To send open. */
+export const isToSendParam = (param: string | null | undefined): boolean => param === TO_SEND_PARAM;
 
 /** What an Inbox param of a sequence's replies names (`from:<id>[:<period>]`); null for any other param. */
 export function sequenceRepliesOf(param: string | null): { id: string; period: "30" | "90" | "all" } | null {

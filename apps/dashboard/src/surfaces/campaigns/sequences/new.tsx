@@ -1,14 +1,20 @@
 /**
- * A new sequence (decision 0060, S4: the canvas's New): first what starts it, the four ways a sequence starts. On a moment
- * or a list, the owner says in a line what it should do, and Ask drafts the flow every sequence has (POST sequences/draft,
- * the `sequence_draft` verb), drawn as a record's Steps draws it (flow-row.tsx) -- what starts it, each step with its wait,
- * its message as one person reads it and its boxes, what stops it -- with "by Ask" on what Ask chose, so a wrong guess is
- * plain and one line said again redraws it. A list is picked from the lists a campaign may run on (the composer's own,
- * playbooks' pools), read only once a list is asked for. A date and leads have composers of their own, one press away.
- * Nothing is made until the foot is pressed: kept as a draft, which stays under Drafts and sends nothing, or started
- * (`sequence_make`); either opens the sequence's own record. Every word is contracts' (sequence-draft.ts).
+ * The one New (decision 0060, S4: the canvas's New; the Campaigns wiring review's rule F, lane 6, 19 Oct 2026: one New,
+ * which asks who and when, replaces New sequence and New message). First who it is for and when it goes, the four ways a
+ * sequence starts. On a moment or a list, the owner says in a line what it should do, and Ask drafts the flow every
+ * sequence has (POST sequences/draft, the `sequence_draft` verb), drawn as a record's Steps draws it (flow-row.tsx) -- what
+ * starts it, each step with its wait, its message as one person reads it and its boxes, what stops it -- with "by Ask" on
+ * what Ask chose, so a wrong guess is plain and one line said again redraws it. A list is picked from the lists a campaign
+ * may run on (playbooks' pools), read only once a list is asked for. Nothing is made until the foot is pressed: kept as a
+ * draft, which stays under Drafts and sends nothing, or started (`sequence_make`); either opens the sequence's own record.
+ *
+ * Once (Send once is New with "now") and leads are drawn here too, where they were a composer of their own one press
+ * away (home/new-message.tsx: the send screen, and Write to leads): each its own chunk, asked for as it is picked. The
+ * choice is the address's (`new:once[:to:<audience>]`, `new:leads`), replaced as it is made, so every door opens New with
+ * who filled in: People's and a list's "message these people", Send it again, the Calendar. Every word is contracts'
+ * (sequence-draft.ts).
  */
-import { useState } from "react";
+import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import {
   SEQUENCES_ROUTE,
   SEQUENCE_DRAFT_WORDS_MAX,
@@ -21,12 +27,16 @@ import {
   exampleParams,
   listStartsSentence,
   momentStartsSentence,
+  newForLeadsRoute,
   newSequenceLine,
+  newSequenceRoute,
+  sendOnceRoute,
   sequenceChannelsWords,
   sequenceRoute,
   sequenceWaitWords,
   stepsStopSentence,
   type AppointmentWord,
+  type NewWho,
   type SequenceDraftDto,
   type SequenceDraftListDto,
   type SequenceDraftStepDto,
@@ -41,19 +51,30 @@ import { Notice } from "../../kit/notice/notice";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
-import { gate, navigate, refusalToast, routeDoor, useLegacyToast } from "../../legacy-verbs";
+import { gate, navigate, refusalToast, replaceRoute, routeDoor, useLegacyToast } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { HomeReading } from "../home/failed";
+import { useCampaignsToast } from "../home/route-toast";
 import { MessagePreview } from "../parts/message-preview";
 import { CmPane } from "../parts/split";
 import { FlowRow } from "./flow-row";
 
-/** The four ways a sequence starts, in the chooser's order. */
+type Flash = ReturnType<typeof useLegacyToast>[1];
+
+/** The four ways a sequence starts, in the chooser's order: who it is for and when it goes. */
 type StartsOn = "moment" | "list" | "date" | "leads";
 const STARTS_ON: readonly StartsOn[] = ["moment", "list", "date", "leads"];
 const isStartsOn = (v: string): v is StartsOn => STARTS_ON.some((s) => s === v);
 
-/** Where a date and leads are written: the one-off composer, and the composer on Write to leads. */
-const COMPOSER: Record<"date" | "leads", string> = { date: "campaigns/new", leads: "campaigns/new:leads" };
+/** The way it starts that the address's who names: once is a message sent once (`date`); none, a moment. */
+const startsOnOf = (who: NewWho | null): StartsOn => (who === "once" ? "date" : who === "leads" ? "leads" : "moment");
+
+/** Who a way it starts is for, as the address says it: a moment and a list are New's own address, and say none. */
+const whoOf = (on: StartsOn): NewWho | null => (on === "date" ? "once" : on === "leads" ? "leads" : null);
+
+/** Send once and Write to leads, each its own chunk (Sent's send screen, the searches): asked for as one is picked. */
+const NewOnce = lazy(() => import("../home/new-message").then((m) => ({ default: m.NewOnce })));
+const NewForLeads = lazy(() => import("../reach-out/sources").then((m) => ({ default: m.WriteToLeads })));
 
 /** A typed value's box, by its step and its place among the message's values. */
 const typedKey = (step: number, slot: number) => `${step}-${slot}`;
@@ -246,9 +267,25 @@ function ListPick({ value, onPick }: { value: string; onPick: (list: SequenceDra
   );
 }
 
+/** Who and when: the four ways it starts, and what the one picked does. */
+function StartsChooser({ on, onStarts }: { on: StartsOn; onStarts: (on: StartsOn) => void }) {
+  return (
+    <div className="sq-new-starts">
+      <Segmented
+        label={W.starts}
+        value={on}
+        onValueChange={(v) => onStarts(isStartsOn(v) ? v : "moment")}
+        options={STARTS_ON.map((s) => ({ value: s, label: W.startsOn[s], testid: `sq-new-on-${s}` }))}
+      />
+      <p className="sq-new-body">{W.startsHint[on]}</p>
+    </div>
+  );
+}
+
 interface SayItProps {
   on: StartsOn;
-  onStarts: (on: StartsOn) => void;
+  /** Who and when, until a draft is in (StartsChooser). */
+  chooser: ReactNode;
   list: SequenceDraftListDto | null;
   onList: (list: SequenceDraftListDto | null) => void;
   words: string;
@@ -259,31 +296,21 @@ interface SayItProps {
 }
 
 /**
- * What the owner says before Ask drafts: what starts it (until a draft is in), the list it starts on, and their line with
- * Draft it; a date and leads, their composers' door instead.
+ * What the owner says before Ask drafts: who and when (until a draft is in), the list it starts on, and their line with
+ * Draft it; leads, the searches whose leads it is written to, in their place.
  */
 function SayIt(p: SayItProps) {
   const { on, list, words, drafted, asking } = p;
   const mayAsk = words.trim().length >= 8 && (on !== "list" || list !== null);
   return (
     <>
-      {drafted ? null : (
-        <div className="sq-new-starts">
-          <Segmented
-            label={W.starts}
-            value={on}
-            onValueChange={(v) => p.onStarts(isStartsOn(v) ? v : "moment")}
-            options={STARTS_ON.map((s) => ({ value: s, label: W.startsOn[s], testid: `sq-new-on-${s}` }))}
-          />
-          <p className="sq-new-body">{W.startsHint[on]}</p>
-        </div>
-      )}
+      {drafted ? null : p.chooser}
       {on === "list" && !drafted ? <ListPick value={list?.token ?? ""} onPick={p.onList} /> : null}
-      {on === "date" || on === "leads" ? (
-        <div className="sq-new-acts">
-          <Button size="sm" variant="primary" {...routeDoor(COMPOSER[on])} data-testid={`sq-new-open-${on}`}>
-            {W.openComposer[on]} <Icon name="chevron" size={11} />
-          </Button>
+      {on === "leads" ? (
+        <div className="sq-new-part" data-testid="sq-new-part-leads">
+          <Suspense fallback={<HomeReading testid="cmh-composer-reading" />}>
+            <NewForLeads />
+          </Suspense>
         </div>
       ) : (
         <>
@@ -324,11 +351,95 @@ function alreadyOn(rows: readonly SequenceRowDto[] | undefined, moment: string |
   return rows.find((r) => r.starts === "moment" && r.state !== "ended" && r.first?.trigger === moment) ?? null;
 }
 
-/** New, on the moment its address names (`new:moment:<trigger>`) where a door asked for one. */
-export function NewSequence({ moment = null }: { moment?: string | null }) {
+/**
+ * Once: Send once's screen is New's pane (home/new-message.tsx), its who and when over its sentence, its Cancel New's
+ * Close; New's own pane says it is reading until the screen can be drawn. Its toast is the route's where it stands under
+ * Campaigns' mount, so what a send says outlives New.
+ */
+function NewOncePane(p: {
+  to: string | null;
+  flash: Flash;
+  chooser: ReactNode;
+  onClose: () => void;
+  toast: ReactNode;
+}) {
+  const pane = (body: ReactNode) => (
+    <CmPane title={W.title} onClose={p.onClose} testid="sq-new">
+      <div className="sq-new">
+        {p.chooser}
+        {body}
+      </div>
+    </CmPane>
+  );
+  return (
+    <>
+      <Suspense fallback={pane(<HomeReading testid="cmh-composer-reading" />)}>
+        <NewOnce
+          to={p.to}
+          flash={p.flash}
+          onDone={p.onClose}
+          onYes={(route) => replaceRoute(route)}
+          above={p.chooser}
+          pane={pane}
+        />
+      </Suspense>
+      {p.toast}
+    </>
+  );
+}
+
+/** A draft's foot: when it starts, then Keep as a draft and Start. */
+function draftFoot(busy: boolean, make: (start: boolean) => Promise<void>) {
+  return (
+    <>
+      <p className="sq-new-say">
+        <b>{W.startsWhen}</b> · {W.first}
+      </p>
+      <Button size="sm" onClick={() => void make(false)} disabled={busy} data-testid="sq-new-keep">
+        {W.keep}
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
+        onClick={() => void make(true)}
+        disabled={busy}
+        data-testid="sq-new-start"
+        {...gate("approve")}
+      >
+        <Icon name="play" size={12} /> {W.start}
+      </Button>
+    </>
+  );
+}
+
+interface NewSequenceProps {
+  /** The moment its address names (`new:moment:<trigger>`) where a door asked for one. */
+  moment?: string | null;
+  /** Who its address names (`new:once`, `new:leads`) where a door asked for them. */
+  who?: NewWho | null;
+  /** The audience a door asked to message (`new:once:to:<audience>`). */
+  to?: string | null;
+}
+
+/** New, on the moment or for whom its address names. */
+export function NewSequence({ moment = null, who = null, to = null }: NewSequenceProps) {
   const page = useSurface("sequences");
   const [toast, flash] = useLegacyToast();
-  const [on, setOn] = useState<StartsOn>("moment");
+  // What a send made in Send once says outlives New, which closes as it sends: the route's toast (route-toast.ts).
+  const hosted = useCampaignsToast();
+  const [on, setOn] = useState<StartsOn>(() => startsOnOf(who));
+  // The address chose it (a door, Back): New follows it, keeping a moment or a list picked where it names neither.
+  useEffect(() => setOn((was) => (whoOf(was) === who ? was : startsOnOf(who))), [who]);
+  // Who it is for is the address's, replaced as it is picked: a reload opens on it, Back is where New was opened from, and
+  // the moment or the audience a door named is kept.
+  const pick = (next: StartsOn) => {
+    setOn(next);
+    const nextWho = whoOf(next);
+    if (nextWho === who) return;
+    replaceRoute(
+      nextWho === "once" ? sendOnceRoute(to) : nextWho === "leads" ? newForLeadsRoute() : newSequenceRoute(moment),
+    );
+  };
   const [list, setList] = useState<SequenceDraftListDto | null>(null);
   // The owner's own line, once they type; until then the moment's line where a door asked for one, in the workspace's
   // word for an appointment as soon as the list read says it.
@@ -387,6 +498,9 @@ export function NewSequence({ moment = null }: { moment?: string | null }) {
 
   // What the workspace calls an appointment, as the list read says it; the first word until it is read.
   const word = page ? page.word : "appointment";
+  const chooser = <StartsChooser on={on} onStarts={pick} />;
+  if (on === "date")
+    return <NewOncePane to={to} flash={hosted ?? flash} chooser={chooser} onClose={close} toast={toast} />;
   return (
     <CmPane
       title={draft ? draft.name : W.title}
@@ -401,28 +515,7 @@ export function NewSequence({ moment = null }: { moment?: string | null }) {
       }
       onClose={close}
       testid="sq-new"
-      foot={
-        draft ? (
-          <>
-            <p className="sq-new-say">
-              <b>{W.startsWhen}</b> · {W.first}
-            </p>
-            <Button size="sm" onClick={() => void make(false)} disabled={busy} data-testid="sq-new-keep">
-              {W.keep}
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => void make(true)}
-              disabled={busy}
-              data-testid="sq-new-start"
-              {...gate("approve")}
-            >
-              <Icon name="play" size={12} /> {W.start}
-            </Button>
-          </>
-        ) : null
-      }
+      foot={draft ? draftFoot(busy, make) : null}
     >
       <div className="sq-new">
         {already && !draft ? (
@@ -449,7 +542,7 @@ export function NewSequence({ moment = null }: { moment?: string | null }) {
         ) : (
           <SayIt
             on={on}
-            onStarts={setOn}
+            chooser={chooser}
             list={list}
             onList={setList}
             words={words}

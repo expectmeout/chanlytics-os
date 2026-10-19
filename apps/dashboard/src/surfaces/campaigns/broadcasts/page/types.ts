@@ -157,12 +157,8 @@ export interface BcBase {
   armed: boolean;
   setArmed: Setter<boolean>;
   openId: string | null;
-  /** A run opened, or none; `keep` holds To send under it (true from To send's own door, and on a close by default). */
-  openRun: (id: string | null, keep?: boolean) => void;
-  yesOpen: boolean;
-  setYesOpen: Setter<boolean>;
-  /** Get their yes's pane closed, onto Sequences. */
-  closeYes: () => void;
+  /** A run opened, or none, which closes it. */
+  openRun: (id: string | null) => void;
   yesDoor: ReactNode;
   /** The same door as a link on its own, for the fold under "Who's held back" (state.tsx useBcYes). */
   yesLink: ReactNode;

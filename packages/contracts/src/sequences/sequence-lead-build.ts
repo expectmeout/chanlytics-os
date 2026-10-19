@@ -33,6 +33,7 @@ import {
 import { plural } from "../shared/words";
 import { slotMentions } from "../templates/slot-sets";
 import { SEQUENCE_MODE_LABEL } from "./sequence";
+import { SCHEDULE_WORDS } from "./sequence-schedule";
 
 /** The record's words for a sequence to leads, said once. */
 export const LEAD_BUILD_WORDS = {
@@ -42,7 +43,8 @@ export const LEAD_BUILD_WORDS = {
   inIt: (n: number) => `${n} in it`,
   pace: (share: number, owner: boolean) => `up to ${share} a day, from ${owner ? "your inbox" : "your mailboxes"}`,
   noMailbox: "no mailbox to send from yet",
-  howItRuns: "How it runs",
+  /** The Start row's act, every sequence's (the one record): its sheet's own title. */
+  howItRuns: SCHEDULE_WORDS.settings.title,
   /** A step's box. */
   firstEmail: "First email",
   followUp: "Following up",

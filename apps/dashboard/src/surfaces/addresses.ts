@@ -23,7 +23,10 @@ import {
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
+  GET_YES_PARAM,
+  GET_YES_ROUTE,
   MESSAGES_ROUTE,
+  isToSendParam,
   newConversationOf,
   parseLeadsRoute,
   parseListToken,
@@ -37,7 +40,6 @@ import {
   type RecordRef,
 } from "@chanlytics/contracts";
 import { parseHome } from "./campaigns/home/address";
-import { broadcastsProps } from "./campaigns/routes";
 import { conversationsRow, inboxThread } from "./inbox/address";
 import { cvRoute } from "./inbox/cv-rules";
 import { isPersonParam } from "./people/chrome";
@@ -73,10 +75,12 @@ const alone =
   (param) =>
     param === "" ? { view } : null;
 
-/** What the Inbox's param opens: a thread by its conversation's id, or the door of a new conversation. */
+/** What the Inbox's param opens: a thread by its conversation's id, the door of a new conversation, or To send. */
 function opensInbox(param: string): Opened | null {
   if (param === "") return { view: "inbox" };
   if (newConversationOf(param)) return { view: "inbox/new" };
+  // Needs you with its To send open (the Campaigns wiring review's lane 4): every email handed to its owner.
+  if (isToSendParam(param)) return { view: "inbox/to-send" };
   const id = inboxThread(param);
   return id !== null && RECORD_ID.test(id) ? { ref: { kind: "conversation", id } } : null;
 }
@@ -121,6 +125,8 @@ function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
   if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
   const sequences = parseSequencesRoute(`campaigns/${param}`);
+  // A run at its home under its sequence is the run (lane 2: addressOf's send).
+  if (sequences?.view === "record" && sequences.run) return { ref: { kind: "send", id: sequences.run } };
   if (sequences?.view === "record") return { ref: { kind: "campaign", id: sequences.id } };
   if (sequences)
     return { view: sequences.view === "list" ? "campaigns/sequences" : `campaigns/sequences/${sequences.view}` };
@@ -128,26 +134,32 @@ function opensCampaigns(param: string): Opened | null {
   const at = parseHome(param);
   if (at.moment) return { ref: { kind: "campaign", id: at.moment } };
   if (at.message) return { ref: { kind: "template", name: at.message } };
-  if (at.compose) return { view: "campaigns/new" };
   return at.group ? { view: "campaigns/in" } : null;
 }
 
 /**
- * What Sent's param opens: a run, the Get their yes section, or the one To send. Any other word is an audience, a retired
- * door to the composer (retiredRouteOf).
+ * What Sent's param opens: nothing of its own now. Its address lands on Sequences, and every word under it is retired,
+ * read as the page that replaced it (retiredRouteOf): a run's sheet its home, To send the Inbox's Needs you, Get their
+ * yes People's sheet, an audience New's Send once.
  */
 function opensSent(param: string): Opened | null {
-  if (param === "") return { view: "broadcasts" };
-  const at = broadcastsProps(param);
-  if (at.initialRun) return { ref: { kind: "send", id: at.initialRun } };
-  if (at.initialToSend) return { view: "broadcasts/to-send" };
-  return at.initialYes ? { view: "broadcasts/get-yes" } : null;
+  return param === "" ? { view: "broadcasts" } : null;
 }
+
+/**
+ * People's views that are a word of their own: the New list door, and Get their yes, a sheet over the list (the Campaigns
+ * wiring review's lane 7: it was Sent's).
+ */
+const PEOPLE_OWN_VIEWS: ReadonlyMap<string, string> = new Map([
+  ["new-list", "clients/new-list"],
+  [GET_YES_PARAM, GET_YES_ROUTE],
+]);
 
 /** What People's param opens: its views, a list, a person, a lead or a search of Leads, and a deal on the Pipeline. */
 function opensPeople(param: string): Opened | null {
   if (param === "") return { view: "clients" };
-  if (param === "new-list") return { view: "clients/new-list" };
+  const own = PEOPLE_OWN_VIEWS.get(param);
+  if (own) return { view: own };
   // The route as the page's parsers read it, whole.
   const route = `clients/${param}`;
   // A person's tab is their address with its word (contracts personRouteOf, the one parse of it): their page, on that
@@ -235,16 +247,17 @@ function opensReports(param: string): Opened | null {
  * param after it. A page added to SURFACE_ROUTES is a row here in the same change, and the registry test fails without it.
  * The shapes each takes, after the page's word:
  *
- *   inbox          `th-<conversation>`, `new`, `new:<person>`
+ *   inbox          `th-<conversation>`, `new`, `new:<person>`, `to-send`
  *   conversations  `<tab>`, `<conversation>`, `cv-<call>`, and a row on its tab, `<tab>:<row>`
  *   live           `<call>`
  *   calendar       `<yyyy-mm-dd>`, `a-<visit>`, `<yyyy-mm-dd>:a-<visit>`
- *   campaigns      `sequences` and Sequences' own (`sequences/<campaign>[/<tab>]`, `sequences/new`), `messages`,
+ *   campaigns      `sequences` and Sequences' own (`sequences/<campaign>[/<tab>]`, `sequences/<campaign>/runs/<send>`,
+ *                  `sequences/new`), `messages`,
  *                  `message:<template>`, `new` and the composer's other doors (`new:to:`, `new:leads`, `new:edit:`); `in:<group>`,
  *                  `moment:<campaign>`, `new:every` and `new:moment:` are retired, read as the page that replaced them
  *                  (contracts retiredRouteOf)
- *   broadcasts     `run:<send>`, `get-yes`, `to-send`
- *   clients        `<person>`, `new-list`, `seg:<built-in list>`, `list:<kept list>`, `leads` and its views
+ *   broadcasts     none of its own (`run:<send>`, `to-send`, `get-yes` and an audience retired: retiredRouteOf)
+ *   clients        `<person>`, `new-list`, `get-yes`, `seg:<built-in list>`, `list:<kept list>`, `leads` and its views
  *                  (`leads:s-<search>:l-<list>:c-<class>:p-<lead>`), `pipeline` and its views (`pipeline:v-<view>:p-<person>[_<deal>]`)
  *   segments       `<list>`
  *   start          `<step>`, `find`

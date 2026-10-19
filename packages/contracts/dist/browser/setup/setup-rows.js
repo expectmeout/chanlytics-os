@@ -12,7 +12,8 @@ import {
 } from "../workspace/billing.js";
 import { capabilityStatus } from "./capabilities.js";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
-import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people-lists.js";
+import { NO_NUMBER_REACH } from "../people/people-lists.js";
+import { GET_YES_ROUTE } from "../people/lists/people-route.js";
 import { lensRoute } from "../reports/lenses.js";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 import {

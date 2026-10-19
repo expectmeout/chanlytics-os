@@ -94,7 +94,9 @@ export const ixOnPhone = (): boolean => !!(window.matchMedia && window.matchMedi
 
 // The bucket the member had (the Inbox's place, place.ts ixPlace) comes back with a refresh; a thread the
 // address names opens in it when it lists that thread, and in its own bucket when it does not.
-const ixOpeningBucket = (THREADS: Thread[], initialThreadId: string | null): string => {
+const ixOpeningBucket = (THREADS: Thread[], initialThreadId: string | null, toSendOpen = false): string => {
+  // To send's address (`inbox/to-send`) opens Needs you, where its part is (the Campaigns wiring review's lane 4).
+  if (toSendOpen) return "escalated";
   const t = initialThreadId ? THREADS.find((x) => x.id === initialThreadId) : undefined;
   const had = ixPlace().bucket;
   if (t) return typeof had === "string" && had && (had === "all" || ixBucketOf(t) === had) ? had : bucketOf(t);
@@ -253,7 +255,7 @@ export interface InboxState extends Omit<InboxAddress, "ownRouteRef"> {
  * The page's state, in the order the page always declared it, and the effects that keep it true: the address
  * followed, a re-read landing (ixFollowReads), the mockup's scripted concurrent change, and the sidebar's count.
  */
-export const useInboxState = (THREADS: Thread[], initialThreadId: string | null): InboxState => {
+export const useInboxState = (THREADS: Thread[], initialThreadId: string | null, toSendOpen = false): InboxState => {
   const [threads, setThreads] = useState<Thread[]>(() =>
     THREADS.map((t) => {
       // Overlay session decisions (made here or from Tasks) so state survives navigation
@@ -261,7 +263,11 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null)
       return d ? withDecision(t, d) : { ...t };
     }),
   );
-  const [activeBucket, setActiveBucket] = useState<string>(() => ixOpeningBucket(THREADS, initialThreadId));
+  const [activeBucket, setActiveBucket] = useState<string>(() => ixOpeningBucket(THREADS, initialThreadId, toSendOpen));
+  // A move to To send's address with the Inbox open (Today's row, a sequence's "One by one") is Needs you too.
+  useEffect(() => {
+    if (toSendOpen) setActiveBucket("escalated");
+  }, [toSendOpen]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(
     // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
     // needs you. A teammate's thread opened in its place (I2).

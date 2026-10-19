@@ -6,11 +6,12 @@
  *
  * The typed door onto the seam, where the shell's pages read `window.__PEOPLE`. A surface reads nothing off `window`.
  */
-import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { followState, surfaceValue } from "./surface-values";
 import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
 import { getSurfaceStatuses, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { partBegins, partReady } from "@/client/page-speed";
+import { refreshSurface } from "./legacy-verbs";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -82,4 +83,17 @@ export function usePartShown(page: string, part: string, ready: boolean, key?: s
   useLayoutEffect(() => {
     if (runKey !== null && ready) partReady(page, part, runKey);
   }, [page, part, runKey, ready]);
+}
+
+/**
+ * A screen drawn over a page that does not read what it is made of: each of these surfaces it draws that the page has not
+ * read is asked for as it is drawn (the runner's own read, which the cache and the status follow). The registry knows a
+ * page by its route's first two words (surface-registry.ts paneOf), so a screen deeper in an address (a run at its home, New's
+ * Send once) or over another page altogether (a thing open over the page, `?see=`) asks for its own. `keys` is a list of the
+ * module's, the same for the screen's life.
+ */
+export function useReadsHere(keys: readonly SurfaceKey[]): void {
+  useEffect(() => {
+    for (const key of keys) if (surfaceValue(key) === undefined) void refreshSurface(key);
+  }, [keys]);
 }

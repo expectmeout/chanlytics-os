@@ -1,4 +1,14 @@
-import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address.js";
+import {
+  SEQUENCES_ROUTE,
+  TO_SEND_PARAM,
+  TO_SEND_ROUTE,
+  newForLeadsRoute,
+  newSequenceRoute,
+  runRoute,
+  sendOnceRoute,
+  sequenceRoute
+} from "../sequences/sequence-address.js";
+import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route.js";
 export const MESSAGES_ROUTE = "campaigns/messages";
 export const isMessagesParam = (param) => !!param && /^messages(\/|$)/.test(param);
 export const ROUTE_WORDS = {
@@ -9,7 +19,6 @@ export const ROUTE_WORDS = {
   admin: "settings"
 };
 const headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
-const SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
 export function retiredRouteOf(route) {
   const at = route.indexOf("?");
   const path = at < 0 ? route : route.slice(0, at);
@@ -24,13 +33,25 @@ function retiredPathOf(path) {
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
     if (!param) return SEQUENCES_ROUTE;
-    return param.startsWith("run:") || SENT_OWN_WORDS.has(param) ? null : sendOnceRoute(param);
+    if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
+    if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
+    if (param === GET_YES_PARAM) return GET_YES_ROUTE;
+    return sendOnceRoute(param);
   }
   if (head !== "campaigns") return null;
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  if (param === "sequences") {
+    const [, , id, tab, day] = path.split("/");
+    return id && tab === "history" && day ? runRoute(day, id) : null;
+  }
   const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
   if (param === "new:every") return newSequenceRoute();
+  if (param === "new") return sendOnceRoute();
+  if (param.startsWith("new:to:")) return sendOnceRoute(param.slice("new:to:".length) || null);
+  if (param === "new:leads") return newForLeadsRoute();
+  const change = /^new:edit:(.+)$/.exec(param);
+  if (change?.[1]) return sequenceRoute(change[1]);
   const on = /^new:moment:([^:/]+)$/.exec(param);
   return on?.[1] ? newSequenceRoute(on[1]) : null;
 }

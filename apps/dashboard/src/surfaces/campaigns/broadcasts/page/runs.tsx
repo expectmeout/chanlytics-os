@@ -3,12 +3,11 @@
  * still to go out, the sheet of a run waiting on you, Send it again, and the run's own screen. Sent's list went to each
  * sequence's History (decision 0060, D3): a run is opened from there, or from a link, a bell row or Ask's card.
  */
-import type { BroadcastDto, BroadcastVM } from "@chanlytics/contracts";
+import { sendOnceRoute, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { keepTabDraft } from "../../../kit/record/work";
 import { gate, navigate } from "../../../legacy-verbs";
 import { surfaceValue } from "../../../surface-values";
-import { composeRoute } from "../../home/address";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
 import type { BcApproving, BcBase, BcKept, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
 import { cmOfferedBy } from "../../parts/channels";
@@ -95,7 +94,7 @@ export function bcSheetOf({
 /** What Send it again reads of the page. */
 type AgainIn = Pick<BcBase, "canSend" | "templates" | "audiences" | "link" | "review">;
 
-// Send it again: Campaigns' composer (`campaigns/new`), filled with what this run sent -- its template, its list and its
+// Send it again: New's Send once (sequence-address sendOnceRoute), filled with what this run sent -- its template, its list and its
 // values -- when all three can still go: kept as the tab keeps a send half-written, which the composer opens on
 // (state.tsx useBcList). A message with no version a broadcast can send or fill, a list since deleted, or a playbook's
 // run (whose playbook sends it again) offers no button rather than a composer quietly filled with something else.
@@ -127,7 +126,7 @@ export function bcAgainOf({ canSend, templates, audiences, link, review }: Again
         data-testid="bc-again"
         onClick={() => {
           keepTabDraft("broadcast", send);
-          navigate(composeRoute("once"));
+          navigate(sendOnceRoute());
         }}
         {...gate("approve", "send a broadcast")}
       >

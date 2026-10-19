@@ -1,7 +1,7 @@
 /**
  * Campaigns as the route draws it: its two views, Sequences (decision 0060) and Messages (D4: the Library is Messages, at
- * `campaigns/messages`), and the sheets Campaigns opens over them (sheets.tsx: the composer at `campaigns/new…`, a message at
- * `campaigns/message:<name>`). The home that stood here went in S6: its address and a campaign's (`campaigns`,
+ * `campaigns/messages`), the sheet Campaigns opens over them (sheets.tsx: a message at `campaigns/message:<name>`), and the
+ * toast every press under it says its word in (route-toast.ts). The home that stood here went in S6: its address and a campaign's (`campaigns`,
  * `campaigns/in:<group>`, `campaigns/moment:<id>[:people]`) land on Sequences, or on the campaign's sequence, by the one
  * table of retired addresses (contracts retiredRouteOf): every edge moves them before the page is asked, and one that
  * reaches it some other way (a history entry from before) is replaced here. `campaigns/ads…` is the Ads view, where it is
@@ -27,11 +27,12 @@ import {
 } from "@chanlytics/contracts";
 import { warmsOnItsOwn } from "@/legacy-bridge/workspace";
 import { viewDeck } from "../../kit/motion/view-deck";
-import { refreshSurface, replaceRoute } from "../../legacy-verbs";
+import { refreshSurface, replaceRoute, useLegacyToast } from "../../legacy-verbs";
 import type { CmView } from "../parts/split";
 import { surfaceValue } from "../../surface-values";
 import { useAdsShown } from "../ads/shown";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
+import { CampaignsToast } from "./route-toast";
 import { CampaignsSheets } from "./sheets";
 
 // The Ads view is a page of its own: its code is its own chunk, fetched only when an Ads address is opened where Ads is drawn.
@@ -105,8 +106,10 @@ function useViewsAhead(view: View): boolean {
 
 export function CampaignsRoute() {
   const route = routeOfPath(usePathname()) ?? "campaigns";
-  // The route's second word, as the shell reads its param (`campaigns/new:to:list-1` names new:to:list-1).
+  // The route's second word, as the shell reads its param (`campaigns/message:welcome` names message:welcome).
   const param = route.split("/")[1] || null;
+  // The mount's toast: a send made in New, which closes as it sends, says so here, with its Stop (route-toast.ts).
+  const [toastNode, flash] = useLegacyToast();
   const adsShown = useAdsShown();
   const landing = retiredRouteOf(route);
   const view: View = isMessagesParam(param) ? "messages" : "sequences";
@@ -130,7 +133,7 @@ export function CampaignsRoute() {
     );
   }
   return (
-    <>
+    <CampaignsToast value={flash}>
       {kept.drawn.has("sequences") ? (
         <Activity mode={view === "sequences" ? "visible" : "hidden"}>
           {/* The message's pane, which the message drawer holds, handed down to the step editor (parts/message-pane.ts). */}
@@ -146,7 +149,8 @@ export function CampaignsRoute() {
           {Messages ? <Messages view={kept.viewOf("messages")} /> : <ViewReading />}
         </Activity>
       ) : null}
-      <CampaignsSheets param={param} />
-    </>
+      <CampaignsSheets param={param} flash={flash} />
+      {toastNode}
+    </CampaignsToast>
   );
 }

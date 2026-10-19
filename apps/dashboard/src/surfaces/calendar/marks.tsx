@@ -8,12 +8,11 @@
  * campaign, and the day's own send. Approve and Skip stay on the run's sheet and Today's row (decision 0048): the Calendar
  * shows a run, it does not decide one.
  */
-import { CALENDAR_RUN_SHEET_WORDS as W, type CalendarRunMark } from "@chanlytics/contracts";
+import { CALENDAR_RUN_SHEET_WORDS as W, sendOnceRoute, type CalendarRunMark } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { Sheet } from "../kit/sheet/sheet";
 import { navigate } from "../legacy-verbs";
-import { composeRoute } from "../campaigns/home/address";
 
 /** A mark's look: still to come is hollow, a run waiting is the page's one amber, a failed one is danger, the rest quiet. */
 export function markLook(m: CalendarRunMark): string {
@@ -128,7 +127,7 @@ export function RunSheet({
           variant="quiet"
           size="sm"
           className="cal-run-send"
-          onClick={() => navigate(composeRoute("once"))}
+          onClick={() => navigate(sendOnceRoute())}
           data-testid="cal-run-schedule"
         >
           <Icon name="plus" size={12} /> {W.schedule}

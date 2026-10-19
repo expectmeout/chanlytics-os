@@ -155,10 +155,18 @@ const campaigns: Provider = (w, route) => {
       const at = `campaigns/${route.param ?? ""}`;
       const place = parseSequencesRoute(at);
       const open = place?.view === "record" ? listed.find((q) => q.id === place.id) : undefined;
+      // A run open at its home under its sequence (lane 2) is the focus, named as Sent's runs name it.
+      const run = place?.view === "record" && place.run ? place.run : null;
+      const runName = run ? (surfaceValue("broadcasts")?.rows ?? []).find((b) => b.id === run)?.name : undefined;
+      const focus: AskScope | null = run
+        ? { kind: "run", id: run, label: runName ?? "this run" }
+        : open
+          ? sequenceFocus(open, at)
+          : null;
       return {
         view: "sequences",
         rows: listed.slice(0, 40).map(sequenceRow),
-        ...(open ? { focus: sequenceFocus(open, at) } : {}),
+        ...(focus ? { focus } : {}),
       };
     }
     return {

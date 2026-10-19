@@ -16,6 +16,7 @@ import {
 import { plural } from "../shared/words.js";
 import { slotMentions } from "../templates/slot-sets.js";
 import { SEQUENCE_MODE_LABEL } from "./sequence.js";
+import { SCHEDULE_WORDS } from "./sequence-schedule.js";
 export const LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
   startAdd: "When you add a lead to ",
@@ -23,7 +24,8 @@ export const LEAD_BUILD_WORDS = {
   inIt: (n) => `${n} in it`,
   pace: (share, owner) => `up to ${share} a day, from ${owner ? "your inbox" : "your mailboxes"}`,
   noMailbox: "no mailbox to send from yet",
-  howItRuns: "How it runs",
+  /** The Start row's act, every sequence's (the one record): its sheet's own title. */
+  howItRuns: SCHEDULE_WORDS.settings.title,
   /** A step's box. */
   firstEmail: "First email",
   followUp: "Following up",

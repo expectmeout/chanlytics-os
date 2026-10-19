@@ -2,7 +2,7 @@ import { breathWaitWords } from "../../broadcasts/run-words.js";
 import { zoneMidnight, shiftKey } from "../../calendar/day-keys.js";
 import { purposeOfPlaybook } from "../../consent/consent.js";
 import { CONSENT_CHANNELS, countsByChannelWords } from "../../consent/consent-channels.js";
-import { GET_YES_ROUTE } from "../../people/people-lists.js";
+import { GET_YES_ROUTE } from "../../people/lists/people-route.js";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods.js";
 import { fmtDay } from "../../reports/reports.js";
 import { clockHour, clockNear, clockTime, zoneDayKey } from "../../shared/clock.js";

@@ -161,9 +161,10 @@ type Row = Pick<NotificationRow, "kind" | "about" | "title" | "at" | "to">;
 
 /**
  * The titles of a notice that a run waits for a word: core's `Campaign “X” is ready` (`Playbook “X” is ready` before decision
- * 19 of 9 Oct 2026, which the bell still keeps) and a reach-out's `A reach-out waits for you: X`.
+ * 19 of 9 Oct 2026, which the bell still keeps) and a sequence to leads' `X waits for your OK` (`A reach-out waits for you: X`
+ * before the Campaigns wiring review's lane 7, which the bell still keeps). Only a run's rows are judged by it.
  */
-const RUN_WAITS_TITLE = /^(?:(?:Campaign|Playbook) “.*” is ready\b|A reach-out waits for you:)/u;
+const RUN_WAITS_TITLE = /^(?:(?:Campaign|Playbook) “.*” is ready\b|A reach-out waits for you:|.+ waits for your OK$)/u;
 /** A run that goes unless it is stopped (contracts vetoRunNotice): it asks while it can still be stopped. */
 const RUN_GOES_TITLE = /^(?:Campaign|Playbook) “.*” sends /u;
 /** The check held some of a going reach-out run's emails for its owner's say (contracts heldNoticeWords). */

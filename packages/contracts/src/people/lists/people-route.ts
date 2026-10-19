@@ -5,6 +5,15 @@
  * No colon is in a token's id or a person's, so the separators stay apart.
  */
 
+/**
+ * Where a person's yes to offers is got (Ruben's call 6, the Campaigns wiring review's lane 7, 19 Oct 2026: it is about
+ * people, so it is People's): the QR for the desk, the phrase, the link for a bio, the paper form, in a sheet over People's
+ * list. It was a pane of Sent's beside Sequences (`broadcasts/get-yes`), which lands here (shell/address.ts). One route,
+ * one spelling: every "nobody has said yes to offers" door goes here.
+ */
+export const GET_YES_PARAM = "get-yes";
+export const GET_YES_ROUTE = `clients/${GET_YES_PARAM}`;
+
 /** A person's id as the address carries it: a uuid, or a fixture's short id; never anything with a separator in it. */
 const PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
 /** A view's token: its kind and its id. */

@@ -8,10 +8,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HOUR_MS,
   SEQUENCES_ROUTE,
-  TO_SEND_ROUTE,
   UNKNOWN_AUDIENCE_WORDS,
   doorNamesNoAudience,
-  runSheetRoute,
+  runRoute,
+  sequenceRoute,
 } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -194,66 +194,64 @@ export function useBcNow(data: BcData) {
 }
 
 /**
- * What is open beside Sequences' list, by the address, replaced as it opens and closes so a reload opens it again and the
- * crumbs name it: a run (its sheet, `broadcasts/run:<id>/sheet`), or the one To send (`broadcasts/to-send`, 00429: every
- * email handed to its owner). Back leaves the page rather than replaying every run read (the Inbox's rule). A run opened
- * from To send closes back to it, the list being worked down; anything else closes back to where it was opened from (the
- * Inbox, Today, a sequence's History: the frame's backFrom), and onto Sequences where nothing opened it (a link, a reload;
- * decision 0060, D3: Sent's list is each sequence's History). It closed onto Sequences from wherever it was opened.
+ * Where a run's screen stands when it is open over another page (`?see=run:<id>`, surfaces/see/see-sheet.tsx) rather than
+ * at its home: the next run it opens, or none to close it, is the sheet's to say.
  */
-export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
-  const [openId, setOpenId] = useState(initialRun);
-  const [toSendOpen, setToSendOpen] = useState(initialToSend);
-  const followed = useRef({ run: initialRun, toSend: initialToSend });
-  useEffect(() => {
-    const was = followed.current;
-    if (was.run === initialRun && was.toSend === initialToSend) return;
-    followed.current = { run: initialRun, toSend: initialToSend };
-    setOpenId(initialRun);
-    setToSendOpen(initialToSend);
-  }, [initialRun, initialToSend]);
-  // `keep`: To send stays under a run opened from it (its own door says so), to close back to; a run opened from the list,
-  // or Send it again, leaves it. A run closed goes back to To send where it was kept. The address each writes is followed
-  // already, so the address's own change moves nothing.
-  const openRun = (id: string | null, keep = id === null) => {
-    const under = keep && toSendOpen;
-    // Closed, and To send not under it: the page is left, back to where it was opened from, as it is drawn.
-    if (!id && !under) return backFrom(SEQUENCES_ROUTE, { replace: true });
-    setOpenId(id);
-    if (!under) setToSendOpen(false);
-    followed.current = { run: id, toSend: !id && under };
-    // A run's own address lands by what the run is (route.tsx): the sheet open here writes its sheet's, so a reload opens
-    // it here again.
-    replaceRoute(id ? runSheetRoute(id) : TO_SEND_ROUTE);
-  };
-  const close = () => backFrom(SEQUENCES_ROUTE, { replace: true });
-  return { openId, openRun, toSend: { open: toSendOpen, close } };
+export interface RunOver {
+  go: (id: string | null) => void;
 }
 
-// The yes: its pane, open where the address asks for it (`broadcasts/get-yes`, which every "nobody has said yes to offers"
-// door lands on), and the send screen's door to it. `goes` is where the door's press goes where the host of the screen moves
-// the page itself (Campaigns' composer: its sheet is an address, which the door replaces with the pane's); anywhere else it
-// goes there as every link does.
-export function useBcYes(
-  initialYes: boolean,
-  data: BcData,
-  setWriting: Setter<boolean>,
-  goes: (route: string) => void = navigate,
+/**
+ * The run open beside Sequences' list, by the address, replaced as it opens so a reload opens it again and the crumbs name
+ * it: its home under its sequence (runRoute: the Campaigns wiring review's lane 2). Back leaves the page rather than
+ * replaying every run read (the Inbox's rule). A run closed goes back to where it was opened from (Today, a sequence's
+ * History: the frame's backFrom), and onto its sequence's History where nothing opened it (a link, a reload), the days it
+ * is one of. To send was a pane here too, and is a part of the Inbox's Needs you now (lane 4), where a run opened from it
+ * opens over the Inbox, so Back returns to it. `rows` are Sent's runs, which name each run's sequence.
+ */
+export function useBcOpen(
+  initialRun: string | null,
+  rows: readonly { id: string; sequence_id: string }[] | null,
+  over?: RunOver,
 ) {
-  const [yesOpen, setYesOpen] = useState(!!initialYes);
-  // The page keeps its mount across its own addresses, so it follows them: a link to the yes opens it, any other puts it away.
+  const [openId, setOpenId] = useState(initialRun);
+  const followed = useRef(initialRun);
   useEffect(() => {
-    setYesOpen(!!initialYes);
-  }, [initialYes]);
+    if (followed.current === initialRun) return;
+    followed.current = initialRun;
+    setOpenId(initialRun);
+  }, [initialRun]);
+  // The sequence a run is a day of, where Sent's runs hold it: its home names it, and its History is where it closes to.
+  const sequenceOf = (id: string | null) => (id && rows ? (rows.find((r) => r.id === id)?.sequence_id ?? null) : null);
+  const openRun = (id: string | null) => {
+    // Open over another page (`?see=`, the Campaigns wiring review's lane 3): the sheet it stands in moves, or closes.
+    if (over) {
+      setOpenId(id);
+      followed.current = id;
+      return over.go(id);
+    }
+    // Closed: the page is left, back to where it was opened from, as it is drawn.
+    if (!id) {
+      const seq = sequenceOf(openId);
+      return backFrom(seq ? sequenceRoute(seq, "history") : SEQUENCES_ROUTE, { replace: true });
+    }
+    setOpenId(id);
+    followed.current = id;
+    // The run open here writes its home, so a reload opens it here again. The address each writes is followed already,
+    // so the address's own change moves nothing.
+    replaceRoute(runRoute(id, sequenceOf(id)));
+  };
+  return { openId, openRun };
+}
+
+// The send screen's door to the yes, which is People's (`clients/get-yes`, its sheet over People's list: the Campaigns wiring
+// review's lane 7), where every "nobody has said yes to offers" door lands. `goes` is where the door's press goes where the
+// host of the screen moves the page itself (New: its address is replaced by the sheet's); anywhere else it goes there as
+// every link does.
+export function useBcYes(data: BcData, setWriting: Setter<boolean>, goes: (route: string) => void = navigate) {
   const toYes = () => {
     setWriting(false);
-    setYesOpen(true);
     goes(data.getYes);
-  };
-  // Closed, as every pane beside Sequences' list closes: onto Sequences.
-  const closeYes = () => {
-    setYesOpen(false);
-    replaceRoute(SEQUENCES_ROUTE);
   };
   // That door, in the sentence that says nobody has the yes: drawn when the
   // ledger draws the card, which takes a number to put in the QR. The sentence
@@ -273,5 +271,5 @@ export function useBcYes(
         </LinkButton>
       </>
     ) : null;
-  return { yesOpen, setYesOpen, closeYes, yesDoor, yesLink };
+  return { yesDoor, yesLink };
 }

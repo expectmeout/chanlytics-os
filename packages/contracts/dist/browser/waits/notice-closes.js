@@ -71,7 +71,7 @@ export const NOTICE_ENDS = {
 export function kindsEndedBy(source) {
   return Object.keys(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
 }
-const RUN_WAITS_TITLE = /^(?:(?:Campaign|Playbook) “.*” is ready\b|A reach-out waits for you:)/u;
+const RUN_WAITS_TITLE = /^(?:(?:Campaign|Playbook) “.*” is ready\b|A reach-out waits for you:|.+ waits for your OK$)/u;
 const RUN_GOES_TITLE = /^(?:Campaign|Playbook) “.*” sends /u;
 const RUN_HELD_TITLE = /^The check held \d+ emails? in /u;
 const isGoing = (state) => RUN_GOING_STATES.includes(state);

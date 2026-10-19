@@ -457,7 +457,7 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
   const vm = toBroadcastVM(b, tz, now);
   return {
     broadcast_id: b.id,
-    route: runRoute(b.id),
+    route: runRoute(b.id, b.sequence_id),
     name: b.name,
     // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
     by: b.playbook_id ? "a campaign" : "a person",

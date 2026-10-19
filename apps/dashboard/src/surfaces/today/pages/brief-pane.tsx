@@ -31,7 +31,7 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, askAbout, askSpeech, useMoved, workspaceClock } from "../shell";
 import { recapBeats } from "./card";
 import { useDayVm } from "./day";
-import { runsPending } from "./queue-runs";
+import { runsPending } from "../../waits/run-acts";
 
 /** The brief's sentences as drawn: a name in bold where the canvas sets it, a space between sentences. */
 function briefLine(words: TodayBriefWords) {

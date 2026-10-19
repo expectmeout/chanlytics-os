@@ -11,7 +11,8 @@ import { dayPlusInZone } from "../calendar/zone-math";
 import { fullNameKey } from "../calendar/visit/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
-import { GET_YES_ROUTE, NO_CHANNEL_REACH, saidYesWords } from "../people/people-lists";
+import { NO_CHANNEL_REACH, saidYesWords } from "../people/people-lists";
+import { GET_YES_ROUTE } from "../people/lists/people-route";
 import type { PersonRowVM } from "../people/person-row";
 
 import { followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";

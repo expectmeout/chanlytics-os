@@ -9,24 +9,18 @@
  *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer: lands on its sequence
  *   campaigns/moment:<id>:people     a reach-out open at who is in it (00426): lands on its sequence's People
  *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
- *   campaigns/new                    the composer, on Send once
- *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
- *   campaigns/new:leads              the composer, on Write to leads: where a reach-out starts (00426)
- *   campaigns/new:edit:<root>        a reach-out's change, in its own sheet (a sequence to leads' step's Edit); an id that is
- *                                    no reach-out's, once they are read, is a moment's sequence, and lands on its record
  *
- * The composer's Every time (`new:every`, `new:moment:<trigger>`) went (the closed-loop audit of 17 Oct 2026, G): those
- * addresses land on New sequence, on that moment (contracts retiredRouteOf).
+ * The composer (`campaigns/new`, `new:to:<audience>`, `new:leads`) went into the one New (the Campaigns wiring review's
+ * lane 6), and a reach-out's change (`new:edit:<root>`) is its sequence's record; its Every time (`new:every`,
+ * `new:moment:<trigger>`) went before (the closed-loop audit of 17 Oct 2026, G). Each lands on New, for whom or on the
+ * moment it named, or on the record (contracts retiredRouteOf).
  *
- * A message's drawer and the composer are the address's, as the Inbox's thread is: opened by the page, pushed so Back closes
- * it; arrived at by a link, replaced with Sequences when closed. A composer opened over a drawer is pushed over it, so Back,
- * and Cancel, return to the drawer it came from. A word the page does not know is the home, so it lands on Sequences (a link
+ * A message's drawer is the address's, as the Inbox's thread is: opened by the page, pushed so Back closes it; arrived at by
+ * a link, replaced with Sequences when closed. A word the page does not know is the home, so it lands on Sequences (a link
  * must never land on nothing).
  */
 
-import { sendOnceRoute } from "@chanlytics/contracts";
-
-/** What the address asks of the page: the group its ledger shows, a moment open, and the composer. */
+/** What the address asks of the page: the group its ledger shows, a moment open, and a message's drawer. */
 export interface HomeAddress {
   /** The group the ledger shows alone, or null for every group. */
   group: string | null;
@@ -36,32 +30,12 @@ export interface HomeAddress {
   part?: "people";
   /** A message open in a drawer of its own, by its name: read and changed there, over the home (Ruben, 11 Oct 2026). */
   message: string | null;
-  /** The composer: Send once (on the audience asked for, or the one it opens on), Write to leads, or a reach-out's change. */
-  compose: null | { mode: "once"; to: string | null } | { mode: "leads" } | { mode: "change"; root: string };
 }
 
-/** Campaigns' own route, which every address here is spelled under. */
-const HOME_ROUTE = "campaigns";
-
-const NONE: HomeAddress = { group: null, moment: null, message: null, compose: null };
+const NONE: HomeAddress = { group: null, moment: null, message: null };
 
 /** A group's id as an address writes it: word-free, lower case, words joined by underscores (`before`, `reach_out`). */
 const GROUP_ID = /^[a-z]+(?:_[a-z]+)*$/;
-
-/** The composer an address names, or undefined where it names none. */
-function composeOf(param: string): HomeAddress["compose"] | undefined {
-  if (param === "new") return { mode: "once", to: null };
-  if (param.startsWith("new:to:")) {
-    const to = param.slice("new:to:".length);
-    return { mode: "once", to: to || null };
-  }
-  if (param === "new:leads") return { mode: "leads" };
-  if (param.startsWith("new:edit:")) {
-    const root = param.slice("new:edit:".length);
-    return root ? { mode: "change", root } : undefined;
-  }
-  return undefined;
-}
 
 /** What an address's param says (`campaigns/<param>`, the part after the slash, or null for the home). */
 export function parseHome(param: string | null): HomeAddress {
@@ -79,17 +53,5 @@ export function parseHome(param: string | null): HomeAddress {
     const name = param.slice("message:".length);
     return name ? { ...NONE, message: name } : NONE;
   }
-  const compose = composeOf(param);
-  return compose ? { ...NONE, compose } : NONE;
+  return NONE;
 }
-
-/** The route a composer is spelled as: the shell's, `campaigns/new…`. */
-function composerRoute(c: NonNullable<HomeAddress["compose"]>): string {
-  if (c.mode === "once") return sendOnceRoute(c.to);
-  if (c.mode === "change") return `${HOME_ROUTE}/new:edit:${c.root}`;
-  return `${HOME_ROUTE}/new:leads`;
-}
-
-/** The composer on a mode: Send once (on an audience a send is for), or Write to leads. */
-export const composeRoute = (mode: "once" | "leads", on: { to?: string | null } = {}): string =>
-  composerRoute(mode === "once" ? { mode, to: on.to ?? null } : { mode });

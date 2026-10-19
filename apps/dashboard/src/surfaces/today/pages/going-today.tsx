@@ -21,8 +21,8 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { Confirm } from "../../kit/confirm/confirm";
 import { cancelSend } from "../../inbox/verbs";
 import { surfaceValue } from "../../surface-values";
-import { appNavigate, broadcastVerbs, canDo, gate, refreshPlaybooks, refusalFlash, useMoved, useToast } from "../shell";
-import { broadcastsRead, useRunsActing } from "./queue-runs";
+import { appNavigate, canDo, gate, refusalFlash, useMoved, useToast } from "../shell";
+import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 
 /** Rows the band draws; the rest are counted in its head. */
 const GOING_MAX = 4;

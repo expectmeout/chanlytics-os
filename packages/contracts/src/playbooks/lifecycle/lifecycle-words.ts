@@ -88,13 +88,6 @@ export const LIFECYCLE_WORDS = {
     body: "Every message you keep is in Messages.",
   },
   compose: {
-    title: CAMPAIGN_ROOMS.newMessage,
-    kind: "What kind of message",
-    once: "Send once",
-    /** Beside "Send once" (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
-    leads: "Write to leads",
-    /** A reach-out's change (`campaigns/new:edit:<root>`): its sheet's kicker while its chain is read. */
-    edit: "Edit",
     /**
      * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
      * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
@@ -184,8 +177,6 @@ export const LIFECYCLE_WORDS = {
       body: "Nothing goes out until it reads. Everything else here is current.",
       surface: "broadcasts",
     },
-    // A reach-out's change opens on its chain, which the reach-outs read holds: said where it could not be, with its Retry.
-    chainFailed: { what: "your reach-out", body: "Its sheet opens once it reads.", surface: "reach_outs" },
   },
   phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.

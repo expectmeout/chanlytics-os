@@ -22,6 +22,7 @@ import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { useNeedsYouParts } from "../../needs-you";
+import type { Flash } from "../../shell-doors";
 import { InboxRunsWaiting } from "./inbox-runs";
 import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
@@ -66,6 +67,10 @@ interface InboxListProps {
   sendingIn?: (id: string) => number | null;
   /** A sequence's replies the address names (inbox-from.tsx): their line above the rows, which says what is not here. */
   fromLine?: ReactNode;
+  /** Needs you's To send open under its row (`inbox/to-send`, inbox-runs.tsx). */
+  toSendOpen?: boolean;
+  /** The page's toast: what an Approve on a run's row says, with its Stop (inbox-runs.tsx). */
+  flash?: (flash: Flash) => void;
 }
 
 /** The props with what the caller left out filled in: what the destructuring's defaults did in the JSX. */
@@ -92,6 +97,8 @@ function listProps({
   density = "medium",
   sendingIn = () => null,
   fromLine = null,
+  toSendOpen = false,
+  flash = () => undefined,
 }: InboxListProps) {
   return {
     threads,
@@ -116,6 +123,8 @@ function listProps({
     density,
     sendingIn,
     fromLine,
+    toSendOpen,
+    flash,
   };
 }
 
@@ -258,7 +267,7 @@ export function InboxList(props: InboxListProps) {
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
         {L.fromLine}
-        {!L.fromLine && runRows && <InboxRunsWaiting />}
+        {!L.fromLine && runRows && <InboxRunsWaiting toSendOpen={L.toSendOpen} flash={L.flash} />}
         {!L.fromLine && unreadEscalated()}
         {visible.length === 0 && !L.fromLine && !(runRows && runsWaiting > 0) && emptyThreads(L)}
         {visible.length > 0 && (

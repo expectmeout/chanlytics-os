@@ -14,7 +14,7 @@ import {
   SEQUENCE_NEEDS_WORDS as N,
   TO_SEND_ROUTE,
   peopleNeedsOf,
-  runSheetRoute,
+  runRoute,
   type ReachOutDecision,
   type SequenceHeldVM,
   type SequencePersonDto,
@@ -168,7 +168,7 @@ export function SequenceNeeds({ rows, count, timezone, flash, onDecided }: Needs
             />
           </div>
           {vm.unread.map((id) => (
-            <LinkButton key={id} {...routeDoor(runSheetRoute(id))} data-testid={`sq-needs-in-sent-${id}`}>
+            <LinkButton key={id} {...routeDoor(runRoute(id))} data-testid={`sq-needs-in-sent-${id}`}>
               {N.inSent} <Icon name="chevron" size={11} />
             </LinkButton>
           ))}

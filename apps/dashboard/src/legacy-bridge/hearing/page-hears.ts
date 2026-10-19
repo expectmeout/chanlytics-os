@@ -55,19 +55,6 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns is Sequences' list (decision 0060), where its addresses land: it hears what Sequences hears, its own list and
   // the settings read, and none of the surfaces of the sheets it opens over the list, which hear at their own addresses.
   campaigns: { sequences: true, settings: true },
-  // The composer Campaigns opens over Sequences' list (`campaigns/new…`): the settings read's templates, the reach-outs'
-  // chains a change to one opens on, Sent's runs and who each audience reaches, drawn in Send once: the pause on offers, its
-  // Send by ticks and the month (the runs' read), and who can hear you (the audiences'). It hears here what moves those (a
-  // person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a list To offers, a
-  // run that went to some of them this week), and leaves to Sent's sheets what moves a run's replies (a message, a thread, a
-  // hold), so a message here never re-reads every page of People behind the audiences (W-review-facts-rules-2).
-  "campaigns/new": {
-    sequences: true,
-    reach_outs: true,
-    settings: true,
-    broadcasts: ["facts", "channel", "billing"],
-    audiences: ["person", "facts", "rules", "channel", "billing", "visit", "list", "send"],
-  },
   // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the settings read's templates it is drawn
   // from, and the playbooks surface whose library names the call's text (W-campaign-run-template-reachout-2).
   "campaigns/message": { sequences: true, playbooks: true, settings: true },
@@ -84,6 +71,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // beside the sheet, never waited for: the sheet is drawn from Sent's runs.
   broadcasts: { broadcasts: true, sequences: true, settings: ["review"], audiences: true },
   clients: { people: true },
+  // Get their yes over People's list (lane 7): People's own, and what moves its code -- the number (a channel) and whether
+  // the workspace takes sign-ups (the plan).
+  "clients/get-yes": { people: true, broadcasts: ["channel", "billing"] },
   segments: { people: true },
   // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
   // hold, their rules and business, read for the one person on screen. People's rows are drawn beside it (their name in the

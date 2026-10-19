@@ -4,17 +4,20 @@
  * the record taking the screen over on a phone. It is Campaigns (the plan's S6: the home, Sent's list and the Library
  * went, their addresses landing here and on Messages). Its list is the `sequences` surface; a record reads
  * its own (verbs.ts), each following the list. The address says what is open (contracts parseSequencesRoute), so Back
- * walks the list, a record and its tabs. The list's pane is drawn by Sent's sheets too, a run's, To send and Get their
- * yes standing beside it at their own addresses (broadcasts/broadcasts-page.tsx). Its head is Campaigns' own, as Messages'
- * is: the name, the strip of views, and New beside it (a phone's round + by the strip), the list keeping its search alone.
+ * walks the list, a record, its tabs and a run of it: a run's one screen stands where the record does, at its home under
+ * its sequence (run-pane.tsx, the Campaigns wiring review's lane 2). The list's pane is drawn by Sent's sheet too, Get
+ * their yes standing beside it at its own address (broadcasts/broadcasts-page.tsx). Its head is Campaigns' own, as
+ * Messages' is: the name, the strip of views, and New beside it (a phone's round + by the strip), the one New that asks
+ * who and when (new.tsx, lane 6), the list keeping its search alone.
  * Opened from a lead (the lead sheet's hand-off), the head's way back names the lead and returns to it, across a record's
  * tabs; a new sequence to leads is a draft made by name where its leads are chosen, written on its record.
  */
 import {
   CAMPAIGN_ROOMS,
   LIFECYCLE_WORDS,
-  SEQUENCES_ROUTE,
+  SEQUENCE_NEW_WORDS,
   SEQUENCE_WORDS,
+  newSequenceRoute,
   parseSequencesRoute,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -27,11 +30,12 @@ import { CmSplit, type CmView } from "../parts/split";
 import { SequencesList } from "./list";
 import { NewSequence } from "./new";
 import { SequenceRecord } from "./record";
+import { SequenceRun } from "./run-pane";
 import { recordBackOf, tripNow } from "./trip";
 import "./sequences.css";
 
 /** The list's pane: reading, failed, empty, or the sequences, `openId` the one open beside it. */
-export function SequencesListPane({ openId = null }: { openId?: string | null }) {
+function SequencesListPane({ openId = null }: { openId?: string | null }) {
   const page = useSurface("sequences");
   if (page === null)
     return <FailedRead what="the sequences" title={SEQUENCE_WORDS.failed} surface="sequences" testid="sq-failed" />;
@@ -49,8 +53,8 @@ export function SequencesListPane({ openId = null }: { openId?: string | null })
       title={SEQUENCE_WORDS.title}
       body={SEQUENCE_WORDS.empty}
       action={{
-        label: SEQUENCE_WORDS.newSequence,
-        to: `${SEQUENCES_ROUTE}/new`,
+        label: SEQUENCE_NEW_WORDS.title,
+        to: newSequenceRoute(),
         testid: "sq-empty-new",
         gate: gate("approve"),
       }}
@@ -61,13 +65,10 @@ export function SequencesListPane({ openId = null }: { openId?: string | null })
   );
 }
 
-/** New sequence, the head's act: its words on a desk, its mark alone on a phone (campaigns.css cm-act-noun). */
+/** New, the head's act (the one New: who and when), its mark and its word. */
 const newAct = () => (
-  <Button {...routeDoor(`${SEQUENCES_ROUTE}/new`)} data-testid="sq-new-open" {...gate("approve")}>
-    <Icon name="plus" size={12} />{" "}
-    <span>
-      New<span className="cm-act-noun"> sequence</span>
-    </span>
+  <Button {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
+    <Icon name="plus" size={12} /> <span>{SEQUENCE_NEW_WORDS.title}</span>
   </Button>
 );
 
@@ -92,11 +93,18 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
   // beside the strip until one is being made.
   useStanding({ title: CAMPAIGN_ROOMS.home, back: backWayOf(back), act: place.view === "new" ? null : newAct() });
   const open =
-    place.view === "record" ? (
-      <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />
+    place.view === "record" && place.run ? (
+      <SequenceRun sequenceId={place.id} runId={place.run} />
+    ) : place.view === "record" ? (
+      <SequenceRecord id={place.id} tab={place.tab} />
     ) : place.view === "new" ? (
       // A door's moment opens its own New, so the line it wrote in is never another moment's.
-      <NewSequence key={place.moment ?? "new"} moment={place.moment ?? null} />
+      <NewSequence
+        key={place.moment ?? "new"}
+        moment={place.moment ?? null}
+        who={place.who ?? null}
+        to={place.to ?? null}
+      />
     ) : null;
   return (
     <CmSplit

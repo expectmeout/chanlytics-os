@@ -19,7 +19,7 @@ const readDetail = (id: string) => () =>
     return r;
   });
 
-/** Who hears each run's answers as they land: the landing of a link to the run (broadcasts/route.tsx). */
+/** Who hears each run's answers as they land: a run's home, which learns its sequence from it (sequences/run-pane.tsx). */
 const runHearers = new Map<string, Set<(answer: DetailAnswer) => void>>();
 
 /**

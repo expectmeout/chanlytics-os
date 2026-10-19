@@ -67,8 +67,9 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const people = reach
     ? `${r.recipient_count} ${one ? "business" : "businesses"}`
     : `${r.recipient_count} ${one ? "person" : "people"}`;
-  // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
-  const kind = reach ? "Reach-out" : "Campaign";
+  // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026); a sequence to leads sends cold emails, never
+  // "a reach-out" (the Campaigns wiring review's lane 7).
+  const kind = reach ? "Cold email" : "Campaign";
   const sent = `${r.counts.sent} sent`;
   const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;

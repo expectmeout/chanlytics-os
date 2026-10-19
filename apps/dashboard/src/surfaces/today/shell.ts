@@ -14,9 +14,6 @@ import type { SpeechPurpose } from "@chanlytics/contracts";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
-import { bcWhenWords as whenWords } from "../campaigns/broadcasts/when-words";
-
-export { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-words";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
 import { askAbout, canDo, holdStill } from "../legacy-verbs";
 import { fn, object, type Flash } from "../shell-doors";
@@ -114,11 +111,6 @@ export function personNotes() {
   return notes && typeof notes.done === "function" ? notes : null;
 }
 
-/** The playbooks surface read again after a run's verb (`window.__refreshPlaybooks`): nothing in a stand-in window. */
-export function refreshPlaybooks(): void {
-  fn<[], void>("__refreshPlaybooks")?.();
-}
-
 /* ---------------------------- what Today borrows ---------------------------- */
 
 /** The workspace's clock as the pages read it (`window.__clock`): the zone, and a day or a time said in it. */
@@ -144,25 +136,5 @@ export function pinnedLists(): Array<{ token: string; label: string; count: numb
   return lists && lists.pinned ? lists.pinned() : null;
 }
 
-/** The broadcasts surface's verbs (`window.__broadcasts`): stop a run, approve one. */
-export function broadcastVerbs(): BroadcastVerbs | undefined {
-  return object<BroadcastVerbs>("__broadcasts");
-}
-
-/** What a run's verbs answer: `ok`, the server's data, or a refusal to say in the shell's words. */
-export interface VerbAnswer {
-  ok: boolean;
-  data?: { recipient_count?: number } & Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-/** The broadcasts surface's verbs, as far as Today draws them. */
-interface BroadcastVerbs {
-  cancel(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
-  approve(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
-}
-
-/** When a run really goes, in words (campaigns/broadcasts/when-words.ts): the server moves a send outside 9:00-20:59 to nine. */
-export function bcWhenWords(data: unknown): string {
-  return whenWords(data && typeof data === "object" ? data : null);
-}
+/* A run's verbs (`window.__broadcasts`) and the playbooks' re-read are the runs' rows' (surfaces/waits/run-acts.tsx), which
+   Today's queue and Going today draw through, as the Inbox's Needs you does. */

@@ -68,13 +68,19 @@ export function notTakingSignUps(name: string, so?: string): string {
 }
 
 /** The Broadcasts card's words while the workspace is paused: why there is no code or link to hand out. */
+/** Get their yes, People's sheet (`clients/get-yes`): its name, and the line under it. */
+export const GET_YES_WORDS = {
+  title: "Get their yes",
+  note: "only people who said yes get an offer",
+} as const;
+
 export const GET_YES_PAUSED_WORDS = {
   note: "not taking sign-ups while the workspace is paused",
   body: `${WORKSPACE_PAUSED_FACT}. Meanwhile your sign-up page, desk sign and paper form tell customers you are not taking sign-ups, and there is no code or link to hand out. Resume it from Settings › Billing.`,
 } as const;
 
 /**
- * Get their yes with no WhatsApp number to put in its code (`broadcasts/get-yes`): no code, desk sign or link to hand
+ * Get their yes with no WhatsApp number to put in its code (`clients/get-yes`): no code, desk sign or link to hand
  * out, where the number comes from, and the yes a person can record meanwhile.
  */
 export const GET_YES_NO_NUMBER_WORDS = {

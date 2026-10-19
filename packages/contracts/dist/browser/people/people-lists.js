@@ -1,9 +1,9 @@
 import { MONTH_MS } from "./person-helpers.js";
 import { WEEK_MS } from "../shared/time.js";
 import { sendOnceRoute } from "../sequences/sequence-address.js";
-export const GET_YES_ROUTE = "broadcasts/get-yes";
-const USE_IN_A_BROADCAST = "Use in a broadcast";
-const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
+import { GET_YES_ROUTE } from "./lists/people-route.js";
+const USE_IN_A_BROADCAST = "Send them a message";
+const OFFERS_STEP = { cta: "Message everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
 const LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: {

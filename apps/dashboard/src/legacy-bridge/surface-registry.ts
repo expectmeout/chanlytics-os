@@ -68,7 +68,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  campaigns: "real", // Campaigns: Sequences (decision 0060) and the sheets it opens over it, the composer and a message, over the playbooks', broadcasts', library's and reach-outs' surfaces
+  campaigns: "real", // Campaigns: Sequences (decision 0060) and the sheet it opens over it, a message, over the playbooks', broadcasts', library's and reach-outs' surfaces
   outbound: "real", // the old Playbooks list, retired: it lands on Sequences, and a playbook on its sequence (contracts retiredRouteOf)
   // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
   "campaigns/sequences": "real",
@@ -226,6 +226,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
   [PERSON_ROUTE]: ["people", "person"],
+  // Get their yes, a sheet over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): the number and the
+  // opt-in its code carries are Sent's read (campaigns/broadcasts/surface.ts), beside People's own.
+  "clients/get-yes": ["people", "broadcasts"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
@@ -239,12 +242,6 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
   // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
   campaigns: ["settings"],
-  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): Send once, made of Sent's runs (the
-  // broadcasts) and who each audience reaches (the audiences, counted over everyone in People); its messages of the templates,
-  // which are the settings read's, the one read of them (surfaces/offered-templates.ts); the number they go out on, the
-  // channels read; and the reach-outs' chains a change to one opens on (`new:edit:<root>`). Write to leads reads its searches
-  // itself, as it is chosen.
-  "campaigns/new": ["broadcasts", "audiences", "reach_outs", "settings", "channels"],
   // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
   // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
   "campaigns/message": ["playbooks", "settings", "channels"],
@@ -314,8 +311,10 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     const at = reportsParamParts(param);
     if (at) return at.lens === "overview" ? null : at.lens;
   }
-  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), the composer
-  // (`campaigns/new:leads`), a message (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), a message
+  // (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  // Sequences' own addresses (a record, a run at its home, New) are its view's, `sequences`, as the shell parses a route: their
+  // screens ask for what they are made of beyond its list as they are drawn (use-surface.ts useReadsHere).
   if (page === "campaigns" && param) return param.split(/[/:]/)[0] || param;
   // A Settings pane's: the first word is what is fed.
   return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;

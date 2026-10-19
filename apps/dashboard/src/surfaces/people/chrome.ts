@@ -5,6 +5,8 @@
  */
 import {
   addressOf,
+  GET_YES_PARAM,
+  GET_YES_WORDS,
   PERSON_ABOUT_WORDS,
   PERSON_STATE_LABELS,
   isIdentifierName,
@@ -27,10 +29,13 @@ const PEOPLE_CRUMB = { label: "People", to: "clients" };
 
 /**
  * A person's address, `clients/<id>`: any param that is not a scope (Leads, the Pipeline) or a view of People (the New
- * list door, a smart list, a list kept by hand, a state), as the frame's rows told them apart, in that order.
+ * list door, Get their yes, a smart list, a list kept by hand, a state), as the frame's rows told them apart, in that order.
  */
 export const isPersonParam = (param: string): boolean =>
-  !/^(leads|pipeline)(:|$)/.test(param) && param !== "new-list" && !/^(seg|list|state):/.test(param);
+  !/^(leads|pipeline)(:|$)/.test(param) &&
+  param !== "new-list" &&
+  param !== GET_YES_PARAM &&
+  !/^(seg|list|state):/.test(param);
 
 /**
  * Which params of `clients` the page draws: a person, the New list door, a view of People (a smart list, a list kept by
@@ -40,6 +45,7 @@ export const isPersonParam = (param: string): boolean =>
 export const peopleTakes = (param: string): boolean =>
   isPersonParam(param) ||
   param === "new-list" ||
+  param === GET_YES_PARAM ||
   /^(seg|list|state):/.test(param) ||
   /^(pipeline|leads)(:|$)/.test(param);
 
@@ -154,6 +160,8 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
       ask: personAsk(id),
     };
   }
+  if (param === GET_YES_PARAM)
+    return { crumbs: [PEOPLE_CRUMB, GET_YES_WORDS.title], mount: "clients", views: scopeViews("people") };
   if (param === "new-list")
     return { crumbs: [PEOPLE_CRUMB, "New list"], mount: "clients", views: scopeViews("people") };
   if (/^pipeline(:|$)/.test(param)) {

@@ -9,7 +9,7 @@ import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
 import type { LifecycleGroup } from "../playbooks/lifecycle/lifecycle-types";
 import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
 import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists";
-import { GET_YES_ROUTE } from "../people/people-lists";
+import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 import { retiredRouteOf } from "../shell/address";
 
@@ -119,7 +119,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
 /**
  * Whether a route is a page Ask may name: one of the listed pages (ASK_PAGE_ROUTES), or an address its page takes by a
  * parse of its own -- the Calendar's day, Reports' lens and the days after it, People's Leads views that name no search
- * and no lead and its built-in lists, the Sent room's Get their yes and the calls tab of Conversations. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
+ * and no lead and its built-in lists, People's Get their yes and the calls tab of Conversations. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
  * the id. A route that only BEGINS with a page's word
  * is no page (`admin/opening`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
  * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
@@ -142,10 +142,8 @@ function isPageRoute(route: string): boolean {
       const parts = reportsRouteParts(route);
       return parts !== null && parts.review === null;
     }
-    case "broadcasts":
-      return route === GET_YES_ROUTE;
     case "clients":
-      return isPeopleView(route, param);
+      return route === GET_YES_ROUTE || isPeopleView(route, param);
     default:
       return false;
   }

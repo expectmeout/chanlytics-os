@@ -100,7 +100,8 @@ export interface SequenceDraftDto {
 
 /** The New pane's words, said once. */
 export const SEQUENCE_NEW_WORDS = {
-  title: "New sequence",
+  /** The one New (the Campaigns wiring review's rule F): every sequence, a message sent once among them, starts here. */
+  title: "New",
   ask: "What should it do?",
   example:
     "After someone comes in, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back",
@@ -114,17 +115,17 @@ export const SEQUENCE_NEW_WORDS = {
   discard: "Discard",
   startsWhen: "It starts with the next run of its moment",
   first: "The first batch waits for your OK, as every batch of its kind does",
-  starts: "What starts it",
-  startsOn: { moment: "A moment", list: "A list", date: "A date", leads: "Leads" },
+  /** Who it is for and when it goes: the one question New asks first. */
+  starts: "Who and when",
+  startsOn: { moment: "A moment", list: "A list", date: "Once", leads: "Leads" },
   startsHint: {
     moment: "Before they come in, after they leave, or when they go quiet: Ask drafts the steps from your line",
     list: "Everyone on a list, and whoever joins it later",
-    date: "One message to the people you pick, on a day you pick",
+    date: "One message to the people you pick, now or on a day you pick",
     leads: "Emails to businesses a search found, written for each one",
   },
   whichList: "Which list",
   noLists: "No list to start on yet. Make one in People.",
-  openComposer: { date: "Write it", leads: "Pick the leads" },
   failed: "Ask couldn’t draft it just now. Try again in a moment.",
   /** A door's moment that a sequence already starts on: by its name, with the door to it. */
   already: (name: string): string => `“${name}” already starts on this moment`,

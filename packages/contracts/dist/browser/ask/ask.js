@@ -3,6 +3,7 @@ import { parseLeadsRoute } from "../leads/lead-plan.js";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views.js";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm.js";
 import { personRouteOf } from "../person-page/route.js";
+import { parseSequencesRoute } from "../sequences/sequence-address.js";
 export const ASK_MAX_CHARS = 1e3;
 const ASK_COLUMN_PX = { min: 240, max: 1600 };
 export function askColumnOf(raw) {
@@ -105,6 +106,9 @@ function campaignsScope(page, param, label, chains) {
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
     return { kind: "ad", id: param.slice(7), label: label || "this ad" };
+  const place = page === "campaigns" ? parseSequencesRoute(`campaigns/${param}`) : null;
+  if (place?.view === "record" && place.run && UUID.test(place.run))
+    return { kind: "run", id: place.run, label: label || "this run" };
   return null;
 }
 export const ASK_SURFACES = [

@@ -28,6 +28,7 @@ import {
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
+import { inPlace } from "./see-over";
 
 const LAST_KEY = "chanlytics.workspace";
 
@@ -183,6 +184,11 @@ export interface GoOptions {
    * `hashchange` either.
    */
   quiet?: boolean;
+  /**
+   * The thing's home itself, never the thing over the page (see-over.ts inPlace): a run's sheet over the Inbox has a door to
+   * its home under its sequence, which goes there.
+   */
+  home?: boolean;
 }
 
 /** The App Router's own navigation, which the frame registers (LegacyHost) for the routes that have a page of their own. */
@@ -229,6 +235,10 @@ export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindo
   // `campaigns/moment:pb-1`), in one move. The tables a move is judged by (a page of its own, the page on screen) are
   // keyed by the shell's names, so a product word left the address moved and the page as it was (S5-4, S8-1).
   const route = canonicalRoute(asked);
+  // A press on a mention of a run or a message opens it over the page it was pressed on (the Campaigns wiring review's
+  // rule C): the bell's row, a door, a page's own press. A page saying where it stands (`replace`) is no press, and the
+  // thing's own door to its home (`home`) goes there.
+  if (!opts.replace && !opts.home && inPlace(route)) return;
   // A move is timed from its ask, and a page with a page of its own is drawn only once the router has fetched it.
   routeAsked?.(route);
   const to = hrefOfRoute(route, win);

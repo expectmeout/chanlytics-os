@@ -72,7 +72,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}
         </span>
-        <button className="brief-chip brief-door" onClick={() => nav(runRoute(r.id))}>
+        <button className="brief-chip brief-door" onClick={() => nav(runRoute(r.id, r.sequence_id))}>
           Open <Icon name={doorGlyph()} size={10} />
         </button>
       </div>
