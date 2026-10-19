@@ -288,3 +288,29 @@ test("a list's row keeps its hover fill under a finger: the row last opened is t
       `.${row}'s hover fill stands under @media (hover: hover), so a phone's tapped row is not lit`,
     );
 });
+
+/*
+ * A press keeps a variant's own colour. The plain button's press is the grey (`.btn:active`); under a finger, where no
+ * hover is drawn, a variant with no press of its own fell to it, and a pressed Save stood grey under its near-black words
+ * (Ruben, 19 Oct 2026: "this ugly color"). Each filled or tinted variant presses in the colour its hover lights, outside
+ * any pointer's media query.
+ */
+test("each button variant presses in its own colour under a finger, never the plain button's grey", () => {
+  const sheet = "apps/dashboard/src/surfaces/kit/kit.css";
+  const pressed = new Set();
+  eachRule(sheet, (r, guarded) => {
+    if (guarded) return;
+    const ds = r.value.declarations.declarations ?? [];
+    if (!ds.some((d) => /^background/.test(propertyOf(d)))) return;
+    for (const x of r.value.selectors) {
+      const parts = compoundsOf(x).at(-1);
+      const kinds = JSON.stringify(parts);
+      if (!/"kind":"active"/.test(kinds) || /"kind":"hover"/.test(kinds)) continue;
+      const names = parts.filter((p) => p.type === "class").map((p) => p.name);
+      if (names.includes("btn") && names.includes("danger")) pressed.add("btn.danger");
+      for (const n of names) if (/^btn-(primary|ghost|danger|glass)$/.test(n)) pressed.add(n);
+    }
+  });
+  for (const v of ["btn-primary", "btn-ghost", "btn-danger", "btn-glass", "btn.danger"])
+    assert.ok(pressed.has(v), `.${v} has no press of its own: a finger's press shows the plain button's grey`);
+});
