@@ -1489,23 +1489,10 @@ a.more-item {
 .pp-toast-cta:hover {
   opacity: 0.85;
 }
-.pp-toast-x {
-  flex-shrink: 0;
-  color: var(--ink-dim);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-}
-@media (hover: hover) {
-  .pp-toast-x:hover {
-    color: var(--ink);
-  }
-}
 /* Under a finger the Undo keeps the size it is drawn (the phone's 28px, mobile.css) and the touch floor's 44px is the
-   press round it. The house's toast has no ×: a tap anywhere besides it takes it (data-bits usePPToast; Ruben,
-   18 Oct 2026), and the ×'s rules above are the kit's own toast's. The toast takes no pan of the page under it, so a
-   pull down or a flick across is the toast's (data-bits touchSwipe). */
+   press round it. No toast has a ×: a tap anywhere besides it, or on its words, takes it (data-bits usePPToast and the
+   kit's toast.tsx; Ruben, 18 Oct 2026). The toast takes no pan of the page under it, so a pull down or a flick across
+   is the toast's (data-bits touchSwipe, Base UI's swipe). */
 @media (pointer: coarse) {
   .pp-toast {
     touch-action: none;
