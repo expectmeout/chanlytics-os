@@ -140,7 +140,7 @@ const tables = (over = {}) => ({
   memberships: [
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
-  tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+  tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }],
   // With its postal address: a broadcast's email is the business's news, an offer at the door, whose foot names it (decision D2).
   tenant_config: [
     {
@@ -290,7 +290,7 @@ test("a starter card is refused for what its Approve would be refused for, in th
   assert.equal(said(await one.made), "The hour must be a whole number from 9 to 20.");
   // The win-back by appointments needs a calendar, and this world has none: momentOffered refuses it, as the route does.
   const two = propose({ trigger: "lapsed" });
-  const word = appointmentWordOf({ stored: null, sellsBy: "proposal" });
+  const word = appointmentWordOf("meeting");
   assert.equal(said(await two.made), winBackWords(word).lapsed);
   // WhatsApp named alone: its version would go to Meta and carry nothing until approved, so no card.
   const three = propose({ trigger: "quiet_30", channels: ["whatsapp"] });
@@ -529,7 +529,7 @@ test("an appointment moment is proposed where a calendar is connected (D2): the 
   assert.equal(winBack.isError, false, winBack.result);
   assert.ok(!winBack.proposal.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), winBack.proposal.summary);
   // No calendar: refused in core checkPlaybook's own words, in the workspace's word for an appointment.
-  const needs = appointmentWords(appointmentWordOf({ stored: null, sellsBy: "proposal" })).needsCalendar;
+  const needs = appointmentWords(appointmentWordOf("meeting")).needsCalendar;
   for (const trigger of ["visit_tomorrow", "visited"]) {
     const none = propose({ trigger });
     assert.equal(said(await none.made), needs, trigger);

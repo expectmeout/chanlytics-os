@@ -33730,13 +33730,11 @@ CREATE TABLE public.tenants (
     locale text DEFAULT 'en'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    sells_by text,
     left_empty_at timestamp with time zone,
     logo_path text,
     appointment_word text,
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
-    CONSTRAINT tenants_sells_by_check CHECK (((sells_by IS NULL) OR (sells_by = ANY (ARRAY['booking'::text, 'proposal'::text])))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
 );
 
@@ -33746,13 +33744,6 @@ CREATE TABLE public.tenants (
 --
 
 COMMENT ON COLUMN public.tenants.timezone IS 'IANA zone. Decides what "today" means in metrics (00009), which closures are upcoming, and the hours the receptionist states. Owner-settable since 00084; validated as a real zone by the contracts layer, which is the only place that can ask Intl.';
-
-
---
--- Name: COLUMN tenants.sells_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.tenants.sells_by IS 'Retired 18 Oct 2026 (0008, amended: deals for everyone). Was how this workspace''s customers buy (booking or proposal), the switch the deal layer hung on. Written by nothing; read only as appointment_word''s fallback, and dropped with it.';
 
 
 --
@@ -38091,7 +38082,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_config FOR EA
 -- Name: tenants workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, sells_by, appointment_word, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.sells_by IS DISTINCT FROM new.sells_by) OR (old.appointment_word IS DISTINCT FROM new.appointment_word) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, appointment_word, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.appointment_word IS DISTINCT FROM new.appointment_word) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -47467,13 +47458,6 @@ GRANT UPDATE(name) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
-
-
---
--- Name: COLUMN tenants.sells_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(sells_by) ON TABLE public.tenants TO authenticated;
 
 
 --

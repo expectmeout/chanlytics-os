@@ -1451,9 +1451,8 @@ var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"]
 function isAppointmentWord(value) {
   return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
 }
-function appointmentWordOf(o) {
-  if (isAppointmentWord(o.stored)) return o.stored;
-  return o.sellsBy === "proposal" ? "meeting" : "appointment";
+function appointmentWordOf(stored) {
+  return isAppointmentWord(stored) ? stored : "appointment";
 }
 var APPOINTMENT_WORD_QUESTION = "What you call a booking";
 var APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
@@ -47525,7 +47524,7 @@ function businessShapeOf(pb) {
   return {
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
     hasDeals: pb.has_deals === true,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: null })
+    word: appointmentWordOf(pb.appointment_word ?? null)
   };
 }
 function listNameOf(p, pb) {
@@ -54481,7 +54480,6 @@ var SCHEMA_SETS = {
   "tenant_channels.kind": ["whatsapp", "voice", "sms", "email", "instagram"],
   "tenant_channels.status": ["active", "disabled"],
   "tenants.appointment_word": ["appointment", "visit", "meeting", "session", "lesson"],
-  "tenants.sells_by": ["booking", "proposal"],
   "tenants.status": ["active", "paused", "test"]
 };
 

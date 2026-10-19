@@ -6534,7 +6534,6 @@ export type Database = {
           locale: string
           logo_path: string | null
           name: string
-          sells_by: string | null
           slug: string
           status: string
           timezone: string
@@ -6548,7 +6547,6 @@ export type Database = {
           locale?: string
           logo_path?: string | null
           name: string
-          sells_by?: string | null
           slug: string
           status?: string
           timezone?: string
@@ -6562,7 +6560,6 @@ export type Database = {
           locale?: string
           logo_path?: string | null
           name?: string
-          sells_by?: string | null
           slug?: string
           status?: string
           timezone?: string

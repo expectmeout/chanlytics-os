@@ -635,7 +635,7 @@ const drawnAt = (nowMs, draw) => {
 const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
   fresh(week);
   sheets = [];
-  globalThis.window.__WORKSPACES = [{ id: "t-salon", sells_by: "proposal" }];
+  globalThis.window.__WORKSPACES = [{ id: "t-salon", appointment_word: "meeting" }];
   globalThis.window.__ACTIVE_WORKSPACE = "t-salon";
   globalThis.window.openDealSheet = (args) => sheets.push(args);
   let tree = drawnAt(nowMs, () => page());

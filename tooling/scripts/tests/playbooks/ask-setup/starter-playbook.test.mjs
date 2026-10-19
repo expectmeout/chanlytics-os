@@ -338,7 +338,7 @@ test("a starter card the route would refuse files nothing: a number out of bound
     "The hour must be a whole number from 9 to 20.",
   );
   // The win-back by appointments needs a calendar, and this workspace has none.
-  const word = appointmentWordOf({ stored: null, sellsBy: null });
+  const word = appointmentWordOf(null);
   await refused(post({ trigger: "lapsed", starter_key: WIN_BACK.key }), "validation", 400, winBackWords(word).lapsed);
   await refused(
     post({ trigger: "quiet_30", starter_key: REMINDER.key }),
@@ -377,7 +377,7 @@ test("a second proposal follow-up is refused before anything is filed, in the wo
     state: "running",
   };
   const post = open({
-    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", sells_by: "proposal" }],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", appointment_word: "meeting" }],
     playbooks: [one],
   });
   await refused(post({ trigger: "proposal_waiting", starter_key: FOLLOW_UP.key }), "conflict", 409, FOLLOW_UP_ONE);

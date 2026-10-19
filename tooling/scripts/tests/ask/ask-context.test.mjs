@@ -199,8 +199,8 @@ function tables(over = {}) {
       },
     ],
     tenants: [
-      { id: A, name: "Harbor", timezone: TZ, sells_by: "booking" },
-      { id: B, name: "Bayside", timezone: "Europe/Madrid", sells_by: "booking" },
+      { id: A, name: "Harbor", timezone: TZ },
+      { id: B, name: "Bayside", timezone: "Europe/Madrid" },
     ],
     tenant_config: [],
     tenant_channels: [],
@@ -497,8 +497,8 @@ test("People: the people the page drew, each as people.search says them, and how
 test("the Pipeline: each row in its group with its service and value, and the line over the table and the groups' counts, as the page builds them", async () => {
   const t = tables({
     tenants: [
-      { id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" },
-      { id: B, name: "Bayside", timezone: "Europe/Madrid", sells_by: "booking" },
+      { id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" },
+      { id: B, name: "Bayside", timezone: "Europe/Madrid" },
     ],
     deals: [],
   });

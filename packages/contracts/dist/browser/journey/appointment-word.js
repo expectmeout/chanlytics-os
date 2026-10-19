@@ -3,9 +3,8 @@ export const APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", 
 export function isAppointmentWord(value) {
   return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
 }
-export function appointmentWordOf(o) {
-  if (isAppointmentWord(o.stored)) return o.stored;
-  return o.sellsBy === "proposal" ? "meeting" : "appointment";
+export function appointmentWordOf(stored) {
+  return isAppointmentWord(stored) ? stored : "appointment";
 }
 const APPOINTMENT_WORD_QUESTION = "What you call a booking";
 export const APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";

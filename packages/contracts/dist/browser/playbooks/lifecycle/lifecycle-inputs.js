@@ -16,7 +16,7 @@ function businessShapeOf(pb) {
   return {
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
     hasDeals: pb.has_deals === true,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: null })
+    word: appointmentWordOf(pb.appointment_word ?? null)
   };
 }
 function listNameOf(p, pb) {
