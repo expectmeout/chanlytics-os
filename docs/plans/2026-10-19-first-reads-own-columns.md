@@ -145,7 +145,7 @@ Both versions gave identical answers here too: both pages whole, and every perso
 ## Tests
 
 - Changed: `reads-go-through-their-own-rows` (both readers read no partition of `events`; People looks each person's
-  messages up exactly once; two words at one moment show the one written last), `people-came-from` (the
+  messages up in one look; two words at one moment show the one written last), `people-came-from` (the
   first door written wins; a door said on the row; their own words first stay theirs), `first-replies-person-wait` and
   `metrics.integration` (a held reply's moment is its row's `sent_at`).
 - Extended: `a-message-moves-from-queued-to-read-through-its-guard` checks `sent_at` through the real writers: queued is
