@@ -170,7 +170,7 @@ test("First contact holds the receptionist and the call's text as rows of their 
   );
   assert.deepEqual(
     [callText.kind, callText.stateWords, callText.tone, callText.open],
-    ["call_text", "No message for it yet", "warn", { kind: "route", label: "Open", route: "messages" }],
+    ["call_text", "No message for it yet", "warn", { kind: "route", label: "Open", route: "campaigns/messages" }],
     "with no message for it, the Library, where one is written",
   );
   assert.equal(l.counts.needs, 0, "the call's text is not a campaign: its amber is not a campaign needing you");

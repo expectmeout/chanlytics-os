@@ -288,7 +288,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   });
   assert.deepEqual(category({}), {
     kind: "template_ready",
-    route: "messages",
+    route: "campaigns/messages",
     subject: "Template “a template” is now another category",
     body: "Meta moved the template “a template” to another category.",
     alert: false,
@@ -318,7 +318,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
     { field: "message_template_status_update", value: { event: "REJECTED" } },
     null,
   );
-  assert.deepEqual([nameless.route, nameless.about], ["messages", undefined]);
+  assert.deepEqual([nameless.route, nameless.about], ["campaigns/messages", undefined]);
 
   // Meta's decision on the display name (phone_number_name_update; entry.id is the WABA): approved is kept quietly, a decline is the
   // owner's to read with the way on and Meta's reason, in the words Connections' row uses; one in progress has no notice of its own.
@@ -394,7 +394,11 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
     ).find((r) => r.kind === "whatsapp");
   assert.equal(whatsapp({}).verb.to, "verb:whatsapp-connect", "offered where the workspace has no WhatsApp channel");
   for (const status of ["active", "disabled"])
-    assert.equal(whatsapp({ channels: [channel(status)] }).verb.to, "messages", `never over one it has (${status})`);
+    assert.equal(
+      whatsapp({ channels: [channel(status)] }).verb.to,
+      "campaigns/messages",
+      `never over one it has (${status})`,
+    );
   assert.deepEqual(
     [whatsapp({ whatsapp: undefined }).sentence, whatsapp({ whatsapp: undefined }).verb],
     ["Checking whether Chanlytics can connect a number…", null],

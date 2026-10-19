@@ -757,7 +757,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
       "Messages Meta stopped",
       "2",
       "fail",
-      "messages",
+      "campaigns/messages",
       "Win-back (earlier) paused, Spring note refused",
     ],
     [
