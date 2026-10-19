@@ -8,7 +8,7 @@
  * yes standing beside it at their own addresses (broadcasts/broadcasts-page.tsx). Its head is Campaigns' own, as Messages'
  * is: the name, the strip of views, and New beside it (a phone's round + by the strip), the list keeping its search alone.
  * Opened from a lead (the lead sheet's hand-off), the head's way back names the lead and returns to it, across a record's
- * tabs; a new sequence to leads is the composer, on a list or for the lead (new-for-leads.tsx).
+ * tabs; a new sequence to leads is a draft made by name where its leads are chosen, written on its record.
  */
 import { CAMPAIGN_ROOMS, SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -20,7 +20,6 @@ import { useSurface } from "../../use-surface";
 import { CmSplit } from "../parts/split";
 import { SequencesList } from "./list";
 import { NewSequence } from "./new";
-import { NewForLeads } from "./new-for-leads";
 import { SequenceRecord } from "./record";
 import { recordBackOf, tripNow } from "./trip";
 import "./sequences.css";
@@ -79,12 +78,8 @@ export function SequencesPage({ route }: { route: string }) {
     place.view === "record" ? (
       <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />
     ) : place.view === "new" ? (
-      place.leads ? (
-        <NewForLeads leads={place.leads} back={back} />
-      ) : (
-        // A door's moment opens its own New, so the line it wrote in is never another moment's.
-        <NewSequence key={place.moment ?? "new"} moment={place.moment ?? null} />
-      )
+      // A door's moment opens its own New, so the line it wrote in is never another moment's.
+      <NewSequence key={place.moment ?? "new"} moment={place.moment ?? null} />
     ) : null;
   return (
     <CmSplit

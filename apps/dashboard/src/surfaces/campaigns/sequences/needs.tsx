@@ -27,6 +27,7 @@ import { ListRow } from "../../kit/list-row/list-row";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, refusalToast, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { leadOverDoor } from "../../leads/sheet/lead-over";
 import { RoToSendRows } from "../reach-out/to-send";
 import { pressed } from "./verbs";
 
@@ -39,8 +40,8 @@ function HeldRow(p: { h: SequenceHeldVM; may: boolean; busy: boolean; onDecide: 
     <ListRow
       face={{ person: { name: h.name }, size: "sm" }}
       name={
-        h.to ? (
-          <LinkButton size="inherit" {...routeDoor(h.to)} data-testid="sq-held-lead">
+        h.leadId ? (
+          <LinkButton size="inherit" {...leadOverDoor(h.leadId)} data-testid="sq-held-lead">
             {h.name}
           </LinkButton>
         ) : (

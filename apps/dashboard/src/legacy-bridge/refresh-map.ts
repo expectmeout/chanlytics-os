@@ -344,6 +344,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lead-searches/[id]/undo": leads,
   "PATCH lead-searches/[id]": leads,
   "DELETE lead-searches/[id]": leads,
+  // Where a search's Add goes (00459 lead_search_aim): the search's row, which Leads' "Adds go to" and the sheet read.
+  "POST lead-searches/[id]/aim": leads,
   "POST leads/[id]/keep": leads,
   "POST leads/[id]/exclude": leads,
   "POST leads/[id]/put-back": leads,
@@ -384,6 +386,14 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST sequences/[id]/return": () => [sequencesOverride],
   // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
   "POST sequences": () => [...savedAndChains(), sequencesOverride],
+  // A sequence to leads (00459): leads added are each row's place on Leads and its record's people and count, with nothing
+  // planned until its run is made; one moved here leaves the sequence it stood in, whose planned email is skipped; its
+  // chain saved on the record is its steps' words and pace, which Templates' email rows are drawn from, and new words send
+  // what waits in its runs back to the check.
+  "POST sequences/[id]/leads": () => [reachOutsOverride, leadsOverride, sequencesOverride],
+  "POST sequences/[id]/move": () => [...runsAndChains(), leadsOverride, sequencesOverride],
+  // Its save writes each step's words as a template, and its auto-add switch puts the search's ready leads in it.
+  "PUT sequences/[id]/chain": () => [...runsAndChains(), sequencesOverride, leadsOverride, ...templates()],
   "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
@@ -598,6 +608,10 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
+  "POST sequences/[id]/leads/check":
+    "what an add to a sequence would do (00459, dry): nothing is written; the caller says the answer",
+  "POST sequences/draft-leads":
+    "Ask's draft of a sequence to leads' emails: nothing is made until New keeps it (POST sequences)",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/quick": "a quick answer kept as a turn: the Line holds the answer it drew and the thread it landed in",

@@ -31,28 +31,53 @@ import { ListRow } from "../../kit/list-row/list-row";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { gate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
+import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
 import { useSequenceRead } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
-/** The groups folded under Needs you, in their order. */
-const FOLDED: readonly SequencePeopleGroup[] = ["next", "in", "done", "left"];
+/** The groups folded under Needs you, in their order: added and not planned yet among those still to come. */
+const FOLDED: readonly SequencePeopleGroup[] = ["next", "queued", "in", "done", "left"];
 
-/** Whether someone may be taken out: still in it, with a place in it. */
-const mayLeave = (p: SequencePersonDto) => p.enrollment_id !== null && (p.group === "in" || p.group === "next");
+/** Whether someone may be taken out: still in it, with a place in it, or a lead on its list nothing was planned for. */
+const mayLeave = (p: SequencePersonDto) =>
+  (p.enrollment_id !== null && (p.group === "in" || p.group === "next")) || (p.group === "queued" && !!p.lead_id);
 
-/** Where a row opens: the person's page, or the lead's. */
+/** What a Take out presses for a row: its place in it, or a lead on its list nothing was planned for (00455). */
+const leaveOf = (p: SequencePersonDto) =>
+  p.enrollment_id ? `e:${p.enrollment_id}` : p.lead_id ? `l:${p.lead_id}` : "";
+
+/**
+ * Where a row opens: the person's page, or the lead's sheet over this record (`?lead=`, the canvas's RecLeadOver), so
+ * Close is the same row.
+ */
 function rowDoor(p: SequencePersonDto) {
   if (p.contact_id) return routeDoor(addressOf({ kind: "person", id: p.contact_id }));
-  if (p.lead_id) return routeDoor(addressOf({ kind: "lead", id: p.lead_id }));
+  if (p.lead_id) return leadOverDoor(p.lead_id);
   return {};
 }
+
+/** The lead lit on the record: the one its sheet is open over, else the one a trip from its sheet came in with. */
+function useLitLead(): string | null {
+  const over = useLeadOver();
+  return over ?? tripNow()?.leadId ?? null;
+}
+
+/** A lit row comes into view once, as it is drawn. */
+const litInView = (el: HTMLElement | null) => {
+  if (!el || el.dataset.lit) return;
+  el.dataset.lit = "1";
+  if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center" });
+};
 
 /** What a row says under the name: its step, when, and why for someone held or gone. */
 function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
   const at = p.at ? clockStamp(Date.parse(p.at), tz, nowMs) : null;
+  // Added and not planned yet: when they joined its list.
+  if (p.group === "queued") return at ? P.addedAt(at) : P.added;
   const place = p.place ? P.step(p.place) : null;
   const why = p.group === "left" || p.group === "done" ? sequenceLeftWords(p.why) : (p.hold_detail ?? p.why ?? null);
   return [place, at, why].filter(Boolean).join(" · ");
@@ -71,6 +96,7 @@ function foldMarkOf(
 ): string | null {
   const { tz, nowMs } = clock;
   if (rows.length === 0) return null;
+  if (g === "queued") return null;
   if (g === "next" || g === "in") {
     const soonest = rows.find((r) => r.at)?.at;
     return soonest ? P.next(clockWhen(Date.parse(soonest), tz, nowMs)) : null;
@@ -94,12 +120,13 @@ interface GroupProps {
   rec: SequenceRecordDto;
   busy: string | null;
   takeOut: (key: string, ids: string[]) => Promise<void>;
+  lit: string | null;
 }
 
 /** A group's rows, each a door, with Take out on those still in it, and the group's own Take out over all of them. */
-function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
+function GroupRows({ g, rows, whole, rec, busy, takeOut, lit }: GroupProps) {
   const nowMs = Date.now();
-  const leaving = rows.filter(mayLeave).flatMap((r) => (r.enrollment_id ? [r.enrollment_id] : []));
+  const leaving = rows.filter(mayLeave).map(leaveOf);
   return (
     <div className="sq-group-rows">
       {leaving.length > 1 ? (
@@ -121,8 +148,10 @@ function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
           face={{ person: { name: r.name ?? "" }, size: "sm" }}
           name={r.name ?? P.someone}
           said={personLineOf(r, rec.timezone, nowMs)}
+          className={lit && r.lead_id === lit ? "sq-row-lit" : undefined}
+          ref={lit && r.lead_id === lit ? litInView : undefined}
           end={(place) =>
-            mayLeave(r) && r.enrollment_id ? (
+            mayLeave(r) ? (
               <Button
                 size="sm"
                 variant="quiet"
@@ -132,9 +161,9 @@ function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
                   // The row is a door to the person (rowDoor): the press takes them out, and opens nothing.
                   e.preventDefault();
                   e.stopPropagation();
-                  void takeOut(r.enrollment_id ?? "", [r.enrollment_id ?? ""]);
+                  void takeOut(leaveOf(r), [leaveOf(r)]);
                 }}
-                data-testid={`sq-take-out-${r.enrollment_id}`}
+                data-testid={`sq-take-out-${r.enrollment_id ?? r.lead_id}`}
                 {...gate("approve")}
               >
                 {P.takeOut}
@@ -153,6 +182,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const { rec, flash, again, moved } = p;
   const read = useSequenceRead(rec.sequence.id, verbs.people, verbs.peekPeople, { again });
   const [busy, setBusy] = useState<string | null>(null);
+  const lit = useLitLead();
   if (read.state === "failed")
     return <FailedRead what={P.failed} why={read.why} onRetry={moved} testid="sq-people-failed" />;
   if (read.state === "reading") return <div className="sq-reading" aria-busy="true" />;
@@ -160,7 +190,10 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const nowMs = Date.now();
   const takeOut = async (key: string, ids: string[]) => {
     setBusy(key);
-    await pressed("sequence_leave", { sequence_id: rec.sequence.id, enrollment_ids: ids }, flash, moved);
+    // A place in it leaves by its enrollment; a lead on its list nothing was planned for comes off the list (00455).
+    const enrollment_ids = ids.filter((i) => i.startsWith("e:")).map((i) => i.slice(2));
+    const lead_ids = ids.filter((i) => i.startsWith("l:")).map((i) => i.slice(2));
+    await pressed("sequence_leave", { sequence_id: rec.sequence.id, enrollment_ids, lead_ids }, flash, moved);
     setBusy(null);
   };
   const of = (g: SequencePeopleGroup) => rows.filter((r) => r.group === g);
@@ -218,7 +251,15 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
             {PEOPLE_GROUP_WORDS.waiting}
             <span className="tally tally-warn">{counts.waiting}</span>
           </h3>
-          <GroupRows g="waiting" rows={waiting} whole={counts.waiting ?? 0} rec={rec} busy={busy} takeOut={takeOut} />
+          <GroupRows
+            g="waiting"
+            rows={waiting}
+            whole={counts.waiting ?? 0}
+            rec={rec}
+            busy={busy}
+            takeOut={takeOut}
+            lit={lit}
+          />
         </section>
       ) : null}
       <div className="sq-folds">
@@ -231,11 +272,15 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
                 <b>{PEOPLE_GROUP_WORDS[g]}</b> · {counts[g]}
               </>
             }
-            mark={foldMarkOf(g, of(g), counts[g] ?? 0, { tz: rec.timezone, nowMs })}
+            mark={
+              g === "queued"
+                ? P.queued[rec.sequence.state === "draft" ? "draft" : rec.sequence.state === "paused" ? "paused" : "on"]
+                : foldMarkOf(g, of(g), counts[g] ?? 0, { tz: rec.timezone, nowMs })
+            }
             remember
             testid={`sq-people-${g}`}
           >
-            <GroupRows g={g} rows={of(g)} whole={counts[g] ?? 0} rec={rec} busy={busy} takeOut={takeOut} />
+            <GroupRows g={g} rows={of(g)} whole={counts[g] ?? 0} rec={rec} busy={busy} takeOut={takeOut} lit={lit} />
           </RecordDisclosure>
         ))}
       </div>

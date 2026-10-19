@@ -33,6 +33,13 @@ export function applySettingsChange(config, change) {
     else delete ask.goal;
     return { ...config, ask };
   }
+  if (change.op === "set_booking_link") {
+    const brain2 = { ...config.brain ?? {} };
+    const link = change.link.trim();
+    if (link) brain2.booking_link = link;
+    else delete brain2.booking_link;
+    return { ...config, brain: brain2 };
+  }
   const brain = { ...config.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
   switch (change.op) {
@@ -167,6 +174,8 @@ export function describeSettingsChange(change) {
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
     case "set_goal":
       return change.goal.trim() ? `Your goal: \u201C${change.goal.trim()}\u201D` : "Your goal, taken away";
+    case "set_booking_link":
+      return change.link.trim() ? `Your booking link: ${change.link.trim()}` : "Your booking link, taken away";
     default:
       return describeAnswersChange(change);
   }

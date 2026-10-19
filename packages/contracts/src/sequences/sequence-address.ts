@@ -4,11 +4,9 @@
  * further still (`/history/<batch>`), and a new one at `campaigns/sequences/new`. One parser and one writer, so a link and the page read an
  * address the same way.
  *
- * A new sequence to leads is written here too, never in Leads (the lead sheet's hand-off, 17 Oct 2026: one creator): on a
- * list as it is (`new/list:<search>`), or on a list of its own that a lead goes on when it starts (`new/lead:<lead>`), and
- * as a version of a sequence (`new/version:<sequence>/lead:<lead>`): the same steps, waits and mailboxes, its own list, so
- * it is never a twin. Any of the page's addresses may end in the way back to the lead it was opened from
- * (`/back:<the Leads address's words>`), which its head says by the lead's name and Start and Cancel take.
+ * A new sequence to leads is made by name where its leads are chosen (the lead-to-sequence canvas's one road: the lead
+ * sheet's picker and New, or the bar's for many) and written on its own record, a draft. Any of the page's addresses may end
+ * in the way back to the Leads address it was opened from (`/back:<the Leads address's words>`), which its head says.
  */
 
 /** The list's address. */
@@ -18,23 +16,12 @@ export const SEQUENCES_ROUTE = "campaigns/sequences";
 const SEQUENCE_TABS = ["steps", "people", "history"] as const;
 export type SequenceTab = (typeof SEQUENCE_TABS)[number];
 
-/** Who a new sequence to leads is for: a list as it is, or a lead, on a list of its own made as it starts. */
-export type SequenceNewFor = { list: string } | { lead: string };
-
-/** A new sequence to leads, opened from Leads: who it is for, and the sequence it is a version of. */
-export interface SequenceNewLeads {
-  for: SequenceNewFor;
-  version: string | null;
-}
-
 /**
  * What an address of the page opens: the list, a record on one of its tabs, or a new sequence (on the moment a door asks
- * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card; or to leads, from Leads); and the way back.
+ * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card); and the way back.
  */
 export type SequencesPlace = (
-  | { view: "list" }
-  | { view: "new"; moment?: string; leads?: SequenceNewLeads }
-  | { view: "record"; id: string; tab: SequenceTab; day?: string }
+  { view: "list" } | { view: "new"; moment?: string } | { view: "record"; id: string; tab: SequenceTab; day?: string }
 ) & {
   /** The Leads address it was opened from, where Back, Start and Cancel return; absent where none was named. */
   back?: string;
@@ -63,35 +50,12 @@ export function parseSequencesRoute(route: string): SequencesPlace | null {
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list", ...back };
   if (id === "new" || id.startsWith("new:")) {
-    // A moment rides in the word itself (`new:moment:<trigger>`); who a sequence to leads is for, in the words after it.
+    // A moment rides in the word itself (`new:moment:<trigger>`).
     const [, kind, moment] = id.split(":");
-    const leads = newLeadsOf(words.slice(3, backAt >= 0 ? backAt : undefined));
-    return { view: "new", ...(kind === "moment" && moment ? { moment } : {}), ...(leads ? { leads } : {}), ...back };
+    return { view: "new", ...(kind === "moment" && moment ? { moment } : {}), ...back };
   }
   const on = isTab(tab) ? tab : "steps";
   return { view: "record", id, tab: on, ...(on === "history" && day ? { day } : {}), ...back };
-}
-
-/** A new sequence to leads, from the words after `new`: a list, or a lead with the sequence it is a version of. */
-function newLeadsOf(words: readonly string[]): SequenceNewLeads | null {
-  const word = (key: string) => {
-    const w = words.find((x) => x.startsWith(`${key}:`));
-    return w ? w.slice(key.length + 1) || null : null;
-  };
-  const list = word("list");
-  const lead = word("lead");
-  const version = word("version");
-  if (lead) return { for: { lead }, version };
-  return list && !version ? { for: { list }, version: null } : null;
-}
-
-/**
- * A new sequence to leads (the lead sheet's hand-off): on a list as it is, or for a lead on a list of its own, as a version
- * of a sequence where one is named.
- */
-export function sequenceNewLeadsRoute(leads: SequenceNewLeads): string {
-  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
-  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
 }
 
 /**

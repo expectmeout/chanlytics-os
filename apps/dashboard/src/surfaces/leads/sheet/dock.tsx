@@ -1,32 +1,25 @@
 /**
- * The lead sheet's dock (the refined canvas, 17 Oct 2026: as a sequence's record has it): only what needs you, at the
- * sheet's foot. A round ✕ where Not a fit is one and Later as a round glyph beside it, then one line and one fact, then
- * the acts, the last the primary; nothing at all when nothing needs you (contracts leadSheetDockOf). On a desk the keys
- * are said under it: the dock's own and Undo in a pile, J and K out of one. It holds still while the card turns, and a press
- * that would come to nothing is off and says why at the control. In its place: Not a fit's five reasons, the last one
- * given marked; and a held email's choices, decided here with the same verb as the sequence's Leads tab.
+ * The lead sheet's dock (the canvas's States board, 18 Oct 2026: "one line, at most two acts, never a pointer
+ * elsewhere"): only what to press, at the sheet's foot, held still while the card turns. For a lead to decide on, Not a
+ * fit and Later as round glyphs, then Add to the pick with ▾ beside it (the picker), or Add to a sequence where nothing is
+ * picked; while a sequence has them, what needs you there, a held email's choices in the acts' place (the record's own
+ * verb, place/parts.tsx HeldChoices). Nothing at all where nothing needs you (contracts leadDockOf). On a desk the keys are
+ * said under it: N, L, A, ⇧A, J and K, and Z in a pile; C calls, never A. On a phone, with no keys to say, each glyph
+ * carries its word under it, and the primary act takes the room left, its words cut short before ▾ is ever pushed off.
  *
- * Hookless. On a desk its keys are named to a screen reader and in the ? sheet (A, L, N; Z undoes in a pile).
+ * Hookless, but for the held email's choices.
  */
 import {
-  HOLD_DOOR_WORDS,
   LEAD_DOCK_WORDS as D,
-  LEAD_NOT_A_FIT_TITLE,
-  LEAD_NOT_A_FIT_WHYS,
-  LEAD_NOT_A_FIT_WORDS,
   LEAD_PILE_UNDO_KEY,
-  LEAD_SHEET_WORDS as W,
-  LEAD_SUPPRESSING_WHY,
-  holdDoors,
-  type HoldDoor,
-  type LeadNotAFitWhy,
   type LeadSheetDockVM,
   type LeadSheetSlotVM,
-  type ReachOutHold,
 } from "@chanlytics/contracts";
+import { HeldChoices } from "../../campaigns/sequences/place/parts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { gate } from "../../legacy-verbs";
+import type { LegacyFlash } from "../../legacy-verbs";
 
 /** The right a press's door checks: Keep, Leave out and Put back are a partner's doors (find's); the rest an operator's. */
 const rightOf = (s: LeadSheetSlotVM) =>
@@ -38,10 +31,10 @@ const DOING: Partial<Record<LeadSheetSlotVM["act"], string>> = {
   exclude: "leave this lead out",
   put_back: "put this lead back",
   add: "add this lead to a sequence",
+  pick: "add this lead to a sequence",
+  move: "move this lead",
   later: "save this lead for later",
   approve: "approve a batch",
-  decide: "decide a held email",
-  new_sequence: "start a sequence",
 };
 
 /** What a press says at the control: why it is off, else the gate's sentence for a role that may not press it. */
@@ -52,61 +45,98 @@ interface DockProps {
   dock: LeadSheetDockVM;
   busy: boolean;
   onRun: (s: LeadSheetSlotVM) => void;
-  /** The keys a desk says under the dock: a pile's (its acts' and Undo), the rows' (J and K), or none on a phone. */
+  /** ▾ beside Add: the picker. */
+  onPick: () => void;
+  /** The keys a desk says under the dock: a pile's, the rows' (J and K), or none on a phone. */
   keys: "pile" | "rows" | null;
+  /** On a phone: the glyphs say their words under them. */
+  phone: boolean;
+  /** The lead's name and the sequence its held email is in, for its choices' receipt. */
+  name: string;
+  flash: (f: LegacyFlash) => void;
+  onDecided: () => void;
 }
-
-/** An act drawn as a round glyph before the line (Later), as the canvas's dock draws it: its words its name and hover. */
-const glyphOf = (s: LeadSheetSlotVM) => s.act === "later";
 
 /** One act of the dock: its glyph and words, its key named, off where it would fail; the last one is the primary. */
 const dockActOf = (s: LeadSheetSlotVM, last: boolean, p: DockProps) => (
-  <Button
-    key={s.act}
-    variant={last ? "primary" : "secondary"}
-    className="lw-dock-b"
-    disabled={p.busy || !!s.off}
-    onClick={() => p.onRun(s)}
-    aria-keyshortcuts={s.key ? s.key.toUpperCase() : undefined}
-    data-testid={`lead-sheet-${s.act}`}
-    {...saysOf(s)}
-  >
-    {s.icon === "chevron" ? null : <Icon name={s.icon} size={14} />}
-    {s.label}
-    {s.icon === "chevron" ? <Icon name="chevron" size={11} /> : null}
-    {last && p.keys === "pile" && s.key ? <kbd className="lw-kbd">{s.key.toUpperCase()}</kbd> : null}
-  </Button>
+  <span key={s.act} className={s.split ? "lw-split" : undefined}>
+    <Button
+      variant={last ? "primary" : "secondary"}
+      className="lw-dock-b"
+      disabled={p.busy || !!s.off}
+      onClick={() => p.onRun(s)}
+      aria-keyshortcuts={s.key ? s.key.toUpperCase() : undefined}
+      data-testid={`lead-sheet-${s.act}`}
+      {...saysOf(s)}
+    >
+      {s.icon === "chevron" ? null : <Icon name={s.icon} size={14} />}
+      <span className="lw-dock-w">{s.label}</span>
+      {s.icon === "chevron" ? <Icon name="chevron" size={11} /> : null}
+    </Button>
+    {s.split ? (
+      <Button
+        variant={last ? "primary" : "secondary"}
+        iconOnly
+        className="lw-split-more"
+        disabled={p.busy}
+        onClick={p.onPick}
+        aria-label={D.choose}
+        aria-keyshortcuts="Shift+A"
+        data-tip={D.choose}
+        data-testid="lead-sheet-pick"
+        {...gate("approve", "add this lead to a sequence")}
+      >
+        <Icon name="chevron-down" size={13} />
+      </Button>
+    ) : null}
+  </span>
 );
 
-/** A quiet act as a round glyph (Later): named by its words, which its hover says, its key named. */
-const glyphActOf = (s: LeadSheetSlotVM, p: DockProps) => (
-  <Button
-    key={s.act}
-    variant="secondary"
-    iconOnly
-    className="lw-x"
-    disabled={p.busy || !!s.off}
-    onClick={() => p.onRun(s)}
-    aria-label={s.label}
-    aria-keyshortcuts={s.key ? s.key.toUpperCase() : undefined}
-    data-tip={s.label}
-    data-testid={`lead-sheet-${s.act}`}
-    {...saysOf(s)}
-  >
-    <Icon name={s.icon} size={17} />
-  </Button>
-);
+/**
+ * A glyph before the acts (Not a fit, Later): on a desk a round one named by its words, which its hover says, its key
+ * named; on a phone its word under it.
+ */
+const glyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
+  const label = act === "later" ? D.later : D.notFit;
+  return (
+    <Button
+      key={act}
+      variant={p.phone ? "quiet" : "secondary"}
+      iconOnly={!p.phone}
+      className={p.phone ? "lw-x lw-x-said" : "lw-x"}
+      disabled={p.busy}
+      onClick={() =>
+        p.onRun({ act, label, icon: act === "later" ? "clock" : "x", key: act === "later" ? "l" : "n", off: null })
+      }
+      aria-label={label}
+      aria-keyshortcuts={act === "later" ? "L" : "N"}
+      data-tip={label}
+      data-testid={`lead-sheet-${act}`}
+      {...gate("approve", act === "later" ? "save this lead for later" : "set this lead aside")}
+    >
+      <Icon name={act === "later" ? "clock" : "x"} size={p.phone ? 15 : 17} />
+      {p.phone ? <span className="lw-x-w">{label}</span> : null}
+    </Button>
+  );
+};
 
-/** The keys under the dock on a desk: in a pile, each act's key and Undo; out of one, J and K walk the rows. */
-const keysOf = (p: DockProps, acts: LeadSheetSlotVM[]) => {
+/** The keys under the dock on a desk: in a pile, each act's key, ⇧A, J and K, and Undo; out of one, J and K. */
+const keysOf = (p: DockProps) => {
   if (!p.keys) return null;
+  const K = D.keys;
   const said =
     p.keys === "pile"
       ? [
-          ...acts.filter((s) => s.key).map((s) => ({ keys: [s.key ?? ""], words: s.label.toLowerCase() })),
-          { keys: [LEAD_PILE_UNDO_KEY], words: D.undoKey },
+          ...(p.dock.x ? [{ keys: ["n"], words: K.notFit }] : []),
+          ...(p.dock.later ? [{ keys: ["l"], words: K.later }] : []),
+          ...p.dock.acts
+            .filter((s) => s.key)
+            .map((s) => ({ keys: [s.key ?? ""], words: s.act === "add" ? K.add : s.label.toLowerCase() })),
+          ...(p.dock.acts.some((s) => s.split) ? [{ keys: ["⇧a"], words: K.choose }] : []),
+          { keys: ["j", "k"], words: K.move },
+          { keys: [LEAD_PILE_UNDO_KEY], words: K.undo },
         ]
-      : [{ keys: ["j", "k"], words: D.moveKeys }];
+      : [{ keys: ["j", "k"], words: K.move }];
   return (
     <p className="lw-keys" aria-hidden="true" data-testid="lead-sheet-keys">
       {said.map((k) => (
@@ -123,130 +153,45 @@ const keysOf = (p: DockProps, acts: LeadSheetSlotVM[]) => {
   );
 };
 
-/** The dock: the round ✕ where it is one, the line and its fact, and its acts. */
+/** The dock: the round glyphs where the lead is to decide on, its line and fact where it has them, and its acts. */
 export const SheetDock = (p: DockProps) => {
-  const [first, ...rest] = p.dock.acts;
-  const others = p.dock.x ? rest : p.dock.acts;
-  const glyphs = others.filter(glyphOf);
-  const acts = others.filter((s) => !glyphOf(s));
+  const d = p.dock;
   return (
     <>
       <div
-        className={`lw-dock${p.dock.x ? " x" : ""}`}
+        className={`lw-dock${d.x ? " x" : ""}`}
         data-busy={p.busy ? "true" : undefined}
         data-testid="lead-sheet-dock"
       >
-        {p.dock.x && first ? (
-          <Button
-            variant="secondary"
-            iconOnly
-            className="lw-x"
-            disabled={p.busy}
-            onClick={() => p.onRun(first)}
-            aria-label={W.notFit}
-            aria-keyshortcuts="N"
-            data-tip={W.notFit}
-            data-testid="lead-sheet-not_a_fit"
-            {...gate("approve", "set this lead aside")}
-          >
-            <Icon name="x" size={17} />
-          </Button>
-        ) : null}
-        {glyphs.map((s) => glyphActOf(s, p))}
-        <span className="lw-dock-t">
-          <span className="lw-dock-l" title={p.dock.line} data-testid="lead-sheet-dock-line">
-            {p.dock.waiting ? <span className="lw-spin" aria-hidden="true" /> : null}
-            {p.dock.line}
+        {d.x ? glyphOf(p, "not_a_fit") : null}
+        {d.later ? glyphOf(p, "later") : null}
+        {d.line || d.fact || d.waiting ? (
+          <span className="lw-dock-t">
+            {d.line || d.waiting ? (
+              <span className="lw-dock-l" title={d.line ?? undefined} data-testid="lead-sheet-dock-line">
+                {d.waiting ? <span className="lw-spin" aria-hidden="true" /> : null}
+                {d.line}
+              </span>
+            ) : null}
+            {d.fact ? <span className="lw-dock-f">{d.fact}</span> : null}
           </span>
-          <span className="lw-dock-f">{p.dock.fact}</span>
-        </span>
-        {acts.map((s, i) => dockActOf(s, i === acts.length - 1, p))}
+        ) : (
+          <span className="lw-dock-t" />
+        )}
+        {d.held ? (
+          <HeldChoices
+            held={{ ...d.held, name: p.name }}
+            flash={p.flash}
+            onDecided={p.onDecided}
+            busy={p.busy}
+            dock
+            testid="lead-sheet-held"
+          />
+        ) : (
+          d.acts.map((s, i) => dockActOf(s, i === d.acts.length - 1, p))
+        )}
       </div>
-      {keysOf(p, p.dock.acts)}
+      {keysOf(p)}
     </>
   );
 };
-
-/**
- * Not a fit's five reasons, in the dock's own place: one tap decides; the one last given is marked; Back writes nothing.
- * In a pile on a desk each wears its key, 1 to 5, which picks it.
- */
-export const SheetWhy = (p: {
-  last: LeadNotAFitWhy | null;
-  busy: boolean;
-  keys: boolean;
-  onPick: (why: LeadNotAFitWhy) => void;
-  onBack: () => void;
-}) => (
-  <div className="lw-why" role="group" aria-label={LEAD_NOT_A_FIT_TITLE} data-testid="peek-why">
-    <div className="lw-why-h">
-      <span>{LEAD_NOT_A_FIT_TITLE}</span>
-      <Button size="sm" variant="quiet" onClick={p.onBack} data-testid="peek-why-back">
-        {W.back}
-      </Button>
-    </div>
-    <div className="lw-why-g">
-      {LEAD_NOT_A_FIT_WHYS.map((w, i) => (
-        <Button
-          key={w}
-          className={`lw-why-b${p.last === w ? " last" : ""}`}
-          disabled={p.busy}
-          onClick={() => p.onPick(w)}
-          aria-keyshortcuts={p.keys ? String(i + 1) : undefined}
-          data-testid={`peek-why-${w}`}
-          {...(p.last === w ? { title: W.lastWhy } : {})}
-        >
-          <span>{LEAD_NOT_A_FIT_WORDS[w]}</span>
-          {w === LEAD_SUPPRESSING_WHY ? <small>{W.hides}</small> : null}
-          {p.keys ? <kbd className="lw-kbd lw-why-k">{i + 1}</kbd> : null}
-        </Button>
-      ))}
-    </div>
-  </div>
-);
-
-/**
- * A held email, decided in the dock's place (the canvas's HeldDecide): only this lead's, so the sheet offers the choices
- * the sequence's Leads tab offers for it (contracts holdDoors), each the same verb; a batch to approve stays the record's.
- */
-export const SheetDecide = (p: {
-  hold: ReachOutHold;
-  /**
-   * What the check flagged (the opening's words, a chain's count), said here where the card's box is not on screen to
-   * say it; null where it is.
-   */
-  flag: string | null;
-  sequence: string;
-  busy: boolean;
-  onDecide: (door: HoldDoor) => void;
-  onBack: () => void;
-}) => (
-  <div className="lw-why" role="group" aria-label={D.decideAsk} data-testid="lead-sheet-decide">
-    <div className="lw-why-h">
-      <span>{D.decideAsk}</span>
-      <Button size="sm" variant="quiet" onClick={p.onBack} data-testid="lead-sheet-decide-back">
-        {D.back}
-      </Button>
-    </div>
-    {p.flag ? (
-      <p className="lw-decide-f" data-testid="lead-sheet-decide-flag">
-        {p.flag}
-      </p>
-    ) : null}
-    <p className="lw-decide-s">{D.decideOnly(p.sequence)}</p>
-    <div className="lw-why-g">
-      {holdDoors(p.hold).map((door) => (
-        <Button
-          key={door}
-          className="lw-why-b"
-          disabled={p.busy}
-          onClick={() => p.onDecide(door)}
-          data-testid={`lead-sheet-decide-${door}`}
-          {...gate("approve", "decide a held email")}
-        >
-          <span>{HOLD_DOOR_WORDS[door]}</span>
-        </Button>
-      ))}
-    </div>
-  </div>
-);

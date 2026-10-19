@@ -16,8 +16,6 @@ import type { AskApi } from "../legacy-bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
 import type { ViewPage } from "./kit/view-tabs/pager";
-import type { SetupSurface } from "./setup/surface";
-import { surfaceValue } from "./surface-values";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
 export interface LegacyFlash {
@@ -120,6 +118,15 @@ export function afterMove(move: () => void, then: () => void): void {
     then();
   });
   move();
+}
+
+/**
+ * Hear the route on screen move (the frame's address, `CHANLY.address.hear`: a page's own move, which no popstate says,
+ * and a Back): what a part over the page follows, the lead sheet's `?lead=` among them. Nothing where the frame hears none.
+ */
+export function hearPageMoves(fn: () => void): () => void {
+  const hear = window.CHANLY?.address?.hear;
+  return hear ? hear(fn) : () => undefined;
 }
 
 /** Ask's own calls (`window.__ask`, legacy-bridge/ask.ts installAsk): a turn sent, a card committed, the page as context. */
@@ -547,16 +554,6 @@ export function meNow(): {
     platform_admin?: boolean;
   };
   return (window as Window & { __ME?: Me | null }).__ME ?? null;
-}
-
-/** What Setup read (the seam's `setup`), or null before it lands and where its read failed. */
-export function setupDto(): SetupSurface["dto"] | null {
-  return surfaceValue("setup")?.dto ?? null;
-}
-
-/** Whether Setup's read failed (the seam holds null, where before its first read it holds nothing). */
-export function setupFailed(): boolean {
-  return surfaceValue("setup") === null;
 }
 
 /** Whether the surface a route draws from failed to read (`window.__surfaceFailed`): where the registry has none, no. */

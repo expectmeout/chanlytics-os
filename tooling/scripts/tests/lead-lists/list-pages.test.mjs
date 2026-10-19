@@ -1,16 +1,15 @@
 /**
  * A list of your own, drawn (Reach out Part 7: J4, J5, J7, J12; surfaces/leads/reach-out/lists.tsx, TSX since decision 0015
  * step 9), on the stub React over the bridge's own words (surfaces/campaigns/reach-out/surface.ts over contracts
- * lead-import.ts). The two doors are the only things stubbed, so
- * what is proved is what each piece draws and what it asks of the bridge: the import sheet reads pasted rows, says what
- * it read, and hands the door the rows it can take; *Write to them* hands the door the chosen ids, lands the page on
- * the list and opens the reach-out sheet on it, or says the refusal; the rail's foot carries *Import leads*; the bar
- * carries *Write to them* after Copy emails, on a desk and in a phone's sheet.
+ * lead-import.ts). The import door is the only thing stubbed, so what is proved is what each piece draws and what it
+ * asks of the bridge: the import sheet reads pasted rows, says what it read, and hands the door the rows it can take;
+ * the rail's foot carries *Import leads*. *Write to them* went with the composer (the lead-to-sequence canvas, 18 Oct
+ * 2026): the bulk bar's Add is the one road, proved in leads/finder/leads-honest.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -21,24 +20,17 @@ const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { LeadImportSheet, useLeadLists } =
   await import("../../../../apps/dashboard/src/surfaces/leads/reach-out/lists.tsx");
 const { LeadsRailRows } = await import(`${S}/leads/scope/rail.tsx`);
-const { LeadsBulkBar } = await import(`${S}/leads/scope/bulk-bar.tsx`);
 // What the sheets are drawn with, imported as the page imports them: a node is found by its type.
 const { RecordSheet } = await import(`${S}/kit/record/sheet.tsx`);
 const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
-const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
-const { PhoneSheetRow } = await import(`${S}/people/sheets/phone-sheet.tsx`);
 
-const went = [];
 const flashed = [];
 Object.assign(W, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
+  CHANLY: { nav: () => {}, R: {} },
   canDo: () => true,
   gate: () => ({}),
   __clock: { zone: () => "America/Chicago" },
 });
-/** The reach-out sheets drawn in a tree, by their props. */
-const sheetsIn = (tree) => all(tree, (n) => n.type === ReachOutSheet).map((n) => n.props);
-
 const IMPORTED = {
   search_id: "s-list",
   round_id: "r-list",
@@ -47,15 +39,13 @@ const IMPORTED = {
   counted: 1,
   left_out: { unreadable: 0, twice: 0, customer: 1, never_again: 0 },
 };
-/** The bridge, its two doors stubbed: each asked recorded. */
-const world = ({ imported = { ok: true, data: IMPORTED }, chosen = null } = {}) => {
+/** The bridge, its import door stubbed: each ask recorded. */
+const world = ({ imported = { ok: true, data: IMPORTED } } = {}) => {
   const asked = [];
-  went.length = 0;
   flashed.length = 0;
-  // The page reads the doors off the bridge's own object (reachOuts.lists) as it draws: the two are replaced in place.
+  // The page reads the door off the bridge's own object (reachOuts.lists) as it draws: it is replaced in place.
   Object.assign(bridge.reachOuts.lists, {
     importLeads: async (body) => (asked.push(["import", body]), imported),
-    chooseLeads: async (body) => (asked.push(["choose", body]), chosen),
   });
   return asked;
 };
@@ -237,45 +227,6 @@ const hooked = () => {
   return { got: () => got, draw: () => again(draw) };
 };
 
-test("Write to them hands the door the chosen ids, lands on the list and opens the reach-out sheet on it", async () => {
-  const asked = world({
-    chosen: {
-      ok: true,
-      data: { search_id: "chosen1", round_id: "r", counted: 2, left_out: { not_counted: 1, no_email: 0, gone: 0 } },
-    },
-  });
-  const h = hooked();
-  assert.equal(h.got().writeAct({ ids: [] }), null, "nothing chosen and shown: no act");
-  const act = h.got().writeAct({ ids: ["l1", "l2", "l3"] });
-  assert.equal(act.props["data-testid"], "leads-bulk-write");
-  press(act);
-  await settle();
-  const [[kind, body]] = asked;
-  assert.equal(kind, "choose");
-  assert.deepEqual(body.lead_ids, ["l1", "l2", "l3"]);
-  assert.match(body.name, /^Chosen on [A-Z][a-z]{2} \d{1,2}$/);
-  assert.deepEqual(went, ["clients/leads:s-chosen1"]);
-  assert.equal(textOf(flashed.at(-1).msg), "2 leads on the list. Left out: 1 not yet counted: keep them first.");
-  assert.deepEqual(
-    sheetsIn(h.draw()).at(-1).search,
-    { id: "chosen1", name: body.name },
-    "the reach-out's sheet opens on the list",
-  );
-});
-
-test("Write to them refused says the door's words and goes nowhere; on a phone it is a row of the bar's sheet", async () => {
-  world({ chosen: { ok: false, message: "None of these can be written to yet." } });
-  const h = hooked();
-  press(h.got().writeAct({ ids: ["l1"] }));
-  await settle();
-  assert.deepEqual(went, []);
-  assert.deepEqual([flashed.at(-1).tone, textOf(flashed.at(-1).msg)], ["warn", "None of these can be written to yet."]);
-  const shut = [];
-  const row = h.got().writeAct({ ids: ["l1"], phone: true, shut: () => shut.push(1) });
-  assert.equal(row.type, PhoneSheetRow);
-  assert.equal(row.props.testid, "leads-bulk-write");
-});
-
 test("the rail's foot carries Import leads, which opens the sheet", () => {
   world();
   const h = hooked();
@@ -297,33 +248,4 @@ test("the rail's foot carries Import leads, which opens the sheet", () => {
   press(door);
   const tree = h.draw();
   assert.ok(all(tree, (n) => n.type === RecordSheet && n.props.testid === "lead-import-sheet").length === 1);
-});
-
-test("the bulk bar carries Write to them after Copy emails", () => {
-  const write = W.React.createElement("button", { "data-testid": "leads-bulk-write" }, "Write to them");
-  const bar = LeadsBulkBar({
-    sel: new Set(["l1"]),
-    rows: [{ id: "l1", cls: "qualified" }],
-    total: 1,
-    view: {},
-    canFind: true,
-    canExport: true,
-    busy: false,
-    whyNot: null,
-    onClear: () => {},
-    onSelectAllMatching: () => {},
-    allMatching: false,
-    onCopyEmails: () => {},
-    onContacted: () => {},
-    onNotAFit: () => {},
-    whyOpen: false,
-    onWhyOpen: () => {},
-    onExport: () => {},
-    write,
-  });
-  const ids = all(
-    bar,
-    (n) => typeof n.props?.["data-testid"] === "string" && n.props["data-testid"].startsWith("leads-bulk-"),
-  ).map((n) => n.props["data-testid"]);
-  assert.equal(ids[ids.indexOf("leads-bulk-copy") + 1], "leads-bulk-write");
 });

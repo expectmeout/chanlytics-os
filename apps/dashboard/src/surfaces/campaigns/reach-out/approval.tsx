@@ -39,7 +39,7 @@ interface Said {
  * The first ready business's email as it reads: the opening marked, as a slot is on a WhatsApp run's sheet. A sequence to
  * leads draws it on the step going now (sequences/lead-step.tsx).
  */
-export function RoRunWords({ vm }: { vm: RunWords }) {
+function RoRunWords({ vm }: { vm: RunWords }) {
   return vm.words.length > 0 ? (
     <div className="bc-sheet-words" data-testid="ro-run-words">
       <p className="bc-sheet-quote">

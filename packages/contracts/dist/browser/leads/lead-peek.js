@@ -112,6 +112,10 @@ function leadRated(r) {
     ...r.reviews_dist ? { spread: leadRatingSpread(r.reviews_dist) } : {}
   };
 }
+const claimOf = (r) => ({
+  claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
+  claimed: r.claimed ?? null
+});
 function checksSummaryOf(checks) {
   if (checks.length === 0) return "";
   const passed = checks.filter((c) => c.answer === "yes").length;
@@ -189,7 +193,7 @@ export function toLeadPeekVM(r, search, tz, now) {
     company: leadCompanyOf(r),
     where: leadWhere(r),
     today: leadTodayLine(r.hours ?? [], tz, now),
-    claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
+    ...claimOf(r),
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
     cls: m.class,

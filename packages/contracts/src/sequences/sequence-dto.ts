@@ -4,6 +4,7 @@
  * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
+import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 import type { SequenceStart, SequenceState } from "./sequence";
 
@@ -22,6 +23,17 @@ export interface SequenceFirstStepDto {
   search_id: string | null;
   /** The lead search a sequence to leads writes to, by its name. */
   search_name: string | null;
+  /**
+   * The search whose new ready leads join a sequence to leads without a press (00459 auto-add), by its id and name; null
+   * where nobody joins but those added. Absent from a server before 00459.
+   */
+  source_search_id?: string | null;
+  source_name?: string | null;
+  /**
+   * The search it could add from while it adds from none (How it runs' auto-add switch): the live finder search that found
+   * most of its list's leads, which no other sequence adds from. Null where there is none; absent before 00459.
+   */
+  source_could?: { id: string; name: string } | null;
   owner_sends: boolean;
   until: string | null;
   trial_until: string | null;
@@ -76,13 +88,20 @@ export interface SequenceRowDto {
   first: SequenceFirstStepDto | null;
   date: SequenceDateDto | null;
   steps: number;
+  /** The days its steps span: each wait after the first (00459); absent from a server before it. */
+  days?: number;
+  /** A sequence to leads' emails still to write, a step's body left empty (00459); absent from a server before it. */
+  unwritten?: number;
   channels: string[];
   needs: SequenceNeedsDto;
   /** The batch to come: waiting for an OK, scheduled or going out. */
   next: { id: string; at: string; people: number; state: string; place: number | null } | null;
   /** The last batch that went, with what it sent and drew back. */
   last: { id: string; at: string; sent: number; replied: number } | null;
-  /** People in it now: a step of theirs still to come. */
+  /**
+   * Who is in it now: everyone whose place stands, as its People tab files them (00459 sequence_places: a lead added and
+   * not yet planned, waiting for an OK, held, for you to send, up next or between steps); before 00459, those between steps.
+   */
   in_it: number;
 }
 
@@ -118,8 +137,21 @@ export interface SequenceStepDto {
   replied: number;
 }
 
-/** Where someone in a sequence stands, the People tab's groups in their order. */
-export const SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "replied", "next", "in", "done", "left"] as const;
+/**
+ * Where someone in a sequence stands, the People tab's groups in their order: `queued` is a lead on its list that nothing
+ * has been planned for yet (00459), every lead of a draft.
+ */
+export const SEQUENCE_PEOPLE_GROUPS = [
+  "waiting",
+  "held",
+  "to_send",
+  "replied",
+  "next",
+  "queued",
+  "in",
+  "done",
+  "left",
+] as const;
 export type SequencePeopleGroup = (typeof SEQUENCE_PEOPLE_GROUPS)[number];
 
 /** One person or lead in a sequence (`sequence_people`). */
@@ -257,6 +289,11 @@ export interface SequenceRecordDto {
    * and from a server before it, which then opens the search.
    */
   fed_by?: ReachOutFedBy;
+  /**
+   * A sequence to leads, as it is written (00459: the draft's record is its editor): each step's words, its mailboxes,
+   * its pace and who signs. Absent on any other sequence, and from a server before it; null where it could not be read.
+   */
+  chain?: ReachOutChainDto | null;
   /**
    * A one-off: its one message as its batch sends it. Absent on any other sequence, and from a server before it, which
    * then names the sequence alone; null where the batch could not be read.

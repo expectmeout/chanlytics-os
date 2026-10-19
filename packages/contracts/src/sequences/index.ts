@@ -92,14 +92,50 @@ export type {
   SequenceWroteBackVM,
 } from "./sequence-tab-words";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
+export {
+  PLACE_WORDS,
+  PLACE_RAIL_WORDS,
+  placeStands,
+  placeToneOf,
+  placeWordOf,
+  placeRailOf,
+  placeSpanOf,
+} from "./sequence-place";
+export { heldChoicesOf } from "./sequence-held";
+export type {
+  SequencePlaceDto,
+  SequencePlaceRowDto,
+  SequencePlaceSendDto,
+  SequencePlaceOfDto,
+  PlaceTone,
+  PlaceRailLens,
+  PlaceRailStepVM,
+  PlaceRailVM,
+} from "./sequence-place";
 export type { SequenceResumeAsk } from "./sequence-acts";
-export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequence-test";
+export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, leadStepTestMail, stepTestMail } from "./sequence-test";
+export {
+  LEAD_BUILD_WORDS,
+  leadApprovesOf,
+  leadBuildStepsOf,
+  leadDraftChainOf,
+  leadDraftDockOf,
+  leadFirstUnwritten,
+  leadInsertRowsOf,
+  leadPaceChoicesOf,
+  leadPreviewEmailOf,
+  leadStartOf,
+  reachOutInsertStep,
+  reachOutMayInsertStep,
+  reachOutPutBackStep,
+  reachOutRemoveStep,
+} from "./sequence-lead-build";
+export type { LeadBuildPart, LeadBuildStepVM, LeadInsertRowVM, LeadPaceChoice } from "./sequence-lead-build";
 export type { StepTestMail, StepTestMessage } from "./sequence-test";
 export {
   SEQUENCES_ROUTE,
   isSequencesParam,
   parseSequencesRoute,
-  sequenceNewLeadsRoute,
   sequenceRouteBack,
   sequenceRoute,
   newSequenceRoute,
@@ -108,7 +144,7 @@ export {
   sequenceRepliesOf,
   sequenceRepliesRoute,
 } from "./sequence-address";
-export type { SequenceNewFor, SequenceNewLeads, SequenceTab, SequencesPlace } from "./sequence-address";
+export type { SequenceTab, SequencesPlace } from "./sequence-address";
 export { arrivedRunOf, runLandingOf } from "./run-landing";
 export {
   SEQUENCE_DRAFT_WORDS_MAX,
