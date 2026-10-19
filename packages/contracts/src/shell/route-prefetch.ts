@@ -89,6 +89,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now.
+  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
   admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"],
 };
@@ -184,6 +186,8 @@ export function routePrefetchScript(): string {
     // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
+    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
+    'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

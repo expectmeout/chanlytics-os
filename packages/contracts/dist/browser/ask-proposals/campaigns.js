@@ -9,6 +9,7 @@ import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbo
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch.js";
 import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers.js";
 import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
+import { MESSAGES_ROUTE } from "../shell/address.js";
 import { clockWhen } from "../shared/clock.js";
 import { joinWords } from "../shared/words.js";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms.js";
@@ -455,5 +456,5 @@ export const messageSpec = {
       return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
     }
   },
-  open: () => "messages"
+  open: () => MESSAGES_ROUTE
 };

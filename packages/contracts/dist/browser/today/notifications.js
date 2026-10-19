@@ -9,6 +9,7 @@ import { RUN_OPEN_WORDS } from "../shell/campaign-rooms.js";
 import { invitationExpired } from "../shell/identity.js";
 import { noticeTone } from "../waits/notice-tones.js";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
+import { MESSAGES_ROUTE } from "../shell/address.js";
 export function bellCalls(live) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
@@ -230,8 +231,8 @@ const SERVER_LOOK = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: MESSAGES_ROUTE },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: MESSAGES_ROUTE },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -304,6 +305,8 @@ const ROUTE_VERBS = [
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
+  // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
+  [/^campaigns\/messages(\/|$)/, "Open Messages"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],

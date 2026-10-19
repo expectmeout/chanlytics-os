@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { PlaybooksDoor } from "@/surfaces/campaigns/home/door";
+import { RetiredRouteDoor } from "@/surfaces/campaigns/home/door";
 
 /**
  * /w/<slug>/playbooks and /w/<slug>/playbooks/<playbook>: the old Playbooks list, which is Sequences now (decision 0060).
@@ -10,5 +10,5 @@ import { PlaybooksDoor } from "@/surfaces/campaigns/home/door";
  * address, which every bell row, email link and bookmark that says `outbound/<id>` still opens (contracts retiredRouteOf).
  */
 export default function Page() {
-  return <PlaybooksDoor pathname={usePathname()} />;
+  return <RetiredRouteDoor pathname={usePathname()} />;
 }

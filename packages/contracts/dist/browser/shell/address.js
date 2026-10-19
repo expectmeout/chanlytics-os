@@ -1,4 +1,6 @@
 import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address.js";
+export const MESSAGES_ROUTE = "campaigns/messages";
+export const isMessagesParam = (param) => !!param && /^messages(\/|$)/.test(param);
 export const ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
@@ -18,6 +20,7 @@ export function retiredRouteOf(route) {
 function retiredPathOf(path) {
   const head = headOf(path);
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
     if (!param) return SEQUENCES_ROUTE;

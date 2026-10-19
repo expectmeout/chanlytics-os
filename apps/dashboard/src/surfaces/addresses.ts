@@ -23,6 +23,7 @@ import {
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
+  MESSAGES_ROUTE,
   newConversationOf,
   parseLeadsRoute,
   parseListToken,
@@ -112,11 +113,13 @@ function opensCalendar(param: string): Opened | null {
 
 /**
  * What Campaigns' param opens: its Sequences view (0060: the list, a new one, and a sequence on one of its tabs, which is
- * the campaign or reach-out it is, as addressOf writes it), else a message by its name or the composer. The home's own
- * addresses (`campaigns`, a group, a moment) are retired ones, read as the page that replaced them (retiredRouteOf).
+ * the campaign or reach-out it is, as addressOf writes it), its Messages view, else a message by its name or the composer.
+ * The home's own addresses (`campaigns`, a group, a moment) are retired ones, read as the page that replaced them
+ * (retiredRouteOf).
  */
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
+  if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
   const sequences = parseSequencesRoute(`campaigns/${param}`);
   if (sequences?.view === "record") return { ref: { kind: "campaign", id: sequences.id } };
   if (sequences)
@@ -236,9 +239,10 @@ function opensReports(param: string): Opened | null {
  *   conversations  `<tab>`, `<conversation>`, `cv-<call>`, and a row on its tab, `<tab>:<row>`
  *   live           `<call>`
  *   calendar       `<yyyy-mm-dd>`, `a-<visit>`, `<yyyy-mm-dd>:a-<visit>`
- *   campaigns      `sequences` and Sequences' own (`sequences/<campaign>[/<tab>]`, `sequences/new`), `message:<template>`,
- *                  `new` and the composer's other doors (`new:to:`, `new:leads`, `new:edit:`); `in:<group>`, `moment:<campaign>`,
- *                  `new:every` and `new:moment:` are retired, read as the page that replaced them (contracts retiredRouteOf)
+ *   campaigns      `sequences` and Sequences' own (`sequences/<campaign>[/<tab>]`, `sequences/new`), `messages`,
+ *                  `message:<template>`, `new` and the composer's other doors (`new:to:`, `new:leads`, `new:edit:`); `in:<group>`,
+ *                  `moment:<campaign>`, `new:every` and `new:moment:` are retired, read as the page that replaced them
+ *                  (contracts retiredRouteOf)
  *   broadcasts     `run:<send>`, `get-yes`, `to-send`
  *   clients        `<person>`, `new-list`, `seg:<built-in list>`, `list:<kept list>`, `leads` and its views
  *                  (`leads:s-<search>:l-<list>:c-<class>:p-<lead>`), `pipeline` and its views (`pipeline:v-<view>:p-<person>[_<deal>]`)
@@ -246,7 +250,7 @@ function opensReports(param: string): Opened | null {
  *   start          `<step>`, `find`
  *   admin          `<pane>`, with a row of Business or Activity after it (`workspace/<row>`, `activity/<part>`)
  *   reports        `<lens>`, `<lens>:<days>`, `<days>`, `reviews:<review>`
- *   today, messages: the route alone. outbound: retired (contracts retiredRouteOf), read as the page that replaced it.
+ *   today: the route alone. outbound, messages: retired (contracts retiredRouteOf), read as the page that replaced it.
  */
 const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["today", alone("today")],
@@ -255,7 +259,9 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["live", flat(opensLive)],
   ["calendar", flat(opensCalendar)],
   ["campaigns", opensCampaigns],
-  ["messages", alone("messages")],
+  // Messages is a view of Campaigns (19 Oct 2026): canonicalRoute sends `messages` to `campaigns/messages` before the page
+  // is asked, so nothing is opened here.
+  ["messages", () => null],
   ["broadcasts", flat(opensSent)],
   // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.
   ["clients", opensPeople],

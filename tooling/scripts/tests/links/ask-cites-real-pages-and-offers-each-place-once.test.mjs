@@ -8,7 +8,7 @@
  * built-in lists, the Sent room's Get their yes); anything else is dropped, as a row not read is.
  *
  * A2f: the readers spell a campaign `outbound/<id>` and the act tools, the page's context and the proposal cards
- * `campaigns/moment:<id>`, which the app resolves to one place (doorOf), but "one door per place" kept a set of the
+ * `campaigns/moment:<id>`, which the app resolves to one place (retiredRouteOf), but "one door per place" kept a set of the
  * strings, so an answer that cited a campaign and carried its card drew two doors to it.
  */
 import { test } from "node:test";
@@ -38,7 +38,7 @@ test("a page citation is a listed page, or a shape its page parses", () => {
     "inbox",
     "calendar",
     "campaigns/sequences",
-    "messages",
+    "campaigns/messages",
     "segments",
     "start",
     "admin/team",
@@ -71,6 +71,8 @@ test("a page citation is a listed page, or a shape its page parses", () => {
   ];
   assert.deepEqual(kept(moved), ["campaigns/sequences"]);
   assert.deepEqual(kept(["campaigns/sequences", ...moved]), ["campaigns/sequences"], "one place, one citation");
+  // The Library's old route is Messages, Campaigns' other view (19 Oct 2026).
+  assert.deepEqual(kept(["messages"]), ["campaigns/messages"]);
 });
 
 test("an address that begins with a page word and is not one of its shapes is dropped (REGRESSION: all came back as a door)", () => {

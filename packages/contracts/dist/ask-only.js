@@ -973,6 +973,9 @@ var SEQUENCES_ROUTE = "campaigns/sequences";
 var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 var newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 
+// src/shell/address.ts
+var MESSAGES_ROUTE = "campaigns/messages";
+
 // src/shared/enums.ts
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
 
@@ -1308,7 +1311,7 @@ var messageSpec = {
       return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
     }
   },
-  open: () => "messages"
+  open: () => MESSAGES_ROUTE
 };
 
 // src/ask-proposals/follow-ups.ts

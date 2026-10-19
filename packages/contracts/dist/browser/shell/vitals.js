@@ -73,6 +73,7 @@ export function vitalsPageOf(route) {
   const rest = at < 0 ? "" : path.slice(at + 1);
   if (head === "") return "today";
   if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
   const word = ROUTE_WORDS[head] ?? head;
   return PAGE_NAME.test(word) ? word : "other";
 }
@@ -87,7 +88,9 @@ export const PRIMARY_PART = {
   person: "hero",
   calendar: "board",
   // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list"
+  campaigns: "list",
+  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
+  templates: "list"
 };
 export const PAGE_VITALS_READ = { days: 7, most: 25e3 };
 export const PAGE_VITALS_MIN_LOADS = 20;

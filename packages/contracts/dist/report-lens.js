@@ -2712,6 +2712,9 @@ var REST_IS_CURRENT = "The rest of this page is current.";
 var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";
 var onlyReadWords = (landed) => `Only ${joinWords(landed.map((part) => STILL_READ[part]))} could be read.`;
 
+// src/shell/address.ts
+var MESSAGES_ROUTE = "campaigns/messages";
+
 // src/reports/campaigns/campaign-lens.ts
 var knownCount = (v) => isCount(v) ? v : null;
 function readsOf({ campaigns, ledger, reachOuts }) {
@@ -2998,7 +3001,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Messages Meta stopped",
       value: String(templates.n),
       meta: templatesMeta(templates),
-      door: "messages",
+      door: MESSAGES_ROUTE,
       ...stuckTone(templates.n, "fail")
     },
     {

@@ -99,6 +99,8 @@ export {
   retiredRouteOf,
   canonicalRoute,
   ROUTE_WORDS,
+  MESSAGES_ROUTE,
+  isMessagesParam,
 } from "./address";
 export type { AddressParts } from "./address";
 export {

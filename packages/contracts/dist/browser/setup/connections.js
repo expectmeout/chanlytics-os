@@ -1,3 +1,4 @@
+import { MESSAGES_ROUTE } from "../shell/address.js";
 import { numberHealth } from "../broadcasts/broadcasts.js";
 import { PHONE_LINE_OFF } from "../lines/caller-gets.js";
 import { channelFor } from "../lines/channels.js";
@@ -190,7 +191,7 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
-const LIBRARY = { label: "Messages", to: "messages", who: "operator" };
+const LIBRARY = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
 function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
   if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };

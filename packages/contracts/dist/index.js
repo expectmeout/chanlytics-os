@@ -14998,6 +14998,8 @@ function peopleAggregates(rows2, nowMs) {
 }
 
 // src/shell/address.ts
+var MESSAGES_ROUTE = "campaigns/messages";
+var isMessagesParam = (param) => !!param && /^messages(\/|$)/.test(param);
 var ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
@@ -15017,6 +15019,7 @@ function retiredRouteOf(route) {
 function retiredPathOf(path) {
   const head = headOf(path);
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
     if (!param) return SEQUENCES_ROUTE;
@@ -15124,7 +15127,8 @@ var ASK_PAGE_ROUTES = [
   "calendar",
   // Campaigns › Sequences (decision 0060): everything that sends on its own, Campaigns' first view.
   "campaigns/sequences",
-  "messages",
+  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages`, lands on it (RETIRED_PAGES).
+  "campaigns/messages",
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
@@ -15176,7 +15180,7 @@ var ASK_PAGES = new Set(ASK_PAGE_ROUTES);
 var CALLS_ROUTE = "conversations/phone";
 var OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true };
 var CAMPAIGN_GROUPS = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
-var RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts"]);
+var RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts", "messages"]);
 function movedPageOf(route) {
   const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
   return RETIRED_PAGES.has(route) || group !== null && CAMPAIGN_GROUPS.includes(group) ? retiredRouteOf(route) : null;
@@ -20039,7 +20043,7 @@ var messageSpec = {
       return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
     }
   },
-  open: () => "messages"
+  open: () => MESSAGES_ROUTE
 };
 
 // src/reach-out/reach-out-dtos.ts
@@ -25520,10 +25524,11 @@ var ASK_PAGES2 = [
     sub: "everything that sends on its own",
     also: ["automations", "follow-ups", "drip", "sent", "broadcasts"]
   },
-  // Campaigns' Messages (D4: it was the Library), found too by the names it went by, which people learned and still type.
+  // Campaigns' Messages (D4: it was the Library), its other view, found too by the names it went by, which people learned
+  // and still type.
   {
     label: "Messages",
-    to: "messages",
+    to: MESSAGES_ROUTE,
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
     also: ["templates", "library", "wording"]
@@ -47143,7 +47148,7 @@ function callTextRow(library2, caps) {
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps)
@@ -51154,7 +51159,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Messages Meta stopped",
       value: String(templates.n),
       meta: templatesMeta(templates),
-      door: "messages",
+      door: MESSAGES_ROUTE,
       ...stuckTone(templates.n, "fail")
     },
     {
@@ -53656,7 +53661,7 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
-var LIBRARY = { label: "Messages", to: "messages", who: "operator" };
+var LIBRARY = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
 function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
   if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
@@ -54997,6 +55002,8 @@ var PREFETCH_READS = {
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
+  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now.
+  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
   admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"]
 };
@@ -55044,6 +55051,8 @@ function routePrefetchScript() {
     // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
+    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
+    'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).
@@ -55159,6 +55168,7 @@ function vitalsPageOf(route) {
   const rest = at3 < 0 ? "" : path.slice(at3 + 1);
   if (head === "") return "today";
   if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
   const word = ROUTE_WORDS[head] ?? head;
   return PAGE_NAME.test(word) ? word : "other";
 }
@@ -55173,7 +55183,9 @@ var PRIMARY_PART = {
   person: "hero",
   calendar: "board",
   // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list"
+  campaigns: "list",
+  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
+  templates: "list"
 };
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -56843,8 +56855,8 @@ var SERVER_LOOK = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: MESSAGES_ROUTE },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: MESSAGES_ROUTE },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -56917,6 +56929,8 @@ var ROUTE_VERBS = [
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
+  // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
+  [/^campaigns\/messages(\/|$)/, "Open Messages"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],
@@ -61140,6 +61154,7 @@ export {
   MERGE_CONSENT_SOURCE,
   MERGE_REFUSALS,
   MERGE_WORDS,
+  MESSAGES_ROUTE,
   MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
   MESSAGE_CRAFT_JSON_SCHEMA,
@@ -62485,6 +62500,7 @@ export {
   isLiveCall,
   isLogoPathOf,
   isLookPref,
+  isMessagesParam,
   isModelId,
   isNoticeHold,
   isOfferByEmail,

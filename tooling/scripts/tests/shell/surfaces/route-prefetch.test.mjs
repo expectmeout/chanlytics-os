@@ -163,6 +163,8 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["playbooks", "outbound"],
     ["outbound", "outbound"],
     ["templates", "messages"],
+    // Messages as the view of Campaigns it is (19 Oct 2026), opening on what the Library did.
+    ["campaigns/messages", "campaigns/messages"],
     ["admin/team", "admin"],
     ["start", "start"],
   ];
@@ -727,6 +729,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     broadcasts: ["channels", "sequences"],
     outbound: ["channels"],
     messages: ["channels"],
+    "campaigns/messages": ["channels"],
   };
   // A key with a word after its page (`campaigns/new`) is that page at that address, as the registry reads one.
   const pageAt = (route) => {

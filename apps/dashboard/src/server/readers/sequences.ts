@@ -100,6 +100,20 @@ async function startsWith(
 }
 
 /**
+ * A sequence's own reads, by its id: its row, its steps, and its first step's (the sequence's own id) run facts: the day it
+ * last ran (when its next run goes), its cap, gap and cadence (Start's Change opens with them), and why its last run did
+ * nothing, where it did (the record's notice, sequence-run-off.ts). Run facts unreadable cost those lines alone, unsaid.
+ */
+function sequenceReads(rc: ReaderContext, id: string) {
+  return Promise.all([
+    sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
+    sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
+    firstStepFacts(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
+    lastRunSkipped(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
+  ]);
+}
+
+/**
  * GET sequences/:id: one sequence (with its own mode, how its batches are decided: decision 0064) and its steps in their
  * places; what a sequence to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
  * step's) reads the sequence it belongs to, whose own id the answer names.
@@ -107,21 +121,24 @@ async function startsWith(
 export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   name: "sequence",
   async read(rc, { id: asked }) {
-    const own = await sequenceOverview(rc.ctx.supabase, rc.tenantId, asked);
-    const id = own.length > 0 ? asked : ((await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked)) ?? asked);
-    const [rows, steps, facts, word, first, lastRunOff, evidence] = await Promise.all([
-      id === asked ? own : sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
-      sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
+    // The workspace's: its clock, its word, and what its batches did (decision 0064, step 5: How it runs says it under
+    // Before each batch; unreadable, unsaid). Asked at once, beside the sequence's own reads, and awaited once those are in.
+    const workspace = Promise.all([
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
-      // Its first step's (the sequence's own id) run facts: the day it last ran (when its next run goes), its cap, gap and
-      // cadence (Start's Change opens with them). Unreadable costs those lines alone.
-      firstStepFacts(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
-      // Why its last run did nothing, where it did (the record's notice says it, sequence-run-off.ts). Unreadable: unsaid.
-      lastRunSkipped(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
-      // What its batches did (decision 0064, step 5): How it runs says it under Before each batch. Unreadable: unsaid.
       sequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
     ]);
+    workspace.catch(() => {});
+    // The id asked for is a sequence's own as a row's door or a record's address names it, so its row, steps and run facts
+    // are read in one wave with the workspace's: its row was read first and the rest after it, a wait each (the tabs review
+    // of 19 Oct 2026). An id that names a part of one (a step's, a batch's: a run's address) finds no row, and the sequence
+    // it belongs to is read in a second wave, as before.
+    let [rows, steps, first, lastRunOff] = await sequenceReads(rc, asked);
+    if (rows.length === 0) {
+      const id = await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked);
+      if (id && id !== asked) [rows, steps, first, lastRunOff] = await sequenceReads(rc, id);
+    }
+    const [facts, word, evidence] = await workspace;
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));

@@ -55,6 +55,7 @@ import type {
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./lifecycle-words";
 import { SEQUENCES_ROUTE, messageRoute, runRoute } from "../../sequences/sequence-address";
+import { MESSAGES_ROUTE } from "../../shell/address";
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 const LEDGER_TOOLS_AT = 7;
@@ -352,7 +353,7 @@ function callTextRow(library: LifecycleInput["library"], caps: string): Lifecycl
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps),

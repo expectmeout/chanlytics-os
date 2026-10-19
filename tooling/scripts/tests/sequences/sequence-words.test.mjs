@@ -290,7 +290,7 @@ test("an older address lands on what it names: the home and Sent's list on Seque
     "campaigns/sequences/s1",
     "broadcasts/get-yes",
     "broadcasts/to-send",
-    "messages",
+    "campaigns/messages",
   ])
     assert.equal(retiredRouteOf(stays), null, stays);
 });

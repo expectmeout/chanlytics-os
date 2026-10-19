@@ -60,6 +60,7 @@ import {
   lifecycleStateOf,
   SEQUENCES_ROUTE,
   runRoute,
+  MESSAGES_ROUTE,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { readSequence, readSequences } from "./sequences";
@@ -554,7 +555,7 @@ export async function readMessages(t: ToolContext) {
     t.read,
     read.rows.filter((r) => versions.has(r.id)),
   );
-  return { route: "messages", messages };
+  return { route: MESSAGES_ROUTE, messages };
 }
 
 /** GET playbooks' answer and GET broadcasts', as their readers give them. */

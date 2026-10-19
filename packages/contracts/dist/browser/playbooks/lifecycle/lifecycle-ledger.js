@@ -19,6 +19,7 @@ import { PLAYBOOK_DEFAULTS, triggerOf, triggerWords } from "../playbook-triggers
 import { nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./lifecycle-tiles.js";
 import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./lifecycle-words.js";
 import { SEQUENCES_ROUTE, messageRoute, runRoute } from "../../sequences/sequence-address.js";
+import { MESSAGES_ROUTE } from "../../shell/address.js";
 const LEDGER_TOOLS_AT = 7;
 const LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
 const LEADS_ROUTE = "clients/leads";
@@ -188,7 +189,7 @@ function callTextRow(library, caps) {
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps)

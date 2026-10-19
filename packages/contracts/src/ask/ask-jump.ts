@@ -5,6 +5,7 @@
  */
 import { REPORT_LENSES, lensRoute, type LensRow } from "../reports/lenses";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { MESSAGES_ROUTE } from "../shell/address";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -73,10 +74,11 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "everything that sends on its own",
     also: ["automations", "follow-ups", "drip", "sent", "broadcasts"],
   },
-  // Campaigns' Messages (D4: it was the Library), found too by the names it went by, which people learned and still type.
+  // Campaigns' Messages (D4: it was the Library), its other view, found too by the names it went by, which people learned
+  // and still type.
   {
     label: "Messages",
-    to: "messages",
+    to: MESSAGES_ROUTE,
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
     also: ["templates", "library", "wording"],

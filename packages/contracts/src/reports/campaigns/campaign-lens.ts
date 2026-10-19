@@ -81,6 +81,7 @@ import {
 } from "./campaign-words";
 import { toReachOutLensVM, type ReachOutLensVM } from "./reach-out-lens";
 import { SEQUENCES_ROUTE } from "../../sequences/sequence-address";
+import { MESSAGES_ROUTE } from "../../shell/address";
 
 /** The three reads: the sends, the ledger the route answers (null where it failed), and the reach-outs (undefined in the demo). */
 export interface CampaignLensInput {
@@ -506,7 +507,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       label: "Messages Meta stopped",
       value: String(templates.n),
       meta: templatesMeta(templates),
-      door: "messages",
+      door: MESSAGES_ROUTE,
       ...stuckTone(templates.n, "fail"),
     },
     {

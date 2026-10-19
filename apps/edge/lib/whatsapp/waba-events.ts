@@ -35,6 +35,7 @@ import {
   type NotificationsConfig,
   type ServerNotificationKind,
   type WabaEventKind,
+  MESSAGES_ROUTE,
 } from "../packages/contracts.js";
 import { logger, errField, type Logger } from "../log.js";
 
@@ -146,9 +147,9 @@ interface WabaWords {
 /** The number's own health: Connections, under a shield. Read by what tells an owner of a number's standing too (number-standing.ts). */
 export const NUM = { kind: "number" as const, route: "admin/integrations" };
 /** A template can be sent now. */
-const READY = { kind: "template_ready" as const, route: "messages" };
+const READY = { kind: "template_ready" as const, route: MESSAGES_ROUTE };
 /** A template cannot be sent, or can no longer be sent freely. */
-const BLOCKED = { kind: "template_blocked" as const, route: "messages" };
+const BLOCKED = { kind: "template_blocked" as const, route: MESSAGES_ROUTE };
 
 /**
  * A template notice opens the message it is about, in its own drawer over Campaigns (campaigns/message:<name>), and says what

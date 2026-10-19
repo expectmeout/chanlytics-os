@@ -14,6 +14,7 @@
 import {
   ASK_CONTEXT_MAX_ROWS,
   ASK_SCOPE_KINDS,
+  isMessagesParam,
   itemFocus,
   parseLeadsRoute,
   parsePipelineRoute,
@@ -145,10 +146,10 @@ const sequenceFocus = (q: { id: string; name: string; starts: string }, at: stri
 /**
  * Campaigns is Sequences (decision 0060), whose rows are its list's, forty at most in its order, and a sequence open beside
  * it the scope; before the list is read, the playbooks the surface read. Sent's sheets and Messages are their own views,
- * each with its own rows.
+ * each with its own rows: Messages at `campaigns/messages` (a view of Campaigns since 19 Oct 2026) as at its old route.
  */
 const campaigns: Provider = (w, route) => {
-  if (route.page === "outbound" || route.page === "campaigns") {
+  if (route.page === "outbound" || (route.page === "campaigns" && !isMessagesParam(route.param))) {
     const listed = surfaceValue("sequences")?.sequences;
     if (Array.isArray(listed)) {
       const at = `campaigns/${route.param ?? ""}`;

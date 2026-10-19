@@ -1236,7 +1236,7 @@ test("Sent's list went to each sequence's History (decision 0060, D3): its page 
   assert.equal(byTestId(tree, "bc-run-solo"), null, "nothing open beside the list at rest");
   assert.equal(byTestId(tree, "bc-composer"), null);
   // A link that names a list is asking to write one: the composer opens on that list in the pane beside the list, and Cancel
-  // closes the pane. (The app moves such a link to Campaigns' composer, contracts doorOf.)
+  // closes the pane. (The app moves such a link to Campaigns' composer, contracts retiredRouteOf.)
   tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(byTestId(tree, "bc-composer"), "People's 'broadcast to this list' lands on the composer");
   assert.equal(byTestId(tree, "bc-compose-close").props["aria-label"], "Cancel", "its Close is the composer's Cancel");

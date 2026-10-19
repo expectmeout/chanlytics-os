@@ -20,6 +20,19 @@
 
 import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address";
 
+/**
+ * Messages' address (D4: the Library is Messages): a view of Campaigns beside Sequences, under the one mount Campaigns' views
+ * share, as Ads is at `campaigns/ads`, so a switch between the two reveals a view kept drawn rather than loading a page (the
+ * tabs review of 19 Oct 2026: a phone showed nothing for 600 ms between them). Its old route, `messages`, whose path was
+ * `/w/<slug>/templates`, lands here for ever (retiredRouteOf, below). Declared here, beside the route words, so the boot does
+ * not carry Campaigns' words: from them it carried those into the error screen's chunk (+3.7 KB on every first load). The one
+ * module this one imports is Sequences' addresses (sequence-address.ts), which imports nothing.
+ */
+export const MESSAGES_ROUTE = "campaigns/messages";
+
+/** Whether a param of `campaigns` is Messages' view (its first word). */
+export const isMessagesParam = (param: string | null | undefined): boolean => !!param && /^messages(\/|$)/.test(param);
+
 /** The parts of an address the functions below read; every part may be missing (a made-up window has few). */
 export interface AddressParts {
   readonly pathname?: string | null;
@@ -65,6 +78,9 @@ const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
  *   which People and a list wrote to message these people, Send once on that audience. A run (`broadcasts/run:<id>`), Get
  *   their yes and To send stay where they are: a run's link lands by what the run is (runLandingOf), which no address says.
  *
+ * - Messages (D4: the Library is Messages) is a view of Campaigns (19 Oct 2026): `messages`, and the Library's path
+ *   `templates`, land on `campaigns/messages`; nothing was ever under it, so `messages/<word>` lands nowhere, as before.
+ *
  * A query after the route rides along.
  */
 export function retiredRouteOf(route: string): string | null {
@@ -79,6 +95,7 @@ export function retiredRouteOf(route: string): string | null {
 function retiredPathOf(path: string): string | null {
   const head = headOf(path);
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
     if (!param) return SEQUENCES_ROUTE;
