@@ -152,7 +152,7 @@ const READY = { kind: "template_ready" as const, route: MESSAGES_ROUTE };
 const BLOCKED = { kind: "template_blocked" as const, route: MESSAGES_ROUTE };
 
 /**
- * A template notice opens the message it is about, in its own drawer over Campaigns (campaigns/message:<name>), and says what
+ * A template notice opens the message it is about, at its home in the Library (campaigns/messages/<name>), and says what
  * it is about (D1-template-marks): it opened the bare Library, at its top, though a message has its own address now. Without
  * a name (an event that carries none) it keeps the Library's door. What it is about is the version, by its name and its
  * language where the event says it (a row per both, 00004): a version approved in one language mends no refusal of
@@ -213,7 +213,7 @@ function templateStatusWords(v: Record<string, unknown>): WabaWords | null {
       ...READY,
       ...door,
       subject: `Template “${name}” ${statusWord("approved")}`,
-      body: `WhatsApp ${statusWord("approved")} the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`,
+      body: `WhatsApp ${statusWord("approved")} the template “${name}”. It can be sent now — from Campaigns, or from the Inbox outside the 24-hour window.`,
       alert: true,
     };
   return null;

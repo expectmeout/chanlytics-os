@@ -743,6 +743,11 @@ test("(lane C) a one-off send stands at its time in Sent's words; a campaign's r
     ["Appointment reminder · 6 sent", "Thank you · 3 sent"],
     "its sheet names each",
   );
+  assert.ok(
+    went.items.every((i) => /\/runs\/[^/]+$/.test(i.route)) && new Set(went.items.map((i) => i.route)).size === 2,
+    "each its own door, to its run",
+  );
+  assert.equal(went.route, null, "the fold has no one door: the Sequences list is none of them");
   assert.equal(went.named, false, "a month does not name what went");
   assert.deepEqual(
     marksOn(dto, "2026-09-10").map((m) => [said(m), m.tone]),

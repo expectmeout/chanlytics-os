@@ -1,6 +1,6 @@
 /**
  * The intake hands a reach-out's reply to the reading (Reach out Part 5, PR 3; the plan's Task 3.2): core's
- * ingestEmail over fakes that log their calls. A person's reply to a reach-out is kept and flagged in its own words,
+ * ingestEmail over fakes that log their calls. A person's reply from a lead is kept and flagged in its own words,
  * the reading is scheduled once, and the intake does not tell (the reading does, with what it meant); an automatic
  * reply is read too (it may say no, B1), and neither flagged nor told; an email that answers no reach-out is as it
  * was; and a failed question or a failed schedule throws before the message is marked handled, so the ledger's retry
@@ -62,7 +62,7 @@ function world(over = {}) {
 }
 const run = (w) => ingestEmail(w.ports, { payload: { mailbox_id: "mb1", received_id: "rcv_1" } });
 
-test("a person's reply to a reach-out is kept, flagged in its own words, then handed to the reading once, and not told", async () => {
+test("a person's reply from a lead is kept, flagged in its own words, then handed to the reading once, and not told", async () => {
   const w = world();
   assert.equal(await run(w), "kept_for_the_reading");
   // The flag before the reading: the reading closes what the intake opened (core reply-read.ts), so a reading that ran
@@ -82,11 +82,11 @@ test("a person's reply to a reach-out is kept, flagged in its own words, then ha
   assert.deepEqual(w.call("reachOutReply"), ["reachOutReply", T, "m1"]);
   assert.deepEqual(w.call("readReply"), ["readReply", T, "m1"]);
   assert.deepEqual(w.call("escalate"), ["escalate", T, "c1", "email_review", EMAIL_REVIEW_WORDS.reach_out]);
-  assert.match(EMAIL_REVIEW_WORDS.reach_out, /^They wrote back to your reach-out\. Nothing is sent without you/);
+  assert.match(EMAIL_REVIEW_WORDS.reach_out, /^They wrote back to your sequence\. Nothing is sent without you/);
   assert.equal(w.call("tell"), undefined, "the reading tells the owner what it meant: never twice");
 });
 
-test("an automatic reply to a reach-out is read (it may say no), and neither flagged nor told", async () => {
+test("an automatic reply from a lead is read (it may say no), and neither flagged nor told", async () => {
   const w = world({ fetch: email({ claim: "auto_reply" }) });
   assert.equal(await run(w), "kept_for_the_reading");
   assert.deepEqual(w.ops(), [

@@ -34,5 +34,8 @@ export function reachOutDayWords(n) {
   if (n.said_no) clauses.push(`${n.said_no} said no`);
   if (n.bounced) clauses.push(`${n.bounced} bounced`);
   if (n.held) clauses.push(`${n.held} wait${n.held === 1 ? "s" : ""} for your say`);
-  return { title: "Today's reach-outs", body: clauses.length ? `${clauses.join(" \xB7 ")}.` : "Nothing happened today." };
+  return {
+    title: "Today's emails to leads",
+    body: clauses.length ? `${clauses.join(" \xB7 ")}.` : "Nothing happened today."
+  };
 }

@@ -21,13 +21,19 @@ export function waitRowsOf(waiting, late = [], toSendOpen = false) {
   for (const r of late) rows.push({ kind: "run", run: r, late: true });
   return rows;
 }
+const approvalsSentence = (names) => `${joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names)}. Each one you answer opens the next.`;
 export const WAIT_ROW_WORDS = {
   approvals: {
     name: (n) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns \xB7 ready",
-    /** The first two by name, then how many more: "VIP color clients, Holiday gift cards and 1 more". */
-    sentence: (names) => `${joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names)}. Each one you answer opens the next.`,
+    sentence: approvalsSentence,
     status: [RUN_WAITING_WORDS],
-    open: "Open"
+    open: "Open",
+    /** Today's brief, saying the folded row once (contracts todayBriefWords): "4 runs wait for your OK: …". */
+    brief: (names) => ({
+      label: plural(names.length, "run", "runs"),
+      says: names.length === 1 ? "waits for your OK" : "wait for your OK",
+      sentence: approvalsSentence(names)
+    })
   }
 };

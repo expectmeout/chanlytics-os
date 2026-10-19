@@ -582,7 +582,7 @@ export function aboutOf({
   }
   // The reach-out that found them, and where they stand in it (Reach out Part 6, H11).
   const reach = profile.lead?.reach_out ? reachOutPersonOf(profile.lead.reach_out, nowMs, tz).about : null;
-  if (reach) about.push({ k: "Reach out", v: reach });
+  if (reach) about.push({ k: "Sequence", v: reach });
   return about;
 }
 

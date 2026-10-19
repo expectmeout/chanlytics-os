@@ -340,17 +340,17 @@ function doneWords(intent) {
   switch (intent) {
     case "interested":
     case "question":
-      return "They are Talking now, and your reach-out stops for them.";
+      return "They are Talking now, and your sequence stops for them.";
     case "not_now":
-      return "Your reach-out stops for them, and a step to write again is on Today for the day they named.";
+      return "Your sequence stops for them, and a step to write again is on Today for the day they named.";
     case "no":
       return "They are marked Said no: nothing more will be written to them.";
     case "wrong_person":
-      return "Your reach-out stops for them, and a step on Today names who to write to.";
+      return "Your sequence stops for them, and a step on Today names who to write to.";
     case "away":
-      return "Your reach-out stops for them, and a step is on Today for the day they are back.";
+      return "Your sequence stops for them, and a step is on Today for the day they are back.";
     default:
-      return "Your reach-out stops for them. Nothing is sent without you.";
+      return "Your sequence stops for them. Nothing is sent without you.";
   }
 }
 function subjectOf(p) {
@@ -382,7 +382,7 @@ export function replyNoticeWords(p) {
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
     body: body.join("\n"),
-    redacted: `A business wrote back to a workspace's reach-out${redactedReadAs(intent, p.unread)}.`,
+    redacted: `A business wrote back to a workspace's sequence${redactedReadAs(intent, p.unread)}.`,
     push
   };
 }

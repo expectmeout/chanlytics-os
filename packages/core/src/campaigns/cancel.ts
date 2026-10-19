@@ -27,14 +27,14 @@ export async function cancelBroadcast(
   if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {
     const said =
       b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
-    throw new AppError("conflict", `This broadcast has ${said}.`, 409);
+    throw new AppError("conflict", `This send has ${said}.`, 409);
   }
   // The row first, then the job. A batch that reads a canceled row sends
   // nothing, so a job that outlives this by a moment is harmless; a job
   // withdrawn before a row that then did not change would leave a run that
   // reads "scheduled" and never goes.
   if (!(await ports.cancel(b.id, b.state)))
-    throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
+    throw new AppError("conflict", "This send just changed state; look again.", 409);
   if (b.state === "scheduled") await ports.withdraw(b.id);
   const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", {
     name: b.name,

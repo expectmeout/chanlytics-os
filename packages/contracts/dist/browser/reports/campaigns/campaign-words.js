@@ -19,7 +19,7 @@ export const NOTHING_WENT_OUT = "Nothing went out in this period.";
 export function reachOutsWroteWords(emails, businesses) {
   if (emails === 0) return "";
   const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
-  return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
+  return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
 }
 export function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
   const sentence = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
@@ -63,7 +63,7 @@ const HELD_OTHER = "Another reason";
 export const heldKeyOf = (key) => ownWord(HELD_REASONS, key) === void 0 ? "other" : key;
 export const heldReasonWords = (key) => capitalize(ownWord(HELD_REASONS, key) ?? HELD_OTHER);
 export const heldBackLine = (held, sent) => `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
-const REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
+const REACH_OUTS_UNDER = "Runs to leads are not counted here.";
 export const STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 export const CANCELED_KEY = "canceled";
 export const stoppedKeyOf = (key) => readFailure(key) === null ? "other" : key;
@@ -86,7 +86,7 @@ export function messageRateWords(m) {
 export function runsLineWords(moment, broadcast) {
   const kinds = [
     moment > 0 ? plural(moment, "campaign run") : null,
-    broadcast > 0 ? plural(broadcast, "one-off broadcast") : null
+    broadcast > 0 ? plural(broadcast, "one-off send") : null
   ].filter((kind) => kind !== null);
   return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
 }
@@ -128,7 +128,7 @@ export function runsWaitingMeta(n, late) {
   return `${late} past their day (skip those), ${n - late} can still be approved`;
 }
 const RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
-const REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
+const REACH_OUT_STEP_COUNTS = "a step to leads counts too";
 export function failedRunMeta(failed) {
   if (failed.n === 0) return RUNS_FAILED_NONE;
   const what = failed.latest === null ? `${plural(failed.n, "run")} failed in the last ${STUCK_DAYS}` : `the latest: ${failed.latest.name}, ${broadcastFailureWords(failed.latest.failure)}`;
@@ -159,13 +159,13 @@ export const FAILED_WHAT = {
   campaigns: "the campaign numbers",
   ledger: "who it reached and what is stuck",
   stuck: "what is stuck now",
-  reach_outs: "the reach-out numbers"
+  reach_outs: "the numbers for leads"
 };
 const STILL_READ = {
   campaigns: "the sends and their channels",
   ledger: "who it reached",
   stuck: "what is stuck now",
-  reach_outs: "the reach-outs"
+  reach_outs: "the sequences to leads"
 };
 export const REST_IS_CURRENT = "The rest of this page is current.";
 export const NOTHING_ELSE_READ = "Nothing else on this page could be read either.";

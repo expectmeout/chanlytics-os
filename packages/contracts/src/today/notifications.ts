@@ -408,7 +408,7 @@ export type JobEnd = "failed" | "unfinished" | "unknown_kind";
  */
 const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A broadcast stopped partway", to: "campaigns/sequences" },
+  broadcast_send: { stopped: "A run stopped partway", to: "campaigns/sequences" },
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
   email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
@@ -417,7 +417,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
-  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  reply_read: { stopped: "A reply from a lead could not be read or told", to: "inbox" },
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
@@ -609,7 +609,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   // The old Playbooks list (`outbound`) lands on Sequences, which is Campaigns now (decision 0060): the door says the name.
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
-  [/^campaigns\/message:/, "Open the message"],
+  [/^campaigns\/(message:|messages\/[^/]+)/, "Open the message"],
   // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
   [/^campaigns\/messages(\/|$)/, "Open Messages"],
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): the door says it opens the run.

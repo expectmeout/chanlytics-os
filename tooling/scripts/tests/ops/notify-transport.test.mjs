@@ -511,7 +511,7 @@ test("every kind the table accepts is kept as itself -- a new kind is not turned
 
 test("REGRESSION: a job's alert is kept as what the job said it is -- a completed broadcast was kept as job_failed", async () => {
   // apps/edge/lib/ops/job-alert.ts hard-coded `kind: "job_failed", route: "inbox"` for every one of its six callers,
-  // so "Broadcast “Spring offer” sent, 38 people got it" reached the bell as a job that did not finish.
+  // so "Campaign “Spring offer” sent, 38 people got it" reached the bell as a job that did not finish.
   const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
   const rows = [];
   const t = transport();
@@ -526,7 +526,7 @@ test("REGRESSION: a job's alert is kept as what the job said it is -- a complete
         kind: "broadcast_sent",
         route: "broadcasts",
         about: { type: "broadcast", id: "b1" },
-        subject: "Broadcast “Spring offer” sent",
+        subject: "Campaign “Spring offer” sent",
         body: "38 people got it. Replies land in the Inbox.",
       }),
     );
@@ -538,7 +538,7 @@ test("REGRESSION: a job's alert is kept as what the job said it is -- a complete
     ["broadcast_sent", "broadcasts", "broadcast", "b1"],
     "REGRESSION: a completed broadcast was kept as job_failed, pointing at the Inbox",
   );
-  assert.equal(rows[0].title, "Broadcast “Spring offer” sent");
+  assert.equal(rows[0].title, "Campaign “Spring offer” sent");
 });
 
 test("a kept row of a kind a phone hears about schedules one push_send naming it, after the row and before the mail; a kind a phone does not hear about schedules none", async () => {

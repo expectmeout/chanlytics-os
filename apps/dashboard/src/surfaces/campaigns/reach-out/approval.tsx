@@ -16,13 +16,15 @@ import { REACH_OUT_SHEET_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, ReachOutDecision } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { canDo, gateTitle, navigate } from "../../legacy-verbs";
+import { canDo, gateTitle } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
+import { leadOverDoor } from "../../leads/sheet/lead-over";
 import { SheetSkipMore, WhoGetsIt, bringListIntoView } from "../broadcasts/run-sheet";
+import { HeldEmailRow, RUN_HELD_IDS } from "./held-row";
 import { reachOuts } from "./surface";
 import { RoToSend } from "./to-send";
 
@@ -68,16 +70,16 @@ function RoRunWords({ vm }: { vm: RunWords }) {
 }
 
 /**
- * A business on the sheet, held or ready: its name, which opens its lead in the Leads peek where the read names the lead
- * (`to`, contracts leadDoorOf), so the owner can see who it is before deciding on it. A name with no lead to open is the
- * name alone.
+ * A business ready on the sheet: its name, which opens its lead over the page where the read names the lead (lead-over.ts,
+ * as a held one's does: held-row.tsx), so the owner can see who it is and stay where they were. A name with no lead to
+ * open is the name alone.
  */
-function RoName({ name, to, testid }: { name: string; to: string | null; testid: string }) {
-  return to ? (
+function RoName({ name, leadId, testid }: { name: string; leadId: string | null; testid: string }) {
+  return leadId ? (
     <LinkButton
       className="bc-person-name"
       title={REACH_OUT_SHEET_WORDS.openLead}
-      onClick={() => navigate(to)}
+      {...leadOverDoor(leadId)}
       data-testid={testid}
     >
       {name}
@@ -96,8 +98,8 @@ interface HeldProps {
 }
 
 /**
- * The held, each with why and its doors (R20); a door's refusal said at its row. Out of sight for a role that may not. A
- * sequence's People lays out the same answers from its own read (sequences/needs.tsx, contracts peopleNeedsOf).
+ * The held, each with why and its doors (R20), in the one row a sequence's Needs you draws too (held-row.tsx, from its own
+ * read: contracts peopleNeedsOf); a door's refusal said at its row. Its doors out of sight for a role that may not.
  */
 function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   return (
@@ -107,30 +109,15 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
       data-testid="ro-run-held"
     >
       {vm.held.map((h) => (
-        <div key={h.id} className="bc-person is-held" data-testid="ro-held">
-          <RoName name={h.name} to={h.to} testid="ro-held-lead" />
-          <span className="bc-person-words">{h.why}</span>
-          {may && (
-            <span className="bc-person-doors">
-              {h.doors.map(([door, words]) => (
-                <LinkButton
-                  key={door}
-                  className="bc-person-door"
-                  disabled={busy === h.id}
-                  onClick={() => onDecide(h.id, door, h.name)}
-                  data-testid={`ro-door-${door}`}
-                >
-                  {words}
-                </LinkButton>
-              ))}
-            </span>
-          )}
-          {said && said.id === h.id && (
-            <span className="pb-warn" role="alert" data-testid="ro-held-said">
-              {said.text}
-            </span>
-          )}
-        </div>
+        <HeldEmailRow
+          key={h.id}
+          h={h}
+          may={may}
+          busy={busy === h.id}
+          said={said && said.id === h.id ? said.text : null}
+          onDecide={(door) => void onDecide(h.id, door, h.name)}
+          ids={RUN_HELD_IDS}
+        />
       ))}
     </section>
   );
@@ -155,7 +142,7 @@ function RoRunList({
     <WhoGetsIt id={`ro-who-${runId}`} head={vm.listHead} open={open} onToggle={onToggle} testid="ro-run-list">
       {vm.list.map((x) => (
         <div key={x.id} className="bc-person" data-testid="ro-run-person">
-          <RoName name={x.name} to={x.to} testid="ro-person-lead" />
+          <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
           <span className="bc-person-at mono">{x.at}</span>
         </div>
       ))}

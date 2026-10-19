@@ -68,7 +68,7 @@ const LEFT_OUT_BESIDE_THE_KINDS = [
     why: "Each change it records is in the section of the record it changed, and every consent change is in consent_history."
   }
 ];
-export const EXPORT_HOLDS_WORDS = "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply to a reach-out was read.";
+export const EXPORT_HOLDS_WORDS = "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply from a lead was read.";
 export function exportLeftOutWords() {
   const what = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
   return `Not in it: ${what.slice(0, -1).join("; ")}; and ${what.at(-1) ?? ""}. The end of the file says why for each.`;

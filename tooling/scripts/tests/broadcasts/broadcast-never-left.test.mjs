@@ -153,7 +153,7 @@ test("still unreachable past the last wait, the run stops and says WhatsApp coul
     w.log.map((l) => l.slice(0, 2)),
     [
       ["fail", "b1"],
-      ["alert", "Broadcast “Offer” stopped"],
+      ["alert", "Campaign “Offer” stopped"],
     ],
   );
   assert.equal(w.log[0][2], "wire_unavailable");

@@ -23,51 +23,14 @@ import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { ListRow } from "../../kit/list-row/list-row";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, refusalToast, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { leadOverDoor } from "../../leads/sheet/lead-over";
+import { HeldEmailRow, SEQUENCE_HELD_IDS } from "../reach-out/held-row";
 import { RoToSendRows } from "../reach-out/to-send";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
-
-/** One email the check held: whose (its lead's door), why, and its answers, each the decide verb. */
-function HeldRow(p: { h: SequenceHeldVM; may: boolean; busy: boolean; onDecide: (door: ReachOutDecision) => void }) {
-  const { h, may, busy, onDecide } = p;
-  return (
-    <ListRow
-      face={{ person: { name: h.name }, size: "sm" }}
-      name={
-        h.leadId ? (
-          <LinkButton size="inherit" {...leadOverDoor(h.leadId)} data-testid="sq-held-lead">
-            {h.name}
-          </LinkButton>
-        ) : (
-          h.name
-        )
-      }
-      said={(place) => <div className={`${place} sq-needs sq-held-why`}>{h.why}</div>}
-      facts={
-        may
-          ? h.doors.map(([door, words]) => (
-              <LinkButton
-                key={door}
-                disabled={busy}
-                aria-busy={busy || undefined}
-                onClick={() => onDecide(door)}
-                data-testid={`sq-held-${door}`}
-              >
-                {words}
-              </LinkButton>
-            ))
-          : []
-      }
-      data-testid="sq-held"
-    />
-  );
-}
 
 interface NeedsProps {
   rows: readonly SequencePersonDto[];
@@ -143,7 +106,14 @@ export function SequenceNeeds({ rows, count, timezone, flash, onDecided }: Needs
           </h4>
           <div className="sq-group-rows">
             {vm.held.map((h) => (
-              <HeldRow key={h.id} h={h} may={may} busy={busy !== null} onDecide={(door) => void decide(h, door)} />
+              <HeldEmailRow
+                key={h.id}
+                h={h}
+                may={may}
+                busy={busy !== null}
+                onDecide={(door) => void decide(h, door)}
+                ids={SEQUENCE_HELD_IDS}
+              />
             ))}
           </div>
         </section>

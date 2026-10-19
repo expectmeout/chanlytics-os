@@ -236,25 +236,25 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   };
   assert.equal(
     kindOf("message_template_status_update", { event: "APPROVED", message_template_name: "save_our_number" }),
-    "template_ready@campaigns/message:save_our_number",
+    "template_ready@campaigns/messages/save_our_number",
     "a template's news opens the message, in its own drawer",
   );
   assert.equal(
     kindOf("message_template_status_update", { event: "REJECTED", message_template_name: "x" }),
-    "template_blocked@campaigns/message:x",
+    "template_blocked@campaigns/messages/x",
   );
   assert.equal(
     kindOf("message_template_status_update", { event: "PAUSED", message_template_name: "x" }),
-    "template_blocked@campaigns/message:x",
+    "template_blocked@campaigns/messages/x",
   );
   assert.equal(
     kindOf("template_category_update", { message_template_name: "x", new_category: "MARKETING" }),
-    "template_blocked@campaigns/message:x",
+    "template_blocked@campaigns/messages/x",
     "it can still be sent, but only to a recorded yes",
   );
   assert.equal(
     kindOf("template_category_update", { message_template_name: "x", new_category: "UTILITY" }),
-    "template_ready@campaigns/message:x",
+    "template_ready@campaigns/messages/x",
   );
   for (const [field, value] of [
     ["phone_number_quality_update", { event: "FLAGGED" }],
@@ -272,7 +272,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   const category = (value) => mod.describeWabaChange({ field: "template_category_update", value }, null);
   assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "MARKETING" }), {
     kind: "template_blocked",
-    route: "campaigns/message:save_our_number",
+    route: "campaigns/messages/save_our_number",
     about: { type: "template", id: "save_our_number" },
     subject: "Template “save_our_number” is now marketing",
     body: "Meta moved the template “save_our_number” to marketing. Sends that use it now need the customer's recorded yes.",
@@ -280,7 +280,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   });
   assert.deepEqual(category({ message_template_name: "save_our_number", new_category: "UTILITY" }), {
     kind: "template_ready",
-    route: "campaigns/message:save_our_number",
+    route: "campaigns/messages/save_our_number",
     about: { type: "template", id: "save_our_number" },
     subject: "Template “save_our_number” is now utility",
     body: "Meta moved the template “save_our_number” to utility.",
@@ -295,7 +295,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   });
 
   // A refused version is "refused" on the bell as it is on the Library's pill (D1-template-marks), and the notice is about
-  // that message: it opens it in its own drawer (campaigns/message:<name>) and says what it is about.
+  // that message: it opens it in its own drawer (campaigns/messages/<name>) and says what it is about.
   const status = (event, extra = {}) =>
     mod.describeWabaChange(
       { field: "message_template_status_update", value: { event, message_template_name: "winback_offer", ...extra } },
@@ -303,7 +303,7 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
     );
   assert.deepEqual(status("REJECTED", { reason: "TAG_CONTENT_MISMATCH" }), {
     kind: "template_blocked",
-    route: "campaigns/message:winback_offer",
+    route: "campaigns/messages/winback_offer",
     about: { type: "template", id: "winback_offer" },
     subject: "Template “winback_offer” refused",
     body: "WhatsApp refused the template “winback_offer” (tag content mismatch). It cannot be sent until it is revised and approved.",

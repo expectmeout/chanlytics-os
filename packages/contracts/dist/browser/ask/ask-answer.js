@@ -124,7 +124,7 @@ const KIND_WORDS = {
     search: "Search",
     deal: "Deal",
     list: "List",
-    broadcast: "Broadcast",
+    broadcast: "Sent once",
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",

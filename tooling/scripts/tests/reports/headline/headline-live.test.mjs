@@ -76,7 +76,7 @@ test("Today owns the headline it draws: its own page reads it, and no other page
   assert.equal(ownsTheScreen("reports_headline", "today"), true);
   for (const route of ["reports", "reports/receptionist", "clients", "inbox", "campaigns", "calendar"])
     assert.equal(ownsTheScreen("reports_headline", route), false, `not on ${route}`);
-  // Today draws a good many surfaces and still owns only the headline, the replies to a reach-out and the setup band among them: a
+  // Today draws a good many surfaces and still owns only the headline, the replies from leads and the setup band among them: a
   // message re-reads the three that draw messages (and Setup only for the first WhatsApp message, awaitsFirstMessage), People's
   // pages of contacts being the heaviest read there is.
   for (const key of ["calendar", "broadcasts", "playbooks", "notifications", "live", "google"])

@@ -326,8 +326,8 @@ function receptionistRow(stage: LifecycleStage): LifecycleRow {
 
 /**
  * The call's text: the message the phone agent texts a caller who asks to book. Never counted. Its door opens that message
- * in a drawer of its own over the home (`campaigns/message:<name>`, Ruben, 11 Oct 2026: a page it went to read as a page);
- * where there is none yet, the Library, where one is written.
+ * over the page it is pressed on, its home the Library open on it (`campaigns/messages/<name>`; Ruben, 11 Oct 2026: never a
+ * page of its own); where there is none yet, the Library, where one is written.
  */
 function callTextRow(library: LifecycleInput["library"], caps: string): LifecycleRow {
   const W = LIFECYCLE_WORDS.callText;

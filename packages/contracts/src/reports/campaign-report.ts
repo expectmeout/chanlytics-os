@@ -262,7 +262,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const sources: CampaignSourceVM[] = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Sent once",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -294,11 +294,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied]),
     },
     lines: {
-      sent: sends
-        ? sends === 1
-          ? "From one broadcast or campaign run."
-          : `From ${sends} broadcast and campaign runs.`
-        : null,
+      sent: sends ? (sends === 1 ? "From one run." : `From ${sends} runs.`) : null,
       channels: channelsLine(channels),
     },
   };

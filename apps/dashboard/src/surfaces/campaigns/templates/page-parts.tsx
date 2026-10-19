@@ -151,8 +151,8 @@ interface ComposerPaneProps {
   flash: ReturnType<typeof useLegacyToast>[1];
   /** Whether the workspace has a WhatsApp number, which a template is written to: the composer says so where it has none. */
   hasWhatsApp: boolean;
-  /** Opens a message by its key, as a press on its row does. */
-  setOpenKey: Dispatch<SetStateAction<string | null>>;
+  /** Opens a message just made, by its key and its name (its address), as a press on its row does. */
+  openMade: (key: string, name: string) => void;
   /** Writes a new message's first version as an email, as the page writes any version (page-acts beginMessage). */
   beginMessage: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
   /** What the workspace holds already, whose names a new message may not take. */
@@ -225,17 +225,14 @@ export const matchesOf =
  * (`beginMessage`), after which the composer gives way to the message, open on its row.
  */
 export function composerPane(p: ComposerPaneProps) {
-  const { bizName, setComposing, setOpenKey, flash, hasWhatsApp, beginMessage, held } = p;
+  const { bizName, setComposing, openMade, flash, hasWhatsApp, beginMessage, held } = p;
   return (
     <TemplateComposer
       pane
       numberWhy={hasWhatsApp ? null : LIBRARY_WORDS.writeNeedsNumber}
       onBegin={async (draft) => {
         const r = await beginMessage(draft);
-        if (r?.ok) {
-          setComposing(false);
-          setOpenKey(customKey(draft.name));
-        }
+        if (r?.ok) openMade(customKey(draft.name), draft.name);
         return r;
       }}
       namesHeld={[...held.templates.map((t) => t.name), ...held.messages.map((m) => m.name)]}

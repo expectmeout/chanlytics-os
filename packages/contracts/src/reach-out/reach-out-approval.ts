@@ -14,7 +14,7 @@ import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { reachOutRootOf } from "./reach-out-rules";
-import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet";
+import { approvalWordsOf, chainPaceOf, stepLabel } from "./reach-out-sheet";
 import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address";
 
 /**
@@ -94,12 +94,12 @@ export function reachOutRunWordsOf(
   const owner = r.owner_sends === true;
   return {
     ...a,
-    k: STATE_WORDS[p.state] ?? "Reach-out",
+    k: STATE_WORDS[p.state] ?? "To leads",
     sub: waiting
       ? a.sub
       : owner
-        ? `Reach-out · ${step} · each handed to you to send from your inbox once it is checked`
-        : `Reach-out · ${step} · ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
+        ? `To leads · ${step} · each handed to you to send from your inbox once it is checked`
+        : `To leads · ${step} · ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
     approve: waiting ? a.approve : null,
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
@@ -111,8 +111,8 @@ export function reachOutRunWordsOf(
       return {
         id: x.send_id,
         name: x.business_name,
-        // Its lead, where the name opens it (leadDoorOf).
-        to: leadDoorOf(x.lead_id),
+        // Its lead's id, which the name opens over the page; none from a read before the lead was carried.
+        leadId: x.lead_id ?? null,
         // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
       };
@@ -142,7 +142,7 @@ const HANDED = "handed to you once checked";
 /** One email handed to its owner, as the run's To send list draws it. */
 export interface ToSendRowVM {
   id: string;
-  /** Its lead's id: what They wrote back… is said on. */
+  /** Its lead's id: what They wrote back… is said on, and what its name opens over the page. */
   leadId: string;
   /**
    * A step after the first (00429): its business may have answered the email before in the owner's own inbox, which
@@ -150,8 +150,6 @@ export interface ToSendRowVM {
    */
   followUp: boolean;
   name: string;
-  /** Its lead, where the name opens it (leadDoorOf). */
-  to: string | null;
   angle: string | null;
   address: string;
   subject: string;
@@ -187,7 +185,6 @@ export function toSendRowOf(d: ReachOutDraftedSend, p: { timezone: string; now: 
     leadId: d.lead_id,
     followUp: d.follow_up === true,
     name: d.business_name,
-    to: leadDoorOf(d.lead_id),
     angle: d.angle,
     address: d.to,
     subject: d.subject,

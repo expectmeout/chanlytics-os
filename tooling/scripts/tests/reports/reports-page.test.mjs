@@ -627,11 +627,11 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
   // drawn (campaigns/campaigns-page.test.mjs: nothing went out, so the funnel and the days say so).
   assert.equal(
     find(tree, (n) => n.props?.testid === "chart-sources" && typeof n.props.title === "string")?.props.title,
-    "By campaign and broadcast",
+    "By campaign and one-off send",
   );
   // A lens draws no heading that says what its tab says (Ruben, 9 Oct 2026): the section keeps its label for a screen reader. The
   // Campaigns lens's reach-outs are a part of their own, and name themselves.
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing", "Reach-outs"]);
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing", "Sequences to leads"]);
   assert.deepEqual(
     all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
     [
@@ -644,7 +644,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
       "Campaigns",
       "Time between steps",
       "Stuck now",
-      "Reach-outs",
+      "Sequences to leads",
     ],
   );
   assert.equal(
@@ -671,7 +671,7 @@ test("each card's one line is the view model's, and adds the next thing: never a
   assert.doesNotMatch(takeaway(tree, "chart-funnel"), /said yes|asked to stop/);
   assert.equal(
     takeaway(tree, "chart-campaigns"),
-    "From 2 campaign runs and 1 one-off broadcast.",
+    "From 2 campaign runs and 1 one-off send.",
     "the sends are the funnel's; the card says what sent them, in the ledger's runs",
   );
   for (const id of ["chart-reasons", "chart-people", "chart-booking"])

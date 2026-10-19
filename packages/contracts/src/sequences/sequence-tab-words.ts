@@ -5,7 +5,6 @@
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
 import { heldChoicesOf } from "./sequence-held";
-import { leadDoorOf } from "../reach-out/reach-out-sheet";
 import { holdWords, isReachOutHold, type HoldDoor, type ReachOutHold } from "../reach-out/reach-out-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
@@ -84,8 +83,7 @@ export const SEQUENCE_NEEDS_WORDS = {
 export interface SequenceHeldVM {
   id: string;
   name: string;
-  /** Its lead, where the name opens it (leadDoorOf); and its id, which opens its sheet over the record. */
-  to: string | null;
+  /** Its lead's id, which opens its sheet over the record. */
   leadId: string | null;
   /** The step it is, from 1: Skip this email from step 2. */
   place: number | null;
@@ -149,7 +147,6 @@ export function peopleNeedsOf(
       {
         id: r.send_id,
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-        to: r.lead_id ? leadDoorOf(r.lead_id) : null,
         leadId: r.lead_id,
         place: r.place,
         why: holdWords(reason, r.hold_detail),

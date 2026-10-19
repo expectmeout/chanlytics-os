@@ -8,7 +8,7 @@
  * Pure: the grammar of the param and which homes open in place. The frame reads it in the browser (the frame is one
  * prerender for every address), as it reads the lead sheet's `?lead=<id>`.
  */
-import { messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address";
+import { messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";
@@ -37,17 +37,18 @@ export function seeRefOf(value: string | null | undefined): SeeRef | null {
 }
 
 /**
- * The thing a home's route names, which a mention of it opens in place: a run's home (runRoute), or a message's drawer
- * (messageRoute); null for any other route, which a press goes to. The route as the shell names it, a retired one moved
- * first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run.
+ * The thing a home's route names, which a mention of it opens in place: a run's home (runRoute), or a message's, the
+ * Library open on it (messageRoute); null for any other route, which a press goes to. The route as the shell names it, a
+ * retired one moved first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run, one kept as
+ * `campaigns/message:<name>` the message.
  */
 export function seeRefOfRoute(route: string): SeeRef | null {
   const [path = ""] = route.split("?");
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
-  const message = /^campaigns\/message:([A-Za-z0-9_-]+)$/.exec(path);
-  return message?.[1] ? { kind: "message", name: message[1] } : null;
+  const message = messageOfRoute(path);
+  return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 
 /** The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. */

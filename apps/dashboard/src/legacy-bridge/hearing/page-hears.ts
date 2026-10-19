@@ -55,9 +55,6 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns is Sequences' list (decision 0060), where its addresses land: it hears what Sequences hears, its own list and
   // the settings read, and none of the surfaces of the sheets it opens over the list, which hear at their own addresses.
   campaigns: { sequences: true, settings: true },
-  // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the settings read's templates it is drawn
-  // from, and the playbooks surface whose library names the call's text (W-campaign-run-template-reachout-2).
-  "campaigns/message": { sequences: true, playbooks: true, settings: true },
   // The composers fill a review-link slot only where the listing keeps one, which the settings read says (parts/channels.ts
   // cmBusinessOf): the listing linked, read or dropped is heard for Settings where a composer is drawn (S1-4).
   outbound: { playbooks: true, settings: ["review"] },

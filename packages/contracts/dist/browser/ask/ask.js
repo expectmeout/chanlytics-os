@@ -101,7 +101,7 @@ function campaignsScope(page, param, label, chains) {
   if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
-    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this sequence" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
   if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))

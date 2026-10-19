@@ -412,7 +412,9 @@ test("Templates: a chain's emails are messages in the list, on the Email channel
   assert.ok(textOf(line).includes("3 templates"), "the page counts both");
   const tip = find(line, (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
   assert.ok(
-    tip.endsWith("The count takes 2 emails of your reach-outs too: their own words, sent by email, with no review."),
+    tip.endsWith(
+      "The count takes 2 emails of your sequences to leads too: their own words, sent by email, with no review.",
+    ),
     tip,
   );
   const nudge = rows[1];
@@ -462,7 +464,7 @@ test("Templates: an email-only workspace is not 'nothing on file'; unread says n
   W.__refreshSurface = (k) => refreshed.push(k);
   tree = page({ chains: null });
   assert.equal(byTestId(tree, "templates-nothing"), null);
-  assert.ok(textOf(byTestId(tree, "templates-email-failed")).includes("Couldn't read your reach-outs' emails"));
+  assert.ok(textOf(byTestId(tree, "templates-email-failed")).includes("Couldn't read your emails to leads"));
   press(byTestId(tree, "templates-email-failed-retry"));
   assert.deepEqual(refreshed, ["reach_outs"]);
 });

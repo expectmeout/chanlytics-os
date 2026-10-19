@@ -422,7 +422,7 @@ async function loadBroadcast(ctx: RouteContext, id: string) {
     .eq("id", broadcastId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "Broadcast not found.", 404);
+  if (!data) throw new AppError("not_found", "Run not found.", 404);
   return { ...data, tenant_id: asTenantId(data.tenant_id) };
 }
 export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));

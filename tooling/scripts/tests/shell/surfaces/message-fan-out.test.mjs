@@ -868,7 +868,11 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     assert.equal(owns(key, "campaigns/sequences/new:once"), false, `the composer does not own ${key}`);
     assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
   }
-  assert.equal(owns("playbooks", "campaigns/message:hello"), true, "a message's drawer waits for the playbooks");
+  assert.equal(
+    owns("settings", "campaigns/messages/hello"),
+    true,
+    "a message at its home is drawn from the settings read",
+  );
   // Who each audience reaches is drawn in the composer for who can hear you and the send-once composer, and Sent's runs for the
   // pause on offers and the Send by ticks: owned there for what moves those (a cell of kinds), and left to Sent for a message,
   // which moves a run's replies.
@@ -897,9 +901,9 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     true,
     "a number moves Send by",
   );
-  // Settings is drawn there whole: a message's drawer is the Library's pane, which says what sends it (the playbooks and runs its
-  // read joins: W-campaign-run-template-reachout-2), as the Library itself does; and Sequences' step editor offers its messages.
-  for (const route of ["campaigns", "campaigns/message:hello", "messages"])
+  // Settings is drawn there whole: a message at its home is the Library's pane, which says what sends it (the playbooks and
+  // runs its read joins: W-campaign-run-template-reachout-2); and Sequences' step editor offers its messages.
+  for (const route of ["campaigns", "campaigns/messages/hello", "messages"])
     assert.equal(
       registry.ownsTable("settings", "sequence_batches", route),
       true,
@@ -913,7 +917,7 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   assert.equal(owns("settings", "campaigns/sequences/new:once"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
-  // feed there, a long wait later: reports/headline.ts), the replies to a reach-out its queue draws, and the setup band, which hears
+  // feed there, a long wait later: reports/headline.ts), the replies from leads its queue draws, and the setup band, which hears
   // what its rows state there (the wiring's second audit, S4-3; a message only while the first WhatsApp message is awaited). And
   // People's person alone: its rows are the steps due and Worth a look's names there (W-visit-deal-5); a message is not People's.
   for (const key of ["broadcasts", "audiences", "reports", "playbooks", "calendar", "notifications", "live", "google"])

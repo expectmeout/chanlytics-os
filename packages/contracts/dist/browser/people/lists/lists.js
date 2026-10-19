@@ -166,7 +166,7 @@ export const BUILTIN_LISTS = [
   {
     id: "offers_ok",
     label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional send may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })

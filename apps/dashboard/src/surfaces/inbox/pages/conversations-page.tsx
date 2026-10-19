@@ -89,7 +89,7 @@ const cvKeepPlace = (channel: string, patch: Record<string, unknown>): void => {
 // Who answered a handled chat, in the pill's words; a call keeps its own.
 const CV_ANSWERED: Record<string, string> = {
   team: "Your team replied",
-  broadcast: "Broadcast sent",
+  broadcast: "Sent once",
   playbook: "Campaign sent",
 };
 

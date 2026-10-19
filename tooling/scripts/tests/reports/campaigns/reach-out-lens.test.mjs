@@ -372,8 +372,8 @@ test("sources: a chain is the sum of its steps, in businesses", () => {
   );
   assert.equal(one.name, "Trainers in Austin");
   assert.equal(one.to, "campaigns/sequences/r1");
-  assert.equal(one.meta, "Reach-out · 2 steps · 2 runs · Personal trainers · Austin");
-  assert.equal(two.meta, "Reach-out · 2 steps · 1 run");
+  assert.equal(one.meta, "To leads · 2 steps · 2 runs · Personal trainers · Austin");
+  assert.equal(two.meta, "To leads · 2 steps · 1 run");
   const cells = (s) => [
     s.written,
     s.delivered,
@@ -452,9 +452,9 @@ test("sources: a hand step is dashes, a paused chain says so, a step that wrote 
   );
   assert.deepEqual([call.interested, call.booked, call.saidNo, call.bounced, call.last], ["—", "—", "—", "—", ""]);
   const one = sources.find((s) => s.id === "r1");
-  assert.equal(one.meta, "Reach-out · 3 steps · 2 runs · Personal trainers · Austin");
+  assert.equal(one.meta, "To leads · 3 steps · 2 runs · Personal trainers · Austin");
   assert.equal(one.businesses, "20", "a hand step writes to no business: the chain's sum stands");
-  assert.equal(sources.find((s) => s.id === "r2").meta, "Reach-out · 2 steps · 1 run · paused");
+  assert.equal(sources.find((s) => s.id === "r2").meta, "To leads · 2 steps · 1 run · paused");
   // A step that wrote nothing: a zero is a count; the shares are dashes where there is nothing to take one of.
   const quiet = report();
   quiet.chains[1].steps[1] = step("q2", 1, { businesses: 0 });
@@ -573,7 +573,7 @@ test("a mailbox's cells are counts under five sent, shares from five, and a dash
 test("a period that wrote nothing says so, a workspace with no reach-out draws nothing", () => {
   const empty = vm({ ...NOTHING });
   assert.deepEqual([empty.present, empty.empty, empty.days], [true, true, 30]);
-  assert.equal(empty.lines.empty, "No reach-out wrote in the last 30 days.");
+  assert.equal(empty.lines.empty, "No sequence to leads wrote in the last 30 days.");
   assert.deepEqual(empty.emails, { rows: [], line: null, empty: "Nothing was written in these days." });
   assert.deepEqual(empty.businesses, { rows: [], line: null, empty: "No business was written to in these days." });
   assert.deepEqual(empty.angles, {
@@ -612,7 +612,7 @@ test("a period of one day (This month so far, on the 1st) is today, and one a me
   const quiet = vm({ ...day, ...NOTHING });
   assert.deepEqual(
     [quiet.lines.empty, quiet.emails.empty, quiet.businesses.empty],
-    ["No reach-out wrote today.", "Nothing was written today.", "No business was written to today."],
+    ["No sequence to leads wrote today.", "Nothing was written today.", "No business was written to today."],
   );
   assert.equal(quiet.angles.empty, "No email today had an opening, so there is no angle to compare.");
   assert.doesNotMatch(JSON.stringify([quiet, today.emails, today.businesses]), /\b1 day\b|these days/);
@@ -623,7 +623,7 @@ test("a period of one day (This month so far, on the 1st) is today, and one a me
   const pickedEmpty = vm({ ...picked, ...NOTHING });
   assert.deepEqual(
     [pickedEmpty.lines.empty, pickedEmpty.emails.empty],
-    ["No reach-out wrote on Sep 20.", "Nothing was written on Sep 20."],
+    ["No sequence to leads wrote on Sep 20.", "Nothing was written on Sep 20."],
   );
 });
 
@@ -635,7 +635,7 @@ test("a window that ended before today is its days, said by them, with the days 
     vmEnded.strip.map((t) => t.compare),
     ["up from 30", "was 90% the 20 days before", "up from 1"],
   );
-  assert.equal(vm({ ...ended, ...NOTHING }).lines.empty, "No reach-out wrote in the 20 days to Sep 20.");
+  assert.equal(vm({ ...ended, ...NOTHING }).lines.empty, "No sequence to leads wrote in the 20 days to Sep 20.");
   assert.equal(vm({ ...ended, ...NOTHING }).emails.empty, "Nothing was written in these days.");
 });
 

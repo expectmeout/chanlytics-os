@@ -218,7 +218,7 @@ function chainBusinesses(steps) {
 function chainSourceLine(c, nowMs, tz) {
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
   const meta = [
-    "Reach-out",
+    "To leads",
     plural(c.steps.length, "step"),
     plural(c.runs, "run"),
     c.search ? c.search.name : null,
@@ -297,7 +297,7 @@ function periodLines(dto, when) {
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
     mailboxes: MAILBOXES_LINE,
-    empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
+    empty: `No sequence to leads wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE
   };
 }

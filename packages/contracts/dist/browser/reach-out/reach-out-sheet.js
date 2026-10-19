@@ -1,4 +1,3 @@
-import { addressOf } from "../activity/record-address.js";
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
 import { mailboxDailyCap } from "../email/mailbox-connections.js";
 import { nextRunLabel } from "../playbooks/playbook-schedule.js";
@@ -37,20 +36,20 @@ export const REACH_OUT_SHEET_WORDS = {
   remove: "Remove",
   removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
-  /** A business on a run's sheet, held or ready, opens its lead in Leads (the name's tip). */
-  openLead: "Open this business in Leads"
+  /** A business on a run's sheet, held, ready or to send, opens its lead over the page (the name's tip). */
+  openLead: "Open this business's lead"
 };
 export const REACH_OUT_REFUSALS = {
-  exists: "This search has a reach-out already.",
-  wrote: "This reach-out has written already. Pause it instead.",
-  stepWrote: "That step has written already. Pause the reach-out instead.",
+  exists: "This search has a sequence already.",
+  wrote: "This sequence has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the sequence instead.",
   /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
   handLast: "A call or a note ends the chain.",
   stepRan: "That step has run already. Add a new step instead.",
-  outOfPlace: "A step is out of its place. Open the reach-out again.",
-  notFound: "Reach-out not found.",
+  outOfPlace: "A step is out of its place. Open the sequence again.",
+  notFound: "Sequence not found.",
   workspaceNotFound: "Workspace not found.",
-  oneEmail: "A reach-out has at least one email.",
+  oneEmail: "A sequence to leads has at least one email.",
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
@@ -68,9 +67,9 @@ export const REACH_OUT_REFUSALS = {
   givenUp: "This email waited two weeks for your answer and was given up.",
   decision: "Include, rewrite, skip or not a fit.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
-  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  notHere: "A sequence to leads is removed from its own row, and only before its first email goes. After that, pause it.",
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
   previewDown: "The preview could not be written just now. Try again in a moment.",
@@ -154,7 +153,7 @@ export function startWords(s, ownerSends = false) {
     case "held":
       switch (s.reason) {
         case "waiting_for_you":
-          return s.planned > 0 ? { tone: "good", text: `Planned ${n}. The first run waits on you: open it to approve.` } : { tone: "plain", text: "A run of this reach-out already waits on you. Answer it first." };
+          return s.planned > 0 ? { tone: "good", text: `Planned ${n}. The first run waits on you: open it to approve.` } : { tone: "plain", text: "A run of this sequence already waits on you. Answer it first." };
         case "billing":
           return { tone: "warn", text: "Saved. Nothing is planned until billing is sorted: open Billing." };
         case "no_mailbox":
@@ -208,9 +207,6 @@ function approveWords(today, from) {
   if (!from) return `Approve \u2014 ${today}`;
   return today > 0 ? `Approve \u2014 ${today} from ${from}` : `Approve \u2014 from ${from}`;
 }
-export function leadDoorOf(leadId) {
-  return leadId ? addressOf({ kind: "lead", id: leadId }) : null;
-}
 function runSenderWords(r, share) {
   if (r.owner_sends === true) {
     const drafted = r.drafted?.length ?? 0;
@@ -254,7 +250,7 @@ export function approvalWordsOf(r, p) {
   const step = r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}`;
   return {
     title: r.chain_name,
-    sub: `Reach-out \xB7 ${step}${goes}, ${sender.pace}`,
+    sub: `To leads \xB7 ${step}${goes}, ${sender.pace}`,
     will: sender.will,
     of: `of ${total + sender.drafted + r.held.length + r.checking}`,
     why,
@@ -268,13 +264,13 @@ export function approvalWordsOf(r, p) {
     reader: r.first ? `as ${r.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
     approve: approveWords(r.today, earlier || passed ? "now" : at),
     approveNote: r.checking > 0 ? `${r.checking} more are being checked; they go once they pass.` : null,
-    note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
+    note: "Skipping loses this run only \u2014 the sequence keeps its place and asks again tomorrow.",
     recheck: r.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
     held: r.held.map((h) => ({
       id: h.send_id,
       name: h.business_name,
-      // Its lead, where the sheet's name opens it (leadDoorOf).
-      to: leadDoorOf(h.lead_id),
+      // Its lead's id, which the sheet's name opens over the page; none from a read before the lead was carried.
+      leadId: h.lead_id || null,
       why: holdWords(h.reason, h.detail),
       doors: holdDoors(h.reason).map((d) => [d, HOLD_DOOR_WORDS[d]])
     }))
@@ -302,7 +298,7 @@ export function chainPathWords(c) {
 }
 export const REACH_OUT_ROW_WORDS = {
   reading: "Reading how it is doing\u2026",
-  failed: "how this reach-out is doing",
+  failed: "how this sequence is doing",
   pause: "Pause",
   resume: "Resume",
   remove: "Remove",
@@ -381,7 +377,7 @@ export function emailTemplateWords(p) {
     checkLabel: "What is checked before each send",
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
-    edit: "Edit the reach-out"
+    edit: "Edit the sequence"
   };
 }
 export function emailTemplateRowsOf(chains) {
@@ -408,6 +404,6 @@ export function emailRowWrittenOf(report, stepId) {
 }
 export const EMAIL_TEMPLATE_LIST_WORDS = {
   /** Said after WhatsApp's hover when the head's count takes email rows too. */
-  headTip: (emails) => emails > 0 ? `The count takes ${plural(emails, "email")} of your reach-outs too: their own words, sent by email, with no review.` : "",
-  failed: "your reach-outs' emails"
+  headTip: (emails) => emails > 0 ? `The count takes ${plural(emails, "email")} of your sequences to leads too: their own words, sent by email, with no review.` : "",
+  failed: "your emails to leads"
 };

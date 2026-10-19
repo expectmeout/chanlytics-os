@@ -190,7 +190,7 @@ test("Going today: every run set to start later today and every reply counting d
     [{ kind: "run", id: "b-batch" }, "campaigns/sequences/b-batch/runs/b-batch"],
   );
   assert.match(rows[3].sentence, /^4 businesses\. Goes at /);
-  assert.match(rows[3].meta, /^Reach-out · goes at /);
+  assert.match(rows[3].meta, /^To leads · goes at /);
 });
 
 test("Going today leaves out what is not today's to stop: a run sending, waiting for an OK or done, one set for a later day, a reply already gone; a run within the hour across midnight is today's", () => {
@@ -260,7 +260,7 @@ test("a message sent once, pressed for now, goes ten minutes on with a Stop: eve
     scheduled_ahead: false,
     pressed_now: true,
   });
-  assert.equal(said, "Broadcast “Saturday hours” — 3 people, goes in 10 minutes unless you stop it");
+  assert.equal(said, "Send “Saturday hours” — 3 people, goes in 10 minutes unless you stop it");
 });
 
 test("each sequence shows its evidence: what its batches did over 90 days, said once, summed under its class's Autonomy row, and never a suggestion (decision 0064, step 5)", async () => {

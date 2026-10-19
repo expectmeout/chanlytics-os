@@ -1607,7 +1607,7 @@ test("email's wire picks its route by the request's From: the hosted mailbox on 
 
 /* ------------------------- Part 5.4: a person's reply may leave by the mailbox the chain wrote from (G15, N5) */
 
-/** A person's reply to a reach-out, frozen a second time on the chain's connected mailbox: the same row, the same words. */
+/** A person's reply from a lead, frozen a second time on the chain's connected mailbox: the same row, the same words. */
 const ownTwin = (over = {}) => frozen({ identity: connectedIdentity(OWN), ...over });
 
 test("a person's reply leaves by its connected mailbox when that route still holds it, and as the hosted mailbox's request otherwise, saying why", async () => {

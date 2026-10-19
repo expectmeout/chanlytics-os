@@ -203,8 +203,8 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     if (/^sequences\/[^/]+\/runs\/[^/]+/.test(param)) return "sequences/runs";
     if (/^sequences\/new(:|\/|$)/.test(param)) return "sequences/new";
   }
-  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), a message
-  // (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), its Messages view with a
+  // message open (`campaigns/messages/<name>`), a campaign that lands on its sequence (`moment:<id>`).
   if (page === "campaigns" && first) return first.split(":")[0] || first;
   return first;
 }

@@ -324,7 +324,7 @@ export function aboutOf({
     });
   }
   const reach = profile.lead?.reach_out ? reachOutPersonOf(profile.lead.reach_out, nowMs, tz).about : null;
-  if (reach) about.push({ k: "Reach out", v: reach });
+  if (reach) about.push({ k: "Sequence", v: reach });
   return about;
 }
 export function sinceWords(base) {

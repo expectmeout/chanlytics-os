@@ -221,7 +221,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   );
   assert.ok(
     del.includes('.in("state", ["scheduled", "sending"]);') &&
-      del.includes('"A broadcast is still using this template. Cancel it first."'),
+      del.includes('"A send is still using this message. Cancel it first."'),
   );
   const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
   assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
@@ -277,7 +277,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // it (the Templates page test), and `templates` is the verbs' export (surfaces/campaigns/templates/verbs.ts).
   assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts").includes("export const templates"));
   assert.ok(
-    /It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
+    /It can be sent now — from Campaigns, or from the Inbox outside the 24-hour window\.`,\s*alert: true,?\s*\}/.test(
       readCode("apps/edge/lib/whatsapp/waba-events.ts"),
     ),
     "an approval is news the owner waits for",

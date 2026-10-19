@@ -44,9 +44,9 @@ function strandedNews(r: StrandedRun) {
     kind: "broadcast_stopped" as const,
     route: runRoute(r.id),
     about: { type: "broadcast", id: r.id },
-    subject: `Broadcast “${r.name}” not sent`,
+    subject: `Campaign “${r.name}” not sent`,
     body: `It was due to go out, and nothing was left to send it, so it is marked not sent. ${fix ?? ""}`.trim(),
-    redactedBody: "A broadcast in this workspace was due with nothing left to send it; it is marked not sent.",
+    redactedBody: "A campaign run in this workspace was due with nothing left to send it; it is marked not sent.",
   };
 }
 

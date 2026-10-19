@@ -599,7 +599,7 @@ test("the job reads the stalls it carried, so a run that keeps stalling stops at
   assert.equal(w.broadcasts[0].failure, "stalled");
   assert.deepEqual(
     sent.map((n) => [n.kind, n.subject]),
-    [["broadcast_stopped", "Broadcast “Spring offer” stopped"]],
+    [["broadcast_stopped", "Campaign “Spring offer” stopped"]],
   );
 
   // Anything but a count in the payload is none: a run that was handed junk starts its count again, never throws.
@@ -1011,9 +1011,10 @@ test("the detail: every person on a broadcast, with what happened to them; the s
       vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
   );
   assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`a broadcast (${entry.via.name})`") &&
-      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
-    "the thread says which broadcast, or which campaign",
+    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
+      "`a one-off send (${entry.via.name})`",
+    ) && readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
+    "the thread says which one-off send, or which campaign",
   );
   // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
   // settings read's): the verbs publish themselves and no function to read the surface again.

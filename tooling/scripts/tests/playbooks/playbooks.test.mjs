@@ -795,7 +795,7 @@ test("offered here (0006): every moment and every Autonomy class in every worksp
     ["lead_first", "after_step"],
     "a reach-out's steps are never offered among the moments: its own sheet makes them (Part 4)",
   );
-  assert.match(REACH_OUT_IS_NOT_A_MOMENT, /own sheet/);
+  assert.match(REACH_OUT_IS_NOT_A_MOMENT, /from a search's leads, not at a moment/);
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c)),
     [],

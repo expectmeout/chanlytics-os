@@ -156,7 +156,9 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["campaigns/new", "campaigns/sequences/new"],
     ["campaigns/new:leads", "campaigns/sequences/new"],
     ["campaigns/new:to:list-1", "campaigns/sequences/new"],
-    ["campaigns/message:hello", "campaigns/message"],
+    // A message at its home opens on what Messages opens on; its old drawer's address lands there.
+    ["campaigns/messages/hello", "campaigns/messages"],
+    ["campaigns/message:hello", "campaigns/messages"],
     // Sequences, its list: its own read (decision 0060). A record reads itself beside it (below). New, on each who, opens on
     // what Send once is made of beside the list, and a run at its home on what its screen is (lanes 2 and 6).
     ["campaigns/sequences", "campaigns/sequences"],
@@ -730,7 +732,6 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     campaigns: ["settings"],
     "campaigns/sequences/new": ["broadcasts", "audiences", "settings", "channels"],
     "campaigns/sequences/runs": ["broadcasts", "settings", "channels"],
-    "campaigns/message": ["playbooks", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     "clients/get-yes": ["broadcasts"],
     calendar: ["calendar_runs"],

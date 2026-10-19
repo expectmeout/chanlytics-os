@@ -343,7 +343,7 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
   const noNumber = said.length > 0;
   const why = said.some((r) => r.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
-  const math = `${noNumber ? why : "a broadcast reaches only the second yes"} · 0 can receive one`;
+  const math = `${noNumber ? why : "a send reaches only the second yes"} · 0 can receive one`;
   return {
     id: "unreachable",
     tone: "warn",

@@ -216,7 +216,7 @@ function sentBy(entry: MsgEntry): string {
     (entry.via
       ? entry.via.kind === "playbook"
         ? `the ${entry.via.name} campaign`
-        : `a broadcast (${entry.via.name})`
+        : `a one-off send (${entry.via.name})`
       : "you")
   );
 }

@@ -18,9 +18,10 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import {
   TO_SEND_ALL_WORDS,
+  WAIT_ROW_WORDS,
   mmss,
   runTitleOf,
-  toSendRunsOf,
+  waitRowsOf,
   type TodayBriefRun,
   type TodayBriefWords,
 } from "@chanlytics/contracts";
@@ -132,27 +133,17 @@ export const TodayBriefPane = () => {
   useMoved(["today", "broadcasts"]);
   const vm = surfaceValue("today");
   const day = useDayVm();
-  // The runs waiting for a word an approval can still send, said as the queue says them (todayRunWords). A run whose day
-  // has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
-  const waiting = runsPending().waiting;
-  // Two or more runs whose emails are handed to you are one line, as they are one row in the queue (toSendRunsOf).
-  const toSend = toSendRunsOf(waiting);
-  const runs: TodayBriefRun[] = [
-    ...(toSend
-      ? [
-          {
-            ...TO_SEND_ALL_WORDS.brief(toSend.from),
-            sentence: TO_SEND_ALL_WORDS.sentence(toSend.count, toSend.from),
-          },
-        ]
-      : []),
-    ...waiting
-      .filter((r) => !toSend || !toSend.runs.includes(r))
-      .map((r) => ({
-        label: runTitleOf(r),
-        ...TODAY_HELPERS.runs(r).brief,
-      })),
-  ];
+  // The runs waiting for a word an approval can still send, said as the queue's rows say them (contracts waitRowsOf, the
+  // queue's and the Inbox's own): the emails handed to you are one line, as two or more runs waiting for an OK are, each
+  // other run its own (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says
+  // nothing of it (S7-3).
+  const runs: TodayBriefRun[] = waitRowsOf(runsPending().waiting).map((row) =>
+    row.kind === "to_send"
+      ? { ...TO_SEND_ALL_WORDS.brief(row.from), sentence: TO_SEND_ALL_WORDS.sentence(row.count, row.from) }
+      : row.kind === "approvals"
+        ? WAIT_ROW_WORDS.approvals.brief(row.runs.map(runTitleOf))
+        : { label: runTitleOf(row.run), ...TODAY_HELPERS.runs(row.run).brief },
+  );
   const words = vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
   const line = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(line);

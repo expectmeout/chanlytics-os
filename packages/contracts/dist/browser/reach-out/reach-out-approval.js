@@ -6,7 +6,7 @@ import { RUN_OPEN_WORDS, RUN_WAITING_WORDS, WHO_GETS_IT_WORDS } from "../shell/c
 import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
-import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet.js";
+import { approvalWordsOf, chainPaceOf, stepLabel } from "./reach-out-sheet.js";
 import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address.js";
 export function skippedReasonWords(reason) {
   switch (reason) {
@@ -64,8 +64,8 @@ export function reachOutRunWordsOf(r, p) {
   const owner = r.owner_sends === true;
   return {
     ...a,
-    k: STATE_WORDS[p.state] ?? "Reach-out",
-    sub: waiting ? a.sub : owner ? `Reach-out \xB7 ${step} \xB7 each handed to you to send from your inbox once it is checked` : `Reach-out \xB7 ${step} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
+    k: STATE_WORDS[p.state] ?? "To leads",
+    sub: waiting ? a.sub : owner ? `To leads \xB7 ${step} \xB7 each handed to you to send from your inbox once it is checked` : `To leads \xB7 ${step} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
     approve: waiting ? a.approve : null,
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
@@ -77,8 +77,8 @@ export function reachOutRunWordsOf(r, p) {
       return {
         id: x.send_id,
         name: x.business_name,
-        // Its lead, where the name opens it (leadDoorOf).
-        to: leadDoorOf(x.lead_id),
+        // Its lead's id, which the name opens over the page; none from a read before the lead was carried.
+        leadId: x.lead_id ?? null,
         // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now)
       };
@@ -110,7 +110,6 @@ export function toSendRowOf(d, p) {
     leadId: d.lead_id,
     followUp: d.follow_up === true,
     name: d.business_name,
-    to: leadDoorOf(d.lead_id),
     angle: d.angle,
     address: d.to,
     subject: d.subject,

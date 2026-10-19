@@ -179,7 +179,7 @@ export function bcSendActs({
     flash({
       msg: (
         <>
-          <b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} —{" "}
+          <b>{r.data.name || "One-off send"}</b> · {n} {n === 1 ? "person" : "people"} —{" "}
           {!waits && data.chunk ? `${SENDING_NOW_WORDS}, ${data.chunk} at a time` : words}
           {leftOutSaid ? ` · ${leftOutSaid}` : null}
         </>
@@ -188,7 +188,7 @@ export function bcSendActs({
         ? {
             label: pressedNow ? WAIT_ACT_WORDS.stop : runStopDoorWords(waits),
             onClick: () =>
-              cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }),
+              cancel({ id: r.data.id, name: r.data.name || "One-off send", state: waits ? "scheduled" : "sending" }),
           }
         : null,
       links: [{ label: "See who", to: runRoute(r.data.id) }],

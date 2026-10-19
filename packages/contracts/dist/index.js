@@ -7448,7 +7448,7 @@ var REPORT_LENSES = [
     role: "viewer",
     empty: (r2) => ({
       title: "Nothing went out",
-      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      body: `No campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
       door: { label: "Open Sequences", to: "campaigns/sequences" }
     })
   },
@@ -8325,7 +8325,7 @@ var PLAYBOOK_TRIGGERS = [
     list: null,
     cls: "outreach",
     kind: "reach_out",
-    hint: "The first email of a reach-out"
+    hint: "The first email to a lead"
   },
   {
     id: "after_step",
@@ -8402,7 +8402,7 @@ function skippedRunNotice(name, people) {
 }
 var PLAYBOOK_NAME_MAX = 80;
 var CAMPAIGN_NOT_FOUND = "Campaign not found.";
-var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
+var REACH_OUT_IS_NOT_A_MOMENT = "A sequence to leads starts from a search's leads, not at a moment.";
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
@@ -8497,7 +8497,7 @@ var POLICY_CLASS_WORDS = {
   // Reach out (Part 3): cold email to the businesses a search found. Never sent on its own (0064).
   outreach: {
     name: "Cold email to businesses a search found",
-    short: "Reach-outs",
+    short: "Sequences to leads",
     note: "how a new sequence to leads starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words"
   }
 };
@@ -8837,7 +8837,7 @@ function messageAuthor(m) {
       // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
       // "playbook" (decision 19), and the kind keeps its name.
       { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a one-off send (${via.name})` : "a one-off send" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
 }
@@ -11060,17 +11060,17 @@ function doneWords(intent) {
   switch (intent) {
     case "interested":
     case "question":
-      return "They are Talking now, and your reach-out stops for them.";
+      return "They are Talking now, and your sequence stops for them.";
     case "not_now":
-      return "Your reach-out stops for them, and a step to write again is on Today for the day they named.";
+      return "Your sequence stops for them, and a step to write again is on Today for the day they named.";
     case "no":
       return "They are marked Said no: nothing more will be written to them.";
     case "wrong_person":
-      return "Your reach-out stops for them, and a step on Today names who to write to.";
+      return "Your sequence stops for them, and a step on Today names who to write to.";
     case "away":
-      return "Your reach-out stops for them, and a step is on Today for the day they are back.";
+      return "Your sequence stops for them, and a step is on Today for the day they are back.";
     default:
-      return "Your reach-out stops for them. Nothing is sent without you.";
+      return "Your sequence stops for them. Nothing is sent without you.";
   }
 }
 function subjectOf(p) {
@@ -11102,7 +11102,7 @@ function replyNoticeWords(p) {
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
     body: body.join("\n"),
-    redacted: `A business wrote back to a workspace's reach-out${redactedReadAs(intent, p.unread)}.`,
+    redacted: `A business wrote back to a workspace's sequence${redactedReadAs(intent, p.unread)}.`,
     push
   };
 }
@@ -13090,7 +13090,17 @@ var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${m
 var runRoute = (id, sequenceId) => `${SEQUENCES_ROUTE}/${sequenceId || id}/runs/${id}`;
 var sendOnceRoute = (audience) => audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
 var newForLeadsRoute = () => `${SEQUENCES_ROUTE}/new:leads`;
-var messageRoute = (name) => `campaigns/message:${name}`;
+var messageRoute = (name) => `campaigns/messages/${encodeURIComponent(name)}`;
+function messageOfRoute(route) {
+  const [path = ""] = route.split("?");
+  const m = /^campaigns\/messages\/([^/#]+)$/.exec(path);
+  if (!m?.[1]) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
 var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
 var TO_SEND_PARAM = "to-send";
 var TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
@@ -13198,7 +13208,7 @@ function campaignsScope(page2, param, label, chains) {
   if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
-    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this sequence" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
   if (page2 === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
@@ -14240,7 +14250,7 @@ var BUILTIN_LISTS = [
   {
     id: "offers_ok",
     label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional send may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
@@ -14668,6 +14678,8 @@ function campaignsLandingOf(path, param) {
   }
   const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
+  const drawer = /^message:([^/]+)$/.exec(param);
+  if (drawer?.[1]) return messageRoute(drawer[1]);
   if (param === "new:every") return newSequenceRoute();
   if (param === "new") return sendOnceRoute();
   if (param.startsWith("new:to:")) return sendOnceRoute(param.slice("new:to:".length) || null);
@@ -15704,7 +15716,7 @@ function campaignsOf(d, tz, nowMs) {
       when: at3 !== null ? clockDate(at3, tz, nowMs) : "\u2014",
       outcome,
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
+      line: `${c.playbook_id ? "Campaign" : "Sent once"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: addressOf({ kind: "send", id: c.broadcast_id })
     };
@@ -16335,7 +16347,7 @@ var NOTE_FROM = {
   call: "After a call",
   thread: "After a conversation",
   // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
-  reach_out: "From a reach-out"
+  reach_out: "From a sequence to leads"
 };
 function noteStepOf(n, tz, nowMs) {
   const day = stepDayOf(n.due_on, tz, nowMs);
@@ -16712,7 +16724,7 @@ var OFFERS_PAUSED_WORDS = {
 var OFFERS_NOTICE_WORDS = {
   paused: (reason) => ({
     title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
   })
 };
 function emailOffersOpen(f, couldNotBeChecked) {
@@ -17300,7 +17312,7 @@ var LIFECYCLE_WORDS = {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers."
   },
-  /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
+  /** A message opened by its name (over a page, or in the Library) whose name leads to no message any more. */
   messageGone: {
     title: "That message isn't here any more.",
     body: "Every message you keep is in Messages."
@@ -17435,7 +17447,7 @@ var LIFECYCLE_WORDS = {
       body: "The moments show who they reach once it reads. Everything else here is current.",
       surface: "playbooks"
     },
-    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    chains: { what: "your sequences to leads", body: "The moments above are current.", surface: "reach_outs" },
     report: { what: "this period's numbers", body: "The runs below stand.", surface: "campaign_results" },
     // The broadcasts read itself, said in each tile made from it.
     reach: {
@@ -17473,7 +17485,7 @@ var LIFECYCLE_WORDS = {
     clear: "Clear",
     sort: { label: "Sort", next: "Next", name: "Name", people: "People now", replied: "Replied" },
     group: { label: "Group", moment: "By moment", none: "No groups" },
-    groups: { lists: "Lists & offers", reach_out: "Reach-outs", sent_once: "Sent once" },
+    groups: { lists: "Lists & offers", reach_out: "To leads", sent_once: "Sent once" },
     /** A group no campaign stands on yet. */
     none: "No campaign yet",
     empty: "No campaigns match",
@@ -18975,7 +18987,7 @@ var STARTER_TEMPLATES = [
     key: "quick_note",
     name: "quick_note",
     title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
+    purpose: "for any one-off send: news, hours, a heads-up",
     category: "marketing",
     trigger: null,
     texts: {
@@ -19619,7 +19631,7 @@ var broadcastSpec = {
     const ahead = d.scheduled_ahead === true;
     const goes2 = ahead ? "scheduled" : d.pressed_now === true ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it` : SENDING_NOW_WORDS;
     const said = heardWords(leftOut2, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes2}${said ? ` \xB7 ${said}` : ""}`;
+    return `Send \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes2}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -20842,11 +20854,11 @@ function peopleListAction(id, members) {
 function savedListAction(id, members) {
   return broadcastStep(USE_IN_A_BROADCAST, sendOnceRoute(id), members);
 }
-var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+var NO_NUMBER_REACH = "a send reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
 }
-var NO_CHANNEL_REACH = "a broadcast needs a channel you can send on, and none can carry it right now";
+var NO_CHANNEL_REACH = "a send needs a channel you can send on, and none can carry it right now";
 function noChannelWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_CHANNEL_REACH}.`;
 }
@@ -21559,7 +21571,7 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
   if (ticked.includes("email"))
     return `Nobody on \u201C${label}\u201D can be sent this yet. ${consentGuardWords(ticked, purpose, how.about).join(" ")}`;
   if (pool.some((r2) => answeredYes(r2, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional send. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
 // src/waits/waits.ts
@@ -21865,7 +21877,7 @@ function mailboxConnectWords(code2) {
 function mailboxesFootWords(count2) {
   if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count2 === 0)
-    return `Reach out writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
   return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
 }
 function customerDomainWords(host) {
@@ -22107,20 +22119,20 @@ var REACH_OUT_SHEET_WORDS = {
   remove: "Remove",
   removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
-  /** A business on a run's sheet, held or ready, opens its lead in Leads (the name's tip). */
-  openLead: "Open this business in Leads"
+  /** A business on a run's sheet, held, ready or to send, opens its lead over the page (the name's tip). */
+  openLead: "Open this business's lead"
 };
 var REACH_OUT_REFUSALS = {
-  exists: "This search has a reach-out already.",
-  wrote: "This reach-out has written already. Pause it instead.",
-  stepWrote: "That step has written already. Pause the reach-out instead.",
+  exists: "This search has a sequence already.",
+  wrote: "This sequence has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the sequence instead.",
   /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
   handLast: "A call or a note ends the chain.",
   stepRan: "That step has run already. Add a new step instead.",
-  outOfPlace: "A step is out of its place. Open the reach-out again.",
-  notFound: "Reach-out not found.",
+  outOfPlace: "A step is out of its place. Open the sequence again.",
+  notFound: "Sequence not found.",
   workspaceNotFound: "Workspace not found.",
-  oneEmail: "A reach-out has at least one email.",
+  oneEmail: "A sequence to leads has at least one email.",
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
@@ -22138,9 +22150,9 @@ var REACH_OUT_REFUSALS = {
   givenUp: "This email waited two weeks for your answer and was given up.",
   decision: "Include, rewrite, skip or not a fit.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
-  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  notHere: "A sequence to leads is removed from its own row, and only before its first email goes. After that, pause it.",
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
   previewDown: "The preview could not be written just now. Try again in a moment.",
@@ -22224,7 +22236,7 @@ function startWords(s, ownerSends = false) {
     case "held":
       switch (s.reason) {
         case "waiting_for_you":
-          return s.planned > 0 ? { tone: "good", text: `Planned ${n}. The first run waits on you: open it to approve.` } : { tone: "plain", text: "A run of this reach-out already waits on you. Answer it first." };
+          return s.planned > 0 ? { tone: "good", text: `Planned ${n}. The first run waits on you: open it to approve.` } : { tone: "plain", text: "A run of this sequence already waits on you. Answer it first." };
         case "billing":
           return { tone: "warn", text: "Saved. Nothing is planned until billing is sorted: open Billing." };
         case "no_mailbox":
@@ -22278,9 +22290,6 @@ function approveWords(today, from) {
   if (!from) return `Approve \u2014 ${today}`;
   return today > 0 ? `Approve \u2014 ${today} from ${from}` : `Approve \u2014 from ${from}`;
 }
-function leadDoorOf(leadId) {
-  return leadId ? addressOf({ kind: "lead", id: leadId }) : null;
-}
 function runSenderWords(r2, share2) {
   if (r2.owner_sends === true) {
     const drafted2 = r2.drafted?.length ?? 0;
@@ -22324,7 +22333,7 @@ function approvalWordsOf(r2, p) {
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
-    sub: `Reach-out \xB7 ${step2}${goes2}, ${sender.pace}`,
+    sub: `To leads \xB7 ${step2}${goes2}, ${sender.pace}`,
     will: sender.will,
     of: `of ${total + sender.drafted + r2.held.length + r2.checking}`,
     why,
@@ -22338,13 +22347,13 @@ function approvalWordsOf(r2, p) {
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
     approve: approveWords(r2.today, earlier || passed ? "now" : at3),
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
-    note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
+    note: "Skipping loses this run only \u2014 the sequence keeps its place and asks again tomorrow.",
     recheck: r2.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
     held: r2.held.map((h) => ({
       id: h.send_id,
       name: h.business_name,
-      // Its lead, where the sheet's name opens it (leadDoorOf).
-      to: leadDoorOf(h.lead_id),
+      // Its lead's id, which the sheet's name opens over the page; none from a read before the lead was carried.
+      leadId: h.lead_id || null,
       why: holdWords2(h.reason, h.detail),
       doors: holdDoors(h.reason).map((d) => [d, HOLD_DOOR_WORDS[d]])
     }))
@@ -22372,7 +22381,7 @@ function chainPathWords(c) {
 }
 var REACH_OUT_ROW_WORDS = {
   reading: "Reading how it is doing\u2026",
-  failed: "how this reach-out is doing",
+  failed: "how this sequence is doing",
   pause: "Pause",
   resume: "Resume",
   remove: "Remove",
@@ -22451,7 +22460,7 @@ function emailTemplateWords(p) {
     checkLabel: "What is checked before each send",
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
-    edit: "Edit the reach-out"
+    edit: "Edit the sequence"
   };
 }
 function emailTemplateRowsOf(chains) {
@@ -22478,8 +22487,8 @@ function emailRowWrittenOf(report, stepId) {
 }
 var EMAIL_TEMPLATE_LIST_WORDS = {
   /** Said after WhatsApp's hover when the head's count takes email rows too. */
-  headTip: (emails) => emails > 0 ? `The count takes ${plural(emails, "email")} of your reach-outs too: their own words, sent by email, with no review.` : "",
-  failed: "your reach-outs' emails"
+  headTip: (emails) => emails > 0 ? `The count takes ${plural(emails, "email")} of your sequences to leads too: their own words, sent by email, with no review.` : "",
+  failed: "your emails to leads"
 };
 
 // src/reach-out/reach-out-approval.ts
@@ -22539,8 +22548,8 @@ function reachOutRunWordsOf(r2, p) {
   const owner = r2.owner_sends === true;
   return {
     ...a,
-    k: STATE_WORDS[p.state] ?? "Reach-out",
-    sub: waiting ? a.sub : owner ? `Reach-out \xB7 ${step2} \xB7 each handed to you to send from your inbox once it is checked` : `Reach-out \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
+    k: STATE_WORDS[p.state] ?? "To leads",
+    sub: waiting ? a.sub : owner ? `To leads \xB7 ${step2} \xB7 each handed to you to send from your inbox once it is checked` : `To leads \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
     approve: waiting ? a.approve : null,
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
@@ -22552,8 +22561,8 @@ function reachOutRunWordsOf(r2, p) {
       return {
         id: x.send_id,
         name: x.business_name,
-        // Its lead, where the name opens it (leadDoorOf).
-        to: leadDoorOf(x.lead_id),
+        // Its lead's id, which the name opens over the page; none from a read before the lead was carried.
+        leadId: x.lead_id ?? null,
         // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms2, p.timezone, p.now)
       };
@@ -22585,7 +22594,6 @@ function toSendRowOf(d, p) {
     leadId: d.lead_id,
     followUp: d.follow_up === true,
     name: d.business_name,
-    to: leadDoorOf(d.lead_id),
     angle: d.angle,
     address: d.to,
     subject: d.subject,
@@ -25048,7 +25056,7 @@ var KIND_WORDS = {
     search: "Search",
     deal: "Deal",
     list: "List",
-    broadcast: "Broadcast",
+    broadcast: "Sent once",
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",
@@ -31847,7 +31855,7 @@ var WORKS_AT_WORDS = {
   stageNote: "changed on Leads",
   fit: "Fit",
   checks: (n) => plural(n, "check"),
-  reachOut: "Reach out",
+  reachOut: "Sequence",
   readWhatWentOut: "Read what went out",
   listingPhone: "Listing phone",
   listingHours: (line) => `Listing hours: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,
@@ -32635,7 +32643,7 @@ function visitSheetOf(i) {
 }
 
 // src/calendar/calendar-runs.ts
-var CALENDAR_RUN_DOORS = { sent: "Open in Sent", campaigns: "Open in Campaigns" };
+var CALENDAR_RUN_DOORS = { run: "Open the run", campaigns: "Open in Campaigns" };
 var CALENDAR_SHOW_WORDS = {
   label: "Show",
   always: "Always",
@@ -32699,7 +32707,7 @@ function sendMark(r2, tz) {
     ahead: r2.state === "scheduled" || waiting,
     cold: false,
     route: addressOf({ kind: "send", id: r2.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -32717,7 +32725,7 @@ function waitingMark(r2, name, todayKey) {
     ahead: !late,
     cold: false,
     route: addressOf({ kind: "send", id: r2.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -32736,7 +32744,7 @@ function failedMark(r2, name, tz) {
     ahead: false,
     cold: false,
     route: addressOf({ kind: "send", id: r2.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -32768,8 +32776,8 @@ function wentMark(day, runs, tz) {
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((x) => ({
       name: x.name,
@@ -32794,8 +32802,8 @@ function coldMark(day, playbookId, name, runs, todayKey) {
     tone: waiting ? "warn" : "plain",
     ahead: waiting || !sent && planned > 0,
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((r2) => ({
       name,
@@ -35072,7 +35080,7 @@ var SHORTCUTS = [
   { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
   { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
   // The pile, on Leads (00426): its rail by key, left to right, and its Undo; drawn nowhere but here.
-  { group: "The pile, on Leads", keys: ["A"], does: "Add the lead to its reach-out, or keep it" },
+  { group: "The pile, on Leads", keys: ["A"], does: "Add the lead to its sequence, or keep it" },
   { group: "The pile, on Leads", keys: ["L"], does: "Later: it comes back at the end" },
   { group: "The pile, on Leads", keys: ["N"], does: "Not a fit, or leave it out" },
   { group: "The pile, on Leads", keys: ["Z"], does: "Undo the last" },
@@ -35585,7 +35593,7 @@ function didLine(r2, now, tz) {
     case "away":
       if (r2.claim === "auto_reply" && r2.until_at) {
         const back = clockDate(Date.parse(r2.until_at), tz, now);
-        return `Away until ${back} (an automatic reply). The reach-out goes on after that.`;
+        return `Away until ${back} (an automatic reply). The sequence goes on after that.`;
       }
       return r2.named_day ? `Away until ${replyDayWords(r2.named_day, tz, now)}. A step is on Today for that day.` : step2;
     default:
@@ -35600,7 +35608,7 @@ function replyStripOf(r2, now, tz) {
       title: "Wrote back",
       said,
       answers,
-      did: r2.claim === "auto_reply" ? "Read as no, then undone. It was an automatic reply, so the reach-out goes on." : "Read as no, then undone. The reach-out stays stopped: they wrote back.",
+      did: r2.claim === "auto_reply" ? "Read as no, then undone. It was an automatic reply, so the sequence goes on." : "Read as no, then undone. The sequence stays stopped: they wrote back.",
       doors: []
     };
   }
@@ -44591,7 +44599,7 @@ function aboutOf({
     });
   }
   const reach = profile.lead?.reach_out ? reachOutPersonOf(profile.lead.reach_out, nowMs, tz).about : null;
-  if (reach) about.push({ k: "Reach out", v: reach });
+  if (reach) about.push({ k: "Sequence", v: reach });
   return about;
 }
 function sinceWords(base) {
@@ -44654,7 +44662,7 @@ function consentChangeWords(c) {
   if (c.purpose === "email_marketing")
     return {
       who: "Email",
-      text: c.consent === "opted_out" ? c.source === "reply" ? "Said no in a reply to your reach-out" : "Unsubscribed from your emails" : c.consent === "opted_in" ? c.source === "reply_undone" ? "Marketing email: back to yes" : "Asked for offers by email" : "Marketing email: back to not asked",
+      text: c.consent === "opted_out" ? c.source === "reply" ? "Said no in a reply to your email" : "Unsubscribed from your emails" : c.consent === "opted_in" ? c.source === "reply_undone" ? "Marketing email: back to yes" : "Asked for offers by email" : "Marketing email: back to not asked",
       ...c.source === "unsubscribe" ? { sub: c.words ? `Wrote \u201C${c.words}\u201D in reply to an email` : "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : c.consent === "opted_in" && c.source === "customer_message" ? { sub: `In their own words by email${c.words ? `: \u201C${c.words}\u201D` : ""}` } : {}
     };
   const offers = c.purpose === "marketing";
@@ -47866,7 +47874,7 @@ var REACH_OUT_FIRST_WORDS = {
 };
 var REACH_OUT_GAP_FIRST = 20;
 function reachOutDefaultName(searchName) {
-  return `Reach out \xB7 ${searchName}`.slice(0, 80);
+  return `Write to ${searchName}`.slice(0, 80);
 }
 function reachOutDraftOf(p) {
   const c = p.chain;
@@ -47956,7 +47964,7 @@ function reachOutAfterDayChoices() {
 }
 function reachOutChainBodyOf(d, searchId) {
   return {
-    name: d.name.trim() || "Reach out",
+    name: d.name.trim() || "Write to leads",
     search_id: searchId,
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
@@ -48070,7 +48078,7 @@ function reachOutEditedWords(rechecked) {
 function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
+  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
 }
 var REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",
@@ -48099,7 +48107,7 @@ var REACH_OUT_SHEET_PARTS = {
   starting: "Starting\u2026",
   saving: "Saving\u2026",
   cancel: "Cancel",
-  name: "The reach-out's name",
+  name: "The sequence's name",
   fromLine: "From",
   toLine: "To",
   subjectLine: "Subject",
@@ -48255,7 +48263,6 @@ function peopleNeedsOf(rows2, at3) {
       {
         id: r2.send_id,
         name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-        to: r2.lead_id ? leadDoorOf(r2.lead_id) : null,
         leadId: r2.lead_id,
         place: r2.place,
         why: holdWords2(reason, r2.hold_detail),
@@ -49064,7 +49071,7 @@ function toCampaignReportVM(dto) {
   const sources = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Sent once",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -49095,7 +49102,7 @@ function toCampaignReportVM(dto) {
       rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied])
     },
     lines: {
-      sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
+      sent: sends2 ? sends2 === 1 ? "From one run." : `From ${sends2} runs.` : null,
       channels: channelsLine(channels)
     }
   };
@@ -49457,15 +49464,15 @@ function receptionistDtoOf(series, parts2) {
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
-  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
+  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
-  said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
-  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   rating: "Your Google rating as of the last check: the average of every rating Google holds for your listing, not only this period's.",
   reviews: "How many ratings Google counts for your listing as of the last check, with words or without.",
   ratings_gained: "How many ratings Google's count rose by in this period, from the daily checks Chanlytics keeps: new ratings, with words or without. It needs two days of readings.",
@@ -49479,7 +49486,7 @@ var METRIC_WORDS = {
   answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
   waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
   call_backs: "Of the conversations that need you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
-  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a campaign message the door held are not counted.",
   people_reached: "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
   yeses_won: "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded: "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
@@ -49490,13 +49497,13 @@ var METRIC_WORDS = {
   can_receive_offers: "People on your Can receive offers list, as of now, whatever period is picked: they said yes to offers and can be reached on a channel you send on now. A yes with no number or address to send to, a channel you have not connected, and a person who asked to stop are not counted.",
   opted_out_now: "People on your Opted out list, as of now, whatever period is picked: they asked to stop being messaged, or are on do-not-contact, whenever that was. A person who has said yes again since and is not on do-not-contact is not counted.",
   quiet_now: "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted.",
-  emails_written: "Emails your reach-outs wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
-  emails_landed: "Of the emails your reach-outs wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
-  emails_bounced: "Emails your reach-outs wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
-  people_sent_to: "People a campaign or a broadcast sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and a reach-out's email are not counted.",
+  emails_written: "Emails your sequences to leads wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
+  emails_landed: "Of the emails your sequences to leads wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
+  emails_bounced: "Emails your sequences to leads wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
+  people_sent_to: "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
   people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,
-  runs_waiting: "Runs waiting for your OK, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
-  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
+  runs_waiting: "Runs waiting for your OK, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
+  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
   campaign_replies_waiting: `People who answered a campaign in the last ${STUCK_DAYS} whose conversation waits for a person, as of now, whatever period is picked. One a teammate or you have taken over, and one put aside until later, are not counted.`,
   templates_paused: "WhatsApp messages Meta paused, turned off or rejected, as of now, whatever period is picked. A message hidden from the library and one only waiting for review are not counted.",
   number_health: "How WhatsApp rates your sending number, its quality and what Meta holds against it, as of now, whatever period is picked. A text line and a mailbox are not counted."
@@ -50634,7 +50641,7 @@ function chainBusinesses(steps) {
 function chainSourceLine(c, nowMs, tz) {
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
   const meta = [
-    "Reach-out",
+    "To leads",
     plural(c.steps.length, "step"),
     plural(c.runs, "run"),
     c.search ? c.search.name : null,
@@ -50713,7 +50720,7 @@ function periodLines(dto, when) {
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
     mailboxes: MAILBOXES_LINE,
-    empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
+    empty: `No sequence to leads wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE
   };
 }
@@ -50747,7 +50754,7 @@ var NOTHING_WENT_OUT = "Nothing went out in this period.";
 function reachOutsWroteWords(emails, businesses) {
   if (emails === 0) return "";
   const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
-  return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
+  return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
 }
 function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
   const sentence2 = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
@@ -50791,7 +50798,7 @@ var HELD_OTHER = "Another reason";
 var heldKeyOf = (key) => ownWord(HELD_REASONS, key) === void 0 ? "other" : key;
 var heldReasonWords = (key) => capitalize(ownWord(HELD_REASONS, key) ?? HELD_OTHER);
 var heldBackLine = (held, sent) => `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
-var REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
+var REACH_OUTS_UNDER = "Runs to leads are not counted here.";
 var STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 var CANCELED_KEY = "canceled";
 var stoppedKeyOf = (key) => readFailure(key) === null ? "other" : key;
@@ -50814,7 +50821,7 @@ function messageRateWords(m) {
 function runsLineWords(moment2, broadcast) {
   const kinds = [
     moment2 > 0 ? plural(moment2, "campaign run") : null,
-    broadcast > 0 ? plural(broadcast, "one-off broadcast") : null
+    broadcast > 0 ? plural(broadcast, "one-off send") : null
   ].filter((kind) => kind !== null);
   return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
 }
@@ -50856,7 +50863,7 @@ function runsWaitingMeta(n, late) {
   return `${late} past their day (skip those), ${n - late} can still be approved`;
 }
 var RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
-var REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
+var REACH_OUT_STEP_COUNTS = "a step to leads counts too";
 function failedRunMeta(failed) {
   if (failed.n === 0) return RUNS_FAILED_NONE;
   const what = failed.latest === null ? `${plural(failed.n, "run")} failed in the last ${STUCK_DAYS}` : `the latest: ${failed.latest.name}, ${broadcastFailureWords(failed.latest.failure)}`;
@@ -50887,13 +50894,13 @@ var FAILED_WHAT = {
   campaigns: "the campaign numbers",
   ledger: "who it reached and what is stuck",
   stuck: "what is stuck now",
-  reach_outs: "the reach-out numbers"
+  reach_outs: "the numbers for leads"
 };
 var STILL_READ = {
   campaigns: "the sends and their channels",
   ledger: "who it reached",
   stuck: "what is stuck now",
-  reach_outs: "the reach-outs"
+  reach_outs: "the sequences to leads"
 };
 var REST_IS_CURRENT = "The rest of this page is current.";
 var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";
@@ -51262,7 +51269,10 @@ function reachOutDayWords(n) {
   if (n.said_no) clauses.push(`${n.said_no} said no`);
   if (n.bounced) clauses.push(`${n.bounced} bounced`);
   if (n.held) clauses.push(`${n.held} wait${n.held === 1 ? "s" : ""} for your say`);
-  return { title: "Today's reach-outs", body: clauses.length ? `${clauses.join(" \xB7 ")}.` : "Nothing happened today." };
+  return {
+    title: "Today's emails to leads",
+    body: clauses.length ? `${clauses.join(" \xB7 ")}.` : "Nothing happened today."
+  };
 }
 
 // src/setup/capabilities.ts
@@ -55036,13 +55046,11 @@ var PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
-  // settings read its pane is drawn from and the channels read's numbers.
-  "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now.
+  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
+  // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
   "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
   admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"]
@@ -55095,9 +55103,9 @@ function routePrefetchScript() {
     'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
     // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
     'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
-    'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
-    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
-    'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
+    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), a message open in it among its addresses,
+    // and opens on its own reads; a message's drawer over Sequences (`message:<name>`) went into it, and lands there.
+    'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).
@@ -55161,8 +55169,8 @@ function seeRefOfRoute(route) {
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
-  const message = /^campaigns\/message:([A-Za-z0-9_-]+)$/.exec(path);
-  return message?.[1] ? { kind: "message", name: message[1] } : null;
+  const message = messageOfRoute(path);
+  return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 function seeHomeOf(ref) {
   return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
@@ -56064,7 +56072,7 @@ function cameIn(vm) {
 }
 var runSentence = (r2) => [
   bold(r2.label),
-  plain(` ${r2.verb ?? "is"} ${r2.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r2.sentence}`)
+  plain(` ${r2.says ?? `${r2.verb ?? "is"} ${r2.waits ?? RUN_WAITING_WORDS.toLowerCase()}`}: ${r2.sentence}`)
 ];
 function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
@@ -56444,7 +56452,7 @@ function unreachableLeak({ people, list: list2 }) {
   const noNumber = said.length > 0;
   const why = said.some((r2) => r2.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
   const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
-  const math = `${noNumber ? why : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
+  const math = `${noNumber ? why : "a send reaches only the second yes"} \xB7 0 can receive one`;
   return {
     id: "unreachable",
     tone: "warn",
@@ -56873,7 +56881,7 @@ function settledRow(row2) {
 }
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A broadcast stopped partway", to: "campaigns/sequences" },
+  broadcast_send: { stopped: "A run stopped partway", to: "campaigns/sequences" },
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
   email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
@@ -56882,7 +56890,7 @@ var JOB_WORK = {
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
   // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
-  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
+  reply_read: { stopped: "A reply from a lead could not be read or told", to: "inbox" },
   // A booking tool's email about a visit (docs/plans/2026-10-07-bookings-arrive-by-email.md): the board is where the
   // visit would be, and Settings › Business where the notices are counted.
   booking_read: { stopped: "A booking emailed by your booking tool could not be read", to: "calendar" },
@@ -57009,7 +57017,7 @@ var ROUTE_VERBS = [
   // The old Playbooks list (`outbound`) lands on Sequences, which is Campaigns now (decision 0060): the door says the name.
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
-  [/^campaigns\/message:/, "Open the message"],
+  [/^campaigns\/(message:|messages\/[^/]+)/, "Open the message"],
   // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
   [/^campaigns\/messages(\/|$)/, "Open Messages"],
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): the door says it opens the run.
@@ -57132,15 +57140,15 @@ var AWAY_NOUN = {
   // "A broadcast finished" is already this repo's word for the event
   // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
   // the same thing about the same fact.
-  broadcast_sent: ["broadcast finished", "broadcasts finished"],
-  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
+  broadcast_sent: ["run finished", "runs finished"],
+  broadcast_stopped: ["run did not go out", "runs did not go out"],
   note_for_you: ["note left for you", "notes left for you"],
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
   // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
   leads_ready: ["search finished", "searches finished"],
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
-  reach_out_replied: ["reply to a reach-out", "replies to a reach-out"],
+  reach_out_replied: ["reply from a lead", "replies from leads"],
   // A campaign's unsubscribes and STOPs come in a run (decision 0048): several are one pattern, in the Inbox's words.
   opted_out: ["person asked to stop", "people asked to stop"],
   // A day of bookings is one pattern, each its own visit (S1-01); a read of the calendar that found several is one row already.
@@ -57434,8 +57442,8 @@ var ALERT_TOPICS = [
   {
     key: "playbook",
     group: "needs_you",
-    title: "A campaign or reach-out waits for your yes",
-    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a reach-out holds an email for your call; or a campaign could not run today, and tomorrow's run tries again.",
+    title: "A campaign waits for your yes",
+    what: "A run waits for your approval, or goes unless you stop it, with how many people it reaches; a sequence to leads holds an email for your call; or a campaign could not run today, and tomorrow's run tries again.",
     email: "choice",
     phone: true,
     kinds: ["playbook"]
@@ -57461,7 +57469,7 @@ var ALERT_TOPICS = [
   {
     key: "reach_out_replied",
     group: "worth_knowing",
-    title: "A business wrote back to a reach-out",
+    title: "A business wrote back to your sequence",
     what: "What the reply was read as, what was done, and the receptionist's draft when it wrote one.",
     email: "choice",
     phone: true,
@@ -57480,7 +57488,7 @@ var ALERT_TOPICS = [
     key: "job_failed",
     group: "worth_knowing",
     title: "Something did not finish",
-    what: "A reply may not have been sent, or a search, a broadcast or another background job stopped partway. It says what stopped and whether it carries on.",
+    what: "A reply may not have been sent, or a search, a send or another background job stopped partway. It says what stopped and whether it carries on.",
     email: "choice",
     phone: true,
     kinds: ["job_failed"]
@@ -57488,8 +57496,8 @@ var ALERT_TOPICS = [
   {
     key: "broadcasts",
     group: "worth_knowing",
-    title: "A broadcast finished, or stopped",
-    what: "When a broadcast has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
+    title: "A run finished, or stopped",
+    what: "When a run has gone to everyone it could reach, with how many got it and how many were held back; and when one stops partway or never goes out.",
     email: "choice",
     phone: true,
     kinds: ["broadcast_sent", "broadcast_stopped"]
@@ -57516,7 +57524,7 @@ var ALERT_TOPICS = [
     key: "sweep",
     group: "worth_knowing",
     title: "Sending is paused",
-    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Reminders, confirmations and everything on WhatsApp go on.",
+    what: "Offers and news by email, or a mailbox your sequences to leads write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Reminders, confirmations and everything on WhatsApp go on.",
     email: "choice",
     phone: false,
     kinds: ["sweep"]
@@ -57655,7 +57663,7 @@ var ALERT_PANE_WORDS = {
       "people added from your calendar",
       "a booking that arrives",
       "a booking email that needs a look",
-      "the day's reach-out numbers at 6 PM",
+      "the day's numbers for leads at 6 PM",
       "a problem with a line",
       "a teammate who joins or leaves",
       "invitations not yet accepted"
@@ -57908,7 +57916,7 @@ function goingTodayOf(input) {
     const kind = r2.playbook_id ? "batch" : "one_off";
     const g = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
     const people = reach ? plural(r2.recipient_count, "business", "businesses") : plural(r2.recipient_count, "person", "people");
-    const what = reach ? "Reach-out" : kind === "batch" ? "Campaign" : "Sent once";
+    const what = reach ? "To leads" : kind === "batch" ? "Campaign" : "Sent once";
     rows2.push({
       key: `run-${r2.id}`,
       kind,
@@ -57957,14 +57965,20 @@ function waitRowsOf(waiting, late = [], toSendOpen = false) {
   for (const r2 of late) rows2.push({ kind: "run", run: r2, late: true });
   return rows2;
 }
+var approvalsSentence = (names3) => `${joinWords(names3.length > 3 ? [...names3.slice(0, 2), `${names3.length - 2} more`] : names3)}. Each one you answer opens the next.`;
 var WAIT_ROW_WORDS = {
   approvals: {
     name: (n) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns \xB7 ready",
-    /** The first two by name, then how many more: "VIP color clients, Holiday gift cards and 1 more". */
-    sentence: (names3) => `${joinWords(names3.length > 3 ? [...names3.slice(0, 2), `${names3.length - 2} more`] : names3)}. Each one you answer opens the next.`,
+    sentence: approvalsSentence,
     status: [RUN_WAITING_WORDS],
-    open: "Open"
+    open: "Open",
+    /** Today's brief, saying the folded row once (contracts todayBriefWords): "4 runs wait for your OK: …". */
+    brief: (names3) => ({
+      label: plural(names3.length, "run", "runs"),
+      says: names3.length === 1 ? "waits for your OK" : "wait for your OK",
+      sentence: approvalsSentence(names3)
+    })
   }
 };
 
@@ -58889,8 +58903,8 @@ var WORDS2 = {
   whisper: "Whispered to the phone receptionist",
   connect_channel: "Connected a channel",
   consent_change: "Recorded a consent answer",
-  send_broadcast: "Sent a broadcast",
-  cancel_broadcast: "Canceled a broadcast",
+  send_broadcast: "Sent a message once",
+  cancel_broadcast: "Canceled a send",
   start_playbook: "Started a campaign",
   pause_playbook: "Paused a campaign",
   change_playbook: "Changed a campaign",
@@ -58957,23 +58971,23 @@ var WORDS2 = {
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
-  "broadcast.sent": "A broadcast finished",
-  "broadcast.stopped": "A broadcast stopped",
+  "broadcast.sent": "A run finished",
+  "broadcast.stopped": "A run stopped",
   "playbook.run": "A campaign ran",
   "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
   "template.removed": "A message was deleted from Messages",
   "member.joined": "Joined the workspace",
   "member.left": "Left the workspace",
-  "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
-  "reach_out.send_decided": "A held reach-out email was decided",
-  "reach_out.lead_added": "Leads were added to a reach-out",
-  "reach_out.lead_taken_back": "Leads were taken back from a reach-out",
+  "reach_out.lead_stopped": "A sequence stopped writing to a lead",
+  "reach_out.send_decided": "A held email to a lead was decided",
+  "reach_out.lead_added": "Leads were added to a sequence",
+  "reach_out.lead_taken_back": "Leads were taken back from a sequence",
   "lead.kept": "A lead was kept from Needs review",
   "lead.excluded": "A lead was left out of Needs review",
   "lead.put_back": "A lead was put back in Needs review",
   "lead.later": "A lead was put off for later",
-  "lead.addressee_chosen": "A company's reach-out was set to write to someone else",
+  "lead.addressee_chosen": "A company's sequence was set to write to someone else",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "reach_out.source_set": "A sequence was set to add a search's new leads, or to stop",
@@ -59038,7 +59052,7 @@ var WORDS2 = {
   "lead.set_aside": "A lead was set aside",
   "lead.ideas_written": "Ideas for a search were written",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
-  "reach_out.replied": "A business wrote back to a reach-out",
+  "reach_out.replied": "A business wrote back to a sequence",
   "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
   "workspace.activated": "The workspace passed a milestone",
@@ -59136,7 +59150,7 @@ function leadNotAFitWords(p, base) {
   const head = p.bulk === true && n !== null ? `${plural(n, "lead")} ${n === 1 ? "was" : "were"} marked not a fit` : base;
   return joinBits(head, [wordOf(LEAD_NOT_A_FIT_WORDS, textAt(p, "why"))]);
 }
-var REACH_OUT_EMAILED_WORDS = "A reach-out email went to a lead";
+var REACH_OUT_EMAILED_WORDS = "An email went to a lead";
 function leadEmailedWords(p, base) {
   return textAt(p, "by") === "reach_out" ? REACH_OUT_EMAILED_WORDS : base;
 }
@@ -59181,10 +59195,10 @@ function callRecordedWords(p, base) {
   return textAt(p, "direction") === "outbound" ? CALL_UNANSWERED_WORDS : CALL_MISSED_WORDS;
 }
 var SEND_DECIDED_WORDS = {
-  include: "A held reach-out email was sent as written",
-  rewrite: "A held reach-out email was sent back to be written again",
-  skip: "A held reach-out email was skipped",
-  not_a_fit: "A held reach-out email was dropped: the lead is not a fit"
+  include: "A held email to a lead was sent as written",
+  rewrite: "A held email to a lead was sent back to be written again",
+  skip: "A held email to a lead was skipped",
+  not_a_fit: "A held email to a lead was dropped: the lead is not a fit"
 };
 var FORWARDING_WORDS = { unanswered: "the calls not answered", always: "every call" };
 function searchRemovedWords(p, base) {
@@ -60277,7 +60291,7 @@ var ACTIVITY_SUBJECT_HOMES = {
   escalation: { lookup: "its thread, which the server reads off the handover (activity.ts, doors)" },
   deal: { lookup: "its person's page, which the server reads off the deal (activity.ts, doors)" },
   template: {
-    lookup: "the Library message, addressed by its name (campaigns/message:<name>), which the server reads off the template row; one deleted has no page"
+    lookup: "the Library message, addressed by its name (campaigns/messages/<name>, the Library open on it), which the server reads off the template row; one deleted has no page"
   },
   list: { lookup: "its page depends on what kind of list it is, which the log's list route says (listRoute)" },
   // The subjects that open nowhere, and why.
@@ -60371,7 +60385,7 @@ var FOLD_WORDS = {
   "lead.emailed": {
     counts: "subjects",
     split: (row2) => row2.text,
-    many: (n, newest) => newest.text === REACH_OUT_EMAILED_WORDS ? `${n} reach-out emails went to leads` : `${n} leads were marked as emailed`
+    many: (n, newest) => newest.text === REACH_OUT_EMAILED_WORDS ? `${n} emails went to leads` : `${n} leads were marked as emailed`
   },
   "lead.call": rows((n) => `${n} calls to leads were logged`),
   "google.reviews": rows((n) => `New Google reviews were read ${n} times`),
@@ -60554,7 +60568,7 @@ var LEFT_OUT_BESIDE_THE_KINDS = [
     why: "Each change it records is in the section of the record it changed, and every consent change is in consent_history."
   }
 ];
-var EXPORT_HOLDS_WORDS = "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply to a reach-out was read.";
+var EXPORT_HOLDS_WORDS = "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply from a lead was read.";
 function exportLeftOutWords() {
   const what = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
   return `Not in it: ${what.slice(0, -1).join("; ")}; and ${what.at(-1) ?? ""}. The end of the file says why for each.`;
@@ -62726,7 +62740,6 @@ export {
   leadChooseNameOf,
   leadCompanyOf,
   leadDockOf,
-  leadDoorOf,
   leadDraftChainOf,
   leadDraftDockOf,
   leadDraftFooter,
@@ -62934,6 +62947,7 @@ export {
   messageLanguageOf,
   messageLanguagesNext,
   messageLanguagesOf,
+  messageOfRoute,
   messageRoute,
   messageStandingWords,
   messageStatusLabel,

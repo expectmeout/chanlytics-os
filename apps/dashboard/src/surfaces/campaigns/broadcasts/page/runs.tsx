@@ -3,7 +3,7 @@
  * still to go out, the sheet of a run waiting on you, Send it again, and the run's own screen. Sent's list went to each
  * sequence's History (decision 0060, D3): a run is opened from there, or from a link, a bell row or Ask's card.
  */
-import { sendOnceRoute, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
+import { runTooLate, sendOnceRoute, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { keepTabDraft } from "../../../kit/record/work";
 import { gate, navigate } from "../../../legacy-verbs";
@@ -11,6 +11,7 @@ import { surfaceValue } from "../../../surface-values";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
 import type { BcApproving, BcBase, BcKept, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
 import { cmOfferedBy } from "../../parts/channels";
+import { approvalDaysNow } from "../when-words";
 import { BC_TEXT, bcKey, bcSlots } from "./words";
 
 /** What the acts on a run's card and sheet read of the page. */
@@ -52,7 +53,10 @@ export function bcSheetOf({
 }: Pick<BcBase, "data"> & Pick<BcRunsOf, "openRows"> & RunActsIn) {
   const sheetFor = (row: BroadcastVM | null): BcSheet | null => {
     if (!row || row.state !== "pending_approval") return null;
-    const queue = openRows.filter((r) => r.state === "pending_approval");
+    // Those an OK can still send: one whose day has passed waits on nobody (contracts runTooLate), and is neither counted
+    // in "1 of N" nor opened next (the framework's rating, 19 Oct 2026).
+    const days = approvalDaysNow();
+    const queue = openRows.filter((r) => r.state === "pending_approval" && !runTooLate(r, days));
     const at = queue.findIndex((r) => r.id === row.id);
     const rest = queue.filter((r) => r.id !== row.id);
     const next = rest[Math.min(Math.max(at, 0), rest.length - 1)] || null;
@@ -128,7 +132,7 @@ export function bcAgainOf({ canSend, templates, audiences, link, review }: Again
           keepTabDraft("broadcast", send);
           navigate(sendOnceRoute());
         }}
-        {...gate("approve", "send a broadcast")}
+        {...gate("approve", "send a message")}
       >
         Send it again
       </Button>

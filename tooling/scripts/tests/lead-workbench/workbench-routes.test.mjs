@@ -181,14 +181,14 @@ test("who is refused before the door, and the door's refusals in contracts' word
   // The door's own P0002 (a role it refuses, a reach-out it does not find) is a 404 in its words.
   const door = doors({
     reach_out_add: () => {
-      throw Object.assign(new Error("Reach-out not found."), { code: "P0002" });
+      throw Object.assign(new Error("Sequence not found."), { code: "P0002" });
     },
   });
   await refused(
     add.POST.run(send({ lead_ids: [LEAD] }), ctxFor(tables(), { id: ROOT_ID }, door.rpcs)),
     "not_found",
     404,
-    "Reach-out not found.",
+    "Sequence not found.",
   );
 });
 

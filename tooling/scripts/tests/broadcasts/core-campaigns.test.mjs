@@ -444,7 +444,7 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     make(fakes({ people: crowd }), { template_id: T1, audience: everyone }),
     "validation",
     400,
-    `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`,
+    `At most ${BROADCAST_MAX_RECIPIENTS} people in one send.`,
   );
   assert.deepEqual(nobody.ops(), []);
 });
@@ -548,7 +548,7 @@ test("REGRESSION: an empty audience says which of its two causes it has -- a yes
   // Where a yes is got: in Sent, the ledger's card since #758. Not "on this page" -- these words are read in a
   // toast on the send screen, which has no QR, and in Ask, which is no page at all.
   const noYesToOffers =
-    "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent.";
+    "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional send. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent.";
   const noYesToMessages =
     "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
   /** The route's refusal of one list, for a message of this category: its status and its words, whole. */
@@ -1066,7 +1066,7 @@ test("what could not be written says so: the run, its people and its job are one
     const { e, wire, said } = await refusedLoudly(make(f, { template_id: T1, audience: everyone }));
     assert.equal(e.code, "internal");
     assert.equal(e.status, 500);
-    assert.equal(e.message, "The broadcast could not be created. Nothing was sent; try again.");
+    assert.equal(e.message, "The send could not be created. Nothing was sent; try again.");
     assert.deepEqual(f.ops(), ["assemble"], "nothing to fail, nothing recorded");
     // The database's words are the log's: the answer the route sends carries none of them.
     assert.equal(e.details, undefined, "no details to send");
@@ -1342,14 +1342,14 @@ test("cancel: scheduled withdraws the job; sending stops at the next batch; wait
     ["failed", "already failed"],
   ]) {
     const f = fakes();
-    await refused(cancelBroadcast(f.ports, { row: row(state) }), "conflict", 409, `This broadcast has ${said}.`);
+    await refused(cancelBroadcast(f.ports, { row: row(state) }), "conflict", 409, `This send has ${said}.`);
     assert.deepEqual(f.ops(), []);
   }
   await refused(
     cancelBroadcast(fakes({ cancel: false }).ports, { row: row("sending") }),
     "conflict",
     409,
-    "This broadcast just changed state; look again.",
+    "This send just changed state; look again.",
   );
 });
 

@@ -180,7 +180,7 @@ var PLAYBOOK_TRIGGERS = [
     list: null,
     cls: "outreach",
     kind: "reach_out",
-    hint: "The first email of a reach-out"
+    hint: "The first email to a lead"
   },
   {
     id: "after_step",
@@ -611,7 +611,7 @@ var LIFECYCLE_WORDS = {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers."
   },
-  /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
+  /** A message opened by its name (over a page, or in the Library) whose name leads to no message any more. */
   messageGone: {
     title: "That message isn't here any more.",
     body: "Every message you keep is in Messages."
@@ -746,7 +746,7 @@ var LIFECYCLE_WORDS = {
       body: "The moments show who they reach once it reads. Everything else here is current.",
       surface: "playbooks"
     },
-    chains: { what: "your reach-outs", body: "The moments above are current.", surface: "reach_outs" },
+    chains: { what: "your sequences to leads", body: "The moments above are current.", surface: "reach_outs" },
     report: { what: "this period's numbers", body: "The runs below stand.", surface: "campaign_results" },
     // The broadcasts read itself, said in each tile made from it.
     reach: {
@@ -784,7 +784,7 @@ var LIFECYCLE_WORDS = {
     clear: "Clear",
     sort: { label: "Sort", next: "Next", name: "Name", people: "People now", replied: "Replied" },
     group: { label: "Group", moment: "By moment", none: "No groups" },
-    groups: { lists: "Lists & offers", reach_out: "Reach-outs", sent_once: "Sent once" },
+    groups: { lists: "Lists & offers", reach_out: "To leads", sent_once: "Sent once" },
     /** A group no campaign stands on yet. */
     none: "No campaign yet",
     empty: "No campaigns match",
@@ -1093,7 +1093,7 @@ var broadcastSpec = {
     const ahead = d.scheduled_ahead === true;
     const goes = ahead ? "scheduled" : d.pressed_now === true ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it` : SENDING_NOW_WORDS;
     const said = heardWords(leftOut, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` \xB7 ${said}` : ""}`;
+    return `Send \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -2406,7 +2406,7 @@ var BUILTIN_LISTS = [
   {
     id: "offers_ok",
     label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional send may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })

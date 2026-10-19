@@ -21,19 +21,29 @@
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
  * pane beside it -- a message, a reach-out's email, or the composer writing a new one. On a phone what is open rises over
  * the list in the drawer Campaigns' home opens its own in (home/pane-sheet.tsx; Ruben, 11 Oct 2026: a message took the
- * screen over "like a page"), the list still under it. The route has no address per template, so which is open is the
- * page's own.
+ * screen over "like a page"), the list still under it. A message open is the address's (`campaigns/messages/<name>`,
+ * contracts messageRoute: a message's one home, the Campaigns wiring review's rule A), written as it opens and closes,
+ * replaced and never pushed, as the Inbox writes a thread's, so a link opens it, a reload keeps it, and Back leaves the
+ * page. A reach-out's email and the composer stay the page's own, the email's words being its step's on its sequence.
  *
  * The page is real on every workspace. A demo session draws the same words as a real one, over what it holds; without a
  * read, the waiting line says which of the two is looking.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { LIBRARY_WORDS, sequenceRoute } from "@chanlytics/contracts";
+import {
+  LIBRARY_WORDS,
+  LIFECYCLE_WORDS,
+  MESSAGES_ROUTE,
+  messageOfRoute,
+  messageRoute,
+  sequenceRoute,
+} from "@chanlytics/contracts";
 import type { ReachOutChainDto } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { canDo, demoSession, gateTitle, navigate, useLegacyToast } from "../../legacy-verbs";
-import { FailedRead } from "../../kit/empty/empty";
+import { canDo, demoSession, gateTitle, navigate, replaceRoute, useLegacyToast } from "../../legacy-verbs";
+import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { tabDraft } from "../../kit/record/work";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
@@ -41,7 +51,7 @@ import { CmSplit, useCmPhone, type CmView } from "../parts/split";
 import { PaneSheet } from "../home/pane-sheet";
 import { ReachOutEmailPane } from "../reach-out/email-message";
 import { tplEmailOpen, tplEmails, tplEmailsMatching } from "./emails";
-import { listingOf } from "./group";
+import { groupNamed, listingOf, nameOfGroup } from "./group";
 import type { TemplateGroup } from "./group";
 import { MessageRow } from "./message-row";
 import { pageActs } from "./page-acts";
@@ -100,9 +110,11 @@ function usePageState() {
   // composer's own useUnsavedWork, under "new").
   const [composing, setComposing] = useState(() => !!tabDraft("template", "new"));
   const [showHidden, setShowHidden] = useState(false);
-  // Which message is open, by its key: in the pane beside the list. One at a time: the words of two messages side by
-  // side is the wall this page stopped being.
+  // Which reach-out email is open, by its key, in the pane beside the list (a message open is the address's). One thing open
+  // at a time: the words of two messages side by side is the wall this page stopped being.
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // A message pressed, by its key and the address it was pressed at, shown until its own address lands.
+  const [pressed, setPressed] = useState<{ key: string; at: string } | null>(null);
   // What the search box holds: the rows whose words have it stay, the rest stand down.
   const [q, setQ] = useState("");
   const [toastNode, flash] = useLegacyToast();
@@ -116,6 +128,8 @@ function usePageState() {
     setShowHidden,
     openKey,
     setOpenKey,
+    pressed,
+    setPressed,
     q,
     setQ,
     toastNode,
@@ -139,7 +153,90 @@ function roleHint(canAct: boolean, hasWhatsApp: boolean): ReactNode {
   );
 }
 
-function MessagesReal({ view }: { view?: CmView }) {
+/** A message the address names that the workspace no longer holds: said, with the way back to the list. */
+function messageGone(onClose: () => void) {
+  const W = LIFECYCLE_WORDS.messageGone;
+  return (
+    <EmptyState
+      kind="line"
+      title={W.title}
+      body={
+        <>
+          {W.body}{" "}
+          <LinkButton onClick={onClose} data-testid="tpl-message-gone-back">
+            {LIBRARY_WORDS.title}
+          </LinkButton>
+        </>
+      }
+      testid="tpl-message-gone"
+    />
+  );
+}
+
+/** The message the address opens, by its name (contracts messageOfRoute): a door to one reached while the composer was open
+ * opens it, the composer's words kept in the tab. */
+function useNamedMessage(route: string, setComposing: (on: boolean) => void): string | null {
+  const named = messageOfRoute(route);
+  useEffect(() => {
+    if (named) setComposing(false);
+  }, [named, setComposing]);
+  return named;
+}
+
+/**
+ * What is open, and the presses that open and close it: a message by its address (replaced, so Back leaves the page), a
+ * reach-out's email and the composer by the page's own state, one at a time. The composer gives way to a message (its
+ * words are kept in the tab, and come back with New), as New gives way to the message.
+ */
+function messageOpener(
+  at: { route: string; named: string | null },
+  groups: readonly TemplateGroup[],
+  st: Pick<ReturnType<typeof usePageState>, "openKey" | "setOpenKey" | "setComposing" | "pressed" | "setPressed">,
+) {
+  const { route, named } = at;
+  // The message open: the address's, else one pressed at this address whose own has not landed yet (shown at once, and
+  // let go as the address moves, which is the truth again).
+  const pressed = st.pressed && st.pressed.at === route ? groups.find((g) => g.key === st.pressed?.key) : undefined;
+  const routed = named ? groupNamed(groups, named) : (pressed ?? null);
+  const shownKey = routed ? routed.key : named ? null : st.openKey;
+  const leaveMessage = () => {
+    st.setPressed(null);
+    if (named) replaceRoute(MESSAGES_ROUTE);
+  };
+  const openOne = (key: string) => {
+    st.setComposing(false);
+    const g = groups.find((x) => x.key === key);
+    const closing = shownKey === key;
+    if (g) {
+      st.setOpenKey(null);
+      st.setPressed(closing ? null : { key, at: route });
+      replaceRoute(closing ? MESSAGES_ROUTE : messageRoute(nameOfGroup(g)));
+      return;
+    }
+    leaveMessage();
+    st.setOpenKey(closing ? null : key);
+  };
+  const startNew = () => {
+    st.setOpenKey(null);
+    leaveMessage();
+    st.setComposing(true);
+  };
+  const closeOpen = () => {
+    st.setOpenKey(null);
+    leaveMessage();
+  };
+  // A message the composer just made, opened as a press opens one: its address, and the message shown until it lands.
+  const openMade = (key: string, name: string) => {
+    st.setComposing(false);
+    st.setOpenKey(null);
+    st.setPressed({ key, at: route });
+    replaceRoute(messageRoute(name));
+  };
+  // What the list lights as open: the message, else the email open here.
+  return { routed, shownKey, openOne, startNew, closeOpen, openMade };
+}
+
+function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // The settings surface holds the templates, the numbers and what sends and went out; a reach-out's emails are their
   // own surface (Part 4 PR 8): their rows draw when they land.
   const settings = useSurface("settings");
@@ -152,7 +249,8 @@ function MessagesReal({ view }: { view?: CmView }) {
   const state = usePageState();
   const phone = useCmPhone();
   const { doing, setDoing, doingRef, composing, setComposing, showHidden, setShowHidden } = state;
-  const { openKey, setOpenKey, q, setQ, toastNode, flash } = state;
+  const { openKey, q, setQ, toastNode, flash } = state;
+  const named = useNamedMessage(route, setComposing);
   const busy = doing !== null;
   // Who may add, change or remove a message: the role store's answer, View-as included.
   const canAct = canDo("approve");
@@ -178,20 +276,15 @@ function MessagesReal({ view }: { view?: CmView }) {
   // the picker, where the languages it cannot add would have been. (An email's or a text's
   // version of a message needs no number: only a WhatsApp version does.)
   const addWhy = !hasWhatsApp ? LIBRARY_WORDS.addNeedsNumber : !canAct ? gateTitle("approve", "add a language") : null;
-  // A row opens its message beside the list, or closes it again; the composer gives way to it (its words are kept in
-  // the tab, and come back with New), as New gives way to the message.
-  const openOne = (key: string) => {
-    setComposing(false);
-    setOpenKey((k) => (k === key ? null : key));
-  };
-  const startNew = () => {
-    setOpenKey(null);
-    setComposing(true);
-  };
+  const { routed, shownKey, openOne, startNew, closeOpen, openMade } = messageOpener(
+    { route, named },
+    [...starters, ...customGroups, ...hiddenGroups],
+    state,
+  );
   const read = { langs, S, versions };
   const held = { templates, messages };
   const card = (g: TemplateGroup) => (
-    <MessageRow key={g.key} g={g} {...read} open={openKey === g.key} onOpen={() => openOne(g.key)} />
+    <MessageRow key={g.key} g={g} {...read} open={shownKey === g.key} onOpen={() => openOne(g.key)} />
   );
 
   const needle = q.trim().toLowerCase();
@@ -203,15 +296,12 @@ function MessagesReal({ view }: { view?: CmView }) {
   const listEmails = tplEmailsMatching(emails, needle);
   const listed = listStarters.length + listCustom.length + listEmails.length;
 
-  // What is open beside the list: the composer, a message or a reach-out's email. A message the list no longer has
-  // (deleted, or a number that went) is nothing open.
-  const openGroup = openKey
-    ? [...starters, ...customGroups, ...hiddenGroups].find((g) => g.key === openKey)
-    : undefined;
-  const openEmail = tplEmailOpen(emails, openKey);
-  const closeOpen = () => setOpenKey(null);
+  // What is open beside the list: the composer, a message or a reach-out's email. A message the address names that the
+  // list no longer has (deleted, or a number that went) says so.
+  const openGroup = routed;
+  const openEmail = named || openGroup ? null : tplEmailOpen(emails, openKey);
   const pane = composing ? (
-    composerPane({ bizName, setComposing, setOpenKey, flash, hasWhatsApp, beginMessage: acts.beginMessage, held })
+    composerPane({ bizName, setComposing, openMade, flash, hasWhatsApp, beginMessage: acts.beginMessage, held })
   ) : openGroup ? (
     <TemplatePane
       key={openGroup.key}
@@ -235,6 +325,8 @@ function MessagesReal({ view }: { view?: CmView }) {
       onSaveVersion={acts.saveVersion}
       onRemoveVersion={acts.removeVersion}
     />
+  ) : named ? (
+    messageGone(closeOpen)
   ) : openEmail ? (
     <ReachOutEmailPane
       key={`e:${openEmail.step_id}`}
@@ -267,7 +359,7 @@ function MessagesReal({ view }: { view?: CmView }) {
         listStarters,
         listCustom,
         listEmails,
-        openKey,
+        openKey: shownKey,
         onOpenKey: openOne,
         card,
         needle,
@@ -309,8 +401,9 @@ function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing:
 /**
  * Messages, over what the settings and reach-out surfaces hold, as Campaigns draws it (home/route.tsx): a view kept beside
  * Sequences under Campaigns' one mount, `view` the deck's seat, its side and whether it is shown (parts/split.tsx
- * CmView). Its code is a chunk of Campaigns' own (home/campaigns-code.tsx), so no page's first load carries it.
+ * CmView), at `route`, the address it was last at (`campaigns/messages`, or a message open in it). Its code is a chunk of
+ * Campaigns' own (home/campaigns-code.tsx), so no page's first load carries it.
  */
-export function TemplatesPage({ view }: { view?: CmView } = {}) {
-  return <MessagesReal view={view} />;
+export function TemplatesPage({ view, route = MESSAGES_ROUTE }: { view?: CmView; route?: string } = {}) {
+  return <MessagesReal view={view} route={route} />;
 }

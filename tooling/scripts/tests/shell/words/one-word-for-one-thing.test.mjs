@@ -346,7 +346,7 @@ test("D1-lead-class-words: the band's tabs say the pills' three words, with the 
 
 /* ------------------------------------------------------------ a reach-out reply -- */
 
-test("D1-reply-chip-tone: each reading of a reply to a reach-out is a pill with its own tone, and the chip says the reading", () => {
+test("D1-reply-chip-tone: each reading of a reply from a lead is a pill with its own tone, and the chip says the reading", () => {
   const tones = Object.fromEntries(
     ["interested", "question", "not_now", "no", "wrong_person", "away", "other"].map((i) => [i, stateTone("reply", i)]),
   );

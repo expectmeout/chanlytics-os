@@ -337,7 +337,7 @@ broadcasts.detail = async (id) => {
       ok: false,
       code: "not_found",
       status: 404,
-      message: "Broadcast not found.",
+      message: "Run not found.",
     }
   );
 };
@@ -1508,13 +1508,13 @@ test("REGRESSION: the send screen tells a list with no number from a list with n
   let line = nobodyOn("s-reg", offer);
   assert.equal(
     textOf(line),
-    "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
+    "Nobody on “Regulars” can be sent an offer yet — a send reaches only a recorded yes with a number to send to.",
     "REGRESSION: 'Nobody on “Regulars” has said yes to offers yet'",
   );
   assert.equal(byTestId(line, "bc-nobody-door"), null, "REGRESSION: a door asking Ana for the yes she gave");
   // People says the same of the same list, and nothing to press (contracts broadcastStep, #663).
   assert.deepEqual(contracts.savedListAction("s-reg", on(["c-ana", "c-luis"])), {
-    text: "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
+    text: "Nobody on this list can be sent an offer yet — a send reaches only a recorded yes with a number to send to.",
     cta: "Send them a message",
     to: "campaigns/sequences/new:once:to:s-reg",
     enabled: false,
@@ -1537,7 +1537,7 @@ test("REGRESSION: the send screen tells a list with no number from a list with n
   line = nobodyOn("s-desk", note);
   assert.equal(
     textOf(line),
-    "Nobody on “At the desk” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.",
+    "Nobody on “At the desk” can be sent a message yet — a send reaches only a recorded yes with a number to send to.",
   );
   assert.equal(byTestId(line, "bc-nobody-door"), null);
   // ...and an offer to it is missing her answer.

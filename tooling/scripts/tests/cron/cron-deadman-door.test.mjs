@@ -836,14 +836,14 @@ test("a run still scheduled past its time with nothing on the ledger to send it 
       [
         [
           "broadcast_stopped",
-          "Broadcast “Run b-stranded” not sent",
+          "Campaign “Run b-stranded” not sent",
           "campaigns/sequences/b-stranded/runs/b-stranded",
           "broadcast",
           "b-stranded",
         ],
         [
           "broadcast_stopped",
-          "Broadcast “Run b-moment” not sent",
+          "Campaign “Run b-moment” not sent",
           "campaigns/sequences/b-moment/runs/b-moment",
           "broadcast",
           "b-moment",

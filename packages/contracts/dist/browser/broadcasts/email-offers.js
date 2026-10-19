@@ -34,7 +34,7 @@ export const OFFERS_PAUSED_WORDS = {
 export const OFFERS_NOTICE_WORDS = {
   paused: (reason) => ({
     title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Reminders, confirmations, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
   })
 };
 export function emailOffersOpen(f, couldNotBeChecked) {

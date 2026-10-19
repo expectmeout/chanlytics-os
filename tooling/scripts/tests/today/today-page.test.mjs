@@ -1286,7 +1286,7 @@ test("worth a look: the tone once, as the row's pill; who is waiting as chips; A
   set({ __chrome: undefined });
 });
 
-test("worth a look names no one a reply to a reach-out read as a wrong person: the replies the page already holds are laid over who waits, and a failed read excludes nobody", () => {
+test("worth a look names no one a reply from a lead read as a wrong person: the replies the page already holds are laid over who waits, and a failed read excludes nobody", () => {
   clear();
   const vm = busy();
   set({ today: vm, headline: headline(), __PEOPLE: people(), __chrome: { state: stateOf } });

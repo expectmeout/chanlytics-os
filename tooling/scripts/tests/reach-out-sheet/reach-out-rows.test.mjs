@@ -37,18 +37,16 @@ const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 // The shell's toast is data-bits.jsx's own; the home raises its notices through it, and a test reads them here.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
-// The pages and their panes are TSX (decision 0015): Campaigns' sheets and New message's Write to leads.
+// The pages and their panes are TSX (decision 0015): New's Write to leads.
 const S = "../../../../apps/dashboard/src/surfaces";
-const { CampaignsSheets } = await import(`${S}/campaigns/home/sheets.tsx`);
-// The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
-// door fetches them, so every draw below finds them in, as a press after that reach does.
+// The Library's pane is a chunk of its own (campaigns-code.tsx): fetched here as a reach for a message's door fetches it,
+// so every draw below finds it in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${S}/campaigns/home/campaigns-code.tsx`);
-warmCampaignsCode("campaigns/message:any");
-await import(`${S}/campaigns/home/open-sheets.tsx`);
+warmCampaignsCode("campaigns/messages/any");
 await import(`${S}/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
-const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
+const { surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const WORDS = bridge.reachOuts.words;
 // The verbs as the surface has them: a test stubs some on the surface's one object, and `realVerbs()` puts every one back.
@@ -126,15 +124,6 @@ const verbs = (report = REPORT(), ok = true) => {
 
 /* ------------------------------ New's Leads, and an older change ------------------------------ */
 
-/** The reach-outs not read yet: the surface holds nothing (a read that failed is null, and one that came back is its chains). */
-const UNREAD = "unread";
-/** Campaigns' sheet at an address (`campaigns/<param>`), over the reach-outs' own surface (the seam's "reach_outs"). */
-const homeAt = (param = null, chains = [chainOf()]) => {
-  setSurfaceValue("reach_outs", chains === UNREAD ? undefined : chains);
-  fresh();
-  return again(() => CampaignsSheets({ param }));
-};
-
 test("Write to leads, New's Leads, opens Leads: a sequence to leads is made where its leads are chosen (the lead-to-sequence canvas, 18 Oct 2026)", () => {
   verbs();
   went.length = 0;
@@ -151,17 +140,10 @@ test("Write to leads, New's Leads, opens Leads: a sequence to leads is made wher
   );
 });
 
-test("a reach-out's change (`campaigns/new:edit:<id>`, an older link) lands on its sequence's record in one move, by its root or any of its steps' ids, read or not: nothing waits on the reach-outs, and nothing is drawn over Sequences", () => {
+test("a reach-out's change (`campaigns/new:edit:<id>`, an older link) lands on its sequence's record in one move, by its root or any of its steps' ids: nothing waits on the reach-outs, and Campaigns draws no sheet of its own for it", () => {
   assert.equal(contracts.retiredRouteOf(`campaigns/new:edit:${ROOT}`), contracts.sequenceRoute(ROOT));
   // The record reads a sequence by the id of any of its parts, and then writes its own (contracts retiredRouteOf).
   assert.equal(contracts.retiredRouteOf("campaigns/new:edit:n1"), contracts.sequenceRoute("n1"), "a later step's id");
-  verbs();
-  for (const chains of [[chainOf()], UNREAD, null, []]) {
-    went.length = 0;
-    const at = homeAt(`new:edit:${ROOT}`, chains);
-    assert.equal(byTestId(at, "cmh-composer"), null, "no composer is drawn for a reach-out's id");
-    assert.deepEqual(went, [], "the address landed before the page: nothing moves from here");
-  }
 });
 
 /* ------------------------------ the bridge ------------------------------ */

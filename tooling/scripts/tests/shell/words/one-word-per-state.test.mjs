@@ -112,7 +112,7 @@ const ONE_STATE = {
     ids: ["thread/decided", "call/handled"],
   },
   interested: {
-    means: "the business said it is interested: on a call the owner made, or in a reply to a reach-out",
+    means: "the business said it is interested: on a call the owner made, or in a reply from a lead",
     ids: ["lead_call_outcome/interested", "reply/interested"],
   },
 };

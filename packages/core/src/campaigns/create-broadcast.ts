@@ -321,7 +321,7 @@ export async function createBroadcast(
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
   if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
-    throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+    throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one send.`);
   // 4a. Whoever hears from a campaign or a broadcast within a week of it is left out (skipped at enrolment, in the
   // assembly), unless the person sending it sends to them too: refused in words when nobody else is left, never a run
   // of skips. Judged for the time it is set for (as asked, or ten minutes on for one pressed for now), on either side.
@@ -416,7 +416,7 @@ export async function createBroadcast(
     // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
     // database said is the log's.
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
-    throw new AppError("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
+    throw new AppError("internal", "The send could not be created. Nothing was sent; try again.", 500);
   }
   // The door answers the decision's id with the run's; one was asked for, so an answer without it is refused where
   // the door is called (db assembleBroadcast), never read as a run made with none.

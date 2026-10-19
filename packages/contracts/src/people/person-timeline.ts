@@ -149,7 +149,7 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
       text:
         c.consent === "opted_out"
           ? c.source === "reply"
-            ? "Said no in a reply to your reach-out"
+            ? "Said no in a reply to your email"
             : "Unsubscribed from your emails"
           : c.consent === "opted_in"
             ? c.source === "reply_undone"

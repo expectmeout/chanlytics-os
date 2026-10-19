@@ -21,7 +21,7 @@ export const REACH_OUT_FIRST_WORDS = {
 };
 export const REACH_OUT_GAP_FIRST = 20;
 export function reachOutDefaultName(searchName) {
-  return `Reach out \xB7 ${searchName}`.slice(0, 80);
+  return `Write to ${searchName}`.slice(0, 80);
 }
 export function reachOutDraftOf(p) {
   const c = p.chain;
@@ -111,7 +111,7 @@ export function reachOutAfterDayChoices() {
 }
 export function reachOutChainBodyOf(d, searchId) {
   return {
-    name: d.name.trim() || "Reach out",
+    name: d.name.trim() || "Write to leads",
     search_id: searchId,
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
@@ -225,7 +225,7 @@ export function reachOutEditedWords(rechecked) {
 export function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
+  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
 }
 export const REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",
@@ -254,7 +254,7 @@ export const REACH_OUT_SHEET_PARTS = {
   starting: "Starting\u2026",
   saving: "Saving\u2026",
   cancel: "Cancel",
-  name: "The reach-out's name",
+  name: "The sequence's name",
   fromLine: "From",
   toLine: "To",
   subjectLine: "Subject",

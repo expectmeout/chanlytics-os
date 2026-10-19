@@ -1261,7 +1261,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
   assert.deepEqual(said.sources, [
     // The page's own word for a source's kind (contracts campaign-report.ts kindLabel), a campaign since decision 19.
     { name: "Win-back", kind: "Campaign", runs: 12, sent: 120, delivered: "92%", answered: "23%" },
-    { name: "Spring note", kind: "Broadcast", runs: 2, sent: 120, delivered: "92%", answered: "18%" },
+    { name: "Spring note", kind: "Sent once", runs: 2, sent: 120, delivered: "92%", answered: "18%" },
   ]);
   // A share of MESSAGES answered is `answered`, as the page's funnel, channels and sources say it; `wrote_back` is people, and
   // only the reach-outs' businesses keep that key: no `wrote_back` among the sends' parts, so one answer never holds two units under one word.
@@ -1279,7 +1279,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     runs_stopped: {
       rows: ["Canceled: 1", "The workspace was paused: 1", "The texting provider could not be reached: 1"],
       // The window's card counts a campaign's and a broadcast's runs; a reach-out's are under Reach-outs (the stuck figure counts them).
-      line: "2 runs failed and 1 was canceled. A reach-out's runs are not counted here.",
+      line: "2 runs failed and 1 was canceled. Runs to leads are not counted here.",
     },
     failed_sends: {
       rows: [
@@ -1317,7 +1317,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     {
       label: "Failed runs",
       value: "1",
-      meta: "the latest: Spring note, the workspace was paused · a reach-out's step counts too",
+      meta: "the latest: Spring note, the workspace was paused · a step to leads counts too",
       change: null,
     },
     {
@@ -1580,7 +1580,7 @@ test("report says an empty period in the lens's own words, with no share and no 
   assert.deepEqual(said.window, {
     held: { empty: "Nobody was held back in this period." },
     runs_stopped: {
-      empty: "No run failed or was canceled in this period. A reach-out's runs are not counted here.",
+      empty: "No run failed or was canceled in this period. Runs to leads are not counted here.",
     },
     failed_sends: { empty: "No sent message failed in this period." },
     by_message: { empty: "No message went out in this period." },
@@ -1655,7 +1655,7 @@ test("report says a share of the lens only of five or more -- a channel's and a 
     campaign_series: () => ({ ...SALON_SENDS, sources: [source(1, 0, 0, 0)], by_channel: [] }),
   });
   assert.deepEqual((await salonReport(none)).campaigns.sources, [
-    { name: "Note 1", kind: "Broadcast", runs: 1, sent: 0, delivered: null, answered: null },
+    { name: "Note 1", kind: "Sent once", runs: 1, sent: 0, delivered: null, answered: null },
   ]);
 });
 
@@ -2704,7 +2704,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
   const wrote = await salonReport(alone);
   assert.equal(
     wrote.campaigns.head,
-    "Nothing went out in this period. Your reach-outs wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your sequences to leads wrote 40 emails to 25 businesses.",
   );
   assert.equal(wrote.reach_outs.businesses.rows[0], "Written to: 25");
 
@@ -7014,7 +7014,7 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
     [
       ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
       ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
-      ["template", TPL, "campaigns/message:fall_offer"],
+      ["template", TPL, "campaigns/messages/fall_offer"],
       ["playbook", PB, `campaigns/sequences/${PB}`],
     ],
     "each where its reader said: a search on Leads, a People list on People, a template at its message in the Library, a playbook at its card",

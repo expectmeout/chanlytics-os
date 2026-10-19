@@ -1,5 +1,5 @@
 /**
- * What the Inbox says of a reply to a reach-out (Reach out Part 5, PR 7; contracts reach-out-reply-words.ts): the strip
+ * What the Inbox says of a reply from a lead (Reach out Part 5, PR 7; contracts reach-out-reply-words.ts): the strip
  * above the composer for each intent, an undone no, a reply not read yet and one read at last; the row's chip; the
  * composer's line of where an answer goes out from (C15, N5); a sent reply's line when it went from the mailbox; and
  * the notice's sentence for a no.
@@ -103,19 +103,19 @@ test("an undone no says what stands now: a person wrote back; an automatic reply
     title: "Wrote back",
     said: "“Wants more details”",
     answers: FIRST,
-    did: "Read as no, then undone. The reach-out stays stopped: they wrote back.",
+    did: "Read as no, then undone. The sequence stays stopped: they wrote back.",
     doors: [],
   });
   assert.equal(
     strip({ ...undone, claim: "auto_reply" }).did,
-    "Read as no, then undone. It was an automatic reply, so the reach-out goes on.",
+    "Read as no, then undone. It was an automatic reply, so the sequence goes on.",
   );
 });
 
 test("away: an automatic reply's day back, or their own words' step", () => {
   assert.equal(
     strip({ intent: "away", claim: "auto_reply", until_at: "2026-10-05T13:00:00.000Z" }).did,
-    "Away until Oct 5 (an automatic reply). The reach-out goes on after that.",
+    "Away until Oct 5 (an automatic reply). The sequence goes on after that.",
   );
   assert.equal(
     strip({ intent: "away", named_day: "2026-10-12", step_day: "2026-10-12" }).did,

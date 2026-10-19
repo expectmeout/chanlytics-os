@@ -23,7 +23,7 @@ const counts = (over = {}) => ({
 
 test("the day's line at 6 PM says what happened, and nothing it did not count", () => {
   assert.deepEqual(reachOutDayWords({ written: 18, wrote_back: 2, interested: 1, said_no: 1, bounced: 0, held: 3 }), {
-    title: "Today's reach-outs",
+    title: "Today's emails to leads",
     body: "18 written · 2 wrote back, 1 interested · 1 said no · 3 wait for your say.",
   });
   assert.equal(

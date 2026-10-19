@@ -44,7 +44,7 @@ test("a run's report is kept for the run once read, and a refusal never is", asy
   assert.equal(r.ok, true);
   assert.equal(broadcasts.peekDetail("b-1").data.broadcast.id, "b-1", "the next open paints this at once");
   assert.equal(broadcasts.peekDetail("b-2"), null, "another run's is its own");
-  answer = () => json(404, { ok: false, error: { code: "not_found", message: "Broadcast not found." } });
+  answer = () => json(404, { ok: false, error: { code: "not_found", message: "Run not found." } });
   await broadcasts.detail("b-2");
   assert.equal(broadcasts.peekDetail("b-2"), null, "a run that is not here is not kept as one that is");
 });

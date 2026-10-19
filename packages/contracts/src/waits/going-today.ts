@@ -98,7 +98,7 @@ export function goingTodayOf(input: {
     const people = reach
       ? plural(r.recipient_count, "business", "businesses")
       : plural(r.recipient_count, "person", "people");
-    const what = reach ? "Reach-out" : kind === "batch" ? "Campaign" : "Sent once";
+    const what = reach ? "To leads" : kind === "batch" ? "Campaign" : "Sent once";
     rows.push({
       key: `run-${r.id}`,
       kind,

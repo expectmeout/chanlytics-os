@@ -5,15 +5,14 @@
  * it is drawn. A name the workspace no longer holds says so, with the Library one press away.
  */
 import { useRef, useState } from "react";
-import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, MESSAGES_ROUTE } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, gateTitle, routeDoor } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { useSurface } from "../../use-surface";
-import { customKey, listingOf } from "../templates/group";
-import type { TemplateGroup } from "../templates/group";
+import { groupNamed, listingOf } from "../templates/group";
 import { pageActs } from "../templates/page-acts";
 import { TemplatePane } from "../templates/template-pane";
 import { starters as library } from "../templates/verbs";
@@ -21,11 +20,6 @@ import { brainOf } from "../templates/words";
 
 /** No email or text rows read: one array for every draw, so nothing that takes it sees it change. */
 const NONE_READ: readonly TemplateDto[] = [];
-
-/** The message by its name in the Library's listing: a starter by its own name, a message the workspace wrote by its key. */
-function groupNamed(groups: readonly TemplateGroup[], name: string): TemplateGroup | null {
-  return groups.find((g) => (g.starter ? g.starter.name === name : g.key === customKey(name))) ?? null;
-}
 
 /** Where a message is opened from: its name, the toast a change says itself in, and how its pane is closed. */
 export interface MessageInPlaceProps {
@@ -37,7 +31,7 @@ export interface MessageInPlaceProps {
 
 /**
  * The message's pane, once the messages are read: its languages, channels and verbs, as the Library draws it. Opened over
- * Campaigns' home in a drawer (home/message-drawer.tsx), and where a sequence's step stands, in place of its preview
+ * the page a message was pressed on (surfaces/see), and where a sequence's step stands, in place of its preview
  * (sequences/step-editor.tsx: the canvas's step editor, its words written where they are read).
  */
 export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
@@ -76,7 +70,7 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
         body={
           <>
             {W.body}{" "}
-            <LinkButton {...routeDoor("messages")} data-testid="cmh-message-library">
+            <LinkButton {...routeDoor(MESSAGES_ROUTE)} data-testid="cmh-message-library">
               {CAMPAIGN_ROOMS.library}
             </LinkButton>
           </>

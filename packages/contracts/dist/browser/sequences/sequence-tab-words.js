@@ -1,6 +1,5 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
 import { heldChoicesOf } from "./sequence-held.js";
-import { leadDoorOf } from "../reach-out/reach-out-sheet.js";
 import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
@@ -75,7 +74,6 @@ export function peopleNeedsOf(rows, at) {
       {
         id: r.send_id,
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
-        to: r.lead_id ? leadDoorOf(r.lead_id) : null,
         leadId: r.lead_id,
         place: r.place,
         why: holdWords(reason, r.hold_detail),

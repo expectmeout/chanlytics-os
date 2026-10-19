@@ -155,7 +155,7 @@ test("a press on a run over the Inbox opens it there, one entry; another is move
   }
 });
 
-test("a sheet a link opened closes by writing the address without it, and tells the frame; nothing is open over Campaigns' own pages", () => {
+test("a sheet a link opened closes by writing the address without it, and tells the frame; a run goes home on Campaigns' own pages, a message only in the Library", () => {
   openAt("/w/acme/today", `?see=${encodeURIComponent("message:come_back")}`);
   assert.deepEqual(see.seeOverNow(), { kind: "message", name: "come_back" }, "the link's sheet");
   let told = 0;
@@ -175,6 +175,16 @@ test("a sheet a link opened closes by writing the address without it, and tells 
     assert.equal(see.inPlace(runRoute("b-1", "q-1")), false, `${path}: the home, where a press goes to the run's home`);
     assert.equal(entries.pushed.length, 0);
   }
+  // A message's home is the Library alone (the framework's rating, 19 Oct 2026: its drawer over Sequences went): there a
+  // press goes to it; on Sequences a step's message or the call's text opens over the list, as anywhere else.
+  for (const path of ["/w/acme/campaigns/messages", "/w/acme/campaigns/messages/come_back"]) {
+    openAt(path);
+    assert.equal(see.inPlace(messageRoute("come_back")), false, `${path}: the Library, where a press opens it there`);
+    assert.equal(entries.pushed.length, 0);
+  }
+  openAt("/w/acme/campaigns/sequences/q-1");
+  assert.equal(see.inPlace(messageRoute("come_back")), true, "a step's message opens over its sequence");
+  assert.deepEqual(see.seeOverNow(), { kind: "message", name: "come_back" });
   openAt("/w/acme/inbox");
   assert.equal(see.inPlace("clients"), false, "a page that is no thing is a move");
   assert.equal(see.seeOverNow(), null);
@@ -194,4 +204,25 @@ test("each sheet over the page keeps to its own word: the lead sheet's ?lead= an
   assert.equal(entries.backs, 0, "the lead's close writes the address without it");
   assert.equal(new URLSearchParams(win.location.search).get("lead"), null);
   assert.equal(new URLSearchParams(win.location.search).get("see"), "run:b-1:q-1", "and the run stays");
+});
+
+test("a lead's name pressed in a run's sheet over the page opens the lead over the run's home, where nothing stands over it", async () => {
+  const { leadOverDoor } = await importSrc("apps/dashboard/src/surfaces/leads/sheet/lead-over.ts");
+  const LEAD = "11111111-2222-4333-8444-555555555555";
+  const press = (door) => door.onClick({ button: 0, preventDefault() {} });
+  // On a page with nothing over it, the lead opens over that page.
+  openAt("/w/acme/inbox");
+  press(leadOverDoor(LEAD));
+  assert.equal(win.location.pathname, "/w/acme/inbox");
+  assert.equal(new URLSearchParams(win.location.search).get("lead"), LEAD);
+  // In a run's sheet over the Inbox, which holds the focus as a modal does, it opens over the run's home instead: a sheet
+  // drawn under the run's was hidden behind it (seen in the running app, 19 Oct 2026).
+  openAt("/w/acme/inbox");
+  see.openSeeOver({ kind: "run", id: "b-1", sequenceId: "q-1" });
+  press(leadOverDoor(LEAD));
+  assert.equal(win.location.pathname, `/w/acme/${runRoute("b-1", "q-1")}`);
+  const q = new URLSearchParams(win.location.search);
+  assert.equal(q.get("lead"), LEAD);
+  assert.equal(q.get("see"), null, "the run's sheet stays with the Inbox, which the move left");
+  assert.equal(entries.pushed.length, 2, "one entry for the run's sheet, one for the move");
 });

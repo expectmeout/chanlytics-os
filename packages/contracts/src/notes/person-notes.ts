@@ -172,7 +172,7 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   call: "After a call",
   thread: "After a conversation",
   // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
-  reach_out: "From a reach-out",
+  reach_out: "From a sequence to leads",
 };
 
 /** A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. */

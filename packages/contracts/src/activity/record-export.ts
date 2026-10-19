@@ -112,7 +112,7 @@ const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
  * kind of record EXPORT_OF exports, in the file's order.
  */
 export const EXPORT_HOLDS_WORDS =
-  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply to a reach-out was read.";
+  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, templates, holds, the receptionist's rules, Google reviews, leads, and how each reply from a lead was read.";
 
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {

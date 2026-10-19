@@ -699,7 +699,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(b, {
     ok: true,
-    receipt: "Broadcast “Friday offer” — 12 people, scheduled",
+    receipt: "Send “Friday offer” — 12 people, scheduled",
     undo: { broadcast_id: B1, decision_id: D(9) },
     made: null,
   });

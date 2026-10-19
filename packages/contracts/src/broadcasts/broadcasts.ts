@@ -438,7 +438,7 @@ export function emptyAudienceRefusal(
   // Said, as every page reads the answer (reach-any.ts answeredYes: the row's saidYes is the same call).
   if (pool.some((r) => answeredYes(r, purpose))) return noNumberWords(`“${label}”`, purpose);
   return purpose === "marketing"
-    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent."
+    ? "Nobody there has said yes to offers yet — that is a separate answer from saying yes to messages, and only it puts somebody on a promotional send. Record it under “Offers and news” on a person's profile, or get their yes with the phrase and the QR in Sent."
     : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 

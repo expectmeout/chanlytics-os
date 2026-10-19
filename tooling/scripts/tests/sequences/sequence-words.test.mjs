@@ -264,7 +264,7 @@ test("a new sequence to leads is made where its leads are chosen; an old compose
   );
 });
 
-test("an older address lands on what it names: the home and Sent's list on Sequences, a run at its home, the composer on New; a message stays", () => {
+test("an older address lands on what it names: the home and Sent's list on Sequences, a run at its home, the composer on New, a message's drawer on its home", () => {
   assert.equal(retiredRouteOf("campaigns"), SEQUENCES_ROUTE);
   // Sent's list is History now (D3): its bare address is Sequences' list.
   assert.equal(retiredRouteOf("broadcasts"), SEQUENCES_ROUTE);
@@ -287,10 +287,12 @@ test("an older address lands on what it names: the home and Sent's list on Seque
   assert.equal(retiredRouteOf("campaigns/new:to:list-1"), "campaigns/sequences/new:once:to:list-1");
   assert.equal(retiredRouteOf("campaigns/new:leads"), "campaigns/sequences/new:leads");
   assert.equal(retiredRouteOf("campaigns/new:edit:s1"), "campaigns/sequences/s1");
+  // A message's drawer over Sequences went into its home, the Library open on it.
+  assert.equal(retiredRouteOf("campaigns/message:come_back"), "campaigns/messages/come_back");
   for (const stays of [
     "campaigns/new:moment:",
     "campaigns/new:edit:",
-    "campaigns/message:come_back",
+    "campaigns/messages/come_back",
     "campaigns/ads",
     "campaigns/sequences/s1",
     "campaigns/sequences/s1/runs/b1",

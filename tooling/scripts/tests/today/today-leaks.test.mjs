@@ -279,7 +279,7 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   // Nobody said yes to offers: the sentence the nightly pins, and the door to the QR, where that yes is got.
   const none = reach(three);
   assert.equal(none.text, "3 people have said yes to messages, but nobody has said yes to offers.");
-  assert.equal(none.math, "a broadcast reaches only the second yes · 0 can receive one");
+  assert.equal(none.math, "a send reaches only the second yes · 0 can receive one");
   assert.deepEqual(none.also, { label: "Get their yes to offers", to: GET_YES_ROUTE });
 
   // Ana wrote in by email and said yes to both there: nobody can be sent an offer still, and it is not for want of a
@@ -299,7 +299,7 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
     "4 people have said yes to messages, but nobody can be sent an offer yet.",
     "REGRESSION: '4 people have said yes to messages, but nobody has said yes to offers.'",
   );
-  assert.equal(noNumber.math, "a broadcast reaches only a recorded yes with a number to send to · 0 can receive one");
+  assert.equal(noNumber.math, "a send reaches only a recorded yes with a number to send to · 0 can receive one");
   assert.equal(noNumber.also, null, "REGRESSION: a door asking Ana for the yes she gave");
   assert.deepEqual(
     noNumber.cta,
@@ -308,7 +308,7 @@ test("REGRESSION: a yes to offers with no number to send one to is not 'nobody h
   );
   assert.equal(
     noNumber.ask,
-    "4 people have said yes to messages, but nobody can be sent an offer yet. A broadcast reaches only a recorded yes with a number to send to · 0 can receive one. Why is that?",
+    "4 people have said yes to messages, but nobody can be sent an offer yet. A send reaches only a recorded yes with a number to send to · 0 can receive one. Why is that?",
   );
 
   // The yes is anyone's in the workspace, as the broadcast to everyone counts it: Cleo said yes to offers on a paper
@@ -497,7 +497,7 @@ test("two broadcasts that went out are not counted into the jobs that did not fi
   assert.equal(total, 3);
   assert.deepEqual(
     groups.map((g) => g.title ?? g.row.title),
-    ["A outbound_send job did not finish", "2 broadcasts finished"],
+    ["A outbound_send job did not finish", "2 runs finished"],
     "the failure stands alone; the two sends are their own group, in their own words",
   );
   assert.equal(groups[0].count, 1, "one job did not finish, not three");

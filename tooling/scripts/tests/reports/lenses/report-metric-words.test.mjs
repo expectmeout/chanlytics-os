@@ -400,7 +400,7 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
   assert.equal(new Set(every.map(metricWordsOf)).size, every.length, "each says what only it counts");
   assert.equal(
     metricWordsOf("people_sent_to"),
-    "People a campaign or a broadcast sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and a reach-out's email are not counted.",
+    "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
   );
   // The window it cites is the constant the report counts by.
   assert.equal(
@@ -410,11 +410,11 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
   // The yes and the stop of a campaign are a person once in the period, within the reply window of the message that reached them.
   assert.equal(
     metricWordsOf("said_yes"),
-    `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+    `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   );
   assert.equal(
     metricWordsOf("asked_to_stop"),
-    `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+    `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   );
   for (const id of ["said_yes", "asked_to_stop"])
     assert.doesNotMatch(metricWordsOf(id), /once a day each/, `${id}: a person once in the period, not once a day`);
@@ -422,10 +422,10 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
   for (const id of ids.slice(2)) assert.match(metricWordsOf(id), /as of now, whatever period is picked/, id);
   // The stuck count of failed runs reads every kind of run, a reach-out's step among them (00406); the window's Runs that stopped
   // leaves a reach-out's to its own part, and says so (campaign-lens.test.mjs): the two counts differ by kind alone, in words.
-  assert.match(metricWordsOf("runs_failed"), /: a campaign, a broadcast or a reach-out step\./);
+  assert.match(metricWordsOf("runs_failed"), /: a campaign's, a one-off send's or a step to leads\./);
   assert.match(
     metricWordsOf("runs_waiting"),
-    /: a campaign, a broadcast or a reach-out step\./,
+    /: a campaign's, a one-off send's or a step to leads\./,
     "said as the waiting runs say it",
   );
 });

@@ -225,7 +225,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "offers_ok",
     label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
+    tip: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional send may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true }),

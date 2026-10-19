@@ -1,5 +1,5 @@
 /**
- * The Inbox's strip and chip for a reply to a reach-out (Reach out Part 5, PR 7; surfaces/inbox/thread/reply-strip.tsx), run on the stub React over the
+ * The Inbox's strip and chip for a reply from a lead (Reach out Part 5, PR 7; surfaces/inbox/thread/reply-strip.tsx), run on the stub React over the
  * bridge's own words (legacy-bridge/reach-out/replies.ts over contracts reach-out-reply-words.ts) and the readings as
  * `__REPLIES` holds them. The undo is the one verb stubbed, so what is proved is what the page draws and what it asks
  * of the bridge: each intent's strip and doors; the undo pressed once, its refusal said in its own words and its

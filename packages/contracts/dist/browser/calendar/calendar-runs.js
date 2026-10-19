@@ -7,8 +7,7 @@ import { shiftKey } from "./day-keys.js";
 import { clockLabel } from "./calendar-words.js";
 import { plural } from "../shared/words.js";
 import { MIN_MS } from "../shared/time.js";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
-const CALENDAR_RUN_DOORS = { sent: "Open in Sent", campaigns: "Open in Campaigns" };
+const CALENDAR_RUN_DOORS = { run: "Open the run", campaigns: "Open in Campaigns" };
 export const CALENDAR_SHOW_WORDS = {
   label: "Show",
   always: "Always",
@@ -72,7 +71,7 @@ function sendMark(r, tz) {
     ahead: r.state === "scheduled" || waiting,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -90,7 +89,7 @@ function waitingMark(r, name, todayKey) {
     ahead: !late,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -109,7 +108,7 @@ function failedMark(r, name, tz) {
     ahead: false,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: []
   };
@@ -141,8 +140,8 @@ function wentMark(day, runs, tz) {
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((x) => ({
       name: x.name,
@@ -167,8 +166,8 @@ function coldMark(day, playbookId, name, runs, todayKey) {
     tone: waiting ? "warn" : "plain",
     ahead: waiting || !sent && planned > 0,
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((r) => ({
       name,

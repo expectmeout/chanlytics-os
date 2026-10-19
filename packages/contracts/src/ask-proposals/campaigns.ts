@@ -182,7 +182,7 @@ export const broadcastSpec: ProposalSpec = {
         ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it`
         : SENDING_NOW_WORDS;
     const said = heardWords(leftOut, true);
-    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` · ${said}` : ""}`;
+    return `Send “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` · ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
