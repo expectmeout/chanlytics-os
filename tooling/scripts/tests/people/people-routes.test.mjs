@@ -1707,13 +1707,13 @@ test("every workspace's People carries its deals (0008, amended 18 Oct 2026): th
     valid_until: null,
     lost_reason: null,
   };
-  const world = (sellsBy) => ({
+  const world = (word) => ({
     memberships: both("viewer", "viewer"),
     policies: [],
     tenant_config: [],
     contacts: [contact(P1, A)],
     deals: [won],
-    tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+    tenants: [{ id: A, slug: "harbor", ...(word === undefined ? {} : { appointment_word: word }) }],
   });
   const rpcs = {
     people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
@@ -1723,10 +1723,9 @@ test("every workspace's People carries its deals (0008, amended 18 Oct 2026): th
     return [r.has_deals, r.appointment_word];
   };
   const page = async (w) => (await person.GET.run(get(inA), ctxFor(w, { id: P1 }, rpcs))).person;
-  // None picked: the retired answer's word, a meeting where it said proposals (00458's backfill), else an appointment.
+  // The word picked, else an appointment.
   for (const [s, word] of [
-    ["proposal", "meeting"],
-    ["booking", "appointment"],
+    ["session", "session"],
     [null, "appointment"],
     [undefined, "appointment"],
   ]) {
@@ -1735,14 +1734,8 @@ test("every workspace's People carries its deals (0008, amended 18 Oct 2026): th
     assert.equal(p.appointment_word, word, `${s}: the person's page says the workspace's word`);
     assert.equal(p.deals[0].proposal_url, "https://docs.example.com/p/1", `${s}: each deal with its link`);
   }
-  // The word picked is the word said.
-  const picked = {
-    ...world("proposal"),
-    tenants: [{ id: A, slug: "harbor", sells_by: "proposal", appointment_word: "session" }],
-  };
-  assert.deepEqual(await list(picked), [true, "session"]);
   // No deal on file: the list says so, and its deal lists wait for the first.
-  assert.deepEqual(await list({ ...world("proposal"), deals: [] }), [false, "meeting"]);
+  assert.deepEqual(await list({ ...world("meeting"), deals: [] }), [false, "meeting"]);
 });
 
 test("deal: the door answers the deal the person's People row shows now -- an open one first, then the newest -- which is not always the one it recorded", async () => {
@@ -1977,33 +1970,31 @@ test("both People reads answer the workspace's pace: its last year's yeses, thei
     valid_until: null,
     lost_reason: null,
   });
-  const world = (sellsBy) => ({
+  const world = () => ({
     memberships: both("viewer", "viewer"),
     policies: [],
     tenant_config: [],
     contacts: [contact(P1, A)],
     deals: [deal(1, 4), deal(2, 10), deal(3, 12), deal(4, 20), deal(5, 6, "ended"), deal(6, 2, "lost")],
-    tenants: [{ id: A, slug: "harbor", sells_by: sellsBy }],
+    tenants: [{ id: A, slug: "harbor" }],
   });
   const rpcs = {
     people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
   };
-  const list = async (s, q = "") => (await contacts.GET.run(get(inA + q), ctxFor(world(s), {}, rpcs))).deal_pace;
-  const page = async (s) => (await person.GET.run(get(inA), ctxFor(world(s), { id: P1 }, rpcs))).person.deal_pace;
+  const list = async (q = "") => (await contacts.GET.run(get(inA + q), ctxFor(world(), {}, rpcs))).deal_pace;
+  const page = async () => (await person.GET.run(get(inA), ctxFor(world(), { id: P1 }, rpcs))).person.deal_pace;
   // 4, 6, 10, 12 and 20 days: a pass is not a yes, an ended engagement was one.
-  assert.deepEqual(await list("proposal"), { median_days: 10, yeses: 5 });
-  assert.deepEqual(await page("proposal"), { median_days: 10, yeses: 5 }, "the person's page reads the same pace");
-  assert.equal(await list("proposal", "&q=ro"), null, "a search reads no pace: People keeps its first page's");
-  assert.deepEqual(await list("booking"), { median_days: 10, yeses: 5 }, "whatever the retired answer said");
-  assert.deepEqual(await page("booking"), { median_days: 10, yeses: 5 });
+  assert.deepEqual(await list(), { median_days: 10, yeses: 5 });
+  assert.deepEqual(await page(), { median_days: 10, yeses: 5 }, "the person's page reads the same pace");
+  assert.equal(await list("&q=ro"), null, "a search reads no pace: People keeps its first page's");
   // A read that fails costs the pace, never the list, and says so in the log.
   const logged = [];
   const keep = console.error;
   console.error = (...a) => logged.push(asText(a));
   try {
     const r = await contacts.GET.run(get(inA), {
-      ...ctxFor(world("proposal"), {}, rpcs),
-      supabase: fakeDb(world("proposal"), { "deals.select": { message: "statement timeout" } }, rpcs),
+      ...ctxFor(world(), {}, rpcs),
+      supabase: fakeDb(world(), { "deals.select": { message: "statement timeout" } }, rpcs),
     });
     assert.equal(r.deal_pace, null);
     assert.equal(r.people.length, 1);
@@ -2057,7 +2048,7 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
   const tenant = (over = {}) => ({
     id: A,
     slug: "harbor",
-    sells_by: "proposal",
+    appointment_word: "meeting",
     timezone: "America/New_York",
     status: "active",
     ...over,

@@ -32,11 +32,7 @@ import { log } from "@/server/log";
 import { settled } from "@/server/lazy";
 import type { Member } from "@/server/route";
 
-/**
- * A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one.
- * `sells_by` rides one release more, retired (0008, amended 18 Oct 2026): the word's fallback where none is stored, as
- * contracts appointmentWordOf reads it, until the column goes.
- */
+/** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
   id: string;
   slug: string;
@@ -44,7 +40,6 @@ interface WorkspaceRow {
   status: string;
   timezone: string;
   appointment_word: string | null;
-  sells_by: string | null;
   /** The caller's role in it (0012): the switcher says it beside every workspace, and the partner's pane counts theirs. */
   role?: string | null;
   /** Where its own logo is served (00407), on the storage origin the content policy allows; null for none. */
@@ -53,9 +48,8 @@ interface WorkspaceRow {
 
 /** The columns the list reads, newest first; each read after the first leaves one newer column out. */
 const COLUMN_SETS = [
-  "id, slug, name, status, timezone, appointment_word, sells_by, logo_path",
-  "id, slug, name, status, timezone, sells_by, logo_path",
-  "id, slug, name, status, timezone, sells_by",
+  "id, slug, name, status, timezone, appointment_word, logo_path",
+  "id, slug, name, status, timezone, logo_path",
   "id, slug, name, status, timezone",
 ] as const;
 
@@ -64,7 +58,7 @@ const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
 
 /** The error a read that names a newer column gets from a database the migration adding it has not reached. */
 const lacksNewer = (message: string): boolean =>
-  /\b(appointment_word|logo_path|sells_by)\b/.test(message) && /does not exist|could not find/i.test(message);
+  /\b(appointment_word|logo_path)\b/.test(message) && /does not exist|could not find/i.test(message);
 
 /** A tenant row as any of the reads gives it. */
 interface TenantRead {
@@ -74,7 +68,6 @@ interface TenantRead {
   status: string;
   timezone: string;
   appointment_word?: string | null;
-  sells_by?: string | null;
   logo_path?: string | null;
 }
 
@@ -83,27 +76,21 @@ const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
   rows?.map(({ logo_path: path, ...t }) => ({
     ...t,
     appointment_word: t.appointment_word ?? null,
-    sells_by: t.sells_by ?? null,
     logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path),
   })) ?? null;
 
 /**
  * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database a migration has not
  * reached -- which answers "column does not exist" for a newer column -- it reads again without it (the word's 00458,
- * the logo's 00407, then sells_by's 00160), and what that database cannot say is not said yet: no word stored, no logo,
- * never a blank app. Either deploy order works.
+ * then the logo's 00407), and what that database cannot say is not said yet: no word stored, no logo, never a blank
+ * app. Either deploy order works.
  */
 async function tenantsOf(
   supabase: RouteContext["supabase"],
 ): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
   const read = <C extends string>(columns: C) => supabase.from("tenants").select(columns).order("name");
   // Each read typed by its own columns, newest first.
-  const reads = [
-    () => read(COLUMN_SETS[0]),
-    () => read(COLUMN_SETS[1]),
-    () => read(COLUMN_SETS[2]),
-    () => read(COLUMN_SETS[3]),
-  ];
+  const reads = [() => read(COLUMN_SETS[0]), () => read(COLUMN_SETS[1]), () => read(COLUMN_SETS[2])];
   let last: { message: string } | null = null;
   for (const next of reads) {
     const r = await next();
@@ -298,7 +285,7 @@ async function writeOwnFields(
     .from("tenants")
     .update(patch)
     .eq("id", tenantId)
-    .select(patch.appointment_word ? WORD_ANSWER : COLUMN_SETS[3])) as unknown as {
+    .select(patch.appointment_word ? WORD_ANSWER : COLUMN_SETS[2])) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

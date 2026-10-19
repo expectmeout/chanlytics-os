@@ -1,7 +1,7 @@
 /**
  * A deal's closed sets and their words (0004, 0008): its stages, how an amount recurs, where it came from and why
  * someone passed, each with the word a page says; the acts a deal offers and their labels; and the door's
- * refusals. The deal as a page says it is deal-vm.ts; how a workspace sells is sells-by.ts.
+ * refusals. The deal as a page says it is deal-vm.ts.
  */
 import type { SchemaSet } from "../shared/schema-sets";
 

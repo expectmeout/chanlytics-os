@@ -1176,7 +1176,7 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
     playbooks: [],
     broadcasts: [],
     broadcast_recipients: [],
-    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", sells_by: "proposal" }],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", appointment_word: "meeting" }],
     templates: [
       tpl(T1, B, {
         name: "proposal_follow_up",

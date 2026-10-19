@@ -835,10 +835,10 @@ test("the door reads the caller's deal: a client on the line is offered a consul
     pathToFileURL(path.join(here, "../../../../apps/edge/lib/calendar/availability.ts")).href
   );
   forgetFeeds();
-  const world = (sellsBy) =>
+  const world = () =>
     fakeDb(
       {
-        tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active", sells_by: sellsBy }],
+        tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
         tenant_channels: [
           {
             id: "voice-2",
@@ -875,7 +875,7 @@ test("the door reads the caller's deal: a client on the line is offered a consul
         ],
         policies: [],
         google_listings: [],
-        contacts: [{ id: "contact-client", tenant_id: T, phone_e164: CLIENT, tenants: { sells_by: sellsBy } }],
+        contacts: [{ id: "contact-client", tenant_id: T, phone_e164: CLIENT }],
         deals: [
           {
             id: "deal-1",
@@ -893,7 +893,7 @@ test("the door reads the caller's deal: a client on the line is offered a consul
       {},
       { runtime_stamp: () => "stamp-2" },
     );
-  setPg(world("proposal"));
+  setPg(world());
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", { status: 200, headers: { "content-type": "text/calendar" } });
@@ -923,12 +923,6 @@ test("the door reads the caller's deal: a client on the line is offered a consul
     );
     const withheld = await ask(undefined);
     assert.match(withheld, /needs a consultation/, "no number is the stranger's answer");
-    // Where the retired answer said its customers book, or was never given, the client is a client all the same.
-    for (const answer of ["booking", null]) {
-      setPg(world(answer));
-      forgetFeeds();
-      assert.match(await ask(CLIENT), /^For Ad management \(about 60 minutes\): Open times/, String(answer));
-    }
   } finally {
     globalThis.fetch = realFetch;
     setPg(null);

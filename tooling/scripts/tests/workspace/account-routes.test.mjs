@@ -320,21 +320,18 @@ test("what a workspace calls a booking: the owner's, one of the five, only what 
   );
 });
 
-test("where you are says each workspace's word, and its retired answer beside it, and a database 00458 or 00160 has not reached still answers", async () => {
+test("where you are says each workspace's word, and a database 00458 has not reached still answers", async () => {
   const tables = {
     memberships: both("viewer", "owner"),
-    tenants: [
-      { ...tenants()[0], appointment_word: "session", sells_by: "proposal" },
-      { ...tenants()[1], sells_by: null },
-    ],
+    tenants: [{ ...tenants()[0], appointment_word: "session" }, tenants()[1]],
     profiles: [],
   };
   const rpcs = { is_platform_admin: () => false };
-  const said = (home) => home.workspaces.map((w) => [w.slug, w.appointment_word, w.sells_by]);
+  const said = (home) => home.workspaces.map((w) => [w.slug, w.appointment_word]);
   const home = await workspaces.GET.run(get(), ctxFor(tables, {}, rpcs));
   assert.deepEqual(said(home), [
-    ["bayside", null, null],
-    ["harbor", "session", "proposal"],
+    ["bayside", null],
+    ["harbor", "session"],
   ]);
   // The database PostgREST answers "column does not exist" for a newer column: the boot read asks again without it, and
   // what it cannot say is not said yet, rather than the app not starting.
@@ -367,20 +364,12 @@ test("where you are says each workspace's word, and its retired answer beside it
   assert.deepEqual(
     said(before),
     [
-      ["bayside", null, null],
-      ["harbor", null, "proposal"],
+      ["bayside", null],
+      ["harbor", null],
     ],
-    "00458 not reached: no word stored, and the retired answer the pages read it by",
+    "00458 not reached: no word stored",
   );
   assert.equal(before.activeWorkspaceId, A, "and where you are is answered as ever");
-  assert.deepEqual(
-    said(await at(lacking(/\b(appointment_word|sells_by)\b/))),
-    [
-      ["bayside", null, null],
-      ["harbor", null, null],
-    ],
-    "00160 not reached either: neither said",
-  );
   // Any other failure is still the failure.
   const broken = fakeDb(tables, { "tenants.select": { message: "statement timeout" } }, rpcs);
   await assert.rejects(

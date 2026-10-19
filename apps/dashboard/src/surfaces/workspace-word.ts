@@ -9,5 +9,5 @@ import { workspaceOverride } from "@/legacy-bridge/surface-data";
 
 export function visitWordHere(): AppointmentWord {
   const ws = workspaceOverride.current();
-  return appointmentWordOf({ stored: ws?.appointment_word ?? null, sellsBy: ws?.sells_by ?? null });
+  return appointmentWordOf(ws?.appointment_word ?? null);
 }

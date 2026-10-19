@@ -1226,10 +1226,10 @@ test("the reports' Deals section is every workspace's (0008, amended 18 Oct 2026
     amount_cents: 250_000,
     per: "month",
   };
-  const run = async (sellsBy) => {
+  const run = async () => {
     const tables = {
       memberships: both("viewer", "viewer"),
-      tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+      tenants: [{ id: A, slug: "harbor" }],
       tenant_config: [],
       policies: [],
       deals: [won],
@@ -1242,15 +1242,11 @@ test("the reports' Deals section is every workspace's (0008, amended 18 Oct 2026
       people: ctx.supabase.seen.filter((q) => q.rpc === "people_list").length,
     };
   };
-  const on = await run("proposal");
+  const on = await run();
   assert.deepEqual([on.deals.any, on.deals.clients, on.deals.monthly_cents], [true, 1, 250_000]);
   assert.deepEqual(on.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
   assert.equal(on.people, 1, "People read once for the whole report, the booking line's read");
-  for (const sellsBy of ["booking", null, undefined]) {
-    const any = await run(sellsBy);
-    assert.deepEqual([any.deals.any, any.deals.clients], [true, 1], `${sellsBy}: the deal on file is reported`);
-    assert.equal(any.read, true, `${sellsBy}: the table is read`);
-  }
+  assert.equal(on.read, true, "every workspace's deals are read (0008, amended 18 Oct 2026)");
 });
 
 /* ------------------------------------------------ a search keeps its thread (00172) -- */

@@ -30,15 +30,9 @@ test("the set is five words, and call, consultation, booking and class are not a
 });
 
 test("the word is the one picked, else a meeting where deals are on, else an appointment; nothing else is read", () => {
-  assert.equal(C.appointmentWordOf({ stored: "session", sellsBy: "proposal" }), "session", "a pick outranks the shape");
-  assert.equal(C.appointmentWordOf({ stored: null, sellsBy: "proposal" }), "meeting");
-  assert.equal(C.appointmentWordOf({ stored: null, sellsBy: "booking" }), "appointment");
-  assert.equal(C.appointmentWordOf({ stored: null, sellsBy: null }), "appointment", "not asked yet: an appointment");
-  assert.equal(
-    C.appointmentWordOf({ stored: "class", sellsBy: null }),
-    "appointment",
-    "a word outside the set is no pick",
-  );
+  assert.equal(C.appointmentWordOf("session"), "session", "the word picked");
+  assert.equal(C.appointmentWordOf(null), "appointment", "none picked: an appointment");
+  assert.equal(C.appointmentWordOf("class"), "appointment", "a word outside the set is no pick");
 });
 
 test("each word says its phrases once, with its own article and verb", () => {

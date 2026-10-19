@@ -172,7 +172,7 @@ const workspace = () => {
       name: "Harbor Studio",
       status: "active",
       timezone: "America/New_York",
-      sells_by: "proposal",
+      appointment_word: "meeting",
       role: "owner",
     },
   ];
