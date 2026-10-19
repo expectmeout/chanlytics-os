@@ -15,8 +15,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, textOf, settle } from "../../_legacy-react.mjs";
+import { toInboxThreadVM, toBroadcastVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, settle } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -294,6 +294,84 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
     chip("escalated"),
     "REGRESSION: the list filtered on the thread's STATE, which stays escalated whoever holds it, while the chip asked what waits on you",
   );
+});
+
+/**
+ * A campaign run waiting for your approval, made for today by the business's clock (contracts runsThatWait asks the days
+ * now, by the real clock, so its day is today's here too), as Sent's runs hold it.
+ */
+const waitingRun = () => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }).format(new Date());
+  const at = new Date().toISOString();
+  return toBroadcastVM(
+    {
+      id: "b-wait",
+      name: `Win-back · ${today}`,
+      template_id: "t-1",
+      template_name: "winback_offer",
+      template_language: "en_US",
+      params: [],
+      audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
+      state: "pending_approval",
+      scheduled_for: at,
+      started_at: null,
+      finished_at: null,
+      recipient_count: 4,
+      failure: null,
+      created_at: at,
+      playbook_id: "pb-1",
+      run_for: today,
+      sequence_id: "q-1",
+      counts: { queued: 4, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 },
+    },
+    ZONE,
+    new Date(),
+  );
+};
+
+test("a campaign run waiting for your say is a row of Needs you: its chip counts it, the Inbox opens on it, a search stands it aside, and no card says nobody is waiting over it", () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  setSurfaceValue("broadcasts", { rows: [waitingRun()] });
+  try {
+    // Nothing but a Handled thread: the run is all that waits on you, and the Inbox opens where it is.
+    const { seen } = page([unsent]);
+    assert.equal(
+      seen.list.activeBucket,
+      "escalated",
+      "it opened on Handled, and the run waited under a tab of no number",
+    );
+    assert.equal(seen.list.buckets.find((b) => b.id === "escalated").count, 1, "the chip counts it, as the badge does");
+    assert.equal(needsYouNow(), 1, "the badge's own number");
+    const list = (q) => {
+      place.q = q;
+      fresh();
+      return again(() => InboxList(listProps({ threads: [], allThreads: [unsent], activeBucket: "escalated" })));
+    };
+    const tree = list("");
+    const rows = all(tree, (n) => n.props?.["data-testid"] === "inbox-run-row");
+    assert.equal(rows.length, 1, "the run is a row of Needs you");
+    assert.equal(textOf(rows[0]).startsWith("Win-back"), true, "called by its own name, less its day");
+    assert.equal(rows[0].props.href.endsWith("broadcasts/run:b-wait/sheet"), true, "and its door is its sheet");
+    assert.equal(
+      textOf(tree).includes("Nobody's waiting on you"),
+      false,
+      "Needs you with a run in it is not empty: no card says nobody is waiting over the run",
+    );
+    // A search finds threads: the run stands aside while one is typed.
+    const searched = list("rosa");
+    assert.equal(byTestId(searched, "inbox-runs-waiting"), null, "a search stands the run aside");
+  } finally {
+    setSurfaceValue("broadcasts", undefined);
+    globalThis.window.__tabMemory = had;
+  }
 });
 
 test("Needs you holds what waits on you and nothing else: the thread you took over and a teammate's are Handled", () => {

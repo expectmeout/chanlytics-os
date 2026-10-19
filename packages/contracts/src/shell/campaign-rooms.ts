@@ -193,6 +193,12 @@ export const runApproveWords = (n: number): string => `Approve · ${n} ${n === 1
 export const RUN_OPEN_WORDS = "Open the run";
 
 /**
+ * What a run's crumb and its pane's head call it before its name is read, and for one this workspace does not have:
+ * "Broadcast" named Sent's room, which a sequence's run never was.
+ */
+export const RUN_UNNAMED_WORDS = "Run";
+
+/**
  * How many campaign runs wait for your say, as a sentence: what Today's calm head leads with and the Inbox's Needs-you
  * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.

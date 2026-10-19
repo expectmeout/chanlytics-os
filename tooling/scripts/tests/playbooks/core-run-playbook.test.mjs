@@ -578,7 +578,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.deepEqual(veto.ops(), ["assemble", "notify", "record"]);
   assert.deepEqual(veto.of("notify")[0].slice(1), [
     "Campaign “Win-back” sends today 10:30 AM: 2 people",
-    "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
+    "2 people will be sent “Win-back” today 10:30 AM. Open the run to stop it before then if it should not go.",
     // The run it is about: the bell's row and the phone open that run, where Stop is (it named none, and opened Campaigns' home).
     "b1",
   ]);
@@ -640,7 +640,7 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Campaign “Win-back” is ready: 2 people",
-    "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do; it waits until tonight.",
+    "2 people have become eligible for “Win-back”. Approve or skip the run from your Inbox or Today. Nothing is sent until you do; it waits until tonight.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);

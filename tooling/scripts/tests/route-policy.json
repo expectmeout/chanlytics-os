@@ -195,6 +195,13 @@
       "rate": null,
       "spend": false
     },
+    "GET broadcasts/touches": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST broadcasts": {
       "kind": "write",
       "scope": "workspace",

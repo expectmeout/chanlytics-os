@@ -95,13 +95,16 @@ const { calendar: calendarReader, sources: calendarSources } = await import(
 const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 const { people: peopleReader } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { lists: listsReader } = await import(at("apps/dashboard/src/server/readers/lists.ts"));
-const { broadcasts: broadcastsReader, broadcast: oneBroadcast } = await import(
-  at("apps/dashboard/src/server/readers/broadcasts.ts")
-);
+const {
+  broadcasts: broadcastsReader,
+  broadcastTouches: touchesReader,
+  broadcast: oneBroadcast,
+} = await import(at("apps/dashboard/src/server/readers/broadcasts.ts"));
 const contactsRoute = await import(at("apps/dashboard/app/api/v1/contacts/route.ts"));
 const listCountsRoute = await import(at("apps/dashboard/app/api/v1/people/list-counts/route.ts"));
 const segmentsRoute = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
+const touchesRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/touches/route.ts"));
 /**
  * 3 Oct 2026: what a workspace's campaigns have sent by email and by text this calendar month, which the Campaigns head
  * and the composers say (`month_sent`, server/campaigns/month-sent.ts): a function only the service role may call, so the
@@ -4528,7 +4531,7 @@ const touchedWorld = () => {
   };
 };
 
-test("the broadcasts, for Ask and for the page: GET broadcasts answers its reader's payload over outbound-routes' two fixtures -- the recent fifty with what their messages earned, whether older ones exist, and who a run reached within the week of the turn's clock -- and each broadcast a row a citation names, opened where its address spells it, a run", async () => {
+test("the broadcasts, for Ask and for the page: GET broadcasts answers its reader's payload over outbound-routes' two fixtures -- the recent fifty with what their messages earned and whether older ones exist -- and GET broadcasts/touches who a run reached within the week of the turn's clock; each broadcast a row a citation names, opened where its address spells it, a run", async () => {
   for (const [w, tenant] of [
     [bcWorld(), A],
     [bcWorld(), B],
@@ -4540,10 +4543,11 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     // 3 Oct 2026: and whether each channel can send now (`ready`, server/campaigns/channels-ready.ts), which the composer's
     // Send by row is drawn from; these workspaces keep no WhatsApp number, so it says so.
+    // 18 Oct 2026: who a run reached this week is its own read (GET broadcasts/touches), which the composer alone asks:
+    // Sent's runs are what the Inbox waits for before its first draw, and every touch of the week weighed on them.
     assert.deepEqual(Object.keys(r.data), [
       "broadcasts",
       "more",
-      "touched_at",
       "ready",
       "month_sent",
       "month_sent_next",
@@ -4571,6 +4575,11 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
       r.rows,
       r.data.broadcasts.map((b) => ({ kind: "broadcast", id: b.id, route: `broadcasts/run:${b.id}`, label: b.name })),
     );
+    const heard = await touchesRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(w));
+    const t = await kernel.load(turnIn(worldCtx(w), tenant), touchesReader, undefined);
+    assert.equal(JSON.stringify(t.data), JSON.stringify(heard), "the touches route's payload, byte for byte");
+    assert.deepEqual(Object.keys(t.data), ["touched_at"]);
+    assert.deepEqual(t.rows, [], "a touch is no row a citation names");
   }
   // What outbound-routes asserts of the route, of the reader.
   const harbor = (await kernel.load(turnIn(worldCtx(bcWorld())), broadcastsReader, undefined)).data;
@@ -4580,7 +4589,7 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
   );
   // 11 Oct 2026: who heard and when (`touched_at`, every message's time), so the composer judges a send by those within a
   // week of the time it is set for, either side (contracts heardFor).
-  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), broadcastsReader, undefined)).data.touched_at;
+  const touched = (await kernel.load(turnIn(worldCtx(touchedWorld())), touchesReader, undefined)).data.touched_at;
   assert.deepEqual(Object.keys(touched), ["k1"], "sent this week; not held back, not canceled, not last month");
   assert.equal(touched.k1.length, 1);
   const at = Date.parse(touched.k1[0]);
@@ -4591,7 +4600,7 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     { tenantId: A, role: "viewer" },
     new Date(Date.now() + 8 * 24 * HOUR),
   );
-  assert.deepEqual((await kernel.load(later, broadcastsReader, undefined)).data.touched_at, {});
+  assert.deepEqual((await kernel.load(later, touchesReader, undefined)).data.touched_at, {});
 });
 
 test("the month a page says is null where it could not be counted, said in the log, and never a month of nothing: both pages still answer", async () => {

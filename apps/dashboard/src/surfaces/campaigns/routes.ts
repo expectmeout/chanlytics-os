@@ -11,6 +11,7 @@ import {
   ADS_ROUTE,
   ADS_WORDS,
   CAMPAIGN_ROOMS,
+  RUN_UNNAMED_WORDS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
   SEQUENCES_ROUTE,
@@ -27,6 +28,7 @@ import { surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
 import { adNameOf } from "./ads/crumb-names";
+import { rememberedRun } from "./broadcasts/run-names";
 
 /** A crumb: its words, and where it goes. */
 type Crumb = string | { label: string; to: string };
@@ -168,7 +170,8 @@ export function broadcastsChrome({ param }: { param: string | null }): {
   const getYes = param === "get-yes";
   const toSend = param === TO_SEND_PARAM;
   const audience = runId || getYes || toSend ? null : param;
-  const run = runId && data ? (data.rows || []).find((r) => r.id === runId) : null;
+  // Sent's row for the run, else its own read's (a run older than the newest fifty): the crumb is never "Broadcast".
+  const run = runId ? ((data?.rows || []).find((r) => r.id === runId) ?? rememberedRun(runId)) : null;
   // The audiences are their own read (broadcasts/audiences-surface.ts): the composer's, where an audience's address lands.
   const list = audience
     ? (surfaceValue("audiences")?.audiences || []).find(
@@ -182,7 +185,7 @@ export function broadcastsChrome({ param }: { param: string | null }): {
     pane: true,
     // A run waiting for its decision is named as its sheet's head names it (runTitleOf); one that went keeps its day.
     crumbs: runId
-      ? [CAMPAIGNS, run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : "Broadcast"]
+      ? [CAMPAIGNS, run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : RUN_UNNAMED_WORDS]
       : getYes
         ? [CAMPAIGNS, "Get their yes"]
         : toSend

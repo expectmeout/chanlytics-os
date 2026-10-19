@@ -2,6 +2,7 @@ import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbo
 import {
   REACH_OUT_PREVIEW_INDEX_MAX
 } from "./reach-out-dtos.js";
+import { RUN_OPEN_WORDS } from "../shell/campaign-rooms.js";
 import { REACH_OUT_SHEET_WORDS, startWords } from "./reach-out-sheet.js";
 import {
   REACH_OUT_AFTER_DAYS,
@@ -223,7 +224,7 @@ export function reachOutEditedWords(rechecked) {
 export function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: `broadcasts/run:${run}`, label: "Open the run" } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+  return run ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
 }
 export const REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",

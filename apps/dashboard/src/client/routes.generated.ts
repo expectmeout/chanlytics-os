@@ -32,6 +32,7 @@ export const ROUTES = {
   "GET billing/invoices": { method: "GET", path: "/api/v1/billing/invoices" },
   "GET broadcasts": { method: "GET", path: "/api/v1/broadcasts" },
   "GET broadcasts/[id]": { method: "GET", path: "/api/v1/broadcasts/[id]" },
+  "GET broadcasts/touches": { method: "GET", path: "/api/v1/broadcasts/touches" },
   "GET business-record": { method: "GET", path: "/api/v1/business-record" },
   "GET calendar": { method: "GET", path: "/api/v1/calendar" },
   "GET calendar/runs": { method: "GET", path: "/api/v1/calendar/runs" },
@@ -325,6 +326,7 @@ export type Routes = {
   "GET billing/invoices": typeof import("../../app/api/v1/billing/invoices/route").GET;
   "GET broadcasts": typeof import("../../app/api/v1/broadcasts/route").GET;
   "GET broadcasts/[id]": typeof import("../../app/api/v1/broadcasts/[id]/route").GET;
+  "GET broadcasts/touches": typeof import("../../app/api/v1/broadcasts/touches/route").GET;
   "GET business-record": typeof import("../../app/api/v1/business-record/route").GET;
   "GET calendar": typeof import("../../app/api/v1/calendar/route").GET;
   "GET calendar/runs": typeof import("../../app/api/v1/calendar/runs/route").GET;
