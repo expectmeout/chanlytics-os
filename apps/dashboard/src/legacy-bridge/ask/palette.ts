@@ -26,7 +26,7 @@ import {
   rightNowLine,
   runHeldEmails,
   runDraftedEmails,
-  runLabelOf,
+  runTitleOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -63,7 +63,7 @@ interface Run {
   when: string;
   counts: { sent: number; replied: number };
   audience?: { label?: string } | null;
-  /** Its own name: what says a reach-out's run, whose audience carries no label (contracts runLabelOf). */
+  /** Its own name: what says the run, less a campaign run's day (contracts runTitleOf). */
   name: string;
 }
 
@@ -210,7 +210,9 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: runLabelOf(r),
+      // Its own name, less a campaign run's day, as Today's queue, the Inbox and its own page say it: by its audience's
+      // label a one-off sent to a list was named for the list (18 Oct 2026, the sample walk).
+      label: runTitleOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

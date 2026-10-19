@@ -83,7 +83,10 @@ function sentCard(fold: CampaignLensVM, report: CampaignReportVM, days: number) 
           data={report.points}
           keys={["sent"]}
           config={RPT_SENT}
-          height={150}
+          // The room its row gives it: the funnel beside it stands taller, and 150px left a third of the card empty under
+          // the days (the sample walk, 18 Oct 2026; receptionist.tsx's Who answered is the same).
+          height="fill"
+          floor={150}
           yTicks={2}
           animKey={days}
           ariaLabel="Campaign messages sent per day. The arrow keys read each day."

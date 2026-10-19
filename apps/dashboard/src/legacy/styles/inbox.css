@@ -1939,7 +1939,9 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   background: var(--bg-sunken);
   color: var(--ink-dim);
 }
-.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* The state and its wait, "Needs you · waiting 42m": as far apart as the space after the dot, which 8px made
+   "Needs you  ·waiting" (the sample walk, 18 Oct 2026). */
+.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 /* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
 .ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 20px; }
 /* Inline-block so the words clip: the quiet state's dot is laid inline, and a filled pill draws none (a dot inside a
@@ -2166,6 +2168,12 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
 }
 .ix-threads {
   order: 4;
+}
+/* The runs waiting, a line over the rows: the list has no sides of its own (each row brings its 8px and its 12px), so the
+   line stood on the pane's edge, its door wrapped under it there (the sample walk, 18 Oct 2026). Its glyph stands where a
+   row's face does, and its words end where a row's do. */
+.ix-threads > [data-testid="inbox-runs-waiting"] {
+  padding: 12px 18px 4px 20px;
 }
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
 /* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx). */

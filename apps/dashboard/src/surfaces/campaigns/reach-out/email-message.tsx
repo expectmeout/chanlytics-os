@@ -70,7 +70,7 @@ export function ReachOutEmailRow({ t, open = false, onOpen }: RowProps) {
   const W = reachOuts.words;
   const written = open && read && read.state === "ok" ? W.emailRowWrittenOf(read.report, t.step_id) : null;
   const w = W.emailTemplateWords({ chainName: t.chain_name, stepN: t.step_n, afterDays: t.after_days });
-  const g: TemplateGroup = { key: `e:${t.template_id}`, title: titleOf(t), purpose: w.chip, starter: null, rows: [] };
+  const g: TemplateGroup = { key: `e:${t.step_id}`, title: titleOf(t), purpose: w.chip, starter: null, rows: [] };
   return (
     <div
       className={`msg-row${open ? " is-open" : ""}`}
