@@ -17,8 +17,9 @@ import {
   type LeadRowDto,
   type LeadsQuery,
   type LeadStage,
+  type SequencePlaceOfDto,
 } from "@chanlytics/contracts";
-import { leadPileCounts, readLeadOne } from "@chanlytics/db";
+import { leadPileCounts, readLeadOne, sequencePlacesOf } from "@chanlytics/db";
 import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -365,14 +366,36 @@ export async function leadsPage(
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
   const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
   const last = raw[raw.length - 1];
+  const places = await placesOf(
+    ctx,
+    tenantId,
+    raw.map((r) => r.lead_id),
+  );
   return {
-    rows: raw.map((r) => toLeadRowDto(r, names)),
+    rows: raw.map((r) => withPlace(toLeadRowDto(r, names), places)),
     next: last && raw.length >= q.limit ? { key: last.page_key, id: last.member_id } : null,
     ...(counts ? { counts } : {}),
     ...(month ? { month } : {}),
     ...(piled ? { pile: piled } : {}),
   };
 }
+
+/**
+ * Where each lead of a page stands in a sequence (00459 sequence_places_of, the one reader), by its id: what Leads' cell
+ * says in the sheet's and the record's words. Unreadable costs the cell's line, never the page: no row then carries one.
+ */
+async function placesOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  leadIds: readonly string[],
+): Promise<ReadonlyMap<string, SequencePlaceOfDto> | null> {
+  const got = await sequencePlacesOf(ctx.supabase, tenantId, leadIds).catch(() => null);
+  return got ? new Map(got.map((p) => [p.lead_id, p])) : null;
+}
+
+/** A row with its place, where the places were read: null in no sequence. */
+const withPlace = (row: LeadRowDto, places: ReadonlyMap<string, SequencePlaceOfDto> | null): LeadRowDto =>
+  places ? { ...row, place: places.get(row.id) ?? null } : row;
 
 /* ------------------------------------------------------------ one lead -- */
 
@@ -415,5 +438,5 @@ export async function leadOne(
     places: one.places,
     page_key: "",
   };
-  return { row: toLeadRowDto(row, names) };
+  return { row: withPlace(toLeadRowDto(row, names), await placesOf(ctx, tenantId, [lead.id])) };
 }

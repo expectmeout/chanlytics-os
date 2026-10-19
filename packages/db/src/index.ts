@@ -350,8 +350,13 @@ export {
   makeSequence,
   discardSequence,
   sequencesOfPerson,
+  sequencePlaceOf,
+  sequencePlacesOf,
+  moveToSequence,
+  aimSearchAt,
+  setChainSource,
 } from "./repositories/campaigns/sequences";
-export type { SequenceDoorAnswer } from "./repositories/campaigns/sequences";
+export type { SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
   resolveChannelDetailed,

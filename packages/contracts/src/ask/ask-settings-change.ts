@@ -31,6 +31,8 @@ export type AskSettingsChange =
   | { op: "add_note"; title: string; text: string; until?: string }
   | { op: "add_service"; name: string; duration_min?: number }
   | { op: "set_goal"; goal: string }
+  /** The booking link {{booking link}} fills (a sequence to leads' step sheet puts it in where it is not set). */
+  | { op: "set_booking_link"; link: string }
   | AskAnswersChange;
 
 /** Which of the three messages sent in the business's name a change rewrites. */
@@ -89,6 +91,14 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
     if (goal) ask.goal = goal;
     else delete ask.goal;
     return { ...config, ask };
+  }
+  // The booking link is the business's own (brain.booking_link), beside its profile: set, or taken away when empty.
+  if (change.op === "set_booking_link") {
+    const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]> & Record<string, unknown>;
+    const link = change.link.trim();
+    if (link) brain.booking_link = link;
+    else delete brain.booking_link;
+    return { ...config, brain };
   }
   const brain = { ...(config.brain ?? {}) } as NonNullable<C["brain"]>;
   const profile = { ...((brain.profile ?? {}) as Record<string, unknown>) };
@@ -255,6 +265,8 @@ export function describeSettingsChange(change: AskSettingsChange): string {
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
     case "set_goal":
       return change.goal.trim() ? `Your goal: “${change.goal.trim()}”` : "Your goal, taken away";
+    case "set_booking_link":
+      return change.link.trim() ? `Your booking link: ${change.link.trim()}` : "Your booking link, taken away";
     default:
       return describeAnswersChange(change);
   }

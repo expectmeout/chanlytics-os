@@ -27,6 +27,7 @@ export {
   chainOfMoment,
   reachOutRootOf,
   reachOutEmailOf,
+  reachOutExampleLead,
   reachOutExampleValues,
   REACH_OUT_LANGUAGE,
   OUTREACH_WAIT_REFUSALS,
@@ -54,7 +55,6 @@ export type { SlotWorkspace } from "./reach-out-rules";
 export {
   REACH_OUT_SLOTS,
   REACH_OUT_SLOT_SET,
-  REACH_OUT_SLOT_WORDS,
   REACH_OUT_SUBJECT_MAX,
   REACH_OUT_BODY_MAX,
   REACH_OUT_WORDS_MAX,
@@ -305,7 +305,6 @@ export {
   reachOutStandingOf,
   reachOutWhenOf,
   reachOutAddWords,
-  reachOutPeopleRoute,
   reachOutCameWords,
   askedDayOf,
   reachOutSourceOf,

@@ -22,7 +22,6 @@ import { BroadcastSend } from "../broadcasts/broadcasts-page";
 import type { BcWhole, Flash } from "../broadcasts/page/types";
 import { WriteToLeads } from "../reach-out/sources";
 import type { ReachOutsSurface } from "../reach-out/surface";
-import type { ReachOutStart } from "../reach-out/sources";
 import type { HomeAddress } from "./address";
 import { HomeFailed, HomeReading } from "./failed";
 import { PaneSheet, useKept } from "./pane-sheet";
@@ -43,8 +42,6 @@ interface NewMessageProps {
   onYes: (route: string) => void;
   /** The choice at the head: Send once or Write to leads (the address is replaced, never pushed). */
   onKind: (mode: "once" | "leads") => void;
-  /** Write to leads' search, chosen: the page opens the reach-out sheet over it in this sheet's place. */
-  onWrite: (start: ReachOutStart) => void;
 }
 
 /** The send screen, once the broadcasts it is made of are read: reading while they are out, said when they could not be. */
@@ -105,7 +102,7 @@ export function NewMessage(p: NewMessageProps) {
         />
       }
     >
-      {compose.mode === "leads" ? <WriteToLeads onWrite={p.onWrite} /> : <SendOnce {...p} compose={compose} />}
+      {compose.mode === "leads" ? <WriteToLeads /> : <SendOnce {...p} compose={compose} />}
     </PaneSheet>
   );
 }

@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { CONSENT_CHANNELS, isLeadList } from "@chanlytics/contracts";
 import type {
   ReachOutFedBy,
+  SequencePlaceDto,
+  SequencePlaceOfDto,
   SequenceHistoryDto,
   SequenceOneOffDto,
   SequencePeopleDto,
@@ -386,6 +388,27 @@ export async function sequencePeopleOf(
   return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
 }
 
+/** One lead's place in the sequence it stands in, or the last it was in (00459 sequence_place); null in none. */
+export async function sequencePlaceOf(db: Db, tenantId: string, leadId: string): Promise<SequencePlaceDto | null> {
+  const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
+  const got = data as SequencePlaceDto | null;
+  return got && got.sequence && got.place ? { ...got, sends: Array.isArray(got.sends) ? got.sends : [] } : null;
+}
+
+/** Many leads' places, one row a lead in a sequence (00459 sequence_places_of): Leads' cell and the person page. */
+export async function sequencePlacesOf(
+  db: Db,
+  tenantId: string,
+  leadIds: readonly string[],
+): Promise<SequencePlaceOfDto[]> {
+  if (leadIds.length === 0) return [];
+  const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
+  if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
+  const rows: unknown = data;
+  return Array.isArray(rows) ? (rows as SequencePlaceOfDto[]) : [];
+}
+
 /** What a sequence sent, a batch a row, newest first (00442 sequence_history). */
 export async function sequenceHistoryOf(
   db: Db,
@@ -532,6 +555,58 @@ export async function makeSequence(
     ...decided(p),
   });
   return answer<SequenceDoorAnswer>(data, error);
+}
+
+/** What a move answers (00459 sequence_move): the sequence they left and the one they joined, with the leave's decision. */
+export interface SequenceMoveAnswer {
+  from: string;
+  to: string;
+  decision_id: string | null;
+  op_id: string | null;
+}
+
+/**
+ * A lead nothing was sent to, out of the sequence it stands in and into another (00459 sequence_move): its place there
+ * leaves as moved, its first send skipped so, and the add door takes it here. One written to is refused (23505).
+ */
+export async function moveToSequence(
+  db: Db,
+  p: { tenantId: string; leadId: string; toRoot: string } & Omit<DoorDecision, "undoOf">,
+): Promise<DoorResult<SequenceMoveAnswer>> {
+  const { data, error } = await db.rpc("sequence_move", {
+    p_tenant_id: p.tenantId,
+    p_lead_id: p.leadId,
+    p_to_root: p.toRoot,
+    ...(p.decision !== undefined ? { p_decision: p.decision } : {}),
+    ...(p.via ? { p_via: p.via } : {}),
+  });
+  return answer<SequenceMoveAnswer>(data, error);
+}
+
+/** The search a sequence to leads draws its new ready leads from, or none (00459 reach_out_source_set: auto-add). */
+export async function setChainSource(
+  db: Db,
+  p: { tenantId: string; rootId: string; searchId: string | null },
+): Promise<DoorResult<{ root_id: string; source_search_id: string | null }>> {
+  const { data, error } = await db.rpc("reach_out_source_set", {
+    p_tenant_id: p.tenantId,
+    p_root_id: p.rootId,
+    ...(p.searchId ? { p_search_id: p.searchId } : {}),
+  });
+  return answer<{ root_id: string; source_search_id: string | null }>(data, error);
+}
+
+/** The sequence a search's Add goes to, or none (00459 lead_search_aim): kept on the search, a member's. */
+export async function aimSearchAt(
+  db: Db,
+  p: { tenantId: string; searchId: string; sequenceId: string | null },
+): Promise<DoorResult<{ search_id: string; adds_to: string | null }>> {
+  const { data, error } = await db.rpc("lead_search_aim", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    ...(p.sequenceId ? { p_sequence_id: p.sequenceId } : {}),
+  });
+  return answer<{ search_id: string; adds_to: string | null }>(data, error);
 }
 
 /** A sequence that never sent taken away whole (00442 sequence_discard): a draft let go, or a new one undone. */

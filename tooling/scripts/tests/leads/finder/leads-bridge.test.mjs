@@ -1126,7 +1126,23 @@ test("the surface names its value, the tables a run writes, and its own event", 
       leadsOverride.refreshOnTables,
       leadsOverride.debounceMs,
     ],
-    ["leads", "leads", ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
+    [
+      "leads",
+      "leads",
+      ["surface:leads"],
+      // Each row says where its lead stands in a sequence (00459 sequence_places_of), so a sequence's write is heard too.
+      [
+        "leads",
+        "lead_searches",
+        "lead_rounds",
+        "lead_search_members",
+        "sequences",
+        "sequence_steps",
+        "sequence_batches",
+        "sequence_replies",
+      ],
+      800,
+    ],
   );
 });
 

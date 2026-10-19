@@ -6,6 +6,7 @@ import type { LeadPeoplePlan } from "./search/people-plan";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import type { LeadEmailState, LeadRoundEnding, LeadSearchVia } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
+import type { SequencePlaceOfDto } from "../sequences/sequence-place";
 import type { LeadNichePrior } from "./leads";
 
 /* ------------------------------------------------- what the doors answer -- */
@@ -85,6 +86,12 @@ export interface LeadRowDto {
   contact_id: string | null;
   /** The reach-out it goes with (00426): the one that wrote it last, else the one whose search holds it. */
   chain_id?: string | null;
+  /**
+   * Where it stands in a sequence (00459 sequence_places_of, the one reader): the sequence, its group, step, when and
+   * why, said in the words the sheet and the record say. Null in none; absent from a server before 00459, or where the
+   * places could not be read.
+   */
+  place?: SequencePlaceOfDto | null;
   /** A place or a company, and a company's people (00430, leads_page): read through contracts leadFactsOf. */
   kind?: string;
   facts?: unknown;
@@ -165,6 +172,11 @@ export interface LeadSearchDto {
    * thread since gone. The answer to its question is sent there, and lands there when the thread is the reader's own.
    */
   thread_id: string | null;
+  /**
+   * The sequence to leads this search's Add goes to (00459 lead_searches.adds_to): the lead sheet's pick, kept on the
+   * search so a desk, a phone and a teammate agree. Null until one is chosen; absent from a server before 00459.
+   */
+  adds_to?: string | null;
   round: LeadSearchRoundDto | null;
 }
 

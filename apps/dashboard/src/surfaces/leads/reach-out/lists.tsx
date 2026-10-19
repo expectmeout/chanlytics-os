@@ -11,13 +11,11 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { leadsRoute, type LeadPeoplePlan } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
-import { ReachOutSheet } from "../../campaigns/reach-out/sheet";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSheet } from "../../kit/record/sheet";
-import { canDo, gate, navigate } from "../../legacy-verbs";
-import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
+import { gate, navigate } from "../../legacy-verbs";
 import { useFindPeople } from "../finder/people-sheet";
 import { ImportSource, ImportTaste } from "../../people/import/frame";
 import type { PeopleFlash } from "../../people/types";
@@ -321,17 +319,14 @@ export interface LeadLists {
    * first day's and a phone's New search door to it, where no rail is drawn.
    */
   openFindPeople: (from?: LeadPeoplePlan | null) => void;
-  writeAct: (a: { ids: string[]; phone?: boolean; shut?: () => void }) => ReactNode;
-  /** Writes to these leads: the list made of them, and its reach-out's sheet (the pile's held leads, 00426). */
-  writeTo: (ids: string[]) => void;
   node: ReactNode;
   stripOf: Lists["stripOf"] | (() => null);
   emptyOf: Lists["emptyOf"] | (() => null);
 }
 
 /**
- * The page's one hook (J12): the rail's *Import leads*, the bar's *Write to them* for the rows chosen and shown, and the
- * sheet either opens. A list made lands the page on it; one chosen opens the reach-out sheet over it.
+ * The page's one hook (J12): the rail's *Import leads* and *Find people*, and the sheets they open. A list made lands the
+ * page on it. Leads chosen go to a sequence by the bar's Add (scope/bulk-add.tsx), never a list of their own first.
  */
 export const useLeadLists = ({
   flash = null,
@@ -342,26 +337,9 @@ export const useLeadLists = ({
   peopleLive?: boolean;
 } = {}): LeadLists => {
   const [importing, setImporting] = useState(false);
-  const [writing, setWriting] = useState<{ id: string; name: string } | null>(null);
-  const [busy, setBusy] = useState(false);
   const L = reachOuts.lists;
   const people = useFindPeople({ flash, live: peopleLive });
   const open = (id: string) => navigate(leadsRoute({ searchId: id, list: "all" }));
-  const may = canDo("approve");
-  const choose = async (ids: string[]) => {
-    if (busy || !ids.length) return;
-    setBusy(true);
-    const name = L.chooseNameOf();
-    const r = await L.chooseLeads({ name, lead_ids: ids.slice(0, L.max) });
-    setBusy(false);
-    if (!r.ok) {
-      if (flash) flash({ tone: "warn", msg: <>{r.message || L.words.failed}</> });
-      return;
-    }
-    if (flash) flash({ msg: <>{L.chooseAnswerWords(r.data)}</> });
-    open(r.data.search_id);
-    setWriting({ id: r.data.search_id, name });
-  };
   const importDoor = (
     <button
       type="button"
@@ -373,51 +351,9 @@ export const useLeadLists = ({
       <Icon name="download" size={11} /> {L.words.importDoor}
     </button>
   );
-  // The act for the rows chosen and shown (never "all that match": a view is not a list of ids), on a desk the bar's
-  // button and on a phone a row of its sheet (`shut` closes the sheet first).
-  const writeAct = ({
-    ids,
-    phone = false,
-    shut = () => undefined,
-  }: {
-    ids: string[];
-    phone?: boolean;
-    shut?: () => void;
-  }) => {
-    if (!ids.length) return null;
-    if (phone)
-      return (
-        <PhoneSheetRow
-          icon="mail"
-          label={L.words.write}
-          meta={busy ? L.words.writing : null}
-          disabled={busy}
-          onClick={() => {
-            shut();
-            void choose(ids);
-          }}
-          testid="leads-bulk-write"
-          gate={may ? null : gate("approve", "write to these leads")}
-        />
-      );
-    return (
-      <button
-        type="button"
-        className="btn btn-sm"
-        disabled={busy}
-        title={L.words.writeHint}
-        onClick={() => choose(ids)}
-        data-testid="leads-bulk-write"
-        {...gate("approve", "write to these leads")}
-      >
-        <Icon name="mail" size={12} /> {busy ? L.words.writing : L.words.write}
-      </button>
-    );
-  };
   const node = (
     <>
       {importing ? <LeadImportSheet onClose={() => setImporting(false)} onDone={open} flash={flash} /> : null}
-      {writing ? <ReachOutSheet search={writing} onClose={() => setWriting(null)} onDone={() => undefined} /> : null}
       {people.node}
     </>
   );
@@ -427,8 +363,6 @@ export const useLeadLists = ({
     peopleLive,
     openImport: () => setImporting(true),
     openFindPeople: people.open,
-    writeAct,
-    writeTo: (ids: string[]) => void choose(ids),
     node,
     stripOf: L.stripOf,
     emptyOf: L.emptyOf,

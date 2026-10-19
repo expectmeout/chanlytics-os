@@ -247,7 +247,7 @@ function chainStepsWords(steps) {
   ].filter((p) => !!p);
   return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0] ?? "";
 }
-export function chainResumeOf(c) {
+function chainResumeOf(c) {
   const W = LIFECYCLE_WORDS.ledger.resume;
   return {
     kind: "resume",

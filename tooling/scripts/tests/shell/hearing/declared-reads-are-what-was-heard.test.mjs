@@ -146,7 +146,17 @@ const HEARD_BEFORE = {
     "calls",
     "memberships",
   ],
-  leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
+  // And where each lead stands in its sequence (00459 sequence_places_of): the sequences, their batches and replies.
+  leads: [
+    "leads",
+    "lead_searches",
+    "lead_rounds",
+    "lead_search_members",
+    "sequences",
+    "sequence_steps",
+    "sequence_batches",
+    "sequence_replies",
+  ],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
   reports: ["messages", "conversations", "escalations", "calls", "deals", "appointments", "contacts", "tenant_config"],
   // And the calendar settings its booking line reads (S3-4).
@@ -215,6 +225,9 @@ const HEARD_BEFORE = {
     "tenants",
     "segments",
     "lead_searches",
+    // Who is on a sequence to leads' list and its emails still to write (00459's overview).
+    "lead_search_members",
+    "templates",
   ],
   // And the mailbox a reply came to (decision 0056; owed, closed 15 October).
   reach_out_replies: ["sequence_replies", "mailboxes", "mailbox_connections"],
@@ -332,7 +345,17 @@ const ON_ITS_PAGE_BEFORE = {
   reports_campaigns: HEARD_BEFORE.reports_campaigns,
   reports_reviews: HEARD_BEFORE.reports_reviews,
   // Its batches and its sequences wherever the tab is (`always`), the rest on its page.
-  sequences: ["sequence_replies", "messages", "policies", "tenant_config", "tenants", "segments", "lead_searches"],
+  sequences: [
+    "sequence_replies",
+    "messages",
+    "policies",
+    "tenant_config",
+    "tenants",
+    "segments",
+    "lead_searches",
+    "lead_search_members",
+    "templates",
+  ],
   person: HEARD_BEFORE.person,
   calendar_runs: HEARD_BEFORE.calendar_runs,
   today_pins: HEARD_BEFORE.today_pins,

@@ -7,7 +7,6 @@ import { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from
 import { chainPaceOf, stepLabelOf } from "./reach-out-sheet.js";
 import { localDate, localHour } from "../playbooks/playbook-schedule.js";
 import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers.js";
-import { addressOf } from "../activity/record-address.js";
 import { leadFoundWords } from "../leads/lead-kind.js";
 const at = (iso) => {
   const t = iso ? Date.parse(iso) : NaN;
@@ -338,7 +337,7 @@ export function reachOutCameWords(p) {
 }
 export const REACH_OUT_SOURCE_WORDS = {
   addTitle: "Leads you add",
-  addSub: "Pick them on Leads, one at a time or from the table, then write to them",
+  addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once",
   failed: "the searches and lists a sequence could start from",
   none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
   find: "Find businesses"
@@ -346,7 +345,6 @@ export const REACH_OUT_SOURCE_WORDS = {
 export function reachOutSourceOf(s) {
   const include = s.ready === 0;
   const reach = include ? `${s.with_unconfirmed} unconfirmed` : `${s.ready} ready`;
-  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search with no sequence yet";
+  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search on Leads";
   return { title: `${s.name} \xB7 ${reach}`, sub: what, include };
 }
-export const reachOutPeopleRoute = (rootId) => `${addressOf({ kind: "reach_out", id: rootId })}:people`;

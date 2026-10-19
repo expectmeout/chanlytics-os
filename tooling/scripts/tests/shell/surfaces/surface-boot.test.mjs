@@ -857,6 +857,11 @@ test("a person's page waits only for who is looking, then reads People for their
     "People for their name, and the page's own read",
   );
   assert.deepEqual(reg.routeDrawsFor("clients", null), [], "the list draws nothing beside its own surface");
+  // Nor does Leads, under any view: never as a person. Its reach-out sheet read Setup's mailboxes and Settings' link next,
+  // and went with the composer (the lead-to-sequence canvas, 18 Oct 2026).
+  assert.deepEqual(reg.routeDrawsFor("clients", "leads"), []);
+  assert.deepEqual(reg.routeDrawsFor("clients", "leads:s-1"), []);
+  assert.equal(reg.ROUTE_DRAWS.leads, undefined);
   const keys = ["conversations", "inbox", "today", "settings", "people", "leads", "reports", "workspace", "calendar"];
   const { order, overrides } = crowd(keys, { hash: `#/clients/${ID}` });
   const stop = startSurfaces(overrides);

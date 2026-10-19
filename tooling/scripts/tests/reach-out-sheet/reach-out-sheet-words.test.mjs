@@ -248,7 +248,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     to: `clients/leads:p-${LEAD}`,
     why: "reads like a chain: 3 listings share their website",
     doors: [
-      ["include", "Include"],
+      ["include", "Send as written"],
       ["not_a_fit", "Not a fit"],
     ],
   });

@@ -146,6 +146,17 @@ export const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string> = {
 
 export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 
+/**
+ * Not a fit, one tap, the reason after (the lead-to-sequence canvas): the toast's question and its short reasons, each
+ * optional; Something else is the one given with the tap.
+ */
+export const LEAD_NOT_A_FIT_ASK = {
+  said: (name: string) => `${name}: not a fit.`,
+  why: "Why?",
+  short: { chain: "Chain", wrong_kind: "Wrong kind", too_far: "Too far", customer: "A customer" },
+  kept: (why: string) => `Kept as ${why.toLowerCase()}`,
+} as const;
+
 /** The one why that hides the place from every future search; the rest teach nothing in this release. */
 export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 

@@ -255,7 +255,7 @@ test("a new sequence starts on a list by the token the composer writes; the edit
   assert.match(SEQUENCE_EDIT_WORDS.reaches(false), /already waiting keeps their day/);
   assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send 1 as written");
   assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send 3 as written");
-  assert.equal(SEQUENCE_NEEDS_WORDS.wentAll(1), "1 email goes as it is");
+  assert.equal(SEQUENCE_NEEDS_WORDS.wentAll(1), "1 email goes as written");
   assert.equal(SEQUENCE_PEOPLE_WORDS.takeOutAll(4), "Take these 4 out");
   assert.equal(SEQUENCE_EDIT_WORDS.days(1), "1 day");
   // A list's start reads the same on a record and on a draft about to be made.

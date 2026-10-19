@@ -14,6 +14,7 @@ import { z } from "zod";
 import {
   AppError,
   CAMPAIGN_NOT_FOUND,
+  LEAD_BUILD_WORDS,
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
@@ -48,6 +49,7 @@ import {
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import { withStarterMessage } from "@/server/campaigns/starter-templates";
+import { unwrittenPlaceOf } from "@/server/sequences/lead-chain";
 import type { Member } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
 
@@ -280,6 +282,9 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
   if (set.state === "running") {
     const twin = await visitTwinRefusal(ctx, p.tenant_id, { id: p.id, trigger: p.trigger });
     if (twin) throw new AppError("conflict", twin, 409);
+    // A sequence to leads with an email still to write (a draft's, 00459): Start asks for it first.
+    const unwritten = p.trigger === "lead_first" ? await unwrittenPlaceOf(ctx, p.tenant_id, p.id) : null;
+    if (unwritten) throw new AppError("conflict", LEAD_BUILD_WORDS.writeFirst(unwritten), 409);
   }
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {

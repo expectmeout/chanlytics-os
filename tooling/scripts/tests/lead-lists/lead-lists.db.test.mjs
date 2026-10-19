@@ -693,7 +693,30 @@ test(
     // email's check flagged (hold_detail), and nothing else.
     const placed = bodyIn(migration("00455"), "create or replace function public.reach_out_lead_timeline(");
     const flagged = bodyIn(migration("00457"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), flagged, "the database runs 00457's");
+    // 00459 (one road from a lead to a sequence) finds a lead's chain on the search it draws from as well as its list,
+    // names that search for a lead it brought, and counts a first send skipped as moved as the old one; nothing else.
+    const roads = bodyIn(migration("00459"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), roads, "the database runs 00459's");
+    const CASE =
+      "case when p.source_search_id is null\n                     or exists (select 1 from public.lead_search_members x\n                                 where x.search_id = p.lead_search_id and x.lead_id = v_lead.id and x.blanked_at is null)\n                   then p.lead_search_id else p.source_search_id end";
+    assert.equal(
+      roads
+        .replace(
+          "m.search_id in (p.lead_search_id, p.source_search_id) and m.lead_id",
+          "m.search_id = p.lead_search_id and m.lead_id",
+        )
+        .replace("'owner_took_back', 'moved'))", "'owner_took_back'))")
+        .replace(
+          `  select q.via into v_via from public.sequence_steps p\n    join public.lead_searches q on q.id = ${CASE}\n`,
+          "  select q.via into v_via from public.sequence_steps p join public.lead_searches q on q.id = p.lead_search_id\n",
+        )
+        .replace(
+          `join public.lead_searches q on q.tenant_id = p_tenant_id and q.id = ${CASE}\n`,
+          "join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id\n",
+        ),
+      flagged,
+      "00459's is 00457's with the search a chain draws from, and a moved send",
+    );
     assert.equal(
       flagged.replace("               'hold_detail', s.hold_detail,\n", ""),
       placed,

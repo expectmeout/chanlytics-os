@@ -25,8 +25,8 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
+import { getSurfaceStatuses, onSurfaceMoved } from "@/legacy-bridge/surface-status";
 import { needsYouMoved, waitingRunsNow } from "../../needs-you";
-import { surfaceValue } from "../../surface-values";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
@@ -159,19 +159,24 @@ const ixFollowReads = ({
       list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null,
     );
   };
-  // Sent's runs, first read after the threads were drawn: a run waiting moves an Inbox nobody has picked a bucket in to
-  // Needs you, as it would have opened there. Only that first read: a run made later never moves a bucket being read.
-  let runsUnread = surfaceValue("broadcasts") === undefined;
+  // Sent's runs, first read after the Inbox opened: a run waiting moves an Inbox nobody has picked a bucket in to Needs
+  // you, as it would have opened there; never from under a thread the address opened. A read, not what the tab's cache
+  // restored at boot (surface-cache.ts marks that ready with no status): the Inbox opened on yesterday's runs, none
+  // waiting, and the read that brought today's left it on Handled under "Needs you 1" (the Inbox's run review, 19 Oct
+  // 2026). Its rows land before its status says so, so the surface's own signal is heard, which moves at both. Only that
+  // first read: a run made later never moves a bucket being read.
+  const runsRead = () => getSurfaceStatuses().has("broadcasts");
+  let runsUnread = !runsRead();
   const onRuns = () => {
-    if (!runsUnread) return;
+    if (!runsUnread || !runsRead()) return;
     runsUnread = false;
-    if (!ixPlace().bucket && waitingRunsNow().length > 0) setActiveBucket("escalated");
+    if (!ixPlace().bucket && !routeThreadRef.current && waitingRunsNow().length > 0) setActiveBucket("escalated");
   };
   window.addEventListener("surface:inbox", onSwap);
-  window.addEventListener("surface:broadcasts", onRuns);
+  const unhear = onSurfaceMoved(["broadcasts"], onRuns);
   return () => {
     window.removeEventListener("surface:inbox", onSwap);
-    window.removeEventListener("surface:broadcasts", onRuns);
+    unhear();
   };
 };
 

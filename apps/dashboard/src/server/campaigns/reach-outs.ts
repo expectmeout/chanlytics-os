@@ -237,8 +237,15 @@ export async function saveChain(
   member: Member,
   input: ReachOutChainInput,
   rootId: string | null,
+  /** A draft's record (00459): an email still to write (no words yet) is kept as it is, and Start asks for it. */
+  opts: { unwritten?: boolean } = {},
 ): Promise<ReachOutSavedDto> {
-  const issues = validateReachOutChain(input, { bookingLink: !!(await bookingLinkOf(ctx, member.tenantId)) });
+  const all = validateReachOutChain(input, { bookingLink: !!(await bookingLinkOf(ctx, member.tenantId)) });
+  const blank = (i: number | null) => {
+    const s = i === null ? null : input.steps[i];
+    return !!s && !s.hand && !s.body.trim();
+  };
+  const issues = opts.unwritten ? all.filter((i) => !blank(i.step)) : all;
   if (issues.length > 0) {
     const said = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
     throw new AppError("validation", said[0].words, 422, { issues: said });

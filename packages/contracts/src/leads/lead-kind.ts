@@ -227,7 +227,7 @@ export const LEAD_COMPANY_WORDS = {
  * what it says once chosen, and each refusal of the door in words, by its code.
  */
 export const LEAD_ADDRESSEE_WORDS = {
-  door: "Write to them instead",
+  door: "Write here",
   /** What a role that may not is told it cannot do here (gateTitle). */
   gated: "choose who a sequence writes to",
   choosing: "Choosing…",

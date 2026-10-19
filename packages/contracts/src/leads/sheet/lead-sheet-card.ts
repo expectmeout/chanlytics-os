@@ -40,15 +40,21 @@ export const LEAD_SHEET_CARD_WORDS = {
 
 const CW = LEAD_SHEET_CARD_WORDS;
 
-/** A check that couldn't tell, said short for the card's line ("phone unconfirmed"). */
+/** A check that couldn't tell, said short for the card's line ("phone not confirmed"). */
 const UNSURE_WORDS: Partial<Record<LeadCheckKey, string>> = {
-  phone_two_sources: "phone unconfirmed",
-  mailbox: "mailbox unconfirmed",
-  own_address: "address unconfirmed",
-  on_maps: "listing unconfirmed",
-  in_area: "area unconfirmed",
+  phone_two_sources: "phone not confirmed",
+  mailbox: "mailbox not confirmed",
+  own_address: "address not confirmed",
+  on_maps: "listing not confirmed",
+  in_area: "area not confirmed",
   independent: "ownership unclear",
   right_kind: "kind unclear",
+};
+
+/** A check that did not pass, as Fit's row says it first: what is not so, in its short words, capitalized. */
+export const leadSheetExceptionWords = (key: string, label: string): string => {
+  const short = UNSURE_WORDS[key as LeadCheckKey];
+  return short ? short.charAt(0).toUpperCase() + short.slice(1) : label;
 };
 
 /**
@@ -60,7 +66,7 @@ export function leadSheetSubOf(vm: Pick<LeadPeekVM, "sub" | "where" | "rated" | 
   const [kind, ...rest] = vm.sub.split(" · ");
   const [first] = vm.where ? vm.where.line.split(",") : [];
   const street = first ? first.trim() : rest.join(" · ");
-  const rated = vm.rated ? `${vm.rated.score} (${vm.rated.count})` : null;
+  const rated = vm.rated ? `★ ${vm.rated.score} (${vm.rated.count})` : null;
   return [kind, street, rated].filter(Boolean).join(" · ");
 }
 
@@ -93,8 +99,8 @@ export interface LeadSheetChecksLineVM {
   fit: string | null;
 }
 
-/** The checks the ways-in line says in amber already: the phone's two sources, and the mailbox. */
-const REACH_CHECKS: ReadonlySet<string> = new Set<LeadCheckKey>(["phone_two_sources", "mailbox"]);
+/** The check the email's own line says already (Checked, or not confirmed): the mailbox. */
+const REACH_CHECKS: ReadonlySet<string> = new Set<LeadCheckKey>(["mailbox"]);
 
 /**
  * What did not pass, said short: one by its own words, else how many couldn't tell and how many failed. Where every one
@@ -147,12 +153,29 @@ export interface LeadSheetContactLineVM {
   site: string | null;
 }
 
-/** The ways-in line as a screen reader hears it: each way apart, what is not confirmed said, then the tab it opens. */
-export function leadSheetContactSaid(line: LeadSheetContactLineVM): string {
-  const way = (what: string, w: LeadSheetWayVM) => `${what} ${w.text}${w.warn ? `, ${CW.notConfirmed}` : ""}`;
-  const email = line.email.text === CW.noEmail ? CW.noEmail : way(CW.email, line.email);
-  const parts = [email, line.phone ? way(CW.phone, line.phone) : null, line.site ? CW.theirSite : null];
-  return `${parts.filter(Boolean).join("; ")}. ${CW.opens("Contact")}`;
+/** The email line at half (the canvas's PhoneHalf): the address the sequence writes to, and how its mailbox checked. */
+export interface LeadSheetEmailLineVM {
+  address: string | null;
+  /** "Checked", "Checking…", "Not confirmed", or that none was found. */
+  words: string;
+  tone: "ok" | "warn" | "plain";
+}
+
+const LEAD_EMAIL_LINE_WORDS = {
+  checked: "Checked",
+  checking: "Checking…",
+  notConfirmed: "Not confirmed",
+  none: "No email found",
+} as const;
+
+export function leadSheetEmailLineOf(vm: Pick<LeadPeekVM, "reach" | "slots">): LeadSheetEmailLineVM {
+  const E = LEAD_EMAIL_LINE_WORDS;
+  const address = vm.reach.email.address;
+  if (!address) return { address: null, words: E.none, tone: "plain" };
+  const state = vm.slots.mailbox.state;
+  if (state === "ok") return { address, words: E.checked, tone: "ok" };
+  if (state === "checking") return { address, words: E.checking, tone: "plain" };
+  return { address, words: E.notConfirmed, tone: "warn" };
 }
 
 export function leadSheetContactLineOf(

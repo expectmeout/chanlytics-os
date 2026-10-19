@@ -6,12 +6,11 @@
  * needs you (a batch waiting for your OK, a message gone, new words turned down, emails the check held) and quiet where it
  * is only coming (its next run, who is in line). Between two steps, the wait and who it keeps going, on the rail where it
  * happens. Then Add a step (a reminder says once why it takes none), and where it stops. A one-off is its day and its one
- * message, with the way out while it waits. A sequence to leads says where it sends from at its foot. Every word is
- * contracts' (sequence-schedule.ts). A step opened is the kit's sheet (step-sheet.tsx): its words, its facts and its
+ * message, with the way out while it waits. A sequence to leads is written on its own rail (leads/lead-steps.tsx). Every
+ * word is contracts' (sequence-schedule.ts). A step opened is the kit's sheet (step-sheet.tsx): its words, its facts and its
  * acts, and its editor in the same sheet; the record's dock opens a step to be changed there too (`editing`).
  */
 import { useState } from "react";
-import type { ReactNode } from "react";
 import {
   SCHEDULE_WORDS as SW,
   SEQUENCE_FLOW_WORDS as F,
@@ -36,9 +35,10 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { cx } from "../../kit/variants";
-import { gate, navigate, routeDoor } from "../../legacy-verbs";
+import { gate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { addLeadsTo } from "../reach-out/people";
+import { LeadSteps } from "./leads/lead-steps";
+import { RailBox, RailRow, RailWait } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
 import { StepPreviewLine, StepWords, useStepMessageRead } from "./step-words";
@@ -50,37 +50,11 @@ type Flash = (flash: LegacyFlash) => void;
 /** What a step's state is said from, but whether its message is gone: each step's own read says that. */
 export type StepsCtx = Omit<ScheduleCtx, "gone">;
 
-/**
- * Add leads: a sequence fed by a list takes leads by hand, so Leads opens with the pile set to add to it (people.tsx);
- * one fed by its search writes to what the search finds, which opens. Which it is, the record says (`fed_by`).
- */
-function addLeadsOf(rec: SequenceRecordDto, rootId: string, searchAt: string) {
-  if (rec.fed_by === "list") addLeadsTo(rootId, rec.sequence.name);
-  else navigate(searchAt);
-}
-
-/** One row of the rail: its day (Start, Day 1, End; none for a wait), and what stands on that day. */
-function RailRow(p: { day?: string; need?: boolean; gap?: boolean; children: ReactNode; testid?: string }) {
-  return (
-    <li className={cx("sq-rail-row", !p.day && "is-bare", p.gap && "is-gap")} data-testid={p.testid}>
-      <span className={cx("sq-rail-day", p.need && "is-need")} aria-hidden={p.day ? undefined : "true"}>
-        {p.day ?? null}
-      </span>
-      <div className="sq-rail-cell">{p.children}</div>
-    </li>
-  );
-}
-
-/** The thing a sequence starts on, as a door: its list in People, its search in Leads. Its name alone where it has none. */
+/** The thing a sequence starts on, as a door: its list in People. Its name alone where it has none. */
 function StartsOn({ rec, name }: { rec: SequenceRecordDto; name: string }) {
   const first = rec.sequence.first;
   const listId = first?.list_id ?? first?.list_key ?? null;
-  const at =
-    rec.sequence.starts === "leads" && first?.search_id
-      ? addressOf({ kind: "lead", searchId: first.search_id })
-      : rec.sequence.starts === "list" && listId
-        ? addressOf({ kind: "list", id: listId })
-        : null;
+  const at = rec.sequence.starts === "list" && listId ? addressOf({ kind: "list", id: listId }) : null;
   if (!at) return <b>{name}</b>;
   return (
     <LinkButton size="inherit" className="sq-rail-door" {...routeDoor(at)} data-testid="sq-starts-on">
@@ -90,8 +64,8 @@ function StartsOn({ rec, name }: { rec: SequenceRecordDto; name: string }) {
 }
 
 /**
- * Where it starts: what starts it, the list or search it starts on a door to it, and the line under (its hour and Change
- * where a moment or a list starts it, Add leads where a search does, a one-off's day and how it stands).
+ * Where it starts: what starts it, the list it starts on a door to it, and the line under (its hour and Change where a
+ * moment or a list starts it, a one-off's day and how it stands).
  */
 function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; moved: () => void }) {
   const row = rec.sequence;
@@ -101,8 +75,6 @@ function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
   const [opened, setOpened] = useState(0);
   const start = scheduleStart(row, rec.word, { tz: rec.timezone, nowMs: Date.now() });
   const changes = !!first && (row.starts === "moment" || row.starts === "list");
-  // Its search's address is the door's, which a new tab opens; a press goes the way the sequence takes leads.
-  const searchAt = first?.search_id ? addressOf({ kind: "lead", searchId: first.search_id }) : null;
   return (
     <RailRow day={row.starts === "date" ? SW.date : SW.start} testid="sq-starts">
       <div className="sq-rail-line">
@@ -124,11 +96,6 @@ function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
               {SEQUENCE_WORDS.change}
             </LinkButton>
           ) : null}
-          {row.starts === "leads" && first && searchAt ? (
-            <LinkButton {...routeDoor(searchAt, () => addLeadsOf(rec, first.id, searchAt))} data-testid="sq-add-leads">
-              {F.addLeads}
-            </LinkButton>
-          ) : null}
         </span>
       </div>
       {changes ? (
@@ -138,10 +105,9 @@ function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
   );
 }
 
-/** How a step goes, on its box: its channels (a customer's), email (a lead's), or a task for you (a call). */
-function stepBy(rec: SequenceRecordDto, step: SequenceStepDto): { glyph: string; words: string } {
+/** How a step goes, on its box: its channels, or a task for you (a call). */
+function stepBy(step: SequenceStepDto): { glyph: string; words: string } {
   if (step.hand) return { glyph: "phone", words: SW.byTask };
-  if (rec.sequence.starts === "leads") return { glyph: "mail", words: SW.byEmail };
   const channels = step.channels;
   return { glyph: channels[0] === "email" ? "mail" : "chat", words: scheduleChannels(channels) };
 }
@@ -178,45 +144,27 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const gone = customer && read && !message;
   const state = scheduleStepState(rec.sequence, step, { ...ctx, gone });
   const done = state?.tone === "done";
-  const by = stepBy(rec, step);
+  const by = stepBy(step);
   const title = customer ? (message?.title ?? step.template_name ?? F.noMessage) : step.name;
-  const said = step.hand ? step.hand.words : rec.sequence.starts === "leads" ? SW.leadPreview : gone ? SW.gone : null;
+  const said = step.hand ? step.hand.words : gone ? SW.gone : null;
   return (
     <RailRow day={SW.day(day)} need={state?.tone === "need"} testid={`sq-step-${step.place}`}>
-      <div className={cx("sq-stepbox", state?.tone === "need" && "is-need")}>
-        <span className="sq-stepbox-top">
-          <span className={cx("sq-stepnum", done && "is-done")} aria-hidden="true">
-            {done ? <Icon name="check" size={11} /> : step.place}
-          </span>
-          <LinkButton
-            size="inherit"
-            className="sq-stepbox-open"
-            onClick={onOpen}
-            aria-label={`${SW.step(step.place)}, ${title}`}
-            data-testid={`sq-step-open-${step.place}`}
-          >
-            {title}
-          </LinkButton>
-          <Icon name="chevron" size={14} />
-        </span>
-        <span className="sq-stepbox-meta">
-          <span className="sq-stepbox-by">
-            <Icon name={by.glyph} size={13} />
-            {by.words}
-          </span>
-          <StepFigures sent={step.sent} replied={step.replied} />
-        </span>
-        {said ? (
-          <span className="sq-stepbox-pre is-said">{said}</span>
-        ) : (
-          <StepPreviewLine message={message} params={step.params} />
-        )}
-        {state ? (
-          <span className={cx("sq-stepbox-now", `is-${state.tone}`)} data-testid={`sq-step-now-${step.place}`}>
-            <span>{state.words}</span>
-          </span>
-        ) : null}
-      </div>
+      <RailBox
+        place={step.place}
+        title={title}
+        onOpen={onOpen}
+        by={by}
+        figures={<StepFigures sent={step.sent} replied={step.replied} />}
+        pre={
+          said ? (
+            <span className="sq-stepbox-pre is-said">{said}</span>
+          ) : (
+            <StepPreviewLine message={message} params={step.params} />
+          )
+        }
+        state={state}
+        done={done}
+      />
     </RailRow>
   );
 }
@@ -224,19 +172,7 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
 /** The wait before a step, and who it keeps going, on the rail between the two days. */
 function WaitRow({ step }: { step: SequenceStepDto }) {
   const w = scheduleWait(step);
-  return (
-    <RailRow gap>
-      <p className="sq-rail-wait" data-testid={`sq-step-wait-${step.place}`}>
-        <span>{w.wait}</span>
-        {w.only ? (
-          <span className="sq-rail-only">
-            <Icon name="filter" size={12} />
-            {w.only}
-          </span>
-        ) : null}
-      </p>
-    </RailRow>
-  );
+  return <RailWait wait={w.wait} only={w.only} testid={`sq-step-wait-${step.place}`} />;
 }
 
 /**
@@ -369,6 +305,14 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, on
       </div>
     );
   const ctx: StepsCtx = { tz: rec.timezone, nowMs: Date.now(), lastRunFor: rec.last_run_for, people };
+  // A sequence to leads is written on its record (the lead-to-sequence canvas's Build boards): its own rail and sheets,
+  // drawn once its chain is read with it.
+  if (row.starts === "leads")
+    return rec.chain ? (
+      <LeadSteps rec={rec} flash={flash} moved={moved} ctx={ctx} editing={editing} onEditing={onEditing} />
+    ) : (
+      <div className="sq-steps-body" data-testid="sq-steps" aria-busy="true" />
+    );
   const days = scheduleDays(rec.steps);
   const span = scheduleSpan(row, rec.steps);
   const end = scheduleEnd(row, rec.steps);

@@ -4228,6 +4228,10 @@ a.list-row {
   border-radius: var(--radius-full);
   background: var(--accent);
 }
+/* Something there needs you: the figure keeps saying how many are there, the dot says one of them waits on you. */
+.subtab-dot.is-warn {
+  background: var(--warn);
+}
 .subtab-bar {
   position: absolute;
   bottom: 0;

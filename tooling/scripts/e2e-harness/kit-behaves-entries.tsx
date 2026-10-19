@@ -865,6 +865,25 @@ function SubTabsKitFresh() {
   );
 }
 
+/** A sequence's tabs, Leads saying who is in it and, by its amber dot, that something there needs you (00459). */
+function SubTabsKitNeed() {
+  const [on, setOn] = useState("steps");
+  return (
+    <Figure id="subtabs-need" about="the kit's SubTabs, a tab where something needs you">
+      <SubTabs
+        label="Bookstore intro"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "steps", label: "Steps" },
+          { id: "leads", label: "Leads", count: 13, need: "Something needs you" },
+          { id: "history", label: "History" },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** The sub-tabs with a glyph before each word. */
 function SubTabsKitGlyph() {
   const [on, setOn] = useState("all");
@@ -976,6 +995,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs-quiet", Draw: SubTabsKitQuiet, closed: true },
   { id: "subtabs-dense", Draw: SubTabsKitDense, closed: true },
   { id: "subtabs-fresh", Draw: SubTabsKitFresh, closed: true },
+  { id: "subtabs-need", Draw: SubTabsKitNeed, closed: true },
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
   { id: "subtabs-capsule", Draw: SubTabsKitCapsule, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },

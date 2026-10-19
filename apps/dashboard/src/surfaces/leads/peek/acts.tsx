@@ -7,7 +7,6 @@
 import { LEAD_WORDS as W, leadPeekMenu } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { actingRole, refusalToast } from "../../legacy-verbs";
-import { LeadReachOut } from "../reach-out/lines";
 import { draftForLead, eraseLead, setLeadStage, undoLeadOperation } from "../surface";
 import type { Armed, DraftState, LeadCourier, PeekActs, PeekPage, StageData } from "./types";
 
@@ -233,6 +232,6 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     },
     onNotYet: () => p.setArmed(null),
     // A reach-out's story with this lead and its doors (Reach out Part 6, H9), drawn in the body under the fit.
-    reachOut: <LeadReachOut key={vm.id} lead={vm} flash={p.flash} />,
+    reachOut: null,
   };
 };

@@ -164,5 +164,25 @@
     "kind": "link",
     "fresh": "A link to the workspace's file, made when it is fetched.",
     "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/leads/reads.ts GET leads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a draft's step sheet previews a lead in it, one lead at a time as ‹ › reaches it, and kept for the tab.",
+    "why": "Preview shows a step as that lead gets it, filled from the lead's own record; a lead's name, city and listing change seldom, and the send itself fills each email from the record as it stands when it goes, never from this read."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/place": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "Where a lead stands moves by a press, which the sheet reads again after, or by the sequence's own run; the record's Leads tab, a heard surface, files the same rows from the same reader (00459 sequence_places), so the two windows never disagree for long."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences": {
+    "kind": "on-open",
+    "fresh": "Read as Leads opens on a search (the pick, Adds go to) and as a lead's picker opens, and again after a sequence is made or a lead added from the sheet or the bar.",
+    "why": "It names the sequences to leads Add can go to and the pick's state; a sequence made or started elsewhere shows in the picker the next time it opens, and the add door itself refuses one that ended, in words, so nothing is added on a stale read."
+  },
+  "apps/dashboard/src/surfaces/leads/sheet/over.tsx GET leads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens over another page by its address (?lead=, a record's Leads row), once for that lead.",
+    "why": "The sheet over a record is a look at one lead from where its row was pressed; its place is the sheet's own read, read again after each press, and closing and opening the row reads the lead afresh."
   }
 }
