@@ -41,9 +41,9 @@ a window where the numbers are wrong, and a second thing to run.
 
 **What People says differently.** Take a person whose first touch was their own message or call, whom a door also added
 later (for example a lead converted onto someone who wrote first). People now says they came from that message or call,
-as Reports' people lens has said since 00306. Production has nobody like that. 58 sample-data people (in the
-`chanlytics` and `melanys-old-test` workspaces) carry a door's word with no event; People now shows that door, as
-Reports already did. In the real customer workspace, nobody's answer changes.
+as Reports' people lens has said since 00306. Production has nobody like that. 58 sample-data people (in our own
+workspace and a test workspace) carry a door's word with no event; People now shows that door, as Reports already did.
+In the real customer workspace, nobody's answer changes.
 
 ## Measured
 
