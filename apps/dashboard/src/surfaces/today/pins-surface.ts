@@ -31,7 +31,7 @@ export const todayPinsOverride: SurfaceOverride = {
   events: ["surface:today_pins"],
   // What the lists are made of: who is in People and what they answered, their threads, holds and calls, their visits, steps
   // and deals, the lists kept by hand, what the workspace can send on (a list of who can be reached) and the settings the
-  // calendar's visits are read with, and the workspace's own row (its zone and how its customers buy: the deal lists). Heard while
+  // calendar's visits are read with, and the workspace's own row (its zone and its word for a booking). Heard while
   // Today is on screen, and once as it comes back.
   ...declareReads("today_pins", {
     reads: ["person", "conversation", "hold", "call", "visit", "step", "deal", "list", "channel", "facts", "workspace"],

@@ -36,7 +36,9 @@ export function bcRunsOf({ data, openId }: Pick<BcBase, "data" | "openId">): BcR
 }
 
 // A run waiting on you, open: its sheet. Where it sits among the runs waiting (the order above), its playbook and its
-// template for the words, and the acts -- which, when they land, open the next run waiting, or close.
+// template for the words, and the acts -- which, when they land, open the next run waiting, or leave this run open as it
+// now is (going, or skipped), with the toast that says so: closing then goes back to where it was opened from. They closed
+// onto Sequences, and the toast went with the page.
 export function bcSheetOf({
   openRows,
   data,
@@ -64,7 +66,9 @@ export function bcSheetOf({
       pool.find((t) => t.id === row.template_id) ||
       pool.find((t) => t.name === row.template_name && t.language === row.template_language) ||
       null;
-    const onward = () => openRun(next ? next.id : null);
+    const onward = () => {
+      if (next) openRun(next.id);
+    };
     return {
       position: at >= 0 ? [at + 1, queue.length] : null,
       canSend,

@@ -2146,8 +2146,6 @@ interface RunContext {
     listMembers(ref: ListRef): (Membership & {
         rule?: unknown;
     }) | null;
-    /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
-    dealsOn: boolean;
     /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
     pace: DealPaceVM | null;
     /**
@@ -2179,7 +2177,7 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off"
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted"
     /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
      | "ended";
 } | {
@@ -2582,8 +2580,6 @@ declare function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, v: unknown,
 /** What a playbook's check reads beyond its message: the name of a list it runs on, or null when there is none. */
 interface CheckPlaybookPorts extends TemplateValuesPorts {
     listName(id: string): Promise<string | null>;
-    /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
-    dealsOn(): Promise<boolean>;
     /**
      * Whether a calendar is connected here, its feed readable just now or not (the Playbooks page's calendar state is not
      * "none"): which of the two win-backs a new playbook may be (contracts momentOffered).

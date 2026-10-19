@@ -2,7 +2,6 @@ import {
   AppError,
   BUILTIN_LISTS,
   LIST_PLAYBOOK_CLASSES,
-  FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
   FOLLOW_UP_NEEDS_LINK,
   MOMENTS_RETIRED,
@@ -28,7 +27,6 @@ import {
   playbookName,
   ruleNeeds,
   triggerOf,
-  triggerOffered,
   triggerWords,
   UUID,
   winBackWords,
@@ -83,8 +81,6 @@ export function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, v: unknown, 
 /** What a playbook's check reads beyond its message: the name of a list it runs on, or null when there is none. */
 export interface CheckPlaybookPorts extends TemplateValuesPorts {
   listName(id: string): Promise<string | null>;
-  /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
-  dealsOn(): Promise<boolean>;
   /**
    * Whether a calendar is connected here, its feed readable just now or not (the Playbooks page's calendar state is not
    * "none"): which of the two win-backs a new playbook may be (contracts momentOffered).
@@ -98,24 +94,22 @@ export interface CheckPlaybookPorts extends TemplateValuesPorts {
 }
 
 /**
- * The moment a playbook names: where it may run at all, and where it may be made new. A proposal follow-up where deals
- * are off has no proposal to follow (0006), whether it is made or changed; a playbook kept on its moment is not new,
- * so a retired moment's, the other win-back's and an appointment moment's made before a calendar was required keep
- * running and may be changed. A new one is held to what is offered now (contracts momentOffered), in the words for each
- * and in the workspace's word. Each fact is asked only of the moment it decides.
+ * The moment a playbook names: where it may be made new. A proposal follow-up may be made in every workspace (0008,
+ * amended 18 Oct 2026); a playbook kept on its moment is not new, so a retired moment's, the other win-back's and an
+ * appointment moment's made before a calendar was required keep running and may be changed. A new one is held to what
+ * is offered now (contracts momentOffered), in the words for each and in the workspace's word. Each fact is asked only
+ * of the moment it decides.
  */
 async function refuseMoment(
   ports: CheckPlaybookPorts,
   trig: NonNullable<ReturnType<typeof triggerOf>>,
   existing: { trigger: string } | null,
 ): Promise<void> {
-  const dealsOn = trig.kind === "deal" ? await ports.dealsOn() : false;
-  if (trig.kind === "deal" && !triggerOffered(trig, dealsOn)) throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS);
   if (existing?.trigger === trig.id) return;
   const retired = MOMENTS_RETIRED[trig.id];
   if (retired) throw new AppError("validation", retired);
   const calendarOn = momentReadsCalendar(trig) ? await ports.calendarOn() : false;
-  if (momentOffered(trig, { dealsOn, calendarOn })) return;
+  if (momentOffered(trig, { calendarOn })) return;
   const word = await ports.appointmentWord();
   if (!isWinBack(trig.id)) throw new AppError("validation", appointmentWords(word).needsCalendar);
   const w = winBackWords(word);

@@ -30,8 +30,8 @@ export const BrainConfigSchema = z
     phone_display: z.string().min(3).max(40).optional(),
     /**
      * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-     * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-     * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+     * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Every business is
+     * offered one the same way (business-gap.ts BOOKING_LINK_ROW_WORDS).
      */
     booking_link: z.string().url().max(BOOKING_LINK_MAX).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's

@@ -81,14 +81,13 @@ export interface PeopleListsLike {
   /**
    * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; their
    * deal and when they last wrote, for the proposals waiting (0004); and who they are and when their last
-   * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
+   * consultation ended and whether a visit of theirs is ahead, for the consultations nothing followed (0008), where the
+   * surface carries them.
    */
   rows: ReadonlyArray<
     Pick<PersonRowVM, "consent" | "saidYes" | "whyNot"> &
-      Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "followUp">>
+      Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "nextVisitMs" | "followUp">>
   >;
-  /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
-  dealsOn?: boolean;
   /**
    * When People was read and its rows worked out: the deal rows are counted at that moment, as the Pipeline counts
    * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
@@ -210,22 +209,22 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
   };
 }
 
-// A consultation that ended in the last week with no proposal after it is the next step nobody has taken (0008). One
-// is enough, as a proposal waiting is. The rule is contracts' consultationsWithoutProposal over the rows People
-// holds, the rows, the rule and the clock the Pipeline counts its Consultations by, so the number is the Pipeline's,
-// re-printed in its own sentence (consultsHeldWords). The names are the count's own people, the first two the rule
-// gives, as the Pipeline lists them, each to their page. Amber, as a person should look (#928). Only where deals are
-// on (0008).
+// A consultation that ended in the last week with nothing after it, no visit booked and no proposal, is the next step
+// nobody has taken (0008, amended 18 Oct 2026: a salon's and an agency's alike). One is enough, as a proposal waiting
+// is. The rule is contracts' consultationsWithoutProposal over the rows People holds, the rows, the rule and the clock
+// the Pipeline counts its Consultations by, so the number is the Pipeline's, re-printed in its own sentence
+// (consultsHeldWords). The names are the count's own people, the first two the rule gives, as the Pipeline lists them,
+// each to their page. Amber, as a person should look (#928).
 function consultsWaitingLeak({ people, dealsAt }: LeakFacts): TodayLeakVM | null {
   const at = dealsAt();
   const consultRows = (people?.rows ?? []).filter(
-    (r): r is typeof r & Pick<PersonRowVM, "id" | "name" | "deal" | "consultedMs"> =>
-      typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r,
+    (r): r is typeof r & Pick<PersonRowVM, "id" | "name" | "deal" | "consultedMs" | "nextVisitMs"> =>
+      typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r && "nextVisitMs" in r,
   );
   const held = consultationsWithoutProposal(consultRows, at);
-  if (!(people && people.dealsOn && held.length >= 1)) return null;
+  if (!(people && held.length >= 1)) return null;
   const n = held.length;
-  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week with nothing booked or proposed since.`;
   const math = `${consultsHeldWords(n)} · on Pipeline`;
   return {
     id: "consults-waiting",
@@ -287,8 +286,8 @@ function yoursToFollowUp(waiting: readonly ProposalRow[]): TodayLeakVM["people"]
 }
 
 // A proposal out past a week with nothing back costs a customer who was one step from yes (0004). One is enough: an
-// agency sends a few a month. The rule is contracts' proposalsWaiting; the count is over the rows People holds. Only
-// where deals are on (0008): a workspace whose customers book keeps whatever deals it has out of sight.
+// agency sends a few a month. The rule is contracts' proposalsWaiting; the count is over the rows People holds. A
+// workspace that sends none has none waiting, so it never sees the row (0008, amended 18 Oct 2026).
 function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM | null {
   const dealRows = (people?.rows ?? []).filter((r): r is ProposalRow => "deal" in r && "askedMs" in r);
   // Past the workspace's pace by a fifth once it has one (0008, amended), a week until then: the Pipeline's own rule.
@@ -308,7 +307,7 @@ function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM
   const inHand = out.filter((r) => r.followUp?.kind === "will").length;
   const waiting = out.filter((r) => r.followUp?.kind !== "will");
   const po = list("proposal_out");
-  if (!(people && people.dealsOn && waiting.length >= 1)) return null;
+  if (!(people && waiting.length >= 1)) return null;
   const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",

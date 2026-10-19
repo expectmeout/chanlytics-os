@@ -133,7 +133,7 @@ test("People's rail says a rule's lists by the one namer", async () => {
           page: { q: null, offset: 0, limit: 1000, total: 0, has_more: false },
           calendar: { state: "none", source: "your calendar" },
           booking_link: null,
-          deals_on: false,
+          has_deals: false,
         });
       if (u.pathname === "/api/v1/segments") return json({ lists: SAVED });
       if (u.pathname === "/api/v1/views") return json({ views: {} });

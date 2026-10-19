@@ -1,7 +1,7 @@
 /**
- * The palette's jump: the pages a real workspace has (ASK_PAGES, and askPages with the two a workspace has only
- * sometimes), and a few typed words matched against them and against the people, threads and calls the browser already
- * holds (askJump). A question is not a jump.
+ * The palette's jump: the pages a real workspace has (ASK_PAGES, and askPages with the back office for staff), and a
+ * few typed words matched against them and against the people, threads and calls the browser already holds (askJump).
+ * A question is not a jump.
  */
 import { REPORT_LENSES, lensRoute, type LensRow } from "../reports/lenses";
 
@@ -34,9 +34,6 @@ const LENS_JUMPS: JumpEntry[] = REPORT_LENSES.filter((l) => l.id !== "overview" 
   lensJump,
 );
 
-/** The lenses only a workspace with deals on has (the Pipeline's): after the others, where deals are on. */
-const DEALS_LENS_JUMPS: JumpEntry[] = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
-
 /**
  * The pages every real workspace has. Nothing here is seeded or demo-only, and every real page is here or in askPages
  * (ask.test.mjs holds it against the shell's registry): the list once stopped at the pages that were real before
@@ -50,6 +47,8 @@ export const ASK_PAGES: JumpEntry[] = [
   // Leads is the other scope of People, and it is its own place to an owner: the businesses
   // a search found, worked. `leads` was the mockup's page and is not offered.
   { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
+  // People's third scope, every workspace's (0008, amended 18 Oct 2026: deals for everyone).
+  { label: "Pipeline", to: "clients/pipeline", kind: "page", sub: "your deals, by stage", also: ["deals"] },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
@@ -127,23 +126,9 @@ export const ASK_PAGES: JumpEntry[] = [
 
 /** What a workspace has, of the pages it has only sometimes. */
 interface AskPagesHas {
-  /** Deals are on here: People's surface says so (0008), and People draws the Pipeline as its third scope. */
-  dealsOn: boolean;
   /** The person is Chanlytics staff: the rail draws the back office for them alone. */
   platformAdmin: boolean;
 }
-
-/**
- * The Pipeline: People's third scope where deals are on (0008, people.jsx plScopes). Where they are off its address
- * draws People, so it is no jump there.
- */
-const PIPELINE: JumpEntry = {
-  label: "Pipeline",
-  to: "clients/pipeline",
-  kind: "page",
-  sub: "your deals, by stage",
-  also: ["deals"],
-};
 
 /** The back office, Chanlytics staff's alone (settings.jsx SET_TABS_PLATFORM); anyone else there lands on Profile. */
 const BACK_OFFICE: JumpEntry = {
@@ -153,17 +138,9 @@ const BACK_OFFICE: JumpEntry = {
   sub: "every workspace, for Chanlytics staff",
 };
 
-/** The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, and the back office. */
+/** The pages this workspace has, for this person: every workspace's, and the back office for staff. */
 export function askPages(has: AskPagesHas): JumpEntry[] {
-  const out: JumpEntry[] = [];
-  const lastLens = LENS_JUMPS.at(-1)?.to;
-  for (const p of ASK_PAGES) {
-    out.push(p);
-    if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
-    if (p.to === lastLens && has.dealsOn) out.push(...DEALS_LENS_JUMPS);
-  }
-  if (has.platformAdmin) out.push(BACK_OFFICE);
-  return out;
+  return has.platformAdmin ? [...ASK_PAGES, BACK_OFFICE] : [...ASK_PAGES];
 }
 
 /**

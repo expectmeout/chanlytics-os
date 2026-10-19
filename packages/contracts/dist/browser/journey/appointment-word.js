@@ -1,4 +1,3 @@
-import { dealsAreOn } from "../deals/sells-by.js";
 import { capitalize, plural } from "../shared/words.js";
 export const APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
 export function isAppointmentWord(value) {
@@ -6,10 +5,25 @@ export function isAppointmentWord(value) {
 }
 export function appointmentWordOf(o) {
   if (isAppointmentWord(o.stored)) return o.stored;
-  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+  return o.sellsBy === "proposal" ? "meeting" : "appointment";
 }
-export function appointmentWordWhere(dealsOn) {
-  return appointmentWordOf({ stored: null, sellsBy: dealsOn ? "proposal" : null });
+const APPOINTMENT_WORD_QUESTION = "What you call a booking";
+export const APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
+export function appointmentWordVM(word) {
+  return {
+    question: APPOINTMENT_WORD_QUESTION,
+    value: capitalize(word),
+    act: "Change",
+    name: `Change ${APPOINTMENT_WORD_QUESTION.toLowerCase()}`,
+    choices: APPOINTMENT_WORDS.map((w) => {
+      const W = appointmentWords(w);
+      return { value: w, label: W.Title, hint: `${W.next} \xB7 ${W.before.name}` };
+    }),
+    word
+  };
+}
+export function appointmentWordSaved(word) {
+  return `Saved \u2014 it says \u201C${word}\u201D now.`;
 }
 const FORMS = {
   appointment: {

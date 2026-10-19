@@ -1990,7 +1990,7 @@ test("the People | Leads switch is the frame's strip of views, not the page's: n
   await fresh();
   assert.equal(drawsAStrip(draw()), false, "Leads draws none of its own");
   assert.equal(drawsAStrip(draw({ scope: "people", leadsRoute: null })), false, "nor does the rail's page");
-  surfaceValue("people").dealsOn = true;
+  surfaceValue("people").hasDeals = true;
   assert.equal(drawsAStrip(draw()), false, "and a third tab is the frame's to add, not the page's");
 });
 
@@ -2872,7 +2872,7 @@ test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a ro
     person("k3", "Cy", proposed(1)),
   ].map((r) => toPersonRowVM(r, TZ, NOW));
   // What the Pipeline reads through the seam (useSurface("people")): the rows over the surface this world holds.
-  setSurfaceValue("people", { ...surfaceValue("people"), rows, dealsOn: true, fetchedAt: NOW.getTime() });
+  setSurfaceValue("people", { ...surfaceValue("people"), rows, hasDeals: true, fetchedAt: NOW.getTime() });
   const drawPipeline = () => {
     frames.begin();
     return PipelineScope({ onNavigate: (to) => went.push(to), onOpenProfile: (id) => opened.push(id) });
@@ -3525,9 +3525,9 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
 });
 
-test("where deals are on, a phone's bar still holds no switch (the frame's strip adds the Pipeline), and Leads keeps its list and its count", async () => {
+test("a phone's bar holds no switch (the frame's strip holds the Pipeline), and Leads keeps its list and its count", async () => {
   await fresh();
-  const t = bar({ dealsOn: true });
+  const t = bar();
   assert.equal(all(t, (n) => n.props?.role === "tab").length, 0);
   assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
   assert.ok(byTestId(t, "leads-bar-find"), "and the door to Ask is still the bar's last control");

@@ -7,7 +7,6 @@ import {
   agoLabel,
   clockStamp,
   closeSettledNotices,
-  dealsAreOn,
   instructionsDraft,
   isActivityMoney,
   memberWords,
@@ -56,7 +55,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
   // (readers/settings.ts), whose prompt preview fetches the calendar feed and reads the Autonomy rows again, which a
   // question about the hours must not pay for.
-  const [{ name, timezone }, cfgRow, all, chans, sellsBy] = await Promise.all([
+  const [{ name, timezone }, cfgRow, all, chans] = await Promise.all([
     load(t.rc, readers.facts, undefined).then((r) => r.data),
     load(t.rc, readers.config, undefined).then((r) => r.data),
     load(t.rc, readers.policies, undefined).then(
@@ -66,10 +65,9 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     // The channels as their page reads them (readers/channels.ts), once a turn: sequences.lists reads the same
     // rows. A read that fails is said as its own state, never as no channels, and the rest of the settings still answer.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "workspace.settings", "channels")),
-    load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
-  // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
-  const policies = all.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
+  // The Autonomy rows offered here, as the pane draws them (contracts policyClassOffered).
+  const policies = all.filter((p) => policyClassOffered(p.class));
   const cfg = parseTenantConfig(cfgRow?.config ?? null);
   const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, t.rc.now, policies);
   return {

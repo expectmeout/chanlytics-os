@@ -4,7 +4,6 @@ import {
   AppError,
   MIN_MS,
   answerText,
-  dealsAreOn,
   detectLanguage,
   nextNotAsked,
   policyClassOffered,
@@ -86,7 +85,7 @@ interface PreparedTurn {
  * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
  */
 export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
-  const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
+  const [{ name, timezone }, cfg, policies] = await Promise.all([
     load(rc, readers.facts, undefined).then((r) => r.data),
     load(rc, readers.config, undefined).then((r) => r.data),
     // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
@@ -94,10 +93,9 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
       (r) => r.data,
       () => [],
     ),
-    load(rc, readers.sellsBy, undefined).then((r) => r.data),
   ]);
-  // The rows the pane draws: the follow-ups' only where deals are on (0006).
-  const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
+  // The rows the pane draws (contracts policyClassOffered).
+  const offered = policies.filter((p) => policyClassOffered(p.class));
   // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
   return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
 }

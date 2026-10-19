@@ -297,6 +297,11 @@ export interface BroadcastDto {
   /** A playbook's run: which one, and which local day it ran for. */
   playbook_id: string | null;
   run_for: string | null;
+  /**
+   * The sequence this run is a day of (0060: every run is a sequence's batch), whatever step made it: where a link to the
+   * run lands once it has gone (its History, that day open), with no lookup of the run's id to find it.
+   */
+  sequence_id: string;
   counts: BroadcastCounts;
   /**
    * A reach-out's run that is going: how many of its emails the check holds for its owner's say. Absent on any other run,

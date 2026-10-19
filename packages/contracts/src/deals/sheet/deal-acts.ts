@@ -57,6 +57,8 @@ export interface DealPerson {
   askedMs?: number | null;
   /** When their last visit ended, when it was a consultation. */
   consultedMs?: number | null;
+  /** When their next visit begins; null with none ahead. A consultation with a visit booked after it waits on nobody. */
+  nextVisitMs?: number | null;
   /** Their next or last visit is a consultation. */
   consultationVisit?: boolean;
   /** That consultation's title, as the calendar says it: the service it names draws the Consultation step. */
@@ -235,11 +237,11 @@ export function dealMenuActs(deal: Pick<DealVM, "stage"> | null | undefined): De
 
 /**
  * What an appointment's peek on the Calendar says of its person's deal (0008), from the People row the page holds: the
- * deal's stage beside their name, and, once a consultation is over with no proposal since (deals.ts noProposalSince),
- * the sheet's own act that starts one, for the service its title named. A new proposal always: a consultation after a
- * pass or an end began something new, as the card's quiet line says. Nothing where deals are off (the People surface's
- * `dealsOn`, dealsAreOn), where the appointment matched nobody, or where People does not hold them: a deal the page has
- * not read is not one it can say is missing.
+ * deal's stage beside their name, and, once a consultation is over with nothing since (no proposal: deals.ts
+ * noProposalSince; no visit booked), the sheet's own act that starts one, for the service its title named. A new
+ * proposal always: a consultation after a pass or an end began something new, as the card's quiet line says. Nothing
+ * where the appointment matched nobody, or where People does not hold them: a deal the page has not read is not one it
+ * can say is missing.
  */
 export interface CalendarPeekDealVM {
   /** Their deal's stage, for the one pill beside their name; null without a deal. */
@@ -260,10 +262,9 @@ interface PeekBlock {
   visit?: Pick<VisitMark, "status"> | null;
 }
 
-/** The People surface, as far as the peek reads it: whether deals are on here, and each person's deal. */
+/** The People surface, as far as the peek reads it: each person's deal, and whether a visit of theirs is ahead. */
 interface PeekPeople {
-  dealsOn?: boolean;
-  rows?: ReadonlyArray<{ id: string; deal?: Pick<DealVM, "stage" | "sinceMs"> | null }>;
+  rows?: ReadonlyArray<{ id: string; deal?: Pick<DealVM, "stage" | "sinceMs"> | null; nextVisitMs?: number | null }>;
 }
 
 export function calendarPeekDeal(
@@ -272,12 +273,18 @@ export function calendarPeekDeal(
   nowMs: number,
 ): CalendarPeekDealVM {
   const who = block.person;
-  const row = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
+  const row = who && people ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
   if (!who || !row) return { stage: null, start: null };
   const deal = row.deal ?? null;
   const endMs = Date.parse(block.end);
   // Over, and held as far as anyone said: one marked missed or cancelled took none, so no proposal follows it (D1-consult-held).
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit);
+  // And nothing came after it: a visit booked since is the step taken (0008, amended 18 Oct 2026).
+  const over =
+    block.consultation &&
+    Number.isFinite(endMs) &&
+    endMs < nowMs &&
+    consultationHappened(block.visit) &&
+    (row.nextVisitMs ?? null) === null;
   return {
     stage: deal ? deal.stage : null,
     start:

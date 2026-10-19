@@ -29,6 +29,7 @@ import {
   savedListAction,
   type PersonRowVM,
   type HolderNames,
+  type AppointmentWord,
   attentionRow,
 } from "@chanlytics/contracts";
 import type { PeopleSurface } from "./surface";
@@ -43,9 +44,14 @@ export interface PeopleLoaded {
   saved: { id: string; name: string; ids: string[]; rule?: unknown; archived_at?: string | null }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
-  /** Deals are on here (0008), and the profile lists a consult-first service (0004): which Journey lists exist. */
-  dealsOn: boolean;
+  /**
+   * A deal was ever recorded here (GET contacts' has_deals), and the profile lists a consult-first service (0004):
+   * which Journey lists the rail draws.
+   */
+  hasDeals: boolean;
   consultFirst: boolean;
+  /** What the workspace calls an appointment (GET contacts' appointment_word). */
+  word: AppointmentWord;
   /** The workspace's pace, as the list read answered it (00167); null without one. */
   dealPace: DealPaceVM | null;
   /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
@@ -62,15 +68,14 @@ export interface PeopleLoaded {
 }
 /**
  * A People row as the page reads it, for the member looking (__ME): a teammate's thread is theirs, not waiting on you.
- * Where deals are off (dealsAreOn, 0008) it carries no deal, whatever the database holds: not the lists, the column,
- * the row's second line, the thread's chip and send, or Today's proposals waiting, which all read it from here.
+ * The lists, the column, the row's second line, the thread's chip and send, and Today's proposals waiting all read it
+ * from here.
  */
 export function personRowOf(
   r: PersonRowDto,
   as: {
     tz: string;
     now: Date;
-    dealsOn: boolean;
     viewer: string | null;
     ready: ChannelsReady | null;
     /** The roster, where it is read: a teammate's thread says whose it is ("Ruben has it"). */
@@ -90,20 +95,20 @@ export function peopleSurfaceOf(
   now: Date,
   names: HolderNames | null = null,
 ): PeopleSurface {
-  const { tz, dealsOn, consultFirst } = loaded;
+  const { tz, hasDeals, consultFirst, word } = loaded;
   // Each row's standing with the proposal follow-up, where one runs (0006, contracts followUpStandOf): the
   // Pipeline's chip and Today's leak read it off the row, judged by the pace and at the moment the rows are.
-  const fu = dealsOn ? loaded.followUp : null;
-  const pace = dealsOn ? loaded.dealPace : null;
+  const fu = loaded.followUp;
+  const pace = loaded.dealPace;
   const rows = loaded.people.map((r) => {
-    const vm = personRowOf(r, { tz, now, dealsOn, viewer, ready: loaded.channelsReady, names });
+    const vm = personRowOf(r, { tz, now, viewer, ready: loaded.channelsReady, names });
     return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace, loaded.channelsReady) } : vm;
   });
   const calendar = loaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
   const listCtx: ListContext = poolListContext({
     calendar: calendar.state,
-    dealsOn,
+    hasDeals,
     consultFirst,
     viewer,
   });
@@ -112,12 +117,12 @@ export function peopleSurfaceOf(
   const listName = listNamer(savedLists);
   return {
     rows,
-    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
+    // The outcome lists only when there is a calendar to read them from; the deal lists once a deal was recorded here.
     lists: PEOPLE_LISTS.filter(
       (l) =>
         (!l.needsCalendar || calendar.state === "ok") &&
         (!l.needsConsultFirst || consultFirst) &&
-        (!l.needsDeals || dealsOn),
+        (!l.needsDeals || hasDeals),
     ).map((l) => {
       const members = rows.filter(l.test);
       return {
@@ -137,9 +142,10 @@ export function peopleSurfaceOf(
     }),
     calendar,
     bookingLink: loaded.bookingLink,
-    dealsOn,
+    hasDeals,
+    word,
     consultFirst,
-    dealPace: dealsOn ? loaded.dealPace : null,
+    dealPace: loaded.dealPace,
     // The live lists on the rail; the archived ones in their own line, and still read for the lists that name them.
     saved: savedLists
       .filter((l) => !l.archived_at)
@@ -170,7 +176,7 @@ export function peopleSurfaceOf(
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: loaded.page?.total ?? rows.length },
 
-    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime(), dealsOn)])),
+    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime(), word)])),
     page: loaded.page,
     views: loaded.views,
     viewsRead: loaded.viewsRead,

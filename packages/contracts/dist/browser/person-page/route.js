@@ -1,4 +1,4 @@
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords } from "../journey/appointment-word.js";
 const PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"];
 export const PERSON_TAB_WORDS = {
   overview: "Overview",
@@ -8,8 +8,8 @@ export const PERSON_TAB_WORDS = {
   campaigns: "Campaigns",
   about: "About"
 };
-export function personTabWord(id, dealsOn) {
-  return id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : PERSON_TAB_WORDS[id];
+export function personTabWord(id, word) {
+  return id === "visits" ? appointmentWords(word).Many : PERSON_TAB_WORDS[id];
 }
 export const PERSON_TABS_LABEL = "Their page";
 export const PERSON_FIGURES_LABEL = "At a glance";
@@ -28,7 +28,7 @@ export function personTabsOf(f, phone) {
   if (f.thin) return [];
   const tab = (id, count) => ({
     id,
-    label: personTabWord(id, f.dealsOn),
+    label: personTabWord(id, f.word),
     count: phone ? null : count,
     to: personTabRoute(f.id, id)
   });

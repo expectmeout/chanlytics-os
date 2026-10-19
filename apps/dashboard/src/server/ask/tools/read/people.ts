@@ -239,10 +239,10 @@ async function searchPeople(
     const named = new Set(page.people.map((r) => r.id));
     inView = (id) => listed(id) && named.has(id);
     // Each person said, as the People page builds their row (legacy-bridge/surface-data.ts personRowOf): for the member
-    // asking, with no deal where deals are off, and their reach judged against what the workspace sends on (the turn's
-    // own read: a search page carries none) -- built for the rows said alone, never the whole page.
+    // asking, and their reach judged against what the workspace sends on (the turn's own read: a search page carries
+    // none) -- built for the rows said alone, never the whole page.
     const ready = (await load(t.rc, facts.channelsReady, undefined)).data;
-    rowOf = (r) => poolRowOf(r, { tz: t.timezone, now: t.now, viewer, dealsOn: page.deals_on, ready });
+    rowOf = (r) => poolRowOf(r, { tz: t.timezone, now: t.now, viewer, ready });
   }
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {
@@ -272,7 +272,7 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
   const id = str(input.contact_id);
   if (!UUID.test(id)) return { error: "contact_id must be an id a tool returned" };
   // The person as their page reads them (readers/person.ts): the profile's one round of reads, once a turn, the
-  // workspace's config and sells_by shared with the rest of it; a person this workspace does not hold is the reader's
+  // workspace's config shared with the rest of it; a person this workspace does not hold is the reader's
   // 404. Then the page's own view model, for the member asking, as the profile builds it
   // (surfaces/people/people-detail.ts): the facts, the timeline and the notes are the page's (ledger #3).
   const r = await unlessNotFound(load(t.rc, person, { id }));
@@ -368,12 +368,12 @@ function traitOf<R>(rows: readonly R[], valueOf: (r: R) => string[] | string | n
 }
 
 /**
- * Who wins for this business, and what they share (the operator, 15 Oct 2026, D8): the people who paid (a deal won,
- * where deals are on), who booked (a visit on record, where a calendar is connected) and who said yes to offers, each
- * group counted over everyone in People as a send counts them; then what the winners share against everyone -- how they
- * first came, the channels they use -- and, for those a lead search found, what kind of business they were and where
- * (the lead's own category and city, read for at most WINNERS_LEADS_CAP of them). Counts and shares only, computed here:
- * the model says them, and plans a search for more like them from them.
+ * Who wins for this business, and what they share (the operator, 15 Oct 2026, D8): the people who paid (a deal of
+ * theirs won), who booked (a visit on record, where a calendar is connected) and who said yes to offers, each group
+ * counted over everyone in People as a send counts them; then what the winners share against everyone -- how they first
+ * came, the channels they use -- and, for those a lead search found, what kind of business they were and where (the
+ * lead's own category and city, read for at most WINNERS_LEADS_CAP of them). Counts and shares only, computed here: the
+ * model says them, and plans a search for more like them from them.
  */
 async function readWinners(t: ToolContext): Promise<unknown> {
   const [pool, kept] = await Promise.all([
@@ -389,7 +389,7 @@ async function readWinners(t: ToolContext): Promise<unknown> {
     const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, lookup);
     return on.state === "ok" ? on.ids : null;
   };
-  const paid = pool.deals_on ? groupOf([{ field: "deal_stage", op: "is", value: "won" }]) : null;
+  const paid = groupOf([{ field: "deal_stage", op: "is", value: "won" }]);
   const booked = cal === "ok" ? groupOf([{ field: "booked", op: "is", yes: true }]) : null;
   const yes = groupOf([{ field: "said_yes", op: "is", to: "offers", yes: true }]);
   // The winners, in the order D8 weighs them: who paid, else who booked, else who said yes.
@@ -414,7 +414,6 @@ async function readWinners(t: ToolContext): Promise<unknown> {
     everyone: everyone.length,
     groups: {
       paid: paid ? paid.size : null,
-      ...(pool.deals_on ? {} : { paid_not_counted: "deals are off in this workspace" }),
       booked: booked ? booked.size : null,
       ...(cal === "ok" ? {} : { booked_not_counted: "no calendar is connected" }),
       said_yes_to_offers: yes ? yes.size : null,
@@ -464,12 +463,12 @@ export async function listLists(t: ToolContext) {
   // A rule that reads another list names it as the rail does (contracts listNamer).
   const listName = listNamer(kept);
   // People's lists as the rail offers them: the outcome lists only when there is a calendar to read, the consultations
-  // only with a consult-first service, the deal lists only where deals are on.
+  // only with a consult-first service, the deal lists only where a deal was ever recorded.
   const offered = PEOPLE_LISTS.filter(
     (l) =>
       (!l.needsCalendar || cal === "ok") &&
       (!l.needsConsultFirst || pool.consult_first) &&
-      (!l.needsDeals || pool.deals_on),
+      (!l.needsDeals || pool.has_deals),
   );
   for (const l of offered) noteRow(t, "list", l.id, l.label, `clients/${listToken({ kind: "builtin", id: l.id })}`);
   const live = kept.filter((l) => !l.archived_at);
@@ -509,18 +508,12 @@ export async function listLists(t: ToolContext) {
 /**
  * Where deals stand, as the Pipeline builds its board (readers/people.ts dealBoard, which Ask's Pipeline context reads
  * too): the line over the table, the workspace's pace, and each group with its count, what it comes to and its people,
- * each with the deal's service, value, how long it has stood there, the chip the page draws and their next step.
- * Where deals are off the Pipeline draws People, and this says so.
+ * each with the deal's service, value, how long it has stood there, the chip the page draws and their next step. Every
+ * workspace has the Pipeline (0008, amended 18 Oct 2026).
  */
 async function readPipeline(t: ToolContext): Promise<unknown> {
   const read = await load(t.rc, dealBoard, undefined);
   const board = read.data.board;
-  if (!board)
-    return {
-      route: "clients/pipeline",
-      deals_on: false,
-      note: "Deals are off in this workspace: the Pipeline shows People, which people with action search reads.",
-    };
   let room = PIPELINE_CAP;
   const groups = board.groups.map((g) => {
     const rows = g.rows.slice(0, Math.max(0, room));
@@ -551,7 +544,6 @@ async function readPipeline(t: ToolContext): Promise<unknown> {
   );
   return {
     route: "clients/pipeline",
-    deals_on: true,
     summary: board.summary.join(" · "),
     pace: board.pace?.words ?? null,
     groups,
@@ -624,7 +616,7 @@ export const peopleTool = defineActions({
       input: z.object({}),
       examples: [{}],
       label: "Reading the Pipeline",
-      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.`,
+      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the groups' counts whole; a workspace that never recorded a deal has every group empty.`,
       run: readPipeline,
     }),
   },

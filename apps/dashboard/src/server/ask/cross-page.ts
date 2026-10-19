@@ -76,7 +76,7 @@ const CALENDAR =
  * built) and the calendar holds only what is still booked, so what was said is searched instead of the calendar.
  */
 const CANCELED = /\bcancel(s|ed|led|ing|ling|lations?)?\b|\breschedul|\bcancel[aeoó]|\breprogram/i;
-/** Where the deals stand (the Pipeline's own read, which says so where deals are off). */
+/** Where the deals stand (the Pipeline's own read). */
 const PIPELINE = /\bpipeline\b|\bproposals?\b|\bdeals?\b|\bpropuestas?\b/i;
 /** Who wrote: the Inbox's threads, newest first. */
 const WROTE =

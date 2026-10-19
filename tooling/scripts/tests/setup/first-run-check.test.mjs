@@ -120,7 +120,7 @@ const landSettings = (record, known) => {
  * Draw the first run over a workspace, as React replaces a tree: the last one unmounted, the fold registry told nothing
  * is open, and the tab's saver and doors reset, since they outlive every page drawn in the tab (the harness says why).
  */
-const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = undefined, profile = HARBOR } = {}) => {
+const draw = ({ setup = dto(), at = null, later = [], link = undefined, profile = HARBOR } = {}) => {
   param = at;
   setSurfaceValue("setup", surface(setup, later));
   landSettings(
@@ -135,17 +135,17 @@ const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = und
       },
     }),
   );
-  W.__WORKSPACES = [{ id: "t-harbor", name: "Harbor Moving", timezone: "America/New_York", sells_by: sellsBy }];
+  W.__WORKSPACES = [{ id: "t-harbor", name: "Harbor Moving", timezone: "America/New_York" }];
   W.__ACTIVE_WORKSPACE = "t-harbor";
   unmount();
   recFolds.reset();
   W.__businessTabSave.saver.reset();
   W.__businessTabSave.zone.reset();
-  W.__businessTabSave.sellsBy.reset();
+  W.__businessTabSave.word.reset();
   return page();
 };
 const redraw = () => again(page);
-/** The workspace's door for how customers buy (PATCH workspaces), recording what it was sent. */
+/** The workspace's door (PATCH workspaces), recording what it was sent: the first run sends it nothing now. */
 const courier = () => {
   const sent = [];
   W.__workspace = {
@@ -157,11 +157,10 @@ const courier = () => {
   };
   return sent;
 };
-const answers = (tree) => all(byTestId(tree, "fr-sells-by-choice"), (n) => n.props?.role === "radio");
 
 /* ------------------------------------ Check ------------------------------------ */
 
-test("Check draws the Business tab's own rows over the settings read's brain, and how customers buy drawn open", () => {
+test("Check draws the Business tab's own rows over the settings read's brain, and asks nothing of how customers buy", () => {
   const tree = draw();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found");
   for (const id of ["hours", "timezone", "address", "website", "booking_link", "guardrails", "services"]) {
@@ -170,55 +169,18 @@ test("Check draws the Business tab's own rows over the settings read's brain, an
   assert.equal(byTestId(tree, "rec-row-languages"), null, "the languages are chips, at rest in the row's place");
   assert.ok(byTestId(tree, "fr-chips-languages"));
   assert.match(textOf(byTestId(tree, "rec-row-address")), /12 Pier Rd, Brooklyn, NY 11231/);
-  assert.ok(byTestId(tree, "fr-sells-by"), "the choice, not a row to open");
+  assert.equal(
+    byTestId(tree, "fr-sells-by"),
+    null,
+    "every workspace has deals (0008, amended 18 Oct 2026): nothing to ask",
+  );
   assert.equal(byTestId(tree, "fr-rows"), null, "not Setup's rows");
 });
 
-/** Past the page's wait for a radiogroup's keys to settle (first-run/settle.ts FIRST_RUN_SETTLE_MS, 600 ms). */
-const pastTheSettle = () => new Promise((r) => setTimeout(r, 650));
-
-test("a tap on how customers buy saves through the workspace's door, and the booking link follows the answer", async () => {
-  const sent = courier();
-  try {
-    let tree = draw();
-    assert.deepEqual(
-      answers(tree).map((r) => r.props["aria-checked"]),
-      [true, false],
-      "until it is said, the first answer is shown",
-    );
-    assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /Not set/);
-    // Arrow keys move a radiogroup's choice and change it: the choice is shown at once, and saved once they settle,
-    // the last one -- never one save per key.
-    press(answers(tree)[1]);
-    tree = redraw();
-    press(answers(tree)[0]);
-    tree = redraw();
-    press(answers(tree)[1]);
-    tree = redraw();
-    assert.deepEqual(
-      answers(tree).map((r) => r.props["aria-checked"]),
-      [false, true],
-      "shown at once",
-    );
-    assert.deepEqual(sent, [], "and not sent while the keys are still moving");
-    await pastTheSettle();
-    await settle();
-    assert.deepEqual(sent, [{ sells_by: "proposal" }], "one save, of the last choice");
-    tree = redraw();
-    assert.deepEqual(
-      answers(tree).map((r) => r.props["aria-checked"]),
-      [false, true],
-    );
-    assert.equal(byTestId(tree, "rec-row-booking_link"), null, "a business that quotes is asked for no link");
-    assert.equal(
-      textOf(byTestId(tree, "fr-check-quotes")),
-      "Optional. Without one, it takes their details.",
-      "and is told what it does without one, in the row's own words",
-    );
-    assert.equal(textOf(flashes.at(-1).msg), "Saved — deals are on.");
-  } finally {
-    delete W.__workspace;
-  }
+test("the booking link is an offer to every business: with none, its row says it takes their details instead", () => {
+  const tree = draw();
+  assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /None — it takes their details instead/);
+  assert.equal(byTestId(tree, "fr-check-quotes"), null, "no note in the row's place: the row is drawn");
 });
 
 test("a row saves through the Business tab's one saver, as it does on the tab", () => {
@@ -233,8 +195,8 @@ test("a row saves through the Business tab's one saver, as it does on the tab", 
   assert.equal(sent.at(-1).config.brain.business_name, "Harbor Moving", "on the brain as it is stored");
 });
 
-test("a business that quotes and has a link keeps its row: nothing it stored is hidden", () => {
-  const tree = draw({ sellsBy: "proposal", link: "https://book.example.com/harbor" });
+test("a link on file is the row's value: nothing it stored is hidden", () => {
+  const tree = draw({ link: "https://book.example.com/harbor" });
   assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /book\.example\.com\/harbor/);
   assert.equal(byTestId(tree, "fr-check-quotes"), null);
 });
@@ -252,7 +214,7 @@ test("Check stays on screen once its last fact lands, and Looks right goes on: t
     const before = replaced.length;
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
-    assert.deepEqual(sent, [{ sells_by: "booking" }]);
+    assert.deepEqual(sent, [], "nothing of how customers buy is sent");
     assert.equal(replaced.length, before + 1);
     tree = redraw();
     assert.equal(
@@ -271,11 +233,6 @@ test("a role that may not change the business goes on with Looks right and sends
   W.canDo = (a) => a !== "settings";
   try {
     const tree = draw({ setup: dto({ services: 2 }), at: "business" });
-    assert.equal(
-      answers(tree).every((r) => r.props["aria-disabled"] === true),
-      true,
-      "its choice is read, not pressed",
-    );
     byTestId(tree, "fr-onward").props.onClick();
     assert.deepEqual(sent, [], "nothing sent to a door that would refuse it");
     assert.equal(went.at(-1), "start/phone", "and the step goes on");
@@ -292,7 +249,7 @@ test("(D) the step's heading takes focus when the step on screen changes -- so a
   const was = globalThis.document.getElementById;
   globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
   try {
-    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    let tree = draw({ setup: dto({ services: 2 }), at: "business" });
     tree = redraw();
     assert.deepEqual(focused, [], "arriving is not a move");
     assert.equal(
@@ -321,7 +278,7 @@ test("(D) the heading takes focus when the step changes under ONE address: Looks
   globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
   try {
     // Check at the bare address, a fact still missing; its last fact lands and it stays on screen (the owner is on it).
-    let tree = draw({ sellsBy: "booking" });
+    let tree = draw();
     tree = redraw();
     setSurfaceValue("setup", surface(dto({ services: 2 })));
     tree = redraw();
@@ -343,7 +300,7 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
   // The registry's own answer to "is a save out" (the page asks `recFolds.saving()`), stood in for where a save is on its way.
   const was = recFolds.saving;
   try {
-    let tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    let tree = draw({ setup: dto({ services: 2 }), at: "business" });
     press(byTestId(tree, "rec-row-act-website"));
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
@@ -371,7 +328,7 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     assert.equal(moves(), before + 1, "Yes: the move it asked about");
 
     // A save on its way is not "without saving": asked in other words, and never as a danger.
-    tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    tree = draw({ setup: dto({ services: 2 }), at: "business" });
     press(byTestId(tree, "rec-row-act-website"));
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
@@ -387,26 +344,9 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
   }
 });
 
-test("(D) Continue pressed while a choice of how customers buy waits for the keys to settle sends that choice, never the one it replaced", async () => {
-  const sent = courier();
-  try {
-    let tree = draw({ setup: dto({ services: 2 }), at: "business" });
-    press(answers(tree)[1]);
-    tree = redraw();
-    byTestId(tree, "fr-onward").props.onClick();
-    await settle();
-    assert.deepEqual(sent, [{ sells_by: "proposal" }], "the answer being chosen, once");
-    await pastTheSettle();
-    await settle();
-    assert.deepEqual(sent, [{ sells_by: "proposal" }], "and the wait that was holding it sends nothing more");
-  } finally {
-    delete W.__workspace;
-  }
-});
-
 test("(D) with nothing typed, a move goes at once: nothing is asked", () => {
   try {
-    const tree = draw({ setup: dto({ services: 2 }), sellsBy: "booking", at: "business" });
+    const tree = draw({ setup: dto({ services: 2 }), at: "business" });
     const before = moves();
     byTestId(tree, "fr-onward").props.onClick();
     assert.equal(moves(), before + 1);
@@ -566,15 +506,11 @@ test("a business that books is offered the booking page its website names, in th
   );
 });
 
-test("nothing is offered over a link the record holds, or to a business that quotes and is asked for none", () => {
+test("nothing is offered over a link the record holds", () => {
   const none = { said: null, use: null };
   assert.deepEqual(
     offerOf(draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" })),
     none,
-  );
-  assert.equal(
-    byTestId(draw({ setup: dto({}, { bookingPage: FOUND }), sellsBy: "proposal" }), "rec-row-booking_link"),
-    null,
   );
   assert.deepEqual(offerOf(draw()), none, "nothing found, nothing offered");
 });
@@ -638,23 +574,18 @@ test("Looks right is held with the facts row's own sentence until the step is do
   }
 });
 
-test("Looks right, the step done, sends the answer shown where none is stored and goes on once it is taken; with one stored, it goes on", async () => {
+test("Looks right, the step done, goes on at once and sends nothing: every row saved as it was changed", async () => {
   const sent = courier();
   try {
     const done = dto({ services: 2 });
-    let tree = draw({ setup: done, at: "business" });
+    const tree = draw({ setup: done, at: "business" });
     assert.equal(byTestId(tree, "fr-held"), null);
     const before = went.length;
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
-    assert.deepEqual(sent, [{ sells_by: "booking" }], "they book an appointment, as Check showed");
+    assert.deepEqual(sent, [], "nothing of how customers buy is sent");
     assert.equal(went.length, before + 1);
     assert.equal(went.at(-1), "start/phone", "on to the phone step, a new entry");
-    tree = draw({ setup: done, at: "business", sellsBy: "proposal" });
-    byTestId(tree, "fr-onward").props.onClick();
-    assert.equal(went.length, before + 2);
-    assert.equal(went.at(-1), "start/phone");
-    assert.equal(sent.length, 1, "an answer stored is not sent again");
   } finally {
     delete W.__workspace;
   }

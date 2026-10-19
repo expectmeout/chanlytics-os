@@ -47,6 +47,15 @@ note and the code disagree, the code wins.
    session or lesson, or an owner asks. When it is, pages are handed one word: the 30 places that work it out today (15
    `appointmentWordWhere`, 8 `visitWordHere`, 7 `appointmentWordOf`) agree only while nothing is stored.
 
+   **Taken 18 October 2026, on `9357b5d72`** (decision 0008, amended: deals for everyone). How customers buy was
+   retired, and with it the derivation the word hung on, so J4 is built: `tenants.appointment_word` (00458), "meeting"
+   stored for the three workspaces that said proposal, the word's row on Settings › Details (What you offer, "What you
+   call a booking"), saved through `PATCH workspaces`. Pages are handed one word: the server's readers
+   (`appointmentWord`) carry it on GET contacts, the person read, GET playbooks and Ask's shape, and the browser's one
+   reading is `surfaces/workspace-word.ts` over the workspace list. `appointmentWordWhere` is gone. The journey's
+   proposal stage is drawn where a deal was ever recorded, or a campaign stands on it (`hasDeals`). No opt-in rename of
+   stored names was made: Sequences keep their names.
+
 ## Shape
 
 - `packages/contracts/src/journey/appointment-word.ts` and `journey.ts`; the view model reads them

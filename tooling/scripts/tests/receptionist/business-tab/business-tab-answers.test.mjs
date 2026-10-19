@@ -785,6 +785,18 @@ test("the photo switch is on What it can do's own row, not among the rules it ke
   );
 });
 
+test("the photo switch is off unless the config says true", () => {
+  for (const [vision, on] of [
+    [undefined, false],
+    ["true", false],
+    [true, true],
+  ]) {
+    drawTab({ config: { features: { vision } } });
+    const sw = byTestId(byTestId(redrawTab(), "rec-can-vision"), "rec-can-vision-switch");
+    assert.equal(sw.props["aria-checked"], on, `vision: ${JSON.stringify(vision)}`);
+  }
+});
+
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
 test("the transfer number is shown in the hand-off fold, never edited there, and its door opens On calls' row on How it answers", () => {

@@ -1,9 +1,9 @@
 /**
  * The journey (J2; decisions 44 to 46 of the spec of 9 Oct 2026): the moments a workspace's customers pass through, in
  * the order they pass, made from how the business works and never stored yet. First contact (the receptionist's), the day
- * before an appointment, the day after, a proposal waiting where deals are on, then quiet or lapsed: a proposal is out
- * before a customer goes quiet, so it stands before Quiet (D45). A stage that holds a campaign is drawn whatever the
- * shape, so a follow-up made while deals were on still says it runs nothing here. Without a calendar the two
+ * before an appointment, the day after, a proposal waiting where a deal was ever recorded, then quiet or lapsed: a
+ * proposal is out before a customer goes quiet, so it stands before Quiet (D45). A stage that holds a campaign is drawn
+ * whatever the shape. Without a calendar the two
  * appointment moments cannot be counted (`unmet`): Campaigns says they need one, never a zero (D44).
  *
  * Ids are free of the word (`before`, not `visit`, D46): they become addresses (`campaigns/in:before`), and an address
@@ -61,12 +61,13 @@ export function journeyStageOf(trigger: string): JourneyStageId | null {
 
 /**
  * The stages, in order, for a workspace's shape: `calendarOn` a calendar connected (its feed readable now or not),
- * `dealsOn` some customers get a proposal first, `word` what it calls an appointment, `held` the stages a campaign stands
- * on. Pure and total.
+ * `hasDeals` a deal recorded here (every workspace has deals, 0008 amended 18 Oct 2026; the proposal's stage is drawn where
+ * one was ever recorded, or a campaign stands on it), `word` what it calls an appointment, `held` the stages a campaign
+ * stands on. Pure and total.
  */
 export function journeyOf(s: {
   calendarOn: boolean;
-  dealsOn: boolean;
+  hasDeals: boolean;
   word: AppointmentWord;
   held: ReadonlySet<JourneyStageId>;
 }): JourneyStage[] {
@@ -154,5 +155,5 @@ export function journeyOf(s: {
       },
     },
   ];
-  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
+  return stages.filter((x) => x.id !== "proposal" || s.hasDeals || s.held.has("proposal"));
 }

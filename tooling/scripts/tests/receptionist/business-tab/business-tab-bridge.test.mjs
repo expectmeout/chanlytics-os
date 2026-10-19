@@ -61,11 +61,10 @@ import {
   MAX_CLOSURES,
   PROFILE_LIMITS,
   profileRefusal,
-  sellsByVM,
-  sellsBySaved,
-  bookingLinkOptional,
-  bookingLinkRowWords,
-  BOOKING_LINK_NEEDED,
+  appointmentWordVM,
+  appointmentWordSaved,
+  APPOINTMENT_WORDS,
+  BOOKING_LINK_ROW_WORDS,
   COMMON_LANGUAGES,
   sameListed,
 } from "@chanlytics/contracts";
@@ -149,17 +148,17 @@ const served = (brain, channel, row) => {
 };
 
 /** The real rows whose effect never reaches the cached prompt. */
-// And the create fold of a workspace with no receptionist, which the settings read composes no preview for, and how
-// customers buy (0008), which is the workspace's and no part of the brain. And where the bookings come from (00345):
-// the tool the owner names, which the intake and the board read and the receptionist is told nothing of.
-const NOWHERE = ["fallbacks", "phone_greeting", "calendar", "vision", "timezone", "receptionist", "sells_by"];
+// And the create fold of a workspace with no receptionist, which the settings read composes no preview for. And where
+// the bookings come from (00345): the tool the owner names, which the intake and the board read and the receptionist is
+// told nothing of.
+const NOWHERE = ["fallbacks", "phone_greeting", "calendar", "vision", "timezone", "receptionist"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "ABILITY_CHANNEL_WORDS",
     "ALWAYS_ON",
     "ALWAYS_TOLD",
-    "BOOKING_LINK_NEEDED",
+    "BOOKING_LINK_ROW_WORDS",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
     "COMMON_LANGUAGES",
@@ -178,10 +177,10 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "VISION_SWITCH_WORDS",
     "abilityRows",
     "allowedPrices",
+    "appointmentWordSaved",
+    "appointmentWordVM",
     "blockShareWords",
     "bookingHeld",
-    "bookingLinkOptional",
-    "bookingLinkRowWords",
     "bookingRuleRefusal",
     "bookingRulesWords",
     "bookingTemplate",
@@ -225,8 +224,6 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "rulesWithoutFieldsWords",
     "sameListed",
     "saveIssues",
-    "sellsBySaved",
-    "sellsByVM",
     "serviceLineWords",
     "serviceUndoName",
     "servicesFoundWords",
@@ -250,21 +247,13 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
   // The languages the box offers are the first run's chips' too: one list.
   assert.deepEqual(tab.COMMON_LANGUAGES, COMMON_LANGUAGES);
-  // What you offer's first row, how customers buy (0008): its row, its choice and what it switches, and the toast.
-  for (const answer of [null, "booking", "proposal", "banana"])
-    assert.deepEqual(tab.sellsByVM(answer), sellsByVM(answer), String(answer));
-  for (const [was, now] of [
-    [null, "booking"],
-    ["proposal", "booking"],
-    [null, "proposal"],
-  ])
-    assert.equal(tab.sellsBySaved(was, now), sellsBySaved(was, now), `${was} → ${now}`);
-  // Who is asked for a booking link, by that answer (the first run's decision 2), and what the link row says either way.
-  for (const answer of [null, "booking", "proposal"])
-    assert.equal(tab.bookingLinkOptional(answer), bookingLinkOptional(answer), String(answer));
-  for (const answer of [null, "booking", "proposal"])
-    assert.deepEqual(tab.bookingLinkRowWords(answer), bookingLinkRowWords(answer));
-  assert.equal(tab.BOOKING_LINK_NEEDED, BOOKING_LINK_NEEDED);
+  // What you offer's first row, what it calls a booking (0041 J4): its row and its menu, and the toast once picked.
+  for (const word of APPOINTMENT_WORDS) {
+    assert.deepEqual(tab.appointmentWordVM(word), appointmentWordVM(word), word);
+    assert.equal(tab.appointmentWordSaved(word), appointmentWordSaved(word), word);
+  }
+  // What the booking link row says with none, for every business (0008, amended 18 Oct 2026).
+  assert.deepEqual(tab.BOOKING_LINK_ROW_WORDS, BOOKING_LINK_ROW_WORDS);
   // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
   assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
   assert.deepEqual(tab.PROMPT_NOW, PROMPT_NOW);
@@ -362,7 +351,6 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     whatsappLive: true,
     hasCalendarFeed: true,
     hasBookingLink: true,
-    linkOptional: false,
     hasBookingTemplate: true,
     hasHandoffNumber: true,
     hasEscalateWhen: true,

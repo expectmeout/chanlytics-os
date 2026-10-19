@@ -2,25 +2,17 @@ import "server-only";
 import { listPolicies } from "@chanlytics/db";
 import { configRowOf } from "../workspace/config-row";
 import { tenantFacts } from "../tenant";
-import { sellsByOf } from "../people/deals";
+import { appointmentWordRead, hasDealsRead } from "../people/deals";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { FACTS_READER, load, stamp, type Reader, type ReaderContext } from "./index";
-import {
-  appointmentWordOf,
-  dealsAreOn,
-  parseTenantConfig,
-  type AppointmentWord,
-  type ChannelsReady,
-  type SellsBy,
-  MIN_MS,
-} from "@chanlytics/contracts";
+import { parseTenantConfig, type AppointmentWord, type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
 
 /**
  * The workspace's facts, read once.
  *
  * A turn used to read the tenant's name and zone up to five times (the Ask
  * route, calls.list, sequences.moments, calendar.week and the calendar itself),
- * sells_by three or four times and the policies twice. Each is one reader
+ * its buying model three or four times and the policies twice. Each is one reader
  * now: the facts are kept five minutes across turns (they change by a
  * settings save nobody makes twice a day); the rest are read once per turn,
  * because a settings change must reach the very next question.
@@ -34,10 +26,26 @@ export const facts: Reader<undefined, { name: string; timezone: string }> = {
   },
 };
 
-export const sellsBy: Reader<undefined, Awaited<ReturnType<typeof sellsByOf>>> = {
-  name: "sellsBy",
+/**
+ * What the workspace calls an appointment (tenants.appointment_word, 00458; people/deals.ts appointmentWordRead): the
+ * one word every page, GET answer and Ask turn says (0041: one page, one word).
+ */
+export const appointmentWord: Reader<undefined, AppointmentWord> = {
+  name: "appointmentWord",
   async read(rc) {
-    return { data: await sellsByOf(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+    return { data: await appointmentWordRead(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * Whether a deal was ever recorded here (packages/db dealOnFile). Every workspace has deals (0008, amended 18 Oct
+ * 2026); what presumes a business sends proposals waits for its first: a whole setup's proposal follow-up, Ask's
+ * question about proposals, the journey's proposal stage and People's deal lists. Never a page or a door.
+ */
+export const hasDeals: Reader<undefined, boolean> = {
+  name: "hasDeals",
+  async read(rc) {
+    return { data: await hasDealsRead(rc.ctx, rc.tenantId), rows: [], stamp: stamp() };
   },
 };
 
@@ -88,21 +96,11 @@ export const config: Reader<
   },
 };
 
-/**
- * What the workspace calls an appointment, from how its customers buy: the one place the server works the word out
- * (contracts appointmentWordOf). Nothing stores it yet (its column is the journey lane's, spec 2026-10-09 D40), so it
- * is derived: businessShape says it for a turn, and the check that makes a campaign, which holds no turn, asks it
- * straight (campaigns/playbooks.ts checkPlaybookInput).
- */
-export const appointmentWordFor = (sells: SellsBy | null): AppointmentWord =>
-  appointmentWordOf({ stored: null, sellsBy: sells });
-
 /** How the business works, as Campaigns' moments and Ask say it: one read of the facts that shape the journey. */
 interface BusinessShape {
-  /** How its customers buy (tenants.sells_by, 0008); null where it was not asked yet. */
-  sellsBy: SellsBy | null;
-  dealsOn: boolean;
-  /** What it calls an appointment (appointmentWordFor): derived from how its customers buy until it is stored. */
+  /** A deal was ever recorded here (the hasDeals reader). */
+  hasDeals: boolean;
+  /** What it calls an appointment (the appointmentWord reader). */
   word: AppointmentWord;
   /**
    * Its bookings arrive by a booking tool's emails (the settings' `bookings.tool`, 00345). With no calendar feed, its
@@ -112,15 +110,16 @@ interface BusinessShape {
 }
 
 /**
- * The business's shape (spec 2026-10-09 §4.8): GET playbooks answers it beside the moments' pools, and Ask's shape block
- * says it, through the turn's own readers of how customers buy and of the settings. Settings that cannot be read cost the
- * booking tool's word, never the shape.
+ * The business's shape (spec 2026-10-09 §4.8): GET playbooks answers it beside the moments' pools, and Ask's shape
+ * block says it, through the turn's own readers of the word, of a deal on file and of the settings. Settings that
+ * cannot be read cost the booking tool's word, never the shape.
  */
 export const businessShape: Reader<undefined, BusinessShape> = {
   name: "businessShape",
   async read(rc) {
-    const [sells, settings] = await Promise.all([
-      load(rc, sellsBy, undefined).then((r) => r.data),
+    const [word, dealt, settings] = await Promise.all([
+      load(rc, appointmentWord, undefined).then((r) => r.data),
+      load(rc, hasDeals, undefined).then((r) => r.data),
       load(rc, config, undefined).then(
         (r) => r.data,
         () => null,
@@ -129,9 +128,8 @@ export const businessShape: Reader<undefined, BusinessShape> = {
     const parsed = parseTenantConfig(settings?.config ?? null);
     return {
       data: {
-        sellsBy: sells,
-        dealsOn: dealsAreOn(sells),
-        word: appointmentWordFor(sells),
+        hasDeals: dealt,
+        word,
         bookingsByEmail: !!parsed?.bookings?.tool,
       },
       rows: [],

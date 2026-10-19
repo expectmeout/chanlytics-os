@@ -19,6 +19,8 @@ import {
   parseAds,
   parseSequencesRoute,
   routeOfPath,
+  runDecidedOnItsPage,
+  runTitleOf,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
 import { surfaceValue } from "../surface-values";
@@ -167,17 +169,20 @@ export function broadcastsChrome({ param }: { param: string | null }): {
   const toSend = param === TO_SEND_PARAM;
   const audience = runId || getYes || toSend ? null : param;
   const run = runId && data ? (data.rows || []).find((r) => r.id === runId) : null;
-  const list =
-    audience && data
-      ? (data.audiences || []).find((a) => (a.kind === "saved" || a.kind === "list") && a.id === audience)
-      : null;
+  // The audiences are their own read (broadcasts/audiences-surface.ts): the composer's, where an audience's address lands.
+  const list = audience
+    ? (surfaceValue("audiences")?.audiences || []).find(
+        (a) => (a.kind === "saved" || a.kind === "list") && a.id === audience,
+      )
+    : null;
   // Sent's list went to Sequences (D3: a run is a day of its sequence's History): its sheets go back to Campaigns' list.
   return {
     mount: "broadcasts",
     views: campaignsViews("sequences"),
     pane: true,
+    // A run waiting for its decision is named as its sheet's head names it (runTitleOf); one that went keeps its day.
     crumbs: runId
-      ? [CAMPAIGNS, run ? run.name : "Broadcast"]
+      ? [CAMPAIGNS, run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : "Broadcast"]
       : getYes
         ? [CAMPAIGNS, "Get their yes"]
         : toSend

@@ -838,7 +838,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
   }
 });
 
-test("Actions carry the deal's moves as a group of their own, by the stage of the deal People's row carries, each opening the one deal sheet; only where deals are on (0008)", () => {
+test("Actions carry the deal's moves as a group of their own, by the stage of the deal People's row carries, each opening the one deal sheet; in every workspace (0008, amended 18 Oct 2026)", () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const itemsOf = (tree) => itemsIn(find(tree, (n) => n.type === Menu));
   const shape = (tree) => menuShape(find(tree, (n) => n.type === Menu));
@@ -856,8 +856,8 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   // The header's Actions button, as the page has it.
   const actions = { focus: () => order.push("actions") };
   globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
-  const people = (deal, dealsOn = true) => {
-    globalThis.window.__PEOPLE = { rows: [{ id: "k1", deal }], dealsOn };
+  const people = (deal) => {
+    globalThis.window.__PEOPLE = { rows: [{ id: "k1", deal }] };
   };
   const press = (label) =>
     itemsOf(draw(vm))
@@ -916,13 +916,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "an end is re-signed as a new row",
     );
     assert.ok(!shape(draw(vm)).includes("Record a deal…"), "REGRESSION: a door to the person's page, not the sheet");
-    // Where customers book, and before People has read them, there is no group.
-    people(null, false);
-    assert.deepEqual(
-      shape(draw(vm)).slice(-3),
-      ["Receptionist settings", "|", "Export transcript"],
-      "a salon never sees it",
-    );
+    // Before People has read them, there is no group: their deal is not known yet.
     delete globalThis.window.__PEOPLE;
     assert.ok(!shape(draw(vm)).includes("Start a proposal"), "People not read yet: nothing to say of a deal");
   } finally {

@@ -206,6 +206,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   reports_campaigns: "Campaigns report",
   live: "Calls",
   broadcasts: "Sent",
+  audiences: "Who a send reaches",
   playbooks: "Campaigns",
   reach_outs: "Reach-outs",
   reach_out_replies: "Replies to reach-outs",

@@ -5,7 +5,7 @@
  * they gave none: never the business's, 00420); the business's address stays the lead's. The sheet says what the door does, each row a thing it makes true (merge_people): no count,
  * since the other record is not read here, and no Undo, since no door undoes a merge.
  */
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { MERGE_ANSWERS } from "../people/person-merge";
 import { NEEDS_TITLE } from "../shell/refusal";
 import type { CombineAct } from "./notices";
@@ -52,12 +52,12 @@ export interface CombineVM {
   why: string;
 }
 
-/** The Combine sheet, from this page's person, the notice's act, the business they share and whether deals are on. */
+/** The Combine sheet, from this page's person, the notice's act, the business they share and the workspace's word. */
 export function combineOf(f: {
   here: { id: string; name: string; email: string | null };
   act: CombineAct;
   business: string;
-  dealsOn: boolean;
+  word: AppointmentWord;
 }): CombineVM {
   const W = COMBINE_WORDS;
   const { here, act, business } = f;
@@ -84,7 +84,7 @@ export function combineOf(f: {
     rows: [
       named ? W.keeps : W.keepsNoName,
       W.takesThread(drop.name),
-      W.takesRecords(appointmentWords(appointmentWordWhere(f.dealsOn)).many),
+      W.takesRecords(appointmentWords(f.word).many),
       W.takesReachOut,
       W.answers,
       W.after(drop.name),

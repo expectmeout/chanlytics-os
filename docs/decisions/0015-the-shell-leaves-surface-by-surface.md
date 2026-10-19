@@ -435,7 +435,7 @@ family settled, for the surfaces after it:
   which `drawRoute` draws from `surfaceAct` (a link out, or the Ask door, composing from a `prompt` where the entry gives one).
   `staysOnPage(from, to)` says a move between two of them stays on the page, so `goToRoute` asks the App Router only across pages and otherwise pushes or replaces an
   entry, which `usePathname` follows. The page follows its own address, so a list picked is said in the path and nothing
-  is mounted afresh for it. People's one page draws a person's page, the Pipeline where deals are on and People's list
+  is mounted afresh for it. People's one page draws a person's page, the Pipeline and People's list
   everywhere else; Leads, which has not moved, is the one address under it the frame's table still draws.
 - **Shared parts moved once.** The kit took what more than one surface draws (`kit/record`: the record sheet, its folds and fields, fourteen modules; Confirm, FieldError, and the Calendar's
   agenda); People's parts the pages that have not moved still read are published by `seed-globals` from one object

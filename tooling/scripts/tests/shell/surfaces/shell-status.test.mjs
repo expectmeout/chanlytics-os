@@ -672,8 +672,9 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/calendar/a-1").title, "Calendar · Chanlytics", "a real calendar is not named from the seeds");
 
   win.CLIENT_SEGMENTS = [{ id: "lapsed-60", label: "Lapsed 60 days" }];
-  setSurfaceValue("broadcasts", {
-    rows: [],
+  setSurfaceValue("broadcasts", { rows: [] });
+  // Who each audience reaches is its own read (broadcasts/audiences-surface.ts): an audience's address is named from it.
+  setSurfaceValue("audiences", {
     audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }],
   });
   // Sent's sheets go back to Campaigns (decision 0060, D3: its list went to each sequence's History).
@@ -708,6 +709,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   delete win.__ME;
   setSurfaceValue("calendar", undefined);
   setSurfaceValue("broadcasts", undefined);
+  setSurfaceValue("audiences", undefined);
   for (const k of ["CLIENT_SEGMENTS"]) delete win[k];
   clearPeople();
 });
@@ -894,10 +896,8 @@ test("a page that follows its own address is one mount across it -- Settings' pa
 
 test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs, on the page already open -- Broadcasts read every param as a list's id", () => {
   shell.installShell(win);
-  setSurfaceValue("broadcasts", {
-    audiences: [{ kind: "saved", id: "s1", label: "Regulars" }],
-    rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }],
-  });
+  setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }] });
+  setSurfaceValue("audiences", { audiences: [{ kind: "saved", id: "s1", label: "Regulars" }] });
   try {
     // What the page is handed for each address is the route's (campaigns-routes.test.mjs, broadcastsProps); the frame
     // names the trail and keeps one mount for the page.
@@ -920,6 +920,7 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
     assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
   } finally {
     setSurfaceValue("broadcasts", undefined);
+    setSurfaceValue("audiences", undefined);
   }
 });
 
@@ -1083,6 +1084,71 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   } finally {
     win.history = keepHistory;
     win.__PEOPLE = keepPeople;
+  }
+});
+
+test("REGRESSION: a run's sheet closes back to the page it was opened from, by the browser's own Back -- it closed onto Sequences from the Inbox (the Inbox's run review, 18 Oct 2026)", async () => {
+  shell.installShell(win);
+  const doors = await importSrc("apps/dashboard/src/surfaces/frame-doors.ts");
+  const keepHistory = win.history;
+  const h = {
+    backs: 0,
+    back() {
+      h.backs += 1;
+    },
+  };
+  win.history = { ...keepHistory, back: () => h.back() };
+  // The frame as the bridge draws it, filling the doors a page asks for (LegacyApp's fillDoors).
+  const draw = (path) => {
+    if (path) {
+      win.location.pathname = path;
+      fire("popstate");
+    }
+    deep = false;
+    frames.begin();
+    const t = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      fillDoors: doors.fillDoors,
+    });
+    deep = true;
+    return t;
+  };
+  try {
+    cells = [];
+    placeAt("#/inbox");
+    draw();
+    // The Inbox's run row opens the run's sheet, a new entry (the frame's own move, as a page's door makes it).
+    doors.navigate("broadcasts/run:b-1/sheet");
+    draw("/w/acme/broadcasts/run:b-1/sheet");
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.equal(h.backs, 1, "opened from the Inbox: the browser's Back, to the Inbox as it was left");
+    assert.equal(win.location.pathname, "/w/acme/broadcasts/run:b-1/sheet", "nothing pushed or replaced");
+
+    // The arrival writes the sheet's own address over the run's (route.tsx): the same entry, so Back is still the Inbox.
+    h.backs = 0;
+    placeAt("#/inbox");
+    draw();
+    doors.navigate("broadcasts/run:b-1");
+    draw("/w/acme/broadcasts/run:b-1");
+    doors.navigate("broadcasts/run:b-1/sheet", { replace: true });
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.equal(h.backs, 1, "a run's address landed on its sheet: Back is the Inbox's");
+
+    // Reached by a link or a reload (a frame drawn afresh): its home, the address replaced, never a Back out of the app.
+    h.backs = 0;
+    cells = [];
+    placeAt("#/broadcasts/run:b-1/sheet");
+    draw();
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/campaigns/sequences"], "by a link: Sequences");
+  } finally {
+    win.history = keepHistory;
+    doors.emptyDoors();
   }
 });
 
@@ -1388,7 +1454,7 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   }
 });
 
-test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
   shell.installShell(win);
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
@@ -1415,7 +1481,7 @@ test("the frame fills the bridge's doors as it renders (a move, Ask, a person's 
     const filled = [];
     draw({ fillDoors: (doors) => filled.push(doors) });
     assert.equal(filled.length, 1, "filled once, as the frame renders");
-    assert.deepEqual(Object.keys(filled[0]).sort(), ["backToPeople", "navigate", "openAsk"]);
+    assert.deepEqual(Object.keys(filled[0]).sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
     for (const k of Object.keys(filled[0])) assert.equal(typeof filled[0][k], "function", `${k} is a door`);
     for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}: the bridge does`);
     // No bridge (the standalone mockup, a test): the frame publishes the names itself.
@@ -1972,9 +2038,9 @@ test("given the router's route, the frame draws that route and no other: an addr
   assert.equal(view(draw("clients")).props.key, "clients");
 });
 
-test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it, deals on or off, its crumbs name the view, and the whole family is one mount -- and where deals are off it says People", async () => {
-  // The frame draws no page of its own for it: the route's page does (surfaces/people/people-route.tsx: the Pipeline
-  // where deals are on, People's own page where they are off), and the frame draws what surfaces/people/chrome.ts says
+test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it in every workspace, its crumbs name the view, and the whole family is one mount", async () => {
+  // The frame draws no page of its own for it: the route's page does (surfaces/people/people-route.tsx: the Pipeline,
+  // every workspace's since 0008 was amended on 18 Oct 2026), and the frame draws what surfaces/people/chrome.ts says
   // of the address around it.
   const { peopleTakes, peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -1986,7 +2052,7 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
   };
   const PEOPLE = { label: "People", to: "clients" };
   try {
-    setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: true });
+    setSurfaceValue("people", { rows: [], lists: [], saved: [] });
     for (const param of ["pipeline", "pipeline:v-proposals", "pipeline:v-proposals:p-5b3c1a2e"])
       assert.equal(peopleTakes(param), true, `the route takes ${param}`);
     assert.equal(peopleTakes("pipelines"), true, "an id that starts with the word is a person's: the page's");
@@ -2010,19 +2076,12 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
       rows: [],
       lists: [],
       saved: [],
-      dealsOn: true,
       dealPace: { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" },
     });
     assert.equal(chrome("pipeline:v-waiting").crumbs.at(-1), "Nothing back in 10 days");
-    // Where deals are off the address draws People, and says People.
-    setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: false });
-    assert.equal(peopleTakes("pipeline:v-proposals"), true, "the route still takes it: it draws People");
-    assert.deepEqual(where("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
-    assert.deepEqual(
-      where("pipeline:v-proposals"),
-      { crumbs: ["People"], mount: "clients/pipeline" },
-      "every view of it too",
-    );
+    // Before People has landed the crumbs still say the Pipeline: nothing it holds decides them.
+    setSurfaceValue("people", undefined);
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
   } finally {
     setSurfaceValue("people", undefined);
   }

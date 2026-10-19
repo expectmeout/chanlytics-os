@@ -19,6 +19,7 @@
  */
 import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
+import { audiencesOverride } from "@/surfaces/campaigns/broadcasts/audiences-surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
@@ -121,21 +122,38 @@ const peopleIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? 
 // What a thread says of its person: their name, number, address and proposal link, and whether they said yes or asked
 // to stop (thread-dto.ts `contact`). An edit of those re-reads the threads, and People where it is drawn.
 const personAndThreads = () => [...peopleIfDrawn(), ...thread()];
+// Who each audience a broadcast offers reaches (audiences-surface.ts), where a composer is drawn: left for those pages elsewhere. It is
+// every page of People.
+const audiencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([audiencesOverride]) : []);
+// A campaign saved (a playbook, a sequence and its steps): the playbooks, the Campaigns lens's funnel and the Calendar's forecast,
+// where the Calendar is drawn; and who each audience reaches where a composer is drawn, since a person's row names the campaign
+// that follows them up. Not Sent's runs, which read no campaign: a run it makes is a write of its own (runs, below).
+const campaignSaved = () => [playbooksOverride, ...audiencesIfDrawn(), ...reportsCampaigns(), ...calendarRunsIfDrawn()];
 // A run approved, skipped or made moves what the Campaigns lens says of the runs waiting on you and its funnel: its read goes with them.
-// And the Calendar's marks, where the Calendar is drawn (a run waiting is its one amber; a campaign saved moves its forecast).
-const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns(), ...calendarRunsIfDrawn()];
+// And the Calendar's marks, where the Calendar is drawn (a run waiting is its one amber; a campaign saved moves its forecast). And who
+// heard from a run this week, which the composers leave out of a send, where one is drawn. And Sent's runs, wherever the tab is: the
+// badge, Today's queue and the Inbox's rows are drawn from them.
+const runs = () => [
+  playbooksOverride,
+  broadcastsOverride,
+  ...audiencesIfDrawn(),
+  ...reportsCampaigns(),
+  ...calendarRunsIfDrawn(),
+];
 // Campaigns' two composers, where the page on screen draws them: the playbooks (Campaigns' moments, the Library's "sent by", Today's day
-// strip and its "N people") and Sent's runs (Sent, the home's send-once composer and who can hear you, Today's queue, the Inbox's runs
-// waiting). Each counts over everyone in People. A write made where neither is drawn leaves them for the pages that do draw them, read
-// once as one comes on screen (drawnHere); it used to read both behind every yes, visit and save in the writer's tab, and the press
-// waited for them (the wiring's second audit, S10-6). The feed tells every other tab, and this one, of what moves them, each on its own
-// page.
+// strip and its "N people"), and Sent's runs (Sent, the home's send-once composer, Today's queue, the Inbox's runs waiting) with who
+// each audience reaches (the composer's). The playbooks and the audiences count over everyone in People. A write made where none is
+// drawn leaves them for the pages that do draw them, read once as one comes on screen (drawnHere); it used to read them behind every
+// yes, visit and save in the writer's tab, and the press waited for them (the wiring's second audit, S10-6). The feed tells every other
+// tab, and this one, of what moves them, each on its own page.
 const composersIfDrawn = (): SurfaceOverride[] =>
-  typeof window !== "undefined" ? drawnHere([playbooksOverride, broadcastsOverride]) : [];
+  typeof window !== "undefined" ? drawnHere([playbooksOverride, broadcastsOverride, audiencesOverride]) : [];
 // Who a campaign reaches is counted from people's answers and from who exists: the composers' audience counts and a
-// playbook's "N will get it" (broadcasts, playbooks). A write that moves either re-reads them where they are drawn, and leaves them for
-// the pages that draw them elsewhere, or a yes recorded and New message opened showed the audience as it was before.
-const audiences = composersIfDrawn;
+// playbook's "N will get it" (audiences, playbooks). A write that moves either re-reads them where they are drawn, and leaves them for
+// the pages that draw them elsewhere, or a yes recorded and New message opened showed the audience as it was before. Not Sent's runs,
+// which count nobody: a yes moves no run.
+const audiences = (): SurfaceOverride[] =>
+  typeof window !== "undefined" ? drawnHere([playbooksOverride, audiencesOverride]) : [];
 // A yes or a stop recorded, for one person or many: the one list, so the four writes cannot drift apart. Their row and
 // their threads say it (personAndThreads, which carries the Campaigns lens's read: it counts the yeses and stops after a campaign, once),
 // the audiences count by it, and the People lens counts them too (and the two records made one, whose answers may change). The
@@ -161,6 +179,8 @@ const runsAndPeople = () => [...runs(), peopleOverride];
 // first step, and its run waiting (the row's "next run") is approved or skipped as any run is. The chains' read scans
 // no audience (reach-outs.ts), so reading it behind a door that moved an ordinary playbook costs little.
 const runsAndChains = () => [...runs(), reachOutsOverride];
+// A campaign saved that makes no run and takes no one out: its chain's row moves (Part 4 PR 8), not Sent's runs.
+const savedAndChains = () => [...campaignSaved(), reachOutsOverride];
 // What the composers and People's reach read of the workspace's channels (server/campaigns/channels-ready.ts): the number's
 // health, the text line, the mailbox and its offers pause, and the postal address an offer by email names. A write that
 // changes one of them moves the Send by row, the count of who each campaign reaches and People's own reach, so it
@@ -210,14 +230,14 @@ const settings = () => [settingsOverride];
 // A visit marked kept, missed or cancelled: what counts visits, in the writer's tab. The Calendar shows the word (and Today's queue,
 // which asks "Did they come?" of yesterday's unmarked visits, reads its blocks); People's rows (and the Inbox's chip, drawn from them, and
 // the person's page, which reads People: its History and Coming up say the word and ask the same presses) say the next and last visit and
-// "missed a visit"; the playbooks' and broadcasts' pools leave a visit that is missed or cancelled, read where they are drawn (Today's day
+// "missed a visit"; the playbooks' and the audiences' pools leave a visit that is missed or cancelled, read where they are drawn (Today's day
 // strip prints each visit playbook's count) and left for those pages elsewhere; Today's headline, Reports' overview and the People and
 // Receptionist lenses count the booked ones, read where they are on screen and forgotten elsewhere. A teammate's mark, a booking email
 // and the hourly calendar read reach the same pages through the appointments the live feed tells of (their surfaces' rules).
 const visits = () => [
   calendarOverride,
   peopleOverride,
-  ...composersIfDrawn(),
+  ...audiences(),
   ...headlineIfDrawn(),
   ...reportsIfDrawn(),
   ...reportsPeople(),
@@ -257,7 +277,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // of): the counts the report and Setup's rows make of them fall, where those are drawn.
   "DELETE contacts/[id]": () => [
     ...personAndThreads(),
-    ...audiences(),
+    // Their messages too: what Sent's runs count of them (their replies, the month's), where the runs are drawn.
+    ...composersIfDrawn(),
     ...reportsPeople(),
     ...reportsIfDrawn(),
     ...setupIfDrawn(),
@@ -302,9 +323,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE people/[id]/business": () => [...personAndThreads(), ...leads()],
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it, where they are drawn.
-  "POST segments": () => [peopleOverride, ...composersIfDrawn()],
-  "PUT segments/[id]": () => [peopleOverride, ...composersIfDrawn()],
-  "DELETE segments/[id]": () => [peopleOverride, ...composersIfDrawn()],
+  "POST segments": () => [peopleOverride, ...audiences()],
+  "PUT segments/[id]": () => [peopleOverride, ...audiences()],
+  "DELETE segments/[id]": () => [peopleOverride, ...audiences()],
   // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
   // the pages, the selection and the cursor the owner already has (leads.ts).
   // `POST leads/[id]/stage` names People too: an Interested call makes a
@@ -346,23 +367,23 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
   // A playbook named by a starter files its message too (A0): the Library, and every picker that is made of it, move with it.
-  "POST playbooks": () => [...runsAndPeople(), ...templates()],
-  "PUT playbooks/[id]": () => [...runsAndChains(), peopleOverride],
+  "POST playbooks": () => [...campaignSaved(), peopleOverride, ...templates()],
+  "PUT playbooks/[id]": () => [...savedAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
   // A sequence's doors (0060): a step after the first added, changed, given new words or taken away is the playbook its
   // row draws, and Today's day strip; people taken out move its runs' sends and People's "in a sequence" with them. The
   // Sequences page's list beside them, and it reads its own record again behind each of its presses.
-  "POST sequences/[id]/steps": () => [...runsAndChains(), sequencesOverride],
-  "PUT sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
+  "POST sequences/[id]/steps": () => [...savedAndChains(), sequencesOverride],
+  "PUT sequences/[id]/steps/[step]": () => [...savedAndChains(), sequencesOverride],
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
-  "POST sequences/[id]/steps/[step]/words": () => [...runsAndChains(), sequencesOverride, ...templates()],
+  "POST sequences/[id]/steps/[step]/words": () => [...savedAndChains(), sequencesOverride, ...templates()],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
   // A person taken out and put back (00450) is their enrollment alone: the sends their leaving withdrew stay withdrawn, and
   // the clock writes their next; the Sequences page reads its record again behind the press.
   "POST sequences/[id]/return": () => [sequencesOverride],
   // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
-  "POST sequences": () => [...runsAndChains(), sequencesOverride],
+  "POST sequences": () => [...savedAndChains(), sequencesOverride],
   "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
@@ -455,12 +476,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
   // What a member said became of a visit (0002 step 8): the board's read carries each visit's word, and every page that counts
   // visits reads it from the appointments record (#1551): People's rows and the Inbox's chip over them, the playbooks' and the
-  // broadcasts' pools, Reports' booking line and Today's. The one list, so a page that draws a visit cannot be left behind.
+  // audiences' pools, Reports' booking line and Today's. The one list, so a page that draws a visit cannot be left behind.
   "POST calendar/visits/[id]": visits,
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
   // lens's, of a review, whether its composer asks the receptionist for a draft. Campaigns' Resume question says 'It sends on its own'
-  // for a class that is Auto, from the modes the playbooks read held (composersIfDrawn). A mode is saved on Autonomy or from a chip:
-  // each of these is read where it is on screen and left for its page elsewhere, never read for a page nobody has open (the wiring's
+  // for a class that is Auto, from the modes the playbooks read held, and the audiences count by the rules (Sent's runs read no mode).
+  // A mode is saved on Autonomy or from a chip: each of these is read where it is on screen and left for its page elsewhere, never
+  // read for a page nobody has open (the wiring's
   // second audit, W-review-facts-rules-9). The notice of it is one per save, with no row, so every tab's Settings reads it again for a
   // person's own mode as well: accepted, the person_mode rate holds those writes to a person's pace, and a notice that said its scope
   // would be the way to tell them apart (decision 0058, amended for R7).
@@ -468,24 +490,22 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     settingsOverride,
     ...peopleIfOwned(),
     ...reviewsIfDrawn(),
-    ...composersIfDrawn(),
+    ...audiences(),
     ...calendarRunsIfDrawn(),
   ],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
-  // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
-  // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
-  // is also where Today's period line counts its days from: the headline is read again where Today is on screen and forgotten
-  // elsewhere, and so is the overview's. The Reviews lens's read, which
-  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen; so is the Receptionist
-  // lens's, whose days are the zone's too, and the People lens's, whose days (and the day a step falls due) are, and the Campaigns
-  // lens's, whose window is counted in it. How its customers buy
-  // also shapes Campaigns' journey and the word it says (spec 2026-10-09 §4.8), and Sent's composer offers the proposal lists (who has
-  // a proposal out, whose deal is won) only where customers buy by proposal: both composers are read where they are drawn and left for
-  // the pages that draw them elsewhere (the wiring's second audit, S4-5: switched to proposal, the composer lacked the lists until a
-  // reload). Campaigns' 30 days are counted in the zone, and so are the Calendar's times and its "today", which Today's day card is
-  // drawn from too: each is read where it is drawn and left for its pages elsewhere (W-visit-deal-4: a zone changed, the board kept
-  // the old one's times for up to five minutes).
+  // re-read, they kept the old zone until something else was saved. The zone is also where Today's period line counts
+  // its days from: the headline is read again where Today is on screen and forgotten elsewhere, and so is the
+  // overview's. The Reviews lens's read, which counts a review on the day it was written in the zone, is forgotten and
+  // read as the lens comes on screen; so is the Receptionist lens's, whose days are the zone's too, and the People
+  // lens's, whose days (and the day a step falls due) are, and the Campaigns lens's, whose window is counted in it.
+  // What it calls a booking (00458) is the word People, Today, the Calendar and Campaigns' composers say (spec
+  // 2026-10-09 §4.8): both composers are read where they are drawn and left for the pages that draw them elsewhere (the
+  // wiring's second audit, S4-5: a change reached the composer only at a reload). Campaigns' 30 days are counted in the
+  // zone, and so are the Calendar's times and its "today", which Today's day card is drawn from too: each is read where
+  // it is drawn and left for its pages elsewhere (W-visit-deal-4: a zone changed, the board kept the old one's times
+  // for up to five minutes).
   "PATCH workspaces": () => {
     forgetReviews();
     return [

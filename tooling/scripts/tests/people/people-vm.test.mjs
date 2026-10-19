@@ -977,7 +977,7 @@ test("proposalAction: the send-the-proposal button's words by the wire, 'again' 
 test("a person's proposal: the address, its host in About, and the newest message that carried it and went out", () => {
   const url = "https://www.docs.example.com/p/dani";
   // Deals are on (0008): a proposal is a deal's, and where they are off the page says none (below).
-  const d = detail({ proposal_url: url, deals_on: true });
+  const d = detail({ proposal_url: url });
   d.conversations[0].messages.push(
     msg({
       id: "m-q",
@@ -1011,7 +1011,7 @@ test("a person's proposal: the address, its host in About, and the newest messag
     toPersonVM(detail(), ZONE, NOW).about.some((a) => a.k === "Proposal"),
     false,
   );
-  const fresh = toPersonVM(detail({ proposal_url: "https://docs.example.com/p/new", deals_on: true }), ZONE, NOW);
+  const fresh = toPersonVM(detail({ proposal_url: "https://docs.example.com/p/new" }), ZONE, NOW);
   assert.equal(fresh.proposal.sent, null, "a new address has not gone out");
   assert.equal(fresh.proposalAction.label, "Send the proposal");
   assert.equal(contracts.proposalMessage(url), `Here's the proposal we put together for you: ${url}`);
@@ -1183,7 +1183,6 @@ test("a person's proposal is their deal's (0008): the deal's link while it is ou
       detail({
         proposal_url: own,
         deals: [dealRow(stage, link)],
-        deals_on: true,
         row: row({
           deal_id: "d1",
           deal_stage: stage,
@@ -1212,12 +1211,12 @@ test("a person's proposal is their deal's (0008): the deal's link while it is ou
   assert.equal(vmWith("ended", null).proposal, null, "it ended: none");
   assert.ok(!vmWith("lost", null).about.some((a) => a.k === "Proposal"), "and no About row says one");
   assert.equal(
-    toPersonVM(detail({ proposal_url: own, deals_on: true }), ZONE, NOW).proposal.url,
+    toPersonVM(detail({ proposal_url: own }), ZONE, NOW).proposal.url,
     own,
     "no deal at all: the person's own, read until it retires",
   );
   assert.deepEqual(
-    toPersonVM(detail({ proposal_url: own, deals_on: true }), ZONE, NOW)
+    toPersonVM(detail({ proposal_url: own }), ZONE, NOW)
       .acts.filter((a) => a.id === "proposal")
       .map((a) => a.label),
     ["Send proposal"],
@@ -1230,7 +1229,7 @@ test("a person's proposal is their deal's (0008): the deal's link while it is ou
   );
 });
 
-test("where deals are off the page says nothing of a deal: no fact, no timeline line, no proposal, whatever the database holds (0008)", () => {
+test("every workspace's page says its deal: the fact, the timeline line and the proposal, whatever the retired answer said (0008, amended 18 Oct 2026)", () => {
   const own = "https://docs.example.com/p/own";
   const deal = {
     id: "d1",
@@ -1259,40 +1258,29 @@ test("where deals are off the page says nothing of a deal: no fact, no timeline 
     deal_per: "once",
     deal_proposal_url: "https://docs.example.com/p/deal",
   };
-  const vmOf = (on) =>
-    toPersonVM(detail({ proposal_url: own, deals: [deal], deals_on: on, row: row(columns) }), ZONE, NOW);
-  const off = vmOf(false);
-  assert.equal(off.deal, null);
-  assert.deepEqual(off.deals, []);
-  assert.ok(!off.facts.some((f) => f.label === "Deal"), "no Deal fact");
-  assert.ok(!off.timeline.some((i) => i.kind === "deal"), "no deal on the timeline");
-  assert.equal(off.proposal, null, "no proposal, not even the person's own link");
-  assert.ok(!off.about.some((a) => a.k === "Proposal"));
-  assert.ok(!off.acts.some((a) => a.id === "proposal"));
-  const on = vmOf(true);
-  assert.equal(on.deal.stage, "proposed");
-  assert.ok(on.facts.some((f) => f.label === "Deal"));
-  assert.ok(on.timeline.some((i) => i.kind === "deal"));
-  assert.equal(on.proposal.url, "https://docs.example.com/p/deal");
-});
-
-test("the proposal's send is a deal's: a workspace whose customers book is never offered it", () => {
-  const url = "https://docs.example.com/p/dani";
-  const acts = (on) =>
-    toPersonVM(
-      detail({ proposal_url: url, deals_on: on, booking_link: "https://book.example/dani" }),
+  for (const word of ["appointment", "meeting", undefined]) {
+    const vm = toPersonVM(
+      detail({ proposal_url: own, deals: [deal], appointment_word: word, row: row(columns) }),
       ZONE,
       NOW,
-    ).acts.map((a) => a.id);
-  assert.ok(acts(true).includes("proposal"));
-  assert.ok(!acts(false).includes("proposal"), "REGRESSION: a salon's More menu offered to send a proposal");
-  assert.ok(!acts(undefined).includes("proposal"), "an older read says nothing about deals: off");
+    );
+    assert.equal(vm.deal.stage, "proposed", String(word));
+    assert.ok(vm.facts.some((f) => f.label === "Deal"));
+    assert.ok(vm.timeline.some((i) => i.kind === "deal"));
+    assert.equal(vm.proposal.url, "https://docs.example.com/p/deal", "the deal's link over the person's own");
+  }
+});
+
+test("the proposal's send is a deal's, offered in every workspace (0008, amended 18 Oct 2026)", () => {
+  const url = "https://docs.example.com/p/dani";
+  const acts = (over = {}) =>
+    toPersonVM(detail({ proposal_url: url, booking_link: "https://book.example/dani", ...over }), ZONE, NOW).acts.map(
+      (a) => a.id,
+    );
+  assert.ok(acts().includes("proposal"));
+  assert.ok(acts({ appointment_word: "visit" }).includes("proposal"), "a salon's More menu offers it too");
   // More's first group is reaching them (canvas A): Call, Text them, then the booking link's send, which stays.
-  assert.deepEqual(
-    acts(false).slice(0, 3),
-    ["call", "text", "booking"],
-    "the booking link's send stays in the reach group",
-  );
+  assert.deepEqual(acts().slice(0, 3), ["call", "text", "booking"], "the booking link's send stays in the reach group");
 });
 
 /* ---- the person page is honest about a stop, the reason, the team and the attempts (the 2 Oct 2026 audit) ---- */

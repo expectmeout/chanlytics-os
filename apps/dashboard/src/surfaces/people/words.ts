@@ -4,7 +4,7 @@
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
  * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
  */
-import { appointmentWordWhere, appointmentWords, csvCell, PEOPLE_TABS, stateOf } from "@chanlytics/contracts";
+import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -94,7 +94,7 @@ export const PL_PHONE_SORTS: readonly {
   by: string;
   dir: "asc" | "desc";
   label: string;
-  labelOf?: (x: { dealsOn: boolean }) => string;
+  labelOf?: (x: { word: AppointmentWord }) => string;
   needs?: (x: { withCalendar: boolean }) => boolean;
 }[] = [
   { by: "state", dir: "desc", label: "Needs you first" },
@@ -105,7 +105,7 @@ export const PL_PHONE_SORTS: readonly {
     by: "visits",
     dir: "asc",
     label: "Soonest appointment first",
-    labelOf: (x) => `Soonest ${appointmentWords(appointmentWordWhere(x.dealsOn)).one} first`,
+    labelOf: (x) => `Soonest ${appointmentWords(x.word).one} first`,
     needs: (x) => x.withCalendar,
   },
 ];
@@ -122,8 +122,8 @@ const PL_SORTED_BY: Record<string, string> = {
   offers: "offers",
   calls: "calls",
 };
-export const plSortedBy = (by: string, dealsOn: boolean): string => {
-  const word = by === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).many : PL_SORTED_BY[by];
+export const plSortedBy = (by: string, said: AppointmentWord): string => {
+  const word = by === "visits" ? appointmentWords(said).many : PL_SORTED_BY[by];
   return word ? `Sorted by ${word}` : "";
 };
 
@@ -172,13 +172,13 @@ export const PL_DEFAULT_GROUPS = [
   { id: "reach", label: "Reach" },
 ];
 
-/** The page's scopes, in the switch's order: People and Leads everywhere, the Pipeline only where deals are on. */
+/** The page's scopes, in the switch's order: People, Leads and the Pipeline, every workspace's (0008, amended 18 Oct 2026). */
 const PL_SCOPES = [
   { id: "people", label: "People" },
   { id: "leads", label: "Leads" },
   { id: "pipeline", label: "Pipeline" },
 ];
-export const plScopes = (dealsOn: boolean): typeof PL_SCOPES => (dealsOn ? PL_SCOPES : PL_SCOPES.slice(0, 2));
+export const plScopes = (): typeof PL_SCOPES => PL_SCOPES;
 /** Where the switch goes: each scope is an address of People's. */
 export const plScopeRoute = (to: string): string =>
   to === "leads" ? "clients/leads" : to === "pipeline" ? "clients/pipeline" : "clients";

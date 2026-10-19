@@ -5,7 +5,6 @@ const BOOLEAN_INPUTS = {
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
-  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -38,7 +37,7 @@ export function abilityRows(i) {
   const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const rows = [
     {
       id: "answer",
@@ -74,7 +73,7 @@ export function abilityRows(i) {
       channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
-      missing: !i.hasBookingLink && !i.linkOptional
+      missing: !i.hasBookingLink
     },
     {
       id: "transfer",

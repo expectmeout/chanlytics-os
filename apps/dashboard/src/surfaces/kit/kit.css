@@ -1465,29 +1465,37 @@ a.more-item {
 .pp-toast-x:hover {
   color: var(--ink);
 }
-/* Under a finger the Undo and the × keep the size they are drawn (the phone's 28px, mobile.css) and the touch floor's
-   44px is the press round them: the × was 15px wide and the only way to be rid of a toast before its time (Ruben,
-   18 Oct 2026). The × has no ground of its own, so its box widens to 28px with nothing new drawn. The toast takes no
-   pan of the page under it, so a pull down or a flick across is the toast's (data-bits touchSwipe). */
+/* Under a finger the Undo keeps the size it is drawn (the phone's 28px, mobile.css) and the touch floor's 44px is the
+   press round it. The house's toast has no ×: a tap anywhere besides it takes it (data-bits usePPToast; Ruben,
+   18 Oct 2026), and the ×'s rules above are the kit's own toast's. The toast takes no pan of the page under it, so a
+   pull down or a flick across is the toast's (data-bits touchSwipe). */
 @media (pointer: coarse) {
   .pp-toast {
     touch-action: none;
   }
-  .pp-toast-cta,
-  .pp-toast-x {
+  .pp-toast-cta {
     position: relative;
   }
-  .pp-toast-x {
-    min-width: 28px;
-  }
-  .pp-toast-cta::after,
-  .pp-toast-x::after {
+  .pp-toast-cta::after {
     content: "";
     position: absolute;
     inset: -8px 0;
   }
-  .pp-toast-x::after {
-    inset: -8px;
+}
+/* On a phone the toast is one snackbar: the newest alone (data-bits), as wide as the tab bar and Ask's circle together
+   (the stack's 14px sides, mobile.css), one height whatever it says, its words at the phone's reading size. A toast
+   as wide as its words stood in a different place for each thing it said, and 12px words were the smallest on the
+   screen. */
+@media (max-width: 900px) {
+  .pp-toast-stack {
+    align-items: stretch;
+  }
+  .pp-toast {
+    min-height: 48px;
+    font-size: var(--text-base);
+  }
+  .pp-toast-cta {
+    font-size: var(--text-sm);
   }
 }
 

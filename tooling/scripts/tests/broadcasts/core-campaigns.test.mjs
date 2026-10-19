@@ -10,7 +10,6 @@ import {
   BROADCAST_MAX_RECIPIENTS,
   CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
-  FOLLOW_UP_NEEDS_DEALS,
   REACH_OUT_IS_NOT_A_MOMENT,
   PEOPLE_LISTS,
   FOLLOW_UP_NEEDS_LINK,
@@ -194,7 +193,6 @@ function fakes(over = {}) {
     approve: "d1",
     withdraw: 1,
     cancel: true,
-    dealsOn: false,
     // 2 Oct 2026: whether a calendar is connected, which win-back a new playbook may be (check-playbook).
     calendarOn: false,
     // What the workspace calls an appointment (contracts appointmentWordOf): "visit" here, so every sentence and name
@@ -1456,23 +1454,15 @@ test("the playbook's check: the trigger first, then the template through the one
       `${trigger} fills a visit's words`,
     );
   }
-  // 0006: a proposal follow-up is made only where deals are on, and only it fills in a proposal's link.
+  // 0006: a proposal follow-up is made in every workspace (0008, amended 18 Oct 2026), and only it fills in a
+  // proposal's link.
   const threeSlots = template({ name: "proposal_follow_up", category: "utility", variables: ["1", "2", "3"] });
   const followUp = {
     trigger: "proposal_waiting",
     template_id: T1,
     params: ["@first_name", "@business_name", "@proposal_link"],
   };
-  await refused(
-    checkPlaybook(fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports, followUp),
-    "validation",
-    400,
-    FOLLOW_UP_NEEDS_DEALS,
-  );
-  const made = await checkPlaybook(
-    fakes({ message: messageOf({ whatsapp: threeSlots }), dealsOn: true }).ports,
-    followUp,
-  );
+  const made = await checkPlaybook(fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports, followUp);
   assert.deepEqual(
     [made.name, made.policy_class, made.params],
     ["Proposal follow-up", "follow_up", [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }]],
@@ -1482,8 +1472,7 @@ test("the playbook's check: the trigger first, then the template through the one
   // 2 Oct 2026 the follow-up's class and its message's category must agree: an offer is refused before the link.)
   await refused(
     checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"], category: "utility" }) }), dealsOn: true })
-        .ports,
+      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"], category: "utility" }) }) }).ports,
       {
         trigger: "proposal_waiting",
         template_id: T1,
@@ -1494,16 +1483,13 @@ test("the playbook's check: the trigger first, then the template through the one
     400,
     FOLLOW_UP_NEEDS_LINK,
   );
-  // A win-back never asks whether deals are on (the port throws if it is asked), and cannot carry a proposal's link.
+  // A win-back cannot carry a proposal's link.
   await refused(
-    checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }), dealsOn: new Error("asked") }).ports,
-      {
-        trigger: "quiet_30",
-        template_id: T1,
-        params: ["@proposal_link"],
-      },
-    ),
+    checkPlaybook(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }).ports, {
+      trigger: "quiet_30",
+      template_id: T1,
+      params: ["@proposal_link"],
+    }),
     "validation",
     400,
     "Only the proposal follow-up can fill in a proposal's link.",
@@ -1606,20 +1592,17 @@ test("the moments a new playbook may start from (2 Oct 2026): a retired one is r
   // The other win-back, already running, is changed and kept: a calendar connected later does not strand it.
   assert.equal((await checkPlaybook(visits.ports, body("quiet_30"), { trigger: "quiet_30" })).trigger, "quiet_30");
   // Each fact is asked only of the moment it decides: a calendar that cannot be read costs a month's offer nothing.
-  const blind = fakes({ calendarOn: new Error("asked"), dealsOn: new Error("asked") });
+  const blind = fakes({ calendarOn: new Error("asked") });
   assert.equal((await checkPlaybook(blind.ports, body("everyone_monthly"), null)).trigger, "everyone_monthly");
-  // A proposal follow-up where deals are off is refused when changed too, as it always was.
+  // A proposal follow-up is changed and kept in every workspace, as it is made in every one (0008, amended 18 Oct
+  // 2026).
   const threeSlots = template({ name: "proposal_follow_up", category: "utility", variables: ["1", "2", "3"] });
-  await refused(
-    checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports,
-      { trigger: "proposal_waiting", template_id: T1, params: ["@first_name", "@business_name", "@proposal_link"] },
-      { trigger: "proposal_waiting" },
-    ),
-    "validation",
-    400,
-    FOLLOW_UP_NEEDS_DEALS,
+  const kept = await checkPlaybook(
+    fakes({ message: messageOf({ whatsapp: threeSlots }) }).ports,
+    { trigger: "proposal_waiting", template_id: T1, params: ["@first_name", "@business_name", "@proposal_link"] },
+    { trigger: "proposal_waiting" },
   );
+  assert.equal(kept.trigger, "proposal_waiting");
 });
 
 test("an appointment moment needs a calendar, said in the workspace's word; a new one is named in it; one made before is kept", async () => {
@@ -1711,8 +1694,7 @@ test("a moment and its message agree on the yes they need (decision 7): a playbo
   // The proposal follow-up is about their own proposal: an offer is refused there too.
   await refused(
     checkPlaybook(
-      fakes({ message: messageOf({ whatsapp: template({ category: "marketing", variables: ["1"] }) }), dealsOn: true })
-        .ports,
+      fakes({ message: messageOf({ whatsapp: template({ category: "marketing", variables: ["1"] }) }) }).ports,
       { trigger: "proposal_waiting", template_id: T1, params: ["@proposal_link"] },
       null,
     ),

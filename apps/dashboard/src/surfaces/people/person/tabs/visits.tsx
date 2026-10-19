@@ -112,7 +112,7 @@ export function VisitsTab({ c }: { c: PageCtx }) {
     <section className="cl-prof-section cl-prof-visits" aria-labelledby="person-visits-title">
       <div className="cl-prof-section-head">
         <h2 className="cl-prof-section-title" id="person-visits-title">
-          {personTabWord("visits", c.p.dealsOn)}
+          {personTabWord("visits", c.p.word)}
         </h2>
       </div>
       {head(v.head)}

@@ -45,7 +45,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
-  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline where deals are on (clients/pipeline, 0008) and the lists (seg:, list:)
+  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline (clients/pipeline, 0008) and the lists (seg:, list:)
   reports: "real", // the receptionist's numbers; the share link stays demo
   live: "real", // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
@@ -226,7 +226,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   [PERSON_ROUTE]: ["people", "person"],
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
-  // And Sent's runs: the Needs-you band and the badge say the runs waiting for your word (needs-you.ts), on the Inbox.
+  // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
+  // read, nothing of People, started from the document's head with the Inbox's (the Inbox's run review, 18 Oct 2026).
   inbox: ["reach_out_replies", "conversations", "broadcasts"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
@@ -236,11 +237,12 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
   // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
   campaigns: ["settings"],
-  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): Send once, made of Sent's runs and who
-  // they reach (the broadcasts); its messages of the templates, which are the settings read's, the one read of them
-  // (surfaces/offered-templates.ts); the number they go out on, the channels read; and the reach-outs' chains a change to
-  // one opens on (`new:edit:<root>`). Write to leads reads its searches itself, as it is chosen.
-  "campaigns/new": ["broadcasts", "reach_outs", "settings", "channels"],
+  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): Send once, made of Sent's runs (the
+  // broadcasts) and who each audience reaches (the audiences, counted over everyone in People); its messages of the templates,
+  // which are the settings read's, the one read of them (surfaces/offered-templates.ts); the number they go out on, the
+  // channels read; and the reach-outs' chains a change to one opens on (`new:edit:<root>`). Write to leads reads its searches
+  // itself, as it is chosen.
+  "campaigns/new": ["broadcasts", "audiences", "reach_outs", "settings", "channels"],
   // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
   // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
   "campaigns/message": ["playbooks", "settings", "channels"],
@@ -250,8 +252,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook. The Library's
   // number notice and a message's drawer are made of the channels read.
   messages: ["reach_outs", "playbooks", "channels"],
-  // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook.
-  broadcasts: ["sequences", "playbooks", "channels"],
+  // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
+  // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
+  // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).
+  broadcasts: ["sequences", "playbooks", "channels", "audiences"],
   // Live's line, its number and its switch: the channels read, which Live is made of beside its calls.
   live: ["channels"],
   // A search's reach-out sheet (Part 4 PR 6) writes from Setup's connected mailboxes and checks Settings' booking link: both
@@ -289,8 +293,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup"],
-  // Reports' strip of lenses is decided from the workspace list (how its customers buy: the Pipeline is shown only where deals
-  // are on) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
+  // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
+  // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
+  inbox: ["broadcasts"],
+  // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
+  // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
 };
 export const ROUTE_WAIT_MS = 3000;

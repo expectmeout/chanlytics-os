@@ -7,8 +7,8 @@
  * until and the reason someone passed live on the deal. Everything a page or
  * a receptionist says about one is derived here, once: the words, the line,
  * the chip, the moves the person's page offers, the sentence the receptionist
- * hears, Today's leak, Reports' cohort, and the one switch the whole layer
- * hangs on (dealsAreOn). Pure.
+ * hears, Today's leak and Reports' cohort. Every workspace has the layer (0008,
+ * amended 18 Oct 2026). Pure.
  *
  * "Here" is now this folder. This module holds the deal as it is read and said (DealDto, DealVM, toDealVM) and
  * the sentence the receptionist hears; the modules beside it hold the rest: the closed sets and their words

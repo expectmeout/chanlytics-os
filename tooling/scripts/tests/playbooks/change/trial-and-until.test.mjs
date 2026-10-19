@@ -315,7 +315,7 @@ const homeOf = (rows) =>
     messages: [],
     reachOuts: [],
     report: undefined,
-    shape: { calendar: "feed", dealsOn: false, word: "appointment" },
+    shape: { calendar: "feed", hasDeals: false, word: "appointment" },
     chains: undefined,
   });
 

@@ -58,11 +58,10 @@ import {
   useWaitingLook,
   type Waits,
 } from "./hooks";
-import { alertEmails, brainOf, cardInputs, sellsByAnswer, sendAnswer, workspaceNow } from "./inputs";
+import { alertEmails, brainOf, cardInputs, workspaceNow } from "./inputs";
 import { choiceFromWant, returnedFromStripe, trySince as trySinceKept, type KeptPhoneChoice } from "./memory";
 import { FrCard, FrLive, FrRail } from "./parts";
 import { FrPhone } from "./phone";
-import type { SettledEntry } from "./settle";
 import { FrTry } from "./try";
 
 const W = FIRST_RUN_HELPERS.words;
@@ -375,8 +374,6 @@ function pageActs(o: {
   finishing: boolean;
   setFinishing: (f: boolean) => void;
   finishRefused: RefObject<boolean>;
-  heldAnswer: RefObject<SettledEntry | null>;
-  canEdit: boolean;
 }): PageActs {
   const { S, v, param, onNavigate, stays, flash, setLeaving, making, setMaking, finishing, setFinishing } = o;
   const { finishRefused } = o;
@@ -433,24 +430,9 @@ function pageActs(o: {
       else go(ow.to);
       return;
     }
-    // Looks right: the answer to how customers buy, as Check shows it, is sent where none is stored (as the create card
-    // sends it), and the step goes on once it is taken. A role that may not change the workspace sends nothing: the door
-    // would refuse it, and the step goes on as it is. The answer being chosen, if one waits for the keys to settle, goes
-    // now in its place.
-    const a = sellsByAnswer();
-    const chosen = o.heldAnswer.current;
-    o.heldAnswer.current = null;
-    const answer = chosen && chosen.next ? chosen.next : !a.stored ? a.shown : null;
-    if (
-      !o.canEdit ||
-      !answer ||
-      !sendAnswer(
-        answer,
-        (f) => flash(f as LegacyFlash),
-        () => go(ow.to),
-      )
-    )
-      go(ow.to);
+    // Looks right: every row of Check saves as it is changed, so the step goes on (nothing of how customers buy is
+    // asked any more: 0008, amended 18 Oct 2026).
+    go(ow.to);
   };
   return { go, leave, make, onward };
 }
@@ -463,12 +445,11 @@ function stepBody(o: {
   flash: (f: LegacyFlash) => void;
   making: boolean;
   canEdit: boolean;
-  heldAnswer: RefObject<SettledEntry | null>;
   read: SettingsSurface | undefined;
   setPhoneChoice: (c: KeptPhoneChoice | null) => void;
   finishing: boolean;
 }): ReactNode {
-  const { S, v, acts, flash, making, canEdit, heldAnswer, read, setPhoneChoice, finishing } = o;
+  const { S, v, acts, flash, making, canEdit, read, setPhoneChoice, finishing } = o;
   const { fr, ph, tr, lv, phoneDrawn, tryDrawn } = v;
   const { go, leave, make } = acts;
   const step = fr.shown;
@@ -490,7 +471,6 @@ function stepBody(o: {
           making={making}
           go={go}
           canEdit={canEdit}
-          held={heldAnswer}
           settings={settings}
         />
       ) : null}
@@ -551,8 +531,6 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
   const live = useSurface("live");
   const [cardOpen, setCardOpen] = useState(false);
   const [leaving, setLeaving] = useState<Leaving | null>(null);
-  // How customers buy, while Check's choice of it waits for the keys to settle: Continue sends that one (useSettled).
-  const heldAnswer = useRef<SettledEntry | null>(null);
   // The page's toast, lent to Find and Check: a link ends Find as the surfaces repaint, and what it says outlives it.
   const [toastNode, flash] = useLegacyToast();
   // The ask for the receptionist, held here and lent to Find and Check: Find is gone by the time it answers.
@@ -590,8 +568,6 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
     finishing,
     setFinishing,
     finishRefused,
-    heldAnswer,
-    canEdit,
   });
   const card = FIRST_RUN_HELPERS.receptionist(cardInputs(S, read));
   const brainRead = read && read.settings ? brainOf(read.settings.config) : null;
@@ -603,7 +579,7 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
           {stepHead(v)}
-          {stepBody({ S, v, acts, flash, making, canEdit, heldAnswer, read, setPhoneChoice, finishing })}
+          {stepBody({ S, v, acts, flash, making, canEdit, read, setPhoneChoice, finishing })}
         </main>
         <FrCard card={card} open={cardOpen} />
       </div>

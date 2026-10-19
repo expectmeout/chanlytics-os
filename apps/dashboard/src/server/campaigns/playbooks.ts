@@ -10,7 +10,6 @@ import {
   PLAYBOOK_TOUCH_WINDOW_MS,
   playbookStopBy,
   purposeOfTemplate,
-  dealsAreOn,
   isPlaybookTotalsDto,
   ruleNeedsViewer,
   viewerListWords,
@@ -51,8 +50,7 @@ import type { ZoneAndSettings } from "@/server/calendar/people-visits";
 import { archivedListWords } from "@/server/people/audience";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
-import { sellsByOf } from "@/server/people/deals";
-import { appointmentWordFor } from "@/server/readers/facts";
+import { appointmentWordRead } from "@/server/people/deals";
 import { lazily } from "@/server/lazy";
 import { tenantFacts } from "@/server/tenant";
 
@@ -128,7 +126,7 @@ export interface FollowUpsRead {
   followUpKeys: Map<string, Map<string, number>>;
 }
 
-/** No follow-up had: no proposal out, or deals off. */
+/** No follow-up had: no proposal out. */
 export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followUpKeys: new Map() });
 
 /**
@@ -226,8 +224,8 @@ export async function followUpFacts(
   if (cls.error) throw new Error(cls.error.message);
   const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
-  // It is the proposal follow-up, and runs only where deals are on, which is where this is read (readers/people.ts).
-  const runs = !!p && campaignRunsOn({ ...p, trigger: "proposal_waiting" }, { tz, now, dealsOn: true });
+  // It is the proposal follow-up, read where a deal is on file (readers/people.ts).
+  const runs = !!p && campaignRunsOn({ ...p, trigger: "proposal_waiting" }, { tz, now });
   if (!p || !runs || mode === "never" || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
@@ -551,17 +549,14 @@ function playbookCheckPorts(ctx: RouteContext, tenantId: string, known?: ZoneAnd
       if (ruleNeedsViewer(list.rule)) throw new AppError("validation", viewerListWords(list.name));
       return list.name;
     },
-    // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).
-    dealsOn: async () => dealsAreOn(await sellsByOf(ctx, tenantId)),
     // Whether a calendar is connected: an address in the settings, or one the settings lost (calendarOf), which is the
     // page's calendar state not being "none" (peopleVisits) -- the feed is not fetched for it.
     calendarOn: async () => {
       const c = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
       return !!c.url || c.lostCalendar;
     },
-    // What the workspace calls an appointment, worked out where businessShape works it out (readers/facts.ts
-    // appointmentWordFor): a refusal's words, and a new campaign's name on an appointment moment. Read only when one
-    // of them is said.
-    appointmentWord: async () => appointmentWordFor(await sellsByOf(ctx, tenantId)),
+    // What the workspace calls an appointment, read where businessShape reads it (people/deals.ts appointmentWordRead):
+    // a refusal's words, and a new campaign's name on an appointment moment. Read only when one of them is said.
+    appointmentWord: () => appointmentWordRead(ctx, tenantId),
   };
 }

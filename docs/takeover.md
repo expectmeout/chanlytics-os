@@ -55,12 +55,12 @@ doors writing a record with no event   91   writing 104 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
 literal style values                826   in 22 stylesheets
-primitives outside the kit         1555   selectors naming 667 classes
+primitives outside the kit         1554   selectors naming 666 classes
 inline style props                   70   in 39 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     263
-source-text reads in tests          739
-lint warnings                       285   in 125 files, 37 of them exhaustive-deps
+source-text reads in tests          737
+lint warnings                       284   in 125 files, 37 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route

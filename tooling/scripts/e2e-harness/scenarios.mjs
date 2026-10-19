@@ -35,7 +35,6 @@ import {
   MAX_CLOSURES,
   PROFILE_LIMITS,
   channelsReady,
-  dealsAreOn,
   feedSourceLabel,
   zoneDayKey,
   isConsultationTitle,
@@ -384,8 +383,8 @@ function pipeline(name, nowMs) {
   const base = salon(name, nowMs);
   const BUSINESS = "Harbor Creative";
   const SERVICES = ["Brand identity", "Website", "Ad management"];
-  // How its customers buy (tenants.sells_by, 00160): by proposal, so deals are on wherever the app asks.
-  const SELLS_BY = "proposal";
+  // What it calls a booking (tenants.appointment_word, 00458): a meeting, as a business that quotes calls one.
+  const WORD = "meeting";
   const profile = {
     ...base.config.brain.profile,
     services: SERVICES.map((s) => ({ name: s, duration_min: 60, price_note: "quoted after a consultation" })),
@@ -499,7 +498,7 @@ function pipeline(name, nowMs) {
       campaigns: [],
       lead: null,
       deals: c.deal ? [c.deal] : [],
-      deals_on: dealsAreOn(SELLS_BY),
+      appointment_word: WORD,
       services: SERVICES,
       consult_first: [...profile.booking_rules.consult_first],
     };
@@ -512,7 +511,9 @@ function pipeline(name, nowMs) {
     people,
     details,
     calendar,
-    sellsBy: SELLS_BY,
+    word: WORD,
+    // A deal is on file here (its people carry them): the rail's deal lists are drawn.
+    hasDeals: true,
   };
 }
 

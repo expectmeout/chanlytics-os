@@ -28,7 +28,6 @@ const rows = uiRows({
     { class: "reengage", mode: "ask", limits: {} },
   ],
   role: "owner",
-  dealsOn: false,
 });
 const held = heldDraftsByClass([
   { intent: "booking", held: 5, sent: 4, steered: 1, canceled: 0, person_first: 0 },

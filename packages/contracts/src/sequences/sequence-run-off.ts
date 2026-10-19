@@ -16,7 +16,6 @@ const RUN_OFF_REASONS = [
   "list_uncounted",
   "template_not_approved",
   "number_flagged",
-  "deals_off",
   "never",
   "ended",
 ] as const;
@@ -34,7 +33,6 @@ const RUN_OFF_WORDS: Record<
   list_uncounted: { said: "its list couldn’t be counted", act: null, mends: null },
   template_not_approved: { said: "WhatsApp hasn’t approved its message", act: "Open it", mends: "door" },
   number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  deals_off: { said: "deals are off", act: null, mends: null },
   never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
   ended: { said: "its last day has passed", act: "End it", mends: "end" },
 };

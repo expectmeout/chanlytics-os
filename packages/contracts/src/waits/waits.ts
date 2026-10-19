@@ -83,6 +83,15 @@ export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): nu
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
 
+/**
+ * Whether a run is decided on its own page: it waits for approval (an Approve, or, its day gone, the Skip it is left), or
+ * it is going and the check holds emails for your say or hands them to its owner. A link to such a run stays on it; any
+ * other lands on its sequence's History (contracts runLandingOf).
+ */
+export function runDecidedOnItsPage(run: Pick<WaitingRun, "state" | "held" | "drafted">): boolean {
+  return run.state === "pending_approval" || runHeldEmails(run) > 0 || runDraftedEmails(run) > 0;
+}
+
 /** Whether a run waits for approval that an approval can no longer send: it can only be skipped, and the sweep skips it. */
 export function runTooLate(run: WaitingRun, days: RunDays): boolean {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;

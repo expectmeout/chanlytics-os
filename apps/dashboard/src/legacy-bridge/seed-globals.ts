@@ -105,7 +105,6 @@ if (typeof window !== "undefined") {
     LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
     // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
     __businessTabSave: BUSINESS_GLOBALS.__businessTabSave,
-    btSellsByChoice: BUSINESS_GLOBALS.btSellsByChoice,
     BtAddressRow: BUSINESS_GLOBALS.BtAddressRow,
     BtWebsiteRow: BUSINESS_GLOBALS.BtWebsiteRow,
     BtBookingLinkRow: BUSINESS_GLOBALS.BtBookingLinkRow,

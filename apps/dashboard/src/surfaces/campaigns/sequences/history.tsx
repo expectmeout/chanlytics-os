@@ -107,7 +107,10 @@ function DayOpen({ id, region }: { id: string; region: string }) {
   );
 }
 
-/** One batch's row: when, and what came of it; pressed, it opens in place. */
+/**
+ * One batch's row: when, and what came of it; pressed, a day that went opens in place, and one that has not (waiting for
+ * your OK, or still to go) opens its run's sheet, where it is decided: it opened onto that door alone.
+ */
 function DayRow(p: {
   b: SequenceBatchDto;
   rec: SequenceRecordDto;
@@ -119,25 +122,40 @@ function DayRow(p: {
 }) {
   const { b, rec, open, onToggle, nowMs, landed } = p;
   const row = useRef<HTMLDivElement>(null);
+  const door = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
-    if (landed) row.current?.scrollIntoView({ block: "center" });
+    if (landed) (row.current ?? door.current)?.scrollIntoView({ block: "center" });
   }, [landed]);
   const place = b.place && rec.steps.length > 1 ? H.step(b.place) : null;
   const said = historyDayWords(b, place);
   const went = batchWent(b);
   const region = `sq-day-${b.id}-open`;
+  const end = (cls: string) =>
+    b.state === "pending_approval" ? (
+      <StatePill kind="tone" value="warn" label={said.end} className={cls} />
+    ) : (
+      <span className={cls}>{said.end}</span>
+    );
+  const stamp = historyStamp(Date.parse(b.at), rec.timezone, nowMs);
+  if (!went)
+    return (
+      <ListRow
+        bare
+        name={stamp}
+        end={end}
+        said={said.said}
+        {...routeDoor(runSheetRoute(b.id))}
+        className="sq-day"
+        ref={door}
+        data-testid={`sq-batch-${b.id}`}
+      />
+    );
   return (
     <>
       <ListRow
         bare
-        name={historyStamp(Date.parse(b.at), rec.timezone, nowMs)}
-        end={(cls) =>
-          b.state === "pending_approval" ? (
-            <StatePill kind="tone" value="warn" label={said.end} className={cls} />
-          ) : (
-            <span className={cls}>{said.end}</span>
-          )
-        }
+        name={stamp}
+        end={end}
         said={said.said}
         role="button"
         tabIndex={0}
@@ -154,17 +172,7 @@ function DayRow(p: {
         ref={row}
         data-testid={`sq-batch-${b.id}`}
       />
-      {open ? (
-        went ? (
-          <DayOpen id={b.id} region={region} />
-        ) : (
-          <div className="sq-day-open" id={region}>
-            <LinkButton className="sq-day-door" {...routeDoor(runSheetRoute(b.id))} data-testid="sq-day-run">
-              {H.openRun} <Icon name="chevron" size={11} />
-            </LinkButton>
-          </div>
-        )
-      ) : null}
+      {open ? <DayOpen id={b.id} region={region} /> : null}
     </>
   );
 }
@@ -292,23 +300,30 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
             {H.inReports} <Icon name="chevron" size={11} />
           </LinkButton>
         </div>
-        <dl className="sq-figures" aria-busy={!covered || undefined}>
-          {figures.map((f) => (
-            <Figure
-              key={f.id}
-              id={f.id}
-              label={f.label}
-              value={f.value}
-              meta={f.meta}
-              definition={f.definition}
-              n={f.n}
-              {...(f.minN === null ? {} : { minN: f.minN })}
-              {...(f.id === "replied" && inbox ? { door: inbox } : {})}
-              className="sq-cell"
-              data-testid={`sq-figure-${f.id}`}
-            />
-          ))}
-        </dl>
+        {covered && !inPeriod.some(batchWent) ? (
+          // Nothing went out over the days picked (a run still waiting, or none at all): said once, not four zeros.
+          <p className="sq-none" data-testid="sq-history-none">
+            {H.nothingIn}
+          </p>
+        ) : (
+          <dl className="sq-figures" aria-busy={!covered || undefined}>
+            {figures.map((f) => (
+              <Figure
+                key={f.id}
+                id={f.id}
+                label={f.label}
+                value={f.value}
+                meta={f.meta}
+                definition={f.definition}
+                n={f.n}
+                {...(f.minN === null ? {} : { minN: f.minN })}
+                {...(f.id === "replied" && inbox ? { door: inbox } : {})}
+                className="sq-cell"
+                data-testid={`sq-figure-${f.id}`}
+              />
+            ))}
+          </dl>
+        )}
       </section>
       <section className="sq-days" aria-label={H.dayByDay}>
         <h3 className="sq-group-name">

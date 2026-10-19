@@ -1,19 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import {
-  FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
-  dealsAreOn,
-  policyClassOffered,
   policyModeRefusal,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { sellsByOf } from "../../../people/deals";
 import { actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 /**
@@ -49,9 +45,6 @@ async function proposePolicy(
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
   if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
-  // A class only a proposal's moment runs under is offered only where deals are on (0006); only it asks.
-  if (!policyClassOffered(cls, false) && !policyClassOffered(cls, dealsAreOn(await sellsByOf(t.ctx, t.tenantId))))
-    return refuse(FOLLOW_UP_NEEDS_DEALS);
   if (mode && !(POLICY_MODES as readonly string[]).includes(mode))
     return refuse("mode must be auto, veto, ask or never");
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
@@ -106,9 +99,7 @@ export const autonomyAction = actAction({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
     class: z
       .enum(POLICY_CLASSES.filter((c) => c !== "outreach") as [string, ...string[]])
-      .describe(
-        "The class of message: reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on.",
-      ),
+      .describe("The class of message: reply, booking, faq, reengage, campaign, reviews, or follow_up."),
     mode: z
       .enum(POLICY_MODES)
       .optional()

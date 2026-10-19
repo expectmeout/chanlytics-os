@@ -384,7 +384,6 @@ export const WORKSPACE_NEEDS = [
   "offers_whatsapp",
   "no_offers_channel",
   "live_call",
-  "deals_on",
   "winback_seed",
   "escalated_thread",
   "waiting_run",

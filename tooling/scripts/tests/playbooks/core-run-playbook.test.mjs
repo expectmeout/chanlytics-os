@@ -1594,7 +1594,6 @@ const followUpCtx = (people, over = {}) => ({
   people,
   modes: new Map([["follow_up", "auto"]]),
   calendar: "none",
-  dealsOn: true,
   pace: null,
   ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
   touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },

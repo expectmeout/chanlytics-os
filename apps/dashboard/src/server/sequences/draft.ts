@@ -275,7 +275,7 @@ export async function draftSequence(
       () => false,
     ),
   ]);
-  const offered = { dealsOn: shape.data.dealsOn, calendarOn: calendar };
+  const offered = { calendarOn: calendar };
   const moments: Moment[] = list
     ? [listMoment(list)]
     : MOMENT_TRIGGERS.filter((t) => t.kind !== "saved" && momentOffered(t, offered)).map((t) => ({

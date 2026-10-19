@@ -15,7 +15,8 @@ export const PREFETCH_READS = {
     "calendar?around=today"
   ],
   // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
-  inbox: ["conversations", "escalations?state=open"],
+  // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
+  inbox: ["conversations", "escalations?state=open", "broadcasts"],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
@@ -30,10 +31,11 @@ export const PREFETCH_READS = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent's sheets: the runs, who an audience reaches, and the channels read the composers are made of
-  // (surfaces/channels/surface.ts), beside Sequences' list (decision 0060, D3), its own read. The messages a composer offers,
+  // Sent's sheets: the runs, and the channels read the composers are made of (surfaces/channels/surface.ts), beside Sequences'
+  // list (decision 0060, D3), its own read. Who an audience reaches (Send it again's list) is every page of People, read
+  // once these are in, never by the head: a run's sheet opened from the Inbox draws without it. The messages a composer offers,
   // the business's name and its links are the settings read's, which the boot's second pass reads.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels", "sequences"],
+  broadcasts: ["broadcasts", "channels", "sequences"],
   outbound: ["playbooks", "channels"],
   // Campaigns is Sequences' list (surface-registry ROUTE_SURFACE), where its own address, a group's and a campaign's land,
   // and it opens on what Sequences opens on: the sheets it opens over the list read theirs at their own addresses (below).
@@ -42,9 +44,10 @@ export const PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
-  // the channels read and the settings read, which holds the messages it offers; and the reach-outs' chains a change to one
-  // opens on. Write to leads reads its searches as it is chosen. Each surface's first reads.
+  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
+  // reaches (People's book, its lists and the runs' touches), the channels read and the settings read, which holds the messages
+  // it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its searches as it is chosen. Each
+  // surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
@@ -67,8 +70,9 @@ export const PREFETCH_READS = {
   start: ["setup", "views"]
 };
 export const PREFETCH_BESIDE = {
-  // Sent's runs and who they reach, the playbooks' moments, the bell (notifications), the reach-outs' replies, Google's
-  // reviews, the channels read Live's strip and the runs are made of, and the period line: Reports' headline over the period
+  // Sent's runs, People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
+  // (notifications), the reach-outs' replies, Google's reviews, the channels read Live's strip and the runs are made of, and
+  // the period line: Reports' headline over the period
   // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
   // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [

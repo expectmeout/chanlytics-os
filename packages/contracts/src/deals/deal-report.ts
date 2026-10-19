@@ -16,7 +16,7 @@ import { yesWaitWords } from "./deal-waits";
  * Computed by the reports route from one read of the table and the People rows it already holds.
  */
 export interface DealReportDto {
-  /** Whether the section is drawn: deals are on here (dealsAreOn, 0008) and a deal was ever recorded. */
+  /** Whether the section is drawn: a deal was ever recorded here (every workspace has deals, 0008 amended 18 Oct 2026). */
   any: boolean;
   /** The cohort: the proposals sent in the period, and of them how many became clients (an ended engagement too),
    *  passed, or are still waiting. */

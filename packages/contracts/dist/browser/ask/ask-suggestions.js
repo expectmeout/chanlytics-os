@@ -159,7 +159,7 @@ export function buildAskSuggestions(input) {
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
   for (const [key, icon] of PAGE_QUESTIONS[at] ?? []) add(t[key], "ask", icon);
   if (at === "live" || at === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  if (input.dealsOn && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
+  if (input.hasDeals && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");

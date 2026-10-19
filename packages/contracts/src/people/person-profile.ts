@@ -5,7 +5,7 @@
  * exported from index.ts directly, since it reads people.ts's row view model.
  */
 import { clockDate, clockTime } from "../shared/clock";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
@@ -94,11 +94,11 @@ export const TIMELINE_FILTERS: readonly {
 ];
 
 /**
- * A filter's heading in the workspace's words: the appointments' is the workspace's word for one ("Meetings" where some
- * customers get a proposal first, as Campaigns says it: decision 0041), the others their own.
+ * A filter's heading in the workspace's words: the appointments' is the workspace's word for one ("Meetings",
+ * "Sessions", as Campaigns says it: decision 0041), the others their own.
  */
-export function timelineFilterLabel(f: { id: TimelineFilterId; label: string }, dealsOn: boolean): string {
-  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+export function timelineFilterLabel(f: { id: TimelineFilterId; label: string }, word: AppointmentWord): string {
+  return f.id === "visits" ? appointmentWords(word).Many : f.label;
 }
 
 /** The items a filter shows, in the order they came; an unknown filter shows everything. */
@@ -132,16 +132,15 @@ export interface PersonVM extends PersonRowVM {
   bookingLink: string | null;
   /**
    * Their proposal (proposalLinkOf, 0008): the link on their deal while it is a proposal out; for any other deal, none;
-   * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
-   * is on file.
+   * with no deal at all, the one on the person (00154) while it is still read. Null when none is on file.
    */
   proposal: PersonProposalVM | null;
   /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
   proposalAction: { label: string; title: string; ready: boolean };
   /** Their deals, newest first, as the page says them (0004). */
   deals: DealVM[];
-  /** Whether deals are on here (dealsAreOn): the page draws its Deal section, and offers the proposal's send, only then. */
-  dealsOn: boolean;
+  /** What the workspace calls an appointment (the person's read's appointment_word): every part of the page says it. */
+  word: AppointmentWord;
   /** The workspace's pace (dealPaceOf): when their proposal waits, and what its card says; none until five are decided. */
   dealPace: DealPaceVM | null;
   /** The profile's service names; the picker appears only past one. */
@@ -357,11 +356,11 @@ export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonAc
       needs: "record",
       off,
     });
-  // A proposal is a deal's (0008): a workspace whose customers book is never offered one to send. Its first send is
-  // the deal card's next act (deal-sheet.ts dealNextAct), and no send is offered while one is on its way, so the menu
-  // offers only a send the card does not: the link again once it went, or a link left on someone with no deal.
+  // A proposal is a deal's (0008). Its first send is the deal card's next act (deal-sheet.ts dealNextAct), and no send
+  // is offered while one is on its way, so the menu offers only a send the card does not: the link again once it went,
+  // or a link left on someone with no deal.
   const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
-  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
+  if (reach && p.proposal && p.proposalAction.ready && !cardSends)
     acts.push({
       id: "proposal",
       label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
@@ -370,15 +369,15 @@ export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonAc
       needs: "record",
       off,
     });
-  if (p.dealsOn)
-    acts.push({
-      id: "start-proposal",
-      label: W.startProposal,
-      hint: null,
-      group: "record",
-      needs: "record",
-      off: null,
-    });
+  // Every workspace may start one (0008, amended 18 Oct 2026): the act is in the menu, never a nudge on the page.
+  acts.push({
+    id: "start-proposal",
+    label: W.startProposal,
+    hint: null,
+    group: "record",
+    needs: "record",
+    off: null,
+  });
   acts.push({ id: "add-to-list", label: W.addToList, hint: null, group: "record", needs: "record", off: null });
   if (p.phone)
     acts.push({ id: "copy-phone", label: W.copyPhone, hint: null, group: "record", needs: "any", off: null });
@@ -495,7 +494,7 @@ export function toPersonVM(
   page: { names?: HolderNames | null; ready?: ChannelsReady | null } | null = {},
 ): PersonVM {
   const ctx = personCardContext(d, tz, now, viewerId, page?.names ?? null);
-  const { base, nowMs, dealsOn, reply } = ctx;
+  const { base, nowMs, word, reply } = ctx;
   const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts" | PersonPageKeys> = {
     ...base,
     ...(reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {}),
@@ -524,8 +523,8 @@ export function toPersonVM(
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
-    dealsOn,
-    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
+    word,
+    dealPace: dealPaceOf(d.deal_pace),
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
@@ -578,16 +577,7 @@ function recordedOf(deals: readonly DealVM[]): string | null {
 export function personNextFor(
   p: Pick<
     PersonVM,
-    | "noteList"
-    | "lastVisitLine"
-    | "comingUp"
-    | "visitTab"
-    | "dealsOn"
-    | "business"
-    | "nextStep"
-    | "consent"
-    | "name"
-    | "phone"
+    "noteList" | "lastVisitLine" | "comingUp" | "visitTab" | "business" | "nextStep" | "consent" | "name" | "phone"
   >,
   dealP: Parameters<typeof dealCardsOf>[0],
   tz: string,
@@ -600,7 +590,6 @@ export function personNextFor(
     lastVisit: p.visitTab.toMark[0]?.visit ?? p.lastVisitLine,
     ahead: p.comingUp,
     deals: dealCardsOf(dealP, nowMs, tz),
-    dealsOn: p.dealsOn,
     // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
     talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
     step: p.nextStep,
@@ -663,7 +652,7 @@ function personPageOf(
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0),
     },
     emails: reachOut ? { out: sent, back: reachOut.readings.filter((r) => !r.undone).length } : null,
-    dealsOn: p.dealsOn,
+    word: p.word,
   });
   const tabFacts = {
     id: p.id,
@@ -673,7 +662,7 @@ function personPageOf(
     deals: p.deals.length,
     campaigns: p.campaigns.length + p.inSequences.length,
     thin,
-    dealsOn: p.dealsOn,
+    word: p.word,
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {

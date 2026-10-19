@@ -15,10 +15,11 @@
  * sent. Sends and cancels go through the broadcasts verbs and the surface is
  * re-fetched, so the Scheduled and History rows are the server's.
  *
- * A real workspace draws the bridge's own rows (`useSurface("broadcasts")`); a demo session draws the same page from
- * the sample (sample.ts); without either, nothing is drawn.
+ * A real workspace draws the bridge's own rows (`useSurface("broadcasts")`), with who each audience reaches
+ * (`useSurface("audiences")`) once that is read; a demo session draws the same page from the sample (sample.ts); without
+ * either, nothing is drawn.
  */
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
@@ -43,11 +44,10 @@ import {
   useBcYes,
   useUnknownAudienceNotice,
 } from "./page/state";
-import type { BcApproving, BcBase, BcV, Flash } from "./page/types";
+import type { BcApproving, BcBase, BcData, BcV, BcWhole, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE } from "./run";
 import { broadcastsSample } from "./sample";
-import type { BroadcastsSurface } from "./surface";
 
 // Sequences' list, beside what a sheet opens: its own chunk, the one Campaigns fetches for Sequences, so a sheet's page carries
 // none of it until it draws, and a visit from Sequences has it already.
@@ -64,7 +64,7 @@ interface BroadcastsPageProps {
 }
 
 interface BroadcastsRealProps extends BroadcastsPageProps {
-  data: BroadcastsSurface;
+  data: BcData;
 }
 
 // Starters in review at WhatsApp: the honest line while nothing is approved yet. Settings' templates are read as they
@@ -284,7 +284,7 @@ export function BroadcastSend({
   onDone,
   onYes,
 }: {
-  data: BroadcastsSurface;
+  data: BcWhole;
   initialSegment?: string | null;
   flash: Flash;
   onDone: () => void;
@@ -303,7 +303,11 @@ export function BroadcastSend({
 
 export function BroadcastsPage(props: BroadcastsPageProps) {
   const live = useSurface("broadcasts");
-  const data = live || (demoSession() ? broadcastsSample() : null);
+  // Who each audience reaches, once it is read: Send it again offers a run's list then. A run's sheet, To send and Get their yes
+  // never wait for it, since it is every page of People (audiences-surface.ts).
+  const audiences = useSurface("audiences");
+  const real = useMemo(() => (live ? { ...audiences, ...live } : null), [live, audiences]);
+  const data = real || (demoSession() ? broadcastsSample() : null);
   if (!data) return null;
   return <BroadcastsReal data={data} {...props} />;
 }

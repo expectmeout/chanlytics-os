@@ -84,7 +84,7 @@ export const PLAYBOOK_TRIGGERS = [
     hint: "Everyone on a list: one of People's, or one you keep",
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  // its link, under its own class, in every workspace. Conversational: it answers the person's own request.
   {
     id: "proposal_waiting",
     label: "Proposal follow-up",
@@ -265,13 +265,12 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
 export const VISIT_TRIGGERS: readonly string[] = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
 
 /**
- * Whether a moment is offered in a workspace (0006): every one, and a proposal's only where deals are on
- * (dealsAreOn, 0008). The Playbooks page, its counts, Ask and the check that makes a playbook all read it. A
+ * Whether a moment is offered in a workspace (0006): every one, a proposal's too, since every workspace has deals
+ * (0008, amended 18 Oct 2026). The Playbooks page, its counts, Ask and the check that makes a playbook all read it. A
  * reach-out's steps are never moments: the reach-out sheet makes them (Reach out, Part 4).
  */
-export function triggerOffered(t: { kind: string }, dealsOn: boolean): boolean {
-  if (t.kind === "reach_out") return false;
-  return t.kind !== "deal" || dealsOn;
+export function triggerOffered(t: { kind: string }): boolean {
+  return t.kind !== "reach_out";
 }
 
 /**
@@ -341,8 +340,8 @@ export function momentReadsCalendar(t: { id: string; kind: string }): boolean {
  * `calendarOn` is a calendar connected here, whether or not its feed can be read just now: the page's calendar state is
  * not "none".
  */
-export function momentOffered(t: { id: string; kind: string }, o: { dealsOn: boolean; calendarOn: boolean }): boolean {
-  if (!triggerOffered(t, o.dealsOn)) return false;
+export function momentOffered(t: { id: string; kind: string }, o: { calendarOn: boolean }): boolean {
+  if (!triggerOffered(t)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
   if (!momentReadsCalendar(t)) return true;
   return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
@@ -350,12 +349,12 @@ export function momentOffered(t: { id: string; kind: string }, o: { dealsOn: boo
 
 /**
  * Whether an Autonomy class is offered in a workspace: a class no moment runs under, or one a moment offered here
- * runs under, or the reach-outs', which the reach-out sheet makes. So the follow-ups' row is only where deals are on
- * (0006), and every other row is everywhere.
+ * runs under, or the reach-outs', which the reach-out sheet makes. Every workspace has deals (0008, amended 18 Oct
+ * 2026), so the follow-ups' row is everywhere, as every other row is.
  */
-export function policyClassOffered(cls: string, dealsOn: boolean): boolean {
+export function policyClassOffered(cls: string): boolean {
   // The reach-outs' row: no moment runs under it, but its own sheet makes chains that do (Reach out, Part 4 PR 6).
   if (cls === "outreach") return true;
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
-  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
+  return runs.length === 0 || runs.some((t) => triggerOffered(t));
 }

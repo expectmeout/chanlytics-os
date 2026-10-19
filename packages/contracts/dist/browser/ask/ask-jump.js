@@ -8,7 +8,6 @@ const lensJump = (lens) => ({
 const LENS_JUMPS = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
   lensJump
 );
-const DEALS_LENS_JUMPS = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 export const ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
@@ -16,6 +15,8 @@ export const ASK_PAGES = [
   // Leads is the other scope of People, and it is its own place to an owner: the businesses
   // a search found, worked. `leads` was the mockup's page and is not offered.
   { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
+  // People's third scope, every workspace's (0008, amended 18 Oct 2026: deals for everyone).
+  { label: "Pipeline", to: "clients/pipeline", kind: "page", sub: "your deals, by stage", also: ["deals"] },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
@@ -90,13 +91,6 @@ export const ASK_PAGES = [
     also: ["ai memory"]
   }
 ];
-const PIPELINE = {
-  label: "Pipeline",
-  to: "clients/pipeline",
-  kind: "page",
-  sub: "your deals, by stage",
-  also: ["deals"]
-};
 const BACK_OFFICE = {
   label: "Back office",
   to: "admin/platform",
@@ -104,15 +98,7 @@ const BACK_OFFICE = {
   sub: "every workspace, for Chanlytics staff"
 };
 export function askPages(has) {
-  const out = [];
-  const lastLens = LENS_JUMPS.at(-1)?.to;
-  for (const p of ASK_PAGES) {
-    out.push(p);
-    if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
-    if (p.to === lastLens && has.dealsOn) out.push(...DEALS_LENS_JUMPS);
-  }
-  if (has.platformAdmin) out.push(BACK_OFFICE);
-  return out;
+  return has.platformAdmin ? [...ASK_PAGES, BACK_OFFICE] : [...ASK_PAGES];
 }
 export function askJump(query, index, limit = 6) {
   const s = query.trim().toLowerCase();

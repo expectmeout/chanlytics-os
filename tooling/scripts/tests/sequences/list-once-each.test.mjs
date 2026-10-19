@@ -75,7 +75,6 @@ const listWorld = (people) => ({
   touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
   calendar: "none",
   visits: new Map(),
-  dealsOn: false,
   listMembers: () => ({ state: "ok", ids: new Set(people.map((p) => p.id)) }),
 });
 

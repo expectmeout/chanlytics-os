@@ -1,6 +1,5 @@
 import { visitDateKey, visitDay } from "../calendar/calendar-people.js";
 import { visitDoor, visitLinkWords } from "../calendar/appointment-key.js";
-import { appointmentWordWhere } from "../journey/appointment-word.js";
 import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words.js";
 import { STOP_WORDS } from "../consent/consent.js";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words.js";
@@ -234,9 +233,8 @@ function consentItems({ profile, stamp }) {
   }
   return items;
 }
-function visitItems({ profile, nowMs, base, stamp, dealsOn }) {
+function visitItems({ profile, nowMs, base, stamp, word }) {
   const items = [];
-  const word = appointmentWordWhere(dealsOn);
   if (profile.visits?.all?.length) {
     const zone = profile.visits.timezone;
     for (const v of profile.visits.all) {
@@ -261,9 +259,9 @@ function visitItems({ profile, nowMs, base, stamp, dealsOn }) {
   }
   return items;
 }
-function dealItems({ profile, dealsOn, stamp }) {
+function dealItems({ profile, stamp }) {
   const items = [];
-  for (const x of dealsOn ? profile.deals ?? [] : []) {
+  for (const x of profile.deals ?? []) {
     const svc = x.service ? ` \xB7 ${x.service}` : "";
     const put = (id, at, text) => {
       const t = ts(at);

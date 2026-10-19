@@ -9,7 +9,7 @@
 //   /today                → Operator's brief
 //   /inbox                → Inbox
 //   /clients              → Clients portfolio
-//   /clients/pipeline     → People › Pipeline, where deals are on (else People)
+//   /clients/pipeline     → People › Pipeline
 //   /clients/<id>         → Client profile
 //   /soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
 // The route is read, followed and moved in one place, CHANLY.address (data/constants.jsx: the bridge's in the app,
@@ -336,15 +336,16 @@ const useShellNavigate = (setRoute) => {
     lastPush.current = { to, from: window.CHANLY.address.route() };
     window.CHANLY.address.go(to);
   }, []);
-  // A person's Back: the People view (a list, a segment, Leads) this profile was opened from, by the browser's own
-  // Back, so its place comes with it. It pushed plain People, and the list the member was working through was gone.
-  // Reached any other way -- a link, a reload, another page's door, Back from somewhere else -- it is People itself.
-  const backToPeople = useShellCallback(() => {
+  // A page's Back to where it was opened from (`from`, any place by default), by the browser's own Back, so that place
+  // comes with it; reached any other way (a link, a reload, Back from somewhere else) it goes `home`. A person's Back is the
+  // People view (a list, a segment, Leads) the profile was opened from: it pushed plain People, and that list was gone.
+  const backFrom = useShellCallback((home, from = /^/, opts) => {
     const p = lastPush.current;
-    if (p && shellSamePage(p.to, window.CHANLY.address.route()) && /^clients(?:$|[/:])/.test(p.from) && window.history && window.history.back) window.history.back();
-    else navigate("clients");
+    if (p && shellSamePage(p.to, window.CHANLY.address.route()) && from.test(p.from) && window.history && window.history.back) window.history.back();
+    else navigate(home, opts);
   }, [navigate]);
-  return { navigate, backToPeople };
+  const backToPeople = useShellCallback(() => backFrom("clients", /^clients(?:$|[/:])/), [backFrom]);
+  return { navigate, backToPeople, backFrom };
 };
 
 /**
@@ -735,7 +736,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   useSurface({ page, param });
   const gate = useRouteGate(at);
   const { demoGated } = gate;
-  const { navigate, backToPeople } = useShellNavigate(setRoute);
+  const { navigate, backToPeople, backFrom } = useShellNavigate(setRoute);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
   // The phone's ✦ is Ask's face too (components/ask-face.jsx), drawn on the button's coral; the sparkle where the three
   // are not loaded.
@@ -746,7 +747,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // surfaces/people/person, takes it from the frame, which knows that view). The bridge hands the frame the filler as
   // `fillDoors`, and publishes the names the pages that have not moved read (seed-globals.ts). Without a bridge (the
   // standalone mockup, a test) the frame publishes them itself, as it always did.
-  if (fillDoors) fillDoors({ navigate, openAsk, backToPeople });
+  if (fillDoors) fillDoors({ navigate, openAsk, backToPeople, backFrom });
   else Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick, follows: routeNow === null });

@@ -9,7 +9,7 @@ import { LIST_GROUP_WORDS, type AudiencePreview } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
-import type { AudienceOption } from "../surface";
+import type { AudienceOption } from "../audiences-surface";
 import { bcKey } from "./words";
 
 /** The headings the lists stand under in the picker, the two groups People's rail names them by; Everyone stands alone, over them. */

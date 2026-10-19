@@ -275,9 +275,12 @@ export interface PersonDetailDto {
   proposal_url?: string | null;
   /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
   deals?: DealDto[];
-  /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0008). */
-  deals_on?: boolean;
-  /** The workspace's pace (00167 deal_pace), where deals are on; absent from a server before it. */
+  /**
+   * What the workspace calls an appointment (tenants.appointment_word through appointmentWordOf, 00458): the one word
+   * every card of the page says; absent from a server before it, read as "appointment".
+   */
+  appointment_word?: string | null;
+  /** The workspace's pace (00167 deal_pace); absent from a server before it. */
   deal_pace?: DealPaceDto | null;
   /** The profile's service names, for the page's picker when it lists more than one. */
   services?: string[];

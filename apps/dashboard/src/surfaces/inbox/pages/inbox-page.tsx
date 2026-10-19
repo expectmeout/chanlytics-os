@@ -32,6 +32,7 @@ import {
 import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
 import { ixBucketOf, ixRank } from "../rules";
+import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
 import { inboxData } from "../store";
@@ -166,7 +167,10 @@ const inboxBucketMoves = ({
 
 type InboxBucketMoves = ReturnType<typeof inboxBucketMoves>;
 
-/** The buckets' and the views' counts, and the Needs bucket's stake. */
+/**
+ * The buckets' and the views' counts, and the Needs bucket's stake. `runs` are the campaign runs waiting for your say,
+ * each a row of Needs you over its threads (inbox-runs.tsx), so its chip counts them as the badge does.
+ */
 const inboxCounts = (
   threads: Thread[],
   {
@@ -174,6 +178,7 @@ const inboxCounts = (
     INBOX_VIEWS,
     INBOX_BASELINE,
   }: Pick<InboxSurface, "INBOX_BUCKETS" | "INBOX_VIEWS" | "INBOX_BASELINE">,
+  runs: number,
 ) => {
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
   // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
@@ -185,7 +190,8 @@ const inboxCounts = (
     // `ixWaitsOnYou` for Needs you and the bucket for the rest, which is exactly how the two came apart.
     count:
       threads.filter((t) => ixBucketOf(t) === b.id).length +
-      (b.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0),
+      (b.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0) +
+      (b.id === "escalated" ? runs : 0),
   }));
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
@@ -516,9 +522,10 @@ export const Inbox = ({
   // Each thread opened, timed from the press that opened it: a move inside the page.
   usePartShown("inbox", "thread", !!open, open ? open.id : null);
   const withBucketMoves = Object.assign(withScreen, inboxBucketMoves(withScreen));
+  const runs = useNeedsYouParts()?.runs ?? 0;
   const full = Object.assign(
     withBucketMoves,
-    inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }),
+    inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
   );
   return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies });
 };

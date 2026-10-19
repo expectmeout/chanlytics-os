@@ -23,6 +23,7 @@ export function consultationHeld(r, nowMs) {
   const at = r.consultedMs;
   if (typeof at !== "number" || !Number.isFinite(at)) return false;
   if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  if (r.nextVisitMs !== null) return false;
   return noProposalSince(r.deal, at);
 }
 export function dealStageOf(r, nowMs) {
@@ -43,5 +44,5 @@ export function consultationsWithoutProposal(rows, nowMs) {
   );
 }
 export function consultsHeldWords(n) {
-  return `${n} ended in the last week, no proposal yet`;
+  return `${n} ended in the last week, nothing since`;
 }

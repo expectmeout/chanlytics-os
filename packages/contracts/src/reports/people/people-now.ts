@@ -67,8 +67,8 @@ function freshCountsOf(vms: readonly PersonRowVM[]): PeopleNowDto["fresh"] {
   return fresh;
 }
 
-/** What the five lists are read with: the pool for no one looking, no calendar, deals off, no consult-first service. */
-const BOOK_CONTEXT = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+/** What the five lists are read with: the pool for no one looking, no calendar, no deal, no consult-first service. */
+const BOOK_CONTEXT = poolListContext({ calendar: "none", hasDeals: false, consultFirst: false, viewer: null });
 
 /** How many are on one of People's built-in lists; a list that cannot be counted is an error, never a made-up number. */
 function listCountOf(id: keyof PeopleNowDto["lists"], vms: readonly PersonRowVM[]): number {
@@ -123,7 +123,7 @@ export function peopleNowOf(
   rows: readonly PersonRowDto[],
   o: { tz: string; nowMs: number; ready: ChannelsReady | null },
 ): PeopleNowDto {
-  const vms = poolRowsOf(rows, { tz: o.tz, now: new Date(o.nowMs), viewer: null, dealsOn: false, ready: o.ready });
+  const vms = poolRowsOf(rows, { tz: o.tz, now: new Date(o.nowMs), viewer: null, ready: o.ready });
   return {
     people: vms.length,
     fresh: freshCountsOf(vms),

@@ -185,8 +185,8 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
     "Leads is a real page now: the scope of People",
   );
   assert.ok(
-    ASK_PAGES.every((p) => !/fleet|store|studio|pipeline|content|tasks\b/.test(p.to)),
-    "only real pages",
+    ASK_PAGES.every((p) => !/^(fleet|store|studio|pipeline|content|tasks)\b/.test(p.to)),
+    "only real pages: none of the mockup's (People's own Pipeline, clients/pipeline, is every workspace's since 18 Oct 2026)",
   );
 });
 
@@ -194,9 +194,9 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
 
 // ⌘K's jumps against the pages a workspace has: every page the shell's registry calls real, and People's scopes beside
 // them, is a jump away; every jump lands on a real page, where that page is now, and on a page an answer may name. The
-// Pipeline is a jump where deals are on and the back office for Chanlytics staff, read from the two bits their own doors
-// are drawn by (People's scope strip, Settings' rail); Memory lands on Business, where what the receptionist knows
-// lives (#417). A real page added to the registry without a jump fails here.
+// Pipeline is every workspace's (0008, amended 18 Oct 2026) and the back office Chanlytics staff's, read from the bit
+// its own door is drawn by (Settings' rail); Memory lands on Business, where what the receptionist knows lives (#417).
+// A real page added to the registry without a jump fails here.
 const { SURFACE_STATES, surfaceStateFor, surfaceRetiredTo } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href
 );
@@ -243,7 +243,8 @@ const REACHED = {
   "admin/activity": ["Activity", "admin/activity"],
   "admin/platform": ["Back office", "admin/platform"],
   "admin/partner": ["Partner", "admin/partner"],
-  // People's third scope where deals are on (0008): an address of `clients`, not a route of the registry's own.
+  // People's third scope, every workspace's (0008, amended 18 Oct 2026): an address of `clients`, not a route of the
+  // registry's own.
   "clients/pipeline": ["Pipeline", "clients/pipeline"],
 };
 // People's scopes are listed by hand: a scope is an address of `clients`, which the registry routes as one page, so a
@@ -258,8 +259,8 @@ for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhe
   SCOPES.push(lensRoute(lens.id));
 }
 
-/** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
-const EVERY = askPages({ dealsOn: true, platformAdmin: true });
+/** Every page, for a person on Chanlytics' staff. */
+const EVERY = askPages({ platformAdmin: true });
 const where = (to) => {
   const [page, ...rest] = to.split("/");
   return [page, rest.length ? rest.join("/") : null];
@@ -303,45 +304,42 @@ test("every jump lands on a real page, where the page is now, on a page an answe
   assert.ok(!EVERY.some((e) => e.to === "admin/memory"), "never the pane that says it is not built (#417)");
 });
 
-test("the Pipeline is a jump where deals are on, after Leads; the back office for Chanlytics staff; every workspace has the rest", () => {
+test("the Pipeline is every workspace's jump, after Leads; the back office for Chanlytics staff; every workspace has the rest", () => {
   const names = (has) => askPages(has).map((e) => e.label);
-  const none = names({ dealsOn: false, platformAdmin: false });
+  const none = names({ platformAdmin: false });
   assert.deepEqual(
     none,
     ASK_PAGES.map((e) => e.label),
     "the pages every workspace has",
   );
-  assert.ok(!none.includes("Pipeline") && !none.includes("Back office"));
-  const deals = names({ dealsOn: true, platformAdmin: false });
-  assert.equal(deals.indexOf("Pipeline"), deals.indexOf("Leads") + 1, "People's scopes in the strip's order");
-  assert.ok(!deals.includes("Back office"));
-  const staff = names({ dealsOn: false, platformAdmin: true });
+  assert.equal(none.indexOf("Pipeline"), none.indexOf("Leads") + 1, "People's scopes in the strip's order");
+  assert.ok(!none.includes("Back office"));
+  const staff = names({ platformAdmin: true });
   assert.equal(staff.at(-1), "Back office");
-  assert.ok(!staff.includes("Pipeline"), "where deals are off the Pipeline's address draws People");
 });
 
-test("the bridge's jump index reads the two bits the pages draw those doors by, and a few words reach each new page", () => {
+test("the bridge's jump index reads the bit the back office's door is drawn by, and a few words reach each new page", () => {
   const index = (w) => jumpIndexFrom({ ...w });
   const first = (words, w) => askJump(words, index(w))[0]?.to ?? null;
-  const on = { __PEOPLE: { rows: [], dealsOn: true }, __ME: { role: "owner", platform_admin: true } };
-  const off = { __PEOPLE: { rows: [], dealsOn: false }, __ME: { role: "owner" } };
-  assert.equal(first("pipe", on), "clients/pipeline");
+  const staff = { __PEOPLE: { rows: [] }, __ME: { role: "owner", platform_admin: true } };
+  const owner = { __PEOPLE: { rows: [] }, __ME: { role: "owner" } };
+  assert.equal(first("pipe", staff), "clients/pipeline");
   assert.ok(
-    askJump("deals", index(on)).some((j) => j.to === "clients/pipeline"),
+    askJump("deals", index(staff)).some((j) => j.to === "clients/pipeline"),
     "the Pipeline answers to its deals",
   );
-  assert.equal(first("back office", on), "admin/platform");
-  assert.equal(first("pipe", off), null, "deals off: no Pipeline");
-  assert.equal(first("back office", off), null, "not staff: no back office");
-  assert.equal(first("pipe", {}), null, "before People is read, nothing is claimed");
-  for (const w of [on, off]) {
+  assert.equal(first("back office", staff), "admin/platform");
+  assert.equal(first("pipe", owner), "clients/pipeline", "every workspace's Pipeline");
+  assert.equal(first("back office", owner), null, "not staff: no back office");
+  assert.equal(first("pipe", {}), "clients/pipeline", "and before People is read: the page is there whatever it holds");
+  for (const w of [staff, owner]) {
     assert.equal(first("memory", w), "admin/receptionist", "Memory lands on How it answers");
     assert.equal(first("ai memory", w), "admin/receptionist", "and so does the pane's own name");
     assert.equal(first("partner", w), "admin/partner");
     assert.equal(first("setting up", w), "start", "the first run is a jump away");
   }
   // The rest of the index is the browser's own rows, after the pages.
-  const people = index({ ...on, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }], dealsOn: true } });
+  const people = index({ ...staff, __PEOPLE: { rows: [{ id: "p-1", name: "Pip Adams" }] } });
   assert.deepEqual(
     askJump("pip", people).map((j) => j.label),
     ["Pipeline", "Reports › Pipeline", "Pip Adams"],
@@ -380,25 +378,27 @@ test("suggestions come from the data, in the person's language, and never offer 
   assert.equal(new Set(busy.map((s) => s.q)).size, busy.length, "no duplicates");
 });
 
-test("the question about proposals is offered only where deals are a thing (0004): People's surface says so, in the person's language", () => {
+test("the question about proposals is offered once a deal is on file (0004; 0008, amended 18 Oct 2026): People's surface says so, in the person's language", () => {
   const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false };
   const EN = "Who has a proposal out?";
   const ES = "¿Quién tiene una propuesta pendiente?";
-  const on = buildAskSuggestions({ ...quiet, surface: "people", language: "en", dealsOn: true });
+  const on = buildAskSuggestions({ ...quiet, surface: "people", language: "en", hasDeals: true });
   assert.ok(
     on.some((s) => s.q === EN && s.kind === "ask"),
-    "People, deals on: the question is offered",
+    "People, a deal on file: the question is offered",
   );
-  assert.ok(buildAskSuggestions({ ...quiet, surface: "other", language: "es", dealsOn: true }).some((s) => s.q === ES));
+  assert.ok(
+    buildAskSuggestions({ ...quiet, surface: "other", language: "es", hasDeals: true }).some((s) => s.q === ES),
+  );
   assert.ok(
     !buildAskSuggestions({ ...quiet, surface: "people", language: "en" }).some((s) => s.q === EN),
-    "no deals here: no question about proposals",
+    "no deal on file: no question about proposals",
   );
   assert.ok(
-    !buildAskSuggestions({ ...quiet, surface: "people", language: "es", dealsOn: false }).some((s) => s.q === ES),
+    !buildAskSuggestions({ ...quiet, surface: "people", language: "es", hasDeals: false }).some((s) => s.q === ES),
   );
   assert.ok(
-    !buildAskSuggestions({ ...quiet, surface: "inbox", language: "en", dealsOn: true }).some((s) => s.q === EN),
+    !buildAskSuggestions({ ...quiet, surface: "inbox", language: "en", hasDeals: true }).some((s) => s.q === EN),
     "the Inbox is not where people are looked at",
   );
 });
@@ -1008,8 +1008,8 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   );
   const proposals = (lang) =>
     api.suggestions("people", null, lang).some((s) => /proposal out|propuesta pendiente/.test(s.q));
-  assert.equal(proposals("en"), false, "People's surface has not said deals are a thing here");
-  win.__PEOPLE.dealsOn = true;
+  assert.equal(proposals("en"), false, "People's surface has not said a deal is on file");
+  win.__PEOPLE.hasDeals = true;
   assert.equal(proposals("en"), true, "it has: the question about proposals is offered, read from the surface");
   assert.equal(proposals("es"), true);
   assert.equal(api.timezone(), "America/New_York");

@@ -60,6 +60,7 @@ const { todayOverride } = await importSrc("apps/dashboard/src/surfaces/today/sur
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
 const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+const { audiencesOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
 const { calendarOverride } = await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts");
 const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
@@ -94,6 +95,7 @@ test("every table these pages name is one the database tells a workspace of (004
     peopleOverride,
     playbooksOverride,
     broadcastsOverride,
+    audiencesOverride,
     calendarOverride,
     reachOutsOverride,
     reportsOverride,
@@ -184,16 +186,17 @@ const ON_ITS_PAGE = [
   // The playbooks on their own page, Campaigns' old address, since the composer's Every time went (the closed-loop audit of
   // 17 Oct 2026, G).
   [playbooksOverride, "#/outbound", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
-  // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do. Away is
-  // the Inbox: Campaigns' composer hears these for Sent's runs too (PAGE_HEARS, a cell of kinds; the test below).
-  [broadcastsOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
+  // Who each audience Sent's composer offers reaches (audiences-surface.ts), with the settings read's messages (offered-templates.ts):
+  // it hears every other table the playbooks do. Away is the Inbox: Campaigns' composer hears these for the audiences too
+  // (PAGE_HEARS, a cell of kinds; the test below).
+  [audiencesOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
   [reportsOverride, "#/reports", "#/inbox", ["contacts"]],
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
   [reportsPeopleOverride, "#/reports/people", "#/inbox", ["contacts", "tenant_config"]],
   [receptionistOverride, "#/reports/receptionist", "#/inbox", ["contacts", "tenant_config"]],
 ];
 
-test("the heavy pages hear them on their own page alone: People, the playbooks, Sent and the Reports lenses", () => {
+test("the heavy pages hear them on their own page alone: People, the playbooks, the audiences and the Reports lenses", () => {
   for (const [o, home, away, tables] of ON_ITS_PAGE)
     for (const table of tables) {
       at(home);
@@ -327,13 +330,13 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   }
 });
 
-test("in Campaigns' composer Sent's runs hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
-  // The composer draws Sent's runs for who can hear you, the pause on offers and the send-once composer (the wiring's second audit,
-  // W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved moved them nowhere while it was open. A message moves a
-  // run's replies, which the composer reads from Campaigns' own 30 days: it is Sent's, as it was. Campaigns' landing, Sequences'
-  // list, draws no run: there they are kept for the pages that draw them.
+test("in Campaigns' composer the audiences hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
+  // The composer draws who each audience reaches for who can hear you and the send-once composer, and Sent's runs for the pause on
+  // offers and the Send by ticks (the wiring's second audit, W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved
+  // moved them nowhere while it was open. A message moves a run's replies, which the composer reads from Campaigns' own 30 days: it
+  // is Sent's, as it was. Campaigns' landing, Sequences' list, draws neither: there they are kept for the pages that draw them.
   assert.equal(
-    ownsTable("broadcasts", "contacts", "campaigns"),
+    ownsTable("audiences", "contacts", "campaigns"),
     false,
     "Campaigns' landing keeps a person for Sent's pages",
   );
@@ -348,13 +351,19 @@ test("in Campaigns' composer Sent's runs hear what moves them there, a person, a
     "tenant_config",
     "appointments",
   ])
+    assert.equal(hears(audiencesOverride, table), true, `audiences: ${table} in the composer`);
+  // Sent's runs, there, hear what their Send by ticks and the month are worded from, and nothing of People.
+  for (const table of ["tenant_channels", "lines", "mailboxes", "billing_accounts", "tenant_config"])
     assert.equal(hears(broadcastsOverride, table), true, `broadcasts: ${table} in the composer`);
+  assert.equal(hears(broadcastsOverride, "contacts"), false, "Sent's runs read no one");
   for (const [table, event] of [
     ["messages", "INSERT"],
     ["conversations", "UPDATE"],
     ["escalations", "INSERT"],
-  ])
+  ]) {
+    assert.equal(hears(audiencesOverride, table, event), false, `audiences: ${table} waits for Sent`);
     assert.equal(hears(broadcastsOverride, table, event), false, `broadcasts: ${table} waits for Sent`);
+  }
   const win = {
     location: globalThis.location,
     addEventListener(_t, fn) {
@@ -363,9 +372,9 @@ test("in Campaigns' composer Sent's runs hear what moves them there, a person, a
     removeEventListener() {},
   };
   const read = [];
-  const stop = readWhatWasMissed([broadcastsOverride], (keys) => read.push(...keys), win);
+  const stop = readWhatWasMissed([audiencesOverride], (keys) => read.push(...keys), win);
   try {
-    hears(broadcastsOverride, "messages", "INSERT");
+    hears(audiencesOverride, "messages", "INSERT");
     at("#/inbox");
     win.on?.();
     at("#/campaigns/new");
@@ -377,14 +386,14 @@ test("in Campaigns' composer Sent's runs hear what moves them there, a person, a
     );
     at("#/broadcasts");
     win.on?.();
-    assert.deepEqual(read, ["broadcasts"], "it is read once as Sent comes on screen");
+    assert.deepEqual(read, ["audiences"], "it is read once as Sent comes on screen");
     at("#/inbox");
-    hears(broadcastsOverride, "contacts");
+    hears(audiencesOverride, "contacts");
     at("#/campaigns/new");
     win.on?.();
     assert.deepEqual(
       read,
-      ["broadcasts", "broadcasts"],
+      ["audiences", "audiences"],
       "a person's answer passed on the Inbox is read as the composer comes back",
     );
   } finally {

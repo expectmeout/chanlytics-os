@@ -38,7 +38,7 @@ const brain = {
 
 /** The server: one workspace row with a zone and an answer, and a settings read that composes its preview in that zone. */
 const server = (zone) => {
-  const state = { zone, sellsBy: null, asked: [], bodies: [] };
+  const state = { zone, word: null, asked: [], bodies: [] };
   const json = (data, status = 200) =>
     new Response(
       JSON.stringify(
@@ -62,12 +62,12 @@ const server = (zone) => {
       const sent = JSON.parse(init.body);
       state.bodies.push(sent);
       if (sent.timezone !== undefined) state.zone = sent.timezone;
-      if (sent.sells_by !== undefined) state.sellsBy = sent.sells_by;
+      if (sent.appointment_word !== undefined) state.word = sent.appointment_word;
       return json({
         workspace: {
           ...row,
           timezone: state.zone,
-          ...(sent.sells_by !== undefined ? { sells_by: state.sellsBy } : {}),
+          ...(sent.appointment_word !== undefined ? { appointment_word: state.word } : {}),
         },
       });
     }
@@ -166,14 +166,14 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   }
 });
 
-test("how customers buy is saved through the workspace's own route: only what was said goes, the page's list keeps it, and what it switches is read again", async () => {
+test("what it calls a booking is saved through the workspace's own route: only what was said goes, the page's list keeps it, and the pages that say it are read again", async () => {
   const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
   const srv = server("America/New_York");
   Object.assign(W, {
     fetch: srv.fetch,
     __WORKSPACES: [
-      { id: "t-marisa", timezone: "America/New_York", sells_by: null },
-      { id: "t-other", timezone: "Europe/London", sells_by: null },
+      { id: "t-marisa", timezone: "America/New_York", appointment_word: null },
+      { id: "t-other", timezone: "Europe/London", appointment_word: null },
     ],
     __ACTIVE_WORKSPACE: "t-marisa",
   });
@@ -186,19 +186,19 @@ test("how customers buy is saved through the workspace's own route: only what wa
     await quiet(async () => {
       for (let i = 0; i < 40 && !(W.__SETTINGS && W.__SETTINGS.prompt); i += 1) await pause();
       srv.asked.length = 0;
-      const r = await W.__workspace.patch({ sells_by: "proposal" });
-      assert.deepEqual(r, { ok: true, workspace: { sells_by: "proposal" }, message: "" });
-      assert.deepEqual(srv.bodies, [{ sells_by: "proposal" }], "the answer alone: the zone is not sent again");
+      const r = await W.__workspace.patch({ appointment_word: "session" });
+      assert.deepEqual(r, { ok: true, workspace: { appointment_word: "session" }, message: "" });
+      assert.deepEqual(srv.bodies, [{ appointment_word: "session" }], "the word alone: the zone is not sent again");
       assert.deepEqual(
-        W.__WORKSPACES.map((t) => [t.id, t.timezone, t.sells_by]),
+        W.__WORKSPACES.map((t) => [t.id, t.timezone, t.appointment_word]),
         [
-          ["t-marisa", "America/New_York", "proposal"],
+          ["t-marisa", "America/New_York", "session"],
           ["t-other", "Europe/London", null],
         ],
-        "the active workspace's answer, and no other's; the zone as it was",
+        "the active workspace's word, and no other's; the zone as it was",
       );
       assert.deepEqual(heard, ["workspace:changed"]);
-      // Settings, People, Reports and Today (whose day reads the metrics) are read again once the answer is saved.
+      // Settings, People, Reports and Today (whose day reads the metrics) are read again once the word is saved.
       const patched = srv.asked.indexOf("PATCH workspaces");
       for (const read of ["GET settings", "GET contacts", "GET reports", "GET metrics"])
         assert.ok(srv.asked.indexOf(read) > patched, `${read} after the save: ${srv.asked.join(", ")}`);
@@ -207,7 +207,7 @@ test("how customers buy is saved through the workspace's own route: only what wa
       const tz = await W.__workspace.setTimezone("America/Chicago");
       assert.deepEqual(tz, { ok: true, tz: "America/Chicago", message: "" });
       assert.deepEqual(srv.bodies, [{ timezone: "America/Chicago" }]);
-      assert.equal(W.__WORKSPACES[0].sells_by, "proposal", "a zone saved leaves the answer where it was");
+      assert.equal(W.__WORKSPACES[0].appointment_word, "session", "a zone saved leaves the word where it was");
     });
   } finally {
     stop();

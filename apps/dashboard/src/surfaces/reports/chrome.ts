@@ -34,22 +34,21 @@ export const reportsTakes = (param: string): boolean => reportsParamParts(param)
 export const adsAreOn = (): boolean => adsShown();
 
 /**
- * Who is looking and how their customers buy, as the workspace list the shell holds says it: the one place Reports asks, for the
- * strip and for the page's body. Null before the list is held (the shell reads it before the page draws, ROUTE_WAITS, but a read
- * that failed leaves none).
+ * Who is looking, as the workspace list the shell holds says it: the one place Reports asks, for the strip and for the
+ * page's body. Null before the list is held (the shell reads it before the page draws, ROUTE_WAITS, but a read that
+ * failed leaves none).
  */
 const lensWho = (): LensWho | null => {
   const ws = workspaceOverride.current();
-  return ws ? { sellsBy: ws.sells_by, role: ws.role, adsOn: adsAreOn() } : null;
+  return ws ? { role: ws.role, adsOn: adsAreOn() } : null;
 };
 
-/** What is known of a workspace whose list is not held: deals are not on, and the person is the lowest rung. */
-const notHeld = (): LensWho => ({ sellsBy: undefined, role: undefined, adsOn: adsAreOn() });
+/** What is known of a workspace whose list is not held: the person is the lowest rung. */
+const notHeld = (): LensWho => ({ role: undefined, adsOn: adsAreOn() });
 
 /**
- * Whether a lens is shown here: yes or no, or null where the answer waits on a list the shell has not held (how the workspace sells
- * decides the Pipeline). A lens open to everyone never waits. The page draws nothing for a null, rather than an empty that claims
- * "you book directly" of a workspace nobody has asked.
+ * Whether a lens is shown here: yes or no, or null where the answer waits on a list the shell has not held (the
+ * person's role decides some). A lens open to everyone never waits. The page draws nothing for a null.
  */
 export function lensShownHere(lens: LensId): boolean | null {
   const who = lensWho();

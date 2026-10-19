@@ -471,10 +471,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(sheet, "pulled past a third, it closed").toHaveCount(0);
   });
   /**
-   * The switch holds two scopes, or three where deals are on (People › Pipeline, 0008), and the bar holds them beside
-   * the list, search and the scope's last control at the narrowest phone we draw for: nothing past its edge, nothing
-   * scrolled sideways. The nightly workspace answers that its customers book, so it proves the two; a workspace with
-   * deals on proves the three, and the Pipeline's own bar.
+   * The switch holds three scopes (People, Leads and the Pipeline, every workspace's: 0008, amended 18 Oct 2026), and
+   * the bar holds them beside the list, search and the scope's last control at the narrowest phone we draw for: nothing
+   * past its edge, nothing scrolled sideways, and the Pipeline's own bar.
    */
   test("at 375px the bar holds every scope it offers, with nothing past its edge", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
@@ -499,7 +498,6 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await fits("people-phone-bar");
     const pipeline = page.getByTestId("people-phone-bar").getByRole("tab", { name: "Pipeline" });
-    if ((await pipeline.count()) === 0) return;
     await pipeline.click();
     await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await fits("pipeline-phone-bar");

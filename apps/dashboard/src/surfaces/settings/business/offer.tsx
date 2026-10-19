@@ -2,9 +2,9 @@
 //
 // Details' second card, and the rules Hours & booking draws (docs/superpowers/specs/2026-09-20-business-tab-design.md
 // §4.4; the canvas's Record,
-// Edit-Sheet and Edit-Fold boards): how customers buy, the services, the booking rules, and what needs a consult first,
-// each edited where it is stated. How customers buy is the workspace's answer, not a key of the settings, and saves
-// through the workspace's own door (docs/decisions/0008, "One switch"; BtSellsBy, below). The services are a list:
+// Edit-Sheet and Edit-Fold boards): what it calls a booking, the services, the booking rules, and what needs a consult
+// first, each edited where it is stated. The word is the workspace's own, not a key of the settings, and saves through
+// the workspace's own door (docs/decisions/0041 J4; BtWordRow, below). The services are a list:
 // thirty-three rows of three boxes on the live record, the "99 inputs in a 720px column" the redesign exists to remove,
 // so they open a sheet beside the page (BtSheet). The booking rules are five numbers and a box of notes, a fold
 // (BtFold). And consult-first, one of the two unlabelled textareas the old form had, is a fold of its own with its own
@@ -12,9 +12,9 @@
 // those learned came with them, comments and all.
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (servicesWords,
-// servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, through BUSINESS_TAB), and so is
-// every word of how customers buy (sellsByVM, sellsBySaved); what a fold or the sheet opens with, refuses and writes is
-// folds.ts's; the gestures are BtFold and BtSheet (gestures/).
+// servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, through BUSINESS_TAB), and so is every word of the word's
+// row (appointmentWordVM, appointmentWordSaved); what a fold or the sheet opens with, refuses and writes is folds.ts's;
+// the gestures are BtFold and BtSheet (gestures/).
 //
 // The services sheet is a file of its own (services.tsx), which the PAGE draws after every card: the
 // card's services row asks the registry for the sheet by its id, as the gap line's door does, and the sheet is
@@ -22,11 +22,11 @@
 //
 // It holds no hook of its own (its folds hold theirs).
 
-import type { SellsBy, SellsByVM } from "@chanlytics/contracts";
-import type { ComponentProps, ReactNode } from "react";
+import { APPOINTMENT_WORDS, type AppointmentWord } from "@chanlytics/contracts";
+import type { ComponentProps } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { Panel } from "../../kit/panel/panel";
-import { RecordBox, RecordField, RecordSwitch, RecordTip, RecordToggleGroup } from "../../kit/record/field";
+import { RecordBox, RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
 import { RecordRow, RecordChips } from "../../kit/record/row";
 import { recFolds } from "../../kit/record/registry";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -35,124 +35,56 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { BtFold, BtSheet } from "./gestures/fold";
 import type { Brain, Saver } from "./save";
 import { businessTabSave } from "./saver";
-import { activeWorkspaceNow, workspaceApi, workspacesNow } from "./shell";
+import { workspaceApi } from "./shell";
+import { visitWordHere } from "../../workspace-word";
+import { ChoiceRow } from "./choices/rows";
 
-/* ------------------------------------ how customers buy ------------------------------------ */
-
-/** The active workspace's answer to how its customers buy, as the workspace list carries it (0008); null is never said. */
-export const btSellsByNow = () => {
-  const ws = (workspacesNow() || []).find((t) => t.id === activeWorkspaceNow()) || null;
-  // The workspace list is untyped data off the window: its answer is one of the two (isSellsBy), or never said.
-  return (ws && (ws.sells_by as SellsBy | undefined)) || null;
-};
+/* ------------------------------------ what it calls a booking ------------------------------------ */
 
 /** What a fold hands its body (gestures/ BtFold's contract says each), for a draft `D`. */
 type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 
-interface SellsByChoiceProps {
-  id: string;
-  vm: SellsByVM;
-  value: SellsBy | null;
-  set: (next: SellsBy) => void;
-  problem?: ReactNode;
-  readOnly?: boolean;
-  label?: boolean;
-  labelledBy?: string | null;
-  testid: string;
-}
-
 /**
- * The two answers as a choice, each with what choosing it means under it (the kit's RecordToggleGroup with its hints),
- * and what stops a Save under them. Every word is the view model's (contracts sellsByVM, through BUSINESS_TAB).
- * Drawn by the fold below and by the create card (create.tsx), so the choice and its words are written
- * once. `id` names the group, and its options' words and its refusal are named from it; `label` draws the question
- * over it, where nothing else on screen says it (the create card), and `labelledBy` points at what does (the fold's own
- * label). Hookless.
- */
-export const btSellsByChoice = ({
-  id,
-  vm,
-  value,
-  set,
-  problem = null,
-  readOnly = false,
-  label = false,
-  labelledBy = null,
-  testid,
-}: SellsByChoiceProps) => (
-  <div className="rec-field" data-testid={testid}>
-    {label ? (
-      <span className="rec-field-label" id={`${id}-label`}>
-        {vm.question}
-      </span>
-    ) : null}
-    <RecordToggleGroup
-      id={id}
-      label={vm.question}
-      labelledBy={label ? `${id}-label` : labelledBy}
-      value={value}
-      options={vm.choices}
-      onChange={set}
-      readOnly={readOnly}
-      testid={`${testid}-choice`}
-    />
-    <FieldError id={`${id}-problem`} message={problem} testid={`${testid}-problem`} />
-  </div>
-);
-
-/**
- * How customers buy (0008): they book an appointment, or some get a proposal first, which is what switches the whole
- * deal layer on (contracts dealsAreOn). The row states the answer, or that it was never said; its fold is the choice.
+ * What it calls a booking (0041 J4; 0008, amended 18 Oct 2026): appointment, visit, meeting, session or lesson, the one
+ * word People, Today, the Calendar, Campaigns and a customer's messages say. It took How customers buy's place, the
+ * switch the deals hung on: every workspace has deals now, and this changes words and nothing else. Its value is a menu
+ * of the five, each with two of the phrases it makes, and a pick goes at once (choices/rows.tsx ChoiceRow, as When
+ * someone wants to book is).
  *
- * The answer is the workspace's (tenants.sells_by), not a key of the settings, as the zone is: it saves through the
- * workspace's own door (save.tsx `sellsBy`, the workspace api's patch, PATCH workspaces) and never through
- * the settings save, where it could not live (0008: a key inside a section is refused by an older edge, and one beside
- * them dropped by an older page's next save). So the act is offered only where there is a door to save it through and
- * the role may change the business: an owner, the timezone's gate. It writes nothing the receptionist is told (the
- * bridge's FOLD_BLOCK), so its fold says nothing it will be told. Once taken, the toast says what it switched, and
- * People, Reports and Today are read again (refresh-map.ts), so the deals come or go without a reload. A Save with
- * nothing chosen, on a workspace never asked, says why under the choice.
+ * The word is the workspace's (tenants.appointment_word), not a key of the settings, as the zone is: it saves through the
+ * workspace's own door (save.tsx `word`, PATCH workspaces), so it is offered only where there is a door to save it
+ * through and the role may change the business. Once taken, People, Today, the Calendar and Campaigns are read again
+ * (refresh-map.ts), so every page says it without a reload.
  */
-const BtSellsBy = ({
-  vm,
-  answer,
-  canEdit,
-  gate: pressable,
-  flash,
-}: {
-  vm: SellsByVM;
-  answer: SellsBy | null;
-  canEdit: boolean;
-  gate: ReturnType<typeof gate>;
-  flash: (flash: LegacyFlash) => void;
-}) => {
-  const door = businessTabSave.sellsBy;
+const BtWordRow = ({ canEdit, flash }: { canEdit: boolean; flash: (flash: LegacyFlash) => void }) => {
+  const vm = BUSINESS_TAB.appointmentWordVM(visitWordHere());
+  const door = businessTabSave.word;
+  const words = Object.fromEntries(vm.choices.map((c) => [c.value, { label: c.label, says: c.hint }])) as Record<
+    AppointmentWord,
+    { label: string; says: string }
+  >;
+  // A pick lands when the door answers, taken or refused (its flash says which); one it cannot send waits for nothing.
+  const pick = (word: AppointmentWord) =>
+    new Promise<void>((resolve) => {
+      if (door.pending() || !workspaceApi()) return resolve();
+      const said = (f: LegacyFlash) => {
+        flash(f);
+        resolve();
+      };
+      door.save({ word, said: BUSINESS_TAB.appointmentWordSaved(word), done: resolve, flash: said });
+    });
   return (
-    <BtFold<SellsBy>
-      id="sells_by"
+    <ChoiceRow
+      id="appointment_word"
       label={vm.question}
+      choices={APPOINTMENT_WORDS}
+      current={vm.word}
+      words={words}
+      needs={() => null}
+      hint={null}
       canEdit={canEdit && !!workspaceApi()}
-      gate={pressable}
-      flash={flash}
-      door={{
-        initial: answer,
-        save: (next, done) => door.save({ answer: next, said: BUSINESS_TAB.sellsBySaved(answer, next), done, flash }),
-        pending: () => door.pending(),
-      }}
-      check={(d): Record<string, string> => (d ? {} : { sells_by: vm.refusal })}
-      row={{ value: vm.value, empty: vm.empty, act: vm.act, name: vm.name }}
-      body={(f) =>
-        btSellsByChoice({
-          id: "bt-sells-by",
-          vm,
-          value: f.draft,
-          set: (v) => f.update(() => v, ["sells_by"]),
-          problem: f.problems.sells_by || null,
-          readOnly: f.readOnly,
-          labelledBy: "rec-fold-sells_by-label",
-          testid: "rec-sells-by",
-        })
-      }
+      gateWords="change what you call a booking"
+      pick={pick}
     />
   );
 };
@@ -389,7 +321,6 @@ type BookingRulesOf = NonNullable<NonNullable<Brain["profile"]>["booking_rules"]
  * The rules for booking, as Hours & booking's Booking card draws them (booking.tsx): the booking rules, and the
  * services that need a consult first. Consult-first is stored inside the booking rules, and its fold and the rules'
  * fold each write only their own keys of it (folds.ts PATHS_OF), so saving one never puts the other's back as it was.
- * Where deals are on, its row says what a consultation for them starts (sellsByVM's consultHint).
  *
  * `brain` is the settings read's, which the rows state; what a fold opens with and saves onto is the saver's base,
  * which BtFold asks for itself.
@@ -411,7 +342,6 @@ export const BtBookingRuleRows = ({
   const shared = { canEdit, flash, saver };
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const consult = (Array.isArray(rules.consult_first) ? rules.consult_first : []).join(", ");
-  const buys = BUSINESS_TAB.sellsByVM(btSellsByNow());
   return (
     <>
       <BtFold<RulesDraft>
@@ -431,7 +361,6 @@ export const BtBookingRuleRows = ({
         row={{
           value: consult || null,
           empty: "None",
-          hint: buys.consultHint,
           name: consult ? "Change what needs a consult first" : "Add one: a service that needs a consult first",
         }}
         body={(f) => <BtConsult {...f} />}
@@ -441,11 +370,11 @@ export const BtBookingRuleRows = ({
 };
 
 /**
- * What you offer (spec §4.4): how customers buy (0008) and the services, on Details. The rules for booking them are
- * Hours & booking's since 17 Oct 2026 (BtBookingRuleRows, above, drawn by booking.tsx), beside the hours they apply to.
+ * What you offer (spec §4.4): what it calls a booking (0041 J4) and the services, on Details. The rules for booking
+ * them are Hours & booking's since 17 Oct 2026 (BtBookingRuleRows, above, drawn by booking.tsx), beside the hours they
+ * apply to.
  *
- * `brain` is the settings read's, which the rows state. How customers buy is the workspace list's, which its door
- * keeps current.
+ * `brain` is the settings read's, which the rows state. The word is the workspace list's, which its door keeps current.
  */
 export const BtOfferCard = ({
   brain,
@@ -458,20 +387,16 @@ export const BtOfferCard = ({
   flash: (flash: LegacyFlash) => void;
   saver: Saver | null;
 }) => {
-  const pressable = (thing: string) => gate("settings", `change ${thing}`);
-  const answer = btSellsByNow();
-  const buys = BUSINESS_TAB.sellsByVM(answer);
-
   return (
     <section className="rec-card" data-testid="rec-card-offer" aria-labelledby="bt-offer-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="bt-offer-title">
           What you offer
         </h2>
-        <span className="rec-card-sub">And how customers buy it</span>
+        <span className="rec-card-sub">And what you call a booking</span>
       </div>
 
-      <BtSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={pressable("how customers buy")} flash={flash} />
+      <BtWordRow canEdit={canEdit} flash={flash} />
 
       <BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
     </section>

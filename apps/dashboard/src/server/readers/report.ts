@@ -2,7 +2,6 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
-  dealsAreOn,
   DEFAULT_TIMEZONE,
   fixedDaysOf,
   headlineOf,
@@ -122,7 +121,7 @@ async function profileOf(rc: ReaderContext): Promise<ReportProfile | null> {
  * Reports page and Ask's report tool read the same rows the same way. One SECURITY INVOKER function computes the series
  * in the tenant's own zone under the caller's RLS; a function that answers nothing is the route's 404, in its words,
  * whatever was asked beside it (the series, the booking line and the deals are read together, as the headline's are,
- * and nothing of the others is answered without it). The calendar's zone and settings, and how the workspace's customers buy, come through
+ * and nothing of the others is answered without it). The calendar's zone and settings come through
  * their readers, once in a turn. It returns the workspace's profile too: the hours and closures the while-you-were-closed
  * count is made from, `{}` where it was read with none, null where it could not be read. The page is the row a citation
  * names.
@@ -146,14 +145,12 @@ export const report: Reader<
     // clients came from out of the same rows.
     const people = everyoneOf(rc);
     const bookingRead = bookingOf(rc, window, people);
-    // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never
+    // The deals of the period and the stock (0004), wherever a deal was recorded (0008, amended 18 Oct 2026). Never
     // fatal either: a table that cannot be read costs the section, and People that cannot be read cost only the line
-    // that says where the new clients came from. How the workspace's customers buy is the turn's (readers/facts.ts).
-    // A window that ended before today is its own days in the workspace's zone, first midnight to the one after its last.
-    const dealsRead = Promise.all([load(rc, facts.sellsBy, undefined), spanOf(rc, window)])
-      .then(async ([sells, span]) =>
-        dealReport(ctx, tenantId, days, dealsAreOn(sells.data), await people.catch(() => []), rc.now, span),
-      )
+    // that says where the new clients came from. A window that ended before today is its own days in the workspace's
+    // zone, first midnight to the one after its last.
+    const dealsRead = spanOf(rc, window)
+      .then(async (span) => dealReport(ctx, tenantId, days, await people.catch(() => []), rc.now, span))
       .catch(() => null);
     const report = (await series) as unknown as ReportDto;
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);

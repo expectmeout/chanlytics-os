@@ -192,8 +192,8 @@ test.describe("Consent for one person", () => {
    * The proposal's link, for real, the same way (0008; e2e-workspace.mjs resets `proposal_url` and the deals each run):
    * the link is the deal's, given in the one sheet. What is wrong with a typed address is said under its field and
    * sends nothing; a good one goes to the deal's door with its scheme supplied, the card shows where it lives, and an
-   * emptied one is cleared. Nothing is sent to anyone: the sheet's send stays off. A workspace whose customers book has
-   * no deal at all, and the nightly's answers booking until it is seeded.
+   * emptied one is cleared. Nothing is sent to anyone: the sheet's send stays off. Every workspace has deals (0008, amended
+   * 18 Oct 2026), the nightly's among them.
    */
   test("a proposal's link is given in the deal sheet, refused there when it is not one, stored on the deal with its scheme, and emptied again — through the real door", async ({
     page,
@@ -204,10 +204,6 @@ test.describe("Consent for one person", () => {
     test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
     await openPersonPage(page, robin.first());
     await expect(page.getByTestId("person-email")).toBeVisible();
-    test.skip(
-      (await page.getByTestId("person-deal").count()) === 0,
-      "no Deal section: deals are off on this workspace (it answers that its customers book), so a proposal has nowhere to live",
-    );
 
     const posts: string[] = [];
     page.on("request", (r) => {
@@ -219,10 +215,19 @@ test.describe("Consent for one person", () => {
       const send = sheet.getByTestId("deal-sheet-send-switch");
       if ((await send.count()) && (await send.getAttribute("aria-checked")) === "true") await send.click();
     };
-    // A proposal out to work on: opened, without a link, where Robin has none (a run that died half way may leave one).
+    // A proposal out to work on: opened, without a link, where Robin has none (a run that died half way may leave one):
+    // from the Deal section where one is drawn, else from the page's More, where no deal is true of them yet.
     const start = page.getByTestId("person-deal-start");
+    let opening = false;
     if (await start.count()) {
       await start.click();
+      opening = true;
+    } else if ((await page.getByTestId("person-deal-card").count()) === 0) {
+      await page.getByTestId("person-more").click();
+      await page.getByRole("menuitem", { name: /^Start a proposal/ }).click();
+      opening = true;
+    }
+    if (opening) {
       await expect(sheet).toBeVisible();
       await noSend();
       await save.click();

@@ -16,7 +16,7 @@ export const SEQUENCE_ACT_WORDS = {
 export function sequenceRunsNow(row, at) {
   const first = row.first;
   if (!first || row.starts !== "moment" && row.starts !== "list" || row.needs.waiting > 0) return false;
-  return campaignRunsOn(first, { tz: at.tz, now: new Date(at.nowMs), dealsOn: true });
+  return campaignRunsOn(first, { tz: at.tz, now: new Date(at.nowMs) });
 }
 export function sequenceResumeAsk(rec, reach, at) {
   const W = LIFECYCLE_WORDS.ledger.resume;

@@ -78,7 +78,7 @@ const vm = (id, over = {}) => ({
 });
 const rule = (...all) => ({ all });
 /** What a workspace and a reader give a list: here, everything. */
-const ALL = { calendar: "ok", dealsOn: true, consultFirst: true, viewer: true };
+const ALL = { calendar: "ok", hasDeals: true, consultFirst: true, viewer: true };
 
 /* ----------------------------------------- the vocabulary ----------------------------------------- */
 
@@ -304,7 +304,7 @@ test("who is on a list: the ids kept on it, or who its rule holds for today; unk
   assert.deepEqual(
     listMembers({ ids: [], rule: rule({ field: "deal_stage", op: "is", value: "won" }) }, rows, {
       ...ALL,
-      dealsOn: false,
+      hasDeals: false,
     }),
     {
       state: "unknown",

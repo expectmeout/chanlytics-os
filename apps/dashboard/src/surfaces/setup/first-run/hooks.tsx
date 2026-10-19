@@ -67,7 +67,7 @@ export function useBusinessTabRedraw(): () => void {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     const S = businessTabSave();
-    const doors = S ? [S.saver, S.zone, S.sellsBy] : [];
+    const doors = S ? [S.saver, S.zone] : [];
     const stops = doors.map((d) => (d && d.subscribe ? d.subscribe(redraw) : null));
     return () =>
       stops.forEach((stop) => {

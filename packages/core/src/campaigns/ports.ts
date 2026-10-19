@@ -210,8 +210,6 @@ export interface RunContext {
    * looking): its people, or why it can't be counted; null when it is gone.
    */
   listMembers(ref: ListRef): (Membership & { rule?: unknown }) | null;
-  /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
-  dealsOn: boolean;
   /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
   pace: DealPaceVM | null;
   /**
@@ -245,7 +243,6 @@ export type RunOutcome =
         | "no_calendar"
         | "no_list"
         | "list_uncounted"
-        | "deals_off"
         /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
         | "ended";
     }

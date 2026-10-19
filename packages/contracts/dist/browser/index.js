@@ -82,7 +82,7 @@ export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEK
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain.js";
 export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./config/business-tab/abilities.js";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./config/business-tab/booking-rules-words.js";
-export { bookingLinkRowWords, businessGap } from "./config/business-tab/business-gap.js";
+export { BOOKING_LINK_ROW_WORDS, businessGap } from "./config/business-tab/business-gap.js";
 export { BOOKING_CHOICES, BOOKING_CHOICE_WORDS, bookingChoiceOf, bookingChoiceWrites, bookingChoiceNeeds, PRICE_CHOICES, PRICE_CHOICE_WORDS, priceChoiceOf, priceChoiceWrites } from "./config/business-tab/choices.js";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts.js";
 export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./config/business-tab/fold-limits.js";
@@ -148,7 +148,6 @@ export { pipelinePeekOf, pipelinePeekDetail } from "./deals/pipeline/pipeline-pe
 export { isPipelineView, pipelineViewLabel, pipelineRoute, parsePipelineRoute, pipelineRail, PIPELINE_RAIL_SERVICES } from "./deals/pipeline/pipeline-views.js";
 export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./deals/pipeline/pipeline-vm.js";
 export { PIPELINE_WORDS } from "./deals/pipeline/pipeline-words.js";
-export { isSellsBy, dealsAreOn, bookingLinkOptional, sellsByVM, sellsBySaved, SELLS_BY, SELLS_BY_QUESTION, SELLS_BY_WORDS, SELLS_BY_REFUSAL, BOOKING_LINK_NEEDED, SELLS_BY_FIRST, CONSULT_FIRST_DEAL_HINT } from "./deals/sells-by.js";
 export { isDealSheetMode, dealSendOf, proposalFollowUp, dealNextAct, dealMenuActs, calendarPeekDeal, DEAL_SHEET_MODES, DEAL_SEND_WHY, DEAL_ACT_HINTS } from "./deals/sheet/deal-acts.js";
 export { dealStepOf, dealCardsOf, DEAL_CARD_WORDS } from "./deals/sheet/deal-card.js";
 export { dealSheetFor, dealSheetMessage, dealSheetDirty, dealSheetMerge, DEAL_SHEET_WORDS, DEAL_NOTE_MAX } from "./deals/sheet/deal-sheet.js";
@@ -160,7 +159,7 @@ export { MAILBOX_PROVIDERS, MAILBOX_CONNECTION_STATES, MAILBOX_HOLDS, MAILBOX_CO
 export { onDomain, bookingPageOf, bookingToolOfLink, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS } from "./google/booking-page.js";
 export { listingFactsOf, bookingPageKept, bookingPageOffered, hoursFromGoogle, placesQueryOf, ratingWords, starsOf, reviewsWords, listingLine, checkedWords, connectionWords, reviewSnippet, reviewIsNew, reviewNoticeIsAbout, NEW_REVIEW_NEWS, toGoogleReviewVM, gainedOver, toGoogleVM, GOOGLE_SHOWN_REVIEWS, REVIEW_NEWS_MS, REVIEW_NEWS_MAX_AGE_MS } from "./google/google.js";
 export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, autoReplyBell, autoReplyHold, reviewHeldWords, reviewReplyWords, REVIEW_REPLY_MAX_WORDS, REVIEW_REPLY_MAX_CHARS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS } from "./google/review-reply.js";
-export { APPOINTMENT_WORDS, appointmentWordOf, appointmentWordWhere, appointmentWords, isAppointmentWord } from "./journey/appointment-word.js";
+export { APPOINTMENT_WORDS, APPOINTMENT_WORD_REFUSAL, appointmentWordOf, appointmentWordSaved, appointmentWordVM, appointmentWords, isAppointmentWord } from "./journey/appointment-word.js";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey.js";
 export { journeyGuide } from "./journey/journey-guide.js";
 export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card.js";
@@ -263,7 +262,7 @@ export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainSt
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, runDaysAt, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval.js";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels.js";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed.js";
-export { followUpNames, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups.js";
+export { followUpNames, followUpIsFor, followUpKey, playbookRunStop, playbookStopBy, followUpRunAt, followUpStandOf, followUpWords, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, PLAYBOOK_TOUCH_WINDOW_MS } from "./playbooks/playbook-follow-ups.js";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-patch.js";
 export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger, passesHandoverPause } from "./playbooks/playbook-purpose.js";
 export { eligibleForPlaybook, playbookRunReach, touchesAfterRun, theirVisitTest, visitMomentDay, visitOnDay, playbookReach, playbookReachDoor, playbookNoNumberWords, playbookPoolKey, PLAYBOOK_REACH_WORDS, PLAYBOOK_CLASS_LABEL } from "./playbooks/playbook-reach.js";
@@ -314,6 +313,7 @@ export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./reports/review-repor
 export { ROUTE_KEYS } from "./route-keys.generated.js";
 export { SCHEMA_SETS } from "./schema-sets.generated.js";
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpStop, followUpReach, messageAboutOfClass } from "./sequences/follow-up.js";
+export { arrivedRunOf, runLandingOf } from "./sequences/run-landing.js";
 export { SEQUENCE_STARTS, SEQUENCE_STATES } from "./sequences/sequence.js";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequences/sequence-acts.js";
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceNewLeadsRoute, sequenceRouteBack, sequenceRoute, newSequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address.js";
@@ -351,8 +351,8 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown.js";
 export { plural } from "./shared/words.js";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, appLink, doorOf, canonicalRoute, ROUTE_WORDS } from "./shell/address.js";
-export { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms.js";
-export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome.js";
+export { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, RUN_WAITING_SHORT, RUN_OPEN_WORDS, runApproveWords, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms.js";
+export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome.js";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error.js";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, youJoinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity.js";
 export { PAGE_SPEED_READ, PAGE_SPEED_MIN, pageSpeedWords } from "./shell/page-speed.js";
@@ -407,7 +407,7 @@ export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows.js";
 export { closeSettledNotices, noticeStillWaits, settledNoticeIds, kindsEndedBy, NOTICE_ENDS, NOTHING_WAITS_KNOWN } from "./waits/notice-closes.js";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends.js";
 export { noticeTone } from "./waits/notice-tones.js";
-export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runHeldEmails, runDraftedEmails, runTooLate, runsThatWait } from "./waits/waits.js";
+export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runHeldEmails, runDraftedEmails, runDecidedOnItsPage, runTooLate, runsThatWait } from "./waits/waits.js";
 export { ACTIVATION_MILESTONES } from "./workspace/activation.js";
 export { activityWords, activityKindWords, REACH_OUT_EMAILED_WORDS, CALL_MISSED_WORDS, CALL_UNANSWERED_WORDS, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity.js";
 export { receptionistOn, billingDoorOpen, maySpend, mayUseModels, openToCustomersOf, takesSignUps, hasPublicPages, whyCannotSpend, tenantStatusFor, planBilling, dayWords, trialOffer, trialWords, priceWords, toBillingVM, billingPill, invoiceStatusWords, isCheckoutReturn, moneyWords, billingAccountDto, pausedVoiceFacts, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, SPEND_NUMBER, SPEND_LEADS, SPEND_TEXTING, PAUSED_WORDS, CAMPAIGNS_PAUSED_WORDS, BILLING_TEST_MODE_CLAUSE, TRIAL_COVERS, START_PLAN_WORDS, INVOICE_STATUS_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKOUT_OUTCOME_WORDS } from "./workspace/billing.js";

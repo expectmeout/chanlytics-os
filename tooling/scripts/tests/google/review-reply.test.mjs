@@ -30,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
-const { UI_ROWS } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
+const { UI_ROWS, uiRows } = await import("../../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const FACTS = {
@@ -316,7 +316,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     ) || reports.includes("named={isNamed}"),
     "the composer is told which review a link names, and what to do once it is answered",
   );
-  // The pane draws one row per class the workspace is offered: eight since Reach out's cold email joined (the spec
-  // says why, #1440).
-  assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(8)"));
+  // The pane draws one row per class the workspace is offered (uiRows), the reviews' in every workspace, at the mode
+  // stored; settings-autonomy.spec.ts counts the rows on production.
+  const pane = uiRows({ rows: [{ class: "reviews", mode: "ask", limits: {} }] });
+  assert.equal(pane.find((r) => r.id === "reviews")?.mode, "Ask");
 });

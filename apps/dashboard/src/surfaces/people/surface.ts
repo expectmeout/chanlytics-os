@@ -10,7 +10,9 @@ import {
   type DealDto,
   type OpenDealDto,
   dealPaceOf,
+  isAppointmentWord,
   MIN_MS,
+  type AppointmentWord,
   type DealPaceVM,
   type PersonRowVM,
   type PeopleAggregates,
@@ -92,8 +94,10 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
-  /** Deals are on here (dealsAreOn, 0008): the Journey's deal lists, the thread's menu item, the column. */
-  dealsOn: boolean;
+  /** A deal was ever recorded here (GET contacts' has_deals): the rail's deal lists, and Ask's question about proposals. */
+  hasDeals: boolean;
+  /** What the workspace calls an appointment (GET contacts' appointment_word): every word People says of one. */
+  word: AppointmentWord;
   /** The profile lists a consult-first service (0004): a list that reads consultations can be counted only then. */
   consultFirst: boolean;
   /** The workspace's pace (dealPaceOf, 0008 amended): when a proposal out is waiting, on Today and the Pipeline. */
@@ -294,7 +298,6 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
       personRowOf(p, {
         tz,
         now,
-        dealsOn: !!r.deals_on,
         viewer: viewerId(),
         ready: peopleLoaded?.channelsReady ?? null,
         names: holderName,
@@ -445,7 +448,8 @@ export const peopleOverride: SurfaceOverride = {
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
-      dealsOn: !!data.deals_on,
+      hasDeals: !!data.has_deals,
+      word: isAppointmentWord(data.appointment_word) ? data.appointment_word : "appointment",
       consultFirst: !!data.consult_first,
       dealPace: dealPaceOf(data.deal_pace),
       followUp: data.follow_up ?? null,

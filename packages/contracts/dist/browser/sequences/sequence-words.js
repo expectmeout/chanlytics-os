@@ -5,6 +5,7 @@ import { triggerOf } from "../playbooks/playbook-triggers.js";
 import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock.js";
 import { DAY_MS } from "../shared/time.js";
 import { plural } from "../shared/words.js";
+import { RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms.js";
 import { runWaitsOnYou } from "../waits/waits.js";
 import { sequenceRunOff } from "./sequence-run-off.js";
 export const SEQUENCE_WORDS = {
@@ -220,7 +221,7 @@ export function sequenceStartWords(row, word) {
 export function sequenceStateWords(row) {
   if (row.starts === "date" && row.date) {
     const DATE = {
-      pending_approval: "Waits for you",
+      pending_approval: RUN_WAITING_SHORT,
       scheduled: "Scheduled",
       sending: "Sending",
       sent: "Sent",
@@ -301,7 +302,7 @@ export function sequenceNextOf(row, lastRunFor, tz, nowMs) {
   const first = row.first;
   if (lastRunFor === void 0 || !first || row.starts !== "moment" && row.starts !== "list") return null;
   const now = new Date(nowMs);
-  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
+  if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
   const today = zoneDayKey(nowMs, tz);
   const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
@@ -341,7 +342,8 @@ function waitingNotice(steps, batch) {
     words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
     fact: fact || null,
-    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
+    // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }

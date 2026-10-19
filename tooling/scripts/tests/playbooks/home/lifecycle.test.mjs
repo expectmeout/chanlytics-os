@@ -135,9 +135,9 @@ const input = (over = {}) => ({
   // The workspace's messages (the settings surface's `messages`): the Library's count reads these.
   messages: C.campaignMessagesOf(LIBRARY),
   reachOuts: [],
-  // How the business works (the playbooks surface's shape): a calendar connected, deals on, and "visit", the word every
-  // sentence here was first written in, so the words stay; a test that is about the shape names its own.
-  shape: { calendar: "feed", dealsOn: true, word: "visit" },
+  // How the business works (the playbooks surface's shape): a calendar connected, a deal on file, and "visit", the word
+  // every sentence here was first written in, so the words stay; a test that is about the shape names its own.
+  shape: { calendar: "feed", hasDeals: true, word: "visit" },
   chains: undefined,
   report: report(),
   ...over,
@@ -333,7 +333,7 @@ test("a moment that was not counted says no number, never a zero it did not coun
   assert.equal(stage(h, "after").people, null, "a moment the pools do not hold at all");
 });
 
-test("a paused playbook is paused and not covered; a run waiting on you says so; a follow-up where deals are off runs nothing", () => {
+test("a paused playbook is paused and not covered; a run waiting on you says so", () => {
   const paused = home({ playbooks: playbooks({ rows: [playbook({ state: "paused", next: "paused" })] }) });
   assert.deepEqual(
     [stage(paused, "quiet").state, stage(paused, "quiet").stateWords, stage(paused, "quiet").covered],
@@ -355,19 +355,10 @@ test("a paused playbook is paused and not covered; a run waiting on you says so;
     "no other moment waits",
   );
   assert.equal(stage(paused, "quiet").waits, false, "a paused playbook waits on nobody");
-  const nodeals = home({
-    playbooks: playbooks({
-      rows: [playbook({ id: "pb-9", name: "Proposal follow-up", trigger: "proposal_waiting", off: "Deals are off." })],
-    }),
-  });
-  assert.deepEqual(
-    [stage(nodeals, "proposal").state, stage(nodeals, "proposal").covered, stage(nodeals, "proposal").act],
-    ["not_here", false, { kind: "open", label: "Open", playbookId: "pb-9" }],
-  );
 });
 
 test("without a calendar the appointment moments say they need one: no figure, no Turn on, never covered; one made before runs nothing here (D44)", () => {
-  const none = home({ shape: { calendar: "none", dealsOn: true, word: "visit" } });
+  const none = home({ shape: { calendar: "none", hasDeals: true, word: "visit" } });
   for (const id of ["before", "after"]) {
     const s = stage(none, id);
     assert.deepEqual(
@@ -383,10 +374,10 @@ test("without a calendar the appointment moments say they need one: no figure, n
     false,
     "no Turn on in Coming up for a moment that cannot run",
   );
-  const email = home({ shape: { calendar: "email", dealsOn: true, word: "visit" } });
+  const email = home({ shape: { calendar: "email", hasDeals: true, word: "visit" } });
   assert.equal(stage(email, "before").stateWords, "Needs your calendar feed", "bookings arrive by email, and no feed");
   const made = home({
-    shape: { calendar: "none", dealsOn: true, word: "visit" },
+    shape: { calendar: "none", hasDeals: true, word: "visit" },
     playbooks: playbooks({ rows: [playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })] }),
   });
   const before = stage(made, "before");
@@ -430,11 +421,11 @@ test("a paused campaign rests: plain, not amber; a run waiting on you is the one
   assert.deepEqual(C.LIFECYCLE_TOAST.paused("Win-back"), [{ b: "Win-back" }, " paused"]);
 });
 
-test("where deals are off and nothing was made on the follow-up, the rail has four moments", () => {
+test("with no deal on file and nothing made on the follow-up, the rail has four moments", () => {
   const pb = playbooks();
   const h = home({
     playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "proposal_waiting") },
-    shape: { calendar: "feed", dealsOn: false, word: "visit" },
+    shape: { calendar: "feed", hasDeals: false, word: "visit" },
   });
   assert.deepEqual(
     h.rail.stages.map((s) => s.id),
@@ -678,7 +669,7 @@ test("who can hear you draws no ladder before the broadcasts are read, or when t
   );
 });
 
-test("what a yes opens names only the moments this workspace has: not the follow-up where deals are off", () => {
+test("what a yes opens names only the moments this workspace has: not the follow-up where no deal is on file", () => {
   const pb = playbooks();
   const h = home({ playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "proposal_waiting") } });
   assert.equal(h.reach.rungs[1].opens, "Opens: visit reminder, how did it go");

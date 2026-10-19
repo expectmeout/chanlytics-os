@@ -18,7 +18,6 @@ import {
   STARTER_LANGUAGES,
   WHATSAPP_LANGUAGES,
   compareTemplates,
-  dealsAreOn,
   defaultSlotKinds,
   defaultTemplate,
   findLanguages,
@@ -139,7 +138,7 @@ export function titleOf(t: string | { name: string; title?: string | null } | nu
 /** The starter set as the pages read it: the library, and the words and slots for any template. */
 export interface StarterLibrary {
   /**
-   * The starters this workspace is offered (contracts startersOffered): the proposal follow-up's only where deals are on
+   * The starters this workspace is offered (contracts startersOffered): the proposal follow-up's in every workspace
    * (0006), the review ask's only where the Google listing keeps a review link (00415).
    */
   readonly list: readonly StarterTemplate[];
@@ -199,23 +198,18 @@ export interface StarterLibrary {
   sendable: typeof sendableTemplates;
 }
 
-/** How the workspace being viewed says its customers buy (0008), from the list the workspace surface publishes. */
-function viewedSellsBy(): string | null {
-  return window.__WORKSPACES?.find((t) => t.id === window.__ACTIVE_WORKSPACE)?.sells_by ?? null;
-}
-
 declare global {
   interface Window {
     /** Settings' every template, which a template's title is looked up in by its name (settings.ts publishes it). */
     __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null;
-    /** The workspaces, each with how its customers buy (identity.ts keeps it). */
-    __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
+    /** The workspaces, each with its zone and word (identity.ts keeps them). */
+    __WORKSPACES?: Array<{ id: string; appointment_word?: string | null }>;
     __ACTIVE_WORKSPACE?: string;
   }
 }
 
-/** The starters offered here, by whether the listing keeps a review link: how the workspace sells is read as it is drawn. */
-const offeredHere = (reviewLink: boolean) => startersOffered({ dealsOn: dealsAreOn(viewedSellsBy()), reviewLink });
+/** The starters offered here, by whether the listing keeps a review link (every workspace has the proposal follow-up's). */
+const offeredHere = (reviewLink: boolean) => startersOffered({ reviewLink });
 
 /** The starter set as the pages read it, from contracts: the library, and the words and slots for any template. */
 export const starters: StarterLibrary = {

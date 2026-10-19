@@ -247,7 +247,6 @@ test(
 );
 
 test("a Proposal out opened by a link carries no amount: the deal has none", { skip }, async () => {
-  ok(await w.admin.from("tenants").update({ sells_by: "proposal" }).eq("id", w.tenant));
   const c = await person();
   ok(await w.owner.rpc("set_person_proposal", { p_contact_id: c, p_url: "https://docs.example.com/p/k6-link" }));
   const deal = ok(await w.admin.from("deals").select("id").eq("contact_id", c).single());
