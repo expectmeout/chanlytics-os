@@ -84,19 +84,22 @@ export type WaitSource = "run" | "email" | "review" | "hold" | "search";
 /**
  * How a kind's row ends. `news` is told once and read when the owner reads it (`why` says why nothing closes it). `mended`:
  * some of its warnings close when the news that mends them is kept (notice-mends.ts NOTICE_MENDS); the rest are told once. A
- * wait is judged by its source, and the server closes it too where it ends for good (`server`, 00421).
+ * wait is judged by its source, and the server closes it too where it ends for good (`server`, 00421; a run decided,
+ * 00461).
  */
 export type NoticeEnd =
   | { ends: "news"; why: string }
   | { ends: "mended" }
-  | { ends: WaitSource; server?: "hold_resolved" | "question_settled" };
+  | { ends: WaitSource; server?: "hold_resolved" | "question_settled" | "run_decided" };
 
 /** How every kind the edge keeps ends: a kind added to SERVER_NOTIFICATION_KINDS must say which before this compiles. */
 export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   handoff: { ends: "hold", server: "hold_resolved" },
   deadman: { ends: "hold", server: "hold_resolved" },
   call: { ends: "hold", server: "hold_resolved" },
-  playbook: { ends: "run" },
+  // A run approved, skipped or skipped by the night's sweep, or ended, closes its rows on the server (00461
+  // batch_closes_its_notices): a browser that held the run among Sent's alone closed them, and the phone's icon never.
+  playbook: { ends: "run", server: "run_decided" },
   booking_notice: { ends: "email" },
   review: { ends: "review" },
   leads_question: { ends: "search", server: "question_settled" },

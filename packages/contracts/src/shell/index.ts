@@ -113,6 +113,7 @@ export {
   RUN_WAITING_WORDS,
   RUN_WAITING_SHORT,
   RUN_OPEN_WORDS,
+  runStopDoorWords,
   RUN_UNNAMED_WORDS,
   runApproveWords,
   runsWaitingSentence,

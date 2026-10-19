@@ -189,6 +189,13 @@ export const RUN_WAITING_SHORT = "Waits for you";
  */
 export const runApproveWords = (n: number): string => `Approve · ${n} ${n === 1 ? "person" : "people"}`;
 
+/**
+ * The way back a toast offers once a run is set to go, said once: "Cancel it" while it waits for its moment, "Stop it" once
+ * it sends (the stop door answers which it did, runStoppedWords). Send once's toast offered it and an approval's did not,
+ * though an approved run is the same run set to go (the Inbox's run review, 19 Oct 2026).
+ */
+export const runStopDoorWords = (waits: boolean): string => (waits ? "Cancel it" : "Stop it");
+
 /** The door to a run, said once: History's day, a campaign's ledger, a reach-out's list and the Inbox's empty pane. */
 export const RUN_OPEN_WORDS = "Open the run";
 

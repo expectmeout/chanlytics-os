@@ -931,9 +931,14 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
           reread = () => r({ ok: true, data: accepted });
         });
       },
-      cancel: async () => ({ ok: true, data: {} }),
+      cancel: async (id, opts = {}) => {
+        canceled.push(id);
+        if (opts.onAccepted) opts.onAccepted({ was: "scheduled" });
+        return { ok: true, data: { was: "scheduled" } };
+      },
     },
   });
+  const canceled = [];
   const waiting = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   const done = press(buttons(waiting, "Approve")[0]);
   await new Promise((r) => setTimeout(r, 0));
@@ -943,6 +948,12 @@ test("a run's Approve from the queue is said the moment the server takes it, wit
   reread();
   await done;
   assert.equal(flashes.length, 1, "and said once");
+  // The way back, as Send once's toast offers it: the approved run goes in an hour, so it is canceled, never yet stopped.
+  assert.equal(flashes[0].action?.label, "Cancel it", "REGRESSION: an approval's toast offered no way back");
+  await flashes[0].action.onClick();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(canceled, ["b-wait"], "the run just approved");
+  assert.match(textOf(flashes.at(-1).msg), /canceled — nothing will send/);
 });
 
 test("REGRESSION (S9-10): a run's Approve on Today waits while it is on its way -- a second press approved again, as Sent's once did", async () => {
