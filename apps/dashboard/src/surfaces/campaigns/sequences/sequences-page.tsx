@@ -10,13 +10,19 @@
  * Opened from a lead (the lead sheet's hand-off), the head's way back names the lead and returns to it, across a record's
  * tabs; a new sequence to leads is a draft made by name where its leads are chosen, written on its record.
  */
-import { CAMPAIGN_ROOMS, SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
+import {
+  CAMPAIGN_ROOMS,
+  LIFECYCLE_WORDS,
+  SEQUENCES_ROUTE,
+  SEQUENCE_WORDS,
+  parseSequencesRoute,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { CmSplit } from "../parts/split";
 import { SequencesList } from "./list";
 import { NewSequence } from "./new";
@@ -29,7 +35,13 @@ export function SequencesListPane({ openId = null }: { openId?: string | null })
   const page = useSurface("sequences");
   if (page === null)
     return <FailedRead what="the sequences" title={SEQUENCE_WORDS.failed} surface="sequences" testid="sq-failed" />;
-  if (page === undefined) return <div className="sq-reading" aria-busy="true" />;
+  // On its way: the shell's quiet words, which wait their beat, so a list that lands fast is never said.
+  if (page === undefined)
+    return (
+      <div className="route-reading sq-reading" role="status" aria-busy="true">
+        {LIFECYCLE_WORDS.reading}
+      </div>
+    );
   return page.sequences.length === 0 ? (
     <EmptyState
       kind="card"
@@ -68,6 +80,10 @@ function backWayOf(back: string | null) {
 
 export function SequencesPage({ route }: { route: string }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
+  // Campaigns' first part (client/page-speed.ts, contracts PRIMARY_PART): Sequences' list, drawn with its rows, or with
+  // what could not be read. Timed from the press, so the page's own chunk and its read are in it, not the gate's frame alone.
+  const list = useSurface("sequences");
+  usePartShown("campaigns", "list", list !== undefined);
   // A record keeps the way back it was opened with while its tabs change; the list and New say only their own.
   const held = recordBackOf(place.view === "record" ? place.id : null, place.back ?? null);
   const back = place.view === "record" ? held : (place.back ?? null);

@@ -11,7 +11,7 @@ import type { SequencesPageDto } from "@chanlytics/contracts";
 import { read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 
 export type SequencesSurface = SequencesPageDto | null;
 
@@ -47,7 +47,12 @@ export const sequencesOverride: SurfaceOverride = {
   }),
   apply: async () => {
     try {
-      setSurfaceValue("sequences", await read("GET sequences"));
+      // What did not change is kept as the object it was (shareUnchanged): an answer the same as the last one moves nothing,
+      // and a sequence open beside the list, which follows its own row (use-record.ts), is read again only when that row moved.
+      // Each read made every row anew, so the list was drawn again and the open record, its People and its History were all
+      // read again at every arrival and every send heard (the load review of 18 Oct 2026).
+      const answer = await read("GET sequences");
+      setSurfaceValue("sequences", shareUnchanged(surfaceValue("sequences"), answer));
     } catch (e) {
       // Null, not undefined, and said at once: the page draws what could not be read instead of waiting for it.
       setSurfaceValue("sequences", null);
