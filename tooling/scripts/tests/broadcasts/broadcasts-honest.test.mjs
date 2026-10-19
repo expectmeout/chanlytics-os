@@ -1455,7 +1455,7 @@ test("REGRESSION: the send screen tells a list with no number from a list with n
   assert.deepEqual(contracts.savedListAction("s-reg", on(["c-ana", "c-luis"])), {
     text: "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
     cta: "Use in a broadcast",
-    to: "broadcasts/s-reg",
+    to: "campaigns/new:to:s-reg",
     enabled: false,
   });
 
@@ -2808,7 +2808,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
   assert.ok(held && textOf(held).includes("“Win-back” still uses this template."), textOf(held));
   // The old Playbooks list is Campaigns' home now: the door says Campaigns and still goes to `outbound`, which lands there.
   press(find(held, (n) => n.type === "button" && textOf(n).includes("Campaigns")));
-  assert.equal(went.at(-1), "outbound", "and a door to the playbook");
+  assert.equal(went.at(-1), "campaigns/sequences", "and a door to the playbooks");
 
   tree = armed({
     rows: [

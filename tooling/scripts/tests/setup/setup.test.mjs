@@ -684,7 +684,7 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   // notification rows already written in production carry it.
   assert.deepEqual(row(inactive, "whatsapp").verb, { label: "Open Connections", to: "admin/integrations" });
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
-  assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
+  assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "campaigns/sequences" });
   assert.ok(
     row(few, "whatsapp").details.includes("Add the starter messages: the reminder, how did it go, the win-back"),
   );

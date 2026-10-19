@@ -382,7 +382,7 @@ test("a deleted playbook's run and a one-off send are the period's sent-once, a 
       source("pb-gone", 9, 1),
     ]),
   });
-  assert.deepEqual(l.sentOnce, { n: 2, open: { kind: "route", label: "Sent", route: "broadcasts" } });
+  assert.deepEqual(l.sentOnce, { n: 2, open: { kind: "route", label: "Sent", route: "campaigns/sequences" } });
   assert.equal(group(l, "sent_once"), undefined, "under seven rows: the footer, no group");
   assert.equal(row(l, "pb-gone"), undefined);
   assert.equal(l.counts.all, 1);

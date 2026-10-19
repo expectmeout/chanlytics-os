@@ -578,7 +578,11 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   // ask-proposals/campaigns.ts).
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"'));
-  assert.equal(cardOpenRoute({ kind: "playbook", payload: {} }), "outbound", "a playbook card opens Playbooks");
+  assert.equal(
+    cardOpenRoute({ kind: "playbook", payload: {} }),
+    "campaigns/sequences",
+    "a playbook card opens Sequences",
+  );
   const { ASK_DEFINITIONS } = await importSrc("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(ASK_DEFINITIONS.playbook.startsWith("A standing rule"));
   const sug = buildAskSuggestions({

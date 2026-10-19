@@ -543,7 +543,7 @@ test("the owner is told once when a gate pauses their offers by email: a row on 
   const [row] = w.tables.notifications;
   assert.deepEqual(
     [row.tenant_id, row.kind, row.route, row.title, row.body],
-    [T, "sweep", "outbound", words.title, words.body],
+    [T, "sweep", "campaigns/sequences", words.title, words.body],
     "a warning on Campaigns' home (the route Campaigns' old name opens), in contracts' words",
   );
   assert.match(row.body, /too many people marked offers as spam/);

@@ -182,7 +182,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.equal(vm.nextOpening, "Mon 9:30 AM");
   assert.deepEqual(
     vm.reminders,
-    { text: "Appointment reminder: 2 people · next run today 10:00 AM", to: "outbound" },
+    { text: "Appointment reminder: 2 people · next run today 10:00 AM", to: "campaigns/sequences" },
     "only the visit playbooks speak here",
   );
 });
@@ -209,7 +209,7 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   );
   assert.equal(on.nextOpening, null);
   assert.match(on.reminders.text, /^No appointment reminders yet/);
-  assert.equal(on.reminders.to, "outbound");
+  assert.equal(on.reminders.to, "campaigns/sequences");
   const paused = todayDay(
     cal([day("2026-09-06", { today: true })]),
     pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused", runs: false }]),

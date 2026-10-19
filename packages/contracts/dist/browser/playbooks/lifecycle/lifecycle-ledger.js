@@ -429,7 +429,10 @@ export function lifecycleLedger(at) {
     groups: every,
     counts: countsOf(every.flatMap((g) => g.rows)),
     tools,
-    sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE } } : null,
+    sentOnce: !tools && once.length > 0 ? {
+      n: once.length,
+      open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE }
+    } : null,
     ...said
   };
 }

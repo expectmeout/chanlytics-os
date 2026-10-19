@@ -165,7 +165,7 @@ test("a card's Open is the contract's: its page, the person's, or none, never a 
   assert.equal(cardOpenRoute({ kind: "policy", payload: {} }), "admin/autonomy");
   assert.equal(cardOpenRoute({ kind: "deal", payload: { contact_id: ID } }), `clients/${ID}`);
   assert.equal(cardOpenRoute({ kind: "deal", payload: {} }), null, "REGRESSION: it opened clients/undefined");
-  assert.equal(cardOpenRoute({ kind: "broadcast", payload: {} }), "broadcasts");
+  assert.equal(cardOpenRoute({ kind: "broadcast", payload: {} }), "campaigns/sequences");
   assert.equal(cardOpenRoute({ kind: "lead_search", payload: {} }), "clients/leads");
   const done = (undo) => ({ state: "done", receipt: "Finding 50 dentists.", atMs: 1, undo });
   assert.equal(

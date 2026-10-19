@@ -1093,7 +1093,7 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   assert.equal(textOf(cta).trim(), "Use in a broadcast");
   went.length = 0;
   click(cta);
-  assert.deepEqual(went, ["broadcasts/s1"], "and it opens the composer on this list");
+  assert.deepEqual(went, ["campaigns/new:to:s1"], "and it opens the composer on this list");
   // Renamed where the name is.
   click(byTestId(tree, "list-rename"));
   tree = draw({ initialSaved: "s1" });

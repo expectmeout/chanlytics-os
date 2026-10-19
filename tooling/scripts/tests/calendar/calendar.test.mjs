@@ -759,7 +759,10 @@ test("(lane C) a running campaign's next run is forecast today or tomorrow, its 
     ["3 PM · Appointment reminder · to come"],
     "REGRESSION: the hour was said twice ('3 PM · … · runs 3 PM · to come')",
   );
-  assert.deepEqual([today[0].t, today[0].ahead, today[0].route], [15, true, "campaigns/moment:Appointment reminder"]);
+  assert.deepEqual(
+    [today[0].t, today[0].ahead, today[0].route],
+    [15, true, "campaigns/sequences/Appointment reminder"],
+  );
   assert.deepEqual(
     forecast(momentOf("We miss you", { mode: "ask" })).map(said),
     ["We miss you · to approve today"],

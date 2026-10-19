@@ -3111,7 +3111,11 @@ test("every read, each an action of the read tools, runs against the database in
   assert.deepEqual(JSON.parse(out["sequences.messages"].result).messages, [], "an empty library, said as no message");
   // The sequences as their page lists them (0060): none here, and nothing needs you; one asked for by no id is refused.
   assert.equal(out["sequences.list"].isError, false, out["sequences.list"].result);
-  assert.deepEqual(JSON.parse(out["sequences.list"].result), { route: "campaigns", needs_you: 0, sequences: [] });
+  assert.deepEqual(JSON.parse(out["sequences.list"].result), {
+    route: "campaigns/sequences",
+    needs_you: 0,
+    sequences: [],
+  });
   assert.equal(out["sequences.sequence"].isError, true, "a sequence is asked for by its id");
   assert.equal(out["sequences.journey"].isError, false, out["sequences.journey"].result);
   const journey = JSON.parse(out["sequences.journey"].result);
@@ -7011,7 +7015,7 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
       ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
       ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
       ["template", TPL, "campaigns/message:fall_offer"],
-      ["playbook", PB, `campaigns/moment:${PB}`],
+      ["playbook", PB, `campaigns/sequences/${PB}`],
     ],
     "each where its reader said: a search on Leads, a People list on People, a template at its message in the Library, a playbook at its card",
   );

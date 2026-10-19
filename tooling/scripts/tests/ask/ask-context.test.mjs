@@ -874,10 +874,10 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   const pbLine = textOf(pb.blocks[1]);
   assert.match(
     pbLine,
-    /^Win-back · 30d: not read · On · daily [^·]+ · next run [^·]+ · route: campaigns\/moment:/,
+    /^Win-back · 30d: not read · On · daily [^·]+ · next run [^·]+ · route: campaigns\/sequences\//,
     pbLine,
   );
-  assert.ok(pbLine.endsWith(`route: campaigns/moment:${PB1}`), pbLine);
+  assert.ok(pbLine.endsWith(`route: campaigns/sequences/${PB1}`), pbLine);
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
   assert.equal(unread.filter((l) => l.includes('"campaign_last_days_read_failed"')).length, 1, unread.join("\n"));
   // Read, its numbers are its row's (contracts sentResultsOfSource): a reply to an older send, with nothing sent in these
@@ -933,7 +933,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     longLine.startsWith("The reminder our studio sends the day before every visit · 30d: nothing sent · "),
     longLine,
   );
-  assert.ok(longLine.endsWith(`… · route: campaigns/moment:${PB2}`), longLine);
+  assert.ok(longLine.endsWith(`… · route: campaigns/sequences/${PB2}`), longLine);
   assert.equal(longLine.length, 160, "cut at the cap");
 
   // The home's ledger (the moment spec, A2): its view says its status, group and search; its rows are its campaigns and
@@ -995,7 +995,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   assert.deepEqual(
     [pb, bc, msgs].map((b) => b.refs.slice(1)),
     [
-      [{ kind: "playbook", id: PB1, route: `campaigns/moment:${PB1}`, label: "Win-back" }],
+      [{ kind: "playbook", id: PB1, route: `campaigns/sequences/${PB1}`, label: "Win-back" }],
       [{ kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: "September offer" }],
       [{ kind: "template", id: T1, route: "campaigns/message:winback_offer", label: "Win-back offer" }],
     ],
@@ -1158,10 +1158,13 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   );
   assert.equal(
     textOf(got.blocks[1]),
-    `Movers in Austin · 30d: 5 businesses, 2 wrote back · Waiting for your approval · route: campaigns/moment:${ROOT}`,
+    `Movers in Austin · 30d: 5 businesses, 2 wrote back · Waiting for your approval · route: campaigns/sequences/${ROOT}`,
   );
   // Every chain was counted, so one with no totals wrote nothing in these days.
-  assert.equal(textOf(got.blocks[3]), `Gyms nearby · 30d: nothing sent · Paused · route: campaigns/moment:${PAUSED}`);
+  assert.equal(
+    textOf(got.blocks[3]),
+    `Gyms nearby · 30d: nothing sent · Paused · route: campaigns/sequences/${PAUSED}`,
+  );
   assert.match(
     textOf(got.blocks[0]),
     /^Campaigns, playbooks:all: 3 on screen · playbooks: 1, 1 running · reach-outs: 2/,
@@ -1169,9 +1172,9 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   assert.deepEqual(
     got.refs.slice(1).map((r) => [r.kind, r.id, r.route]),
     [
-      ["playbook", ROOT, `campaigns/moment:${ROOT}`],
-      ["playbook", PB, `campaigns/moment:${PB}`],
-      ["playbook", PAUSED, `campaigns/moment:${PAUSED}`],
+      ["playbook", ROOT, `campaigns/sequences/${ROOT}`],
+      ["playbook", PB, `campaigns/sequences/${PB}`],
+      ["playbook", PAUSED, `campaigns/sequences/${PAUSED}`],
     ],
   );
   // A database before 00404 counts no businesses: the old line, in the emails written. One business is one business.

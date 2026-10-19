@@ -623,10 +623,10 @@ test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever rou
       day("n3", null, "2026-09-30"),
     ],
   });
-  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/in:reach_out");
+  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/sequences");
   assert.deepEqual(
     rows.map((r) => r.to),
-    ["campaigns/in:reach_out", "campaigns/in:reach_out", "campaigns/in:reach_out"],
+    ["campaigns/sequences", "campaigns/sequences", "campaigns/sequences"],
     "a row kept before this lands there too",
   );
   assert.deepEqual(

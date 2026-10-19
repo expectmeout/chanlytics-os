@@ -36,7 +36,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
 
   test("the list is the workspace's sequences, its counts the API's, and the home lands on it", async ({ page }) => {
     await page.goto("/#/campaigns");
-    // Where the preview is on, Campaigns' home is the list (contracts sequenceLandingOf), the address replaced.
+    // Campaigns' home is retired: it lands on the list as the page loads (contracts retiredRouteOf), in one move.
     await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
     await expect(page.getByTestId("sq-page")).toBeVisible();
     const list = await readList(page);

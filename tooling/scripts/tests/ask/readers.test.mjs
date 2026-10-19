@@ -5027,7 +5027,12 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
       assert.deepEqual(Object.keys(r.data), PLAYBOOKS_KEYS, `${label}: the keys in the order the route answered them`);
       assert.deepEqual(
         r.rows,
-        r.data.playbooks.map((p) => ({ kind: "playbook", id: p.id, route: `campaigns/moment:${p.id}`, label: p.name })),
+        r.data.playbooks.map((p) => ({
+          kind: "playbook",
+          id: p.id,
+          route: `campaigns/sequences/${p.id}`,
+          label: p.name,
+        })),
       );
       pages[label] = r.data;
     }

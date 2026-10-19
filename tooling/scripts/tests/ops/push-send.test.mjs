@@ -102,7 +102,7 @@ test("a row kept with no route opens its kind's list on the phone, as it does on
     ["handoff", "inbox"],
     ["broadcast_sent", "campaigns/sequences"],
     ["number", "admin/integrations"],
-    ["playbook", "outbound"],
+    ["playbook", "campaigns/sequences"],
   ]) {
     const { db } = world({ notification: { kind, route: null } });
     const p = port();

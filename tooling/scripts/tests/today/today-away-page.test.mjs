@@ -269,7 +269,7 @@ const LIST_DOORS = {
   calendar_people: "clients",
   booking_notice: "admin/workspace",
   handoff: "inbox",
-  playbook: "outbound",
+  playbook: "campaigns/sequences",
   template_ready: "messages",
   template_blocked: "messages",
   broadcast_sent: "campaigns/sequences",
