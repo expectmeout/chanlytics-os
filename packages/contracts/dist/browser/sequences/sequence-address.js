@@ -26,21 +26,10 @@ export function sequenceRouteBack(route, back) {
 }
 export const sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
-export const runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
-export function sequenceLandingOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
-  if (root === "campaigns") {
-    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
-    const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
-    if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
-    if (param === "new:every") return newSequenceRoute();
-    const on = /^new:moment:([^:/]+)$/.exec(param);
-    if (on?.[1]) return newSequenceRoute(on[1]);
-  }
-  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  return null;
-}
+export const runRoute = (id) => `broadcasts/run:${id}`;
+export const runSheetRoute = (id) => `${runRoute(id)}/sheet`;
+export const sendOnceRoute = (audience) => audience ? `campaigns/new:to:${audience}` : "campaigns/new";
+export const messageRoute = (name) => `campaigns/message:${name}`;
 export const sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
 export function sequenceRepliesOf(param) {
   const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;

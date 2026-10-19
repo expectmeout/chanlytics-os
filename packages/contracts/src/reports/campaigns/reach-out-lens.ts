@@ -39,6 +39,7 @@ import {
   type ReportStripTile,
 } from "../report-tiles";
 import { dayPointOf, endedOn, rangeLabelOf, withinWords } from "../reports";
+import { sequenceRoute } from "../../sequences/sequence-address";
 
 /**
  * A line of the sources table: a reach-out, then each of its steps on its own line. Every cell is words, in businesses
@@ -392,7 +393,7 @@ function chainSourceLine(c: ReachOutReportChainDto, nowMs: number, tz: string): 
     kind: "chain",
     name: c.name,
     meta: meta.filter(Boolean).join(" · "),
-    to: `outbound/${c.root_id}`,
+    to: sequenceRoute(c.root_id),
     ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : "",
   };

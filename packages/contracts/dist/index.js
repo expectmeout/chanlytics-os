@@ -14389,6 +14389,45 @@ function togglePin(view, token2) {
   return pins.length < TODAY_PINS_MAX ? { pins: [...pins, token2] } : null;
 }
 
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var SEQUENCE_TABS = ["steps", "people", "history"];
+var LEADS_ROUTE = "clients/leads";
+var BACK = "back:";
+var isSequencesParam = (param) => param === "sequences";
+var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
+function parseSequencesRoute(route) {
+  const [path = ""] = route.split("?");
+  const words3 = path.split("/");
+  const backAt = words3.findIndex((w) => w.startsWith(BACK));
+  const backWords = backAt >= 0 ? (words3[backAt] ?? "").slice(BACK.length) : null;
+  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
+  const [root, view, id, tab, day] = backAt >= 0 ? words3.slice(0, backAt) : words3;
+  if (root !== "campaigns" || view !== "sequences") return null;
+  if (!id) return { view: "list", ...back };
+  if (id === "new" || id.startsWith("new:")) {
+    const [, kind, moment2] = id.split(":");
+    return { view: "new", ...kind === "moment" && moment2 ? { moment: moment2 } : {}, ...back };
+  }
+  const on = isTab(tab) ? tab : "steps";
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
+}
+function sequenceRouteBack(route, back) {
+  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
+  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
+}
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
+var runRoute = (id) => `broadcasts/run:${id}`;
+var runSheetRoute = (id) => `${runRoute(id)}/sheet`;
+var sendOnceRoute = (audience) => audience ? `campaigns/new:to:${audience}` : "campaigns/new";
+var messageRoute = (name) => `campaigns/message:${name}`;
+var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+function sequenceRepliesOf(param) {
+  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
+  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
+}
+
 // src/activity/record-address.ts
 var RECORDS_WITHOUT_AN_ADDRESS = {
   notification: "a kept notice opens where its own row says (noticeRoute), which is the address of the record it is about; the notice has no page of its own",
@@ -14417,11 +14456,11 @@ function addressOf(ref) {
       return leadsRoute({ peek: ref.id ?? null, searchId: ref.searchId ?? null });
     case "campaign":
     case "reach_out":
-      return `campaigns/moment:${ref.id}`;
+      return sequenceRoute(ref.id);
     case "send":
-      return `broadcasts/run:${ref.id}`;
+      return runRoute(ref.id);
     case "template":
-      return `campaigns/message:${ref.name}`;
+      return messageRoute(ref.name);
     case "review":
       return ref.id ? reviewRoute(ref.id) : lensRoute("reviews");
     case "facts":
@@ -14830,7 +14869,7 @@ function inSequencesOf(d, tz, nowMs) {
 // src/people/people-lists.ts
 var GET_YES_ROUTE = "broadcasts/get-yes";
 var USE_IN_A_BROADCAST = "Use in a broadcast";
-var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
+var OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: {
@@ -14842,13 +14881,13 @@ var LIST_STEPS = {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
     text: "Their yes to offers is the phrase and the QR under Get their yes.",
-    answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" }
+    answered: { cta: USE_IN_A_BROADCAST, to: sendOnceRoute("new_week") }
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
-  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
+  asked_never_booked: { cta: "Text the booking link", to: sendOnceRoute("asked_never_booked"), broadcast: true },
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
-  lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  lapsed: { cta: "Bring them back", to: sendOnceRoute("lapsed"), broadcast: true },
   // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
   consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
   proposal_out: {
@@ -14856,8 +14895,8 @@ var LIST_STEPS = {
     to: "inbox",
     text: "A word from you is the next step; nothing sends on its own."
   },
-  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
-  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
+  deal_ended: { cta: "Win them back", to: sendOnceRoute("deal_ended"), broadcast: true },
+  quiet: { cta: "Reach out", to: sendOnceRoute("quiet"), broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
@@ -14879,7 +14918,7 @@ function peopleListAction(id, members) {
   return broadcastStep(step2.cta, step2.to, members);
 }
 function savedListAction(id, members) {
-  return broadcastStep(USE_IN_A_BROADCAST, `broadcasts/${id}`, members);
+  return broadcastStep(USE_IN_A_BROADCAST, sendOnceRoute(id), members);
 }
 var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
@@ -14958,6 +14997,94 @@ function peopleAggregates(rows2, nowMs) {
   };
 }
 
+// src/shell/address.ts
+var ROUTE_WORDS = {
+  clients: "people",
+  segments: "lists",
+  outbound: "playbooks",
+  messages: "templates",
+  admin: "settings"
+};
+var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
+var SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
+function retiredRouteOf(route) {
+  const at3 = route.indexOf("?");
+  const path = at3 < 0 ? route : route.slice(0, at3);
+  const query = at3 < 0 ? "" : route.slice(at3);
+  const landed = retiredPathOf(path);
+  return landed === null ? null : landed + query;
+}
+function retiredPathOf(path) {
+  const head = headOf(path);
+  const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
+  if (head === "broadcasts") {
+    if (!param) return SEQUENCES_ROUTE;
+    return param.startsWith("run:") || SENT_OWN_WORDS.has(param) ? null : sendOnceRoute(param);
+  }
+  if (head !== "campaigns") return null;
+  if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
+  if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
+  if (param === "new:every") return newSequenceRoute();
+  const on = /^new:moment:([^:/]+)$/.exec(param);
+  return on?.[1] ? newSequenceRoute(on[1]) : null;
+}
+function shellRoute(route) {
+  const head = headOf(route);
+  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
+  return name === void 0 ? route : name + route.slice(head.length);
+}
+function canonicalRoute(route) {
+  const shell = shellRoute(route);
+  return retiredRouteOf(shell) ?? shell;
+}
+function pathRoute(route) {
+  const head = headOf(route);
+  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
+  return word === void 0 ? route : word + route.slice(head.length);
+}
+var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
+function routeOfPath(pathname) {
+  const m = WORKSPACE_PATH.exec(pathname ?? "");
+  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
+}
+function routeOfHash(hash) {
+  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
+}
+function routeOfAddress(address) {
+  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
+}
+function movedAddress(address) {
+  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
+  if (m?.[2]) {
+    const written = m[2].replace(/\/+$/, "");
+    const door = retiredRouteOf(shellRoute(written));
+    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
+    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
+      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
+    }
+  }
+  const route = routeOfHash(address.hash);
+  if (!m || route === null || m[2]) return null;
+  const at3 = route.indexOf("?");
+  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
+  if (!name) return null;
+  const own = at3 < 0 ? "" : route.slice(at3 + 1);
+  const search = address.search ?? "";
+  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
+  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
+}
+function workspacePath(slug, route = "") {
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(retiredRouteOf(route) ?? route)}` : ""}`;
+}
+function appLink(slug, route = "", query) {
+  const asked = Object.entries(query ?? {}).filter((e) => typeof e[1] === "string").map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
+  if (!slug) return `/${asked ? `?${asked}` : ""}${route ? `#/${route}` : ""}`;
+  const path = workspacePath(slug, route);
+  return asked ? `${path}${path.includes("?") ? "&" : "?"}${asked}` : path;
+}
+
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
   "thread",
@@ -14995,11 +15122,8 @@ var ASK_PAGE_ROUTES = [
   "conversations",
   "live",
   "calendar",
-  "campaigns",
-  // Campaigns › Sequences (decision 0060): everything that sends on its own.
+  // Campaigns › Sequences (decision 0060): everything that sends on its own, Campaigns' first view.
   "campaigns/sequences",
-  "outbound",
-  "broadcasts",
   "messages",
   ...LENS_ROUTES,
   "start",
@@ -15027,8 +15151,6 @@ function isPageRoute(route) {
     }
     case "conversations":
       return route === CALLS_ROUTE;
-    case "campaigns":
-      return param.startsWith("in:") && CAMPAIGN_GROUPS.includes(param.slice("in:".length));
     case "reports": {
       const parts2 = reportsRouteParts(route);
       return parts2 !== null && parts2.review === null;
@@ -15054,11 +15176,18 @@ var ASK_PAGES = new Set(ASK_PAGE_ROUTES);
 var CALLS_ROUTE = "conversations/phone";
 var OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true };
 var CAMPAIGN_GROUPS = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
+var RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts"]);
+function movedPageOf(route) {
+  const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
+  return RETIRED_PAGES.has(route) || group !== null && CAMPAIGN_GROUPS.includes(group) ? retiredRouteOf(route) : null;
+}
 function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
   const seen = /* @__PURE__ */ new Set();
-  for (const c of citations) {
+  for (const said of citations) {
+    const landed = said.kind === "page" ? movedPageOf(said.id) : null;
+    const c = landed === null ? said : { ...said, id: landed };
     const ok2 = c.kind === "page" ? isPageRoute(c.id) : read[c.kind].has(c.id);
     const key = `${c.kind}:${c.id}`;
     if (!ok2 || seen.has(key)) {
@@ -18049,56 +18178,6 @@ var PLAYBOOK_PATCH_WORDS = {
   putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`
 };
 
-// src/sequences/sequence-address.ts
-var SEQUENCES_ROUTE = "campaigns/sequences";
-var SEQUENCE_TABS = ["steps", "people", "history"];
-var LEADS_ROUTE = "clients/leads";
-var BACK = "back:";
-var isSequencesParam = (param) => param === "sequences";
-var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
-function parseSequencesRoute(route) {
-  const [path = ""] = route.split("?");
-  const words3 = path.split("/");
-  const backAt = words3.findIndex((w) => w.startsWith(BACK));
-  const backWords = backAt >= 0 ? (words3[backAt] ?? "").slice(BACK.length) : null;
-  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
-  const [root, view, id, tab, day] = backAt >= 0 ? words3.slice(0, backAt) : words3;
-  if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list", ...back };
-  if (id === "new" || id.startsWith("new:")) {
-    const [, kind, moment2] = id.split(":");
-    return { view: "new", ...kind === "moment" && moment2 ? { moment: moment2 } : {}, ...back };
-  }
-  const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
-}
-function sequenceRouteBack(route, back) {
-  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
-  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
-}
-var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
-var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
-var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
-function sequenceLandingOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
-  if (root === "campaigns") {
-    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
-    const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
-    if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
-    if (param === "new:every") return newSequenceRoute();
-    const on = /^new:moment:([^:/]+)$/.exec(param);
-    if (on?.[1]) return newSequenceRoute(on[1]);
-  }
-  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  return null;
-}
-var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
-function sequenceRepliesOf(param) {
-  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
-  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
-}
-
 // src/shared/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
@@ -19623,7 +19702,7 @@ var broadcastSpec = {
     call: cancelCall,
     receipt: canceled
   },
-  open: () => "broadcasts"
+  open: () => SEQUENCES_ROUTE
 };
 var playbookSpec = {
   needs: "operator",
@@ -19663,9 +19742,9 @@ var playbookSpec = {
   // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
-    if (id) return `campaigns/moment:${id}`;
+    if (id) return sequenceRoute(id);
     const trigger = idIn(payload, "trigger");
-    return trigger ? newSequenceRoute(trigger) : "outbound";
+    return trigger ? newSequenceRoute(trigger) : SEQUENCES_ROUTE;
   }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
@@ -19693,10 +19772,10 @@ var playbookChannelsSpec = {
     },
     receipt: () => "Its channels are as they were"
   },
-  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
+  // Its sequence, where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 var patchIn = (pl, modeKey) => {
@@ -19746,10 +19825,10 @@ var playbookChangeSpec = {
     },
     receipt: () => "It is as it was"
   },
-  // Its drawer on Campaigns, where its state, clock and name are.
+  // Its sequence's record, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 function runGoes(pl, data) {
@@ -19799,7 +19878,7 @@ var runSpec = {
   // The run's sheet, where Today and the Playbooks card open it.
   open: ({ payload }) => {
     const id = idIn(payload, "broadcast_id");
-    return id ? `broadcasts/run:${id}` : "broadcasts";
+    return id ? runRoute(id) : SEQUENCES_ROUTE;
   }
 };
 var playbookRunSpec = {
@@ -19831,7 +19910,7 @@ var playbookRunSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 var whatsappFiledWords = (state) => {
@@ -22555,9 +22634,9 @@ function toSendEveryOf(runs) {
 }
 function waitingRunsDoor(waiting) {
   const [only] = waiting;
-  if (waiting.length === 1 && only) return `broadcasts/run:${only.id}`;
+  if (waiting.length === 1 && only) return runRoute(only.id);
   const toSend = toSendRunsOf(waiting);
-  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : "broadcasts";
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : SEQUENCES_ROUTE;
 }
 var REACH_OUT_RUN_LABELS = {
   back: "Back to Sequences",
@@ -23333,7 +23412,7 @@ var sequenceEndSpec = {
 };
 var openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
-  return run ? `broadcasts/run:${run}` : null;
+  return run ? runRoute(run) : null;
 };
 var theirs = (name) => /s$/i.test(name) ? `${name}'` : `${name}'s`;
 var DECIDED = {
@@ -24808,80 +24887,6 @@ function rightNowCounts(w) {
   return w ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length, windows: w.windows.length } : { people: 0, runs: 0, searches: 0, windows: 0 };
 }
 
-// src/shell/address.ts
-var ROUTE_WORDS = {
-  clients: "people",
-  segments: "lists",
-  outbound: "playbooks",
-  messages: "templates",
-  admin: "settings"
-};
-var headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
-var SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
-function doorOf(route) {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
-  if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
-  }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
-}
-function shellRoute(route) {
-  const head = headOf(route);
-  const name = Object.keys(ROUTE_WORDS).find((n) => ROUTE_WORDS[n] === head);
-  return name === void 0 ? route : name + route.slice(head.length);
-}
-function canonicalRoute(route) {
-  const shell = shellRoute(route);
-  return doorOf(shell) ?? shell;
-}
-function pathRoute(route) {
-  const head = headOf(route);
-  const word = Object.hasOwn(ROUTE_WORDS, head) ? ROUTE_WORDS[head] : void 0;
-  return word === void 0 ? route : word + route.slice(head.length);
-}
-var WORKSPACE_PATH = /^\/w\/([^/?#]+)(?:\/([^?#]*))?$/;
-function routeOfPath(pathname) {
-  const m = WORKSPACE_PATH.exec(pathname ?? "");
-  return m ? shellRoute((m[2] ?? "").replace(/\/+$/, "")) : null;
-}
-function routeOfHash(hash) {
-  return typeof hash === "string" && hash.startsWith("#/") ? shellRoute(hash.slice(2)) : null;
-}
-function routeOfAddress(address) {
-  return routeOfPath(address.pathname) || routeOfHash(address.hash) || "today";
-}
-function movedAddress(address) {
-  const m = WORKSPACE_PATH.exec(address.pathname ?? "");
-  if (m?.[2]) {
-    const written = m[2].replace(/\/+$/, "");
-    const door = doorOf(shellRoute(written));
-    if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
-    if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
-      return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
-    }
-  }
-  const route = routeOfHash(address.hash);
-  if (!m || route === null || m[2]) return null;
-  const at3 = route.indexOf("?");
-  const name = (at3 < 0 ? route : route.slice(0, at3)).replace(/\/+$/, "");
-  if (!name) return null;
-  const own = at3 < 0 ? "" : route.slice(at3 + 1);
-  const search = address.search ?? "";
-  const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
-}
-function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
-}
-function appLink(slug, route = "", query) {
-  const asked = Object.entries(query ?? {}).filter((e) => typeof e[1] === "string").map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
-  if (!slug) return `/${asked ? `?${asked}` : ""}${route ? `#/${route}` : ""}`;
-  const path = workspacePath(slug, route);
-  return asked ? `${path}${path.includes("?") ? "&" : "?"}${asked}` : path;
-}
-
 // src/ask/ask-answer.ts
 var ASK_LIST_STYLES = ["bullets", "numbers", "lines"];
 var ASK_ANSWER_CAPS = {
@@ -25501,7 +25506,7 @@ var ASK_PAGES2 = [
   // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
   {
     label: "Campaigns",
-    to: "campaigns",
+    to: SEQUENCES_ROUTE,
     kind: "page",
     sub: "what goes out on its own, and what you send yourself",
     also: ["playbooks", "moments"]
@@ -27381,7 +27386,7 @@ var reachOutMakeSpec = {
   },
   receipt: ({ payload: pl }) => `\u201C${asText(rec(pl.chain).name)}\u201D is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
-  open: (_p, outcome) => outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"
+  open: (_p, outcome) => outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE
 };
 var reachOutSaidSpec = {
   needs: "operator",
@@ -28810,7 +28815,7 @@ var reachOutAddSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "root_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 
@@ -28964,7 +28969,7 @@ var ASK_GUIDE_PAGES = [
   },
   {
     page: "Campaigns",
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
     verbs: [
       "broadcast",
@@ -31423,9 +31428,9 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     parts: parts2,
     running: running2,
     progress: share2 > 0 ? Math.min(1, s.today / share2) : null,
-    going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
+    going: { label: "How it's going", to: sequenceRoute(s.chain.root_id) },
     toggle: running2 ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
-    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: `broadcasts/run:${s.waiting_run_id}` } : null
+    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: runRoute(s.waiting_run_id) } : null
   };
 }
 function emailWords(s) {
@@ -31475,7 +31480,7 @@ function reachOutTimelineOf(t, nowMs, tz) {
   lines.sort((a, b) => a.at - b.at);
   const undoable = t.readings.find((r2) => r2.can_undo && r2.intent === "no" && !r2.undone) ?? null;
   const stopped = at(t.stopped_at);
-  const drafted2 = t.sends.find((s) => s.state === "drafted" && s.run_id);
+  const draftedRun = t.sends.find((s) => s.state === "drafted" && s.run_id)?.run_id ?? null;
   const ownerSent = t.sends.some((s) => s.left && s.said === true);
   const answered = t.readings.some((r2) => !r2.undone && r2.claim !== "auto_reply");
   return {
@@ -31485,7 +31490,7 @@ function reachOutTimelineOf(t, nowMs, tz) {
     read: t.conversation_id ? { label: "Read what went out", to: `inbox/th-${t.conversation_id}` } : null,
     stop: t.can_stop && t.chain ? { label: REACH_OUT_STOP_WORDS.door } : null,
     undo: undoable ? { messageId: undoable.message_id, ...REACH_OUT_UNDO_WORDS[undoable.claim === "owner" ? "owner" : "read"] } : null,
-    send: drafted2 ? { label: REACH_OUT_SAID_WORDS.sendIt, to: `broadcasts/run:${drafted2.run_id}` } : null,
+    send: draftedRun ? { label: REACH_OUT_SAID_WORDS.sendIt, to: runRoute(draftedRun) } : null,
     said: ownerSent && !answered && !stopped && t.closed_reason !== "said_no" ? { label: REACH_OUT_SAID_WORDS.door } : null
   };
 }
@@ -32705,7 +32710,7 @@ function wentMark(day, runs, tz) {
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : "broadcasts",
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((x) => ({
@@ -32731,7 +32736,7 @@ function coldMark(day, playbookId, name, runs, todayKey) {
     tone: waiting ? "warn" : "plain",
     ahead: waiting || !sent && planned > 0,
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : "broadcasts",
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((r2) => ({
@@ -46836,7 +46841,7 @@ function runRow(r2, name, nowMs, tz, at3) {
     what: name,
     why: waits ? refusal ?? todayRunWords(r2).waiting.sentence : "Scheduled",
     pill: waits ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting } : { tone: "ok", label: plural(r2.recipient_count, "person", "people") },
-    act: { kind: "route", label: "Open", route: `broadcasts/run:${r2.id}` },
+    act: { kind: "route", label: "Open", route: runRoute(r2.id) },
     waiting: offer && offer.kind !== "open" ? { runId: r2.id, people: r2.recipient_count, refusal } : null,
     atMs
   };
@@ -46894,7 +46899,7 @@ function cameBack(input, days) {
     name: (r2.playbook_id ? names3.get(r2.playbook_id) : null) ?? r2.name,
     words: `${r2.when} \xB7 ${r2.counts.sent} sent`,
     result: plural(r2.counts.replied, "reply", "replies"),
-    route: `broadcasts/run:${r2.id}`
+    route: runRoute(r2.id)
   }));
 }
 function lifecycleResults(input) {
@@ -46971,7 +46976,6 @@ function lifecycleResults(input) {
 // src/playbooks/lifecycle/lifecycle-ledger.ts
 var LEDGER_TOOLS_AT = 7;
 var LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
-var SENT_ROUTE = "broadcasts";
 var LEADS_ROUTE2 = "clients/leads";
 function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
@@ -47139,7 +47143,7 @@ function callTextRow(library2, caps) {
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : "messages" },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps)
@@ -47231,7 +47235,7 @@ function chainRow(c, at3) {
     open: { kind: "open", label: "Open", playbookId: c.root_id },
     waiting: null,
     // The run waiting is the thing to answer, so its door comes before Resume (the drawer has Resume either way).
-    act: waitingRun ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` } : heldRun ? { kind: "route", label: W.openRun, route: `broadcasts/run:${heldRun}` } : paused ? resume : null,
+    act: waitingRun ? { kind: "route", label: W.openRun, route: runRoute(waitingRun) } : heldRun ? { kind: "route", label: W.openRun, route: runRoute(heldRun) } : paused ? resume : null,
     search: rowSearchOf(c.name, hint, at3.caps)
   };
 }
@@ -47253,7 +47257,7 @@ function sentOnceRow(s, at3) {
     people: { n: null, unit: "" },
     results: sentResultsOfSource(s),
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
+    open: { kind: "route", label: "Open", route: runRoute(s.id) },
     waiting: null,
     act: null,
     search: rowSearchOf(s.name, hint, at3.caps)
@@ -47380,7 +47384,7 @@ function lifecycleLedger(at3) {
     groups: every,
     counts: countsOf(every.flatMap((g) => g.rows)),
     tools,
-    sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SENT_ROUTE } } : null,
+    sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE } } : null,
     ...said
   };
 }
@@ -48021,7 +48025,7 @@ function reachOutEditedWords(rechecked) {
 function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
 }
 var REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",
@@ -50261,7 +50265,7 @@ function reportFacts(vm, campaigns, ads = null) {
       icon: "sparkle",
       text: `${best.name} drew the most replies`,
       sub: messagesAnsweredWords(best.replied, best.sent),
-      door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` }
+      door: { label: "Open it", to: best.kind === "broadcast" ? runRoute(best.id) : sequenceRoute(best.id) }
     });
   }
   const ch = vm.channels;
@@ -50607,7 +50611,7 @@ function chainSourceLine(c, nowMs, tz) {
     kind: "chain",
     name: c.name,
     meta: meta.filter(Boolean).join(" \xB7 "),
-    to: `outbound/${c.root_id}`,
+    to: sequenceRoute(c.root_id),
     ...cellsOf2(summed(c.steps), chainBusinesses(c.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
@@ -51117,7 +51121,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Runs waiting for you",
       value: stuckValue(waiting.n, waiting.capped),
       meta: runsWaitingMeta(waiting.n, waiting.late),
-      door: "campaigns",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(waiting.n, "warn")
     },
     {
@@ -51127,7 +51131,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Failed runs",
       value: stuckValue(failed.n, failed.capped),
       meta: failedRunMeta(failed),
-      door: "broadcasts",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(failed.n, "fail")
     },
     {
@@ -51976,7 +51980,7 @@ function whatsappRow(i, ctx) {
       required: !answering,
       sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`,
       details,
-      verb: cap2.tested && !cap2.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" },
+      verb: cap2.tested && !cap2.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: SEQUENCES_ROUTE } : { label: "Open the Inbox", to: "inbox" },
       undo: cap2.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
     };
   }
@@ -56073,13 +56077,13 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
       // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
       text: `No ${W.one} reminders yet \u2014 a campaign can write the day before ${W.a} and the day after.`,
-      to: "outbound"
+      to: SEQUENCES_ROUTE
     } : {
       text: visit.map((p) => {
         const t = triggerOf(p.trigger);
         return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`;
       }).join(" \xB7 "),
-      to: "outbound"
+      to: SEQUENCES_ROUTE
     };
   }
   return {
@@ -56817,7 +56821,7 @@ function jobRowWords(n) {
   const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }
-var REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+var REACH_OUT_DAY_ROUTE = SEQUENCES_ROUTE;
 var ALERT_LOOK = { icon: "bell", tone: "", action: "Open Today", to: "today" };
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -56850,7 +56854,7 @@ var SERVER_LOOK = {
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
    * row reads as read and loses the warning (notice-closes.ts).
    */
-  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: SEQUENCES_ROUTE },
   /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
   reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
@@ -60116,9 +60120,9 @@ var ACTIVITY_SUBJECT_HOMES = {
   lead: { door: byId((id) => addressOf({ kind: "lead", id })) },
   lead_search: { door: byId((id) => addressOf({ kind: "lead", searchId: id })) },
   broadcast: { door: byId((id) => addressOf({ kind: "send", id })) },
-  // A campaign is a moment of Campaigns' home, open in its drawer (decision of 3 Oct 2026; contracts doorOf).
+  // A campaign is a sequence (decision 0060), open on its record.
   playbook: { door: byId((id) => addressOf({ kind: "campaign", id })) },
-  // A sequence (0060) is its first step's id: it opens where its campaign does, until the Sequences page has its address.
+  // A sequence (0060) is its first step's id: it opens where its campaign does, on its record.
   sequence: { door: byId((id) => addressOf({ kind: "campaign", id })) },
   // A visit opens its panel on the Calendar. The id alone cannot name its day: the server adds it (activity.ts).
   appointment: { door: byId((id) => addressOf({ kind: "visit", id })) },
@@ -62180,7 +62184,6 @@ export {
   divertedNumbers,
   doorNamesNoAudience,
   doorNeeds,
-  doorOf,
   draftAd,
   draftExcerpt,
   draftListRule,
@@ -62790,6 +62793,7 @@ export {
   messageLanguageOf,
   messageLanguagesNext,
   messageLanguagesOf,
+  messageRoute,
   messageStandingWords,
   messageStatusLabel,
   messageText,
@@ -63325,6 +63329,7 @@ export {
   resolveTheme,
   resultsOf,
   retentionWords,
+  retiredRouteOf,
   reviewDraftsBell,
   reviewHeldReplyWords,
   reviewHeldWords,
@@ -63372,6 +63377,7 @@ export {
   runLandingOf,
   runMarkShown,
   runReadingOf,
+  runRoute,
   runSheetRoute,
   runStillMoving,
   runStopDoorWords,
@@ -63420,6 +63426,7 @@ export {
   seenBy,
   sendFailureIsOurs,
   sendFailureWords,
+  sendOnceRoute,
   sendWindowsOf,
   sendableTemplates,
   senderLanguage,
@@ -63433,7 +63440,6 @@ export {
   sequenceChannelsWords,
   sequenceGroupOf,
   sequenceHeadLine,
-  sequenceLandingOf,
   sequenceLeftWords,
   sequenceModesFor,
   sequenceNextOf,

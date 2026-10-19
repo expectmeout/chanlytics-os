@@ -33,9 +33,9 @@ export const ACTIVITY_SUBJECT_HOMES = {
   lead: { door: byId((id) => addressOf({ kind: "lead", id })) },
   lead_search: { door: byId((id) => addressOf({ kind: "lead", searchId: id })) },
   broadcast: { door: byId((id) => addressOf({ kind: "send", id })) },
-  // A campaign is a moment of Campaigns' home, open in its drawer (decision of 3 Oct 2026; contracts doorOf).
+  // A campaign is a sequence (decision 0060), open on its record.
   playbook: { door: byId((id) => addressOf({ kind: "campaign", id })) },
-  // A sequence (0060) is its first step's id: it opens where its campaign does, until the Sequences page has its address.
+  // A sequence (0060) is its first step's id: it opens where its campaign does, on its record.
   sequence: { door: byId((id) => addressOf({ kind: "campaign", id })) },
   // A visit opens its panel on the Calendar. The id alone cannot name its day: the server adds it (activity.ts).
   appointment: { door: byId((id) => addressOf({ kind: "visit", id })) },

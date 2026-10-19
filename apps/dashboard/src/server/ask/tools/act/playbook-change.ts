@@ -240,7 +240,7 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
     throw new Error(`playbook ${read.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
   // The playbook is a row the answer may cite, opened where its drawer is.
-  noteRows(t.read, [{ kind: "playbook" as const, id: row.id, route: `campaigns/moment:${row.id}`, label: row.name }]);
+  noteRows(t.read, [{ kind: "playbook" as const, id: row.id, route: sequenceRoute(row.id), label: row.name }]);
   // Its words as the model writes them ("@first_name", typed text), turned into the specs the route stores as a new
   // playbook's are (act/playbook.ts paramSpecsOf); core then holds them to its message's slots.
   const words = input.params === undefined ? undefined : paramSpecsOf(input.params);

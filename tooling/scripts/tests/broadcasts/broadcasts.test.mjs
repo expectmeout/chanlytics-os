@@ -20,7 +20,7 @@ import {
   UNKNOWN_AUDIENCE_WORDS,
   CONSENT_LIST_IDS,
   doorNamesNoAudience,
-  doorOf,
+  retiredRouteOf,
   PEOPLE_LISTS,
   broadcastName,
   campaignMessagesOf,
@@ -1203,7 +1203,7 @@ test("a door to the composer that names a list it does not offer says so: it ope
   // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
   assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
   // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
-  assert.equal(doorOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
+  assert.equal(retiredRouteOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
   assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
   assert.equal(
     UNKNOWN_AUDIENCE_WORDS,

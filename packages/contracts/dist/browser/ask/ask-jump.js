@@ -1,4 +1,5 @@
 import { REPORT_LENSES, lensRoute } from "../reports/lenses.js";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 const lensJump = (lens) => ({
   label: `Reports \u203A ${lens.label}`,
   to: lensRoute(lens.id),
@@ -26,7 +27,7 @@ export const ASK_PAGES = [
   // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
   {
     label: "Campaigns",
-    to: "campaigns",
+    to: SEQUENCES_ROUTE,
     kind: "page",
     sub: "what goes out on its own, and what you send yourself",
     also: ["playbooks", "moments"]

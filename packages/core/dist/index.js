@@ -1752,7 +1752,8 @@ import {
   jittered as jittered2,
   nextOpenMoment,
   passesHandoverPause as passesHandoverPause2,
-  stoppedRunFix
+  stoppedRunFix,
+  runRoute
 } from "../../contracts/dist/index.js";
 import { errField as errField3, logger as logger4 } from "../../channels/dist/index.js";
 
@@ -1862,7 +1863,7 @@ async function stopForTheWorkspace(ports, b, why) {
   await ports.fail(b.id, why);
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: runRoute(b.id),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
     body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger2(b.audience) })}`

@@ -6,6 +6,7 @@
  * Pure words and kinds: nothing here reads a workspace.
  */
 import type { AskProposal } from "../ask/ask";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 type Kind = AskProposal["kind"];
 
@@ -123,7 +124,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   },
   {
     page: "Campaigns",
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
     verbs: [
       "broadcast",

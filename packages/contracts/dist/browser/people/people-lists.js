@@ -1,8 +1,9 @@
 import { MONTH_MS } from "./person-helpers.js";
 import { WEEK_MS } from "../shared/time.js";
+import { sendOnceRoute } from "../sequences/sequence-address.js";
 export const GET_YES_ROUTE = "broadcasts/get-yes";
 const USE_IN_A_BROADCAST = "Use in a broadcast";
-const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts/offers_ok", broadcast: true };
+const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
 const LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: {
@@ -14,13 +15,13 @@ const LIST_STEPS = {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
     text: "Their yes to offers is the phrase and the QR under Get their yes.",
-    answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" }
+    answered: { cta: USE_IN_A_BROADCAST, to: sendOnceRoute("new_week") }
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
-  asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
+  asked_never_booked: { cta: "Text the booking link", to: sendOnceRoute("asked_never_booked"), broadcast: true },
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
-  lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  lapsed: { cta: "Bring them back", to: sendOnceRoute("lapsed"), broadcast: true },
   // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
   consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
   proposal_out: {
@@ -28,8 +29,8 @@ const LIST_STEPS = {
     to: "inbox",
     text: "A word from you is the next step; nothing sends on its own."
   },
-  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
-  quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
+  deal_ended: { cta: "Win them back", to: sendOnceRoute("deal_ended"), broadcast: true },
+  quiet: { cta: "Reach out", to: sendOnceRoute("quiet"), broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
@@ -51,7 +52,7 @@ export function peopleListAction(id, members) {
   return broadcastStep(step.cta, step.to, members);
 }
 export function savedListAction(id, members) {
-  return broadcastStep(USE_IN_A_BROADCAST, `broadcasts/${id}`, members);
+  return broadcastStep(USE_IN_A_BROADCAST, sendOnceRoute(id), members);
 }
 export const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 export function noNumberWords(who, purpose) {

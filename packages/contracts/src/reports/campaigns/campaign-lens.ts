@@ -80,6 +80,7 @@ import {
   type ReadPart,
 } from "./campaign-words";
 import { toReachOutLensVM, type ReachOutLensVM } from "./reach-out-lens";
+import { SEQUENCES_ROUTE } from "../../sequences/sequence-address";
 
 /** The three reads: the sends, the ledger the route answers (null where it failed), and the reach-outs (undefined in the demo). */
 export interface CampaignLensInput {
@@ -475,7 +476,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       label: "Runs waiting for you",
       value: stuckValue(waiting.n, waiting.capped),
       meta: runsWaitingMeta(waiting.n, waiting.late),
-      door: "campaigns",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(waiting.n, "warn"),
     },
     {
@@ -485,7 +486,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       label: "Failed runs",
       value: stuckValue(failed.n, failed.capped),
       meta: failedRunMeta(failed),
-      door: "broadcasts",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(failed.n, "fail"),
     },
     {

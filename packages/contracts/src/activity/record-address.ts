@@ -5,6 +5,7 @@ import { leadsRoute } from "../leads/lead-plan";
 import { listToken } from "../people/lists/lists";
 import { personTabRoute, type PersonTab } from "../person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
+import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address";
 import type { RecordKind } from "./record-kinds";
 
 /**
@@ -17,7 +18,7 @@ import type { RecordKind } from "./record-kinds";
  * path), and `addressOf` is the one writer a place calls with the record it means.
  *
  * Its reader is the other direction: each page parses the param of its own address (the Inbox's thread, Conversations'
- * tab and row, the Calendar's day and visit, People's person, list, lead and deal, Campaigns' moment, Sent's run, Reports'
+ * tab and row, the Calendar's day and visit, People's person, list, lead and deal, Sequences' record, Sent's run, Reports'
  * lens, Settings' pane), and the dashboard's address registry (surfaces/addresses.ts) holds those parses in one table and
  * says what each shape opens. The test that reads one against the other (tests/links/every-record-has-one-address) is what
  * keeps a writer from drifting from its page.
@@ -34,7 +35,7 @@ import type { RecordKind } from "./record-kinds";
  *   a hold is told in its thread, so it names the conversation it holds;
  *   a step is a line on its person's page, so it names the person;
  *   a deal opens its person's page, or the Pipeline with their row open (`on: "pipeline"`);
- *   a reach-out is a moment of Campaigns, open in its drawer at the first step's id, as a campaign is.
+ *   a campaign and a reach-out are sequences (decision 0060), open on their record by the first step's id.
  *
  * A conversation opens in the Inbox (`inbox/th-<id>`), where its reply box is, unless it is asked for in Conversations
  * (`conversations/<id>`, its row in the list of every thread and call). A call opens in Conversations as a row
@@ -109,11 +110,12 @@ export function addressOf(ref: RecordRef): string {
       return leadsRoute({ peek: ref.id ?? null, searchId: ref.searchId ?? null });
     case "campaign":
     case "reach_out":
-      return `campaigns/moment:${ref.id}`;
+      // A campaign and a reach-out are sequences (decision 0060), read by the id of any of their parts.
+      return sequenceRoute(ref.id);
     case "send":
-      return `broadcasts/run:${ref.id}`;
+      return runRoute(ref.id);
     case "template":
-      return `campaigns/message:${ref.name}`;
+      return messageRoute(ref.name);
     case "review":
       return ref.id ? reviewRoute(ref.id) : lensRoute("reviews");
     case "facts":

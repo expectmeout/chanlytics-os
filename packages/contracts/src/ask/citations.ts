@@ -11,6 +11,7 @@ import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
 import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
+import { retiredRouteOf } from "../shell/address";
 
 /* ----------------------------------------------------------- the citation */
 
@@ -82,6 +83,8 @@ export function noteRows(read: AskReadSet, refs: Iterable<AskRowRef>): void {
 /**
  * The pages a citation or a navigate target may point at without a read: every page the palette jumps to (askPages;
  * the Pipeline, Sequences and the back office only where the workspace and the person have them), and People's lists.
+ * Each is a page's own address; one an answer names by a retired address (Campaigns' home, the old Playbooks list, Sent's
+ * list) is grounded as the page that replaced it (groundCitations, retiredRouteOf).
  */
 export const ASK_PAGE_ROUTES: readonly string[] = [
   "today",
@@ -93,11 +96,8 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "conversations",
   "live",
   "calendar",
-  "campaigns",
-  // Campaigns › Sequences (decision 0060): everything that sends on its own.
+  // Campaigns › Sequences (decision 0060): everything that sends on its own, Campaigns' first view.
   "campaigns/sequences",
-  "outbound",
-  "broadcasts",
   "messages",
   ...LENS_ROUTES,
   "start",
@@ -118,8 +118,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
 /**
  * Whether a route is a page Ask may name: one of the listed pages (ASK_PAGE_ROUTES), or an address its page takes by a
  * parse of its own -- the Calendar's day, Reports' lens and the days after it, People's Leads views that name no search
- * and no lead and its built-in lists, the Sent room's Get their yes, the calls tab of Conversations and a group of
- * Campaigns' ledger. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
+ * and no lead and its built-in lists, the Sent room's Get their yes and the calls tab of Conversations. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
  * the id. A route that only BEGINS with a page's word
  * is no page (`admin/opening`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
  * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
@@ -137,8 +136,6 @@ function isPageRoute(route: string): boolean {
     }
     case "conversations":
       return route === CALLS_ROUTE;
-    case "campaigns":
-      return param.startsWith("in:") && CAMPAIGN_GROUPS.includes(param.slice("in:".length));
     case "reports": {
       // A lens is a page; one review (`reports/reviews:<id>`) is a row, never a page.
       const parts = reportsRouteParts(route);
@@ -178,21 +175,38 @@ const OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true } satisfies
   true
 >;
 
-/** The groups of Campaigns' ledger an address narrows it to (`campaigns/in:<group>`): a journey stage, then the others. */
+/** The groups of Campaigns' ledger an address narrowed it to (`campaigns/in:<group>`): a journey stage, then the others. */
 const CAMPAIGN_GROUPS: readonly string[] = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
+
+/** The retired pages an answer may still name (an older card, a citation it read): each is a page that moved. */
+const RETIRED_PAGES: ReadonlySet<string> = new Set(["campaigns", "outbound", "broadcasts"]);
+
+/**
+ * The page a retired one an answer names moved to (Campaigns' home and a real group of its ledger, the old Playbooks list,
+ * Sent's list: Sequences, retiredRouteOf), or null for any other route. A made-up group is no page that moved: dropped.
+ */
+function movedPageOf(route: string): string | null {
+  const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
+  return RETIRED_PAGES.has(route) || (group !== null && CAMPAIGN_GROUPS.includes(group)) ? retiredRouteOf(route) : null;
+}
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
  * A model that read nothing cannot cite anything; a model that read the
  * Inbox can cite only the threads it saw. A page needs no read, because a
  * page is not a claim, but it must be a page: one of the listed pages, or an
- * address its page parses (isPageRoute). Anything else is dropped.
+ * address its page parses (isPageRoute). Anything else is dropped. A page named
+ * by a retired address (`campaigns`, `outbound`, `broadcasts`, a group of the
+ * old ledger) is kept as the page that replaced it, so the door it becomes is
+ * the page's own address (movedPageOf).
  */
 export function groundCitations(citations: AskCitation[], read: AskReadSet): { kept: AskCitation[]; dropped: number } {
   const kept: AskCitation[] = [];
   let dropped = 0;
   const seen = new Set<string>();
-  for (const c of citations) {
+  for (const said of citations) {
+    const landed = said.kind === "page" ? movedPageOf(said.id) : null;
+    const c = landed === null ? said : { ...said, id: landed };
     const ok = c.kind === "page" ? isPageRoute(c.id) : read[c.kind].has(c.id);
     const key = `${c.kind}:${c.id}`;
     if (!ok || seen.has(key)) {

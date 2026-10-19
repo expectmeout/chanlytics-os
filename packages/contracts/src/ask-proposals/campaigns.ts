@@ -14,7 +14,7 @@ import {
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
-import { newSequenceRoute } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../sequences/sequence-address";
 import { clockWhen } from "../shared/clock";
 import { joinWords } from "../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms";
@@ -190,7 +190,7 @@ export const broadcastSpec: ProposalSpec = {
     call: cancelCall,
     receipt: canceled,
   },
-  open: () => "broadcasts",
+  open: () => SEQUENCES_ROUTE,
 };
 
 export const playbookSpec: ProposalSpec = {
@@ -236,9 +236,9 @@ export const playbookSpec: ProposalSpec = {
   // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
-    if (id) return `campaigns/moment:${id}`;
+    if (id) return sequenceRoute(id);
     const trigger = idIn(payload, "trigger");
-    return trigger ? newSequenceRoute(trigger) : "outbound";
+    return trigger ? newSequenceRoute(trigger) : SEQUENCES_ROUTE;
   },
 };
 
@@ -284,10 +284,10 @@ export const playbookChannelsSpec: ProposalSpec = {
     },
     receipt: () => "Its channels are as they were",
   },
-  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
+  // Its sequence, where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   },
 };
 
@@ -376,10 +376,10 @@ export const playbookChangeSpec: ProposalSpec = {
     },
     receipt: () => "It is as it was",
   },
-  // Its drawer on Campaigns, where its state, clock and name are.
+  // Its sequence's record, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   },
 };
 
@@ -444,7 +444,7 @@ export const runSpec: ProposalSpec = {
   // The run's sheet, where Today and the Playbooks card open it.
   open: ({ payload }) => {
     const id = idIn(payload, "broadcast_id");
-    return id ? `broadcasts/run:${id}` : "broadcasts";
+    return id ? runRoute(id) : SEQUENCES_ROUTE;
   },
 };
 
@@ -483,7 +483,7 @@ export const playbookRunSpec: ProposalSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   },
 };
 

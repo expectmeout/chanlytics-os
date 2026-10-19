@@ -42,6 +42,7 @@ import {
   type SetupVM,
 } from "./setup";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /**
  * 0. Billing — first, for a workspace that pays by card: the door before
@@ -285,7 +286,7 @@ function whatsappRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
         cap.tested && !cap.live && !metaWaits
           ? { label: "Activate", to: "verb:activate:whatsapp" }
           : t.startersApproved < 5 && !metaWaits
-            ? { label: "Add the starters", to: "outbound" }
+            ? { label: "Add the starters", to: SEQUENCES_ROUTE }
             : { label: "Open the Inbox", to: "inbox" },
       undo: cap.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null,
     };

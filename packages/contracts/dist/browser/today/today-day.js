@@ -10,6 +10,7 @@ import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing.js";
 import { initialsOf } from "../conversations/thread-contact.js";
 import { appointmentWords } from "../journey/appointment-word.js";
 import { triggerOf, triggerWords } from "../playbooks/playbook-triggers.js";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 export function durationLabel(minutes) {
   if (!Number.isFinite(minutes) || minutes <= 0) return "";
   const h = Math.floor(minutes / 60);
@@ -100,13 +101,13 @@ export function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
       // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
       // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
       text: `No ${W.one} reminders yet \u2014 a campaign can write the day before ${W.a} and the day after.`,
-      to: "outbound"
+      to: SEQUENCES_ROUTE
     } : {
       text: visit.map((p) => {
         const t = triggerOf(p.trigger);
         return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 `}next run ${p.next}`;
       }).join(" \xB7 "),
-      to: "outbound"
+      to: SEQUENCES_ROUTE
     };
   }
   return {

@@ -8,7 +8,7 @@ import {
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words.js";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch.js";
 import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers.js";
-import { newSequenceRoute } from "../sequences/sequence-address.js";
+import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 import { clockWhen } from "../shared/clock.js";
 import { joinWords } from "../shared/words.js";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms.js";
@@ -118,7 +118,7 @@ export const broadcastSpec = {
     call: cancelCall,
     receipt: canceled
   },
-  open: () => "broadcasts"
+  open: () => SEQUENCES_ROUTE
 };
 export const playbookSpec = {
   needs: "operator",
@@ -158,9 +158,9 @@ export const playbookSpec = {
   // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
-    if (id) return `campaigns/moment:${id}`;
+    if (id) return sequenceRoute(id);
     const trigger = idIn(payload, "trigger");
-    return trigger ? newSequenceRoute(trigger) : "outbound";
+    return trigger ? newSequenceRoute(trigger) : SEQUENCES_ROUTE;
   }
 };
 const channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
@@ -188,10 +188,10 @@ export const playbookChannelsSpec = {
     },
     receipt: () => "Its channels are as they were"
   },
-  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
+  // Its sequence, where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 const patchIn = (pl, modeKey) => {
@@ -241,10 +241,10 @@ export const playbookChangeSpec = {
     },
     receipt: () => "It is as it was"
   },
-  // Its drawer on Campaigns, where its state, clock and name are.
+  // Its sequence's record, where its state, clock and name are.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 function runGoes(pl, data) {
@@ -294,7 +294,7 @@ export const runSpec = {
   // The run's sheet, where Today and the Playbooks card open it.
   open: ({ payload }) => {
     const id = idIn(payload, "broadcast_id");
-    return id ? `broadcasts/run:${id}` : "broadcasts";
+    return id ? runRoute(id) : SEQUENCES_ROUTE;
   }
 };
 export const playbookRunSpec = {
@@ -326,7 +326,7 @@ export const playbookRunSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 const whatsappFiledWords = (state) => {

@@ -57,10 +57,10 @@ test("every subject a decision can be about, and every one a migration writes, h
   }
 });
 
-test("a line, a mailbox, a connected mailbox, a Google listing and a number open Connections; a campaign opens its drawer; a subscription Billing", () => {
+test("a line, a mailbox, a connected mailbox, a Google listing and a number open Connections; a campaign opens its sequence; a subscription Billing", () => {
   for (const type of ["line", "mailbox", "mailbox_connection", "listing", "channel", "tenant_channel"])
     assert.equal(activityDoor({ subject_type: type, subject_id: ID }), "admin/integrations", type);
-  assert.equal(activityDoor({ subject_type: "playbook", subject_id: ID }), `campaigns/moment:${ID}`);
+  assert.equal(activityDoor({ subject_type: "playbook", subject_id: ID }), `campaigns/sequences/${ID}`);
   assert.equal(activityDoor({ subject_type: "subscription", subject_id: "sub_1" }), "admin/billing");
 });
 

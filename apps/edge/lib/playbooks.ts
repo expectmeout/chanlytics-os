@@ -65,6 +65,7 @@ import {
   BOOKING_DEFAULTS,
   DAY_MS,
   VISIT_TRIGGERS,
+  runRoute,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
 import { campaignsDomainVerified } from "./email/campaigns-domain.js";
@@ -441,7 +442,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           { tenantId, ...target },
           {
             kind: "playbook",
-            route: `broadcasts/run:${runId}`,
+            route: runRoute(runId),
             about: { type: "broadcast", id: runId },
             subject,
             body,

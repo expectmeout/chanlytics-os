@@ -25,6 +25,7 @@ import {
   forwardedLineOf
 } from "./setup.js";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone.js";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 function billingRow(i, ctx) {
   if (!billingDoorOpen(i.billing)) return null;
   const { nowMs } = ctx;
@@ -223,7 +224,7 @@ function whatsappRow(i, ctx) {
       required: !answering,
       sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`,
       details,
-      verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" },
+      verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: SEQUENCES_ROUTE } : { label: "Open the Inbox", to: "inbox" },
       undo: cap.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
     };
   }

@@ -27,7 +27,7 @@ function _linkButtonTakes(
   ];
   LinkButton({ children: ["Write one", glyph] });
   // A line's door: a list row's name, in the size, weight and ink of where it stands.
-  LinkButton({ size: "inherit", href: "/w/studio/campaigns/moment:pb-1", ref: link, children: "Win-back" });
+  LinkButton({ size: "inherit", href: "/w/studio/campaigns/sequences/pb-1", ref: link, children: "Win-back" });
   // @ts-expect-error `line` named the default size's own place: the size that takes where it stands is `inherit`
   LinkButton({ size: "line", children: "Win-back" });
   LinkButton({ tone: "danger", children: "Delete the list" });

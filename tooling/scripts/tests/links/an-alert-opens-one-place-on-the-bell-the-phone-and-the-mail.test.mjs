@@ -42,7 +42,7 @@ test("a link names the workspace and the page, in the words the product writes i
   assert.equal(appLink("acme", "clients/leads"), "/w/acme/people/leads");
   assert.equal(
     appLink("acme", "outbound/pb-1"),
-    "/w/acme/campaigns/moment:pb-1",
+    "/w/acme/campaigns/sequences/pb-1",
     "a retired route lands where it moved to",
   );
   assert.equal(appLink("a b", "inbox"), "/w/a%20b/inbox", "the slug is encoded, as workspacePath encodes it");

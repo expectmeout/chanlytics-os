@@ -1,18 +1,18 @@
 /**
  * Campaigns is Sequences (decision 0060; the home that stood here went in S6), with Messages beside it and Sent's sheets
  * under it: what the frame says around each address (src/surfaces/campaigns/routes.ts), the routes the registry hands the
- * frame, and the old addresses, which land where they always did (contracts doorOf, applied where a route is written and
- * where an address is moved on load) and from there on Sequences (contracts sequenceLandingOf, which the page applies).
+ * frame, and the old addresses, which land in one move on the page that replaced them (contracts retiredRouteOf, the one
+ * table of them, applied where a route is written, where the app moves, where an address is moved on load, and by the page).
  *
  *   campaigns[/sequences]            Sequences, Campaigns' first view   crumbs: Campaigns
  *   campaigns/sequences/<id>         a sequence open beside it     crumbs: Campaigns › <its name>
  *   campaigns/new[:to:<list>|:every|:leads|:moment:<trigger>|:edit:<id>]  a composer over it   crumbs: Campaigns
  *   campaigns/message:<name>         a message's drawer over it    crumbs: Campaigns
- *   campaigns/moment:<id>, campaigns/in:<group>  the home's, landing on the sequence, or on Sequences
- *   broadcasts[/run:<id>|/get-yes|/to-send]  Sent's sheets         crumbs: Campaigns [› …]; Sent's list lands on Sequences
- *   broadcasts/<list>                        a door: campaigns/new:to:<list>
+ *   campaigns, campaigns/moment:<id>, campaigns/in:<group>  retired: Sequences, or the campaign's sequence
+ *   broadcasts[/run:<id>|/get-yes|/to-send]  Sent's sheets         crumbs: Campaigns [› …]; Sent's list is retired: Sequences
+ *   broadcasts/<list>                        retired: campaigns/new:to:<list>
  *   messages (the path's templates)          Messages              crumbs: Campaigns › Messages
- *   outbound[/<id>] (the path's playbooks)   a door: campaigns, campaigns/moment:<id>
+ *   outbound[/<id>] (the path's playbooks)   retired: campaigns/sequences, campaigns/sequences/<id>
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -28,8 +28,7 @@ const {
   routeOfPath,
   routeOfHash,
   movedAddress,
-  doorOf,
-  sequenceLandingOf,
+  retiredRouteOf,
   arrivedRunOf,
   runLandingOf,
   runSheetRoute,
@@ -48,7 +47,7 @@ const HOME = { label: "Campaigns", to: "campaigns/sequences" };
 
 test("Campaigns' sheets' addresses say the composer or a message, and spell back to the same words; the home's are still read", () => {
   assert.deepEqual(parseHome(null), { group: null, moment: null, message: null, compose: null });
-  // The home's addresses, read so a link kept from before says what it named as it lands on Sequences (sequenceLandingOf).
+  // The home's addresses, read so a link kept from before says what it named as it lands on Sequences (retiredRouteOf).
   assert.deepEqual(parseHome("moment:pb-1"), { group: null, moment: "pb-1", message: null, compose: null });
   assert.deepEqual(parseHome("moment:ro-1:people"), {
     group: null,
@@ -100,16 +99,18 @@ test("Campaigns' sheets' addresses say the composer or a message, and spell back
 });
 
 test("the home's addresses, and Sent's list, land on Sequences: a campaign's on its sequence; a run's by what the run is", () => {
-  assert.equal(sequenceLandingOf("campaigns"), "campaigns/sequences");
-  assert.equal(sequenceLandingOf("campaigns/in:before"), "campaigns/sequences", "a group of the ledger that went");
-  assert.equal(sequenceLandingOf("campaigns/moment:pb-1"), "campaigns/sequences/pb-1");
-  assert.equal(sequenceLandingOf("campaigns/moment:ro-1:people"), "campaigns/sequences/ro-1/people");
-  assert.equal(sequenceLandingOf("broadcasts"), "campaigns/sequences");
+  assert.equal(retiredRouteOf("campaigns"), "campaigns/sequences");
+  assert.equal(retiredRouteOf("campaigns/in:before"), "campaigns/sequences", "a group of the ledger that went");
+  assert.equal(retiredRouteOf("campaigns/moment:pb-1"), "campaigns/sequences/pb-1");
+  assert.equal(retiredRouteOf("campaigns/moment:ro-1:people"), "campaigns/sequences/ro-1/people");
+  assert.equal(retiredRouteOf("broadcasts"), "campaigns/sequences");
   // A run's address says nothing of what the run is: runLandingOf lands it once the run is known (below).
-  assert.equal(sequenceLandingOf("broadcasts/run:b-1"), null);
+  assert.equal(retiredRouteOf("broadcasts/run:b-1"), null);
   // The composer's Every time: New, and New on its moment.
-  assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
-  assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  assert.equal(retiredRouteOf("campaigns/new:every"), "campaigns/sequences/new");
+  assert.equal(retiredRouteOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  // A query after the route rides along.
+  assert.equal(retiredRouteOf("campaigns/moment:pb-1?from=email"), "campaigns/sequences/pb-1?from=email");
   // Where a sheet stands, and Sequences' own addresses, nothing moves.
   for (const kept of [
     "campaigns/sequences",
@@ -123,7 +124,7 @@ test("the home's addresses, and Sent's list, land on Sequences: a campaign's on 
     "broadcasts/to-send",
     "messages",
   ])
-    assert.equal(sequenceLandingOf(kept), null, kept);
+    assert.equal(retiredRouteOf(kept), null, kept);
 });
 
 test("a link to a run lands by what the run is: on its sheet while it is decided there, on its sequence's History once it went (the Inbox's run review, 18 Oct 2026)", () => {
@@ -338,43 +339,44 @@ test("a move between two addresses of Campaigns is the page's own: opening a seq
 
 /* ------------------------------------------------ the old addresses ------------------------------------------------- */
 
-test("the old Playbooks addresses land on Campaigns: outbound on campaigns, outbound/<id> on campaigns/moment:<id>, and from there on Sequences", () => {
-  assert.equal(doorOf("outbound"), "campaigns");
-  assert.equal(doorOf("outbound/pb-1"), "campaigns/moment:pb-1");
+test("the old Playbooks addresses land on Sequences in one move: outbound on the list, outbound/<id> on its sequence", () => {
+  assert.equal(retiredRouteOf("outbound"), "campaigns/sequences");
+  assert.equal(retiredRouteOf("outbound/pb-1"), "campaigns/sequences/pb-1");
   assert.equal(
-    doorOf("outbound/pb-1/x"),
-    "campaigns/moment:pb-1",
+    retiredRouteOf("outbound/pb-1/x"),
+    "campaigns/sequences/pb-1",
     "the route's second word, as the shell reads its param",
   );
   for (const kept of [
-    "campaigns",
-    "campaigns/moment:pb-1",
-    "broadcasts",
+    "campaigns/sequences",
+    "campaigns/sequences/pb-1",
+    "campaigns/sequences/pb-1/people",
     "broadcasts/run:b-1",
     "messages",
     "clients/c-1",
     "today",
   ]) {
-    assert.equal(doorOf(kept), null, `${kept} is where it always was`);
+    assert.equal(retiredRouteOf(kept), null, `${kept} is a page's own`);
   }
   // Written: every link the app makes lands in one move.
-  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns");
-  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/sequences/pb-1");
   assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/new");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
   assert.equal(workspacePath("acme", "messages"), "/w/acme/templates", "Messages keeps the product's word in its path");
 });
 
 test("broadcasts/<audience>, which People and a list write to message these people, is a door to Campaigns' composer on that audience; a run, Get their yes and Sent itself stay", () => {
-  assert.equal(doorOf("broadcasts/s1"), "campaigns/new:to:s1");
-  assert.equal(doorOf("broadcasts/new_week"), "campaigns/new:to:new_week");
+  assert.equal(retiredRouteOf("broadcasts/s1"), "campaigns/new:to:s1");
+  assert.equal(retiredRouteOf("broadcasts/new_week"), "campaigns/new:to:new_week");
   assert.equal(
-    doorOf("broadcasts/s1/x"),
+    retiredRouteOf("broadcasts/s1/x"),
     "campaigns/new:to:s1",
     "the route's second word, as the shell reads its param",
   );
   for (const kept of [
-    "broadcasts",
     "broadcasts/run:b-1",
     "broadcasts/run:b-1/x",
     "broadcasts/get-yes",
@@ -382,11 +384,13 @@ test("broadcasts/<audience>, which People and a list write to message these peop
     "broadcast",
     "campaigns/new:to:s1",
   ])
-    assert.equal(doorOf(kept), null, `${kept} is where it is`);
+    assert.equal(retiredRouteOf(kept), null, `${kept} is where it is`);
+  // Sent's own list went to each sequence's History (D3): Sequences.
+  assert.equal(retiredRouteOf("broadcasts"), "campaigns/sequences");
   // Written: People's "Message these people" lands in one move.
   assert.equal(workspacePath("acme", "broadcasts/s1"), "/w/acme/campaigns/new:to:s1");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
-  assert.equal(workspacePath("acme", "broadcasts"), "/w/acme/broadcasts");
+  assert.equal(workspacePath("acme", "broadcasts"), "/w/acme/campaigns/sequences");
   // And an old link, a bookmark or a bell row that says it moves as the frame loads.
   const moved = (address) => movedAddress({ search: "", hash: "", ...address });
   assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/s1" }), "/w/acme/campaigns/new:to:s1");
@@ -396,7 +400,7 @@ test("broadcasts/<audience>, which People and a list write to message these peop
     "/w/acme/campaigns/new:to:s1?from=people",
   );
   assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/get-yes" }), "/w/acme/broadcasts/get-yes");
-  assert.equal(moved({ pathname: "/w/acme/broadcasts" }), null);
+  assert.equal(moved({ pathname: "/w/acme/broadcasts" }), "/w/acme/campaigns/sequences");
   // The address it lands on reads back as the composer on that audience.
   assert.equal(routeOfPath("/w/acme/campaigns/new:to:s1"), "campaigns/new:to:s1");
   assert.deepEqual(parseHome("new:to:s1").compose, { mode: "once", to: "s1" });
@@ -405,18 +409,25 @@ test("broadcasts/<audience>, which People and a list write to message these peop
 test("a bookmark, a bell row or an email link that says the old route moves to the new address as the frame loads", () => {
   const moved = (address) => movedAddress({ search: "", hash: "", ...address });
   // The hash, as emails, the phone app's links and every bell row's `route` write it.
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns");
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns/sequences");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/sequences/pb-1");
   assert.equal(
     moved({ pathname: "/w/acme", hash: "#/outbound/pb-1", search: "?from=email" }),
-    "/w/acme/campaigns/moment:pb-1?from=email",
+    "/w/acme/campaigns/sequences/pb-1?from=email",
   );
   // The path: the shell's own name, and the product's word the page had for a day (`playbooks`).
-  assert.equal(moved({ pathname: "/w/acme/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
-  assert.equal(moved({ pathname: "/w/acme/playbooks" }), "/w/acme/campaigns");
-  assert.equal(moved({ pathname: "/w/acme/playbooks/pb-1", hash: "#x" }), "/w/acme/campaigns/moment:pb-1#x");
-  // The rooms and Campaigns are where they are; Messages' old name still moves to its word.
-  assert.equal(moved({ pathname: "/w/acme/campaigns/moment:pb-1" }), null);
+  assert.equal(moved({ pathname: "/w/acme/outbound/pb-1" }), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(moved({ pathname: "/w/acme/playbooks" }), "/w/acme/campaigns/sequences");
+  assert.equal(moved({ pathname: "/w/acme/playbooks/pb-1", hash: "#x" }), "/w/acme/campaigns/sequences/pb-1#x");
+  // Campaigns' home and a campaign's drawer, written before, land on Sequences as the page loads, in one move.
+  assert.equal(moved({ pathname: "/w/acme/campaigns/moment:pb-1" }), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(moved({ pathname: "/w/acme/campaigns" }), "/w/acme/campaigns/sequences");
+  assert.equal(
+    moved({ pathname: "/w/acme", hash: "#/campaigns/moment:pb-1:people" }),
+    "/w/acme/campaigns/sequences/pb-1/people",
+  );
+  // The rooms and Sequences are where they are; Messages' old name still moves to its word.
+  assert.equal(moved({ pathname: "/w/acme/campaigns/sequences/pb-1" }), null);
   assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }), "/w/acme/broadcasts/run:b-1");
   assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/templates");
   assert.equal(routeOfPath("/w/acme/campaigns/moment:pb-1"), "campaigns/moment:pb-1");

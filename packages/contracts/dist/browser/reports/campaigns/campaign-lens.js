@@ -60,6 +60,7 @@ import {
   wroteBackMeta
 } from "./campaign-words.js";
 import { toReachOutLensVM } from "./reach-out-lens.js";
+import { SEQUENCES_ROUTE } from "../../sequences/sequence-address.js";
 const knownCount = (v) => isCount(v) ? v : null;
 function readsOf({ campaigns, ledger, reachOuts }) {
   return {
@@ -315,7 +316,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Runs waiting for you",
       value: stuckValue(waiting.n, waiting.capped),
       meta: runsWaitingMeta(waiting.n, waiting.late),
-      door: "campaigns",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(waiting.n, "warn")
     },
     {
@@ -325,7 +326,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Failed runs",
       value: stuckValue(failed.n, failed.capped),
       meta: failedRunMeta(failed),
-      door: "broadcasts",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(failed.n, "fail")
     },
     {

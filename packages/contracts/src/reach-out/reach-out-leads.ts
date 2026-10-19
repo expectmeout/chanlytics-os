@@ -22,6 +22,7 @@ import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers";
 import { leadFoundWords } from "../leads/lead-kind";
 import type { ReachOutChainDto, ReachOutPeopleCountsDto } from "./reach-out-dtos";
 import type { HandKind } from "./reach-out-hand";
+import { runRoute, sequenceRoute } from "../sequences/sequence-address";
 
 /** A reading of a lead's reply, as the lines carry it. */
 export interface ReachOutLineReplyDto {
@@ -301,9 +302,9 @@ export function reachOutStripOf(
     parts,
     running,
     progress: share > 0 ? Math.min(1, s.today / share) : null,
-    going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
+    going: { label: "How it's going", to: sequenceRoute(s.chain.root_id) },
     toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
-    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: `broadcasts/run:${s.waiting_run_id}` } : null,
+    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: runRoute(s.waiting_run_id) } : null,
   };
 }
 
@@ -396,7 +397,7 @@ export function reachOutTimelineOf(t: ReachOutLeadTimelineDto, nowMs: number, tz
   // A no is undone where it was read, whoever read it (the reply door's own rule: reach_out_reply_undoable).
   const undoable = t.readings.find((r) => r.can_undo && r.intent === "no" && !r.undone) ?? null;
   const stopped = at(t.stopped_at);
-  const drafted = t.sends.find((s) => s.state === "drafted" && s.run_id);
+  const draftedRun = t.sends.find((s) => s.state === "drafted" && s.run_id)?.run_id ?? null;
   // An email its owner sent from their own inbox: its answer lands there, unread by us.
   const ownerSent = t.sends.some((s) => s.left && s.said === true);
   const answered = t.readings.some((r) => !r.undone && r.claim !== "auto_reply");
@@ -409,7 +410,7 @@ export function reachOutTimelineOf(t: ReachOutLeadTimelineDto, nowMs: number, tz
     undo: undoable
       ? { messageId: undoable.message_id, ...REACH_OUT_UNDO_WORDS[undoable.claim === "owner" ? "owner" : "read"] }
       : null,
-    send: drafted ? { label: REACH_OUT_SAID_WORDS.sendIt, to: `broadcasts/run:${drafted.run_id}` } : null,
+    send: draftedRun ? { label: REACH_OUT_SAID_WORDS.sendIt, to: runRoute(draftedRun) } : null,
     said:
       ownerSent && !answered && !stopped && t.closed_reason !== "said_no" ? { label: REACH_OUT_SAID_WORDS.door } : null,
   };

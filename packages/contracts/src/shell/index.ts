@@ -96,7 +96,7 @@ export {
   movedAddress,
   workspacePath,
   appLink,
-  doorOf,
+  retiredRouteOf,
   canonicalRoute,
   ROUTE_WORDS,
 } from "./address";

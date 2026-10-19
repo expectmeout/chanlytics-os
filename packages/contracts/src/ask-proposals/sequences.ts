@@ -8,7 +8,7 @@
 import { plural } from "../shared/words";
 import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach-out-dtos";
 import { toSendSaidWords } from "../reach-out/reach-out-approval";
-import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
+import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../sequences/sequence-address";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test";
 import { leadsRoute } from "../leads/lead-plan";
 import {
@@ -498,7 +498,7 @@ export const sequenceEndSpec: ProposalSpec = {
 /** Where a send's verb opens: the run that holds the email, its sheet in Sent (`run_id`), or nowhere it was not named. */
 const openRun = ({ payload }: { payload: Record<string, unknown> }): string | null => {
   const run = idIn(payload, "run_id");
-  return run ? `broadcasts/run:${run}` : null;
+  return run ? runRoute(run) : null;
 };
 
 /** What deciding a held email did, by the answer given: said with the business's name where the press carries it. */

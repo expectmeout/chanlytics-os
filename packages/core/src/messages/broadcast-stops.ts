@@ -12,6 +12,7 @@ import {
   passesHandoverPause,
   stoppedRunFix,
   type RunStop,
+  runRoute,
 } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import type { Channel, DeliveryRefusal } from "../deliver";
@@ -78,7 +79,7 @@ export async function stopForTheWorkspace(
   await ports.fail(b.id, why);
   await ports.alert({
     kind: "broadcast_stopped",
-    route: `broadcasts/run:${b.id}`,
+    route: runRoute(b.id),
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
     body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`,

@@ -1,3 +1,4 @@
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 const WHY = {
   signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
   money: "it spends or changes money on the account, which is the owner's on the billing page",
@@ -96,7 +97,7 @@ export const ASK_GUIDE_PAGES = [
   },
   {
     page: "Campaigns",
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
     verbs: [
       "broadcast",

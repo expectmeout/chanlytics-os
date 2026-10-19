@@ -9,6 +9,7 @@ import type { JobKind } from "../shared/enums";
 import { RUN_OPEN_WORDS } from "../shell/campaign-rooms";
 import { invitationExpired } from "../shell/identity";
 import { noticeTone } from "../waits/notice-tones";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -487,10 +488,11 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
 }
 
 /**
- * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Campaigns narrowed to its Reach-outs, the chains the
- * numbers are about. The edge writes it on the row; a row kept before then says `outbound`, and opens here too.
+ * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Sequences, where the sequences to leads the numbers are
+ * about are listed (decision 0060; Campaigns' Reach-outs group, `campaigns/in:reach_out`, retired with its home). The edge
+ * writes it on the row; a row kept before then says `outbound` or the group, and opens here too (retiredRouteOf).
  */
-export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+export const REACH_OUT_DAY_ROUTE = SEQUENCES_ROUTE;
 
 /**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
@@ -529,7 +531,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
    * row reads as read and loses the warning (notice-closes.ts).
    */
-  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: SEQUENCES_ROUTE },
   /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
   reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },

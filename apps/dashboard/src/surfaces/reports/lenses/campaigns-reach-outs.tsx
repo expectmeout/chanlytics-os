@@ -9,6 +9,7 @@
  * headers are the page's. A share of fewer than five is a count (the fold words it; a bar of one is greyed by contracts'
  * one predicate), and a read that failed is the lens's own failed read in this section, with its Retry.
  */
+import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { ReachOutMailboxRow } from "@chanlytics/contracts";
 import type { CampaignLensVM, ReachOutLensSourceLine, ReachOutLensVM } from "@chanlytics/contracts/report-lens";
 import { routeDoor } from "../../legacy-verbs";
@@ -269,7 +270,7 @@ function reachOutsBody(ro: ReachOutLensVM) {
         glyph="wave"
         title="Nothing written"
         body={ro.lines.empty}
-        action={{ label: "Open Campaigns", to: "outbound" }}
+        action={{ label: "Open Campaigns", to: SEQUENCES_ROUTE }}
         testid="ro-report-empty"
       />
     );

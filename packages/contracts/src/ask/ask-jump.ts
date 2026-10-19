@@ -4,6 +4,7 @@
  * A question is not a jump.
  */
 import { REPORT_LENSES, lensRoute, type LensRow } from "../reports/lenses";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -58,7 +59,7 @@ export const ASK_PAGES: JumpEntry[] = [
   // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
   {
     label: "Campaigns",
-    to: "campaigns",
+    to: SEQUENCES_ROUTE,
     kind: "page",
     sub: "what goes out on its own, and what you send yourself",
     also: ["playbooks", "moments"],

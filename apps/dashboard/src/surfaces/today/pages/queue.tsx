@@ -23,6 +23,7 @@ import {
   type TodayQueueRowVM,
   type TodayVM,
   type VisitWord,
+  SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Button } from "../../kit/button/button";
@@ -272,7 +273,7 @@ function queueFoot(
       </span>
       <button
         className="cl-attn-cta ghost"
-        onClick={() => nav(cut.rows === 0 && cut.runs > 0 ? "broadcasts" : "inbox")}
+        onClick={() => nav(cut.rows === 0 && cut.runs > 0 ? SEQUENCES_ROUTE : "inbox")}
       >
         See all
       </button>

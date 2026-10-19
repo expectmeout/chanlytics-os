@@ -7,6 +7,7 @@
  * receipt says, and an operation id and version, which its undo takes back (`lead_undo`).
  */
 import { leadsRoute } from "../leads/lead-plan";
+import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -233,7 +234,7 @@ export const reachOutMakeSpec: ProposalSpec = {
   receipt: ({ payload: pl }) =>
     `“${asText(rec(pl.chain).name)}” is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
-  open: (_p, outcome) => (outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"),
+  open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),
 };
 
 /** What a business wrote back to an email its owner sent themselves, as the owner says it (00429): yes, no, not now. */

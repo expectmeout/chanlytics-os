@@ -13,6 +13,7 @@ import {
   isReachOutHold,
   validateReachOutChain
 } from "./reach-out-words.js";
+import { runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 export const REACH_OUT_FIRST_WORDS = {
   subject: "A quick one for {{business}}",
   body: "{{opening}}\n\nI run {{your business}}, and we help businesses like yours. Would it be worth a short call?\n\n{{your name}}",
@@ -224,7 +225,7 @@ export function reachOutEditedWords(rechecked) {
 export function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+  return run ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS } : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
 }
 export const REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",

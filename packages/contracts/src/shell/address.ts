@@ -18,6 +18,8 @@
  * Pure: the shell reads it over `window.location`, and the tests over a made-up one.
  */
 
+import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address";
+
 /** The parts of an address the functions below read; every part may be missing (a made-up window has few). */
 export interface AddressParts {
   readonly pathname?: string | null;
@@ -47,24 +49,48 @@ const headOf = (route: string): string => (route.includes("/") ? route.slice(0, 
 const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
 
 /**
- * The route a retired one lands on, or null when the route is where it always was (3 Oct 2026, Campaigns' home). Playbooks'
- * list was a page of its own, `outbound`; Campaigns is one page now, `campaigns`, and a playbook is a drawer over it:
- * `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`, so every bell row, email link, Ask
- * citation and bookmark that says the old route still opens what it meant. Applied where a route is written
- * (`workspacePath`) and where an address is moved on load (`movedAddress`), so a link lands in one move, never two.
+ * Where a retired address lands, in one move, or null where the address is a page's own (the Campaigns wiring review's
+ * lane 1, 19 Oct 2026). The one table of them: every edge reads it, `movedAddress` as a page loads, `canonicalRoute` for
+ * a move the app makes, `workspacePath` for a link, and Campaigns' and Sent's pages for an address that reaches them
+ * some other way (a history entry from before). Every writer writes the page's own address (sequence-address.ts), so
+ * only a link kept from before says one of these: a bell row, an email, an Ask citation, a bookmark.
  *
- * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
- * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
- * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00429) and the room itself stay where they are.
+ * - The old Playbooks list (`outbound`, the path's `playbooks`) is Sequences, and a playbook (`outbound/<id>`) its sequence.
+ * - Campaigns' home (`campaigns`, a group of it `campaigns/in:<group>`) is Sequences, and a campaign open in its drawer
+ *   (`campaigns/moment:<id>`, its People at `:people`) its sequence, on that tab (decision 0060, S6). The server reads a
+ *   sequence by the id of any of its parts (a step's, a batch's), and the record then names its own.
+ * - The composer's Every time (`campaigns/new:every`, `new:moment:<trigger>`) is New sequence, on that moment (the
+ *   closed-loop audit of 17 Oct 2026, G).
+ * - Sent's list (`broadcasts`) is Sequences (D3: a run is a day of its sequence's History), and `broadcasts/<audience>`,
+ *   which People and a list wrote to message these people, Send once on that audience. A run (`broadcasts/run:<id>`), Get
+ *   their yes and To send stay where they are: a run's link lands by what the run is (runLandingOf), which no address says.
+ *
+ * A query after the route rides along.
  */
-export function doorOf(route: string): string | null {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+export function retiredRouteOf(route: string): string | null {
+  const at = route.indexOf("?");
+  const path = at < 0 ? route : route.slice(0, at);
+  const query = at < 0 ? "" : route.slice(at);
+  const landed = retiredPathOf(path);
+  return landed === null ? null : landed + query;
+}
+
+/** retiredRouteOf for a route without its query. */
+function retiredPathOf(path: string): string | null {
+  const head = headOf(path);
+  const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
+    if (!param) return SEQUENCES_ROUTE;
+    return param.startsWith("run:") || SENT_OWN_WORDS.has(param) ? null : sendOnceRoute(param);
   }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
+  if (head !== "campaigns") return null;
+  if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
+  if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+  if (param === "new:every") return newSequenceRoute();
+  const on = /^new:moment:([^:/]+)$/.exec(param);
+  return on?.[1] ? newSequenceRoute(on[1]) : null;
 }
 
 /** A route as the shell names it: the product's word at its head (`people/c1`) is the route's own name (`clients/c1`). */
@@ -76,13 +102,13 @@ function shellRoute(route: string): string {
 
 /**
  * A route as one place is spelled once: the product's word at its head is the shell's name (`people/c1` is `clients/c1`), and a
- * retired route is the one that replaced it (`outbound/<id>` is `campaigns/moment:<id>`, doorOf). Two routes that open one
+ * retired route is the one that replaced it (`outbound/<id>` is `campaigns/sequences/<id>`, retiredRouteOf). Two routes that open one
  * place are equal here; whatever compares routes (the doors an answer offers, a count of what is already shown) compares
  * these and never the strings as they were written.
  */
 export function canonicalRoute(route: string): string {
   const shell = shellRoute(route);
-  return doorOf(shell) ?? shell;
+  return retiredRouteOf(shell) ?? shell;
 }
 
 /** A route as its path writes it: the route's own name at its head (`clients/c1`) is the product's word (`people/c1`). */
@@ -122,8 +148,8 @@ export function movedAddress(address: AddressParts): string | null {
   const m = WORKSPACE_PATH.exec(address.pathname ?? "");
   if (m?.[2]) {
     const written = m[2].replace(/\/+$/, "");
-    // A retired route, in the path's word or the shell's own, lands on the route that replaced it (doorOf).
-    const door = doorOf(shellRoute(written));
+    // A retired route, in the path's word or the shell's own, lands on the route that replaced it (retiredRouteOf).
+    const door = retiredRouteOf(shellRoute(written));
     if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
     if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
       return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
@@ -138,12 +164,12 @@ export function movedAddress(address: AddressParts): string | null {
   const own = at < 0 ? "" : route.slice(at + 1);
   const search = address.search ?? "";
   const joined = own ? (search ? `${search}&${own}` : `?${own}`) : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
+  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
 }
 
 /** Where a route lives in a workspace: `workspacePath("acme", "inbox/th-1")` is `/w/acme/inbox/th-1`. */
 export function workspacePath(slug: string, route = ""): string {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(retiredRouteOf(route) ?? route)}` : ""}`;
 }
 
 /**

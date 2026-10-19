@@ -12,7 +12,7 @@
  * which goes stale in CLAIM_STALE_MS and is asked again then, and is the tick's error, never the check's.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { heldNoticeWords, isReachOutHold, type ReachOutHold } from "../packages/contracts.js";
+import { heldNoticeWords, isReachOutHold, type ReachOutHold, runRoute } from "../packages/contracts.js";
 import { heldNoticeDue, markHeldNotice, type Database } from "../packages/db.js";
 import { notifyOnce, type NotifyMessage } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -70,7 +70,7 @@ export async function noticeHeldRuns(p: {
       const words = heldNoticeWords({ name: run.name, held: run.held, reasons });
       const msg: NotifyMessage = {
         kind: "playbook",
-        route: `broadcasts/run:${run.id}`,
+        route: runRoute(run.id),
         about: { type: "broadcast", id: run.id },
         subject: words.subject,
         body: words.body,

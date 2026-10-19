@@ -1,3 +1,4 @@
+import { SEQUENCES_ROUTE, newSequenceRoute, sendOnceRoute, sequenceRoute } from "../sequences/sequence-address.js";
 export const ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
@@ -7,14 +8,28 @@ export const ROUTE_WORDS = {
 };
 const headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/")) : route;
 const SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
-export function doorOf(route) {
-  const head = headOf(route);
-  const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+export function retiredRouteOf(route) {
+  const at = route.indexOf("?");
+  const path = at < 0 ? route : route.slice(0, at);
+  const query = at < 0 ? "" : route.slice(at);
+  const landed = retiredPathOf(path);
+  return landed === null ? null : landed + query;
+}
+function retiredPathOf(path) {
+  const head = headOf(path);
+  const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
+  if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") {
-    return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;
+    if (!param) return SEQUENCES_ROUTE;
+    return param.startsWith("run:") || SENT_OWN_WORDS.has(param) ? null : sendOnceRoute(param);
   }
-  if (head !== "outbound") return null;
-  return word ? `campaigns/moment:${word}` : "campaigns";
+  if (head !== "campaigns") return null;
+  if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
+  if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+  if (param === "new:every") return newSequenceRoute();
+  const on = /^new:moment:([^:/]+)$/.exec(param);
+  return on?.[1] ? newSequenceRoute(on[1]) : null;
 }
 function shellRoute(route) {
   const head = headOf(route);
@@ -23,7 +38,7 @@ function shellRoute(route) {
 }
 export function canonicalRoute(route) {
   const shell = shellRoute(route);
-  return doorOf(shell) ?? shell;
+  return retiredRouteOf(shell) ?? shell;
 }
 function pathRoute(route) {
   const head = headOf(route);
@@ -45,7 +60,7 @@ export function movedAddress(address) {
   const m = WORKSPACE_PATH.exec(address.pathname ?? "");
   if (m?.[2]) {
     const written = m[2].replace(/\/+$/, "");
-    const door = doorOf(shellRoute(written));
+    const door = retiredRouteOf(shellRoute(written));
     if (door !== null) return `/w/${m[1] ?? ""}/${door}${address.search ?? ""}${address.hash ?? ""}`;
     if (Object.hasOwn(ROUTE_WORDS, headOf(m[2]))) {
       return `/w/${m[1] ?? ""}/${pathRoute(written)}${address.search ?? ""}${address.hash ?? ""}`;
@@ -59,10 +74,10 @@ export function movedAddress(address) {
   const own = at < 0 ? "" : route.slice(at + 1);
   const search = address.search ?? "";
   const joined = own ? search ? `${search}&${own}` : `?${own}` : search;
-  return `/w/${m[1] ?? ""}/${pathRoute(doorOf(name) ?? name)}${joined}`;
+  return `/w/${m[1] ?? ""}/${pathRoute(retiredRouteOf(name) ?? name)}${joined}`;
 }
 export function workspacePath(slug, route = "") {
-  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+  return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(retiredRouteOf(route) ?? route)}` : ""}`;
 }
 export function appLink(slug, route = "", query) {
   const asked = Object.entries(query ?? {}).filter((e) => typeof e[1] === "string").map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");

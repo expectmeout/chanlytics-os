@@ -7,6 +7,7 @@ import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
 import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet.js";
+import { SEQUENCES_ROUTE, runRoute } from "../sequences/sequence-address.js";
 export function skippedReasonWords(reason) {
   switch (reason) {
     case "closed_every_day":
@@ -214,9 +215,9 @@ export function toSendEveryOf(runs) {
 }
 export function waitingRunsDoor(waiting) {
   const [only] = waiting;
-  if (waiting.length === 1 && only) return `broadcasts/run:${only.id}`;
+  if (waiting.length === 1 && only) return runRoute(only.id);
   const toSend = toSendRunsOf(waiting);
-  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : "broadcasts";
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : SEQUENCES_ROUTE;
 }
 const REACH_OUT_RUN_LABELS = {
   back: "Back to Sequences",

@@ -24,6 +24,7 @@ import {
   type ActivityMemberDto,
   type ActivityPageDto,
   type ActivityRowDto,
+  messageRoute,
 } from "@chanlytics/contracts";
 import { activitySubjects } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
@@ -374,7 +375,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
           visitRoute(key.slice(key.indexOf(":") + 1), visitDateKey(start, timezone)),
         ]),
       ),
-      ...Object.fromEntries(Object.entries(said.library).map(([key, name]) => [key, `campaigns/message:${name}`])),
+      ...Object.fromEntries(Object.entries(said.library).map(([key, name]) => [key, messageRoute(name)])),
     },
     members,
     page: { limit: ACTIVITY_PAGE, has_more: more, next_cursor: last ? `${last.at}|${last.id}` : null },

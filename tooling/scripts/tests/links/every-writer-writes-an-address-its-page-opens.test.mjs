@@ -13,7 +13,9 @@
  *
  * "Opens exactly" is the registry's: the route names a page the frame draws (routeHasPage), the path reads back as the route
  * (routeOfPath), and the page's own parse returns the record the writer meant, by its kind and id. A writer that writes a
- * word its page does not parse fails here, naming the writer and the address.
+ * word its page does not parse fails here, naming the writer and the address. And a writer writes the page's own address,
+ * never a retired one that an edge moves on (retiredRouteOf: `campaigns/moment:<id>`, `outbound`, `broadcasts/<list>`; the
+ * Campaigns wiring review's lane 1, 19 Oct 2026): those are for links kept from before.
  *
  * What this does not run: the writers that need a database (the Activity log's lookups of a message's or a deal's page,
  * server/metrics/activity.ts; Ask's readers, server/readers) or the edge (the notices it keeps: the hold's and the run's).
@@ -34,6 +36,7 @@ import {
   holdNotice,
   movedAddress,
   noticeRoute,
+  retiredRouteOf,
   routeOfPath,
   toPersonRowVM,
   toPersonVM,
@@ -62,6 +65,11 @@ const iso = (ms) => new Date(ms).toISOString();
  */
 function opensExactly(route, who, ref) {
   const where = `${who}: ${route}`;
+  assert.equal(
+    retiredRouteOf(route),
+    null,
+    `${where} is a retired address: write the page's own (${retiredRouteOf(route)})`,
+  );
   const path = workspacePath("acme", route);
   assert.equal(routeHasPage(canonicalRoute(route)), true, `${where} has no page the frame draws`);
   assert.equal(

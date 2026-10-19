@@ -970,6 +970,7 @@ var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already e
 
 // src/sequences/sequence-address.ts
 var SEQUENCES_ROUTE = "campaigns/sequences";
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 var newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 
 // src/shared/enums.ts
@@ -1105,7 +1106,7 @@ var broadcastSpec = {
     call: cancelCall,
     receipt: canceled
   },
-  open: () => "broadcasts"
+  open: () => SEQUENCES_ROUTE
 };
 var playbookSpec = {
   needs: "operator",
@@ -1145,9 +1146,9 @@ var playbookSpec = {
   // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
-    if (id) return `campaigns/moment:${id}`;
+    if (id) return sequenceRoute(id);
     const trigger = idIn(payload, "trigger");
-    return trigger ? newSequenceRoute(trigger) : "outbound";
+    return trigger ? newSequenceRoute(trigger) : SEQUENCES_ROUTE;
   }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
@@ -1175,10 +1176,10 @@ var playbookChannelsSpec = {
     },
     receipt: () => "Its channels are as they were"
   },
-  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
+  // Its sequence, where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 var whatsappFiledWords = (state) => {
@@ -1686,7 +1687,7 @@ var reachOutMakeSpec = {
   },
   receipt: ({ payload: pl }) => `\u201C${asText(rec(pl.chain).name)}\u201D is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
-  open: (_p, outcome) => outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"
+  open: (_p, outcome) => outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE
 };
 var reachOutSaidSpec = {
   needs: "operator",
@@ -1937,7 +1938,7 @@ var reachOutAddSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "root_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   }
 };
 

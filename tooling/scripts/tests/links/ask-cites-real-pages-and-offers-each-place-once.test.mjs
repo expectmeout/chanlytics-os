@@ -37,9 +37,8 @@ test("a page citation is a listed page, or a shape its page parses", () => {
     "today",
     "inbox",
     "calendar",
-    "campaigns",
+    "campaigns/sequences",
     "messages",
-    "broadcasts",
     "segments",
     "start",
     "admin/team",
@@ -58,11 +57,20 @@ test("a page citation is a listed page, or a shape its page parses", () => {
     "calendar/week:2026-10-11",
     "broadcasts/get-yes",
     "conversations/phone",
+  ];
+  assert.deepEqual(kept(real), real, "every one of them is a page a person lands on");
+  // The pages that moved (decision 0060: Campaigns' home and its ledger's groups, the old Playbooks list, Sent's list) are
+  // kept as the page that replaced them, once: Sequences, which a person lands on.
+  const moved = [
+    "campaigns",
+    "broadcasts",
+    "outbound",
     "campaigns/in:before",
     "campaigns/in:reach_out",
     "campaigns/in:sent_once",
   ];
-  assert.deepEqual(kept(real), real, "every one of them is a page a person lands on");
+  assert.deepEqual(kept(moved), ["campaigns/sequences"]);
+  assert.deepEqual(kept(["campaigns/sequences", ...moved]), ["campaigns/sequences"], "one place, one citation");
 });
 
 test("an address that begins with a page word and is not one of its shapes is dropped (REGRESSION: all came back as a door)", () => {
@@ -170,7 +178,7 @@ test("Open goes when an item has the same place under the other spelling, and a 
       payload: {},
       outcome: { state: "done", receipt: "Made.", atMs: 1, undo: { playbook_id: ID } },
     }),
-    `campaigns/moment:${ID}`,
+    `campaigns/sequences/${ID}`,
   );
   assert.deepEqual(cardOpen, { c1: false }, "and so is the card's: one door to the place");
 });
