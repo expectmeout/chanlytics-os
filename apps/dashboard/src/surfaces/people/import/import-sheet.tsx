@@ -14,12 +14,13 @@
  * a part the door stops, or refuses after others went through, ends the import at the line it began, and the summary says
  * what went through before it.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { RecordSheet } from "../../kit/record/sheet";
+import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { plAddExtras, plAddPerson, plAddedWords } from "../lists/doors";
 import { importPeople } from "../people-detail";
@@ -334,6 +335,21 @@ function oneExtras(one: AddOne, lists: readonly HandList[]): ReactNode {
  * door, then the note and the list through their own; added, the sheet closes and their page opens, and what did not go
  * on (a note, a list) is said beside the add, never in its place.
  */
+/** What was typed for one person: kept in the tab as it is typed, and asked about before it is thrown away. */
+interface Typed {
+  name: string;
+  phone: string;
+  email: string;
+  note: string;
+}
+const TYPED_KIND = "people-add";
+const typedAny = (t: Typed) => [t.name, t.phone, t.email, t.note].some((v) => v.trim() !== "");
+/** The words a person left in the sheet, when it opens again: what the tab kept, or nothing. */
+const keptTyped = (): Partial<Typed> => {
+  const kept = tabDraft(TYPED_KIND);
+  return kept && typeof kept === "object" ? kept : {};
+};
+
 function useAddOne({
   onClose,
   onAdded,
@@ -343,11 +359,12 @@ function useAddOne({
   onAdded: (id: string) => void;
   flash: Flash | null;
 }) {
-  const [name, setName] = useState("");
-  const [phone, setPhoneNow] = useState("");
-  const [email, setEmailNow] = useState("");
-  const [note, setNote] = useState("");
-  const [noteOpen, setNoteOpen] = useState(false);
+  const [kept] = useState(keptTyped);
+  const [name, setName] = useState(kept.name ?? "");
+  const [phone, setPhoneNow] = useState(kept.phone ?? "");
+  const [email, setEmailNow] = useState(kept.email ?? "");
+  const [note, setNote] = useState(kept.note ?? "");
+  const [noteOpen, setNoteOpen] = useState(!!kept.note);
   const [listId, setListId] = useState("");
   const [listOpen, setListOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -522,17 +539,38 @@ export function PeopleAddSheet({
   flash?: Flash | null;
 }) {
   const [way, setWay] = useState<AddWay>(firstWay);
-  const one = useAddOne({ onClose, onAdded, flash });
+  // A person added leaves nothing to keep; the work's own drop is known only once it is made, below.
+  const added = useRef<() => void>(() => undefined);
+  const one = useAddOne({
+    onClose: () => {
+      added.current();
+      onClose();
+    },
+    onAdded,
+    flash,
+  });
   const list = useImport({ flash });
   const listing = canImport && way === "list";
   const save = saveOf(listing, one, list);
+  // Words typed and not yet added, a person's details or a list read and not yet imported, are asked about before
+  // Cancel, the wash, a pull or Escape throw them away (Ruben, 19 Oct 2026: a name typed went on Cancel unasked).
+  const typed: Typed = { name: one.name, phone: one.phone, email: one.email, note: one.note };
+  const work = useUnsavedWork(TYPED_KIND, null, {
+    value: typed,
+    dirty: listing ? !!save.onSave && !list.busy : typedAny(typed) && !one.busy,
+    onLeave: onClose,
+  });
+  useEffect(() => {
+    added.current = work.done;
+  });
   return (
     <RecordSheet
       backCloses
       id="people-add"
       title="Add people"
       sub={ADD_SUBS[listing ? "list" : "one"]}
-      onClose={onClose}
+      onClose={work.leave}
+      confirm={work.asking ? <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="people-add-leave" /> : null}
       closeLabel={save.done ? "Done" : "Cancel"}
       onSave={save.onSave}
       saveLabel={save.label}

@@ -184,3 +184,36 @@ for (const { sheet, cls } of CONTROLS) {
       assert.ok(r.media.some(asksForHover), `a :hover on .${cls} stands outside @media (hover: hover)`);
   });
 }
+
+/*
+ * What goes with a fill goes where the fill goes. On a phone a hairline parts two rows (mobile.css), and a row in a fill
+ * of its own stands clear of the lines either side of it; the hover's fill stands under a pointer's media query (above),
+ * so a line hidden on :hover outside one went with no fill beside it, on the row a finger last tapped (Ruben, 19 Oct
+ * 2026: "it hides the divider lines").
+ */
+test("a line hidden beside a hovered row is hidden only where a pointer hovers, as the row's fill is", () => {
+  const sheet = "apps/dashboard/src/legacy/styles/mobile.css";
+  const hides = (r) => {
+    const ds = r.value.declarations.declarations ?? [];
+    return ds.length > 0 && ds.every((d) => propertyOf(d) === "opacity" && JSON.stringify(d.value) === "0");
+  };
+  const lines = (selector) => /"kind":"after"/.test(JSON.stringify(selector));
+  const found = [];
+  const walk = (rules, guarded) => {
+    for (const r of rules) {
+      if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
+      else if (r.type === "style" && hides(r))
+        for (const s of r.value.selectors.filter((x) => hoverOnly(x) && lines(x))) found.push({ guarded, s });
+    }
+  };
+  walk(parse(sheet).rules, false);
+  assert.ok(
+    found.length >= 8,
+    "the sheet still hides the lines beside a hovered row: this test would otherwise prove nothing",
+  );
+  assert.deepEqual(
+    found.filter((f) => !f.guarded).length,
+    0,
+    "a hairline hidden on :hover stands under @media (hover: hover)",
+  );
+});

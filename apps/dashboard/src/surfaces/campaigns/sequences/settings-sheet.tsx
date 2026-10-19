@@ -168,7 +168,8 @@ export function SettingsSheet({ open, rec, flash, moved, onClose }: SettingsShee
       backCloses
       testid="sq-settings"
       foot={
-        <div className="sq-stepfoot">
+        // On a phone the house's pair: Save first, the two an equal pair across the foot (kit.css, data-foot-pair).
+        <div className="sq-stepfoot" data-foot-pair="">
           <Button onClick={onClose} data-testid="sq-settings-cancel">
             {HOW_IT_RUNS.cancel}
           </Button>

@@ -80,7 +80,7 @@ export const NEW_CONVERSATION_WORDS = {
     question: "Discard what you wrote?",
     detail: null,
     yes: "Discard",
-    no: "Keep writing"
+    no: "Keep editing"
   },
   done: "Done",
   change: "Change",

@@ -43295,7 +43295,7 @@ var NEW_CONVERSATION_WORDS = {
     question: "Discard what you wrote?",
     detail: null,
     yes: "Discard",
-    no: "Keep writing"
+    no: "Keep editing"
   },
   done: "Done",
   change: "Change",
@@ -45500,8 +45500,8 @@ var PERSON_ACT_WORDS = {
 var PERSON_DELETE_WORDS = {
   title: "Delete person",
   detail: "Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone.",
+  // The foot's question: the sheet's title asks what is done (title), so the foot asks only for the name.
   typed: (name) => `Type ${name} to confirm.`,
-  question: (name) => `Delete ${name}?`,
   yes: "Delete this person",
   busy: "Deleting\u2026",
   cancel: "Cancel",

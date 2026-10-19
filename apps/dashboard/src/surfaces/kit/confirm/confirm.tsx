@@ -19,7 +19,9 @@
  * so its Yes is red words on no ground, never the red fill, and its No ("Keep editing") is the plain button beside it:
  * the answer that keeps the work is the one with a ground. One filled colour at most stands in a question: the red,
  * and only where something kept is destroyed.
- * The Yes takes focus as the question appears; Escape is No.
+ * The Yes takes focus as the question appears, unless it destroys something or throws work away (`danger`, `discard`):
+ * there the No does, so an Enter pressed out of habit keeps what is there, as a destructive alert's default is its
+ * Cancel (19 Oct 2026). Escape is No.
  * Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
  */
 import type { KeyboardEvent, ReactNode } from "react";
@@ -81,6 +83,8 @@ export function Confirm({
   const ok = ready != null ? !!ready : typed == null || String(value).trim() === String(typed);
   const id = (part: string) => (testid ? `${testid}-${part}` : undefined);
   const tone = toneOf(discard, danger);
+  // The answer that keeps what is there takes focus where the Yes would destroy something or throw work away.
+  const safeFirst = danger || discard;
   const onKey = (e: KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === "Escape" && !busy && onNo) {
       e.stopPropagation();
@@ -126,12 +130,19 @@ export function Confirm({
           className={`btn btn-sm${tone.yes}`}
           disabled={busy || !ok}
           onClick={onYes}
-          autoFocus={typed == null}
+          autoFocus={typed == null && !safeFirst}
           data-testid={id("yes")}
         >
           {busy ? busyLabel : yes}
         </button>
-        <button type="button" className={`btn btn-sm${tone.no}`} disabled={busy} onClick={onNo} data-testid={id("no")}>
+        <button
+          type="button"
+          className={`btn btn-sm${tone.no}`}
+          disabled={busy}
+          onClick={onNo}
+          autoFocus={typed == null && safeFirst}
+          data-testid={id("no")}
+        >
           {no}
         </button>
       </span>
