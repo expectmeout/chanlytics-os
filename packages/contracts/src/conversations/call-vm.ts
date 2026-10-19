@@ -53,6 +53,9 @@ export interface CallVM {
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
+  /** The turns a list read left on the server (CallDto.turns), which the call read by its id has: the card asks for
+   *  them as it opens. Absent where the lines are here, or the call had none. */
+  turnsToRead?: number;
   /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
    *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
   transcript: Array<{
@@ -179,6 +182,14 @@ const RECORDING_NOTE: Partial<Record<CallVM["recordingState"], string>> = {
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`,
 };
 
+/** A call's lines, and where a list read left them on the server (CallDto.turns), how many its card reads as it opens. */
+function linesOf(
+  transcript: CallVM["transcript"],
+  dto: Pick<CallDto, "turns">,
+): Pick<CallVM, "transcript" | "turnsToRead"> {
+  return !transcript.length && dto.turns ? { transcript, turnsToRead: dto.turns } : { transcript };
+}
+
 export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -252,7 +263,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
       : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
-    transcript,
+    ...linesOf(transcript, dto),
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1000) : null,
     recordingState: recState,
     ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),

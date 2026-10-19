@@ -23,7 +23,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
 import { useNeedsYouParts } from "../../needs-you";
 import { InboxRunsWaiting } from "./inbox-runs";
-import { threadRow } from "./list-rows";
+import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
 import { askOnScreenKey, demoSession, setAskOnScreen, surfaceState } from "../shell";
 import { inboxData } from "../store";
@@ -189,6 +189,7 @@ export function InboxList(props: InboxListProps) {
   // Filter: a non-empty search spans ALL threads (so results surface across
   // buckets); otherwise the parent already scoped `threads` to bucket/view.
   const visible = visibleRows({ query, allThreads, threads });
+  const shown = useShownThreads(visible, activeThreadId ?? null, base.density);
 
   // The agent name is only worth a row if the threads differ on it. This was
   // computed INSIDE the row map — one Set built per rendered row, so 100
@@ -261,8 +262,14 @@ export function InboxList(props: InboxListProps) {
         {!L.fromLine && unreadEscalated()}
         {visible.length === 0 && !L.fromLine && !(runRows && runsWaiting > 0) && emptyThreads(L)}
         {visible.length > 0 && (
-          <div className="ix-thread-rows" role="listbox" aria-label="Conversations" aria-multiselectable="true">
-            {visible.map((t, i) => threadRow(L, t, i))}
+          <div
+            ref={shown.listRef}
+            className="ix-thread-rows"
+            role="listbox"
+            aria-label="Conversations"
+            aria-multiselectable="true"
+          >
+            {threadRows(L, shown)}
           </div>
         )}
       </div>

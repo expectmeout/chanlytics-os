@@ -750,7 +750,7 @@ const routeDoor = (to, go = null) => {
       if (e && e.preventDefault) e.preventDefault();
       if (go) go(to); else if (window.CHANLY) window.CHANLY.nav(to);
     },
-    onPointerEnter: warm, onFocus: warm,
+    onPointerEnter: (e) => { if (!e || e.pointerType !== "touch") warm(); }, onFocus: warm, // a finger is a scroll or a swipe first (legacy-verbs warmsOnReach)
   };
 };
 Object.assign(window, { holdStill, routeDoor });

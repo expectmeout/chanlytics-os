@@ -96,8 +96,8 @@ test("the chrome of an address: People's crumb, what the view is called, one mou
   assert.equal(at("list:s1").act, undefined, "the door is the bare list's");
   assert.deepEqual(
     [at("pipeline").crumbs, at("pipeline").mount],
-    [[{ label: "People", to: "clients" }, "Pipeline"], "clients/pipeline"],
-    "the Pipeline's address, every workspace's (0008, amended 18 Oct 2026), under the mount it always had",
+    [[{ label: "People", to: "clients" }, "Pipeline"], "clients"],
+    "the Pipeline's address, every workspace's (0008, amended 18 Oct 2026), under People's one mount: the page keeps its scopes (people-route.tsx)",
   );
   setSurfaceValue("people", undefined);
   assert.equal(at("seg:needs_you").crumbs.at(-1), "Segment", "before People is read, nothing names the list");

@@ -10730,6 +10730,12 @@ interface CallDto {
             end?: number;
         }>;
     }> | null;
+    /** On an ended call a list gives (GET calls without ids), in place of its turns, which the call read by its id has
+     *  (18 Oct 2026): how many turns there were, whether the caller said anything, and the last thing they said. Absent
+     *  on a call read whole, whose turns say these. */
+    turns?: number;
+    caller_spoke?: boolean;
+    said_last?: string | null;
     /** storage_path and provider_url are stripped server-side — audio is only
      *  reachable through the signed-URL route. */
     recording: {
@@ -10780,6 +10786,8 @@ interface CallDto {
 declare const ABANDONED_MS = 15000;
 declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
     transcript_object?: CallDto["transcript_object"];
+    turns?: number;
+    caller_spoke?: boolean;
 }): boolean;
 /** Retell's not_connected: the dial never connected. An attempt, not a call, whoever dialled (missedCall says whose). */
 declare function neverConnected(dto: Pick<CallDto, "status">): boolean;
@@ -21280,6 +21288,9 @@ interface CallVM {
         headline: string;
         bullets: string[];
     };
+    /** The turns a list read left on the server (CallDto.turns), which the call read by its id has: the card asks for
+     *  them as it opens. Absent where the lines are here, or the call had none. */
+    turnsToRead?: number;
     /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
      *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
     transcript: Array<{
@@ -21652,6 +21663,9 @@ interface LiveCallVM {
     /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
     lengthWords: string | null;
     transcript: LiveTurnVM[];
+    /** The last thing the caller said: the last of their turns, or what a list's ended call carries in their place
+     *  (CallDto.said_last). Live's row says it under the name. */
+    saidLast: string | null;
 }
 interface LiveLineVM {
     number: string | null;

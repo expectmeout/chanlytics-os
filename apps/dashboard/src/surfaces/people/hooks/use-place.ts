@@ -1,6 +1,6 @@
 /**
- * The rows' place, once the view has worked out its rows: the cursor, where each view was left, the first rows, and the
- * page's one keyboard listener (moved whole from legacy/pages/people.jsx usePlPlace, decision 0015).
+ * The rows' place, once the view has worked out its rows: the cursor, where each view was left, and the page's one
+ * keyboard listener (moved whole from legacy/pages/people.jsx usePlPlace, decision 0015).
  * - controls: usePlControls' answer, whose words, selection and scrolling pane these are.
  * - page: "people" | "leads" | "pipeline", whose places the tab keeps (tab-memory.ts); view: the view the rows are of.
  * - ids: the rows shown, in their order. noun: what the table calls a row (table.tsx), its rows' id.
@@ -8,16 +8,12 @@
  * - selectionOf: what a selection belongs to; when it changes, the selection goes.
  * - extra, onPlace(p, again): what else a view's place holds (Leads' map), and the view's own part of putting one back
  *   (`again`: a view opened after the first).
- * - windowed: a long list draws a window of its rows (PL_WINDOW_ROWS), grown as its foot comes near and as the cursor walks
- *   past it; false for a table in sections (the Pipeline's groups), which draws every row after its first frame.
- *   Said by every caller: a default would be a branch of this function's, which is at its cap.
  * The hooks are called in the order the one function called them.
  */
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { placeLoad, placeSave } from "../shell-verbs";
 import type { Place } from "../shell-verbs";
-import { usePlRowWindow } from "../table/row-window";
 import { onPageKey } from "./keyboard";
 import type { KeyDoors } from "./keyboard";
 import { heardListScroll, ldScroller } from "./scroller";
@@ -53,7 +49,6 @@ interface PlaceArgs {
   selectionOf: string;
   extra?: Record<string, unknown> | null;
   onPlace?: ((p: Place, again: boolean) => void) | null;
-  windowed: boolean;
 }
 
 /**
@@ -76,29 +71,18 @@ function useSelectionResets(controls: Controls, selectionOf: string) {
 }
 
 /**
- * The cursor, and the rows drawn: a window of a long list, reaching a place that is to be put back. The cursor's row takes
+ * The cursor. Its row is drawn wherever it is (the table keeps it among the rows on screen, kit/rows/shown-rows.ts) and takes
  * focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the sticky header:
  * scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put the cursor here
  * itself (onFocus). A cursor that came back with the view (the page keeps the owner's place, below) marks its row and
  * takes nothing: the list has just been put back where it was, and a scrollIntoView after that moved it on again.
  */
-function useCursor({
-  page,
-  view,
-  ids,
-  noun,
-  windowed,
-}: Pick<PlaceArgs, "page" | "view" | "ids" | "noun" | "windowed">) {
+function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
   const [cursor, setCursor] = useState<string | null>(null);
-  // The rows drawn: a window of a long list (table/row-window.ts), reaching a place that is to be put back.
-  const [place] = useState(() => placeLoad(page, view));
-  const { budget: rowBudget, reach } = usePlRowWindow({ place, windowed, ids, cursor });
   useEffect(() => {
     setCursor((c) => (c && ids.includes(c) ? c : null));
   }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveCursor = (step: number) => {
-    // A row the cursor walks to is drawn: the window reaches past it, so the row is there to take focus.
-    reach((cursor === null ? -1 : ids.indexOf(cursor)) + step);
     setCursor((c) => {
       const i = c ? ids.indexOf(c) : -1;
       return ids[step > 0 ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)] ?? null;
@@ -120,7 +104,7 @@ function useCursor({
     if (row.focus) row.focus({ preventScroll: true });
     if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { cursor, setCursor, rowBudget, reach, moveCursor, cursorCameBack };
+  return { cursor, setCursor, moveCursor, cursorCameBack };
 }
 
 /**
@@ -134,7 +118,6 @@ function usePlaceKeeper(
   cursor: {
     cursor: string | null;
     setCursor: (c: string | null) => void;
-    reach: (i: number) => void;
     cursorCameBack: { current: string | null };
   },
 ) {
@@ -151,7 +134,6 @@ function usePlaceKeeper(
     cursor.setCursor((p.cursor as string) || null);
     if (onPlace) onPlace(p, placeOf.current !== undefined);
     placeTop.current = (p.top as number) || 0;
-    cursor.reach(Math.ceil(placeTop.current / 40));
     placeDue.current = { view, top: (p.top as number) || 0, q: (p.q as string) || "", fresh: true };
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
@@ -207,10 +189,10 @@ function usePlaceKeeper(
 }
 
 export function usePlPlace(args: PlaceArgs) {
-  const { controls, page, view, ids, noun, landed, selectionOf, extra, onPlace, windowed } = args;
+  const { controls, page, view, ids, noun, landed, selectionOf, extra, onPlace } = args;
   const { phone, selectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, searchRef } = controls;
   useSelectionResets(controls, selectionOf);
-  const cursor = useCursor({ page, view, ids, noun, windowed });
+  const cursor = useCursor({ ids, noun });
   usePlaceKeeper({ controls, page, view, landed, extra, onPlace }, cursor);
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was taken
   // down and added again on every render, and / had a second listener of its own.
@@ -244,5 +226,5 @@ export function usePlPlace(args: PlaceArgs) {
     setAllMatching(false);
     setSel((s) => (ids.length && ids.every((id) => s.has(id)) ? new Set() : new Set(ids)));
   };
-  return { cursor: cursor.cursor, setCursor: cursor.setCursor, rowBudget: cursor.rowBudget, keysWith, toggleAll };
+  return { cursor: cursor.cursor, setCursor: cursor.setCursor, keysWith, toggleAll };
 }

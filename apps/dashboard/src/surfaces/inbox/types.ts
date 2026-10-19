@@ -365,6 +365,8 @@ export interface ConversationRow {
   duration?: string;
   summary?: { headline: string; bullets: string[]; value?: number };
   transcript?: CallLine[];
+  /** A list's ended call came without its lines (contracts CallVM.turnsToRead): how many its card reads as it opens. */
+  turnsToRead?: number;
   messages?: Array<{ from: string; at: string; text: string }>;
   live?: boolean;
   approval?: boolean;

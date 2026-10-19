@@ -44,6 +44,12 @@ export interface CallDto {
     end?: number;
     words?: Array<{ start?: number; end?: number }>;
   }> | null;
+  /** On an ended call a list gives (GET calls without ids), in place of its turns, which the call read by its id has
+   *  (18 Oct 2026): how many turns there were, whether the caller said anything, and the last thing they said. Absent
+   *  on a call read whole, whose turns say these. */
+  turns?: number;
+  caller_spoke?: boolean;
+  said_last?: string | null;
   /** storage_path and provider_url are stripped server-side — audio is only
    *  reachable through the signed-URL route. */
   recording: { fetch_state?: string; mime?: string | null; bytes?: number } | null;
@@ -93,6 +99,8 @@ export const ABANDONED_MS = 15_000;
 export function abandonedCall(
   dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
     transcript_object?: CallDto["transcript_object"];
+    turns?: number;
+    caller_spoke?: boolean;
   },
 ): boolean {
   if (dto.direction !== "inbound") return false;
@@ -104,6 +112,8 @@ export function abandonedCall(
   if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
     return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
   }
+  // A list's ended call carries what its turns said in their place (CallDto.turns): the same reading.
+  if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;
   const ms = dto.duration_ms;
   return typeof ms === "number" && ms > 0 && ms < ABANDONED_MS;
 }

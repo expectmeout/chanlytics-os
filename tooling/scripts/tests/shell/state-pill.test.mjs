@@ -345,6 +345,8 @@ test("the pill: the tone's class and the map's words; the accent carries the liv
 /* --------------------- the Inbox list, with a real thread --------------- */
 
 /* The list (surfaces/inbox/pages/inbox-list.tsx) imports the kit's pill and its hooks from React: the stub's are set on it. */
+// A layout effect runs as an effect here, as useStubHooks does (the Inbox's list window takes one, kit/rows/shown-rows.ts).
+globalThis.React.useLayoutEffect = globalThis.React.useEffect;
 kitHooks();
 const { InboxList } = await import("../../../../apps/dashboard/src/surfaces/inbox/pages/inbox-list.tsx");
 

@@ -25506,6 +25506,7 @@ function abandonedCall(dto) {
   if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
     return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
   }
+  if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;
   const ms2 = dto.duration_ms;
   return typeof ms2 === "number" && ms2 > 0 && ms2 < ABANDONED_MS;
 }
@@ -25771,6 +25772,9 @@ var RECORDING_NOTE = {
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
 };
+function linesOf2(transcript, dto) {
+  return !transcript.length && dto.turns ? { transcript, turnsToRead: dto.turns } : { transcript };
+}
 function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -25822,7 +25826,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence2 || snippetBody, bullets },
-    transcript,
+    ...linesOf2(transcript, dto),
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
@@ -25922,6 +25926,11 @@ function summaryStateOf(c) {
   if (c.summary) return "ready";
   return c.live || c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
 }
+function turnsAndLastOf(dto) {
+  const transcript = turnsOf(dto);
+  const said = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: said ? said.text : dto.said_last ?? null };
+}
 function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -25972,7 +25981,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto)
+    ...turnsAndLastOf(dto)
   };
 }
 function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
