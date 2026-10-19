@@ -16,7 +16,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, toBroadcastVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, settle } from "../../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  settle,
+  unmount,
+} from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -120,6 +130,7 @@ const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbo
 const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { getSurfaceStatuses, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
 Object.assign(globalThis, {
   location: {
@@ -369,6 +380,65 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     const searched = list("rosa");
     assert.equal(byTestId(searched, "inbox-runs-waiting"), null, "a search stands the run aside");
   } finally {
+    setSurfaceValue("broadcasts", undefined);
+    globalThis.window.__tabMemory = had;
+  }
+});
+
+test("REGRESSION: a run that Sent's read brings after the Inbox opened on the runs the tab's cache restored moves it to Needs you, unless the member picked a bucket -- it sat on Handled under 'Needs you 1'", () => {
+  const place = {};
+  const had = globalThis.window.__tabMemory;
+  globalThis.window.__tabMemory = {
+    place: () => place,
+    keepPlace: (_p, _k, v) => Object.assign(place, v),
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  // What a new tab's boot holds of Sent's runs: yesterday's, from the tab's cache (surface-cache.ts marks them ready and
+  // gives them no status), none waiting, and no read of them yet. The test reaches into the statuses for that: a tab's
+  // first read is the one thing a test cannot take back.
+  const booted = () => {
+    getSurfaceStatuses().delete("broadcasts");
+    setSurfaceValue("broadcasts", { rows: [] });
+  };
+  // A read lands: its rows first, then its status (surface-runner.ts refreshSurface).
+  const readLands = (rows) => {
+    setSurfaceValue("broadcasts", { rows });
+    setStatus("broadcasts", "live");
+  };
+  try {
+    // Every Inbox drawn above still hears the surface (the stub unmounts nothing): a read with no run waiting settles them.
+    booted();
+    readLands([]);
+    booted();
+    let { seen, render } = page([unsent]);
+    assert.equal(seen.list.activeBucket, "done", "opened where its threads are, by the runs it held, none waiting");
+    readLands([waitingRun()]);
+    render();
+    assert.equal(
+      seen.list.activeBucket,
+      "escalated",
+      "REGRESSION: the cached runs counted as read, so the read that brought today's run moved nothing",
+    );
+    // Only that first read: a run another read brings later never moves a bucket being read.
+    seen.list.onBucketChange("done");
+    delete place.bucket;
+    readLands([waitingRun()]);
+    render();
+    assert.equal(seen.list.activeBucket, "done", "a later read moves nothing");
+
+    // A bucket the member picked holds, though the first read brings a run.
+    unmount();
+    booted();
+    ({ seen, render } = page([unsent]));
+    seen.list.onBucketChange("done");
+    render();
+    readLands([waitingRun()]);
+    render();
+    assert.equal(seen.list.activeBucket, "done", "their own pick holds");
+  } finally {
+    unmount();
     setSurfaceValue("broadcasts", undefined);
     globalThis.window.__tabMemory = had;
   }
