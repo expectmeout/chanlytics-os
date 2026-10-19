@@ -7,6 +7,7 @@ import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
+import { waitEndsWords } from "../waits/wait-rules";
 
 /* ------------------------------ the runs' words ------------------------------ */
 
@@ -19,6 +20,8 @@ export interface RunLike {
   counts: { sent: number; replied: number };
   /** Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. */
   audience?: unknown;
+  /** The sequence step that made it: a customer batch's waits until its day ends; a one-off's or a reach-out's has no day. */
+  playbook_id?: string | null;
   /** How many of a going run's emails the check holds for your say (waits.ts runHeldEmails). */
   held?: number | null;
   /** How many of a going run's emails are handed to you to send from your inbox (waits.ts runDraftedEmails, 00429). */
@@ -69,7 +72,9 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const sent = `${r.counts.sent} sent`;
   const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  const waiting = `${people}. Nothing sends until you say so.`;
+  // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told; a
+  // reach-out's or a one-off's until it is answered.
+  const waiting = `${people}. ${waitEndsWords(!reach && r.playbook_id ? "batch_ask" : "leads_batch")}.`;
   return {
     people,
     waiting: {

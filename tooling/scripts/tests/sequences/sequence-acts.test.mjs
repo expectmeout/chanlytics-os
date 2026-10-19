@@ -34,12 +34,19 @@ const first = (over = {}) => ({
   search_name: null,
   owner_sends: false,
   until: null,
-  trial_until: null,
+  words_ok_at: "2026-09-01T10:00:00.000Z",
   template_name: null,
   template_language: null,
   ...over,
 });
-const row = (over = {}) => ({ name: "Thank you", starts: "moment", first: first(), needs: needs(), ...over });
+const row = (over = {}) => ({
+  name: "Thank you",
+  starts: "moment",
+  mode: "ask",
+  first: first(),
+  needs: needs(),
+  ...over,
+});
 
 test("Run now is offered while the first step runs on the business's day, and never over a batch that waits", () => {
   const at = { tz: TZ, nowMs: NOW };
@@ -52,7 +59,7 @@ test("Run now is offered while the first step runs on the business's day, and ne
   assert.equal(sequenceRunsNow(row({ starts: "date", first: null }), at), false);
 });
 
-test("Turn on asks when it runs next and to about how many, and says an auto class in full", () => {
+test("Turn on asks when it runs next and to about how many, says a sequence that sends on its own in full, and a first batch that waits", () => {
   const W = LIFECYCLE_WORDS.ledger.resume;
   // The record as GET sequences/:id answers it, and the reach GET sequences/:id/reach answers beside it.
   const rec = (over = {}, firstOver = {}) => ({
@@ -60,14 +67,19 @@ test("Turn on asks when it runs next and to about how many, and says an auto cla
     last_run_for: null,
   });
   const reach = (over = {}) => ({ candidates: 14, cap_per_run: null, paused: false, ...over });
-  const at = { tz: TZ, nowMs: NOW, mode: "ask" };
+  const at = { tz: TZ, nowMs: NOW };
   const asked = sequenceResumeAsk(rec(), reach(), at);
   assert.equal(asked.question, SEQUENCE_ACT_WORDS.resumeAsk("Thank you"));
   assert.equal(asked.detail, "Next run today 10:00 AM, about 14 people");
   assert.equal(asked.yes, SEQUENCE_ACT_WORDS.resumeYes);
   assert.equal(
-    sequenceResumeAsk(rec(), reach(), { ...at, mode: "auto" }).detail,
+    sequenceResumeAsk(rec({ mode: "auto" }), reach(), at).detail,
     `Next run today 10:00 AM, about 14 people. ${W.auto}`,
+  );
+  // Its words new to the owner (decision 0064): its next batch waits for an OK whatever the mode, and says so.
+  assert.equal(
+    sequenceResumeAsk(rec({ mode: "auto" }, { words_ok_at: null }), reach(), at).detail,
+    `Next run today 10:00 AM, about 14 people. ${W.asksFirst}`,
   );
   // A run sends its cap and no more: "about" counts the next run's share, as the home's rows do.
   assert.equal(
@@ -76,11 +88,6 @@ test("Turn on asks when it runs next and to about how many, and says an auto cla
   );
   // It ran today: its next run is tomorrow's, from the record's last_run_for.
   assert.match(sequenceResumeAsk({ ...rec(), last_run_for: "2026-10-15" }, reach(), at).detail, /^Next run tomorrow/);
-  // On trial (the record's trial_until ahead), an auto class's run still waits for a person: it is not said to send on its own.
-  assert.doesNotMatch(
-    sequenceResumeAsk(rec({}, { trial_until: "2026-10-20T13:00:00Z" }), reach(), { ...at, mode: "auto" }).detail,
-    /on its own/,
-  );
   // A moment that could not be counted says when alone, never "about 0 people".
   assert.equal(sequenceResumeAsk(rec(), reach({ candidates: null }), at).detail, "Next run today 10:00 AM");
   // A workspace paused for billing says so instead of a time, as the home's rows do.

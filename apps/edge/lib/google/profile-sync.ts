@@ -14,7 +14,14 @@ import {
   type PlacesHttp,
   type ProfileSyncPlan,
 } from "../packages/channels.js";
-import { autoReplyBell, lensRoute, localDate, reviewRoute, type EdgeRefusal } from "../packages/contracts.js";
+import {
+  autoReplyBell,
+  lensRoute,
+  localDate,
+  reviewDraftsBell,
+  reviewRoute,
+  type EdgeRefusal,
+} from "../packages/contracts.js";
 import { keepOnce, recordNotification } from "../ops/notify.js";
 import { errField, logger, type Logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -267,22 +274,27 @@ export async function syncProfile(
   if (done.error) throw new Error(done.error.message);
   // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
   if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");
-  // The first sync is history, never answered. After that, the auto mode
-  // answers what came in on duty; a failure here is logged, not thrown.
-  const answered = first
-    ? []
+  // The first sync is history, never answered. After that, the row's mode answers what came in on duty (decision 0064:
+  // posted under auto, held under Holds it and Ask me, a held reply posted once its time came); a failure here is
+  // logged, not thrown.
+  const { answered, drafted } = first
+    ? { answered: [], drafted: [] }
     : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
         L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
-        return [];
+        return { answered: [], drafted: [] };
       });
-  const bell = autoReplyBell(answered);
-  if (bell) {
-    // One review answered opens that review (its reply is under it); several open the lens.
-    const one = aboutOne(answered);
+  // What went, and what is held for the owner (with when it goes, or that it waits for their OK): one review's bell opens
+  // that review (its reply is under it), several open the lens.
+  for (const [said, which] of [
+    [autoReplyBell(answered), answered],
+    [reviewDraftsBell(drafted, tz), drafted],
+  ] as const) {
+    if (!said) continue;
+    const one = aboutOne(which);
     await recordNotification(conn.tenant_id, {
       kind: "review",
-      title: bell.title,
-      body: bell.body,
+      title: said.title,
+      body: said.body,
       route: one ? reviewRoute(one.id) : lensRoute("reviews"),
       about: one,
     });
@@ -303,6 +315,7 @@ export async function syncProfile(
     fresh: plan.fresh.length,
     replied: plan.replied.length,
     answered: answered.length,
+    held: drafted.length,
     first,
     rating: plan.listing?.rating ?? null,
     review_count: plan.listing?.review_count ?? null,

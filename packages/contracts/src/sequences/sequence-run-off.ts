@@ -1,7 +1,7 @@
 /**
  * A sequence that is on and whose run did nothing (the Sequences loop review, 17 Oct 2026, item 8): its first step's last
  * run was recorded off, for a reason the owner can see and, most often, mend (no calendar connected, its list gone,
- * WhatsApp not approving its message or limiting the number, the class set to Never, its last day passed). Said as the
+ * WhatsApp not approving its message or limiting the number, its last day passed). Said as the
  * record's one notice (D8) with the door that mends it, until a run goes again. Pure: the reason is the run's own record
  * (core runPlaybook's `skipped`, read from its `playbook.run` event), the day is the run's.
  */
@@ -16,24 +16,19 @@ const RUN_OFF_REASONS = [
   "list_uncounted",
   "template_not_approved",
   "number_flagged",
-  "never",
   "ended",
 ] as const;
 export type RunOffReason = (typeof RUN_OFF_REASONS)[number];
 
 const isRunOffReason = (why: string): why is RunOffReason => (RUN_OFF_REASONS as readonly string[]).includes(why);
 
-/** What each reason says, and the act that mends it: a door, Who approves (Autonomy), End it, or none. */
-const RUN_OFF_WORDS: Record<
-  RunOffReason,
-  { said: string; act: string | null; mends: "door" | "autonomy" | "end" | null }
-> = {
+/** What each reason says, and the act that mends it: a door, End it, or none. */
+const RUN_OFF_WORDS: Record<RunOffReason, { said: string; act: string | null; mends: "door" | "end" | null }> = {
   no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
   no_list: { said: "its list is gone", act: null, mends: null },
   list_uncounted: { said: "its list couldn’t be counted", act: null, mends: null },
   template_not_approved: { said: "WhatsApp hasn’t approved its message", act: "Open it", mends: "door" },
   number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
   ended: { said: "its last day has passed", act: "End it", mends: "end" },
 };
 
@@ -44,7 +39,7 @@ interface SequenceRunOff {
   line: string;
   fact: string;
   act: string | null;
-  mends: "door" | "autonomy" | "end" | null;
+  mends: "door" | "end" | null;
   /** The door that mends it, where it is one: the channels for a calendar or the number, the message in Messages. */
   to: string | null;
 }

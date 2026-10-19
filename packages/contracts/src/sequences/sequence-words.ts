@@ -3,7 +3,6 @@
  * groups and rows, a sequence's head and its one notice (D8), its flow (what starts it, each step, what stops it), and
  * where each person stands. Pure: the clock and the workspace's word for an appointment are arguments.
  */
-import { POLICY_CLASS_WORDS, type PolicyClass, type PolicyMode } from "../config/workspace-config/policy-classes";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { campaignRunsOn, nextRunOf } from "../playbooks/playbook-schedule";
 import { triggerOf } from "../playbooks/playbook-triggers";
@@ -13,7 +12,7 @@ import { plural } from "../shared/words";
 import { RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
-import type { SequenceState } from "./sequence";
+import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "./sequence";
 import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
 
 /** The page's own words, said once. */
@@ -67,7 +66,7 @@ export const SEQUENCE_WORDS = {
   next: "Next",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
-  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
+  /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
   /** A phone dock's Turn on: it asks first, so it says so. */
@@ -77,22 +76,12 @@ export const SEQUENCE_WORDS = {
 } as const;
 
 /**
- * Who approves a sequence's batches, as its head line says it, by the mode its class runs under (the record's `mode`;
- * none set is ask, as the policies read it). Said once, in the line under its name, and in its More, where it is changed.
+ * Who approves a sequence's batches, as its head line says it, by its own mode (decision 0064, the row's `mode`); a mode
+ * it does not know is ask's (contracts batchModeOf, fail safe). Said once, in the line under its name, and in its More,
+ * which opens How it runs, where it is changed.
  */
-const SEQUENCE_APPROVAL_WORDS: Record<PolicyMode, string> = {
-  auto: "sends on its own",
-  veto: "holds each batch for you to stop",
-  ask: "asks you first",
-  never: "stays quiet",
-};
-
-const isApprovalMode = (mode: string | null): mode is PolicyMode =>
-  mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
-
-/** Who approves, in the head's words: a mode it does not know is ask's, as the policies read one with no row. */
 const sequenceApprovalWords = (mode: string | null): string =>
-  isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
+  SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
 
 /** The flow's own words (the canvas's Steps board): its keys, the step's lines, and what each part of it says. */
 export const SEQUENCE_FLOW_WORDS = {
@@ -395,7 +384,7 @@ export function sequenceHeadLine(row: SequenceRowDto, word: AppointmentWord, tz:
  */
 export function sequenceSubLine(
   row: SequenceRowDto,
-  rec: { word: AppointmentWord; timezone: string; mode: string | null },
+  rec: { word: AppointmentWord; timezone: string },
   nowMs: number,
 ): string {
   if (row.starts === "date" && row.date) {
@@ -412,9 +401,9 @@ export function sequenceSubLine(
   }
   if (row.starts === "leads") {
     const from = row.first?.search_name ? `Leads from “${row.first.search_name}”` : "Leads";
-    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec.mode)}`;
+    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode)}`;
   }
-  return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(rec.mode)}`;
+  return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(row.mode)}`;
 }
 
 /** When a sequence's next batch goes, and to how many where it is counted; `soon` when its hour has come and it is due. */
@@ -469,17 +458,10 @@ export function sequencePausedDock(row: SequenceRowDto): { line: string; fact: s
   };
 }
 
-const isPolicyClass = (c: string | null | undefined): c is PolicyClass =>
-  !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
-
-/**
- * Who approves a sequence's batches, under that item of its More, where it is changed for the whole class (Autonomy):
- * how, and the row it is set on. "Asks you first · Re-engage quiet customers".
- */
-export function sequenceWhoApprovesHint(mode: string | null, policyClass: string | null | undefined): string {
+/** Who approves a sequence's batches, under that item of its More, which opens How it runs: "Holds each batch for you to stop". */
+export function sequenceWhoApprovesHint(mode: string | null): string {
   const how = sequenceApprovalWords(mode);
-  const said = how.charAt(0).toUpperCase() + how.slice(1);
-  return isPolicyClass(policyClass) ? `${said} · ${POLICY_CLASS_WORDS[policyClass].name}` : said;
+  return how.charAt(0).toUpperCase() + how.slice(1);
 }
 
 /**
@@ -506,7 +488,7 @@ export interface SequenceNotice {
   /** The step it is about, when it is one (new words turned down): its id and place. */
   stepId: string | null;
   /** A run that did nothing (`off`): why, and the door that mends it where it is one (sequence-run-off.ts). */
-  off?: { reason: RunOffReason; mends: "door" | "autonomy" | "end" | null; to: string | null };
+  off?: { reason: RunOffReason; mends: "door" | "end" | null; to: string | null };
 }
 
 const noticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<SequenceNotice>): SequenceNotice => ({

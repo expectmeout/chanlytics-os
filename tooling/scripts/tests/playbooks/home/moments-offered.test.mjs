@@ -501,6 +501,9 @@ const stored = (over = {}) => ({
   template_language: "en_US",
   params: [],
   policy_class: "reengage",
+  // Its sequence sends on its own and its words were seen going (decision 0064).
+  mode: "auto",
+  words_ok_at: "2026-09-01T10:00:00.000Z",
   state: "running",
   run_hour: 10,
   cap_per_run: 25,
@@ -514,11 +517,6 @@ const context = (over = {}) => ({
   tz: RUN_ZONE,
   now: new Date(NOW),
   people: [],
-  modes: new Map([
-    ["reengage", "auto"],
-    ["booking", "auto"],
-    ["campaign", "auto"],
-  ]),
   health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
   // Step 3: a run reads what the workspace can send on; WhatsApp alone, as every workspace was before the channels.
   ready: channelsReady({

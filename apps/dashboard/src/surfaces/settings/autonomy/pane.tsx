@@ -221,6 +221,8 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   const rows = uiRows(policies);
   // How often the owner changed what it wrote, by the row a draft belongs to (decision 0063).
   const held = heldDraftsByClass(policies.held ?? []);
+  // And what each sequence's batches did, under the rows a new sequence starts by (decision 0064, step 5).
+  const lines = { held, evidence: policies.evidence ?? null };
   const reply = rows.find((r) => r.id === "reply");
   const limits = (reply && reply.limits) || {};
   // The hard limits in contracts' words, which say each default, and the value each of the owner's two dials shows:
@@ -265,7 +267,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
             <h2 className="rec-card-title">Replies</h2>
             <span className="rec-card-sub">How each text to a customer goes out, and how long it waits for you</span>
           </div>
-          <PolModeRow r={reply} put={putMode} busy={busy} held={held} />
+          <PolModeRow r={reply} put={putMode} busy={busy} lines={lines} />
           <AutOwnModes own={policies.ownModes} />
           {replyDials(reply).map((d) => dialRow(d, phone, reply, putDial))}
         </section>
@@ -279,9 +281,9 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
           </span>
         </div>
         {phone ? (
-          <PolPhoneRows rows={matrix} put={putMode} busy={busy} held={held} />
+          <PolPhoneRows rows={matrix} put={putMode} busy={busy} lines={lines} />
         ) : (
-          <PolicyTable rows={matrix} put={putMode} busy={busy} held={held} />
+          <PolicyTable rows={matrix} put={putMode} busy={busy} lines={lines} />
         )}
       </section>
 

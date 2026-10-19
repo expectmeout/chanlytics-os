@@ -1183,10 +1183,11 @@ const SETUP_AND_CHANGE = [
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
   "change_leads_pause",
-  // A change's new fields (00416; the review after the merge, batch E): its words, its last day and its trial.
+  // A change's new fields (00416; the review after the merge, batch E): its words, its last day, and since 00462 its
+  // sequence's mode, where its trial was.
   "change_words",
   "change_last_day",
-  "change_trial_week",
+  "change_hold_each_batch",
   // A setup with a calendar and without one (the marketing manager's §8): the same words, two workspaces.
   "setup_with_calendar",
   "setup_without_calendar",
@@ -1261,10 +1262,13 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
     assert.match(c.text, new RegExp(WIN_BACK.name, "i"), c.id);
     assert.ok(c.needs?.includes("winback_seed"), `${c.id} needs the Win-back's seed`);
   }
+  // A change card's payload names the patch's keys, its sequence's mode as sequence_mode (its own `mode` being a pause
+  // undo's: contracts playbookChangeSpec).
+  const onCard = PLAYBOOK_PATCH_KEYS.map((k) => (k === "mode" ? "sequence_mode" : k));
   for (const c of cases.filter((x) => x.expect.card_fields?.playbook_change))
-    for (const k of Object.keys(c.expect.card_fields.playbook_change)) assert.ok(PLAYBOOK_PATCH_KEYS.includes(k), k);
+    for (const k of Object.keys(c.expect.card_fields.playbook_change)) assert.ok(onCard.includes(k), k);
   for (const c of cases.filter((x) => x.expect.card_fields_present?.playbook_change))
-    for (const k of c.expect.card_fields_present.playbook_change) assert.ok(PLAYBOOK_PATCH_KEYS.includes(k), k);
+    for (const k of c.expect.card_fields_present.playbook_change) assert.ok(onCard.includes(k), k);
   const early = cases.find((c) => c.id === "change_hour_out_of_bounds");
   assert.ok(
     7 < PLAYBOOK_LIMITS.run_hour.min && early.expect.includes_any.includes(String(PLAYBOOK_LIMITS.run_hour.min)),
@@ -1274,7 +1278,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
 /** The reads the marketing manager's lane added (its §5.7), each asked for by a case in its own words. */
 const NEW_READS = ["calendar.room", "sequences.journey", "sequences.messages"];
 
-test("the cases fit their workspace and name the new reads (the review after the merge, batch E): an offer's send needs a yes and a channel, the nightly's workspace asks the offer that must make neither, each new read is the model's own pick, and a change names its words, its last day and its trial", async () => {
+test("the cases fit their workspace and name the new reads (the review after the merge, batch E): an offer's send needs a yes and a channel, the nightly's workspace asks the offer that must make neither, each new read is the model's own pick, and a change names its words, its last day and its sequence's mode", async () => {
   const { crossPagePlan } = await import("../../../../apps/dashboard/src/server/ask/cross-page.ts");
   const byId = Object.fromEntries(CASES.map((c) => [c.id, c]));
   // A send of an offer (a broadcast card, the plan's or its own) needs someone's yes to offers and a channel that carries
@@ -1331,7 +1335,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   assert.deepEqual(CASES.find((c) => c.expect.tools_any?.includes("calendar.room")).needs, ["calendar"]);
   // A change's three new fields (00416), each asked of the seed's Win-back through action change. The seed's message
   // takes no values (e2e-workspace.mjs convergeWinBack), so new words for it are refused in the door's own words
-  // ("This template takes no values."): that case grades the pick alone, and the last day and the trial grade the card.
+  // ("This template takes no values."): that case grades the pick alone, and the last day and the mode grade the card.
   const expect = (id) => byId[id].expect;
   // New words for the Win-back are a new message and the step moved onto it (a plan's two cards: sequences' words
   // action, 0060), since its message takes no values and a change of them is refused (the eval-truth pass, 17 Oct 2026).
@@ -1341,7 +1345,8 @@ test("the cases fit their workspace and name the new reads (the review after the
   );
   for (const [id, field] of [
     ["change_last_day", "until"],
-    ["change_trial_week", "trial_until"],
+    // Its sequence's mode (00462, decision 0064), where its trial was: the card names it as sequence_mode.
+    ["change_hold_each_batch", "sequence_mode"],
   ])
     assert.deepEqual(
       [expect(id).tools_any, expect(id).proposals_any, expect(id).card_fields_present],

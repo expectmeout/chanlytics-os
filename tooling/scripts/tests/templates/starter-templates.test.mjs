@@ -634,10 +634,10 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
-  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
+  const going = readCode("apps/dashboard/src/surfaces/today/pages/going-today.tsx");
   assert.ok(
-    queue.includes('testid="brief-run-soon"') && queue.includes("Date.parse(r.scheduled_for) > Date.now()"),
-    "a run under the veto window is on Today's queue with a Stop",
+    going.includes('testid="today-going-row"') && going.includes("GOING_TODAY_WORDS.stop"),
+    "a run under the veto window is Today's Going today row, with its Stop (decision 0064)",
   );
   const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(

@@ -1,10 +1,40 @@
+import { clockTime } from "../shared/clock.js";
+import { PLAYBOOK_VETO_DELAY_MS } from "../playbooks/playbook-triggers.js";
 import { DAY_MS } from "../shared/time.js";
+import { waitEndsWords } from "../waits/wait-rules.js";
 import { violatesNoPrices, namesMoney } from "../config/policy.js";
 import { DATA_NOT_INSTRUCTIONS, fenced, promptSafeName } from "../ai/fence.js";
 export function reviewReplyModeOf(rows) {
   const m = rows?.find((r) => r.class === "reviews")?.mode;
-  return m === "auto" || m === "never" ? m : "ask";
+  return m === "auto" || m === "veto" || m === "never" ? m : "ask";
 }
+export const REVIEW_HOLD_MS = PLAYBOOK_VETO_DELAY_MS;
+export function heldReviewReplyOf(r, tz) {
+  if (r.reply_text || !r.draft_text) return null;
+  return { text: r.draft_text.trim(), words: reviewHeldReplyWords(r.posts_at, tz), posts: !!r.posts_at };
+}
+export function reviewHeldReplyWords(postsAt, tz) {
+  const at = postsAt ? Date.parse(postsAt) : NaN;
+  return Number.isFinite(at) ? `${waitEndsWords("review_hold", `after ${clockTime(at, tz)}`)}.` : `${waitEndsWords("review_ask")}.`;
+}
+export function reviewDraftsBell(drafted, tz) {
+  const [d, ...rest] = drafted;
+  if (!d) return null;
+  if (rest.length === 0) {
+    const who = (d.author ?? "").trim();
+    const goes = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your OK";
+    return {
+      title: `${REVIEW_REPLY_HELD_TITLE} ${who ? `${who}'s review` : "a review"} ${goes}`,
+      body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`
+    };
+  }
+  const holds = drafted.some((r) => r.posts_at);
+  return {
+    title: `${drafted.length} replies to reviews ${holds ? "post unless you stop them" : "wait for your OK"}`,
+    body: "Each is on Reports, under its review."
+  };
+}
+export const REVIEW_REPLY_HELD_TITLE = "A reply to";
 export const REVIEW_REPLY_MAX_WORDS = 60;
 export const REVIEW_REPLY_MAX_CHARS = 1e3;
 export const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
@@ -87,6 +117,7 @@ export function autoReplyBell(answered) {
 export function reviewReplyWords(mode, canReply) {
   if (!canReply || !mode) return "";
   if (mode === "auto") return "new ones are answered by the receptionist within the hour";
-  if (mode === "ask") return "the receptionist drafts, you send";
+  if (mode === "veto") return "the receptionist writes each reply and posts it after 30 minutes unless you stop it";
+  if (mode === "ask") return "the receptionist writes each reply and holds it for your OK";
   return "";
 }

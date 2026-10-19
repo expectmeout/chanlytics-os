@@ -48,22 +48,23 @@ test("every class offered is one the runtime consults, and each offers only the 
   );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "outreach").modes,
-    ["Veto", "Ask", "Never"],
-    "a reach-out's first run always waits; later ones give thirty minutes, wait, or do not run: never auto",
+    ["Veto", "Ask"],
+    "how a new sequence to leads starts: each batch held thirty minutes or waiting for an OK, never auto; one is paused on its page, so no never (decision 0064)",
   );
-  assert.deepEqual(
-    UI_ROWS.find((r) => r.id === "follow_up").modes,
-    ["Auto", "Ask", "Never"],
-    "the follow-up sends, waits on Today, or does not run: no countdown to hold (0006)",
-  );
+  for (const id of ["reengage", "campaign", "follow_up"])
+    assert.deepEqual(
+      UI_ROWS.find((r) => r.id === id).modes,
+      ["Auto", "Veto", "Ask"],
+      `${id}: how a new sequence starts, each batch sent, held for a stop or waiting for an OK (decision 0064)`,
+    );
   assert.ok(
     UI_ROWS.every((r) => !("enforced" in r)),
     "no row is stored-but-unenforced, so no row says so",
   );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "reviews").modes,
-    ["Auto", "Ask", "Never"],
-    "answered, drafted for a person, or left alone — no countdown to hold",
+    ["Auto", "Veto", "Ask", "Never"],
+    "answered, held for a stop, held for your OK, or left alone (decision 0064, step 6)",
   );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "book").modes,

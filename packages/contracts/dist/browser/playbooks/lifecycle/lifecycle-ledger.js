@@ -115,13 +115,7 @@ function rowWaitingOf(p, at) {
 }
 function resumeOf(p, input) {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const detail = resumeDetailOf(p, {
-    tz: input.tz,
-    nowMs: input.nowMs,
-    paused: workspacePausedOf(input),
-    mode: cls === null ? null : input.playbooks?.modes?.[cls]
-  });
+  const detail = resumeDetailOf(p, { tz: input.tz, nowMs: input.nowMs, paused: workspacePausedOf(input) });
   return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 function playbookRow(p, at) {

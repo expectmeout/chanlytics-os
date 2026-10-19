@@ -38,6 +38,7 @@ import { playbookReach } from "../playbook-reach";
 import { runCapOf } from "../playbook-run-split";
 import { nextOpenMoment, nextRunLabel, nextRunOf } from "../playbook-schedule";
 import { triggerOf } from "../playbook-triggers";
+import { batchModeOf } from "../../sequences/sequence";
 
 /** How far ahead "Coming up" looks. */
 const COMING_DAYS = 7;
@@ -167,23 +168,27 @@ function nextShare(p: Pick<LifecyclePlaybook, "trigger" | "candidates" | "cap_pe
 }
 
 /**
- * Resume's detail (decision 7): when its next run would be, to about how many, and, where its class sends without asking
- * (`auto`) and it is not on trial, that in full. Unread, the mode is not guessed: when and how many alone. A moment that
- * could not be counted (`candidates` null) says when alone: never "about 0 people" nobody counted. The home's rows and
- * drawers ask it (resumeOf), and so does a sequence's Turn on (contracts sequenceResumeAsk), over the same row.
+ * Resume's detail (decision 7): when its next run would be, to about how many, and what its next batch does where the
+ * row says (contracts batchModeOf): that it waits for an OK where its words are new to the owner, and that it goes
+ * without asking where its sequence sends on its own. Unread, the mode is not guessed: when and how many alone. A moment that could not be counted (`candidates` null) says when alone: never
+ * "about 0 people" nobody counted. The home's rows and drawers ask it (resumeOf), and so does a sequence's Turn on
+ * (contracts sequenceResumeAsk), over the same row.
  */
 export function resumeDetailOf(
-  p: Pick<LifecyclePlaybook, "run_hour" | "last_run_for" | "trigger" | "candidates" | "cap_per_run" | "trial"> & {
+  p: Pick<
+    LifecyclePlaybook,
+    "run_hour" | "last_run_for" | "trigger" | "candidates" | "cap_per_run" | "mode" | "words_ok_at"
+  > & {
     until?: string | null;
   },
-  at: { tz: string; nowMs: number; paused: boolean; mode: string | null | undefined },
+  at: { tz: string; nowMs: number; paused: boolean },
 ): string {
   const W = LIFECYCLE_WORDS.ledger.resume;
   const when = nextRunLabel({ ...p, state: "running" as const }, at.tz, new Date(at.nowMs), at.paused);
-  // On trial (00416), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
-  const auto = at.mode === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return auto ? `${detail}. ${W.auto}` : detail;
+  if (p.mode === undefined) return detail;
+  if (!p.words_ok_at) return `${detail}. ${W.asksFirst}`;
+  return batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at }) === "auto" ? `${detail}. ${W.auto}` : detail;
 }
 
 /**
@@ -313,7 +318,7 @@ export function waitingOffer(
 
 /**
  * A run on its way: scheduled, or waiting for the person's approval. One that waits says what Today's row says of it
- * ("7 people. Nothing sends until you say so.", or "12 businesses." for a reach-out's), and is approved or skipped on
+ * ("7 people. Waits for your OK until the end of its day; …", its wait by the wait rule), and is approved or skipped on
  * its own line (`waiting`) where a row may offer that; where the verb would refuse the approval it says the verb's
  * sentence instead and Skip is the act left; a run decided on its sheet alone keeps its name as the door to it.
  */

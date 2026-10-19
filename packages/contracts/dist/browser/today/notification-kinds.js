@@ -32,7 +32,9 @@ const NOTIFICATION_DELIVERY = {
   // A teammate who left: the same, the other way (00437).
   member_left: "bell",
   // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
-  note_to_keep: "bell"
+  note_to_keep: "bell",
+  // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
+  reply_held: "bell"
 };
 export const EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 export function emailsNotificationKind(kind) {
@@ -63,6 +65,16 @@ export const ALERT_TOPICS = [
     email: "always",
     phone: true,
     kinds: ["deadman"]
+  },
+  {
+    key: "reply_held",
+    group: "needs_you",
+    title: "A reply waits to go in your name",
+    what: "The receptionist wrote a reply that waits before it goes: the hold you set for replies, or one it was not sure of. It says when it goes; stop it in the Inbox before then. Closed once it goes or is stopped.",
+    onBell: "replies about to go",
+    email: null,
+    phone: true,
+    kinds: ["reply_held"]
   },
   {
     key: "playbook",

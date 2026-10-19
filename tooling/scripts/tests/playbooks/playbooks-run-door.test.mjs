@@ -6,9 +6,9 @@
  * "Run now" on the Playbooks page: one playbook, run at a person's request,
  * through the same implementation the hourly sweep uses (lib/playbooks.ts
  * over core's run-playbook). What differs is who decided. The sweep runs a
- * due playbook under the class's autonomy mode -- `ask` holds the run for a
+ * due playbook under its sequence's mode -- `ask` holds the run for a
  * person -- but a person who presses Run now HAS decided, so the run sends
- * now whatever the mode, unless the class is set to never. The ledger names
+ * now whatever the mode (decision 0064), and its words are theirs. The ledger names
  * them, the run is theirs, and one run per local day still holds: a second
  * press the same day says so and makes nothing twice.
  *
@@ -17,8 +17,8 @@
  * named workspace only; a person's run under `ask` sending now, with every
  * row it leaves -- the broadcast, its people, the send job, the person's
  * decision, the event, the day remembered; what makes a run off -- already
- * ran today, the class set to never, a template Meta has not approved, a
- * flagged number, nobody eligible; and the paths that name a fault.
+ * ran today, a template Meta has not approved, a flagged number, nobody
+ * eligible; and the paths that name a fault.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -175,6 +175,8 @@ const playbook = (tenant, id, over = {}) => ({
   created_by: "owner-1",
   last_run_for: null,
   last_run_at: null,
+  // Its words seen going (00462): the run says its sequence's own mode.
+  words_ok_at: iso(20 * D),
   created_at: iso(30 * D),
   updated_at: iso(30 * D),
   ...over,
@@ -199,7 +201,10 @@ function world({ people = {}, faults = {}, rpcs = {} } = {}) {
   setPg(db);
   return { db, tables, peopleRead: () => db.seen.filter((s) => s.rpc === "people_list").map((s) => s.args) };
 }
-/** A workspace on New York's clock, with a number that may send, a template Meta approved, and the win-back class set to `mode`. */
+/**
+ * A workspace on New York's clock, with a number that may send, a template Meta approved, and the win-back class set to
+ * `mode`: what a new win-back sequence there starts as (00462), so the playbook pushed after it takes that mode.
+ */
 function workspace(tables, id, mode, over = {}) {
   tables.tenants.push({ id, name: `Workspace ${id.slice(0, 8)}`, timezone: TZ, status: "active", ...over });
   tables.tenant_config.push({ tenant_id: id, config: {} });
@@ -488,30 +493,16 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
   );
 });
 
-test("the class set to never: a person's press runs nothing and says so; the run is still recorded -- an event with the reason, the day remembered -- so the page can say why", async () => {
+test("a person's press sends now whatever its sequence's mode, and lets its step's words go: the run records the mode its batches go under", async () => {
   const w = world({ people: { [A]: [person("c1")] } });
-  workspace(w.tables, A, "never");
-  w.tables.playbooks.push(playbook(A, P));
-  const today = localDate(TZ, new Date());
-  assert.deepEqual(await answer(await knock(press)), [
-    200,
-    { ok: true, outcome: "off", mode: "never", skipped: "never" },
-  ]);
-  nothingMade(w.tables);
-  assert.deepEqual(
-    w.tables.events.map((e) => [e.kind, e.subject_id, e.data]),
-    [["playbook.run", P, { run_for: today, by: "user", mode: "never", skipped: "never" }]],
-  );
-  assert.equal(
-    w.tables.playbooks[0].last_run_for,
-    today,
-    "a run that was off still takes the day: the sweep will run nothing for it later either",
-  );
-  assert.deepEqual(
-    w.peopleRead(),
-    [{ p_tenant_id: A }],
-    "the mode is read with the rest of the workspace, so the people are read even for a run that is off",
-  );
+  workspace(w.tables, A, "veto");
+  w.tables.playbooks.push(playbook(A, P, { words_ok_at: null }));
+  const [status, body] = await answer(await knock(press));
+  assert.equal(status, 200, JSON.stringify(body));
+  // Its words were new: the batch's mode is ask (contracts batchModeOf), which a person's press sends all the same.
+  assert.deepEqual([body.outcome, body.mode], ["sent", "ask"]);
+  assert.ok(w.tables.playbooks[0].words_ok_at, "a person's run lets its words go");
+  assert.equal(w.tables.decisions.length, 1, "their decision, on the ledger");
 });
 
 test("what else makes a person's run off, each recorded with its reason: a template Meta has not approved, a number WhatsApp flagged, nobody eligible; a paused workspace is a 402 in its own words, and a database that refuses is a 500 that names itself", async () => {

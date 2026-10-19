@@ -739,7 +739,7 @@ test("a reach-out run's block: today and later from the checked only, the still-
   assert.deepEqual([dropped.step_id, dropped.step_n, dropped.first], [null, null, null]);
 });
 
-test("the chains read the step's run's own readings: a paused workspace may not spend, and the outreach row is the workspace's own", async () => {
+test("the chains read the step's run's own readings: a paused workspace may not spend, and the mode is its sequence's, made from the workspace's own outreach row", async () => {
   const paused = await chains.GET.run(
     get(),
     ctxFor(
@@ -749,18 +749,19 @@ test("the chains read the step's run's own readings: a paused workspace may not 
     ),
   );
   assert.equal(paused.chains[0].next.may_spend, false, "a paused workspace may not spend (workspaceMaySpend)");
-  const never = await chains.GET.run(
+  // Its sequence was made under the workspace's outreach row (00462 sequence_mode_for), and keeps that mode as its own.
+  const asks = await chains.GET.run(
     get(),
     ctxFor(
       tables("viewer", {
         policies: [
-          { tenant_id: A, class: "outreach", mode: "never", subject_type: null },
+          { tenant_id: A, class: "outreach", mode: "ask", subject_type: null },
           { tenant_id: A, class: "reengage", mode: "auto", subject_type: null },
         ],
       }),
     ),
   );
-  assert.equal(never.chains[0].next.mode, "never");
+  assert.equal(asks.chains[0].next.mode, "ask");
   // The mailboxes it writes from: every connected one when it names none, with what its day is made of (PR 8's pace).
   const withMailboxes = await chains.GET.run(
     get(),

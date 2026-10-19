@@ -195,8 +195,9 @@ const HEARD_BEFORE = {
   // Its line is the channels read's, which it follows (R6).
   live: ["calls"],
   // Who each audience reaches, as Sent heard it while the audiences were part of it: and a deal an audience names, and the team
-  // the people read names; the playbooks a deal (owed, closed 15 October).
-  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  // the people read names; the playbooks a deal (owed, closed 15 October). And the proposal follow-up's sequence and step,
+  // whose mode says whether its next batch asks (decision 0064; owed W-campaign-run-template-reachout-2, closed 19 October).
+  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships", "sequences", "sequence_steps"],
   // Sent's runs on their own (the Inbox's run review, 18 Oct 2026): what GET broadcasts reads and the feed tells, a thread's own
   // row aside, and nothing of People.
   broadcasts: [
@@ -334,7 +335,7 @@ const ON_ITS_PAGE_BEFORE = {
     "memberships",
   ],
   // Every table on its page: it hears no kind wherever the tab is.
-  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships", "sequences", "sequence_steps"],
   // Its runs wherever the tab is (`always`), the rest on its page.
   broadcasts: ["messages", "tenant_channels", "lines", "mailboxes", "billing_accounts", "tenant_config"],
   playbooks: [...COMPOSER_PAGE, "deals"],

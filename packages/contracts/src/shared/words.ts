@@ -34,3 +34,12 @@ export const joinWords = (items: readonly string[]): string =>
 /** The same in a Spanish sentence: "a", "a y b", "a, b y c". */
 export const joinWordsEs = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+
+/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
+export function clipAtWord(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}…`;
+}

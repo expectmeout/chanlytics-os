@@ -1177,18 +1177,18 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The queue, compact (as the setup card above it, canvas R10): one head line -- the title, what the rows hold beside
    it, Open Inbox a quiet link at the right -- rows with less air, and an empty queue's mark beside its words, inside
    the card's gutter. */
-.today-queue .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
-.today-queue .tq-title, .today-queue .tq-sub { grid-column: auto; }
-.today-queue .tq-sub { font-size: var(--text-sm); }
-.today-queue .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
+:is(.today-queue, .today-going) .tq-head { grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; padding: 12px 18px 6px; }
+:is(.today-queue, .today-going) .tq-title, :is(.today-queue, .today-going) .tq-sub { grid-column: auto; }
+:is(.today-queue, .today-going) .tq-sub { font-size: var(--text-sm); }
+:is(.today-queue, .today-going) .tq-head > .tq-open { grid-column: 3; grid-row: 1; align-self: baseline; }
 .tq-open {
   padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap;
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
 }
 @media (hover: hover) { .tq-open:hover { color: var(--ink); } }
 .tq-open:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-:where(.dash-a-v2) .today-queue .cl-attn-row { gap: 4px; padding: 10px 18px; }
-:where(.dash-a-v2) .today-queue .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
+:where(.dash-a-v2) :is(.today-queue, .today-going) .cl-attn-row { gap: 4px; padding: 10px 18px; }
+:where(.dash-a-v2) :is(.today-queue, .today-going) .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
 
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
@@ -1304,14 +1304,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 /* E3 keeps 18px inside each pane and insets the hairlines by it: the pane carries the gutter, and its head, its rows
    and its foot run edge to edge within it (the rules below that set a padding set 0 at the sides too). */
-.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
-.dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
+.dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) { padding: 0 18px; }
+.dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) :is(.tq-head, .tsec-head, .tc-head, .tq-foot, .tq-failed, .tsec-note, .tl-failed, .tl-row) {
   padding-left: 0;
   padding-right: 0;
 }
 /* The empty states too: the queue's line is what stands in its list that is not a row, the bell's the pane's second
    child where its list is not (the ratchet counts their names). */
-.dash-a-v2 .today-queue .tq-list > :not([role="button"]),
+.dash-a-v2 :is(.today-queue, .today-going) .tq-list > :not([role="button"]),
 .dash-a-v2 .ta > :nth-child(2):not(.ta-list) {
   padding-left: 0;
   padding-right: 0;
@@ -1531,7 +1531,7 @@ a.ts-next { text-decoration: none; }
 /* Reviewed against E3 on production, 2 October 2026: the head 18px from the pane's top as every pane's first row is,
    the foot 18px from its bottom, the face's initials at the base step, 5px between a row's lines, the sentence's leading
    the canvas's 1.42. */
-.dash-a-v2 .today-queue .tq-head {
+.dash-a-v2 :is(.today-queue, .today-going) .tq-head {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 10px;
@@ -1551,7 +1551,7 @@ a.ts-next { text-decoration: none; }
   font-weight: var(--weight-semibold);
   line-height: 1;
 }
-.dash-a-v2 .today-queue .tq-head > .tq-open {
+.dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-open {
   grid-column: 4;
   display: inline-flex;
   align-items: center;
@@ -1561,17 +1561,17 @@ a.ts-next { text-decoration: none; }
   color: var(--ink-muted);
   text-decoration: none;
 }
-@media (hover: hover) { .dash-a-v2 .today-queue .tq-head > .tq-open:hover { color: var(--ink); } }
+@media (hover: hover) { .dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-open:hover { color: var(--ink); } }
 
 /* The queue's rows as the canvas draws them: the face in a disc, who and when over the words over the state, the
    verbs at the right in the row's middle. */
-.dash-a-v2 .today-queue .cl-attn-row {
+.dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row {
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: 5px 14px;
   align-items: center;
   padding: 19px 0;
 }
-.dash-a-v2 .today-queue .cl-attn-row > :first-child {
+.dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row > :first-child {
   display: flex;
   width: 40px;
   height: 40px;
@@ -1858,7 +1858,7 @@ a.ts-next { text-decoration: none; }
   .ts-open { padding-right: 14px; }
   .ts-capsule { padding: 0; background: transparent; }
   /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */
-  .dash-a-v2 .today-queue .tq-head { padding: 16px 0 10px; }
+  .dash-a-v2 :is(.today-queue, .today-going) .tq-head { padding: 16px 0 10px; }
   /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
      at 16); the page's other phone capsules stand at 12 too. */
   .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
@@ -1879,18 +1879,18 @@ a.ts-next { text-decoration: none; }
   .dash-a-v2 .tc-head > :last-child { margin-left: auto; }
   /* Mark all read is words at the head's height, not a thumb's 44px that pushed the name down. */
   .dash-a-v2 .ta .tsec-head > :last-child { height: 32px; min-height: 32px; }
-  .dash-a-v2 .today-queue .tq-head > .tq-sub { display: none; }
+  .dash-a-v2 :is(.today-queue, .today-going) .tq-head > .tq-sub { display: none; }
   /* A phone's row (the canvas's phone board): the face beside the name, over the words wrapping over the state, and
      the one verb under them at their left edge; the channel and the wait are a desk's. Beside the words, a verb of
      117px left them a column of 149, and a reason and its times ran to four lines. */
-  .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
-  .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
+  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
+  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
   .dash-a-v2 .tq .cl-attn-meta { display: none; }
   .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
   .dash-a-v2 .tq .cl-attn-acts > button { height: 36px; padding: 0 13px; font-size: var(--text-sm); }
-  .dash-a-v2 .today-queue .cl-attn-acts { grid-column: 2; grid-row: 2; justify-self: start; padding-top: 7px; }
+  .dash-a-v2 :is(.today-queue, .today-going) .cl-attn-acts { grid-column: 2; grid-row: 2; justify-self: start; padding-top: 7px; }
   /* The panes keep 16px inside on a phone (E3's phone board). */
-  .dash-a-v2 :is(.today-queue, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
+  .dash-a-v2 :is(.today-queue, .today-going, .tsec, [data-testid="today-card"]) { padding: 0 16px; }
   /* Worth a look on a phone (Ruben, 7 Oct 2026): the row's tag stands over its sentence, so the sentence has the row's
      width where it wrapped round the tag; it still opens its arithmetic, without a dotted rule under every word; and
      its doors are one line, Ask why at its start and the row's own door at its end. */

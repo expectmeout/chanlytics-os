@@ -27,7 +27,7 @@
   "apps/dashboard/src/server/ask/tools/act/reply.ts": 2,
   "apps/dashboard/src/server/ask/tools/act/thread-verb.ts": 2,
   "apps/dashboard/src/server/campaigns/broadcasts.ts": 10,
-  "apps/dashboard/src/server/campaigns/playbooks.ts": 5,
+  "apps/dashboard/src/server/campaigns/playbooks.ts": 4,
   "apps/dashboard/src/server/campaigns/reach-out-leads.ts::rpc": 3,
   "apps/dashboard/src/server/campaigns/reach-outs.ts::rpc": 5,
   "apps/dashboard/src/server/campaigns/template-row.ts": 2,

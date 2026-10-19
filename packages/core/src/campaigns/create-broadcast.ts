@@ -18,6 +18,7 @@ import {
   overLimitRefusal,
   paramLabel,
   readyForMessage,
+  SEND_ONCE_STOP_MS,
   UUID,
   type Audience,
   type AudienceKind,
@@ -76,6 +77,11 @@ export interface BroadcastReceipt {
    * one moved to the morning from now (`moved_from`).
    */
   scheduled_ahead: boolean;
+  /**
+   * Pressed for now (no time, or one already past): it goes SEND_ONCE_STOP_MS on, through the cancel every scheduled run
+   * has, so a typo can be stopped (decision 0064, step 3). False for one set for a time ahead.
+   */
+  pressed_now: boolean;
   decision_id: string;
 }
 
@@ -153,15 +159,18 @@ function asked(raw: unknown): Asked {
 /**
  * When, as asked: an instant with its offset. A date alone would be read as midnight UTC -- the evening before, in this
  * hemisphere -- and a wall-clock time without an offset on the server's clock, not the business's; either lands the
- * send at the wrong moment with no note.
+ * send at the wrong moment with no note. Pressed for now (no time, or one already past), it goes SEND_ONCE_STOP_MS on,
+ * with a Stop (decision 0064, step 3): the run is scheduled like any other, so the cancel every scheduled run has stops
+ * it, on its receipt, Today's Going today and Sent's row.
  */
-function askedTime(scheduledFor: unknown, now: Date): Date {
-  if (typeof scheduledFor !== "string" || !scheduledFor) return now;
+function askedTime(scheduledFor: unknown, now: Date): { at: Date; pressedNow: boolean } {
+  const soon = { at: new Date(now.getTime() + SEND_ONCE_STOP_MS), pressedNow: true };
+  if (typeof scheduledFor !== "string" || !scheduledFor) return soon;
   const t = new Date(scheduledFor);
   if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
   if (!OFFSET.test(scheduledFor))
     throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
-  return t.getTime() > now.getTime() ? t : now;
+  return t.getTime() > now.getTime() ? { at: t, pressedNow: false } : soon;
 }
 
 /**
@@ -298,7 +307,8 @@ export async function createBroadcast(
 
   // 3. When, as asked; and the channels it may go by, which a flagged number or a message with no version on one
   // refuses (a flagged number does not broadcast).
-  let when = askedTime(want.scheduledFor, now);
+  const timed = askedTime(want.scheduledFor, now);
+  let when = timed.at;
   // WHICH yes this send needs, from the message's category: the send job derives the same purpose from the same
   // rows, so the audience enrolled here is the audience the wire will accept.
   const purpose = message.purpose;
@@ -314,8 +324,8 @@ export async function createBroadcast(
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   // 4a. Whoever hears from a campaign or a broadcast within a week of it is left out (skipped at enrolment, in the
   // assembly), unless the person sending it sends to them too: refused in words when nobody else is left, never a run
-  // of skips. Judged for the time it is set for (`when` as asked, now for a send that goes at once), on either side.
-  const ahead = when.getTime() > now.getTime();
+  // of skips. Judged for the time it is set for (as asked, or ten minutes on for one pressed for now), on either side.
+  const ahead = !timed.pressedNow;
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
   if (goes.length === 0) throw new AppError("conflict", allLeftOutWords(label, leftOut.length), 409);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
@@ -425,6 +435,7 @@ export async function createBroadcast(
     // is not claimed either.
     left_out: out.size - made.leftOutUnwritten,
     scheduled_ahead: ahead,
+    pressed_now: timed.pressedNow,
     decision_id: made.decisionId,
   };
 }

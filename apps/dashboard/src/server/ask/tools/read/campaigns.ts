@@ -6,7 +6,7 @@ import {
   NO_NUMBER_REACH,
   OFFERS_OPT_IN_PHRASES,
   PLAYBOOK_CARD_WORDS,
-  PLAYBOOK_VETO_DELAY_WORDS,
+  SEQUENCE_MODE_WORDS,
   REPLY_WINDOW_MS,
   appointmentWords,
   audienceMembers,
@@ -17,7 +17,6 @@ import {
   cannotBeSentWords,
   clockStamp,
   compareTemplates,
-  effectiveMode,
   heardFor,
   isLedgerCampaign,
   journeyGuide,
@@ -293,30 +292,34 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   };
 }
 
-/** What a run does under each mode, in the assistant's words. */
-const MODE_WORDS: Record<string, string> = {
-  auto: "a run sends on its own",
-  veto: `a run sends ${PLAYBOOK_VETO_DELAY_WORDS} later unless someone stops it`,
-  ask: "a run waits for a person on Today",
-  never: "nothing runs",
+/**
+ * What a batch does under each mode (decision 0064), in How it runs' words (contracts SEQUENCE_MODE_WORDS), and that a
+ * batch of a step whose words are new to the owner waits for their OK whatever the mode.
+ */
+const MODE_WORDS = {
+  auto: SEQUENCE_MODE_WORDS.auto.does,
+  veto: SEQUENCE_MODE_WORDS.veto.does,
+  ask: SEQUENCE_MODE_WORDS.ask.does,
+  new_words:
+    "a batch of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
 };
 
 /**
  * The playbooks as the page shows them — the same rows, the same last 30
- * days, the same next-run words, the same end and trial — and the triggers with
- * the counts the page's chips carry: the Playbooks page's own read
- * (readers/playbooks.ts), once a turn, read as Campaigns reads it (contracts
- * lifecyclePlaybooksOf: the zone, the word, the calendar and each card's next
- * run, why it runs nothing, the day it ended and the day its trial ends) and
- * projected (ledger #10). Every count is the page's: over everyone, with no one
+ * days, the same next-run words, the same end, each with its sequence's own
+ * mode — and the triggers with the counts the page's chips carry: the Playbooks
+ * page's own read (readers/playbooks.ts), once a turn, read as Campaigns reads
+ * it (contracts lifecyclePlaybooksOf: the zone, the word, the calendar and each
+ * card's next run, why it runs nothing and the day it ended) and projected
+ * (ledger #10). Every count is the page's: over everyone, with no one
  * looking, the week's touches applied and whoever already
  * had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const [read, policies, sources] = await Promise.all([
     load(t.rc, playbooks, undefined),
-    // The autonomy rows: a read that failed is said, never read as every class asking first (the wiring's second audit,
-    // R13 X5-8: every campaign was said to wait for a person, where some send on their own).
+    // The autonomy rows: what a new sequence of each class starts as (decision 0064). A read that failed is said, never
+    // read as every class asking first (the wiring's second audit, R13 X5-8).
     load(t.rc, readers.policies, undefined).then((r) => r.data, unread(t, "sequences.moments", "autonomy")),
     // The last 30 days by playbook (campaign_series' sources, Reports' Campaigns lens): what the ledger's row says. Null
     // where it could not be read, never all-time totals in its place (D35).
@@ -373,20 +376,16 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   return {
     route: "campaigns",
     timezone,
-    modes: modes
-      ? {
-          reengage: modeOf("reengage"),
-          campaign: modeOf("campaign"),
-          booking: modeOf("booking"),
-          // The follow-ups' class, every workspace's (0006; 0008, amended 18 Oct 2026).
-          follow_up: modeOf("follow_up"),
-        }
+    // What a new sequence of each class starts as (Settings › Autonomy's rows, decision 0064), the follow-ups' class every
+    // workspace's (0006; 0008, amended 18 Oct 2026): each existing sequence's own is its `mode` below.
+    new_sequences_start_as: modes
+      ? Object.fromEntries(["reengage", "campaign", "booking", "follow_up"].map((c) => [c, modeOf(c)]))
       : null,
     ...(modes
       ? {}
       : {
           could_not_read:
-            "the autonomy modes: say they could not be read just now, never that a campaign's runs wait for a person or go on their own",
+            "what a new sequence starts as (the autonomy rows): say it could not be read just now, never what a new one's batches would do",
         }),
     mode_words: MODE_WORDS,
     playbooks: answer.cards.map(({ playbook: p, read: c }) => ({
@@ -400,12 +399,12 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       channels: campaignChannelsOf(p.channels),
       // Its state as the home says it (lifecycleStateOf): "Ended Oct 1", "Paused", "On · Daily 10:00 AM", a run waiting
       // first. It said the stored "running" of a campaign past its last day (the wiring's second audit, R13 X5-7).
-      state: lifecycleStateOf({ ...p, ended: c.ended, trial: c.trial, off: c.off }).words,
+      state: lifecycleStateOf({ ...p, ended: c.ended, off: c.off }).words,
       policy_class: p.policy_class,
-      // The mode its runs go under now: its class's, but auto reads veto while on trial (contracts effectiveMode, core
-      // run-playbook's own), with the day the trial ends as its card says it.
-      mode: modes ? effectiveMode(p, modeOf(p.policy_class), t.now) : null,
-      ...(c.trial ? { on_trial_until: c.trial } : {}),
+      // Its sequence's own mode (decision 0064), what propose_sequence's change sets as `mode`, and whether its next batch
+      // waits for an OK first because its words are new to the owner (contracts batchModeOf, core run-playbook's own).
+      mode: p.mode ?? "ask",
+      next_batch_asks_first: !p.words_ok_at,
       schedule: scheduleLine(p, shape.word),
       // No next run where it runs nothing here (an ended campaign): the card's one predicate,
       // and why in its words.
@@ -584,7 +583,6 @@ function homePlaybooksOf(
     timezone: read.timezone,
     countsRead: read.countsRead,
     ready: pb.ready,
-    modes: pb.modes,
   };
 }
 
@@ -735,7 +733,7 @@ export const sequencesTool = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Reading the sequence",
       words:
-        "Action sequence reads one as its record shows it: when it starts and stops, the mode its batches go under, its one notice, its steps with their ids (wait, message, channels, last 30 days), who is in it by where they stand (in_it: the first 25, each with its contact_id or lead_id), what waits on the owner (waiting_on_you: each held or handed-over email by its send_id, for propose_sequence with action decide or sent_by_hand), and its last five batches.",
+        "Action sequence reads one as its record shows it: when it starts and stops, the mode its batches go under (and batches_did: what its batches did over the last 90 days, how many went after an OK or on their own, stopped or skipped unanswered: the evidence a mode is set on), its one notice, its steps with their ids (wait, message, channels, last 30 days), who is in it by where they stand (in_it: the first 25, each with its contact_id or lead_id), what waits on the owner (waiting_on_you: each held or handed-over email by its send_id, for propose_sequence with action decide or sent_by_hand), and its last five batches.",
       run: readSequence,
     }),
     moments: readAction({
@@ -743,7 +741,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the moments",
       words:
-        "Action moments reads the sequences that start at a moment as the page shows them, standing rules that each send one message to newly eligible people who said yes: each with its playbook_id, what starts it, its message (template), its channels, its clock and next run (next_run, null where it runs nothing: runs_nothing says why, and ended the day one ended), its last day ahead (ends), its state in the page's words, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until), its list when it runs on one, what it sent and how many replied over the last 30 days (null where that could not be read), and a batch waiting for a person; then every moment this workspace can use, with who it names now: said_yes_now (who said the yes its message needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message.",
+        "Action moments reads the sequences that start at a moment as the page shows them, standing rules that each send one message to newly eligible people who said yes: each with its playbook_id, what starts it, its message (template), its channels, its clock and next run (next_run, null where it runs nothing: runs_nothing says why, and ended the day one ended), its last day ahead (ends), its state in the page's words, its own mode (mode: how its batches are decided, mode_words says each, and next_batch_asks_first where its next batch waits for an OK because its words are new), its list when it runs on one, what it sent and how many replied over the last 30 days (null where that could not be read), and a batch waiting for a person; then every moment this workspace can use, with who it names now: said_yes_now (who said the yes its message needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message.",
       run: listPlaybooksTool,
     }),
     lists: readAction({

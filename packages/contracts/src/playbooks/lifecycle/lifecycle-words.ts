@@ -78,8 +78,6 @@ export const LIFECYCLE_WORDS = {
   monthsOffer: { name: "The month's offer" },
   /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
   ended: (day: string): string => `Ended ${day}`,
-  /** A campaign on trial (00416 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
-  onTrial: (day: string): string => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers.",
@@ -328,8 +326,10 @@ export const LIFECYCLE_WORDS = {
       detail: (when: string, n: number | null): string =>
         n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
-      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      /** Said in full where its next batch goes without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
+      /** Said where its next batch's words are new to you (decision 0064): that batch waits for your OK, whatever the mode. */
+      asksFirst: "Its first batch waits for your OK.",
       yes: "Yes, resume it",
     },
     /** What the drawer's head calls a campaign whose group the page does not hold. */
@@ -483,7 +483,7 @@ const stated = (words: string, tone: LifecycleTone, paused = false, short = word
 
 /**
  * What a playbook says of itself as a state: ended on its day, running nothing here, a run waiting on the person, paused,
- * on trial until its day, or on with its clock. The ONE source of a campaign's state word, tone and pause: the rail, the
+ * or on with its clock. The ONE source of a campaign's state word, tone and pause: the rail, the
  * ledger (desk and phone), the drawer, Coming up and Ask read it. A run waiting for the owner is shown whether or not the
  * campaign is paused, on every page the same way (D1-campaign-state): pausing leaves a waiting run waiting by design
  * (ask-proposals/campaigns.ts), the home tested the pause first and said "Paused" with Resume where the drawer tested the
@@ -491,7 +491,7 @@ const stated = (words: string, tone: LifecycleTone, paused = false, short = word
  * whether it is, for Resume.
  */
 export function lifecycleStateOf(
-  p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days" | "state" | "totals" | "ended" | "trial"> & {
+  p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days" | "state" | "totals" | "ended"> & {
     off?: string | null;
   },
 ): LifecycleState {
@@ -502,8 +502,6 @@ export function lifecycleStateOf(
   if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   // Paused rests (decision 13 of 9 Oct 2026): amber is for a run waiting on someone, never for a rule its owner stopped.
   if (paused) return stated("Paused", "plain", true);
-  // On, its runs waiting for a person until the trial ends: the news beside its clock, which its next run still says.
-  if (p.trial) return stated(LIFECYCLE_WORDS.onTrial(p.trial), "ok");
   return stated(`On · ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 

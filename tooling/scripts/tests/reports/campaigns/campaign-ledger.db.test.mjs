@@ -91,7 +91,8 @@ test(
       buckets: { m15: 1, h1: 1, h4: 1, h24: 0, h72: 1 },
     });
     // 55 and 90 minutes, and twenty hours: the reach-out step's wait counts as any run's does.
-    assert.deepEqual(r.approval, { n: 3, median_s: 5400, buckets: { h1: 1, h4: 1, h24: 1, over: 0 } });
+    // And the runs the night skipped unanswered (00462, decision 0064 step 5): none in this world.
+    assert.deepEqual(r.approval, { n: 3, skipped: 0, median_s: 5400, buckets: { h1: 1, h4: 1, h24: 1, over: 0 } });
 
     // A deleted playbook leaves its run looking like a one-off: the run keeps its kind from its audience (trap 10).
     ok(await db.from("sequence_batches").update({ step_id: null }).eq("id", runs.M1).select("id"));
@@ -339,7 +340,7 @@ test("a window that ended is complete, and a quiet workspace answers zeros", { s
     median_s: null,
     buckets: { m15: 0, h1: 0, h4: 0, h24: 0, h72: 0 },
   });
-  assert.deepEqual(bare.approval, { n: 0, median_s: null, buckets: { h1: 0, h4: 0, h24: 0, over: 0 } });
+  assert.deepEqual(bare.approval, { n: 0, skipped: 0, median_s: null, buckets: { h1: 0, h4: 0, h24: 0, over: 0 } });
 
   // Whose it is to read: nobody's workspace, a stranger's, an anonymous visitor's, and a member's own.
   const unknown = ok(await db.rpc("campaign_ledger", { p_tenant_id: crypto.randomUUID() }));
@@ -601,7 +602,12 @@ test(
     });
     const rows = (buckets) => Object.values(buckets).reduce((total, n) => total + n, 0);
     assert.equal(rows(r.first_reply.buckets), r.first_reply.n, "each row is in one bucket");
-    assert.deepEqual(r.approval, { n: waits.length, median_s: 14401, buckets: { h1: 1, h4: 2, h24: 2, over: 2 } });
+    assert.deepEqual(r.approval, {
+      n: waits.length,
+      skipped: 0,
+      median_s: 14401,
+      buckets: { h1: 1, h4: 2, h24: 2, over: 2 },
+    });
     assert.equal(rows(r.approval.buckets), r.approval.n);
     assert.equal(r.people.now.sent_to, replies.length + notReplies.length);
     assert.equal(r.people.now.wrote_back, replies.length);

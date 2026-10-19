@@ -50,6 +50,9 @@ const listFirstStep = (over = {}) => ({
   template_language: "en_US",
   params: [],
   policy_class: "campaign",
+  // Its sequence sends on its own and its words were seen going (decision 0064): its batches go by themselves.
+  mode: "auto",
+  words_ok_at: "2026-09-01T10:00:00.000Z",
   state: "running",
   run_hour: 10,
   cap_per_run: 25,
@@ -65,7 +68,6 @@ const listWorld = (people) => ({
   tz: "America/New_York",
   now: NOW,
   people,
-  modes: new Map([["campaign", "auto"]]),
   health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
   ready: channelsReady({
     whatsapp: { canSend: true, refusal: null },

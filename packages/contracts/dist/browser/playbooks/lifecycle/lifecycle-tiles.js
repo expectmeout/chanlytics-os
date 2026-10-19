@@ -16,6 +16,7 @@ import { playbookReach } from "../playbook-reach.js";
 import { runCapOf } from "../playbook-run-split.js";
 import { nextOpenMoment, nextRunLabel, nextRunOf } from "../playbook-schedule.js";
 import { triggerOf } from "../playbook-triggers.js";
+import { batchModeOf } from "../../sequences/sequence.js";
 const COMING_DAYS = 7;
 const RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 const RUNS_SHOWN = 3;
@@ -92,9 +93,10 @@ function nextShare(p) {
 export function resumeDetailOf(p, at) {
   const W = LIFECYCLE_WORDS.ledger.resume;
   const when = nextRunLabel({ ...p, state: "running" }, at.tz, new Date(at.nowMs), at.paused);
-  const auto = at.mode === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return auto ? `${detail}. ${W.auto}` : detail;
+  if (p.mode === void 0) return detail;
+  if (!p.words_ok_at) return `${detail}. ${W.asksFirst}`;
+  return batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at }) === "auto" ? `${detail}. ${W.auto}` : detail;
 }
 export function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;

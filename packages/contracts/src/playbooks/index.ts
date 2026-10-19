@@ -30,8 +30,12 @@ export {
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
+  SEND_ONCE_STOP_MS,
+  SEND_ONCE_STOP_WORDS,
   delayWords,
+  readyRunNotice,
   vetoRunNotice,
+  skippedRunNotice,
   PLAYBOOK_NAME_MAX,
   CAMPAIGN_NOT_FOUND,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -88,15 +92,7 @@ export type { RunReading, RunSplit } from "./playbook-run-split";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
-export {
-  campaignDayWords,
-  campaignEnded,
-  campaignRunsOn,
-  effectiveMode,
-  newCampaignTrialUntil,
-  sendingEndsAt,
-  trialDayWords,
-} from "./playbook-schedule";
+export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./playbook-schedule";
 export type { PlaybookPatch, PlaybookPatchKey } from "./playbook-patch";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/lifecycle-inputs";

@@ -44,7 +44,6 @@ import {
   emailWordsOf,
   emitEvent,
   mailboxConnectionsOf,
-  outreachModeOf,
   reachOutRunSendsOf,
   reachOutStepsOf,
   runsWaitingOf,
@@ -52,6 +51,7 @@ import {
   searchesByIds,
   reachOutPeopleCounts,
   sendSaid,
+  sequenceModesOf,
   workspaceMaySpend,
   type ReachOutRunSend,
   type ReachOutStepRow,
@@ -121,13 +121,18 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, searches, waiting, mailboxes, mode, spend, people] = await Promise.all([
+  const [words, searches, waiting, mailboxes, modes, spend, people] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
     searchesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
     mailboxConnectionsOf(sb, tenantId),
-    // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
-    outreachModeOf(sb, tenantId),
+    // The step's run's own readings (packages/db): each chain's sequence's mode (decision 0064, a root's id is its
+    // sequence's), and whether the workspace may spend.
+    sequenceModesOf(
+      sb,
+      tenantId,
+      roots.map((r) => r.id),
+    ),
     workspaceMaySpend(sb, tenantId),
     // Who is in each now: a count that fails is a dash on the ledger, never the chains' failure.
     reachOutPeopleCounts(sb, tenantId),
@@ -175,7 +180,8 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
-        mode,
+        // Cold email never sends on its own: a mode it cannot take reads as ask, as its run reads it.
+        mode: modes.get(root.id) === "veto" ? "veto" : "ask",
         may_spend: spend,
         waiting_run_id: waitingOf.get(root.id) ?? null,
       },

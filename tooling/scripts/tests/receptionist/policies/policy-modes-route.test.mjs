@@ -44,14 +44,14 @@ const refusedWith = (p, words) =>
     return true;
   });
 
-test("a reach-out's class moves between veto, ask and never, and back to veto, its default", async () => {
+test("a reach-out's class moves between veto and ask, and back to veto, its default; never is no mode for it, since a sequence is paused on its page (decision 0064)", async () => {
   const t = tables();
   await put(t, { class: "outreach", mode: "ask" });
   assert.equal(t.policies.find((p) => p.class === "outreach").mode, "ask");
   await put(t, { class: "outreach", mode: "veto" });
   assert.equal(t.policies.find((p) => p.class === "outreach").mode, "veto", "veto can come back");
-  await put(t, { class: "outreach", mode: "never" });
-  assert.equal(t.policies.find((p) => p.class === "outreach").mode, "never");
+  await refusedWith(put(t, { class: "outreach", mode: "never" }), "cannot be set to never");
+  assert.equal(t.policies.find((p) => p.class === "outreach").mode, "veto", "nothing moved");
 });
 
 test("cold email never goes the moment a run is made: auto is refused for a reach-out", async () => {
@@ -59,9 +59,6 @@ test("cold email never goes the moment a run is made: auto is refused for a reac
 });
 
 test("a class with nothing to hold for review refuses veto, in its own words", async () => {
-  await refusedWith(put(tables(), { class: "follow_up", mode: "veto" }), "has nothing to hold for review");
-  await refusedWith(
-    put(tables(), { class: "reviews", mode: "veto" }),
-    "The Reviews row has nothing to hold for review.",
-  );
+  await refusedWith(put(tables(), { class: "booking", mode: "veto" }), "has nothing to hold for review");
+  await refusedWith(put(tables(), { class: "faq", mode: "veto" }), "The Questions row has nothing to hold for review.");
 });

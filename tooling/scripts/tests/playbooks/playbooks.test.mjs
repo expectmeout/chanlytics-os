@@ -19,7 +19,6 @@ import {
   MOMENT_TRIGGERS,
   REACH_OUT_IS_NOT_A_MOMENT,
   PLAYBOOK_VETO_DELAY_MS,
-  PLAYBOOK_VETO_DELAY_WORDS,
   POLICY_CLASS_WORDS,
   channelsReady,
   eligibleForPlaybook,
@@ -241,15 +240,13 @@ test("who a run may reach: the list crossed with who said yes, minus the gap, mi
   assert.deepEqual(eligibleForPlaybook(rows, { ...base, trigger: "nope" }, noTouch, NOW), []);
 });
 
-test("what a run does under each mode: auto sends now, veto sends after a stop window, ask waits for a person, never does nothing", () => {
+test("what a batch does under each mode (decision 0064): auto sends now, veto sends after a stop window, ask waits for a person", () => {
   const now = new Date(NOW);
   assert.deepEqual(planRun("auto", now), { kind: "send", state: "scheduled", at: now });
   const veto = planRun("veto", now);
   assert.equal(veto.kind, "send");
   assert.equal(veto.at.getTime() - now.getTime(), PLAYBOOK_VETO_DELAY_MS);
   assert.deepEqual(planRun("ask", now), { kind: "hold", state: "pending_approval" });
-  assert.deepEqual(planRun("never", now), { kind: "off" });
-  assert.deepEqual(planRun(null, now), { kind: "off" }, "no row, nothing runs on its own");
 });
 
 test("when a run is due: the hour the owner picked, by the business's clock, once per local day", () => {
@@ -381,13 +378,13 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // (packages/db touchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
+  // Each sequence class's row says it is what a new sequence starts as (decision 0064): each keeps its own mode.
   assert.equal(
     POLICY_CLASS_WORDS.reengage.note,
-    `the win-back and save-our-number campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    "how a new win-back sequence starts · each keeps its own on its page, and asks you before its first batch and after new words",
   );
-  // Each class says what it governs as a person reads it: campaigns, never playbooks (decision 19).
-  assert.match(POLICY_CLASS_WORDS.campaign.note, /^the welcome and month's-offer campaigns · /);
-  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^the proposal follow-up campaign · /);
+  assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome sequence starts · /);
+  assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up starts · /);
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",

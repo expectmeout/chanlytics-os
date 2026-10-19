@@ -4,6 +4,7 @@
  */
 import {
   SENDING_NOW_WORDS,
+  WAIT_ACT_WORDS,
   goesToOf,
   heardWords,
   runApprovedTail,
@@ -171,6 +172,9 @@ export function bcSendActs({
     // out stays out, which is what the row's own Stop says, so the toast carries
     // the same verb and the same promise. A scheduled run has sent nothing yet.
     const waits = words !== SENDING_NOW_WORDS;
+    // Pressed for now, it goes in ten minutes unless stopped (decision 0064, step 3): the toast's verb is the wait rule's
+    // Stop, the cancel of a run that has sent nothing yet; Today's Going today and its row on Sent carry it after.
+    const pressedNow = r.data.pressed_now === true;
     flash({
       msg: (
         <>
@@ -181,7 +185,7 @@ export function bcSendActs({
       ),
       action: canSend
         ? {
-            label: runStopDoorWords(waits),
+            label: pressedNow ? WAIT_ACT_WORDS.stop : runStopDoorWords(waits),
             onClick: () =>
               cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }),
           }

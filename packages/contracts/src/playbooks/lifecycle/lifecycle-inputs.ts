@@ -2,23 +2,16 @@
  * What Campaigns' home is made from, read off the answers its surfaces read (GET playbooks', GET channels'): the one
  * reading the Playbooks and Broadcasts surfaces (cmp/playbooks/surface.ts, cmp/broadcasts/surface.ts) and Ask's
  * campaigns.journey all make, so the page and Ask hand the home (campaignsHomeOf) the same input and no rule of it is
- * said twice. The business's shape, each card's next run, why it runs nothing here, the day it ended and the day its trial
- * ends (00416, on the business's clock), its archived list and its trigger's words, the moments a new campaign may start
- * from, whether every moment was counted, and the workspace's WhatsApp line.
+ * said twice. The business's shape, each card's next run, why it runs nothing here, the day it ended (00416, on the
+ * business's clock), its archived list and its trigger's words, the moments a new campaign may start from, whether every
+ * moment was counted, and the workspace's WhatsApp line.
  *
  * Pure, and tolerant of a key a server from before it does not send (either deploy order): no zone is New York's, no
  * calendar is none, no lists are none, no deal is none recorded, and no word is an appointment.
  */
 import { appointmentWordOf, type AppointmentWord } from "../../journey/appointment-word";
 import { PEOPLE_LISTS } from "../../people/lists/lists";
-import {
-  campaignDayWords,
-  campaignEnded,
-  campaignRunsOn,
-  localDate,
-  nextRunLabel,
-  trialDayWords,
-} from "../playbook-schedule";
+import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../playbook-schedule";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers";
 import type { PlaybookDto } from "../playbooks";
 import type { LifecycleShape } from "./lifecycle-types";
@@ -27,7 +20,7 @@ import { LIFECYCLE_WORDS } from "./lifecycle-words";
 /** A playbook as GET playbooks lists it, as far as the home's reading of it goes. */
 type AnswerPlaybook = Pick<
   PlaybookDto,
-  "trigger" | "state" | "run_hour" | "last_run_for" | "list_id" | "list_key" | "until" | "trial_until"
+  "trigger" | "state" | "run_hour" | "last_run_for" | "list_id" | "list_key" | "until"
 >;
 
 /** GET playbooks' answer, as far as the home's input reads it; every key but the playbooks may be absent from an older server. */
@@ -48,7 +41,7 @@ export interface LifecycleAnswer<P extends AnswerPlaybook = AnswerPlaybook> {
 
 /**
  * What the answer says of one card beside its row: its list archived, its trigger's words, its next run, why it runs
- * nothing here, the day it ended and the day its trial ends (LifecyclePlaybook's `ended` and `trial`).
+ * nothing here and the day it ended (LifecyclePlaybook's `ended`).
  */
 interface LifecycleCardRead {
   listArchived: boolean;
@@ -56,7 +49,6 @@ interface LifecycleCardRead {
   next: string;
   off: string | null;
   ended: string | null;
-  trial: string | null;
   /** Whether it runs on the business's day (campaignRunsOn, the one rule): what Sent's week, the Library and Run now ask of it. */
   runs: boolean;
 }
@@ -135,7 +127,6 @@ function cardReadOf(
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
     off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
-    trial: trialDayWords(p, at.tz, at.now),
     runs: campaignRunsOn(p, { tz: at.tz, now: at.now }),
   };
 }

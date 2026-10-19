@@ -37,6 +37,7 @@ const WHY = {
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
+  stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -159,7 +160,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     page: "Reports",
     route: "reports",
     for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
-    verbs: ["review_reply"],
+    verbs: ["review_reply", "review_reply_stop"],
     pageOnly: [],
   },
   {
@@ -189,4 +190,5 @@ export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   sequence_add: WHY.add,
   sequence_move: WHY.add,
   lead_search_aim: WHY.add,
+  review_reply_stop: WHY.stop,
 };

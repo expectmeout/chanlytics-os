@@ -4,11 +4,19 @@
  * (policy-store.ts uiRows: contracts' classes, the modes each honours, and the workspace's stored mode); every word a
  * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS. Under Replies, the one row a held draft belongs to
  * here (Bookings' and Questions' are their own rows' on Settings, business/choices), how often the owner changed what
- * the receptionist wrote (decision 0063, contracts heldDraftsLine): the evidence for the row's mode, and no advice.
+ * the receptionist wrote (decision 0063, contracts heldDraftsLine): the evidence for the row's mode, and no advice. Under
+ * the rows a new sequence starts by (offers, win-backs, follow-ups, reach-outs), what their sequences' batches did over the
+ * last 90 days (decision 0064, contracts classEvidenceLine): the same, for the mode a new one starts with.
  * Money is no row here: a class nothing can change, it is said once, on Limits (the Settings wiring review, 18 Oct).
  */
 import { useEffect, useState } from "react";
-import { heldDraftsLine, type HeldDraftsClass, type HeldDraftsCount } from "@chanlytics/contracts";
+import {
+  classEvidenceLine,
+  heldDraftsLine,
+  type HeldDraftsClass,
+  type HeldDraftsCount,
+  type SequenceEvidenceDto,
+} from "@chanlytics/contracts";
 import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/legacy-bridge/policy-store";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
@@ -37,9 +45,25 @@ type PutMode = (r: UiRow, mode: string) => void;
 /** The held drafts by the row they belong to (contracts heldDraftsByClass); empty where none were read. */
 type HeldByClass = Partial<Record<HeldDraftsClass, HeldDraftsCount>>;
 
-/** A row's line of held drafts, or null: only Replies here, and only with one held. */
-const heldLineOf = (r: UiRow, held: HeldByClass): string | null =>
-  r.cls === "reply" ? heldDraftsLine(held[r.cls]) : null;
+/**
+ * What the rows say under them: the held drafts by class (Replies'), and what each sequence's batches did (the rows a new
+ * sequence starts by); either empty where it was not read.
+ */
+interface RowLines {
+  held?: HeldByClass;
+  evidence?: SequenceEvidenceDto[] | null;
+}
+
+/** The classes a sequence is made under: their rows say what their sequences' batches did (decision 0064). */
+const SEQUENCE_CLASSES: ReadonlySet<string> = new Set(["reengage", "campaign", "follow_up", "outreach"]);
+
+/** A row's line: Replies' held drafts, or the batches of the sequences of its class; null where it has none to say. */
+const heldLineOf = (r: UiRow, lines: RowLines): string | null =>
+  r.cls === "reply"
+    ? heldDraftsLine((lines.held ?? {})[r.cls])
+    : SEQUENCE_CLASSES.has(r.cls)
+      ? classEvidenceLine(lines.evidence, r.cls)
+      : null;
 
 function PolModeHead({ m }: { m: UiMode }) {
   const w = polMode(m);
@@ -81,12 +105,12 @@ export function PolModeRow({
   r,
   put,
   busy,
-  held = {},
+  lines = {},
 }: {
   r: UiRow;
   put: PutMode;
   busy: string | null;
-  held?: HeldByClass;
+  lines?: RowLines;
 }) {
   const g = gate("autonomy");
   const gated = busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
@@ -94,7 +118,7 @@ export function PolModeRow({
     <RecordRow
       id={`pol-${r.id}`}
       testid={`pol-phone-${r.id}`}
-      hint={heldLineOf(r, held)}
+      hint={heldLineOf(r, lines)}
       label={
         <>
           {r.label}
@@ -136,17 +160,17 @@ export function PolPhoneRows({
   rows,
   put,
   busy,
-  held = {},
+  lines = {},
 }: {
   rows: UiRow[];
   put: PutMode;
   busy: string | null;
-  held?: HeldByClass;
+  lines?: RowLines;
 }) {
   return (
     <div className="pol-phone" data-testid="pol-phone">
       {rows.map((r) => (
-        <PolModeRow key={r.id} r={r} put={put} busy={busy} held={held} />
+        <PolModeRow key={r.id} r={r} put={put} busy={busy} lines={lines} />
       ))}
     </div>
   );
@@ -189,12 +213,12 @@ export function PolicyTable({
   rows,
   put,
   busy,
-  held = {},
+  lines = {},
 }: {
   rows: UiRow[];
   put: PutMode;
   busy: string | null;
-  held?: HeldByClass;
+  lines?: RowLines;
 }) {
   return (
     <table className="pol-table">
@@ -216,9 +240,9 @@ export function PolicyTable({
                 {r.label}
                 {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
               </span>
-              {heldLineOf(r, held) && (
+              {heldLineOf(r, lines) && (
                 <span className="pol-held" data-testid={`pol-held-${r.cls}`}>
-                  {heldLineOf(r, held)}
+                  {heldLineOf(r, lines)}
                 </span>
               )}
             </td>

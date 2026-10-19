@@ -6,7 +6,14 @@
  * refusal with its SQLSTATE and its own words (DoorResult).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CONSENT_CHANNELS, isLeadList } from "@chanlytics/contracts";
+import {
+  CONSENT_CHANNELS,
+  EVIDENCE_DAYS,
+  isLeadList,
+  isSequenceMode,
+  type SequenceEvidenceDto,
+  type SequenceMode,
+} from "@chanlytics/contracts";
 import type {
   ReachOutFedBy,
   SequencePlaceDto,
@@ -173,6 +180,50 @@ async function sequenceById(db: Db, id: string) {
 /** A reader's answer as its rows: the readers answer JSON in the shape contracts names (sequence-dto.ts); none else. */
 function readerRowsOf<T>(data: unknown): T[] {
   return Array.isArray(data) ? data.filter((r): r is T => typeof r === "object" && r !== null) : [];
+}
+
+/**
+ * How each named sequence's batches are decided (decision 0064, `sequences.mode`), by its id: what a step's run and the
+ * pages that list steps read beside the step's own row. A sequence with no mode this build knows (a one-off has none)
+ * asks, as contracts batchModeOf reads one. A read that fails throws.
+ */
+export async function sequenceModesOf(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Map<string, SequenceMode>> {
+  const out = new Map<string, SequenceMode>();
+  if (ids.length === 0) return out;
+  const { data, error } = await db
+    .from("sequences")
+    .select("id, mode")
+    .eq("tenant_id", tenantId)
+    .in("id", [...new Set(ids)]);
+  if (error) throw new Error(`cannot read the sequences' modes: ${error.message}`);
+  for (const r of data ?? []) out.set(r.id, isSequenceMode(r.mode) ? r.mode : "ask");
+  return out;
+}
+
+/**
+ * What each of the workspace's sequences' batches did over the last `days` (00462 sequence_evidence, decision 0064 step
+ * 5): went, after an OK, stopped, skipped unanswered. On the session's client (its row security decides). A read that
+ * fails throws.
+ */
+export async function sequenceEvidence(
+  db: Db,
+  tenantId: string,
+  days: number = EVIDENCE_DAYS,
+): Promise<SequenceEvidenceDto[]> {
+  const { data, error } = await db.rpc("sequence_evidence", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`cannot read what the sequences' batches did: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    sequence_id: r.sequence_id,
+    policy_class: r.policy_class,
+    went: r.went,
+    approved: r.approved,
+    stopped: r.stopped,
+    skipped: r.skipped,
+  }));
 }
 
 /** The workspace's sequences, newest first, or the one named (00442 sequence_overview). */

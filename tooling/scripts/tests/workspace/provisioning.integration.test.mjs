@@ -72,12 +72,13 @@ test("creating a tenant provisions it — no application code involved", { skip 
   assert.equal(byClass.reply.mode, "auto");
   assert.equal(byClass.faq.mode, "auto");
   assert.equal(byClass.booking.mode, "auto");
-  assert.equal(byClass.reengage.mode, "ask");
-  assert.equal(byClass.campaign.mode, "ask");
+  // A new sequence of these classes starts held for a stop; its first batch still waits for an OK (decision 0064, 00463).
+  assert.equal(byClass.reengage.mode, "veto");
+  assert.equal(byClass.campaign.mode, "veto");
   assert.equal(
     byClass.follow_up.mode,
-    "ask",
-    "a proposal follow-up's run waits for a person until the owner says otherwise (0006)",
+    "veto",
+    "a proposal follow-up's first batch waits for an OK, and each after it goes unless stopped (0006, 0064)",
   );
   assert.equal(byClass.money.mode, "never", "the charter lock must be the seeded state");
   assert.equal(byClass.reply.limits.max_replies_day, 20, "the shipped rate cap travels with the policy");

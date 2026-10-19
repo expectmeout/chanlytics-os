@@ -1,8 +1,8 @@
 /**
  * One playbook's run: the rules are core's (packages/core/src/campaigns/
  * run-playbook.ts); this file is the edge's side of them. It reads the
- * workspace once per tenant — the people, the modes, the number, the
- * touches, the calendar — and builds the run's ports over the edge's
+ * workspace once per tenant — the people, the number, the touches, the
+ * calendar — and builds the run's ports over the edge's
  * database and services. The hourly sweep and "Run now" on the page both
  * come here.
  */
@@ -16,7 +16,6 @@ import {
   followUpsDue,
   holdRecipients,
   leaveSequence,
-  listPolicies,
   sequenceReached,
   mailboxOfTenant,
   messageVersionRowsOf,
@@ -228,7 +227,7 @@ async function runVisits(
   return { calendar: "ok", visits };
 }
 
-/** Read once per tenant: the people, the modes, the number, the touches. */
+/** Read once per tenant: the people, the number, the touches. */
 export async function loadTenantRunContext(
   db: Db,
   tenantId: string,
@@ -237,7 +236,6 @@ export async function loadTenantRunContext(
   const [
     { data: tenant },
     { data: people, error: pErr },
-    policies,
     channels,
     touched,
     { data: cfgRow },
@@ -250,7 +248,6 @@ export async function loadTenantRunContext(
     // runs wherever one is made (0006).
     db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
     allPeople(db, tenantId),
-    listPolicies(db, tenantId).catch(() => []),
     channelFacts(db, tenantId),
     // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
     // message per person across all of them (packages/db touchesSince, which the Playbooks page reads too).
@@ -351,7 +348,6 @@ export async function loadTenantRunContext(
       const m = membersOf(def, vms, listCtx, saved);
       return m.state === "ok" ? { ...m, rule: def.rule } : m;
     },
-    modes: new Map(policies.map((r) => [r.class, r.mode])),
     health,
     ready,
     touches: { byThis, byAny, followUps, followUpKeys },

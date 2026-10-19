@@ -21,6 +21,7 @@
  */
 import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
 import { NEW_REVIEW_NEWS, reviewNoticeIsAbout } from "../google/google";
+import { REVIEW_REPLY_HELD_TITLE } from "../google/review-reply";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import {
   SERVER_KEY_PREFIX,
@@ -60,6 +61,11 @@ export interface WhatWaits {
   reviews: Held<ReadonlyArray<{ id: string; reviewId?: string | null; replied: boolean }>> | null;
   /** The threads the Inbox holds, by conversation id: whether each needs you now; only where every waiting hold was read. */
   holds: Held<ReadonlyMap<string, boolean>> | null;
+  /**
+   * The threads the Inbox holds, by conversation id: whether a reply counts down on each now (contracts threadWait "send").
+   * Absent where a build before decision 0064 left it out, which settles nothing.
+   */
+  sends?: Held<ReadonlyMap<string, boolean>> | null;
   /** The searches the Leads read holds, by id: the newest round's id and state (a search holds only its newest round). */
   searches: Held<ReadonlyMap<string, { roundId: string | null; state: string | null }>> | null;
 }
@@ -71,6 +77,7 @@ export const NOTHING_WAITS_KNOWN: WhatWaits = {
   heldEmails: null,
   reviews: null,
   holds: null,
+  sends: null,
   searches: null,
 };
 
@@ -79,18 +86,18 @@ const heldFor = <T>(source: Held<T> | null, kept: number): T | null =>
   source && kept <= source.readAt ? source.held : null;
 
 /** Where a row's wait is judged: which surface holds what it announced. */
-export type WaitSource = "run" | "email" | "review" | "hold" | "search";
+export type WaitSource = "run" | "email" | "review" | "hold" | "send" | "search";
 
 /**
  * How a kind's row ends. `news` is told once and read when the owner reads it (`why` says why nothing closes it). `mended`:
  * some of its warnings close when the news that mends them is kept (notice-mends.ts NOTICE_MENDS); the rest are told once. A
  * wait is judged by its source, and the server closes it too where it ends for good (`server`, 00421; a run decided,
- * 00461).
+ * 00461; a held reply gone, 00462).
  */
 export type NoticeEnd =
   | { ends: "news"; why: string }
   | { ends: "mended" }
-  | { ends: WaitSource; server?: "hold_resolved" | "question_settled" | "run_decided" };
+  | { ends: WaitSource; server?: "hold_resolved" | "question_settled" | "run_decided" | "reply_gone" };
 
 /** How every kind the edge keeps ends: a kind added to SERVER_NOTIFICATION_KINDS must say which before this compiles. */
 export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
@@ -139,6 +146,9 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A note to keep is told once; its answer, Keep or Dismiss, closes the row for everyone (fact_suggestion_answer).",
   },
+  // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
+  // (sent or stopped: 00461 messages_reply_held_closes).
+  reply_held: { ends: "send", server: "reply_gone" },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */
@@ -187,9 +197,13 @@ function judgeEmail(row: Row, about: { type: string; id: string }, waits: WhatWa
   return held ? held.has(about.id) : null;
 }
 
-/** The notice of a new review waits for an answer; "Replied to …" tells of one. */
+/**
+ * The notice of a new review waits for an answer, and so does one of a reply the receptionist holds for it ("A reply to
+ * …", decision 0064); "Replied to …" tells of one.
+ */
 function judgeReview(row: Row, about: { type: string; id: string }, waits: WhatWaits): boolean | null {
-  if (about.type !== "review" || !row.title.startsWith(NEW_REVIEW_NEWS)) return null;
+  const asks = row.title.startsWith(NEW_REVIEW_NEWS) || row.title.startsWith(REVIEW_REPLY_HELD_TITLE);
+  if (about.type !== "review" || !asks) return null;
   const review = heldFor(waits.reviews, row.at)?.find((r) => reviewNoticeIsAbout(about, r));
   return review ? !review.replied : null;
 }
@@ -202,6 +216,13 @@ function judgeHold(row: Row, about: { type: string; id: string }, waits: WhatWai
   if (about.type !== "conversation") return null;
   const needsYou = heldFor(waits.holds, row.at)?.get(about.id);
   return needsYou === undefined ? null : needsYou;
+}
+
+/** A held reply's notice waits while its thread has a reply counting down (decision 0064); a thread not held settles nothing. */
+function judgeSend(row: Row, about: { type: string; id: string }, waits: WhatWaits): boolean | null {
+  if (about.type !== "conversation") return null;
+  const counting = heldFor(waits.sends ?? null, row.at)?.get(about.id);
+  return counting === undefined ? null : counting;
 }
 
 /**
@@ -222,6 +243,7 @@ const JUDGES: Record<WaitSource, (row: Row, about: { type: string; id: string },
     email: judgeEmail,
     review: judgeReview,
     hold: judgeHold,
+    send: judgeSend,
     search: judgeSearch,
   };
 

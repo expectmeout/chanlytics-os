@@ -12,7 +12,6 @@ import {
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_PATCH_WORDS,
-  PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   campaignDayWords,
   channelNeverCarries,
@@ -80,7 +79,6 @@ import {
   playbookHow,
   reachByChannel,
   reachNow,
-  trialOf,
   underMode,
   wordedMoment,
   yesSaid,
@@ -447,7 +445,6 @@ async function proposeOnStarter(
   const { drawn, reading, policies, listLabel } = reach;
   const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
   const under = underMode(cls, policies);
-  const trial = trialOf(under.mode);
   const name = playbookNameAsked(input.name);
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
   // drawer's reading (in review, refused), and the filing leaves it so.
@@ -462,7 +459,7 @@ async function proposeOnStarter(
     end: endSaid(t, input.until),
     goes: proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel)),
     reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
-    sends: `${trial.said}${under.said}`,
+    sends: under.said,
     message: LIBRARY_STARTER_WORDS.addsFirst(starter.title),
   };
   return propose({
@@ -484,7 +481,6 @@ async function proposeOnStarter(
       mode: under.mode,
       // The channels the card says, which the route judges again at Approve.
       channels,
-      ...trial.payload,
       ...endKept(input.until),
     },
   });
@@ -542,7 +538,7 @@ async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger
 /**
  * A new campaign on the message step `step` of the plan writes (stepJudged): who a run reaches, counted by the
  * workspace's channels alone with the step's message, an offer, laid over them (context.ts stepMessage) and the yes it
- * needs; the month's allowance, its class's mode, its trial and its last day, as every new campaign's card says them. It
+ * needs; the month's allowance, the mode it starts with and its last day, as every new campaign's card says them. It
  * says which step makes its message and quotes the offer its values type (says.ts stepSays); a name not given is the
  * route's to give once the message is filed.
  */
@@ -563,7 +559,6 @@ async function proposeOnStep(
   const held = await allowanceHeld(t, by.channels, reading, clock, purposeOfPlaybook(cls));
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
-  const trial = trialOf(under.mode);
   const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await wordedMoment(t, trig);
   const said = {
@@ -573,7 +568,7 @@ async function proposeOnStep(
     end: endSaid(t, input.until),
     goes,
     reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
-    sends: `${trial.said}${under.said}`,
+    sends: under.said,
     message: stepSays(step, specs),
   };
   return propose({
@@ -595,7 +590,6 @@ async function proposeOnStep(
       list_key: listRef?.kind === "builtin" ? listRef.id : null,
       mode: under.mode,
       ...namedChannels(by),
-      ...trial.payload,
       ...endKept(input.until),
     },
   });
@@ -661,7 +655,6 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
-  const trial = trialOf(under.mode);
   const said = cardSays(asked, specs, by, 140);
   if ("refusal" in said) return refuse(said.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
@@ -673,7 +666,7 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
     end: endSaid(t, input.until),
     goes,
     reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
-    sends: `${trial.said}${under.said}`,
+    sends: under.said,
     message: said.says,
   };
   return propose({
@@ -700,7 +693,6 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
       mode: under.mode,
       // Named only when the proposal named some: a card that named none commits as it always did.
       ...namedChannels(by),
-      ...trial.payload,
       ...endKept(input.until),
     },
   });
@@ -739,6 +731,6 @@ export const playbookAction = actAction({
   words:
     `Action moment takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), ${APPOINTMENT_TRIGGERS.before} (a reminder the day before an appointment) or ${APPOINTMENT_TRIGGERS.after} (a check the day after one), both only where a calendar is connected and each sent whatever else the person hears from you within a week of it, everyone_monthly (the month's offer), saved_list (on any list: its token from sequences with action lists in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from sequences with action lists (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; starter, in place of template_id, is the moment's starter to file at Approve where the workspace does not hold it yet, by its key: on ${APPOINTMENT_TRIGGERS.after}, after_visit_review is the thank-you with a review ask, only where the Google listing keeps a review link, and after_visit_check, the thank-you that asks how it went, is the one taken when none is named; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by ` +
     UNNAMED_GOES_BY +
-    ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can; until is its last day, YYYY-MM-DD by the business's clock, today or later, after which it runs nothing. Under a class that sends on its own (auto) a new playbook starts on trial for a week from when it is approved, each run waiting ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, and the card says so.`,
+    ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can; until is its last day, YYYY-MM-DD by the business's clock, today or later, after which it runs nothing. A new one starts with the mode its class's Autonomy row says (decision 0064), and its first batch waits for an OK whatever that is, which the card says.`,
   build: proposePlaybook,
 });

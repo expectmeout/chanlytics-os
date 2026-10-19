@@ -107,7 +107,7 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
   const [read, sources] = await Promise.all([load(rc, playbooksReader, undefined), lastDaysBySource(rc)]);
   const pb = read.data;
   // Each card as the home reads it at this turn's clock (contracts lifecyclePlaybooksOf, the reading sequences.moments makes):
-  // a campaign past its last day is Ended, one on trial says so, and its next run is none after its last day. The raw row said
+  // a campaign past its last day is Ended, and its next run is none after its last day. The raw row said
   // "On · daily 10:00 AM" with a run tomorrow of a campaign the home called Ended (the wiring's second audit, S1-3).
   const home = lifecyclePlaybooksOf(pb, rc.now);
   const byId = new Map(home.cards.map((c) => [c.playbook.id, c]));
@@ -128,7 +128,7 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
           p.name,
           lastDaysPart(days ? sentResultsOfSource(days) : null),
           // The campaign's state as the home says it (lifecycleStateOf), a run waiting included, paused or not.
-          lifecycleStateOf({ ...p, ended: card.read.ended, trial: card.read.trial, off: card.read.off }).words,
+          lifecycleStateOf({ ...p, ended: card.read.ended, off: card.read.off }).words,
           `next run ${card.read.next}`,
           moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
         ],

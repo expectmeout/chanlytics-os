@@ -1,6 +1,6 @@
 /**
  * What a new campaign's card says beside its moment (propose_sequence's action moment, act/playbook.ts): who a run of
- * it reaches now and on which channels, the month's allowance, its class's mode and its trial, and its moment in the
+ * it reaches now and on which channels, the month's allowance, the mode it starts with (decision 0064), and its moment in the
  * workspace's word. One module for the three ways a card is made: on a message the workspace holds, on a starter its
  * Approve adds, and on the message an earlier step of Ask's plan writes. Moved whole from act/playbook.ts (11 Oct 2026,
  * which the plan's third way would have taken past 800 lines); who a run reaches is still contracts' one rule
@@ -13,10 +13,11 @@ import {
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
-  PLAYBOOK_VETO_DELAY_WORDS,
+  SEQUENCE_MODE_WORDS,
   channelRefuses,
   dealPaceOf,
   heldBackOfOneRun,
+  newSequenceMode,
   playbookRunReach,
   proposalChannelsWords,
   runReadingOf,
@@ -45,14 +46,6 @@ import { audiencePool } from "../../../readers/audience-pool";
 import { businessShape, policies as policiesReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { AUDIENCES_CALL, touchesThisWeek, whatsappHow, type ToolContext } from "../context";
-
-/** What a run does under each mode, in the card's words (also the change card's, act/playbook-change.ts). */
-export const MODE_WORDS: Record<string, string> = {
-  auto: "each run sends on its own",
-  veto: `each run sends ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it`,
-  ask: "each run waits for you on Today",
-  never: "nothing runs until the class is changed",
-};
 
 export type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 
@@ -158,19 +151,6 @@ export const breathSaid = (trig: Trigger): string =>
   trig.kind === "visit" ? ` · ${PLAYBOOK_CARD_WORDS.appointmentBreath}` : "";
 
 /**
- * Whether a new campaign starts on trial (D5): only where its class sends on its own (auto). Under ask, veto or never a
- * trial changes nothing: a run there waits for a person, waits for a Stop already, or runs nothing. The payload carries
- * the flag and no instant: the week starts at its Approve, counted by POST playbooks at its own clock (contracts
- * newCampaignTrialUntil), never when the card was made. And what the card says of it, before its class's mode and in the
- * order they happen: "…waits 30 minutes with a Stop; after that, under “Offers” (auto): each run sends on its own."
- */
-export function trialOf(mode: string): { payload: { trial?: true }; said: string } {
-  return mode === "auto"
-    ? { payload: { trial: true }, said: `${PLAYBOOK_CARD_WORDS.trial}; after that, ` }
-    : { payload: {}, said: "" };
-}
-
-/**
  * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as the page's pools count them
  * (audience.ts poolList over the pool; the week's touches and a proposal's follow-ups by poolTouches, as triggerPools
  * reads them; a proposal's pace), with the workspace's autonomy rows; or why not, in the model's words. `message` is the
@@ -189,9 +169,8 @@ export async function reachNow(
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps, touched] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
-    // The autonomy modes, the turn's one read of them (readers/facts.ts policies, as GET playbooks reads them). Unread is
-    // null, never a guess: a card that guessed "ask" under an auto class said its runs wait for a person, and its Approve
-    // started it with no trial week, sending on its own from its first run.
+    // The autonomy rows, the turn's one read of them (readers/facts.ts policies): what a new sequence of its class starts
+    // as (decision 0064). Unread is null, never a guess: the card would say what its batches do on one.
     load(t.rc, policiesReader, undefined).then(
       (r) => r.data,
       () => null,
@@ -239,10 +218,19 @@ export async function allowanceHeld(
   return words ? `${words} · ` : "";
 }
 
-/** The class a playbook's runs go under, its mode and what a run does under it, as a card ends. */
+/**
+ * The mode a new sequence starts with (decision 0064: what its class's Autonomy row says, contracts newSequenceMode, as the
+ * database's sequence_mode_for makes it) and what its batches then do, as a card ends: its first waits for the owner's OK
+ * whatever the mode, and after that each goes by it. "Its first batch waits for your OK; after that, each batch waits
+ * 30 minutes for you to stop it, then goes (Standing offers)." Under ask every batch waits, the first among them, so it
+ * says that once: "Each batch waits for your OK (Re-engage)."
+ */
 export function underMode(cls: PlaybookInput["policy_class"], policies: readonly { class: string; mode: string }[]) {
-  const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
-  return { mode, said: `under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}.` };
+  const mode = newSequenceMode(policies.find((r) => r.class === cls)?.mode, "moment");
+  const does = SEQUENCE_MODE_WORDS[mode].does;
+  const batches =
+    mode === "ask" ? sheetWords(does) : `${sheetWords(PLAYBOOK_CARD_WORDS.asksFirst)}; after that, ${does}`;
+  return { mode, said: `${batches} (${PLAYBOOK_CLASS_LABEL[cls]}).` };
 }
 
 /** A summary's piece as a sheet's row says it: no separator either side, its first letter a capital. */

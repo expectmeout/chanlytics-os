@@ -37,7 +37,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { Notice } from "../../kit/notice/notice";
 import { StatePill } from "../../kit/pill/state-pill";
-import { askAbout, gate, navigate, openAutonomy, routeDoor } from "../../legacy-verbs";
+import { askAbout, gate, navigate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { useSequenceRead } from "./use-record";
@@ -50,10 +50,17 @@ type Asking = "skip" | "resume" | "discard" | "cancel" | "end";
 
 /**
  * The record's acts and what they share, held once for the head, the notice and a phone's dock: the notice and the batch
- * it is about, the twin it is sent beside, the question standing, Rename, and each press. `editStep` opens a step's
- * editor in place (the record holds which), for the notice of new words turned down.
+ * it is about, the twin it is sent beside, the question standing, Rename, and each press. `opens.step` opens a step's
+ * editor in place (the record holds which), for the notice of new words turned down; `opens.how` opens How it runs on
+ * Steps, where Before each batch is set (decision 0064).
  */
-export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () => void, editStep: (id: string) => void) {
+export function useRecordActs(
+  rec: SequenceRecordDto,
+  flash: Flash,
+  moved: () => void,
+  opens: { step: (id: string) => void; how: () => void },
+) {
+  const { step: editStep, how: openHow } = opens;
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -93,6 +100,8 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
     renaming,
     setRenaming,
     editStep,
+    /** How it runs, opened on Steps: where Before each batch is set (decision 0064). */
+    openHow,
     unwritten,
     /** Write step N: the step still to write, opened in its sheet. */
     writeUnwritten: () => {
@@ -264,12 +273,12 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
       gate: allowed,
       onSelect: () => a.setRenaming(true),
     });
-  if (row.state !== "draft")
+  if (row.starts !== "date" && row.state !== "ended")
     items.push({
       label: SEQUENCE_WORDS.whoApproves,
       glyph: <Icon name="shield" size={13} />,
-      hint: sequenceWhoApprovesHint(a.rec.mode, row.first?.policy_class),
-      onSelect: openAutonomy,
+      hint: sequenceWhoApprovesHint(row.mode),
+      onSelect: a.openHow,
     });
   if (ends(row))
     items.push({
@@ -329,7 +338,7 @@ function TurnOnQuestion({ a }: { a: RecordActs }) {
   const counted = a.row.starts === "moment" || a.row.starts === "list";
   const read = useSequenceRead(counted ? a.row.id : null, verbs.reach, verbs.peekReach);
   const reach = read.state === "read" ? read.data : undefined;
-  const ask = sequenceResumeAsk(a.rec, reach, { tz: a.rec.timezone, nowMs: Date.now(), mode: a.rec.mode });
+  const ask = sequenceResumeAsk(a.rec, reach, { tz: a.rec.timezone, nowMs: Date.now() });
   return (
     <Confirm
       question={ask.question}
@@ -473,12 +482,6 @@ function NoticeAct({ a, tab, phone }: { a: RecordActs; tab: SequenceTab; phone: 
     if (mends === "door" && n.off.to)
       return (
         <Button size={size} {...routeDoor(n.off.to)} data-testid="sq-off-mend">
-          {n.act}
-        </Button>
-      );
-    if (mends === "autonomy")
-      return (
-        <Button size={size} onClick={openAutonomy} data-testid="sq-off-mend">
           {n.act}
         </Button>
       );

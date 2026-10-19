@@ -1,5 +1,5 @@
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "booking_notice", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied", "reach_out_day", "opted_out", "booking", "member_joined", "member_left", "note_to_keep"];
+declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "booking_notice", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied", "reach_out_day", "opted_out", "booking", "member_joined", "member_left", "note_to_keep", "reply_held"];
 type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 /**
@@ -8,7 +8,7 @@ type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
  * that buzzes for them is a phone put on silent. Each member turns any of them
  * off for their own phones (memberships.push_off, 00372: `pushesFor`).
  */
-declare const PUSH_KINDS: readonly ["handoff", "deadman", "call", "note_for_you", "leads_ready", "leads_question", "broadcast_sent", "broadcast_stopped", "playbook", "job_failed", "billing", "number", "review", "reach_out_replied"];
+declare const PUSH_KINDS: readonly ["handoff", "deadman", "call", "note_for_you", "leads_ready", "leads_question", "broadcast_sent", "broadcast_stopped", "playbook", "job_failed", "billing", "number", "review", "reach_out_replied", "reply_held"];
 type PushKind = (typeof PUSH_KINDS)[number];
 
 /**
@@ -49,6 +49,7 @@ declare const NOTIFICATION_DELIVERY: {
     readonly member_joined: "bell";
     readonly member_left: "bell";
     readonly note_to_keep: "bell";
+    readonly reply_held: "bell";
 };
 /** A kept kind that is emailed. */
 type EmailedNotificationKind = {

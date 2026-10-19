@@ -1,8 +1,9 @@
 /**
  * How it runs (the lead-to-sequence canvas's board B: one sheet, saved as you change it): who joins (unconfirmed addresses
  * too, with how many that holds now; new ready leads from the search they came from, on their own) and how it sends
- * (where from, the most a day, who approves as a fact that opens Autonomy, the name it signs with, the footer every email
- * carries). Each change is the chain's own save (use-chain.ts), the auto-add switch at once.
+ * (where from, the most a day, what happens before each batch: its own mode, decision 0064, held for a stop or asked for,
+ * the name it signs with, the footer every email carries). Each change is the chain's own save (use-chain.ts), the
+ * auto-add switch at once, and the mode the campaign's own verb (playbook_change), with its receipt and undo.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -12,8 +13,10 @@ import {
   addressOf,
   chainPaceOf,
   emailFoot,
-  leadApprovesOf,
+  evidenceWords,
   leadPaceChoicesOf,
+  SEQUENCE_MODE_WORDS,
+  sequenceModesFor,
   whyFrom,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
@@ -24,7 +27,8 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { focusAsDrawn, gate, navigate, openAutonomy, routeDoor } from "../../../legacy-verbs";
+import { focusAsDrawn, gate, navigate, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
+import { pressed } from "../verbs";
 import { cmChevron } from "../../parts/picks";
 import { reachOuts } from "../../reach-out/surface";
 import { brainOf } from "../../templates/words";
@@ -140,20 +144,87 @@ function WhoJoins({ rec, lc }: { rec: SequenceRecordDto; lc: LeadChain }) {
   );
 }
 
+/**
+ * Before each batch (decision 0064): the sequence's own mode, held for a stop or asked for, never sent on its own to
+ * leads, changed by the campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first.
+ */
+function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pick<RunsSheetProps, "flash" | "moved">) {
+  return (
+    <RunsRow
+      k={R.approves}
+      // What its batches did, then the rule over any mode (decision 0064): the mode is set on what happened.
+      sub={[evidenceWords(rec.evidence), R.newWordsAsk].filter(Boolean).join(". ")}
+      testid="ld-runs-approves"
+      end={
+        <Picker
+          label={R.approves}
+          value={rec.sequence.mode ?? "ask"}
+          onValueChange={(mode) =>
+            void pressed(
+              "playbook_change",
+              // The sequence's mode under the one key the change door reads it from (contracts playbookChangeSpec).
+              { playbook_id: rec.sequence.id, name: rec.sequence.name, sequence_mode: mode },
+              flash,
+              moved,
+            )
+          }
+          groups={[
+            { options: sequenceModesFor("leads").map((m) => ({ value: m, label: SEQUENCE_MODE_WORDS[m].choice })) },
+          ]}
+          chevron={cmChevron()}
+          inline
+          data-testid="ld-runs-approves-pick"
+        />
+      }
+    />
+  );
+}
+
+/** The most a day: the owner's pile when they send, else the pace the mailboxes keep (contracts leadPaceChoicesOf). */
+function ADay({ lc }: { lc: LeadChain }) {
+  const d = lc.draft;
+  const mailboxes = lc.chain.mailboxes;
+  const paces = leadPaceChoicesOf(mailboxes);
+  const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
+  const fixed = d.owner_sends || paces.length === 0;
+  return (
+    <RunsRow
+      k={R.aDay}
+      sub={fixed ? R.youPace : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null)}
+      testid="ld-runs-day"
+      end={
+        fixed ? (
+          <b className="tabular">{d.owner_sends ? REACH_OUT_DRAFTS_PER_DAY : share}</b>
+        ) : (
+          <Picker
+            label={R.aDay}
+            value={String(paces.find((p) => p.gap === d.gap_minutes)?.gap ?? paces.at(0)?.gap ?? "")}
+            onValueChange={(v) => lc.edit((x) => ({ ...x, gap_minutes: Number(v) }))}
+            groups={[{ options: paces.map((p) => ({ value: String(p.gap), label: String(p.share), sub: p.hint })) }]}
+            chevron={cmChevron()}
+            inline
+            data-testid="ld-runs-day-pick"
+          />
+        )
+      }
+    />
+  );
+}
+
 interface RunsSheetProps {
   open: boolean;
   rec: SequenceRecordDto;
   lc: LeadChain;
+  flash: (flash: LegacyFlash) => void;
+  moved: () => void;
   onClose: () => void;
 }
 
-export function LeadRunsSheet({ open, rec, lc, onClose }: RunsSheetProps) {
+export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsSheetProps) {
   const d = lc.draft;
   const [footer, setFooter] = useState(false);
   const [signing, setSigning] = useState(false);
   const mailboxes = lc.chain.mailboxes;
-  const paces = leadPaceChoicesOf(mailboxes);
-  const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
   const close = () => {
     void lc.flush();
     onClose();
@@ -199,42 +270,8 @@ export function LeadRunsSheet({ open, rec, lc, onClose }: RunsSheetProps) {
               />
             }
           />
-          <RunsRow
-            k={R.aDay}
-            sub={
-              d.owner_sends || paces.length === 0
-                ? R.youPace
-                : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null)
-            }
-            testid="ld-runs-day"
-            end={
-              d.owner_sends || paces.length === 0 ? (
-                <b className="tabular">{d.owner_sends ? REACH_OUT_DRAFTS_PER_DAY : share}</b>
-              ) : (
-                <Picker
-                  label={R.aDay}
-                  value={String(paces.find((p) => p.gap === d.gap_minutes)?.gap ?? paces.at(0)?.gap ?? "")}
-                  onValueChange={(v) => lc.edit((x) => ({ ...x, gap_minutes: Number(v) }))}
-                  groups={[
-                    { options: paces.map((p) => ({ value: String(p.gap), label: String(p.share), sub: p.hint })) },
-                  ]}
-                  chevron={cmChevron()}
-                  inline
-                  data-testid="ld-runs-day-pick"
-                />
-              )
-            }
-          />
-          <RunsRow
-            k={R.approves}
-            sub={R.inAutonomy}
-            testid="ld-runs-approves"
-            end={
-              <LinkButton onClick={openAutonomy} data-testid="ld-runs-approves-open">
-                {leadApprovesOf(rec.mode)}
-              </LinkButton>
-            }
-          />
+          <ADay lc={lc} />
+          <BeforeEachBatch rec={rec} flash={flash} moved={moved} />
           <RunsRow
             k={R.signed}
             testid="ld-runs-signed"

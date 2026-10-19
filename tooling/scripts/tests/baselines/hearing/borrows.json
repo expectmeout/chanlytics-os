@@ -63,6 +63,6 @@
   "setup": "live settings setup",
   "setup/first-run": "live settings setup",
   "setup/rows": "",
-  "today": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
-  "today/pages": "broadcasts calendar google live people playbooks reach_out_replies reports_headline setup today today_pins"
+  "today": "broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
+  "today/pages": "broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins"
 }

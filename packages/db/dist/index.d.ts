@@ -1,5 +1,5 @@
 import { SupabaseClient, AuthMFAAdminDeleteFactorResponse, UserResponse, AuthMFAAdminListFactorsResponse, AuthResponse, PostgrestError } from '@supabase/supabase-js';
-import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, ActivitySubjectType, ModelTurnRequest, ModelTurnResponse, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ReachOutAddDto, LeadPileCountsDto, LeadBackDto, ReachOutChainPeopleDto, ReachOutFedBy, ReachOutPeopleCountsDto, ReachOutSourceDto, DraftLeadFacts, BookedVisit, MemberJoined, OptOutPerson, SequenceOneOffDto, SequenceHistoryDto, SequenceRowDto, SequencePeopleDto, SequencePlaceDto, SequencePlaceOfDto, SequenceStepDto, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, OpenToCustomers, BillingMode, BillingStatus, DoubtSeen, SeenMarksDto, PersonRowDto, NameableContact, PersonDoubtDto, PersonAtLeadDto, PersonDecisionDto, PersonSignerDto, NumberStanding, AppointmentState, FeedAppointmentRow } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, ActivitySubjectType, ModelTurnRequest, ModelTurnResponse, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ReachOutAddDto, LeadPileCountsDto, LeadBackDto, ReachOutChainPeopleDto, ReachOutFedBy, ReachOutPeopleCountsDto, ReachOutSourceDto, DraftLeadFacts, BookedVisit, MemberJoined, OptOutPerson, SequenceOneOffDto, SequenceEvidenceDto, SequenceHistoryDto, SequenceMode, SequenceRowDto, SequencePeopleDto, SequencePlaceDto, SequencePlaceOfDto, SequenceStepDto, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, OpenToCustomers, BillingMode, BillingStatus, DoubtSeen, SeenMarksDto, PersonRowDto, NameableContact, PersonDoubtDto, PersonAtLeadDto, PersonDecisionDto, PersonSignerDto, NumberStanding, AppointmentState, FeedAppointmentRow } from '@chanlytics/contracts';
 export { VoiceEndReason } from '@chanlytics/contracts';
 import * as _supabase_postgrest_js from '@supabase/postgrest-js';
 
@@ -2527,12 +2527,15 @@ type Database = {
                     author_photo_uri: string | null;
                     author_uri: string | null;
                     body: string | null;
+                    draft_text: string | null;
+                    drafted_at: string | null;
                     first_seen_at: string;
                     id: string;
                     language_code: string | null;
                     last_seen_at: string;
                     maps_uri: string | null;
                     origin: string;
+                    posts_at: string | null;
                     published_at: string | null;
                     rating: number | null;
                     replied_at: string | null;
@@ -2545,12 +2548,15 @@ type Database = {
                     author_photo_uri?: string | null;
                     author_uri?: string | null;
                     body?: string | null;
+                    draft_text?: string | null;
+                    drafted_at?: string | null;
                     first_seen_at?: string;
                     id?: string;
                     language_code?: string | null;
                     last_seen_at?: string;
                     maps_uri?: string | null;
                     origin?: string;
+                    posts_at?: string | null;
                     published_at?: string | null;
                     rating?: number | null;
                     replied_at?: string | null;
@@ -2563,12 +2569,15 @@ type Database = {
                     author_photo_uri?: string | null;
                     author_uri?: string | null;
                     body?: string | null;
+                    draft_text?: string | null;
+                    drafted_at?: string | null;
                     first_seen_at?: string;
                     id?: string;
                     language_code?: string | null;
                     last_seen_at?: string;
                     maps_uri?: string | null;
                     origin?: string;
+                    posts_at?: string | null;
                     published_at?: string | null;
                     rating?: number | null;
                     replied_at?: string | null;
@@ -6071,10 +6080,10 @@ type Database = {
                     template_language: string | null;
                     template_name: string | null;
                     tenant_id: string;
-                    trial_until: string | null;
                     trigger: string;
                     until: string | null;
                     updated_at: string;
+                    words_ok_at: string | null;
                 };
                 Insert: {
                     after_days?: number | null;
@@ -6116,10 +6125,10 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id: string;
-                    trial_until?: string | null;
                     trigger: string;
                     until?: string | null;
                     updated_at?: string;
+                    words_ok_at?: string | null;
                 };
                 Update: {
                     after_days?: number | null;
@@ -6161,10 +6170,10 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id?: string;
-                    trial_until?: string | null;
                     trigger?: string;
                     until?: string | null;
                     updated_at?: string;
+                    words_ok_at?: string | null;
                 };
                 Relationships: [
                     {
@@ -6244,6 +6253,7 @@ type Database = {
                     created_at: string;
                     created_by: string | null;
                     id: string;
+                    mode: string | null;
                     name: string;
                     starts: string;
                     state: string;
@@ -6254,6 +6264,7 @@ type Database = {
                     created_at?: string;
                     created_by?: string | null;
                     id?: string;
+                    mode?: string | null;
                     name: string;
                     starts: string;
                     state?: string;
@@ -6264,6 +6275,7 @@ type Database = {
                     created_at?: string;
                     created_by?: string | null;
                     id?: string;
+                    mode?: string | null;
                     name?: string;
                     starts?: string;
                     state?: string;
@@ -10398,6 +10410,20 @@ type Database = {
                 };
                 Returns: number;
             };
+            sequence_evidence: {
+                Args: {
+                    p_days?: number;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    approved: number;
+                    policy_class: string;
+                    sequence_id: string;
+                    skipped: number;
+                    stopped: number;
+                    went: number;
+                }[];
+            };
             sequence_follow_ups_due: {
                 Args: {
                     p_run_for: string;
@@ -10489,6 +10515,14 @@ type Database = {
                     p_why?: string;
                 };
                 Returns: Json;
+            };
+            sequence_mode_for: {
+                Args: {
+                    p_class: string;
+                    p_tenant_id: string;
+                    p_to_leads: boolean;
+                };
+                Returns: string;
             };
             sequence_move: {
                 Args: {
@@ -14441,12 +14475,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 author_photo_uri: string | null;
                 author_uri: string | null;
                 body: string | null;
+                draft_text: string | null;
+                drafted_at: string | null;
                 first_seen_at: string;
                 id: string;
                 language_code: string | null;
                 last_seen_at: string;
                 maps_uri: string | null;
                 origin: string;
+                posts_at: string | null;
                 published_at: string | null;
                 rating: number | null;
                 replied_at: string | null;
@@ -14459,12 +14496,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 author_photo_uri?: string | null;
                 author_uri?: string | null;
                 body?: string | null;
+                draft_text?: string | null;
+                drafted_at?: string | null;
                 first_seen_at?: string;
                 id?: string;
                 language_code?: string | null;
                 last_seen_at?: string;
                 maps_uri?: string | null;
                 origin?: string;
+                posts_at?: string | null;
                 published_at?: string | null;
                 rating?: number | null;
                 replied_at?: string | null;
@@ -14477,12 +14517,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 author_photo_uri?: string | null;
                 author_uri?: string | null;
                 body?: string | null;
+                draft_text?: string | null;
+                drafted_at?: string | null;
                 first_seen_at?: string;
                 id?: string;
                 language_code?: string | null;
                 last_seen_at?: string;
                 maps_uri?: string | null;
                 origin?: string;
+                posts_at?: string | null;
                 published_at?: string | null;
                 rating?: number | null;
                 replied_at?: string | null;
@@ -17842,10 +17885,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 template_language: string | null;
                 template_name: string | null;
                 tenant_id: string;
-                trial_until: string | null;
                 trigger: string;
                 until: string | null;
                 updated_at: string;
+                words_ok_at: string | null;
             };
             Insert: {
                 after_days?: number | null;
@@ -17887,10 +17930,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 template_language?: string | null;
                 template_name?: string | null;
                 tenant_id: string;
-                trial_until?: string | null;
                 trigger: string;
                 until?: string | null;
                 updated_at?: string;
+                words_ok_at?: string | null;
             };
             Update: {
                 after_days?: number | null;
@@ -17932,10 +17975,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 template_language?: string | null;
                 template_name?: string | null;
                 tenant_id?: string;
-                trial_until?: string | null;
                 trigger?: string;
                 until?: string | null;
                 updated_at?: string;
+                words_ok_at?: string | null;
             };
             Relationships: [{
                 foreignKeyName: "sequence_steps_after_same_workspace";
@@ -18004,6 +18047,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 created_at: string;
                 created_by: string | null;
                 id: string;
+                mode: string | null;
                 name: string;
                 starts: string;
                 state: string;
@@ -18014,6 +18058,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 created_at?: string;
                 created_by?: string | null;
                 id?: string;
+                mode?: string | null;
                 name: string;
                 starts: string;
                 state?: string;
@@ -18024,6 +18069,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 created_at?: string;
                 created_by?: string | null;
                 id?: string;
+                mode?: string | null;
                 name?: string;
                 starts?: string;
                 state?: string;
@@ -22144,6 +22190,20 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             };
             Returns: number;
         };
+        sequence_evidence: {
+            Args: {
+                p_days?: number;
+                p_tenant_id: string;
+            };
+            Returns: {
+                approved: number;
+                policy_class: string;
+                sequence_id: string;
+                skipped: number;
+                stopped: number;
+                went: number;
+            }[];
+        };
         sequence_follow_ups_due: {
             Args: {
                 p_run_for: string;
@@ -22235,6 +22295,14 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 p_why?: string;
             };
             Returns: Json;
+        };
+        sequence_mode_for: {
+            Args: {
+                p_class: string;
+                p_tenant_id: string;
+                p_to_leads: boolean;
+            };
+            Returns: string;
         };
         sequence_move: {
             Args: {
@@ -25379,12 +25447,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri: string | null;
             author_uri: string | null;
             body: string | null;
+            draft_text: string | null;
+            drafted_at: string | null;
             first_seen_at: string;
             id: string;
             language_code: string | null;
             last_seen_at: string;
             maps_uri: string | null;
             origin: string;
+            posts_at: string | null;
             published_at: string | null;
             rating: number | null;
             replied_at: string | null;
@@ -25397,12 +25468,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -25415,12 +25489,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -28780,10 +28857,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
-            trial_until: string | null;
             trigger: string;
             until: string | null;
             updated_at: string;
+            words_ok_at: string | null;
         };
         Insert: {
             after_days?: number | null;
@@ -28825,10 +28902,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
-            trial_until?: string | null;
             trigger: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Update: {
             after_days?: number | null;
@@ -28870,10 +28947,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
-            trial_until?: string | null;
             trigger?: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Relationships: [{
             foreignKeyName: "sequence_steps_after_same_workspace";
@@ -28942,6 +29019,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at: string;
             created_by: string | null;
             id: string;
+            mode: string | null;
             name: string;
             starts: string;
             state: string;
@@ -28952,6 +29030,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name: string;
             starts: string;
             state?: string;
@@ -28962,6 +29041,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name?: string;
             starts?: string;
             state?: string;
@@ -31704,12 +31784,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri: string | null;
             author_uri: string | null;
             body: string | null;
+            draft_text: string | null;
+            drafted_at: string | null;
             first_seen_at: string;
             id: string;
             language_code: string | null;
             last_seen_at: string;
             maps_uri: string | null;
             origin: string;
+            posts_at: string | null;
             published_at: string | null;
             rating: number | null;
             replied_at: string | null;
@@ -31722,12 +31805,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -31740,12 +31826,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -35105,10 +35194,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
-            trial_until: string | null;
             trigger: string;
             until: string | null;
             updated_at: string;
+            words_ok_at: string | null;
         };
         Insert: {
             after_days?: number | null;
@@ -35150,10 +35239,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
-            trial_until?: string | null;
             trigger: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Update: {
             after_days?: number | null;
@@ -35195,10 +35284,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
-            trial_until?: string | null;
             trigger?: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Relationships: [{
             foreignKeyName: "sequence_steps_after_same_workspace";
@@ -35267,6 +35356,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at: string;
             created_by: string | null;
             id: string;
+            mode: string | null;
             name: string;
             starts: string;
             state: string;
@@ -35277,6 +35367,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name: string;
             starts: string;
             state?: string;
@@ -35287,6 +35378,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name?: string;
             starts?: string;
             state?: string;
@@ -38029,12 +38121,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri: string | null;
             author_uri: string | null;
             body: string | null;
+            draft_text: string | null;
+            drafted_at: string | null;
             first_seen_at: string;
             id: string;
             language_code: string | null;
             last_seen_at: string;
             maps_uri: string | null;
             origin: string;
+            posts_at: string | null;
             published_at: string | null;
             rating: number | null;
             replied_at: string | null;
@@ -38047,12 +38142,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -38065,12 +38163,15 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             author_photo_uri?: string | null;
             author_uri?: string | null;
             body?: string | null;
+            draft_text?: string | null;
+            drafted_at?: string | null;
             first_seen_at?: string;
             id?: string;
             language_code?: string | null;
             last_seen_at?: string;
             maps_uri?: string | null;
             origin?: string;
+            posts_at?: string | null;
             published_at?: string | null;
             rating?: number | null;
             replied_at?: string | null;
@@ -41430,10 +41531,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
-            trial_until: string | null;
             trigger: string;
             until: string | null;
             updated_at: string;
+            words_ok_at: string | null;
         };
         Insert: {
             after_days?: number | null;
@@ -41475,10 +41576,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
-            trial_until?: string | null;
             trigger: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Update: {
             after_days?: number | null;
@@ -41520,10 +41621,10 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
-            trial_until?: string | null;
             trigger?: string;
             until?: string | null;
             updated_at?: string;
+            words_ok_at?: string | null;
         };
         Relationships: [{
             foreignKeyName: "sequence_steps_after_same_workspace";
@@ -41592,6 +41693,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at: string;
             created_by: string | null;
             id: string;
+            mode: string | null;
             name: string;
             starts: string;
             state: string;
@@ -41602,6 +41704,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name: string;
             starts: string;
             state?: string;
@@ -41612,6 +41715,7 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             created_at?: string;
             created_by?: string | null;
             id?: string;
+            mode?: string | null;
             name?: string;
             starts?: string;
             state?: string;
@@ -42636,6 +42740,8 @@ interface WaitingPlaybookRun {
     playbook_id: string;
     run_for: string;
     audience: unknown;
+    /** How many it was for: what the owner is told it did not reach, once the sweep skips it (decision 0064). */
+    recipient_count: number;
     /** The workspace's zone, or the one the approve verb reads for a workspace with none (DEFAULT_TIMEZONE). */
     timezone: string;
 }
@@ -42688,6 +42794,22 @@ interface WaitingRunRow {
  * today tool names. A read that fails throws.
  */
 declare function waitingRunsOf(db: Db$E, tenantId: string): Promise<WaitingRunRow[]>;
+/** A run set to go, as Going today reads it (decision 0064): when it goes, and what names it. */
+interface GoingRunRow {
+    id: string;
+    name: string;
+    state: string;
+    playbook_id: string | null;
+    scheduled_for: string | null;
+    recipient_count: number;
+    audience: unknown;
+}
+/**
+ * One workspace's runs set to start between two instants, soonest first (a hundred at most), on the session's client (RLS
+ * decides): what goes on its own unless stopped (contracts goingTodayOf, which keeps those on the business's day). A read
+ * that fails throws.
+ */
+declare function runsGoingBetween(db: Db$E, tenantId: string, from: Date, until: Date): Promise<GoingRunRow[]>;
 /**
  * The runs the bell's notices name, by id, in whatever state each is now, with how many emails a going reach-out run's check
  * holds or has handed to its owner (runWaitingCounts): what Ask's read of the notices judges each by (contracts noticeStillWaits), as the bell judges by the runs Sent
@@ -43880,13 +44002,6 @@ declare function recheckSends(db: Db$v, p: {
     ids: string[];
     fromState?: "planned" | "held" | "claimed";
 }): Promise<number>;
-type OutreachMode = "ask" | "veto" | "never";
-/**
- * Settings › Autonomy's outreach row (00183), the one reading of it: a workspace's own row, its mode as said; none, or
- * a mode it does not know, reads as ask, so a missing row can only wait for its owner. The step's run and the
- * dashboard's chains both ask it. A read that fails throws.
- */
-declare function outreachModeOf(db: Db$v, tenantId: string): Promise<OutreachMode>;
 /** A workspace's zone; null when it could not be read (the caller says which zone it falls back to). */
 declare function tenantZoneOf(db: Db$v, tenantId: string): Promise<string | null>;
 /** A run's held-notice mark, kept in its audience (Reach out, Part 4 PR 7, R20): claimed by a tick, then sent. */
@@ -44530,8 +44645,11 @@ declare function runsInSpan(db: Db$n, tenantId: string, span: {
     fromDay: string;
     toDay: string;
 }): Promise<SpanRunRow[]>;
-/** A campaign's schedule: what its next run and its last day are worked out from, and its class. */
-type MomentScheduleRow = Pick<Database["public"]["Tables"]["sequence_steps"]["Row"], "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "last_run_for" | "until" | "trial_until">;
+/**
+ * A campaign's schedule: what its next run and its last day are worked out from, its sequence (whose mode decides its
+ * batches, decision 0064) and when its words were last let go.
+ */
+type MomentScheduleRow = Pick<Database["public"]["Tables"]["sequence_steps"]["Row"], "id" | "sequence_id" | "name" | "trigger" | "state" | "run_hour" | "last_run_for" | "until" | "words_ok_at">;
 /** Every campaign's schedule columns, and nothing more: the board forecasts from these alone. */
 declare function momentSchedules(db: Db$n, tenantId: string): Promise<MomentScheduleRow[]>;
 
@@ -44606,6 +44724,18 @@ declare function sequenceRow(db: Db$m, id: string): Promise<{
     starts: string;
     state: string;
 } | null>;
+/**
+ * How each named sequence's batches are decided (decision 0064, `sequences.mode`), by its id: what a step's run and the
+ * pages that list steps read beside the step's own row. A sequence with no mode this build knows (a one-off has none)
+ * asks, as contracts batchModeOf reads one. A read that fails throws.
+ */
+declare function sequenceModesOf(db: Db$m, tenantId: string, ids: readonly string[]): Promise<Map<string, SequenceMode>>;
+/**
+ * What each of the workspace's sequences' batches did over the last `days` (00462 sequence_evidence, decision 0064 step
+ * 5): went, after an OK, stopped, skipped unanswered. On the session's client (its row security decides). A read that
+ * fails throws.
+ */
+declare function sequenceEvidence(db: Db$m, tenantId: string, days?: number): Promise<SequenceEvidenceDto[]>;
 /** The workspace's sequences, newest first, or the one named (00442 sequence_overview). */
 declare function sequenceOverview(db: Db$m, tenantId: string, sequenceId?: string): Promise<SequenceRowDto[]>;
 /**
@@ -44900,12 +45030,14 @@ declare function playbookForChannels(db: Db$l, tenantId: string, playbookId: str
 type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
- * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end and its trial (00416), and the
+ * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end (00416), its sequence's mode
+ * and when its words were last let go (00462), and the
  * run of it that waits for approval, with how many it is for, which a pause leaves waiting (D8). Null where the workspace
  * has no such playbook. A reach-out's root is one too: its sheet's Pause is a change of its state. Throws on a failed
  * read.
  */
-declare function playbookForChange(db: Db$l, tenantId: string, playbookId: string): Promise<(Pick<PlaybookRowOf, "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "list_id" | "list_key" | "template_id" | "params" | "until" | "trial_until"> & {
+declare function playbookForChange(db: Db$l, tenantId: string, playbookId: string): Promise<(Pick<PlaybookRowOf, "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "list_id" | "list_key" | "template_id" | "params" | "until" | "words_ok_at"> & {
+    mode: SequenceMode;
     waiting: {
         id: string;
         recipient_count: number;
@@ -46305,13 +46437,12 @@ declare function removePlaybook(db: Db$c, id: string): Promise<{
     count: number | null;
 }>;
 /** What a new playbook names: the columns the door writes from, as the table types them. */
-type PlaybookToStart = Required<Pick<Database["public"]["Tables"]["sequence_steps"]["Insert"], "name" | "trigger" | "list_id" | "list_key" | "template_id" | "template_name" | "template_language" | "params" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "channels" | "until" | "trial_until">>;
+type PlaybookToStart = Required<Pick<Database["public"]["Tables"]["sequence_steps"]["Insert"], "name" | "trigger" | "list_id" | "list_key" | "template_id" | "template_name" | "template_language" | "params" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "channels" | "until">>;
 /**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
  * table's policy, checks and unique indexes judge the row. Since 00416 it writes the last day the playbook names
- * (`until`) and the end of a trial (`trial_until`; a database before it writes neither, and the campaign runs as its
- * class says from its first run, until it is paused). The
+ * (`until`); its sequence takes its class's mode as the first step makes it (00462, decision 0064). The
  * new row's id with its decision's, or the database's refusal, which the caller words; an answer with neither id is a
  * door that is not this one, and throws.
  */
@@ -48051,4 +48182,4 @@ interface HeldDraftsRow {
 /** The workspace's held drafts of the last `days`, by intent. */
 declare function heldDraftsByIntent(db: Db, tenantId: string, days: number): Promise<HeldDraftsRow[]>;
 
-export { type ActivitySubject, type ActivitySubjects, type AiFailures, AnswerNotKept, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AssembleDecision, type AudienceLead, type BillingExpectation, type BillingPatch, type BookingRequestOpen, CALL_CONTROL_S, type CalledBack, type ChannelLookup, type ConnectRefusal, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DbTouch, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DoorResult, type DraftLoad, type DraftWaitingRow, type DueCalendar, type DueMailbox, type DuePage, type DueStep, ERASURE_LEGS, ERASURE_STRATEGIES, type EarlierVisitRow, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type ExportPage, type ExportSectionPages, type FactCorrectionRow, type FactSuggestionRow, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandedBack, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldDraftsRow, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdeasKept, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type KeptNotice, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LeadReplyFacts, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxCapacity, type MailboxConnectionRow, type MailboxRow, type MemberAlertsRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type ModelTurnKept, type MomentScheduleRow, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OpenToCustomersRead, type OutboundTarget, type OutreachFactsRow, type OutreachMode, type OwnerSendFacts, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonCallArgs, type PersonExportPages, type PersonForSend, type PersonNameAnswer, type PgThreadState, type PlatformDayPromises, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PublicWorkspaceRead, type PutTenantConfigResult, type QueuedOutcome, type ReachOutAddAnswer, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSaved, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ReplySaidAnswer, type ReportWindow, ReportWindowNotReadable, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendSaidAnswer, type SendStanding, type SequenceDoorAnswer, type SequenceMoveAnswer, type ServiceClientConfig, type SpanRunRow, type StrandedRun, type SubscribeOptions, type TakenOver, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type VersionRef, type VisitOriginRow, type VoiceSessionRow, type WaitingPlaybookRun, type WaitingRunRow, type WhatsappNumber, type WhatsappNumberRow, type WithdrawReason, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activeWhatsappNumbers, activitySubjects, activityTokensOf, addPersonByHand, addPersonNote, addToList, addToWaitlist, addressesSuppressed, adoptPersonName, aiFailuresHour, aimSearchAt, answerBookingRequest, answerFactSuggestion, answeredReachOutEmail, applyBilling, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentWorkspace, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, bookedVisitsOf, businessOnRecordOf, callBackMessage, callerNameOf, callersOf, callsOwedAnAnalysis, campaignLedger, campaignMonthSent, campaignSeries, campaignStuck, cancelBroadcastFrom, cancelSequenceBatch, chainDraftLoad, claimCallActivity, claimCallNotification, claimControl, claimDrafts, claimIdeas, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closeMendedNotices, closedRunSends, connectMailbox, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, dealOnFile, declineHandover, declinePartnerInvite, declinePersonName, deleteList, deleteSecondFactor, deliveryOf, describeLead, discardSequence, dismissAppointmentNotice, dismissPersonDoubt, doubtOn, draftFactsOf, draftsWaiting, dropFromList, dropMailboxCredentials, dueCalendars, dueMailboxes, duePlaybooks, earlierVisitRows, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endMailboxSync, endVoiceSession, erasureDigests, eventOfDelivery, eventTold, everyoneIn, everyoneOnceIn, exportSectionPages, factCorrectionsBatch, factSuggestionById, factSuggestionsWaiting, failIdeas, failQueuedSend, failStrandedRun, failedMessageErrors, feedAdditionsWith, feedWordsOver, filedNamesOf, finishableRuns, firstReplies, firstStepFacts, followUpOnFile, followUpTouchesSince, followUpsDue, forgetActivityTokens, forgetEveryPhone, forgetNotification, getHandoverInvite, getMailboxCredentials, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getTenantConfigAsMember, getWorkspacePartner, handBackThread, handRun, hasNewerCopy, heldDraftsByIntent, heldMessageOf, heldNoticeDue, heldNoticeKeys, heldNoticesOf, heldStale, holdFactsOf, holdRecipients, holdTold, holdsReplyTurn, ideasBasis, ideasClockAndLanguage, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, joinPersonToLead, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdeas, keepIdempotencyReceipt, keepInvoiceAmount, keepMailboxWatch, keepMessageCost, keepModelTurn, keepProviderEvent, keptPersonOf, knownThreads, lastClosedHolds, lastInboundEmail, lastOutboundEmailSubject, lastRunSkipped, leadAddressBounced, leadAddresseeChoose, leadCardsLive, leadCompanyUpsert, leadCountriesOf, leadMemberLater, leadNamesByIds, leadPeopleSearchCreate, leadPileCounts, leadRepliesOfBatches, leadReplyFactsOf, leadSlotsOf, leadWritten, leadsBackToday, leadsFedBy, leadsLeaveSequence, leavePersonLead, leaveSequence, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, liveMailboxByAddress, liveMailboxByWatch, logPersonCall, mailSent, mailboxById, mailboxCapacityFrom, mailboxCapacityOf, mailboxConnectionById, mailboxConnectionOf, mailboxConnectionsOf, mailboxCountsOf, mailboxFor, mailboxOfTenant, mailboxesToTend, makeSequence, markCalendarFeedKept, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markVisit, markWaitlistInvited, memberAlertsOf, memberEmailOf, memberHasAddress, memberJoinedOf, memberViewsOf, memberWithdrawDrafts, memberWithdrawMessage, membersPushedFor, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, momentSchedules, monthSent, moveSend, moveToSequence, moveVoiceSessionContext, namedFetch, namesOfPeople, narrowedUpdates, notePageVitals, notedOver, notesForReceptionist, noticeFor, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, olderUnreadFor, oldestActiveChannel, oneOffMessageOf, openBookingRequest, openConversation, openDoubtsOf, openEscalation, openRequestOfThread, optOutTold, ourLastWire, outreachFactsOf, outreachModeOf, ownAddressIn, ownLineOf, ownVersionsFiled, ownerSendFactsOf, pageSpeed, pageSpots, pageVitalsP75, parentEmailOf, patchMailboxConnection, pauseConversation, pauseEmailOffers, peopleAtLead, peopleCursorOf, peopleOnTheirOwnMode, peoplePage, peopleSeries, personDecisions, personExportPages, personFactsOf, personReplyMode, personReplyModes, personRow, platformDay, platformWide, playbookChannels, playbookForChange, playbookForChannels, playbookTotals, playbooksOnList, providerEventOf, publicWorkspaceBySlug, purgeAiUsage, pushNamesFor, putBackInSequence, putMailboxCredentials, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAdd, reachOutAudience, reachOutBookedFrom, reachOutChainPeople, reachOutChainTotals, reachOutDayDue, reachOutFedByOf, reachOutFollowers, reachOutLeaveOut, reachOutPeopleCounts, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutSources, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readIdeaHistory, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recentTouches, receptionistSeries, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordOver, recordPartnerSecondFactorReset, recordStatusByExternalId, recordSystemDecision, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeSequenceStep, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replySaid, replyTokensSince, replyUndoableOf, reportSeries, resendHandover, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewLinkOf, reviewRowsByGoogleId, reviewsLedger, reviewsNamed, runCounts, runGoesByOthers, runHanded, runSending, runWaitingCounts, runningStepsOn, runningTwins, runsInSpan, runsNamed, runsWaitingOf, saveIdeasLine, saveReachOutChain, saveSequenceStep, saveTemplateVersion, savedListFor, savedListsFor, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, searchMessages, searchesByIds, seePersonNote, sendJobScheduled, sendNow, sendSaid, sendStanding, sentEmailIdByMessageId, sentEmailOf, sentEmailWithMessageId, sequenceHistoryOf, sequenceNamesOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequencePlaceOf, sequencePlacesOf, sequenceReached, sequenceRow, sequenceStepsOf, sequencesOfPerson, sessionHoldsPartnerSeat, setCallRecording, setChainSource, setEmailOffersYes, setEmailUnsubscribed, setListRule, setMemberPushOff, setMemberView, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, setSequenceStepWords, setTemplateQuality, setWorkspaceLogo, settleDelivery, signUpOnPublicKey, signersOf, staleSends, stampEmailComplaint, stampEmailFromMailbox, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suggestFact, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeMailboxSync, takeOutOfSequence, takeOverThread, takeReplyRead, templateIdOf, templateSends, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, threadIdsWaitingOnYou, touchIndex, touchOfCall, touchesSince, twinTold, uncheckedSends, uncheckedWaiting, undoPersonName, undoReplyReading, unreadOfReaders, updateAppointment, updatePlaybook, visitOrigins, visitsOver, waitingPlaybookRuns, waitingRunsOf, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappLineOf, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawAiDrafts, withdrawEmail, withdrawPartnerInvite, withdrawQueued, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspaceNamed, workspaceOpenToCustomers, workspacePaused, workspacePublicSlug, workspaceZoneOf, writePlaybookChange, writtenEmail, writtenEmails, yesesSince };
+export { type ActivitySubject, type ActivitySubjects, type AiFailures, AnswerNotKept, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AssembleDecision, type AudienceLead, type BillingExpectation, type BillingPatch, type BookingRequestOpen, CALL_CONTROL_S, type CalledBack, type ChannelLookup, type ConnectRefusal, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DbTouch, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DoorResult, type DraftLoad, type DraftWaitingRow, type DueCalendar, type DueMailbox, type DuePage, type DueStep, ERASURE_LEGS, ERASURE_STRATEGIES, type EarlierVisitRow, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type ExportPage, type ExportSectionPages, type FactCorrectionRow, type FactSuggestionRow, type FollowerLead, type GoingRunRow, HISTORY_COLUMNS, type HandItem, type HandedBack, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldDraftsRow, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdeasKept, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type KeptNotice, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LeadReplyFacts, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxCapacity, type MailboxConnectionRow, type MailboxRow, type MemberAlertsRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type ModelTurnKept, type MomentScheduleRow, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OpenToCustomersRead, type OutboundTarget, type OutreachFactsRow, type OwnerSendFacts, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonCallArgs, type PersonExportPages, type PersonForSend, type PersonNameAnswer, type PgThreadState, type PlatformDayPromises, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PublicWorkspaceRead, type PutTenantConfigResult, type QueuedOutcome, type ReachOutAddAnswer, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSaved, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ReplySaidAnswer, type ReportWindow, ReportWindowNotReadable, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendSaidAnswer, type SendStanding, type SequenceDoorAnswer, type SequenceMoveAnswer, type ServiceClientConfig, type SpanRunRow, type StrandedRun, type SubscribeOptions, type TakenOver, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type VersionRef, type VisitOriginRow, type VoiceSessionRow, type WaitingPlaybookRun, type WaitingRunRow, type WhatsappNumber, type WhatsappNumberRow, type WithdrawReason, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activeWhatsappNumbers, activitySubjects, activityTokensOf, addPersonByHand, addPersonNote, addToList, addToWaitlist, addressesSuppressed, adoptPersonName, aiFailuresHour, aimSearchAt, answerBookingRequest, answerFactSuggestion, answeredReachOutEmail, applyBilling, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentWorkspace, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, bookedVisitsOf, businessOnRecordOf, callBackMessage, callerNameOf, callersOf, callsOwedAnAnalysis, campaignLedger, campaignMonthSent, campaignSeries, campaignStuck, cancelBroadcastFrom, cancelSequenceBatch, chainDraftLoad, claimCallActivity, claimCallNotification, claimControl, claimDrafts, claimIdeas, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closeMendedNotices, closedRunSends, connectMailbox, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, dealOnFile, declineHandover, declinePartnerInvite, declinePersonName, deleteList, deleteSecondFactor, deliveryOf, describeLead, discardSequence, dismissAppointmentNotice, dismissPersonDoubt, doubtOn, draftFactsOf, draftsWaiting, dropFromList, dropMailboxCredentials, dueCalendars, dueMailboxes, duePlaybooks, earlierVisitRows, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endMailboxSync, endVoiceSession, erasureDigests, eventOfDelivery, eventTold, everyoneIn, everyoneOnceIn, exportSectionPages, factCorrectionsBatch, factSuggestionById, factSuggestionsWaiting, failIdeas, failQueuedSend, failStrandedRun, failedMessageErrors, feedAdditionsWith, feedWordsOver, filedNamesOf, finishableRuns, firstReplies, firstStepFacts, followUpOnFile, followUpTouchesSince, followUpsDue, forgetActivityTokens, forgetEveryPhone, forgetNotification, getHandoverInvite, getMailboxCredentials, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getTenantConfigAsMember, getWorkspacePartner, handBackThread, handRun, hasNewerCopy, heldDraftsByIntent, heldMessageOf, heldNoticeDue, heldNoticeKeys, heldNoticesOf, heldStale, holdFactsOf, holdRecipients, holdTold, holdsReplyTurn, ideasBasis, ideasClockAndLanguage, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, joinPersonToLead, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdeas, keepIdempotencyReceipt, keepInvoiceAmount, keepMailboxWatch, keepMessageCost, keepModelTurn, keepProviderEvent, keptPersonOf, knownThreads, lastClosedHolds, lastInboundEmail, lastOutboundEmailSubject, lastRunSkipped, leadAddressBounced, leadAddresseeChoose, leadCardsLive, leadCompanyUpsert, leadCountriesOf, leadMemberLater, leadNamesByIds, leadPeopleSearchCreate, leadPileCounts, leadRepliesOfBatches, leadReplyFactsOf, leadSlotsOf, leadWritten, leadsBackToday, leadsFedBy, leadsLeaveSequence, leavePersonLead, leaveSequence, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, liveMailboxByAddress, liveMailboxByWatch, logPersonCall, mailSent, mailboxById, mailboxCapacityFrom, mailboxCapacityOf, mailboxConnectionById, mailboxConnectionOf, mailboxConnectionsOf, mailboxCountsOf, mailboxFor, mailboxOfTenant, mailboxesToTend, makeSequence, markCalendarFeedKept, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markVisit, markWaitlistInvited, memberAlertsOf, memberEmailOf, memberHasAddress, memberJoinedOf, memberViewsOf, memberWithdrawDrafts, memberWithdrawMessage, membersPushedFor, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, momentSchedules, monthSent, moveSend, moveToSequence, moveVoiceSessionContext, namedFetch, namesOfPeople, narrowedUpdates, notePageVitals, notedOver, notesForReceptionist, noticeFor, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, olderUnreadFor, oldestActiveChannel, oneOffMessageOf, openBookingRequest, openConversation, openDoubtsOf, openEscalation, openRequestOfThread, optOutTold, ourLastWire, outreachFactsOf, ownAddressIn, ownLineOf, ownVersionsFiled, ownerSendFactsOf, pageSpeed, pageSpots, pageVitalsP75, parentEmailOf, patchMailboxConnection, pauseConversation, pauseEmailOffers, peopleAtLead, peopleCursorOf, peopleOnTheirOwnMode, peoplePage, peopleSeries, personDecisions, personExportPages, personFactsOf, personReplyMode, personReplyModes, personRow, platformDay, platformWide, playbookChannels, playbookForChange, playbookForChannels, playbookTotals, playbooksOnList, providerEventOf, publicWorkspaceBySlug, purgeAiUsage, pushNamesFor, putBackInSequence, putMailboxCredentials, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAdd, reachOutAudience, reachOutBookedFrom, reachOutChainPeople, reachOutChainTotals, reachOutDayDue, reachOutFedByOf, reachOutFollowers, reachOutLeaveOut, reachOutPeopleCounts, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutSources, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readIdeaHistory, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recentTouches, receptionistSeries, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordOver, recordPartnerSecondFactorReset, recordStatusByExternalId, recordSystemDecision, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeSequenceStep, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replySaid, replyTokensSince, replyUndoableOf, reportSeries, resendHandover, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewLinkOf, reviewRowsByGoogleId, reviewsLedger, reviewsNamed, runCounts, runGoesByOthers, runHanded, runSending, runWaitingCounts, runningStepsOn, runningTwins, runsGoingBetween, runsInSpan, runsNamed, runsWaitingOf, saveIdeasLine, saveReachOutChain, saveSequenceStep, saveTemplateVersion, savedListFor, savedListsFor, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, searchMessages, searchesByIds, seePersonNote, sendJobScheduled, sendNow, sendSaid, sendStanding, sentEmailIdByMessageId, sentEmailOf, sentEmailWithMessageId, sequenceEvidence, sequenceHistoryOf, sequenceModesOf, sequenceNamesOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequencePlaceOf, sequencePlacesOf, sequenceReached, sequenceRow, sequenceStepsOf, sequencesOfPerson, sessionHoldsPartnerSeat, setCallRecording, setChainSource, setEmailOffersYes, setEmailUnsubscribed, setListRule, setMemberPushOff, setMemberView, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, setSequenceStepWords, setTemplateQuality, setWorkspaceLogo, settleDelivery, signUpOnPublicKey, signersOf, staleSends, stampEmailComplaint, stampEmailFromMailbox, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suggestFact, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeMailboxSync, takeOutOfSequence, takeOverThread, takeReplyRead, templateIdOf, templateSends, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, threadIdsWaitingOnYou, touchIndex, touchOfCall, touchesSince, twinTold, uncheckedSends, uncheckedWaiting, undoPersonName, undoReplyReading, unreadOfReaders, updateAppointment, updatePlaybook, visitOrigins, visitsOver, waitingPlaybookRuns, waitingRunsOf, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappLineOf, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawAiDrafts, withdrawEmail, withdrawPartnerInvite, withdrawQueued, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspaceNamed, workspaceOpenToCustomers, workspacePaused, workspacePublicSlug, workspaceZoneOf, writePlaybookChange, writtenEmail, writtenEmails, yesesSince };

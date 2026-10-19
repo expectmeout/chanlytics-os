@@ -10,16 +10,16 @@ import {
   handRun,
   leadNamesByIds,
   leadsLeaveSequence,
-  outreachModeOf,
   reachOutAudience,
   reachOutFedByOf,
   reachOutFollowers,
+  sequenceModesOf,
   workspaceMaySpend,
   type Database,
   type Json,
 } from "../packages/db.js";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { handOf } from "../packages/contracts.js";
+import { handOf, waitEndsWords } from "../packages/contracts.js";
 import { stepSenders } from "./senders.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -71,6 +71,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     mailbox_ids: row.mailbox_ids ?? [],
     owner_sends: root.owner_sends === true,
     cap_per_run: row.cap_per_run,
+    words_ok_at: row.words_ok_at,
   };
   const hand = handOf(row.hand);
   if (hand) return { ...common, hand };
@@ -100,7 +101,7 @@ const laterStepPorts = (db: Db, tenantId: string): HandStepPorts => ({
 });
 
 /**
- * Everything one step's run reads once: the workspace's zone, its outreach mode, whether it may spend. A read that
+ * Everything one step's run reads once: the workspace's zone, its sequence's mode, whether it may spend. A read that
  * fails is this step's error for the tick (the sweep counts it failed and carries on), never a guess that sends.
  */
 export async function reachOutRunContext(
@@ -115,9 +116,10 @@ export async function reachOutRunContext(
       (spend) => ({ spend, error: null as string | null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
-    // The one reading of the outreach row (the dashboard's chains ask it too).
-    outreachModeOf(db, row.tenant_id).then(
-      (mode) => ({ mode, error: null as string | null }),
+    // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too. Cold email never sends on
+    // its own, so a mode it cannot take reads as ask.
+    sequenceModesOf(db, row.tenant_id, [row.sequence_id]).then(
+      (modes) => ({ mode: modes.get(row.sequence_id) === "veto" ? ("veto" as const) : ("ask" as const), error: null }),
       (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
     stepOf(db, row).then(
@@ -154,19 +156,18 @@ export async function reachOutRunContext(
       if (error) throw new Error(`cannot read the step's runs: ${error.message}`);
       return !!data;
     },
-    chainState: async (rootId) => {
+    // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
+    chainWaits: async (rootId) => {
       const { data, error } = await db
         .from("sequence_batches")
-        .select("state")
+        .select("id")
         .eq("tenant_id", tenantId)
         .eq("audience->>kind", "reach_out")
         .eq("audience->>root_id", rootId)
-        .in("state", ["pending_approval", "scheduled", "sending", "sent"]);
+        .eq("state", "pending_approval")
+        .limit(1);
       if (error) throw new Error(`cannot read the chain's runs: ${error.message}`);
-      const states = (data ?? []).map((r) => r.state);
-      // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
-      if (states.includes("pending_approval")) return "waiting";
-      return states.length > 0 ? "approved" : "none";
+      return (data ?? []).length > 0;
     },
     // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
     audience: (s) =>
@@ -230,7 +231,8 @@ export async function reachOutRunContext(
           route: `broadcasts/run:${runId}`,
           about: { type: "broadcast", id: runId },
           subject: `A reach-out waits for you: ${row.name}`,
-          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them in Sent, or skip the run.`,
+          // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.
+          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them in Sent, or skip the run. ${waitEndsWords("leads_batch")}.`,
         },
       );
     },

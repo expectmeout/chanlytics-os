@@ -16,6 +16,7 @@ import { localDate } from "./playbook-schedule";
 import { DAY_MS } from "./playbook-time";
 import { type PlaybookPolicyClass, type PlaybookState, type PlaybookTrigger, triggerOf } from "./playbook-triggers";
 import { dateFormat } from "../shared/time";
+import type { SequenceMode } from "../sequences/sequence";
 export {
   PLAYBOOK_TRIGGERS,
   MOMENT_TRIGGERS,
@@ -32,8 +33,12 @@ export {
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
+  SEND_ONCE_STOP_MS,
+  SEND_ONCE_STOP_WORDS,
   delayWords,
+  readyRunNotice,
   vetoRunNotice,
+  skippedRunNotice,
   PLAYBOOK_NAME_MAX,
   CAMPAIGN_NOT_FOUND,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -133,8 +138,13 @@ export interface PlaybookDto {
   created_at: string;
   /** Its last day (00416), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
   until?: string | null;
-  /** Until when it runs on trial (00416), an instant, or null; absent from a server before it. */
-  trial_until?: string | null;
+  /** Its sequence's mode (decision 0064): how its batches are decided. Absent from a server before 00462. */
+  mode?: SequenceMode | null;
+  /**
+   * When a person last let a batch of its words go (00462): null while its words are new, and its next batch then waits
+   * for an OK whatever the mode (contracts batchModeOf). Absent from a server before 00462.
+   */
+  words_ok_at?: string | null;
 }
 
 /**

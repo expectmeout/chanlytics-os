@@ -137,6 +137,28 @@ export async function replyToGoogleReview(ctx: RouteContext & { params: Params }
   return { reply_text: replyText, replied_at: repliedAt, decision_id: decisionId };
 }
 
+/**
+ * A reply the receptionist holds under Holds it, stopped before it posts (decision 0064, step 6): the edge clears its time,
+ * and it waits for an OK as one held under Ask me does. The ledger's line is a stop of a send, about the review. One with
+ * no time to clear (already answered, or held for an OK) is no change, and no line.
+ */
+export async function stopGoogleReviewReply(ctx: RouteContext & { params: Params }, member: Member) {
+  const id = requireUuid(ctx.params.id, "review");
+  const a = await edgeGoogle({ op: "hold", tenant_id: member.tenantId, user_id: ctx.userId, id }, 15_000);
+  const b = a.body ?? {};
+  if (a.status !== 200 || b.ok !== true)
+    throw new AppError(
+      a.status === 404 ? "not_found" : "internal",
+      a.status === 404 ? "That review is not on record." : "The reply could not be stopped just now. Try again.",
+      a.status === 404 ? 404 : 502,
+    );
+  const held = b.held === true;
+  const decisionId = held
+    ? await recordDecision(ctx, member.tenantId, "review", id, "cancel_send", { held: true })
+    : null;
+  return { held, decision_id: decisionId };
+}
+
 export async function searchGoogleFor(ctx: RouteContext, req: Request, member: Member) {
   const body = (await req.json().catch(() => ({}))) as { query?: unknown };
   // A phone number goes whole and with its country, which Google needs to match a listing by its number.

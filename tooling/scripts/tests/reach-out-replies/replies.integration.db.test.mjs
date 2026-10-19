@@ -669,6 +669,14 @@ test(
         .eq("message_id", replyOf.away.id),
     );
     assert.deepEqual(await followers(), [leads.away], "the next step takes the away business");
+    // Its words were let go in a batch before (decision 0064: a step's first batch of new words waits once for an OK),
+    // so under veto this one goes ahead on its own.
+    ok(
+      await db
+        .from("sequence_steps")
+        .update({ words_ok_at: iso(Date.now() - DAY) })
+        .eq("id", step),
+    );
     const r = await stepRun(step);
     assert.deepEqual([r.outcome, r.planned], ["sent", 1], "a later run under veto goes ahead on its own");
     const run2 = ok(await db.from("sequence_batches").select("id").eq("tenant_id", A).eq("step_id", step).single());

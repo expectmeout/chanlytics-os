@@ -488,21 +488,15 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // visits reads it from the appointments record (#1551): People's rows and the Inbox's chip over them, the playbooks' and the
   // audiences' pools, Reports' booking line and Today's. The one list, so a page that draws a visit cannot be left behind.
   "POST calendar/visits/[id]": visits,
-  // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
-  // lens's, of a review, whether its composer asks the receptionist for a draft. Campaigns' Resume question says 'It sends on its own'
-  // for a class that is Auto, from the modes the playbooks read held, and the audiences count by the rules (Sent's runs read no mode).
+  // A class's mode is what a new sequence of it starts as (decision 0064: a sequence's own mode is its own, so no Campaigns page or
+  // Calendar run reads the class's row), and what a person's own mode and a review's draft follow: People's rows say a person's, and
+  // the Reviews lens's, of a review, whether its composer asks the receptionist for a draft; the audiences count by the rules.
   // A mode is saved on Autonomy or from a chip: each of these is read where it is on screen and left for its page elsewhere, never
   // read for a page nobody has open (the wiring's
   // second audit, W-review-facts-rules-9). The notice of it is one per save, with no row, so every tab's Settings reads it again for a
   // person's own mode as well: accepted, the person_mode rate holds those writes to a person's pace, and a notice that said its scope
   // would be the way to tell them apart (decision 0058, amended for R7).
-  "PUT policies": () => [
-    settingsOverride,
-    ...peopleIfOwned(),
-    ...reviewsIfDrawn(),
-    ...audiences(),
-    ...calendarRunsIfDrawn(),
-  ],
+  "PUT policies": () => [settingsOverride, ...peopleIfOwned(), ...reviewsIfDrawn(), ...audiences()],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. The zone is also where Today's period line counts
@@ -593,6 +587,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // without a second read of the same listing. The bell's notices of the review are read by the verb (legacy-bridge/google.ts
   // replyToReview), which writes through the notifications door.
   "POST google/reviews/[id]/reply": () => [reviewsOverride],
+  // A held reply stopped (decision 0064, step 6): the review still waits, now with its words held for an OK, on the lens
+  // that drew the Stop. The live feed tells the change to every tab (00462), and this tab reads the lens once, at once.
+  "POST google/reviews/[id]/stop": () => [reviewsOverride],
   // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
   // partner's count. It was a second path, read by hand in partner.ts.
   "POST partner/invitations/[id]/accept": () => [workspaceOverride, partnerOverride],

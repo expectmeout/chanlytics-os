@@ -235,10 +235,17 @@ export function firstReplyLine(n: number, medianS: number | null): string | null
   return `The middle one was answered ${durationWords(medianS)} after it was sent, of ${plural(n, "answered message")}.`;
 }
 
-export function approvalLine(n: number, medianS: number | null): string | null {
-  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.`;
+export function approvalLine(n: number, medianS: number | null, skipped = 0): string | null {
+  // The runs nobody answered (decision 0064, step 5): skipped at the end of their day, said beside the wait.
+  const unanswered = skipped > 0 ? ` ${approvalSkippedLine(skipped)}` : "";
+  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.${unanswered}`;
   if (medianS === null) return null;
-  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.`;
+  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.${unanswered}`;
+}
+
+/** The runs skipped because nobody answered before their day ended, in a sentence (decision 0064, step 5). */
+export function approvalSkippedLine(skipped: number): string {
+  return `${plural(skipped, "run was", "runs were")} skipped: nobody answered before ${skipped === 1 ? "its" : "their"} day ended.`;
 }
 
 /* ------------------------------------------------------------------------------------------------ what is stuck now */

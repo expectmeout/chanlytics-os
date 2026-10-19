@@ -1783,8 +1783,8 @@
     }
   },
   {
-    "id": "change_trial_week",
-    "text": "put the Win-back on trial for a week",
+    "id": "change_hold_each_batch",
+    "text": "hold each Win-back batch for half an hour so I can stop it",
     "surface": "campaigns",
     "needs": ["winback_seed"],
     "context": {
@@ -1797,7 +1797,7 @@
       "tools_any": ["propose_sequence.change"],
       "proposals_any": ["playbook_change"],
       "card_fields_present": {
-        "playbook_change": ["trial_until"]
+        "playbook_change": ["sequence_mode"]
       },
       "no_write": true
     }
