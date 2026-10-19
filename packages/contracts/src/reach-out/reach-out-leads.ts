@@ -19,7 +19,6 @@ import { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from
 import { chainPaceOf, stepLabelOf } from "./reach-out-sheet";
 import { localDate, localHour } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_HOURS } from "../playbooks/playbook-triggers";
-import { addressOf } from "../activity/record-address";
 import { leadFoundWords } from "../leads/lead-kind";
 import type { ReachOutChainDto, ReachOutPeopleCountsDto } from "./reach-out-dtos";
 import type { HandKind } from "./reach-out-hand";
@@ -761,7 +760,7 @@ export interface ReachOutSourceDto {
 /** Write to leads, New message's third choice (canvas B's Campaigns), in words. */
 export const REACH_OUT_SOURCE_WORDS = {
   addTitle: "Leads you add",
-  addSub: "Pick them on Leads, one at a time or from the table, then write to them",
+  addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once",
   failed: "the searches and lists a sequence could start from",
   none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
   find: "Find businesses",
@@ -776,15 +775,9 @@ export function reachOutSourceOf(s: ReachOutSourceDto): { title: string; sub: st
       ? "A list you made on the Leads table"
       : s.via === "import"
         ? "A list you imported"
-        : "A search with no sequence yet";
+        : "A search on Leads";
   return { title: `${s.name} · ${reach}`, sub: what, include };
 }
-
-/**
- * A reach-out's drawer open at who is in it (00426, canvas B's Campaigns): `campaigns/moment:<id>:people`, so a link from
- * Today, the bell or Leads lands on its People, and Back steps out of it.
- */
-export const reachOutPeopleRoute = (rootId: string): string => `${addressOf({ kind: "reach_out", id: rootId })}:people`;
 
 /** Who is in a reach-out, as its drawer lists them (00426 reach_out_chain_people). */
 export interface ReachOutChainPeopleDto {

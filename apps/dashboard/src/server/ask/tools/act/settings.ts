@@ -43,6 +43,7 @@ const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
   add_own_words: "In your own words",
   set_message: "When it can't answer",
   set_photos: "Photos",
+  set_booking_link: "Your booking link",
 };
 
 /** What the model sent for what the receptionist knows, its fields copied as each op takes them. */

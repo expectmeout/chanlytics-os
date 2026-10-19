@@ -761,6 +761,13 @@
       "rate": "lead_answer",
       "spend": false
     },
+    "POST lead-searches/[id]/aim": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
     "POST lead-searches/[id]/undo": {
       "kind": "write",
       "scope": "row",
@@ -874,6 +881,13 @@
       "spend": false
     },
     "GET leads/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET leads/[id]/place": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
@@ -1670,6 +1684,34 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST sequences/[id]/leads": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST sequences/[id]/leads/check": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST sequences/[id]/move": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "PUT sequences/[id]/chain": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "GET sequences/[id]/people": {
       "kind": "read",
       "scope": "row",
@@ -1748,6 +1790,13 @@
       "spend": false
     },
     "POST sequences/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
+    "POST sequences/draft-leads": {
       "kind": "write",
       "scope": "workspace",
       "role": "operator",

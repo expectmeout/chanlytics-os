@@ -146,12 +146,12 @@ test("the composer stands at its addresses: Send once and Write to leads, a choi
   assert.deepEqual(replaced, ["campaigns/new"]);
 });
 
-test("a reach-out's change, while its chains are read, is titled Edit and offers no choice of kind", () => {
+test("a reach-out's change draws no composer: it lands on its sequence's record (reach-out-rows.test.mjs)", () => {
   surfaces();
   fresh();
   const s = sheet(page("new:edit:ro-1"));
-  assert.equal(s.props.title, "Edit");
-  assert.equal(s.props.tools, undefined, "changing one is not choosing a kind");
+  // A sequence to leads is written on its record (the lead-to-sequence canvas, 18 Oct 2026): the composer's change went.
+  assert.ok(!s || s.props.open === false, "no sheet stands for a change");
 });
 
 test("Send once says it is reading rather than draw a sheet with nothing in it; Write to leads needs no such read", () => {

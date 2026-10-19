@@ -8,7 +8,6 @@
  */
 import type { ReactElement } from "react";
 import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
-import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
@@ -147,7 +146,7 @@ const deskTopOf = (p: P) => (
       scope="leads"
       leads={p.standing}
       onNeeds={p.onNeedsYou}
-      act={<LeadsActs canFind={p.canFind} onFind={p.onFind} search={p.search} />}
+      act={<LeadsActs canFind={p.canFind} onFind={p.onFind} />}
     />
 
     <div className="cl-controls">
@@ -359,7 +358,6 @@ const bulkBarOf = (p: P, phone: boolean) => (
     review={p.review}
     onClear={p.onClearSel}
     onCopyEmails={p.onCopyEmails}
-    onContacted={p.onBulk}
     onNotAFit={p.onBulkNotAFit}
     whyOpen={p.bulkWhy}
     onWhyOpen={p.onBulkWhy}
@@ -367,7 +365,8 @@ const bulkBarOf = (p: P, phone: boolean) => (
     phone={phone}
     sheet={p.bulkSheet}
     onSheet={p.onBulkSheet}
-    write={p.writeToThem}
+    add={p.bulkAdd}
+    search={p.bulkSearch}
   />
 );
 
@@ -422,16 +421,13 @@ const sheetOf = (p: P, phone: boolean) => {
       deck={pile ? null : p.deck}
       on={on}
       aim={p.aim}
-      searchWrites={p.searchWrites}
       pile={pile}
-      monthLeft={p.monthLeft}
-      listId={p.listId}
+      searchId={p.sheetSearchId}
       flash={p.flash}
       onClose={() => {
         if (pile) pile.pile.stop();
         if (on) on.onClose();
       }}
-      writeHeld={p.writeHeld}
     />
   );
 };
@@ -489,18 +485,13 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
             {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
             The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
             {search && p.strip ? (
-              <LeadStrip
-                vm={p.strip}
-                onAction={p.onStripAction}
-                act={phone ? <ReachOutDoor search={search} phone /> : null}
-              >
-                {/* A phone's door to a reach-out is an accent word at the end of the strip's line, not a second coral button. */}
+              <LeadStrip vm={p.strip} onAction={p.onStripAction}>
                 {bandOf(p)}
               </LeadStrip>
             ) : null}
             {search && !p.strip && p.band && bandOf(p)}
             {p.pileDoor}
-            {p.reachOutStrip}
+            {p.addsGoTo}
             {p.view.cls === "excluded" && (
               <LeadExcludedChips chips={ldExcludedChips(L.rows)} active={p.chip} onPick={p.onPickChip} />
             )}

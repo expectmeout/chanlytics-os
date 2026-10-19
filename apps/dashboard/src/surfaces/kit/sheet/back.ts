@@ -61,6 +61,12 @@ export function historyBack(h: History = window.history): void {
 }
 
 /**
+ * Once every entry a closing sheet took back has gone: what opens over the page next (Ask, from a step's sheet) stands
+ * its own after it, never in the middle of the sheet's step back.
+ */
+export const sheetsSettled = (): Promise<void> => settling;
+
+/**
  * Leave from inside a sheet: where the tab stands on the entry an open sheet stood, that entry is taken back first (the
  * sheet closes as Back closes it), and this says when the tab has moved, so a step back made after it starts from the
  * page under the sheet. A person deleted from their page's sheet stepped back onto that page, where the list they came

@@ -1,5 +1,5 @@
 {
-  ".": "broadcasts inbox settings setup workspace",
+  ".": "broadcasts inbox settings workspace",
   "calendar": "calendar calendar_runs",
   "calendar/visit": "",
   "campaigns": "audiences broadcasts channels playbooks reach_outs sequences settings",
@@ -8,7 +8,7 @@
   "campaigns/home": "audiences broadcasts playbooks reach_outs",
   "campaigns/parts": "broadcasts channels playbooks settings",
   "campaigns/playbooks": "playbooks settings",
-  "campaigns/reach-out": "broadcasts reach_outs settings",
+  "campaigns/reach-out": "broadcasts reach_outs",
   "campaigns/sequences": "playbooks sequences settings",
   "campaigns/templates": "channels playbooks reach_outs settings",
   "channels": "channels",

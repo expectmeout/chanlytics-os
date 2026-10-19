@@ -19,11 +19,15 @@ type RecordAnswer = ApiResult<Output<"GET sequences/[id]">>;
 type PeopleAnswer = ApiResult<Output<"GET sequences/[id]/people">>;
 type HistoryAnswer = ApiResult<Output<"GET sequences/[id]/history">>;
 type ReachAnswer = ApiResult<Output<"GET sequences/[id]/reach">>;
+type ListAnswer = ApiResult<Output<"GET sequences">>;
+type PlaceAnswer = ApiResult<Output<"GET leads/[id]/place">>;
 
 const records = readCache<RecordAnswer>("sequence", (r) => r.ok);
 const peoples = readCache<PeopleAnswer>("sequence_people", (r) => r.ok);
 const histories = readCache<HistoryAnswer>("sequence_history", (r) => r.ok);
 const reaches = readCache<ReachAnswer>("sequence_reach", (r) => r.ok);
+const sequenceLists = readCache<ListAnswer>("sequence_list", (r) => r.ok);
+const places = readCache<PlaceAnswer>("lead_place", (r) => r.ok);
 
 export const sequenceVerbs = {
   /** One sequence: its row, its steps, who approves its batches. */
@@ -41,6 +45,12 @@ export const sequenceVerbs = {
   /** What Turn on asks with beside the record: who its next run reaches, a run's most, the workspace's pause. */
   reach: (id: string) => reaches.through(id, () => api()("GET sequences/[id]/reach", { params: { id } })),
   peekReach: (id: string): ReachAnswer | null => reaches.peek(id),
+  /** Every sequence of the workspace (the list's read): the picker's sequences to leads, one cached answer. */
+  list: () => sequenceLists.through("all", () => api()("GET sequences")),
+  peekList: (): ListAnswer | null => sequenceLists.peek("all"),
+  /** Where one lead stands (00459 sequence_place): the lead sheet's Sequence section, as the record files them. */
+  place: (leadId: string) => places.through(leadId, () => api()("GET leads/[id]/place", { params: { id: leadId } })),
+  peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
 };
 
 /**

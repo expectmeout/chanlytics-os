@@ -715,7 +715,29 @@ test("each function re-created whole is its source's body but for the lines it m
   // page it may write to, so the planner passes them over by name: the database runs 00455's. Its read of who is due is
   // 00451's whole, but for the place.
   const followers455 = bodyIn(migration("00455"), "create or replace function public.reach_out_followers(");
-  assert.equal(liveBody("reach_out_followers"), followers455, "reach_out_followers: the database runs 00455's");
+  // 00459 follows a step its owner skipped as the email before it was (its thread, its mailbox), once its wait is up;
+  // nothing else. The database runs 00459's.
+  const followers458 = bodyIn(migration("00459"), "create or replace function public.reach_out_followers(");
+  assert.equal(liveBody("reach_out_followers"), followers458, "reach_out_followers: the database runs 00459's");
+  // 00455's with a skipped step's thread, mailbox and wait read from the email before it, and nothing else.
+  const due = (body) =>
+    body
+      .replace(
+        "             s.message_id as parent_message_id, s.sent_at, s.mailbox_id, l.country,",
+        "             coalesce(s.message_id, w.message_id) as parent_message_id, coalesce(s.sent_at, w.sent_at) as sent_at,\n" +
+          "             coalesce(s.mailbox_id, w.mailbox_id) as mailbox_id, l.country,",
+      )
+      .replace(
+        "        join public.messages m on m.id = s.message_id\n" +
+          "       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = p_parent_id and s.state = 'sent'\n" +
+          "         and s.sent_at <= now() - make_interval(days => p_after_days)",
+        followers458.slice(
+          followers458.indexOf("        -- A step its owner skipped (00459)"),
+          followers458.indexOf("and e2.state = 'in' and e2.next_at <= now())))") +
+            "and e2.state = 'in' and e2.next_at <= now())))".length,
+        ),
+      );
+  assert.equal(due(followers455), followers458, "00459's is 00455's with a step its owner skipped followed");
   const f451 = bodyIn(migration("00451"), "create or replace function public.reach_out_followers(");
   const OUTER = "    from (\n";
   const INNER = "            from (\n";

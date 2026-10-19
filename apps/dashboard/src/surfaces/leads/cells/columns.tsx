@@ -7,13 +7,16 @@
  * row wears its stage as a tag. In the shape the table takes (surfaces/people/table/table.tsx): { key, label, sortable,
  * pinned, fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes.
  */
-import { LEAD_REVIEW_ACT_WORDS, type LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_REVIEW_ACT_WORDS, placeWordOf, type LeadRowVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate, hasTouchSwipe, touchSwipe } from "../../legacy-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import type { RowPick, TableColumn } from "../../people/types";
+import { reachOuts } from "../../campaigns/reach-out/surface";
+import { PlaceWord } from "../../campaigns/sequences/place/parts";
+import { leadDtoFor } from "../surface";
 import { LeadRowCall } from "./call-menu";
 import { LeadHover, LeadTip, ldPlacePop } from "./hover";
 import { LeadRatedCard, ldBusinessCell, ldClientOf, ldPeopleOf, ldTalkingDoor } from "./name-cell";
@@ -100,19 +103,27 @@ const LeadRowActions = ({
 );
 
 /**
- * Where this business stands in the sequence writing to the open search (Part 6, H8), in the words the lead sheet and
- * the record use (the refined canvas: Held, Waits for your OK, For you to send, Up next, In it, Wrote back, Left), or
- * nothing while the sequence has done nothing with it.
+ * Where this business stands in a sequence (00459 sequence_places_of, read with the page's rows), in the words and tone
+ * the lead sheet and the record use: Held, Waits for your OK, Yours to send, Wrote back in amber; In and the sequence's
+ * name with when, in green; Done or Left with why. Nothing for a lead in no sequence.
  */
-const ldPlaceWords = (l: LeadRowVM, x: LeadCellCtx | null | undefined): string | null => {
-  const place = x && x.reachOut && l.cls !== "excluded" ? x.reachOut.placeOf(l.id) : null;
-  return place ? (place.line ? `${place.word} · ${place.line}` : place.word) : null;
+/** The place as a phone's card says it under the name, in words: "In Bookstore intro · Step 1 Tue 9:00 AM". */
+const ldPlaceWords = (l: LeadRowVM): string | null => {
+  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
+  if (!place) return null;
+  const w = placeWordOf(place, { name: place.name, state: place.state }, { tz: reachOuts.zone(), nowMs: Date.now() });
+  return w.line ? `${w.word} · ${w.line}` : w.word;
 };
-const ldReachOutLine = (l: LeadRowVM, x: LeadCellCtx | null | undefined) => {
-  const words = ldPlaceWords(l, x);
-  return words ? (
+const ldReachOutLine = (l: LeadRowVM) => {
+  const place = l.cls === "excluded" ? null : (leadDtoFor(l.id)?.place ?? null);
+  return place ? (
     <div className="cl-row-meta" data-testid="lead-reach-out-line">
-      {words}
+      <PlaceWord
+        place={place}
+        sequence={{ name: place.name, state: place.state }}
+        tz={reachOuts.zone()}
+        testid="lead-place"
+      />
     </div>
   ) : null;
 };
@@ -153,8 +164,8 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     width: { base: 300, min: 240, max: 640, grow: 4 },
     cell: ldBusinessCell,
   },
-  // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with, while a reach-out writes to the
-  // open search, where this business stands in it, in Sequences' words (contracts leadLinePlaceOf, x.reachOut).
+  // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with where this business stands in
+  // its sequence, in Sequences' words (the row's place, the one reader: 00459 sequence_places_of).
   {
     key: "stage",
     label: "Stage",
@@ -165,7 +176,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
       <td key="stage" className="ld-stage-cell" data-testid="lead-stage">
         {l.cls !== "excluded" &&
           ldTalkingDoor(l, x, { kind: "lead_stage", value: l.stage, label: l.stageLabel, named: true })}
-        {ldReachOutLine(l, x)}
+        {ldReachOutLine(l)}
       </td>
     ),
   },
@@ -341,7 +352,7 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
         ? l.fitLabel
         : l.cls === "review" && x && x.sectioned
           ? l.sub
-          : ldPlaceWords(l, x) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
+          : ldPlaceWords(l) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
     leadTestid: "lead-sub",
     swipe: slides
       ? touchSwipe({

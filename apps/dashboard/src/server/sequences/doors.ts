@@ -1,9 +1,17 @@
 import "server-only";
-import { AppError, SEQUENCE_FLOW_WORDS, takesFollowUps, type ParamSpec } from "@chanlytics/contracts";
+import {
+  AppError,
+  SEQUENCE_FLOW_WORDS,
+  takesFollowUps,
+  validateReachOutWords,
+  wordsIssueWords,
+  type ParamSpec,
+} from "@chanlytics/contracts";
 import { templateValues } from "@chanlytics/core";
 import {
   discardSequence,
   makeSequence,
+  moveToSequence,
   removeSequenceStep,
   saveSequenceStep,
   sequenceOverview,
@@ -20,7 +28,15 @@ import { visitTwinRefusal } from "@/server/campaigns/playbook-row";
 import { requireUuid } from "@/server/request-guards";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
-import type { LeaveBody, NewSequenceBody, NewStepBody, StepChangeBody, StepWordsBody } from "./bodies";
+import {
+  LEAD_FIRST_BODY,
+  type LeaveBody,
+  type MoveBody,
+  type NewSequenceBody,
+  type NewStepBody,
+  type StepChangeBody,
+  type StepWordsBody,
+} from "./bodies";
 
 /**
  * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one
@@ -84,6 +100,7 @@ async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
  * against its message, then all of it written in one transaction with its decision, kept as a draft or started.
  */
 export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
+  if (input.first.starts === "leads") return makeLeadSequenceNow(ctx, tenantId, input);
   const v = await checkPlaybookInput(ctx, tenantId, input.first, null);
   // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
   const twin = input.start ? await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger }) : null;
@@ -119,6 +136,45 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
       ...decided(ctx, { name: v.name, trigger: v.trigger, steps: then.length + 1 }),
     }),
   );
+}
+
+/**
+ * A sequence to leads made by name (00459, one creator): a copy of another, Ask's words, or one email still to write, on
+ * its list, a draft until Start. Words given are checked as every email is (contracts validateReachOutWords), an empty
+ * one left to write; the door judges the member, the list, the copy and the search, and writes its decision.
+ */
+async function makeLeadSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
+  const parsed = LEAD_FIRST_BODY.safeParse(input.first);
+  if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.", 422);
+  const first = parsed.data;
+  const steps = (first.steps ?? []).map(({ id: _id, hand, ...s }) => (hand ? { ...s, hand } : s));
+  steps.forEach((s, i) => {
+    if ("hand" in s || !s.body.trim()) return;
+    const [issue] = validateReachOutWords({ subject: s.subject, body: s.body }, i === 0);
+    if (issue) throw new AppError("validation", wordsIssueWords(issue), 422);
+  });
+  return doorAnswer(
+    await makeSequence(ctx.supabase, {
+      tenantId,
+      first: { ...first, ...(steps.length > 0 ? { steps } : {}) },
+      then: [],
+      start: input.start,
+      ...decided(ctx, { name: first.name, copied: first.from ?? null }),
+    }),
+  );
+}
+
+/** A lead out of the sequence it stands in and into this one, while nothing was sent to it (00459 sequence_move). */
+export async function moveToSequenceNow(ctx: RouteContext, seq: Sequence, input: MoveBody) {
+  const r = await moveToSequence(ctx.supabase, {
+    tenantId: seq.tenant_id,
+    leadId: input.lead_id,
+    toRoot: seq.id,
+    decision: { lead_id: input.lead_id },
+    via: ctx.via ?? null,
+  });
+  if (r.error) throw dbRefusal(r.error);
+  return { ...r.data, sequence_id: r.data.from };
 }
 
 /** A sequence that never sent taken away whole: a draft let go. One that sent is refused in its own words (409). */

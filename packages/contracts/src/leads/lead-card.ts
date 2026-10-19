@@ -106,6 +106,9 @@ export const LEAD_CARD_WORDS = {
   to: "To",
   subject: "Subject",
   opening: "A line about them, written when its batch is planned. You read it before it goes.",
+  /** The legend under an email drawn whole (the canvas's preview as a real lead): where each marked part comes from. */
+  fromRecord: "from their record",
+  writtenForThem: "written for them, from the listing",
   greets: (fallback: string) => `Nobody is named here, so it greets them as “${fallback}”.`,
   checking: "once their address checks out",
   holes: (labels: string[]) =>

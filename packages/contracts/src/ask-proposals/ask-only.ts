@@ -1,6 +1,6 @@
 /**
  * The kinds only Ask's cards commit (the operator, 15 Oct 2026): every kind no page presses -- an Inbox reply and a
- * thread's verbs, a whisper and a call handed over, a policy, the settings and an invite, a broadcast, a campaign and
+ * thread's verbs, a whisper and a call handed over, a policy and an invite, a broadcast, a campaign and
  * its message, a lead search and the lead workbench's cards, a cold email's, a person's details and first message, a
  * list made, changed or deleted, a review's reply and Ask's own follow-up. No page walks them, so a page's bundle never
  * carries them: the browser loads this module, its own entry (`@chanlytics/contracts/ask-only`), when Ask is installed,
@@ -27,7 +27,7 @@ import { listChangeSpec, listDeleteSpec, listSpec } from "./lists";
 import { personMessageSpec } from "./people-verbs";
 import { personDetailsSpec } from "./person";
 import { reviewReplySpec } from "./reviews";
-import { inviteSpec, policySpec, settingsSpec } from "./workspace";
+import { inviteSpec, policySpec } from "./workspace";
 
 /** Each kind only Ask's cards commit, by its spec. Each keeps its own type, so the kinds above operator are known. */
 export const ASK_ONLY_SPECS = {
@@ -39,7 +39,6 @@ export const ASK_ONLY_SPECS = {
   call_hand_over: callHandOverSpec,
   // Settings'.
   policy: policySpec,
-  settings: settingsSpec,
   invite: inviteSpec,
   // Campaigns'.
   broadcast: broadcastSpec,

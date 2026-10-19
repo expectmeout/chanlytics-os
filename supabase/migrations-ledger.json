@@ -460,6 +460,7 @@
     "00455_a_lead_s_place_in_its_sequence_stays_true.sql": "6fe35bbcba43dda7369d96a44c1b4a42ee437c92a2ff938f6d9cad69d53bea3d",
     "00456_the_relay_s_first_subscriber_goes.sql": "c62d7c62cbdc4c8eb6985aeee7bccdab79108a6e204d33db9fc38784b3740c56",
     "00457_a_held_email_says_what_its_check_flagged.sql": "972490ede2380f81f1d5de2a7c2de658bee823762fb5ca80554421061db8a2c3",
-    "00458_every_workspace_has_deals_and_says_its_own_word.sql": "1ce22721bd788aac1993dfb158c9f1e5189196c39e28c8a348477b833f972e47"
+    "00458_every_workspace_has_deals_and_says_its_own_word.sql": "1ce22721bd788aac1993dfb158c9f1e5189196c39e28c8a348477b833f972e47",
+    "00459_one_road_from_a_lead_to_a_sequence.sql": "008f087ab6fb8f042d68b36868dd47b774c9bb315dadd5d7bff83238cf679793"
   }
 }
