@@ -26,7 +26,7 @@ interface Chunk<T> {
 }
 
 /** A chunk fetched once; one that failed (a dropped line, a deploy that took the old chunk away) is asked for again. */
-function chunk<T>(fetchIt: () => Promise<T>): Chunk<T> {
+function codeChunk<T>(fetchIt: () => Promise<T>): Chunk<T> {
   let held: T | null = null;
   let asked: Promise<T> | null = null;
   const load = (): Promise<T> =>
@@ -40,9 +40,9 @@ function chunk<T>(fetchIt: () => Promise<T>): Chunk<T> {
   return { load, now: () => held, warm: () => void load().catch(() => {}) };
 }
 
-const sequences = chunk(() => import("../sequences/sequences-page"));
-const sheets = chunk(() => import("./open-sheets"));
-const pane = chunk(() => import("../parts/message-in-place"));
+const sequences = codeChunk(() => import("../sequences/sequences-page"));
+const sheets = codeChunk(() => import("./open-sheets"));
+const pane = codeChunk(() => import("../parts/message-in-place"));
 
 const PageWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesPage })));
 const ListPaneWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesListPane })));
