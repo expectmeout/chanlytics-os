@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
-import { REACH_OUT_REFUSALS, reachOutWritesFrom, startWords } from "@chanlytics/contracts";
+import { REACH_OUT_REFUSALS, reachOutWritesFrom, sequenceRoute, startWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -312,7 +312,8 @@ test("GET reach-outs answers its reader's payload (readers/playbooks.ts reachOut
   assert.deepEqual(read.data, page, "the route's payload is the reader's");
   assert.deepEqual(
     read.rows.map((r) => [r.kind, r.id, r.route, r.label]),
-    page.chains.map((c) => ["playbook", c.root_id, `campaigns/moment:${c.root_id}`, c.name]),
+    // Its sequence's own address (#1737: campaigns/moment:<id> is a retired one that lands there).
+    page.chains.map((c) => ["playbook", c.root_id, sequenceRoute(c.root_id), c.name]),
     "each chain is a row a citation names, opened where its row opens",
   );
   assert.equal(read.rows.length, 1);

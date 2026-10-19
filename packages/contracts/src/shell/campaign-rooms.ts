@@ -200,6 +200,16 @@ export const runStopDoorWords = (waits: boolean): string => (waits ? "Cancel it"
 export const RUN_OPEN_WORDS = "Open the run";
 
 /**
+ * A waiting run's list of who gets it, folded under its own head: the head, and what the press at its right says by
+ * whether the list is open (Ruben, 19 Oct 2026: "See the 4" and "Hide the list" stood in the foot beside Approve).
+ */
+export const WHO_GETS_IT_WORDS = {
+  head: "Who gets it",
+  show: "Show who gets it",
+  hide: "Hide who gets it",
+} as const;
+
+/**
  * What a run's crumb and its pane's head call it before its name is read, and for one this workspace does not have:
  * "Broadcast" named Sent's room, which a sequence's run never was.
  */

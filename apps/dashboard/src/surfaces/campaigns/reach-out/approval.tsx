@@ -22,7 +22,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
-import { SheetSkipMore, bringListIntoView } from "../broadcasts/run-sheet";
+import { SheetSkipMore, WhoGetsIt, bringListIntoView } from "../broadcasts/run-sheet";
 import { reachOuts } from "./surface";
 import { RoToSend } from "./to-send";
 
@@ -136,24 +136,30 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   );
 }
 
-/** Who gets it: the checked, ready sends by name and time; the rest are still being checked (R21). */
-function RoRunList({ vm }: { vm: RunWords }) {
+/**
+ * Who gets it: the checked, ready sends by name and time; the rest are still being checked (R21). Folded under its head,
+ * its press at the head's right, as a campaign run's (run-sheet.tsx WhoGetsIt).
+ */
+function RoRunList({
+  vm,
+  runId,
+  open,
+  onToggle,
+}: {
+  vm: RunWords;
+  runId: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <section
-      ref={bringListIntoView}
-      className="bc-touched bc-sheet-people bc-approval-people"
-      data-testid="ro-run-list"
-    >
-      <div className="bc-touched-head">
-        <span className="bc-card-title">{vm.listHead}</span>
-      </div>
+    <WhoGetsIt id={`ro-who-${runId}`} head={vm.listHead} open={open} onToggle={onToggle} testid="ro-run-list">
       {vm.list.map((x) => (
         <div key={x.id} className="bc-person" data-testid="ro-run-person">
           <RoName name={x.name} to={x.to} testid="ro-person-lead" />
           <span className="bc-person-at mono">{x.at}</span>
         </div>
       ))}
-    </section>
+    </WhoGetsIt>
   );
 }
 
@@ -173,12 +179,10 @@ interface ActsProps {
   vm: RunWords;
   sheet: RunSheet | null;
   acts: ReactNode;
-  seeAll: boolean;
-  onSeeAll: () => void;
 }
 
 /** The foot: Approve and Skip for a run waiting on its owner; the run's own verbs for one that is not. */
-function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
+function RoRunActs({ vm, sheet, acts }: ActsProps) {
   const L = vm.labels;
   const waiting = !!(sheet && vm.approve);
   return (
@@ -218,11 +222,6 @@ function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
             </Button>
           )}
           {!waiting && acts}
-          {vm.see && (
-            <Button className="bc-second" aria-expanded={seeAll} onClick={onSeeAll} data-testid="ro-run-see">
-              {seeAll ? L.hide : vm.see}
-            </Button>
-          )}
         </div>
       )}
       {waiting && <span className="bc-sheet-note">{sheet?.canSend ? vm.note : gateTitle("approve", L.gated)}</span>}
@@ -278,11 +277,11 @@ export const roRunWaits = (d: BroadcastDetailDto, sheet: RunSheet | null): boole
 
 /**
  * A waiting reach-out run's acts on a phone, docked at the screen's foot as a campaign run's are (run-sheet.tsx
- * bcSheetDock): Approve, and who gets it, an equal pair; Skip's question in their place once the head's menu asks it.
- * They stood in a band after the emails, a solid slab halfway down the screen.
+ * bcSheetDock): Approve across the foot, Skip in the head's menu; Skip's question in its place once the menu asks it.
+ * They stood in a band after the emails, a solid slab halfway down the screen; who gets it is the block's own fold.
  */
-export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet; seeAll: boolean; onSeeAll: () => void }) {
-  const { d, sheet, seeAll, onSeeAll } = p;
+export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet }) {
+  const { d, sheet } = p;
   const vm = reachOuts.run(d);
   if (!vm || !vm.approve) return null;
   const L = vm.labels;
@@ -317,11 +316,6 @@ export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet; seeAll: b
           data-testid="ro-run-approve"
         >
           <Icon name="check" size={16} /> {sheet.approving ? L.approving : vm.approve}
-        </Button>
-      ) : null}
-      {vm.see ? (
-        <Button aria-expanded={seeAll} onClick={onSeeAll} data-testid="ro-run-see">
-          {seeAll ? L.hide : vm.see}
         </Button>
       ) : null}
     </div>
@@ -430,10 +424,15 @@ export function ReachOutRun({ d, sheet = null, acts = null, onDecided = () => un
       {seeHeld && vm.held.length > 0 && (
         <RoRunHeld vm={vm} may={may} busy={doors.busy} said={doors.said} onDecide={doors.decide} />
       )}
-      {seeAll && <RoRunList vm={vm} />}
-      {docked ? null : (
-        <RoRunActs vm={vm} sheet={sheet} acts={acts} seeAll={seeAll} onSeeAll={() => setSeeAll((v) => !v)} />
-      )}
+      {vm.list.length > 0 ? (
+        <RoRunList
+          vm={vm}
+          runId={b.id}
+          open={seeAll}
+          onToggle={docked ? docked.onSeeAll : () => setSeeAll((v) => !v)}
+        />
+      ) : null}
+      {docked ? null : <RoRunActs vm={vm} sheet={sheet} acts={acts} />}
     </div>
   );
 }

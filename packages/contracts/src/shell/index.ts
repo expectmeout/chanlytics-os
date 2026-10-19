@@ -115,6 +115,7 @@ export {
   RUN_WAITING_WORDS,
   RUN_WAITING_SHORT,
   RUN_OPEN_WORDS,
+  WHO_GETS_IT_WORDS,
   runStopDoorWords,
   RUN_UNNAMED_WORDS,
   runApproveWords,

@@ -486,8 +486,9 @@ test("an open email has nothing of a WhatsApp message's to rename, hide or delet
 test("an email's Edit the reach-out, for a role that may not change the chain, opens the chain's own address instead", () => {
   const tree = opened(page({ role: "viewer" }));
   press(byTestId(byTestId(tree, "reach-out-email-body"), "reach-out-email-edit"));
-  // Its own address, by the one writer (contracts addressOf), where the retired outbound/<id> moved.
-  assert.deepEqual(went, [`campaigns/moment:${ROOT}`]);
+  // Its own address, by the one writer (contracts addressOf): its sequence's, where the retired outbound/<id> and
+  // campaigns/moment:<id> land (#1737).
+  assert.deepEqual(went, [contracts.sequenceRoute(ROOT)]);
 });
 
 /* ---------------------------------- one fill ---------------------------------- */
