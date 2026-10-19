@@ -1,0 +1,99 @@
+/**
+ * A sequence's History, as its record draws it (sequences/history.tsx): a day that went opens in place, and one that has
+ * not (waiting for an OK, or still to go) is the door to its run's sheet, where it is decided. It opened in place onto
+ * that door alone, a press for nothing (the Inbox's run review, 18 Oct 2026). And a period in which nothing went out says
+ * so in one line, not four figures of nothing. Run here on the stub React, through the real component, with the record's
+ * history read answered by the test.
+ */
+import { test, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { SEQUENCE_HISTORY_WORDS, runSheetRoute } from "@chanlytics/contracts";
+import { again, byTestId, fresh, installLegacyReact, settle, textOf, unmount } from "../_legacy-react.mjs";
+
+installLegacyReact({ __DEMO_MODE: false });
+// use-record.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has no
+// createContext: the stub gives it one that holds its value, which nothing here draws.
+const reactOfDashboard = createRequire(new URL("../../../../apps/dashboard/src/legacy-bridge/_.js", import.meta.url))(
+  "react",
+);
+reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
+// The shell's link to a route (data-bits routeDoor), which a day's door spreads.
+await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+
+const S = "../../../../apps/dashboard/src";
+const values = await import(`${S}/surfaces/surface-values.ts`);
+await import(`${S}/surfaces/campaigns/sequences/surface.ts`);
+const { sequenceVerbs } = await import(`${S}/surfaces/campaigns/sequences/verbs.ts`);
+const { SequenceHistory } = await import(`${S}/surfaces/campaigns/sequences/history.tsx`);
+
+const TZ = "UTC";
+const at = (ms) => new Date(Date.now() + ms).toISOString();
+const today = () => new Date().toISOString().slice(0, 10);
+const batch = (id, state, over = {}) => ({
+  id,
+  state,
+  run_for: today(),
+  at: at(0),
+  scheduled_for: at(0),
+  finished_at: state === "sent" ? at(0) : null,
+  people: 4,
+  failure: null,
+  place: null,
+  counts: state === "sent" ? { sent: 4, delivered: 4, read: 2, replied: 1 } : {},
+  ...over,
+});
+// A sequence that is off: no batch to come over the days, so the rows are the days alone.
+const rec = {
+  sequence: { id: "q-1", state: "off", starts: "moment", next: null, first: null },
+  last_run_for: null,
+  timezone: TZ,
+  mode: "ask",
+  steps: [{}],
+};
+
+/** The record's history read, answered at once from the tab's cache, as a record opened before is. */
+const historyIs = (batches) => {
+  const answer = { ok: true, status: 200, data: { batches, more: false } };
+  sequenceVerbs.history = async () => answer;
+  sequenceVerbs.peekHistory = () => answer;
+};
+const draw = async () => {
+  const el = () => globalThis.React.createElement(SequenceHistory, { rec, again: 0, moved: () => {} });
+  again(el);
+  await settle();
+  return again(el);
+};
+
+beforeEach(() => {
+  unmount();
+  fresh();
+  values.setSurfaceValue("sequences", { sequences: [], timezone: TZ, word: "appointment" });
+});
+
+test("a day still waiting for an OK is the door to its run's sheet, not a day that opens onto that door alone", async () => {
+  historyIs([batch("b-wait", "pending_approval")]);
+  const tree = await draw();
+  const day = byTestId(tree, "sq-batch-b-wait");
+  assert.ok(day, "the day is drawn");
+  assert.ok(day.props.href.endsWith(runSheetRoute("b-wait")), `its door is the run's sheet: ${day.props.href}`);
+  assert.equal(day.props["aria-expanded"], undefined, "it is a link, never a day that opens in place");
+  assert.equal(byTestId(tree, "sq-day-run"), null, "and no door inside it to press a second time");
+});
+
+test("a period in which nothing went out says so once, not four figures of nothing; a day that went is counted and opens in place", async () => {
+  historyIs([batch("b-wait", "pending_approval")]);
+  let tree = await draw();
+  assert.equal(textOf(byTestId(tree, "sq-history-none")), SEQUENCE_HISTORY_WORDS.nothingIn);
+  assert.equal(byTestId(tree, "sq-figure-sent"), null, "no zeros under it");
+
+  unmount();
+  fresh();
+  historyIs([batch("b-wait", "pending_approval"), batch("b-went", "sent", { at: at(-60_000) })]);
+  tree = await draw();
+  assert.equal(byTestId(tree, "sq-history-none"), null);
+  assert.ok(byTestId(tree, "sq-figure-sent"), "what went is counted");
+  const went = byTestId(tree, "sq-batch-b-went");
+  assert.equal(went.props["aria-expanded"], false, "a day that went opens in place");
+  assert.equal(went.props.href, undefined);
+});

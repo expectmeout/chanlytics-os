@@ -4,7 +4,7 @@
  * the words a point says when the page gives none. Nothing here touches the document.
  */
 import type { CSSProperties } from "react";
-import { durationWords } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, WEEK_MS, durationWords } from "@chanlytics/contracts";
 
 /** One series: a label and a colour token, and how its key is drawn in a legend (a rect for bars, a line for lines). */
 export interface ChartSeries {
@@ -45,11 +45,35 @@ export function ckNice(max: number, count = 3, { integer = true }: { integer?: b
   return { max: top, step, ticks };
 }
 
-// Seconds in the steps people count in: 5s, 10s, 15s, 30s, 1m, 2m, 5m, 10m, 15m, 30m, 1h.
-const CK_SECOND_STEPS = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+// Seconds in the steps people count in: 5s, 10s, 15s, 30s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, then hours, a day, two, a week.
+// Past a week a step is whole weeks. The steps stopped at an hour, so a reply eight days late drew a tick every hour,
+// 190 of them, their words one smear down the axis (Ruben's screenshot, 18 Oct 2026).
+const CK_HOUR_S = HOUR_MS / 1000;
+const CK_DAY_S = DAY_MS / 1000;
+const CK_WEEK_S = WEEK_MS / 1000;
+const CK_SECOND_STEPS = [
+  5,
+  10,
+  15,
+  30,
+  60,
+  120,
+  300,
+  600,
+  900,
+  1800,
+  CK_HOUR_S,
+  2 * CK_HOUR_S,
+  3 * CK_HOUR_S,
+  6 * CK_HOUR_S,
+  12 * CK_HOUR_S,
+  CK_DAY_S,
+  2 * CK_DAY_S,
+  CK_WEEK_S,
+];
 export function ckNiceSeconds(max: number, count = 3) {
   const m = Math.max(5, Number(max) || 0);
-  const step = CK_SECOND_STEPS.find((s) => s >= m / count) || 3600;
+  const step = CK_SECOND_STEPS.find((s) => s >= m / count) ?? Math.ceil(m / count / CK_WEEK_S) * CK_WEEK_S;
   const top = Math.ceil(m / step) * step;
   const ticks: number[] = [];
   for (let v = 0; v <= top; v += step) ticks.push(v);

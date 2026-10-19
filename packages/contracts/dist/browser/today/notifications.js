@@ -5,6 +5,7 @@ import { missedCallIsNews } from "../voice/live.js";
 import { FINISH_SETTING_UP } from "../setup/first-run.js";
 import { lensRoute } from "../reports/lenses.js";
 import { firstLine } from "./push.js";
+import { RUN_OPEN_WORDS } from "../shell/campaign-rooms.js";
 import { invitationExpired } from "../shell/identity.js";
 import { noticeTone } from "../waits/notice-tones.js";
 export function bellCalls(live) {
@@ -295,7 +296,7 @@ const ROUTE_VERBS = [
   [/^campaigns\/message:/, "Open the message"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
-  [/^broadcasts\/run:/, "Open the run"],
+  [/^broadcasts\/run:/, RUN_OPEN_WORDS],
   // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],

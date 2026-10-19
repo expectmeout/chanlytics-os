@@ -167,7 +167,7 @@ test("a run on trial is planned as veto: the send half an hour ahead with a Stop
   assert.equal(told.subject, "Campaign “Win-back” sends today 10:30 AM: 2 people");
   assert.equal(
     told.body,
-    "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go. “Win-back” is on trial until Sep 13: until then each of its runs waits 30 minutes for you to stop it, and after it they send on their own.",
+    "2 people will be sent “Win-back” today 10:30 AM. Open the run to stop it before then if it should not go. “Win-back” is on trial until Sep 13: until then each of its runs waits 30 minutes for you to stop it, and after it they send on their own.",
   );
 });
 

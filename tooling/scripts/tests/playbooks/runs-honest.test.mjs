@@ -401,7 +401,7 @@ test("a run opened before opens at once from what the tab holds, and is read aga
     const coldPage = page({ initialSegment: null, initialRun: "b-new" });
     const cold = byTestId(coldPage, "bc-detail");
     assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
-    assert.equal(paneTitle(coldPage), "Broadcast", "and has no name to say yet when the list has none for it");
+    assert.equal(paneTitle(coldPage), "Run", "and has no name to say yet when the list has none for it");
     // The list's row has a name for it (b-sending is on the ledger), which the pane's head says while it reads.
     assert.equal(
       paneTitle(page({ initialSegment: null, initialRun: "b-sending" })),
@@ -620,6 +620,7 @@ test("D1-run-words: a run still to come is canceled on Today as on Sent -- the s
   const soon = dto({
     id: "b-soon",
     name: "Offers · 2026-09-15",
+    run_for: "2026-09-15",
     state: "scheduled",
     started_at: null,
     finished_at: null,

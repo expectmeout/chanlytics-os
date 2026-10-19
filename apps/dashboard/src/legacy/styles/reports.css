@@ -229,7 +229,10 @@ a.rpt-fact-row { text-decoration: none; }
 .rpt-deals { display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
 .rpt-deals-headline { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
 .rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
-.rpt-grid > .rpt-deals-lines { align-self: center; padding-left: 8px; }
+/* In the grid the lines are a pane (every child of a report grid wears one, the Glass block below), so they take a card's
+   insides and its row's height: drawn as a pane with no padding, centred, their words touched its edge and it stood
+   shorter than the card beside it (Ruben's screenshot, 18 Oct 2026). */
+.rpt-grid > .rpt-deals-lines { align-self: stretch; justify-content: center; padding: 14px 18px 16px; }
 .rpt-sources { max-height: none; }
 .rpt-sources .rpt-src { text-align: left; border-radius: var(--radius-xs); }
 .rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
@@ -244,7 +247,6 @@ a.rpt-fact-row { text-decoration: none; }
      run of thirds (Asked, then booked). Each stood at half width beside nothing (6 Oct 2026). */
   .rpt-grid > :is(.rpt-span-5, .rpt-span-7, .rpt-span-8) + .rpt-span-4:last-child,
   .rpt-grid > .rpt-span-4:nth-child(odd):not(:has(+ .rpt-span-4)) { grid-column: 1 / -1; }
-  .rpt-grid > .rpt-deals-lines { padding-left: 0; }
   .rpt-figures { --cells: 3; }
   .rpt-cell:nth-child(4) { border-left: none; }
   .rpt-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
@@ -291,7 +293,7 @@ a.rpt-fact-row { text-decoration: none; }
   /* Four stay two rows of two; three are two and one that takes the row, as any odd strip is. */
   .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
   .rpt-figures.trio { --cells: 2; }
-  .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
+  .rpt .ck-card:not(.rpt-hero), .rpt-grid > .rpt-deals-lines { padding: 16px; }
   /* When a source last ran folds away on a phone; the row keeps its name, its counts and its door. */
   .rpt-sources th:last-child, .rpt-sources td:last-child { display: none; }
 }

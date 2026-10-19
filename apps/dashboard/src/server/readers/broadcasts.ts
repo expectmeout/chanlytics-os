@@ -24,12 +24,10 @@ const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({
 });
 
 /**
- * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, whether older ones exist
- * beyond them, and who a run of any kind reached from a week before the turn's clock on, or is due to, and when
- * (`touched_at`, contact id -> the time of every touch of theirs, earliest first) -- the composer says how many of an
- * audience hear from one within a week of the time a send is set for, either side (contracts heardFor, leftOutBy's rule).
- * Touches that cannot be read are null, said in the log, and the
- * composer says nothing, rather than a list of nobody. And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
+ * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, and whether older ones exist
+ * beyond them: what the badge, the Inbox's run rows, Today's queue and a run's sheet are drawn from, read before the
+ * Inbox's first draw. Who a run reached this week is not here: it is every touch of the week, which the composer alone
+ * reads (broadcastTouches, GET broadcasts/touches; the Inbox's run review, 18 Oct 2026). And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
  * the composer's Send by ticks and its reach line are drawn from; null where that could not be read, which the composer
  * says. And what the workspace's campaigns have sent by email and by text this calendar month (`month_sent`,
  * month-sent.ts), which the Campaigns head says from half used and the composer says before a send; null where that could not
@@ -44,7 +42,6 @@ export const broadcasts: Reader<
   {
     broadcasts: BroadcastDto[];
     more: boolean;
-    touched_at: Record<string, string[]> | null;
     ready: ChannelsReady | null;
     month_sent: MonthSent | null;
     month_sent_next: { from: number; sent: MonthSent | null } | null;
@@ -53,15 +50,8 @@ export const broadcasts: Reader<
 > = {
   name: "broadcasts",
   async read(rc) {
-    const [list, touched_at, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
+    const [list, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
-      recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
-        log.error("broadcast_touches_failed", {
-          tenant_id: rc.tenantId,
-          error: e instanceof Error ? e.message : String(e),
-        });
-        return null;
-      }),
       channelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
       monthSentOrNull(rc.tenantId, rc.now),
       // The workspace's clock says where the month ends; a zone that could not be read leaves the composer on this month.
@@ -81,10 +71,31 @@ export const broadcasts: Reader<
       ),
     ]);
     return {
-      data: { ...list, touched_at, ready, month_sent, month_sent_next, open_to_customers },
+      data: { ...list, ready, month_sent, month_sent_next, open_to_customers },
       rows: list.broadcasts.map(runRef),
       stamp: stamp(),
     };
+  },
+};
+
+/**
+ * GET broadcasts/touches: who a run of any kind reached from a week before the turn's clock on, or is due to, and when
+ * (`touched_at`, contact id -> the time of every touch of theirs, earliest first) -- the composer says how many of an
+ * audience hear from one within a week of the time a send is set for, either side (contracts heardFor, leftOutBy's rule).
+ * Touches that cannot be read are null, said in the log, and the composer says nothing, rather than a list of nobody. Its
+ * own read, apart from Sent's runs, since it is every touch of the week and only who an audience reaches is counted by it.
+ */
+export const broadcastTouches: Reader<undefined, { touched_at: Record<string, string[]> | null }> = {
+  name: "broadcastTouches",
+  async read(rc) {
+    const touched_at = await recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
+      log.error("broadcast_touches_failed", {
+        tenant_id: rc.tenantId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    });
+    return { data: { touched_at }, rows: [], stamp: stamp() };
   },
 };
 

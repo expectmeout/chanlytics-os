@@ -165,10 +165,6 @@ export function runCountsOf(answer) {
   }
   return out;
 }
-export function runLabelOf(run) {
-  const label = run.audience?.label;
-  return typeof label === "string" && label.trim() ? label : run.name;
-}
 export function runTitleOf(run) {
   const tail = run.run_for ? ` \xB7 ${run.run_for}` : null;
   return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;

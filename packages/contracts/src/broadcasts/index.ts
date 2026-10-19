@@ -4,7 +4,6 @@ export {
   cleanParam,
   broadcastName,
   whenLabel,
-  runLabelOf,
   runTitleOf,
   toBroadcastVM,
   sentByWords,

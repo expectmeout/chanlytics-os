@@ -19,11 +19,12 @@ import type {
 import { visitLineOfBlock } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
+import { Icon } from "../kit/icon/icon";
 import { calendar } from "./verbs";
 import { crPhone } from "./board-dom";
-import { DayMarks, RunMark } from "./marks";
+import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
-import { crWhen, fitHourPx } from "./words";
+import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
@@ -89,16 +90,21 @@ function CrBlock(p: {
   dayLong: string;
   phase: string;
   nowMs: number;
+  /** A campaign's moment meets its time: the block keeps the column's left half, the moment the right (C3). */
+  half: boolean;
 }) {
-  const { b, hours, onOpen, wide, dayLong, phase } = p;
+  const { b, hours, onOpen, wide, dayLong, phase, half } = p;
   const from = Math.max(hours.start, b.t) - hours.start;
   const span = Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t);
-  // Overlapping blocks take lanes side by side; a block alone keeps the column.
+  // Overlapping blocks take lanes side by side; a block alone keeps the column. Beside a moment it gives up the moment's
+  // room: half of Day view's one wide column, a moment's glyph and clock (calendar.css) of a week's narrow one, where half
+  // cut a name to "Mar…".
+  const room = !half ? "(100% - 8px)" : wide ? "(50% - 6px)" : `(100% - ${CR_SIDE_W + 10}px)`;
   const laned: CSSProperties =
-    b.lanes > 1
+    b.lanes > 1 || half
       ? {
-          left: `calc(4px + ${b.lane} * (100% - 8px) / ${b.lanes})`,
-          width: `calc((100% - 8px) / ${b.lanes} - 2px)`,
+          left: `calc(4px + ${b.lane} * ${room} / ${b.lanes})`,
+          width: `calc(${room} / ${b.lanes} - 2px)`,
           right: "auto",
         }
       : {};
@@ -151,7 +157,84 @@ function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
   );
 }
 
-/** The all-day events of a day's head: on a phone a dot and the words, cut short, so the hours keep the screen. */
+/**
+ * A campaign at its minute (the Calendar's lane C revisited, Ruben's C1-C4, 18 Oct 2026): a mark with a time stands where
+ * its time falls, 18px whatever it holds (C2), its glyph, its clock and its words, in no fill or a faint one, so it never
+ * reads as a booked chair; it takes no time and is never counted taken. One that meets a visit takes the column's right
+ * half and the visit the left (C3); two that meet stand one under the other.
+ */
+interface CrLaid {
+  m: CalendarRunMark;
+  side: boolean;
+  /** How many moments above it it stands under, each a moment's height. */
+  under: number;
+}
+
+/** How long a moment stands, in hours, as far as meeting a visit or another moment goes: 18px of a desk's least hour (48). */
+const CR_MOMENT_H = 0.375;
+/** A moment's height and the room between two, in px, as calendar.css draws it (`.cal-moment`). */
+const CR_MOMENT_STEP = 20;
+/** A moment's width beside a visit in a week's column, its glyph and its clock, in px (calendar.css `.cal-moment[data-side]`). */
+const CR_SIDE_W = 60;
+
+/** Whether a mark stands on the board: it has a time, and the time is in the board's hours. The rest go in the day lane. */
+const onBoard = (m: CalendarRunMark, hours: Hours): boolean => m.t !== null && m.t >= hours.start && m.t < hours.end;
+
+/** The day's moments, laid: which meet a visit (and so the visits they halve), and how far down each one stands. */
+function laidMoments(
+  marks: readonly CalendarRunMark[],
+  blocks: readonly CalendarBlockVM[],
+): { laid: CrLaid[]; halves: Set<string> } {
+  const halves = new Set<string>();
+  const laid: CrLaid[] = [];
+  let anchor = -Infinity;
+  let under = 0;
+  for (const m of marks) {
+    const t = m.t ?? 0;
+    const met = blocks.filter((b) => t < b.t + b.dur / 60 && t + CR_MOMENT_H > b.t);
+    for (const b of met) halves.add(b.id);
+    under = t < anchor + CR_MOMENT_H * (under + 1) ? under + 1 : 0;
+    if (under === 0) anchor = t;
+    laid.push({ m, side: met.length > 0, under });
+  }
+  return { laid, halves };
+}
+
+/** A moment's clock, short: "10:03", its place on the board saying the morning or the afternoon. */
+function momentClock(t: number): string {
+  const total = Math.round(t * 60);
+  const h = Math.floor(total / 60) % 24;
+  return `${((h + 11) % 12) + 1}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** One moment: a press opens the day's sheet of campaigns, as every mark's does. */
+function CrMoment({ x, hours, onOpen }: { x: CrLaid; hours: Hours; onOpen: () => void }) {
+  const { m } = x;
+  const t = m.t ?? hours.start;
+  const said = [m.time, m.name, m.words].filter(Boolean).join(" · ");
+  // Inside the board: one in the last quarter hour stands on the board's foot, never over it.
+  const at = Math.min(t - hours.start, hours.end - hours.start - CR_MOMENT_H);
+  return (
+    <button
+      type="button"
+      className="cal-moment"
+      style={{ top: `calc(${ofHours(Math.max(0, at))} + ${x.under * CR_MOMENT_STEP}px)` }}
+      onClick={onOpen}
+      title={said}
+      aria-label={said}
+      data-look={markLook(m)}
+      data-cold={m.cold || undefined}
+      data-side={x.side || undefined}
+      data-testid="cal-moment"
+    >
+      <Icon name={m.cold ? "mail" : "send"} size={11} />
+      <span className="cal-moment-time tabular">{momentClock(t)}</span>
+      <span className="cal-moment-words">{[m.name, m.words].filter(Boolean).join(" · ")}</span>
+    </button>
+  );
+}
+
+/** The all-day events of a day's lane: on a phone a dot and the words, cut short, so the hours keep the screen. */
 function allDayOf(d: CalendarFrame, a: ViewAct) {
   return d.allDay.map((b) => {
     const said = saidOf(b, a.nowMs);
@@ -172,20 +255,49 @@ function allDayOf(d: CalendarFrame, a: ViewAct) {
   });
 }
 
+/** How many of a day's lane marks are drawn: two in a week, then "+N"; every one in Day view (C6). */
+const laneMax = (wide: boolean): number => (wide ? 12 : 2);
+
+/** How many rows a day's lane draws: its all-day events, its marks up to the most, and a "+N". */
+function laneRows(d: CalendarFrame, marks: readonly CalendarRunMark[], wide: boolean): number {
+  const max = laneMax(wide);
+  return d.allDay.length + Math.min(marks.length, max) + (marks.length > max ? 1 : 0);
+}
+
 /**
- * A day's head over the board: its name, which opens it in Day view (from a keyboard too), what closes it, its all-day
- * events, and its campaigns (two and then "+N" in a week, every one in Day view).
+ * A day's lane under its date (C1, C5): its all-day events and the campaigns of the day alone (a run waiting, a last day,
+ * cold email, or a time the board's hours leave out). Drawn on every day of a week that has one, each as tall as the
+ * week's fullest, so the lanes' tops and the dates line up (C6); not drawn in a week with none.
  */
-function dayHead(p: { d: CalendarFrame; wide: boolean; onDay: (key: string) => void; a: ViewAct }) {
-  const { d, wide, onDay, a } = p;
+function dayLane(d: CalendarFrame, marks: readonly CalendarRunMark[], wide: boolean, a: ViewAct) {
+  return (
+    <div className="cal-daylane" data-testid="cal-daylane">
+      {allDayOf(d, a)}
+      <DayMarks marks={marks} max={laneMax(wide)} onOpen={() => a.onRuns(d)} />
+    </div>
+  );
+}
+
+/**
+ * A day's head over the board: its name, which opens it in Day view (from a keyboard too), and what closes it, at its top
+ * on every day; under them the day's lane, where the week has one.
+ */
+function dayHead(p: {
+  d: CalendarFrame;
+  wide: boolean;
+  onDay: (key: string) => void;
+  a: ViewAct;
+  lane: readonly CalendarRunMark[] | null;
+}) {
+  const { d, wide, onDay, a, lane } = p;
   return (
     <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""}`} data-testid="cal-dayhead">
       {/* The day's name opens it in Day view from a keyboard too (C4). */}
       {wide ? (
-        <>
+        <span className="cal-dayhead-when">
           <span className="cal-dow">{d.dow}</span>
           <span className="cal-date tabular">{d.date}</span>
-        </>
+        </span>
       ) : (
         <button
           type="button"
@@ -204,15 +316,21 @@ function dayHead(p: { d: CalendarFrame; wide: boolean; onDay: (key: string) => v
           Closed{d.closed.note ? ` · ${d.closed.note}` : ""}
         </span>
       )}
-      {allDayOf(d, a)}
-      <DayMarks marks={a.marksOf(d.key)} max={wide ? 12 : 2} onOpen={() => a.onRuns(d)} />
+      {lane ? dayLane(d, lane, wide, a) : null}
     </div>
   );
 }
 
-/** A day's column under the board: what closures and the hours rule out, the receptionist's open times, the blocks, the now line. */
+/**
+ * A day's column under the board: what closures and the hours rule out, the receptionist's open times, the blocks, the now
+ * line, and the campaigns that stand at their minute.
+ */
 function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide: boolean; fit: Fit; a: ViewAct }) {
   const { d, hours, now, wide, fit, a } = p;
+  const { laid, halves } = laidMoments(
+    a.marksOf(d.key).filter((m) => onBoard(m, hours)),
+    d.blocks,
+  );
   return (
     <div
       key={d.key}
@@ -247,50 +365,65 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
           dayLong={d.long}
           phase={phaseOf(b, d, now)}
           nowMs={a.nowMs}
+          half={halves.has(b.id)}
         />
+      ))}
+      {laid.map((x) => (
+        <CrMoment key={x.m.key} x={x} hours={hours} onOpen={() => a.onRuns(d)} />
       ))}
     </div>
   );
 }
 
 /**
- * On a phone the board takes the room the page leaves and the day's hours share it: the hour's height is what fits them
- * there (words.ts fitHourPx), set on the grid before the first paint and again as the room changes. A desk keeps the
- * stylesheet's 64px, and opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled past
- * every time is above it, a scroll away.
+ * The board takes the room the page leaves and the day's hours share it: the hour's height is what fits them there, set on
+ * the grid before the first paint and again as the room changes. A phone's is words.ts fitHourPx; a desk's is
+ * fitDeskHourPx, the stylesheet's 64px where the day fits at it and never under 48, so a desk's day holds still where it
+ * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled
+ * past every time is above it, a scroll away.
  */
-function useHourFit(scroller: RefObject<HTMLDivElement | null>, span: number, startAt: number | null): void {
+function useHourFit(
+  scroller: RefObject<HTMLDivElement | null>,
+  span: number,
+  nowAt: number | null,
+  /** The day lanes' rows: a lane that comes or goes moves the heads, and the hours share what is left again. */
+  laneRows: number,
+): void {
   useLayoutEffect(() => {
     const el = scroller.current;
     const grid = el?.firstElementChild as HTMLElement | null | undefined;
     if (!el || !grid) return undefined;
     const fit = () => {
-      if (!crPhone()) {
-        grid.style.removeProperty("--cal-hour");
-        return;
-      }
       const box = getComputedStyle(el);
       const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
       const room = el.clientHeight - heads - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom);
-      grid.style.setProperty("--cal-hour", `${fitHourPx(room, span)}px`);
+      grid.style.setProperty("--cal-hour", `${crPhone() ? fitHourPx(room, span) : fitDeskHourPx(room, span)}px`);
     };
     fit();
     if (typeof ResizeObserver === "undefined") return undefined;
     const watch = new ResizeObserver(fit);
     watch.observe(el);
     return () => watch.disconnect();
-  }, [scroller, span]);
-  // Open at now, once for the view: a scroller with room to scroll is put an hour above the now line.
+  }, [scroller, span, laneRows]);
+  // Open at now, once for the view: a scroller with room to scroll, whose now line is below what its top shows, is put an
+  // hour above the now line. Where the top already shows the now line, it stays at the top: put an hour above five-thirty,
+  // a board that scrolls a little stopped at its foot with its first hour or two cut off, and read as scrolled by mistake
+  // (Ruben's screenshots, 18 Oct 2026).
   const opened = useRef(false);
   useLayoutEffect(() => {
     const el = scroller.current;
-    if (opened.current || !el || startAt === null) return;
+    if (opened.current || !el || nowAt === null) return;
     opened.current = true;
     if (el.scrollHeight <= el.clientHeight + 1) return;
-    const hour = parseFloat(getComputedStyle(el.firstElementChild as Element).getPropertyValue("--cal-hour")) || 64;
-    el.scrollTop = Math.max(0, startAt * hour);
-  }, [scroller, startAt]);
+    const grid = el.firstElementChild as HTMLElement;
+    const hour = parseFloat(getComputedStyle(grid).getPropertyValue("--cal-hour")) || 64;
+    const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
+    if (nowAt * hour + CR_NOW_CLEAR <= el.clientHeight - heads) return;
+    el.scrollTop = Math.max(0, (nowAt - 1) * hour);
+  }, [scroller, nowAt]);
 }
+/** How far over the board's foot the now line stands to count as shown: its dot's room. */
+const CR_NOW_CLEAR = 8;
 
 /** The board: hours down, days across. Seven columns in Week, one in Day. */
 export function CrBoard(p: {
@@ -308,13 +441,22 @@ export function CrBoard(p: {
   for (let h = hours.start; h < hours.end; h++) ticks.push(h);
   const scroller = useRef<HTMLDivElement>(null);
   const holdsToday = frames.some((d) => d.today);
-  useHourFit(scroller, span, holdsToday && now !== null ? Math.max(0, now - 1 - hours.start) : null);
+  // Each day's lane marks (those not on the board), and as many rows as the fullest day's lane; none, no lane (C6).
+  const lanes = new Map(frames.map((d) => [d.key, a.marksOf(d.key).filter((m) => !onBoard(m, hours))]));
+  const rows = Math.max(0, ...frames.map((d) => laneRows(d, lanes.get(d.key) ?? [], wide)));
+  // Where now stands down the board, in hours from its top, on a board that holds today.
+  useHourFit(scroller, span, holdsToday && now !== null ? now - hours.start : null, rows);
   return (
     <div className="cal-scroll" ref={scroller}>
-      {/* How many hours tall the board is, for the stylesheet: the gutter and every column are that many of --cal-hour. */}
-      <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`} style={{ "--cal-hours": span } as CSSProperties}>
-        <div className="cal-corner" />
-        {frames.map((d) => dayHead({ d, wide, onDay, a }))}
+      {/* How many hours tall the board is, for the stylesheet: the gutter and every column are that many of --cal-hour;
+          and how many rows the day lanes are, so every lane is as tall as the fullest and their tops line up. */}
+      <div
+        className={`cal-grid ${wide ? "cal-grid-day" : ""}`}
+        style={{ "--cal-hours": span, "--cal-lane-rows": rows } as CSSProperties}
+      >
+        {/* The lane's band runs through the corner too, so it reads as one row across the board. */}
+        <div className="cal-corner">{rows > 0 ? <span className="cal-daylane" aria-hidden="true" /> : null}</div>
+        {frames.map((d) => dayHead({ d, wide, onDay, a, lane: rows > 0 ? (lanes.get(d.key) ?? []) : null }))}
         <div className="cal-gutter">
           {ticks.map((h) => (
             <span key={h} className="cal-hour tabular" style={{ top: ofHours(h - hours.start) }}>
@@ -515,6 +657,8 @@ function agendaRow(b: CalendarBlockVM, allDay: boolean, d: CalendarFrame, p: Age
       onOpen={() => p.a.onOpen(b)}
       hint={b.time}
       phase={allDay ? "later" : phaseOf(b, d, p.now)}
+      // Struck as the board strikes it: a cancelled visit read like the booked ones round it (the sample walk, 18 Oct 2026).
+      struck={said?.status === "cancelled"}
       testid="cal-agenda-item"
     />
   );

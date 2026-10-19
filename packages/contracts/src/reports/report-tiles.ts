@@ -280,7 +280,7 @@ const peopleTile: ReportTile = ({ points, tot, prev, noun, rangeLabel, priorHadA
   metric: "new_people",
   label: "New people",
   value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  meta: tot.newPeople ? "first got in touch in this period" : "nobody new",
   delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
   spark: points.map((p) => p.newPeople),
   compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny),

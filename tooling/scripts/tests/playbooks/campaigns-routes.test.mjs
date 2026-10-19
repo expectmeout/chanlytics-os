@@ -21,9 +21,21 @@ const S = "../../../../apps/dashboard/src/surfaces";
 const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
 const { parseHome, composeRoute, chainChangeRoute } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { rememberRun } = await import(`${S}/campaigns/broadcasts/run-names.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
-const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, sequenceLandingOf, arrivedRunOf, runLandingOf } =
-  await import("@chanlytics/contracts");
+const {
+  workspacePath,
+  routeOfPath,
+  routeOfHash,
+  movedAddress,
+  doorOf,
+  sequenceLandingOf,
+  arrivedRunOf,
+  runLandingOf,
+  runSheetRoute,
+  runTitleOf,
+  runApproveWords,
+} = await import("@chanlytics/contracts");
 
 afterEach(() => {
   for (const k of ["playbooks", "broadcasts", "reach_outs", "sequences"]) setSurfaceValue(k, undefined);
@@ -181,13 +193,40 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
 
 /* ---------------------------------------------------- the rooms ---------------------------------------------------- */
 
+test("a run is called by one name wherever it is named -- its own, less the day a sequence's run carries -- and approving it says how many, once", () => {
+  assert.equal(runTitleOf({ name: "VIP color clients · 2026-10-18", run_for: "2026-10-18" }), "VIP color clients");
+  assert.equal(runTitleOf({ name: "Autumn hours", run_for: null }), "Autumn hours", "a one-off keeps its name");
+  assert.equal(runTitleOf({ name: "Autumn hours" }), "Autumn hours");
+  assert.equal(
+    runTitleOf({ name: "Win-back · 2026-10-17", run_for: "2026-10-18" }),
+    "Win-back · 2026-10-17",
+    "a day that is not its own is part of its name",
+  );
+  assert.equal(
+    runTitleOf({ name: " · 2026-10-18", run_for: "2026-10-18" }),
+    " · 2026-10-18",
+    "never a name of nothing",
+  );
+  assert.equal(runApproveWords(1), "Approve · 1 person");
+  assert.equal(runApproveWords(7), "Approve · 7 people");
+});
+
+test("a run's link lands whenever it is reached, the page open or not: the page's own doors to a run write its sheet's address, which no landing reads", () => {
+  // The page never writes a bare run address (its rows, its queue and the Inbox open runSheetRoute), so every bare one is a
+  // link from elsewhere (a bell row, Ask's card, search), and lands even on Sent's page already open: it landed only on
+  // the address the page first opened on, and a run tapped in the bell over an open sheet stayed on Sent's page.
+  assert.equal(arrivedRunOf(runSheetRoute("b-1")), null);
+  assert.equal(arrivedRunOf("broadcasts/run:b-1"), "b-1");
+});
+
 test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes, or an audience the surface offers; every address is one mount", () => {
   const b = (param) => broadcastsChrome({ param });
   assert.deepEqual(b(null).crumbs, ["Campaigns"]);
   // Beside Sequences' list: Campaigns' strip, on Sequences, and the page its panes.
   assert.equal(b("get-yes").views.picked, "sequences");
   assert.equal(b("run:b-1").pane, true);
-  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Broadcast"], "a run nothing holds yet");
+  // A run nothing holds yet is a run, not "Broadcast": Sent's room, which a sequence's run never was.
+  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Run"], "a run nothing holds yet");
   assert.deepEqual(b("get-yes").crumbs, [HOME, "Get their yes"]);
   assert.deepEqual(b("to-send").crumbs, [HOME, "To send"]);
   assert.deepEqual(b("s1").crumbs, ["Campaigns"], "an audience nothing holds yet");
@@ -202,7 +241,13 @@ test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes,
     ],
   });
   assert.deepEqual(b("run:b-1").crumbs, [HOME, "Win-back · Sep 10"]);
-  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Broadcast"]);
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Run"]);
+  // A run older than Sent's newest fifty is named as its own read names it (broadcasts/run-names.ts), as Sent's row would:
+  // one that went keeps its day, one waiting on its page is called as its sheet's head calls it.
+  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "sent" });
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours · 2026-09-01"]);
+  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "pending_approval" });
+  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours"]);
   assert.deepEqual(b("s1").crumbs, [HOME, "Regulars"]);
   assert.deepEqual(b("new_week").crumbs, [HOME, "New this week"]);
   assert.deepEqual(

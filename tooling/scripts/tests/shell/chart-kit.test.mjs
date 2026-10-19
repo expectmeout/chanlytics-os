@@ -138,12 +138,17 @@ test("a day with nothing is a gap in the line, never a dive to zero", () => {
 
 test("one rule for the x labels: every so many days, always the newest, never one crowding it, whole dates at the ends", () => {
   const rows = (n) => Array.from({ length: n }, (_, i) => ({ day: `d${i}`, label: `Day ${i}`, short: String(i) }));
-  const said = (n, every) =>
-    all(CkXLabels({ data: rows(n), x: (i) => i * 10, every, height: 100 }), (t) => t.type === "text").map(textOf);
+  const said = (n, every, gap = 10) =>
+    all(CkXLabels({ data: rows(n), x: (i) => i * gap, every, height: 100 }), (t) => t.type === "text").map(textOf);
   assert.deepEqual(said(30, 7), ["Day 0", "7", "14", "21", "Day 29"], "28 is dropped: one day from the newest");
   assert.deepEqual(said(90, 13).slice(-2), ["78", "Day 89"], "the newest of 90 is labelled");
   assert.deepEqual(
-    said(7, 1),
+    said(30, 5),
+    ["Day 0", "5", "10", "15", "20", "Day 29"],
+    "REGRESSION: 25 stood inside the newest's whole date ('25Day 29'; Ruben's screenshot, 18 Oct 2026): dropped",
+  );
+  assert.deepEqual(
+    said(7, 1, 60),
     ["Day 0", "Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6"],
     "a week says every date",
   );
