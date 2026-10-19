@@ -1386,17 +1386,25 @@ test("a person the sheet cannot work out is said in the sheet as a read that fai
   }
 });
 
-test("the frame publishes the host and the verb under the names the Inbox's thread, the Calendar and the Pipeline open the sheet by, and the published verb asks the published host", async () => {
+test("the frame publishes the sheet's doors under the names the Inbox's thread, the Calendar and the Pipeline open the sheet by: the published host draws the sheet once its code is in, and the published verb asks it once it listens, however early", async () => {
   const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
-  assert.equal(PEOPLE_GLOBALS.DealSheetHost, DealSheetHost);
-  assert.equal(PEOPLE_GLOBALS.openDealSheet, openDealSheet);
+  const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
+  assert.equal(PEOPLE_GLOBALS.DealSheetHost, doors.DealSheetHost);
+  assert.equal(PEOPLE_GLOBALS.openDealSheet, doors.askDealSheet);
   const R = fixtures(Date.now());
   wire(R.detail());
-  open();
+  // The frame's host, as app-shell.jsx draws it, asked for the sheet before it has drawn one.
+  unmount();
+  recFolds.reset();
+  clearReadCaches();
+  toasts.length = 0;
+  recorded.length = 0;
+  drawn = () => W.React.createElement(PEOPLE_GLOBALS.DealSheetHost, {});
+  drawn();
   assert.equal(PEOPLE_GLOBALS.openDealSheet({ personId: "p1", mode: "propose" }), true);
-  let tree = redraw();
-  assert.equal(title(tree), "New proposal");
-  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  assert.equal(PEOPLE_GLOBALS.openDealSheet({ personId: "p1" }), false, "an ask that names no move is refused at once");
+  await until("the sheet the ask waited for", (t) => title(t) === "New proposal");
+  const tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   assert.equal(sub(tree), "Daniela Reyes");
   await until("the wire is quiet", () => busy === 0);
 });

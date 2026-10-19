@@ -2,7 +2,7 @@ import { visitRoute } from "../calendar/appointment-key.js";
 import { pipelineRoute } from "../deals/pipeline/pipeline-views.js";
 import { pipelineRowId } from "../deals/pipeline/pipeline-vm.js";
 import { leadsRoute } from "../leads/lead-plan.js";
-import { listToken } from "../people/lists/lists.js";
+import { listToken } from "../people/lists/list-token.js";
 import { personTabRoute } from "../person-page/route.js";
 import { lensRoute, reviewRoute } from "../reports/lenses.js";
 import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address.js";

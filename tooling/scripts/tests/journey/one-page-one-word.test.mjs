@@ -60,7 +60,7 @@ test("the Calendar and its setup say none: the booking rules, connecting a calen
 });
 
 test("People's lists say none: each list's tip and its next step", async () => {
-  const { PEOPLE_LISTS } = await importSrc(`${K}/people/lists/lists.ts`);
+  const { PEOPLE_LISTS } = await importSrc(`${K}/people/lists/builtin-lists.ts`);
   const { peopleListAction } = await importSrc(`${K}/people/people-lists.ts`);
   saysNone(
     "a list's label and tip",

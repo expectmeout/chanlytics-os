@@ -10,7 +10,6 @@
 import { INBOX_BUCKET_WORDS } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { presenceAway, demoSession } from "./shell";
-import { conversationsSample, inboxSample } from "./sample";
 import type { ConversationsSurface, InboxBucket, InboxSurface, Thread } from "./types";
 
 /* ------------------------------ what the surfaces hold ------------------------------ */
@@ -57,14 +56,26 @@ const UNREAD_INBOX: InboxSurface = {
 /** Conversations the same way: no row, and the one tab every workspace has (conversations-surface.ts conversationTabs). */
 const UNREAD_CONVERSATIONS: ConversationsSurface = { CONVERSATIONS: [], CV_CHANNELS: [{ id: "all", label: "All" }] };
 
+/**
+ * The demo's seeded rows (sample.ts), held here once a module that draws them has loaded them: a page of the Inbox's
+ * imports them, and sample.ts hands them over as it is evaluated. Imported here, every session's first load carried a
+ * demo's threads and calls that only a demo draws (the loadability review, 19 Oct 2026).
+ */
+let seeded: { inbox: InboxSurface; conversations: ConversationsSurface } | null = null;
+
+/** The demo's seeded rows, held for the two reads below (sample.ts). */
+export function holdDemoSeed(inbox: InboxSurface, conversations: ConversationsSurface): void {
+  seeded = { inbox, conversations };
+}
+
 /** The Inbox's rows and words: what the last read published; before it, the demo's seed in a demo, else no thread. */
 export function inboxData(): InboxSurface {
-  return surfaceValue("inbox") ?? (demoSession() ? inboxSample : UNREAD_INBOX);
+  return surfaceValue("inbox") ?? (demoSession() && seeded ? seeded.inbox : UNREAD_INBOX);
 }
 
 /** Conversations' rows: what the last read published; before it, the demo's seed in a demo, else no row. */
 export function conversationsData(): ConversationsSurface {
-  return surfaceValue("conversations") ?? (demoSession() ? conversationsSample : UNREAD_CONVERSATIONS);
+  return surfaceValue("conversations") ?? (demoSession() && seeded ? seeded.conversations : UNREAD_CONVERSATIONS);
 }
 
 /* ------------------------------ session decisions ------------------------------ */

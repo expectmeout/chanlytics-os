@@ -6,7 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-globalThis.window = { __DEMO_MODE: true };
+// A window that hears its own events: the frame is told as the demo's People lands.
+globalThis.window = Object.assign(new EventTarget(), { __DEMO_MODE: true });
 const { isPersonParam, peopleChrome, peopleTakes } =
   await import("../../../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { routeHasPage } = await import("../../../../../apps/dashboard/src/surfaces/routes.ts");
@@ -52,10 +53,18 @@ test("the page takes a person, a view of People, Leads and the Pipeline (which i
   );
 });
 
-test("a person's crumbs are People (the page's own Back) and their name: from People's row, else the tab's copy, else Profile", () => {
+test("a person's crumbs are People (the page's own Back) and their name: from People's row, else the tab's copy, else Profile", async () => {
   const back = () => {};
   const from = (id) => peopleChrome({ param: id, backToPeople: back });
-  // A demo session names them from the sample's row.
+  // A demo session names them from the sample's row, once its code is in (demo.ts): Profile until then, and the frame is
+  // told as it lands.
+  assert.equal(from("c-aisha").crumbs[1], "Profile");
+  const told = [];
+  const hear = () => told.push(1);
+  globalThis.window.addEventListener("surface:clients", hear);
+  await (await import("../../../../../apps/dashboard/src/surfaces/people/hooks/demo.ts")).demoCode();
+  globalThis.window.removeEventListener("surface:clients", hear);
+  assert.equal(told.length, 1, "the frame draws the crumb again");
   const named = from("c-aisha");
   assert.equal(named.crumbs.length, 2);
   assert.deepEqual(named.crumbs[0], { label: "People", to: "clients", go: back });

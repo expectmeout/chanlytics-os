@@ -22,147 +22,21 @@ import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type
 import type { PersonRowVM } from "../person-row";
 import { plural } from "../../shared/words";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
-
-/**
- * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
- * on the profile, a deal recorded here (every workspace has deals, 0008 amended 18 Oct 2026; the deal lists fill a rail
- * only once one is), and someone looking (for "me"). Derived from a rule, never written beside it.
- */
-export type ListNeed = "calendar" | "consult" | "deals" | "viewer";
-
-/** The order a list's unmet needs are said in: the first one is the reason it cannot be counted. */
-export const LIST_NEEDS: readonly ListNeed[] = ["calendar", "consult", "deals", "viewer"];
-
-type FieldKind =
-  "days" | "yesno" | "channel" | "came_from" | "count" | "purpose" | "standing" | "assigned" | "deal_stage" | "list";
-
-/**
- * Every fact a rule may name: its id, its label (a chip's first words), its kind, what it always needs, and the line
- * the drafting model reads about it. The model's instructions are written from this table, never typed beside it.
- */
-export const LIST_RULE_FIELDS: readonly {
-  id: string;
-  label: string;
-  kind: FieldKind;
-  needs: readonly ListNeed[];
-  draft: string;
-}[] = [
-  {
-    id: "last_visit",
-    label: "Last on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since their last appointment on the calendar",
-  },
-  {
-    id: "next_visit",
-    label: "Next on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days until their next appointment; op this_week is Monday to Sunday of this week",
-  },
-  {
-    id: "missed_visit",
-    label: "Missed one",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar",
-  },
-  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
-  {
-    id: "asked_not_booked",
-    label: "Asked, never booked",
-    kind: "yesno",
-    needs: ["calendar"],
-    draft: "wrote or called in the last 30 days and nothing on the calendar answers it",
-  },
-  {
-    id: "last_heard",
-    label: "Last heard from",
-    kind: "days",
-    needs: [],
-    draft: "days since THEY last wrote or called",
-  },
-  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
-  {
-    id: "channel",
-    label: "Reaches you by",
-    kind: "channel",
-    needs: [],
-    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email",
-  },
-  {
-    id: "came_from",
-    label: "Came from",
-    kind: "came_from",
-    needs: [],
-    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead",
-  },
-  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
-  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
-  {
-    id: "has_chat",
-    label: "Has written with you",
-    kind: "yesno",
-    needs: [],
-    draft: "a written conversation either way (no means they have only phoned)",
-  },
-  {
-    id: "said_yes",
-    label: "Said yes to",
-    kind: "purpose",
-    needs: [],
-    draft: "said yes to offers, or to messages (to: offers or messages)",
-  },
-  {
-    id: "can_receive",
-    label: "Can be sent",
-    kind: "purpose",
-    needs: [],
-    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)",
-  },
-  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
-  {
-    id: "standing",
-    label: "Standing",
-    kind: "standing",
-    needs: [],
-    draft:
-      "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)",
-  },
-  {
-    id: "assigned",
-    label: "Thread is with",
-    kind: "assigned",
-    needs: [],
-    draft: "who has their thread: value me, teammate or nobody",
-  },
-  {
-    id: "deal_stage",
-    label: "Deal",
-    kind: "deal_stage",
-    needs: ["deals"],
-    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended",
-  },
-  {
-    id: "consultation",
-    label: "A consultation",
-    kind: "yesno",
-    needs: ["calendar", "consult"],
-    draft: "their next or last appointment is a consultation",
-  },
-  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
-  {
-    id: "in_list",
-    label: "On the list",
-    kind: "list",
-    needs: [],
-    draft: "on another list, by its token (list); never use it in a draft",
-  },
-] as const;
+import {
+  LIST_ANY_MAX,
+  LIST_ASSIGNED,
+  LIST_DAY_OPS as DAY_OPS,
+  LIST_DEAL_STAGES,
+  LIST_PURPOSES,
+  LIST_RULE_FIELDS,
+  LIST_RULE_MAX,
+  LIST_STANDINGS,
+  listFieldOf as fieldOf,
+  type ListFieldKind as FieldKind,
+} from "./list-fields";
+import { factHolds } from "./list-match";
 
 const FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
-const fieldOf = (id: string) => LIST_RULE_FIELDS.find((f) => f.id === id)!;
 
 const CHANNELS = ["whatsapp", "sms", "voice", "email"] as const satisfies readonly PersonChannel[];
 const CAME_FROM = [
@@ -175,16 +49,6 @@ const CAME_FROM = [
   "import",
   "lead",
 ] as const satisfies readonly PersonCameFrom[];
-export const LIST_PURPOSES = ["offers", "messages"] as const;
-export const LIST_STANDINGS = ["needs_you", "waiting_on_you"] as const;
-export const LIST_ASSIGNED = ["me", "teammate", "nobody"] as const;
-export const LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"] as const;
-
-/** How many conditions a rule may hold, and how many facts one "any" group. */
-export const LIST_RULE_MAX = 12;
-export const LIST_ANY_MAX = 6;
-
-const DAY_OPS = ["more_than", "within", "never", "ever", "this_week"] as const;
 const Days = { op: z.enum(DAY_OPS), days: z.optional(z.int().check(z.minimum(1), z.maximum(3650))) };
 const YesNo = { op: z.literal("is"), yes: z.boolean() };
 const Count = { op: z.enum(["at_least", "at_most"]), n: z.int().check(z.minimum(0), z.maximum(10_000)) };
@@ -338,113 +202,6 @@ export function draftListRule(all: readonly unknown[]): ListRule | null {
   });
 }
 
-/** Every fact in a rule, the ones inside an "any" group too. */
-export function ruleFacts(rule: ListRule): ListFact[] {
-  return rule.all.flatMap((c) => ("any" in c ? c.any : [c]));
-}
-
-/** What one fact needs: its field's needs, and a value's own (waiting on YOU, a consultation). */
-export function factNeeds(f: ListFact): ListNeed[] {
-  const needs = new Set<ListNeed>(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
-  if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
-  }
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-
-/** What a rule needs, in LIST_NEEDS' order. A list it reads adds that list's needs (lists.ts listNeeds). */
-export function ruleNeeds(rule: ListRule): ListNeed[] {
-  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-
-/** The lists a rule reads, by token (in_list). */
-export function ruleLists(rule: ListRule): string[] {
-  return [...new Set(ruleFacts(rule).flatMap((f) => (f.field === "in_list" ? [f.list] : [])))];
-}
-
-type DayOp = (typeof DAY_OPS)[number];
-
-/** A day fact over a count of the workspace's dates (null: no such moment). */
-function dayHolds(days: number | null, op: DayOp, n: number | undefined): boolean {
-  switch (op) {
-    case "never":
-      return days === null;
-    case "ever":
-      return days !== null;
-    case "within":
-      return days !== null && days <= (n ?? 0);
-    case "more_than":
-      return days !== null && days > (n ?? 0);
-    case "this_week":
-      return false;
-  }
-}
-
-/** Whether a person is on a list another list's rule reads: the judge answers it before this runs (lists.ts). */
-export type InList = (token: string, personId: string) => boolean;
-
-/** One fact over one person. A fact the row does not have (no visit, never heard from) holds only `never`. */
-function holds(f: ListFact, v: PersonRowVM, inList: InList): boolean {
-  const is = "op" in f && f.op === "is";
-  switch (f.field) {
-    case "last_visit":
-      return dayHolds(v.lastVisitDays, f.op, f.days);
-    case "next_visit":
-      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
-    case "missed_visit":
-      return dayHolds(v.missedVisitDays, f.op, f.days);
-    case "last_heard":
-      return dayHolds(v.heardDays, f.op, f.days);
-    case "first_contact":
-      // Within the last N days only on a real date: an import's floor says their first contact was earlier.
-      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
-    case "booked":
-      return v.booked === f.yes;
-    case "asked_not_booked":
-      return v.askedNotBooked === f.yes;
-    case "has_chat":
-      return v.hasChat === f.yes;
-    case "stopped":
-      return v.stopped === f.yes;
-    case "consultation":
-      return v.consultationVisit === f.yes;
-    case "step_due":
-      return v.stepDue === f.yes;
-    case "said_yes":
-      return v.saidYes[f.to] === f.yes;
-    case "can_receive":
-      return v.canReceive[f.to] === f.yes;
-    case "channel":
-      return v.channels.includes(f.channel) === is;
-    case "came_from":
-      return (v.cameFrom?.key === f.from) === is;
-    case "calls":
-      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
-    case "conversations":
-      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
-    case "standing":
-      return (v.standing === f.value) === is;
-    case "assigned":
-      return (v.assigned === f.value) === is;
-    case "deal_stage":
-      // Any stage they stand at (0029): a client with a proposal out for another service is in both lists.
-      return v.dealStages.includes(f.value) === is;
-    case "in_list":
-      return inList(f.list, v.id) === is;
-  }
-}
-
-const noLists: InList = () => false;
-
-/** Whether a person is on a list by its rule: every condition holds, an "any" group when one of its facts does. */
-export function listRuleMatches(rule: ListRule, v: PersonRowVM, inList: InList = noLists): boolean {
-  return rule.all.every((c) => ("any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList)));
-}
-
 const lower = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 
 const STANDING_WORDS: Record<(typeof LIST_STANDINGS)[number], string> = {
@@ -547,7 +304,7 @@ export function listRuleParts(rule: ListRule, listName?: (token: string) => stri
 /** The facts a person meets, in the page's words: why a smart list has them (a profile's "because" line). */
 export function listRuleWhy(rule: ListRule, v: PersonRowVM, listName?: (token: string) => string | null): string {
   return rule.all
-    .map((c) => ("any" in c ? (c.any.find((f) => holds(f, v, noLists)) ?? c.any[0]) : c))
+    .map((c) => ("any" in c ? (c.any.find((f) => factHolds(f, v)) ?? c.any[0]) : c))
     .map((f) => listFactWords(f, listName))
     .join(" · ");
 }

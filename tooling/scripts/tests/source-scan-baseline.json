@@ -53,7 +53,7 @@
     "ops/sweep-rotation.test.mjs": 2,
     "people/attention-strip.test.mjs": 3,
     "people/erasure/erasure.test.mjs": 1,
-    "people/lists/saved-lists.test.mjs": 11,
+    "people/lists/saved-lists.test.mjs": 10,
     "people/person-mode-enforcement.test.mjs": 3,
     "people/threads-people.test.mjs": 5,
     "platform/back-office.test.mjs": 20,

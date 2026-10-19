@@ -22,11 +22,11 @@ import {
 import { resnapshotSurface } from "@/legacy-bridge/surface-cache";
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
+import { codeOnce } from "@/lib/code-once";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
-import { peopleSurfaceOf, personRowOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
@@ -126,6 +126,13 @@ export interface PeopleSurface {
 
 export let peopleLoaded: PeopleLoaded | null = null;
 
+/**
+ * How People's rows are made from its read (surface-map.ts: contracts' row, state and lists rules), fetched beside the read
+ * the first time, and held from then on. Imported, every page's first load carried it for a surface most pages never read
+ * at boot (the loadability review, 19 Oct 2026). A fetch that failed is asked for again by the next read.
+ */
+const peopleMap = codeOnce(() => import("./surface-map"));
+
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
   return (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
@@ -136,10 +143,12 @@ export function viewerId(): string | null {
  * the clock makes People again each minute where it is drawn (`rederive`), and a minute that moved nothing publishes nothing.
  */
 export function publishPeople(now: Date = new Date()): boolean {
-  if (!peopleLoaded) return false;
+  // The map is in once anything is loaded: the read that loads People brings it (peopleMap).
+  const map = peopleMap.now();
+  if (!peopleLoaded || !map) return false;
   // What did not change keeps its object, so the table's rows that did not change are not drawn again (surface-values.ts).
   const was = surfaceValue("people");
-  const next = shareUnchanged(was, peopleSurfaceOf(peopleLoaded, viewerId(), now, holderName));
+  const next = shareUnchanged(was, map.peopleSurfaceOf(peopleLoaded, viewerId(), now, holderName));
   if (next === was) return false;
   setSurfaceValue("people", next);
   return true;
@@ -290,12 +299,12 @@ function withOpenDeal(open: readonly OpenDealDto[], d: DealDto): OpenDealDto[] {
  * time, so the answer says whether more matches follow the ones it sent.
  */
 export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; more: boolean }> {
-  const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
+  const [r, tz, m] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone(), peopleMap()]);
   const now = new Date();
   return {
     rows: r.people.map((p) =>
       // What the workspace can send on is the first page's (readers/people.ts): a search's rows are judged against it too.
-      personRowOf(p, {
+      m.personRowOf(p, {
         tz,
         now,
         viewer: viewerId(),
@@ -437,6 +446,8 @@ export const peopleOverride: SurfaceOverride = {
       // A member's own views; a route that is not there yet reads as none.
       read("GET views").catch(() => ({ views: {}, failed: true as const })),
       workspaceZone(),
+      // How the rows are made, fetched beside the read the first time (peopleMap).
+      peopleMap(),
     ]);
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
     // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.

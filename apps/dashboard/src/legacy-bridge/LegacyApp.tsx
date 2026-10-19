@@ -19,14 +19,19 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { frameDrawn, installPageSpeed, type SpeedShell } from "@/client/page-speed";
-import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
+import {
+  FIRST_RUN_ROUTE,
+  LIFECYCLE_WORDS,
+  type PendingWorkspace,
+  type Theme,
+  type LookPref,
+} from "@chanlytics/contracts";
 // The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
-import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
 import { authErrorInHash } from "@/auth/hash-error";
-import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
 import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { NewConversationHost } from "@/surfaces/inbox/new-conversation/host";
@@ -40,7 +45,7 @@ import "./manifest";
 import { workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
 import { inboxOverride } from "@/surfaces/inbox/surface";
-import { todayOverride } from "@/surfaces/today/surface";
+import { todayOverride } from "@/surfaces/today/override";
 import { settingsOverride } from "./surfaces/settings";
 import { channelsOverride } from "@/surfaces/channels/surface";
 import { peopleOverride } from "@/surfaces/people/surface";
@@ -69,30 +74,28 @@ import {
   onSurfaceStatusChange,
   refreshSurfaces,
   startSurfaces,
-  type JoinLiveFeed,
 } from "./surface-runner";
+import { joinLiveFeed } from "./hearing/live-feed";
 import { hydrateSurfaceCache } from "./surface-cache";
 import { hearSurfaces, surfaceHook } from "./surface-status";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier, personOverride, warmPersonOnScreen } from "@/surfaces/people/people-detail";
-import { leadsOverride } from "@/surfaces/leads/surface";
+import { leadsOverride } from "@/surfaces/leads/override";
 import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installTabMemory } from "./tab-memory";
-import { installLists } from "@/surfaces/people/people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
 import { installAsk } from "./ask";
 import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
 import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
-import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
+import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/override";
 import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
-import { installBusinessTab } from "./business-tab";
-import { installSetup, setupOverride } from "@/surfaces/setup/surface";
+import { installSetup, setupOverride } from "@/surfaces/setup/override";
 import { googleOverride } from "./google";
 import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
 import { alertsOverride } from "@/surfaces/settings/notifications/surface";
@@ -101,10 +104,34 @@ import { installIdentity } from "./identity";
 import { fillDoors } from "../surfaces/frame-doors";
 import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
-import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
+// The handover, which the shell asks on every boot, is its own small module; the create screen is fetched as it is drawn.
+import { useHandoverAsk } from "./invitations/handover";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
+import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
 import type { OpenHandoverDto } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
+
+/**
+ * The create screen as the frame draws it (LegacyApp): for an account with no workspace yet, and from the workspace menu
+ * for another. Its code (CreateWorkspace.tsx: the form, sign-up's words, the waitlist, the first run's kicker) is fetched
+ * when the screen is drawn, which almost no boot does: in the frame it was about 19 KB, compressed, that every first
+ * load parsed before any page could draw (the loadability review, 19 Oct 2026). The shell's quiet words stand where it
+ * will be while it comes, and a fetch that failed says so, with its retry.
+ */
+const createScreenCode = codeOnce(() => import("./CreateWorkspace"));
+
+function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace").default>) {
+  const { loaded: screen, failed, retry } = useCode(createScreenCode, true);
+  if (screen) return <screen.default {...props} />;
+  if (failed) return <FailedRead kind="line" what="this page" onRetry={retry} testid="create-workspace-failed" />;
+  return (
+    <div className="route-reading" role="status">
+      {LIFECYCLE_WORDS.reading}
+    </div>
+  );
+}
 
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
@@ -114,7 +141,6 @@ installInboxVerbs();
 installPeopleCourier();
 // The streets under the lead map, when the product hosts a basemap (surfaces/leads/map/lead-map.ts); unset, the page keeps its square.
 installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE);
-installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
 // first paint, including from the cache.
@@ -135,7 +161,6 @@ installMascot();
 installArrival();
 // Inside the native shell the page speaks the bridge (app-bridge.ts): its route, its needs, the shell's asks.
 installAppBridge();
-installBusinessTab();
 installSetup();
 installBilling();
 installIdentity();
@@ -276,8 +301,6 @@ if (typeof window !== "undefined") {
   warmCampaignsCode(opened);
   warmSequenceRoute(opened);
 }
-/** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
-const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
 
 // Which flipped surface backs each route, and which routes are real at all —
 // both live in surface-registry.ts so the classification and the wiring cannot

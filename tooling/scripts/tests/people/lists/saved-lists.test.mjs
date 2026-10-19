@@ -138,7 +138,8 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
       ["people"],
       `${k}: the chips are the server's, and a list is an audience and a playbook's moment too, where they are drawn`,
     );
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installLists();"));
+  // The verbs are imported by what presses them: nothing publishes them on the window (the loadability review, 19 Oct 2026).
+  assert.ok(!v.includes("window.__lists"), "the lists' verbs are not on the window");
 });
 
 /** A list kept by hand, as the surface holds it (surface-map.ts): the one a title, a bar and a row's drop are drawn over. */

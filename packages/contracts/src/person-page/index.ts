@@ -20,7 +20,8 @@ export {
 export type { MessagesSummaryPart, NameSource } from "./words";
 export { AUTOMATIC_NAMING, signerAgrees, signerOf } from "./signer";
 export type { Signer, SignerFacts } from "./signer";
-export { businessRecordOf, businessTrailOf, leadPeopleIndex, leadPeopleOf, personHeadOf, worksAtOf } from "./business";
+export { businessRecordOf, leadPeopleIndex, leadPeopleOf, personHeadOf, worksAtOf } from "./business";
+export { businessTrailOf } from "./business-trail";
 export type {
   BusinessPersonVM,
   BusinessRecordVM,

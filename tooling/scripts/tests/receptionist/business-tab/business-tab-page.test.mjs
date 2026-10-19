@@ -1605,10 +1605,12 @@ test("a save of the name says what the sign-up page and sign say now, and where 
   assert.match(textOf(held.msg), /say “Marisa's Salon & Spa” now\. The carriers still hold “Marisa's Beauty Salon”/);
   assert.equal(held.action.label, "Request a name change");
 
-  // The press asks a person at Chanlytics (setup_request 'name') through Setup's verb, and says what was asked.
+  // The press asks a person at Chanlytics (setup_request 'name') through Setup's verb, which the card imports
+  // (surfaces/setup/surface.ts), and says what was asked.
   const asked = [];
-  const setupWas = W.__setup;
-  W.__setup = { request: async (what) => (asked.push(what), { ok: true, already: asked.length > 1, message: "" }) };
+  const { setupVerbs } = await import("../../../../../apps/dashboard/src/surfaces/setup/surface.ts");
+  const setupWas = setupVerbs.request;
+  setupVerbs.request = async (what) => (asked.push(what), { ok: true, already: asked.length > 1, message: "" });
   try {
     await held.action.onClick();
     assert.deepEqual(asked, ["name"], "one request, for one press");
@@ -1616,7 +1618,7 @@ test("a save of the name says what the sign-up page and sign say now, and where 
     await held.action.onClick();
     assert.match(textOf(flashes.at(-1).msg), /^Already asked/, "a second press the same day is said as the one before");
   } finally {
-    W.__setup = setupWas;
+    setupVerbs.request = setupWas;
   }
 
   // The workspace kept its name: the save is said, and so is what still says the old name.

@@ -6,6 +6,7 @@
  * the tree it was; its hooks stay in `ThreadHeader`, in the order they were.
  */
 import {
+  NOTE_WORDS,
   WORKS_AT_WORDS,
   adRoute,
   appointmentWords,
@@ -16,7 +17,7 @@ import {
   proposalMessage,
 } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
@@ -45,6 +46,8 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
 import { wantPerson } from "../../people/want-person";
 import { visitWordHere } from "../../workspace-word";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -83,7 +86,7 @@ const IxThreadStep = ({
     });
   return (
     <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
-      <span className="ix-th-step-label">{N.words.next}</span>
+      <span className="ix-th-step-label">{NOTE_WORDS.next}</span>
       <span className="ix-th-step-words" data-testid="ix-th-step-words">
         {step.words}
       </span>
@@ -99,11 +102,11 @@ const IxThreadStep = ({
         type="button"
         className="ix-th-step-done"
         onClick={done}
-        aria-label={N.words.markDone(step.words)}
+        aria-label={NOTE_WORDS.markDone(step.words)}
         data-testid="ix-th-step-done"
         {...gate("approve", "mark a step done")}
       >
-        {N.words.done}
+        {NOTE_WORDS.done}
       </button>
     </div>
   );
@@ -480,18 +483,14 @@ interface ThreadHeaderProps {
   onArchive?: (() => void) | null;
 }
 
-/** The business sheet's module (people/person/business.tsx), loaded once for the tab: a thread carries none of it until asked. */
-type BusinessDoorModule = Pick<typeof import("../../people/person/business"), "BusinessSheetFor">;
-let businessDoor: BusinessDoorModule | null = null;
-let businessDoorLoading: Promise<BusinessDoorModule> | null = null;
-
-function loadBusinessDoor(): Promise<BusinessDoorModule> {
-  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
-  businessDoorLoading ??= import("../../people/person/business").then(
-    ({ BusinessSheetFor }) => (businessDoor = { BusinessSheetFor }),
-  );
-  return businessDoorLoading;
-}
+/**
+ * The business sheet's module (people/person/business.tsx), loaded once for the tab: a thread carries none of it until
+ * asked, and a fetch that failed is asked for again by the next pointer or press. What it reads of the module is named,
+ * so the dead-exports check (knip) sees the use.
+ */
+const businessDoorCode = codeOnce(() =>
+  import("../../people/person/business").then(({ BusinessSheetFor }) => ({ BusinessSheetFor })),
+);
 
 /** Whose business the sheet over the thread shows: the person and the business's name, said while it is read. */
 interface BusinessAsked {
@@ -515,7 +514,7 @@ function worksAtDoor(facts: HeaderFacts, open: (b: BusinessAsked) => void) {
       variant="quiet"
       size="sm"
       className="ix-th-works"
-      onPointerEnter={() => void loadBusinessDoor()}
+      onPointerEnter={businessDoorCode.warm}
       onClick={() => open(asked)}
       data-testid="ix-th-works-door"
     >
@@ -530,11 +529,7 @@ function worksAtDoor(facts: HeaderFacts, open: (b: BusinessAsked) => void) {
 
 /** The business sheet over the thread, once its module is in (the door's press asks for it, if a pointer did not). */
 function ThreadBusinessSheet({ asked, onClose }: { asked: BusinessAsked | null; onClose: () => void }) {
-  const [, landed] = useState(0);
-  useEffect(() => {
-    if (asked && !businessDoor) void loadBusinessDoor().then(() => landed((n) => n + 1));
-  }, [asked]);
-  const Door = businessDoor?.BusinessSheetFor;
+  const Door = useCode(businessDoorCode, !!asked).loaded?.BusinessSheetFor;
   return asked && Door ? <Door personId={asked.personId} name={asked.name} onClose={onClose} /> : null;
 }
 

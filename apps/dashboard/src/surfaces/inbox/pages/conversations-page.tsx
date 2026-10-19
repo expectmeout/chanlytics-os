@@ -48,6 +48,7 @@ import {
   useToast,
   type Flash,
 } from "../shell";
+import { warmDemo } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
 import { ixSwipeBack } from "../thread/thread";
@@ -677,6 +678,8 @@ export const ConversationsPage = ({
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
   const cvRead = useSurface("conversations");
   useSurface("inbox");
+  // A demo's seeded calls and chats, fetched as the page mounts (demo.ts); their landing redraws it as a read's does.
+  useEffect(warmDemo, []);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a

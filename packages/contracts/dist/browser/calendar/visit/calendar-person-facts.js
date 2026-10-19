@@ -3,7 +3,7 @@ import { personStateFor, PERSON_STATE_LABELS } from "../../people/person-state.j
 import { lastContactOf } from "../../people/person-row-facts.js";
 import { dealOf } from "../../deals/deal-vm.js";
 import { nextStepOf } from "../../notes/steps.js";
-import { businessTrailOf } from "../../person-page/business.js";
+import { businessTrailOf } from "../../person-page/business-trail.js";
 import { asNameSource } from "../../person-page/words.js";
 import { agoWords } from "../../shared/time.js";
 function dealColumnsOf(r) {

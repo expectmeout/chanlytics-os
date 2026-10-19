@@ -115,7 +115,7 @@ declare const ALERT_PANE_WORDS: {
     readonly testing: "Sending…";
     readonly testSent: (n: number) => string;
     readonly testNot: (why: "no_address" | "not_live" | "not_sent" | null) => "There is no address to send a test to." | "Tests are sent from the live app only, not from a preview." | "The test could not be sent. Try again in a minute.";
-    readonly phone: (n: number) => "Your phone" | "Your phones";
+    readonly phone: (n: number) => "Your phones" | "Your phone";
     readonly phoneHint: "Signing out on a phone stops its alerts.";
     readonly browser: "This browser";
     readonly browserValue: "When someone needs you right now";

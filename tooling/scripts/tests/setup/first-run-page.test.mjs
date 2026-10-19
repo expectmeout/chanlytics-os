@@ -126,6 +126,9 @@ globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 const { FirstRun } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/page.tsx");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
+// The Business tab's saver, as the first run imports it (setup/shell.ts): Try it's world stubs its sends in place.
+const { businessTabSave } = await importSrc("apps/dashboard/src/surfaces/settings/business/saver.ts");
+const tabSaver = { save: businessTabSave.saver.save, base: businessTabSave.saver.base };
 const { tabMemoryFor, clearTabMemory } = await importSrc("apps/dashboard/src/legacy-bridge/tab-memory.ts");
 
 /** Setup's read as the page draws it: a value, undefined while it is read, null where it failed. */
@@ -1463,8 +1466,10 @@ const liveCall = (over = {}) => ({
   ],
   ...over,
 });
-const tryWorld = () => {
+/** Try it's world: Setup's verbs and the tab's saver answer here, the saver's own put back once the test is over. */
+const tryWorld = (t) => {
   const asked = { later: [], saves: [], request: [] };
+  t.after(() => Object.assign(businessTabSave.saver, tabSaver));
   emptyTab();
   globalThis.window.__setup.later = async (id, on) => {
     asked.later.push([id, on]);
@@ -1474,22 +1479,13 @@ const tryWorld = () => {
     asked.request.push(what);
     return { ok: true, already: false, message: "" };
   };
-  globalThis.window.__businessTabSave = {
-    saver: { save: (job) => asked.saves.push(job), subscribe: () => () => {}, base: () => ({ brain: {} }) },
-    PATCH_OF: {
-      handoff_number: (value) => (b, p) => {
-        if (value) p.handoff_number = value;
-        else delete p.handoff_number;
-        b.profile = p;
-        return b;
-      },
-    },
-  };
+  // A save is counted, never sent, over a settings read that is in; the patch is the tab's own.
+  Object.assign(businessTabSave.saver, { save: (job) => asked.saves.push(job), base: () => ({ brain: {} }) });
   return asked;
 };
 
-test("Try it (canvas R6): calls answered and none yet, the step listens for the test call, and skipping asks once first", async () => {
-  const asked = tryWorld();
+test("Try it (canvas R6): calls answered and none yet, the step listens for the test call, and skipping asks once first", async (t) => {
+  const asked = tryWorld(t);
   setLive({ now: [], recent: [] });
   setSetup(surface(untried));
   param = null;
@@ -1519,8 +1515,8 @@ test("Try it (canvas R6): calls answered and none yet, the step listens for the 
   assert.equal(went.at(-1), "start/live", "and the first run goes on to Live, a new entry");
 });
 
-test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async () => {
-  const asked = tryWorld();
+test("Try it (canvas R7, R8): it picked up with the words, then the call and the transfer saved through the Business tab's saver", async (t) => {
+  const asked = tryWorld(t);
   setSetup(surface(untried));
   setLive({ now: [liveCall()], recent: [] });
   param = "try";
@@ -1561,7 +1557,7 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   assert.equal(went.at(-1), "start/live", "on to Live, a new entry");
   setSetup(surface(untried));
   // The settings read not in yet: the saver would send nothing, so the page says so rather than showing a choice.
-  globalThis.window.__businessTabSave.saver.base = () => null;
+  businessTabSave.saver.base = () => null;
   flashes.length = 0;
   fresh();
   tree = mount();
@@ -1571,8 +1567,8 @@ test("Try it (canvas R7, R8): it picked up with the words, then the call and the
   setLive(undefined);
 });
 
-test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", () => {
-  tryWorld();
+test("Try it stays on screen at the bare address when Setup learns of the call mid-call: the words and the transfer are still to come", (t) => {
+  tryWorld(t);
   setSetup(surface(untried));
   setLive({ now: [liveCall()], recent: [] });
   param = null;

@@ -25,7 +25,8 @@ import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
-import { factsNow, samePhone, setupApi } from "./shell";
+import { setupVerbs } from "../../setup/surface";
+import { factsNow, samePhone } from "./shell";
 
 /** What a row's box is handed to draw: the draft, its setter, what stops it, the field's own props, the row's gate. */
 interface BoxProps<D> {
@@ -259,9 +260,7 @@ const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
  * Workspace pane asks for a repair, and say what was asked.
  */
 const btAskNameChange = async (flash: (f: LegacyFlash) => void) => {
-  const setup = setupApi();
-  if (!setup) return;
-  const r = await setup.request("name");
+  const r = await setupVerbs.request("name");
   if (!r.ok) return flash({ tone: "danger", msg: r.message || "That didn't go through." });
   flash({ msg: r.already ? RENAME_WORDS.already : RENAME_WORDS.requested });
 };

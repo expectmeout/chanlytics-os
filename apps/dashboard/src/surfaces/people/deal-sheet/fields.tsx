@@ -4,7 +4,6 @@
  * style that the step sheet draws too. Hookless: each field is a plain function returning its element (never a component),
  * so the tree is the one the JSX drew.
  */
-import { useState } from "react";
 import type { ReactNode } from "react";
 import { dealSheetMessage } from "@chanlytics/contracts";
 import type { DealSheetDraft, DealSheetProblem, DealSheetVM } from "@chanlytics/contracts";
@@ -13,6 +12,8 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Token } from "../../kit/picker/token";
 import { RecordBox, RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 
 /** A select in the kit's input style, with its label above it, as RecordField draws a box: which service, how a yes was given. */
 export function DsSelect({
@@ -85,16 +86,11 @@ function pickedDayWords(day: string, today: string): string {
   }).format(new Date(`${day}T00:00:00Z`));
 }
 
-type DayPickModule = typeof import("./day-pick");
-let dayPick: DayPickModule | null = null;
-let dayPickLoading: Promise<DayPickModule> | null = null;
-
-/** The month a day is picked from, loaded once, as the sheet first draws a day (day-pick.tsx says why). */
-export function loadDayPick(): Promise<DayPickModule> {
-  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
-  dayPickLoading ??= import("./day-pick").then(({ DayPick }) => (dayPick = { DayPick }));
-  return dayPickLoading;
-}
+/**
+ * The month a day is picked from, loaded once, as the sheet first draws a day (day-pick.tsx says why); a fetch that failed
+ * is asked for again by the next draw. What it reads of the module is named, so the dead-exports check (knip) sees the use.
+ */
+export const loadDayPick = codeOnce(() => import("./day-pick").then(({ DayPick }) => ({ DayPick })));
 
 /**
  * A day, picked from the kit's month over the sheet, its words a token under the label: the browser's own date box drew
@@ -112,8 +108,7 @@ function DayField(p: {
   empty?: { none: string; clear: string };
   testid: string;
 }) {
-  const [, landed] = useState(0);
-  if (!dayPick) void loadDayPick().then(() => landed((n) => n + 1));
+  const dayPick = useCode(loadDayPick, true).loaded;
   const token = (
     <Token aria-labelledby={`${p.id}-label`} data-testid={`${p.testid}-input`}>
       <Icon name="calendar" size={13} /> {p.value ? pickedDayWords(p.value, p.today) : (p.empty?.none ?? "")}

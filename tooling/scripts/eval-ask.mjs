@@ -497,7 +497,10 @@ export function judge(c, r) {
     if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(own))
       fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
     const cards = m.proposals ?? [];
-    const { answer: drawn, cardOpen } = oneDoor(a, cards);
+    const { answer: drawn, cardOpen } = oneDoor(
+      a,
+      cards.map((c) => ({ id: c.id, open: cardOpenRoute(c) })),
+    );
     const offered = [
       ...drawn.show.items.filter((i) => i.source.door).map((i) => i.source.to),
       ...(drawn.do.open ? [drawn.do.open.to] : []),

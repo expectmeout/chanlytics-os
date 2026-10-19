@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
 import { watchFrameTop } from "./frame-top";
+import { watchPageGive } from "../motion/page-give";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
@@ -220,6 +221,8 @@ export function FrameHead({ look }: { look: string }) {
   const column = places?.dateline?.parentElement ?? null;
   // A stand-in document has no observer, and no top to measure.
   useLayoutEffect(() => (column && typeof ResizeObserver === "function" ? watchFrameTop(column) : undefined), [column]);
+  // And the top holds under a pull past the page's end, where the page gives way by itself (page-give.ts).
+  useEffect(() => (column ? watchPageGive(window) : undefined), [column]);
   if (!places || !places.head) return null;
   return (
     <>

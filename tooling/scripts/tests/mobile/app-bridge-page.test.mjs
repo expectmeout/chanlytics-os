@@ -175,15 +175,16 @@ test("a tapped push for another workspace opens that workspace's page, sealing w
   win.__ACTIVE_WORKSPACE = HERE;
   // The tab's cache, which this page's reads go into (surface-cache.ts reads the page's window and storage).
   const kept = new Map();
-  const was = { window: globalThis.window, sessionStorage: globalThis.sessionStorage };
-  globalThis.sessionStorage = {
+  const was = { window: globalThis.window, localStorage: globalThis.localStorage };
+  globalThis.localStorage = {
     getItem: (k) => (kept.has(k) ? kept.get(k) : null),
     setItem: (k, v) => kept.set(k, String(v)),
     removeItem: (k) => kept.delete(k),
   };
   globalThis.window = win;
   const cache = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
-  const CACHE = "chanlytics.surfaces.v1";
+  // The cache's slot for this page's workspace (its address, /w/acme-plumbing): local storage, one slot a workspace.
+  const CACHE = "chanlytics.surfaces.v2:acme-plumbing";
   try {
     installAppBridge(win);
     win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
@@ -215,19 +216,21 @@ test("a tapped push for another workspace opens that workspace's page, sealing w
 test("REGRESSION: a push that arrives before the workspaces read lands leaves the page only for another workspace -- one for this workspace sealed the tab's cache and loaded the page again", () => {
   const HERE = "11111111-1111-4111-8111-111111111111";
   const THERE = "22222222-2222-4222-8222-222222222222";
-  const CACHE = "chanlytics.surfaces.v1";
+  // The cache's slot for the page's workspace, as its address names it: local storage, one slot a workspace.
+  let CACHE = "chanlytics.surfaces.v2:-";
   const ROWS = "this workspace's rows";
   const kept = new Map();
-  const was = { window: globalThis.window, sessionStorage: globalThis.sessionStorage };
-  globalThis.sessionStorage = {
+  const was = { window: globalThis.window, localStorage: globalThis.localStorage };
+  globalThis.localStorage = {
     getItem: (k) => (kept.has(k) ? kept.get(k) : null),
     setItem: (k, v) => kept.set(k, String(v)),
     removeItem: (k) => kept.delete(k),
   };
-  // A page just loaded: its tab's cache in the slot, and no workspaces read landed yet (no __ACTIVE_WORKSPACE).
+  // A page just loaded: its workspace's cache in its slot, and no workspaces read landed yet (no __ACTIVE_WORKSPACE).
   const cold = (pathname) => {
     const page = windowOf({ pathname, hash: "" });
     globalThis.window = page.win;
+    CACHE = `chanlytics.surfaces.v2:${pathname.split("/")[2] || "-"}`;
     kept.set(CACHE, ROWS);
     return { ...page, off: installAppBridge(page.win) };
   };

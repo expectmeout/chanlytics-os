@@ -1,3 +1,7 @@
+export const FIRST_RUN_STEP_KEYS = ["business", "phone", "try", "live"];
+export function firstRunStepOf(param) {
+  return FIRST_RUN_STEP_KEYS.find((k) => k === param) ?? null;
+}
 export const FIRST_RUN_ROUTE = "start";
 export function firstRunStepRoute(key) {
   return `${FIRST_RUN_ROUTE}/${key}`;

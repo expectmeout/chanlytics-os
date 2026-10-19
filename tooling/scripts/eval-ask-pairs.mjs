@@ -11,7 +11,7 @@
  * Writes tooling/backups/eval-ask-review-<when>.json (the pairs) and …-key.json (the sides).
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { oneDoor } from "@chanlytics/contracts";
+import { cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 
 /** The twelve (spec 8.3): counts, who, what and why, open, a request to act, and Spanish. */
 const REVIEW_IDS = [
@@ -62,7 +62,10 @@ const side = (run, id) => {
   const m = r.message;
   if (!m?.answer) return { failed: true, answer: null, cards: [] };
   const cards = (m.proposals ?? []).map((p) => ({ id: p.id, kind: p.kind, title: p.title, summary: p.summary }));
-  const { answer, cardOpen } = oneDoor(m.answer, m.proposals ?? []);
+  const { answer, cardOpen } = oneDoor(
+    m.answer,
+    (m.proposals ?? []).map((c) => ({ id: c.id, open: cardOpenRoute(c) })),
+  );
   return { failed: !!m.failed, answer, cards: cards.map((c) => ({ ...c, open: !!cardOpen[c.id] })) };
 };
 

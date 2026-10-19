@@ -824,8 +824,9 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
   const sent = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   assert.equal(sent.broadcastsOverride.key, "broadcasts");
-  // Who each audience reaches is a surface of its own beside Sent's runs (the Inbox's run review, 18 Oct 2026).
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
+  // Who each audience reaches is a surface of its own beside Sent's runs (the Inbox's run review, 18 Oct 2026), and how
+  // each is counted a chunk of its own beside the surface's reads (audiences-shape.ts, the loadability review, 19 Oct 2026).
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-shape.ts");
   // BOTH sizes per audience, because there is no one number any more: the chip's
   // count depends on the purpose of the template the composer has selected, which
   // the surface cannot know when it loads. A single count computed here promised an

@@ -293,7 +293,7 @@ test("a playbook paused, renamed or retimed in another tab is heard where Campai
   const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
-  const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
+  const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/override.ts");
   assert.ok(
     watchedTables().includes("sequence_steps") && watchedTables().includes("sequences"),
     "the database tells a workspace about its playbooks",

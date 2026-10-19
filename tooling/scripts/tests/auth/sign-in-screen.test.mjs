@@ -136,6 +136,8 @@ globalThis.sessionStorage = {
   setItem: (k, v) => store.set(k, String(v)),
   removeItem: (k) => store.delete(k),
 };
+// The surface cache is the browser's local storage (one slot a workspace), the tab's memory the session's: one store here.
+globalThis.localStorage = globalThis.sessionStorage;
 // GoogleSignIn asks the project whether Google is on: it is not, here.
 globalThis.fetch = async () => new Response(JSON.stringify({ external: { google: false } }));
 console.warn = (...a) => warned.push(a);
@@ -279,10 +281,10 @@ test("in: the tab's cache goes, and the second step comes first for an account w
     signInWithPassword: { data: {}, error: null },
     aal: { data: { currentLevel: "aal1", nextLevel: "aal2" }, error: null },
   });
-  store.set("chanlytics.surfaces.v1", "{}");
+  store.set("chanlytics.surfaces.v2:luna", "{}");
   await type("password", "hunter2");
   await submit();
-  assert.equal(store.has("chanlytics.surfaces.v1"), false, "the previous account's rows are gone");
+  assert.equal(store.has("chanlytics.surfaces.v2:luna"), false, "the previous account's rows are gone");
   assert.deepEqual(went, ["/verify#/inbox/t1"]);
 });
 

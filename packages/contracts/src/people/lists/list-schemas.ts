@@ -4,8 +4,8 @@
  * so a page that counts a list loads none of the classic API.
  */
 import { z } from "zod";
-import { LIST_RULE_MAX } from "./list-rules";
-import { parseListToken } from "./lists";
+import { LIST_RULE_MAX } from "./list-fields";
+import { parseListToken } from "./list-token";
 
 /**
  * The People export's query (GET contacts/export): the list it follows, by its token (`seg:<id>` or `list:<id>`);

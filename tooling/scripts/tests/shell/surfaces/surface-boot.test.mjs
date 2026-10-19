@@ -597,7 +597,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
       [
         "surface-data",
         "../surfaces/inbox/surface",
-        "../surfaces/today/surface",
+        "../surfaces/today/override",
         "../surfaces/inbox/conversations-surface",
         "surfaces/settings",
         "../surfaces/people/surface",
@@ -612,8 +612,8 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/reports/campaigns-surface",
         "surfaces/notifications",
         "../surfaces/live/surface",
-        "../surfaces/setup/surface",
-        "../surfaces/leads/surface",
+        "../surfaces/setup/override",
+        "../surfaces/leads/override",
         "google",
         "../surfaces/settings/billing/surface",
         "reach-out/replies",
@@ -1081,16 +1081,27 @@ test("a boot that ends after its runner stopped never reloads for another worksp
   win.location.hash = "";
   win.__ACTIVE_WORKSPACE = "id-a";
   const m = new Map();
-  globalThis.sessionStorage = {
+  const keptLocal = globalThis.localStorage;
+  globalThis.localStorage = {
     getItem: (k) => (m.has(k) ? m.get(k) : null),
     setItem: (k, v) => m.set(k, String(v)),
     removeItem: (k) => m.delete(k),
+    key: (i) => [...m.keys()][i] ?? null,
+    get length() {
+      return m.size;
+    },
   };
-  // Cached at this address, and resolved then for another workspace than the server says now.
+  // Cached at this address (its slot in local storage), and resolved then for another workspace than the server says now.
   const cachedFor = (tenant) =>
     m.set(
-      "chanlytics.surfaces.v1",
-      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", at: "acme", tenant, surfaces: {} }),
+      "chanlytics.surfaces.v2:acme",
+      JSON.stringify({
+        build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev",
+        savedAt: Date.now(),
+        at: "acme",
+        tenant,
+        surfaces: {},
+      }),
     );
   const reloads = win.reloads;
   try {
@@ -1115,6 +1126,6 @@ test("a boot that ends after its runner stopped never reloads for another worksp
     stop2();
     assert.equal(win.reloads, reloads + 1, "running: another workspace's rows are dropped and the tab reloads");
   } finally {
-    delete globalThis.sessionStorage;
+    globalThis.localStorage = keptLocal;
   }
 });

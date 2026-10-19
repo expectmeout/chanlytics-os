@@ -678,8 +678,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const S = "apps/dashboard/src";
   const overrides = Object.fromEntries(
     [
-      (await importSrc(`${S}/surfaces/today/surface.ts`)).todayOverride,
-      (await importSrc(`${S}/surfaces/setup/surface.ts`)).setupOverride,
+      (await importSrc(`${S}/surfaces/today/override.ts`)).todayOverride,
+      (await importSrc(`${S}/surfaces/setup/override.ts`)).setupOverride,
       (await importSrc(`${S}/surfaces/inbox/surface.ts`)).inboxOverride,
       (await importSrc(`${S}/surfaces/inbox/conversations-surface.ts`)).conversationsOverride,
       (await importSrc(`${S}/surfaces/people/surface.ts`)).peopleOverride,
@@ -688,7 +688,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       // Who each audience reaches: the composer's, over everyone in People (audiences-surface.ts).
       (await importSrc(`${S}/surfaces/campaigns/broadcasts/audiences-surface.ts`)).audiencesOverride,
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
-      (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
+      (await importSrc(`${S}/surfaces/campaigns/reach-out/override.ts`)).reachOutsOverride,
       (await importSrc(`${S}/surfaces/campaigns/sequences/surface.ts`)).sequencesOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
       // The channels read every page that draws a number is made of (Live, the composers, the Library, Connections).
@@ -696,7 +696,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/calendar/surface.ts`)).calendarOverride,
       (await importSrc(`${S}/surfaces/calendar/runs-surface.ts`)).calendarRunsOverride,
       (await importSrc(`${S}/surfaces/reports/surface.ts`)).reportsOverride,
-      (await importSrc(`${S}/surfaces/leads/surface.ts`)).leadsOverride,
+      (await importSrc(`${S}/surfaces/leads/override.ts`)).leadsOverride,
       // Who is looking: Reports' strip waits for it (ROUTE_WAITS), and its read is every page's.
       (await importSrc(`${S}/legacy-bridge/surface-data.ts`)).workspaceOverride,
       // What Today draws beside its own (PREFETCH_BESIDE): the period line, the bell, Google's reviews, the reach-outs' replies.

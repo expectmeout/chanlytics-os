@@ -1,29 +1,8 @@
 import {
   DEAL_ACT_WORDS,
   DEAL_REFUSALS,
-  DEAL_CARD_WORDS,
-  DEAL_SHEET_WORDS,
-  NOTE_MAX,
-  NOTE_WORDS,
   dueStepDay,
-  stepDayOf,
-  stepDays,
-  stepSheetBody,
-  stepSheetDirty,
-  stepSheetFor,
-  stepSheetMerge,
-  STEP_SHEET_WORDS,
-  dealCardsOf,
   dealMenuActs,
-  dealNextAct,
-  dealSheetBody,
-  dealSheetDirty,
-  dealSheetFor,
-  dealSheetMerge,
-  dealSheetMessage,
-  dealSheetRefusal,
-  isDealSheetMode,
-  toPersonVM,
   type DealClearable,
   type DealDto,
   type DealLostReason,
@@ -39,6 +18,7 @@ import { api } from "@/legacy-bridge/api";
 import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
 import { ApiError, type ApiResult } from "@/client/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
+import { codeOnce } from "@/lib/code-once";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
 import { holderName } from "../holder-names";
 import { keepSavedView, peopleLoaded } from "./surface";
@@ -61,15 +41,34 @@ import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
  * Resolves null for "not in your workspace" (404) so the page can say so;
  * a session expiry has already signed the tab out by the time this throws.
  */
+/** The person's page's shaping code: fetched once, shared; a fetch that failed is asked for again by the next read. */
+const personShape = codeOnce(() => import("./person-shape"));
+
+/**
+ * A person's page (person/person-real.tsx) as a chunk of its own within People's route: People's list, Leads and the
+ * Pipeline draw none of it, and carried in their first load it put People's page over its ceiling (the loadability review,
+ * 19 Oct 2026). Fetched at once where the address the tab opened on names a person (people-route.tsx), once People's list
+ * is idle, and as a pointer reaches a person's link anywhere (`__warmPerson`, below), so a press finds it in. What it
+ * reads of the module is named, so the dead-exports check (knip) sees the use.
+ */
+export const profileCode = codeOnce(() =>
+  import("./person/person-real").then(({ ClientProfile }) => ({ ClientProfile })),
+);
+
 export function personDetail(id: string): Promise<PersonVM | null> {
   return people().through(id, async () => {
     // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
-    const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
+    // And the shaping's own code, fetched beside both the first time (person-shape.ts).
+    const [r, tz, shape] = await Promise.all([
+      api()("GET contacts/[id]", { params: { id } }),
+      workspaceZone(),
+      personShape(),
+    ]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
     const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
     // More's sends are judged against the lines People read (null until it has: the sheet judges them again).
     if (r.ok)
-      return toPersonVM(r.data.person, tz, new Date(), me, {
+      return shape.toPersonVM(r.data.person, tz, new Date(), me, {
         names: holderName,
         ready: peopleLoaded?.channelsReady ?? null,
       });
@@ -570,8 +569,8 @@ export async function passDeals(
 }
 
 /**
- * A person's notes (0007): `window.__personNotes.write(id, body)` adds one (no `note_id`) or changes its author's own
- * (with `note_id` and the version the page saw); `remove` takes one away; `decide` keeps or dismisses the
+ * A person's notes (0007): `writePersonNote(id, body)` adds one (no `note_id`) or changes its author's own (with
+ * `note_id` and the version the page saw); `removePersonNote` takes one away; `decidePersonNote` keeps or dismisses the
  * receptionist's suggestion. The page re-reads the person after each; nothing else shows a note.
  */
 interface NoteBody {
@@ -636,47 +635,17 @@ export async function decidePersonNote(
 
 declare global {
   interface Window {
-    /** A person's notes (0007): the three writes, and the card's words and limit from contracts. */
+    /** A person's steps as the shell's pages still reach them (0007): one done or open again (00166), and a step's day once
+     * it has come, as every page judges it (contracts steps.ts): Today's queue and the Inbox's thread header. */
     __personNotes?: {
-      write: typeof writePersonNote;
-      remove: typeof removePersonNote;
-      decide: typeof decidePersonNote;
-      /** A step done, or open again (00166). */
       done: typeof markStepDone;
-      /** The days a step's picker offers, and a day as every page says it (contracts steps.ts). */
-      days: typeof stepDays;
-      dayOf: typeof stepDayOf;
-      /** A step's day once it has come, as every page judges it (contracts steps.ts). */
       dueDay: typeof dueStepDay;
-      /** The step sheet's words, what it opens with, what it sends, and whether anything was typed (step-sheet.ts). */
-      sheet: typeof stepSheetFor;
-      sheetBody: typeof stepSheetBody;
-      sheetDirty: typeof stepSheetDirty;
-      sheetMerge: typeof stepSheetMerge;
-      sheetWords: typeof STEP_SHEET_WORDS;
-      words: typeof NOTE_WORDS;
-      max: number;
     };
     /** Read someone before their row is clicked (the shell's `routeDoor` asks, data-bits.jsx). */
     __warmPerson?: (id: string) => void;
-    /**
-     * A deal on the page (0008): the one sheet every move goes through (deal-sheet.ts: its modes, what it says and
-     * opens with, the draft once they are read again, the body it sends, where a refusal goes), the person page's deal
-     * cards and their words, and the thread's Deal group with the acts' words.
-     */
+    /** A deal's acts as the thread's Deal group offers them (0008: deal-sheet.ts dealMenuActs), and their words. */
     __deal?: {
-      isMode: typeof isDealSheetMode;
-      sheet: typeof dealSheetFor;
-      body: typeof dealSheetBody;
-      message: typeof dealSheetMessage;
-      dirty: typeof dealSheetDirty;
-      merge: typeof dealSheetMerge;
-      refusal: typeof dealSheetRefusal;
-      sheetWords: typeof DEAL_SHEET_WORDS;
-      cards: typeof dealCardsOf;
-      cardWords: typeof DEAL_CARD_WORDS;
       menu: typeof dealMenuActs;
-      next: typeof dealNextAct;
       actWords: typeof DEAL_ACT_WORDS;
     };
   }
@@ -707,39 +676,17 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
   return api()("PUT people/[id]/business", { params: { id }, body: { lead_id: leadId } });
 }
 
+/**
+ * What the shell's pages still reach a person's steps and deals through: only what one reads (the hover's warm, a step's
+ * day and its done, the thread's deal acts). The sheets, cards and notes import their rules from contracts; published here
+ * too, every page's first load carried the deal and step sheets' rules for nobody (the loadability review, 19 Oct 2026).
+ */
 export function installPeopleCourier(): void {
-  window.__warmPerson = (id) => void warmPerson(id);
-  window.__personNotes = {
-    write: writePersonNote,
-    remove: removePersonNote,
-    decide: decidePersonNote,
-    done: markStepDone,
-    days: stepDays,
-    dayOf: stepDayOf,
-    dueDay: dueStepDay,
-    sheet: stepSheetFor,
-    sheetBody: stepSheetBody,
-    sheetDirty: stepSheetDirty,
-    sheetMerge: stepSheetMerge,
-    sheetWords: STEP_SHEET_WORDS,
-    words: NOTE_WORDS,
-    max: NOTE_MAX,
+  // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).
+  window.__warmPerson = (id) => {
+    void warmPerson(id);
+    profileCode.warm();
   };
-  // One sheet for every move, and the card and the thread's group that open it (0008): the rules, never a copy.
-  window.__deal = {
-    isMode: isDealSheetMode,
-    sheet: dealSheetFor,
-    body: dealSheetBody,
-    message: dealSheetMessage,
-    dirty: dealSheetDirty,
-    merge: dealSheetMerge,
-    refusal: dealSheetRefusal,
-    sheetWords: DEAL_SHEET_WORDS,
-    cards: dealCardsOf,
-    cardWords: DEAL_CARD_WORDS,
-    menu: dealMenuActs,
-    // The card's one next act, which a phone's peek pins under it.
-    next: dealNextAct,
-    actWords: DEAL_ACT_WORDS,
-  };
+  window.__personNotes = { done: markStepDone, dueDay: dueStepDay };
+  window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
 }

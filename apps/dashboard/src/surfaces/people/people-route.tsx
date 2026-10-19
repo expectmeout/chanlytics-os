@@ -13,11 +13,12 @@
  * none of its effects running (its keys, its timers) and is drawn again in the background as its surface moves. Each is a
  * view of the deck (scope-view.ts), so the scope arriving comes in from its tab's side and the one leaving goes by a copy.
  */
-import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
+import { Activity, useEffect, useRef, type ReactNode } from "react";
 import {
   GET_YES_PARAM,
   GET_YES_ROUTE,
   addressOf,
+  LIFECYCLE_WORDS,
   parsePeopleRoute,
   peopleRoute,
   personRouteOf,
@@ -31,11 +32,16 @@ import { PeopleReal } from "./page/people-real";
 import { PipelineScope } from "./pipeline/scope";
 import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
-import { ClientProfile } from "./person/person-real";
+import { peekCode } from "./peek/peek-code";
+import { profileCode } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
+import { FailedRead } from "../kit/empty/empty";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
+import { aheadWhenIdle, routeOnScreen } from "@/legacy-bridge/workspace";
 
 /**
  * What the address names of the page's view (contracts parsePeopleRoute): the props the rows gave the page, and the
@@ -98,15 +104,7 @@ function LeadsScopePage({ param, scopeView }: { param: string; scopeView?: Scope
   const leads = useSurface("leads");
   // Leads' page is a chunk of its own, asked for as its address opens, while the surface it waits for is read: People's
   // first load carries none of it (the page's ceiling, tooling/scripts/checks/bundle-budget.mjs, 11 Oct 2026).
-  const [, landed] = useState(0);
-  useEffect(() => {
-    if (!leadsModule)
-      void loadLeads().then(
-        () => landed((n) => n + 1),
-        () => undefined,
-      );
-  }, []);
-  const Page = leadsModule?.LeadsReal;
+  const Page = useCode(leadsCode, true).loaded?.LeadsReal;
   // Leads' first part (client/page-speed.ts): its rows drawn, which wait for both its read and its chunk.
   usePartShown("leads", "table", !!(leads && Page));
   // Until both are in, it says so where it will stand: the page keeps its scopes, so the frame's reading pane does not stand
@@ -121,27 +119,16 @@ function LeadsScopePage({ param, scopeView }: { param: string; scopeView?: Scope
     />
   ) : (
     <div className="route-reading" role="status">
-      Reading…
+      {LIFECYCLE_WORDS.reading}
     </div>
   );
 }
 
-type LeadsModule = Pick<typeof import("../leads/page/leads-real"), "LeadsReal">;
-let leadsModule: LeadsModule | null = null;
-let leadsLoading: Promise<LeadsModule> | null = null;
-
-/** Leads' page, loaded once for the tab, where it is first drawn or ahead of it; one that failed is asked for again. */
-function loadLeads(): Promise<LeadsModule> {
-  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
-  leadsLoading ??= import("../leads/page/leads-real").then(
-    ({ LeadsReal }) => (leadsModule = { LeadsReal }),
-    (e: unknown) => {
-      leadsLoading = null;
-      throw e;
-    },
-  );
-  return leadsLoading;
-}
+/**
+ * Leads' page, loaded once for the tab, where it is first drawn or ahead of it; one that failed is asked for again. What
+ * it reads of the module is named, so the dead-exports check (knip) sees the use.
+ */
+const leadsCode = codeOnce(() => import("../leads/page/leads-real").then(({ LeadsReal }) => ({ LeadsReal })));
 
 /** How long People's page waits for an idle moment before it loads Leads' page all the same. */
 const LEADS_AHEAD_MS = 2000;
@@ -154,15 +141,48 @@ const LEADS_AHEAD_MS = 2000;
  */
 function useLeadsAhead(ready: boolean): void {
   useEffect(() => {
-    if (!ready || leadsModule) return undefined;
-    const go = () => void loadLeads().catch(() => undefined);
-    if (typeof requestIdleCallback === "function") {
-      const id = requestIdleCallback(go, { timeout: LEADS_AHEAD_MS });
-      return () => cancelIdleCallback(id);
-    }
-    const t = setTimeout(go, LEADS_AHEAD_MS);
-    return () => clearTimeout(t);
+    if (!ready || leadsCode.now()) return undefined;
+    return aheadWhenIdle(leadsCode.warm, LEADS_AHEAD_MS);
   }, [ready]);
+}
+
+// A person's address as the tab opens on it: the page's code is fetched now, beside People's own (people-detail.ts profileCode).
+if (typeof window !== "undefined") {
+  const opened = routeOnScreen();
+  const param = opened.startsWith("clients/") ? opened.slice("clients/".length) : "";
+  if (param && isPersonParam(param)) profileCode.warm();
+}
+
+/** How long People's list waits for an idle moment before it loads a person's page all the same. */
+const PROFILE_AHEAD_MS = 3000;
+
+/**
+ * A person's page and the peek beside the rows (peek/peek-code.tsx) loaded ahead, once People's list (or the Pipeline) is
+ * drawn and the page is idle: a pick or a press on a person finds them in.
+ */
+function useProfileAhead(ready: boolean): void {
+  useEffect(() => {
+    if (!ready || (profileCode.now() && peekCode.now())) return undefined;
+    return aheadWhenIdle(() => {
+      profileCode.warm();
+      peekCode.warm();
+    }, PROFILE_AHEAD_MS);
+  }, [ready]);
+}
+
+/**
+ * A person's page, once its chunk is in: the shell's quiet words while it comes (the page's own read is out beside it,
+ * people-detail.ts), and the failed read with its Retry where the chunk could not be fetched.
+ */
+function PersonPage({ id, tab }: ReturnType<typeof personRouteOf>) {
+  const { loaded, failed, retry } = useCode(profileCode, true);
+  if (loaded) return <loaded.ClientProfile id={id} tab={tab} />;
+  if (failed) return <FailedRead kind="line" what="this person" onRetry={retry} testid="person-code-failed" />;
+  return (
+    <div className="route-reading" role="status">
+      {LIFECYCLE_WORDS.reading}
+    </div>
+  );
 }
 
 type Scope = "people" | "leads" | "pipeline";
@@ -234,13 +254,15 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   usePeopleStanding(person || pipeline || leads || listDrawn ? null : "people");
   // People's first part (client/page-speed.ts): its table, drawn once People's read is in. Its scopes say their own.
   usePartShown("people", "table", !!live && !person && !leads && !pipeline);
-  // People's list or the Pipeline on screen: the strip's other scope, Leads, is loaded ahead of its press.
+  // People's list or the Pipeline on screen: the strip's other scope, Leads, is loaded ahead of its press, and so is a
+  // person's page, the list's most common next move.
   useLeadsAhead(!!live && !person && !leads);
+  useProfileAhead(!!live && !person);
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
   // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
   if (person) {
     const at = personRouteOf(param);
-    return <ClientProfile key={at.id} id={at.id} tab={at.tab} />;
+    return <PersonPage key={at.id} id={at.id} tab={at.tab} />;
   }
   return (
     <>

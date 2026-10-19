@@ -10,7 +10,7 @@ import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { surfaceValue } from "../../surface-values";
 import { ReachOutEmailRow } from "../reach-out/email-message";
-import type { ReachOutsSurface } from "../reach-out/surface";
+import type { ReachOutsSurface } from "../reach-out/override";
 import { reachOuts } from "../reach-out/surface";
 
 type Emails = ReturnType<typeof reachOuts.words.emailTemplateRowsOf>;
