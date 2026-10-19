@@ -105,6 +105,7 @@ const KINDS = [
   "reach_out_make",
   "reach_out_said",
   "review_reply",
+  "review_reply_stop",
   "follow_up",
   "answer_style",
   "teleport",
@@ -177,6 +178,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     reach_out_make: "approve",
     reach_out_said: "approve",
     review_reply: "approve",
+    review_reply_stop: "approve",
     follow_up: "approve",
     answer_style: "approve",
   });
@@ -343,6 +345,7 @@ test("a card's Open goes exactly where it went at a993b71d, for every kind over 
   assert.equal(open("person_message", { contact_id: "p1" }, { state: "done", made: { id: "c9" } }), "inbox/th-c9");
   assert.equal(open("call_hand_over", { call_id: "k1" }), "live");
   assert.equal(open("review_reply", { review_id: "rv1" }), "reports/reviews");
+  assert.equal(open("review_reply_stop", { review_id: "rv1" }), "reports/reviews");
   assert.equal(open("lead_list", { lead_ids: ["ld1"] }), "clients/leads");
   for (const kind of Object.keys(OPEN)) {
     const want = Array.isArray(OPEN[kind]) ? OPEN[kind] : CASES.map(() => OPEN[kind]);
@@ -539,6 +542,7 @@ const SHAPES = {
   ],
   reach_out_said: [card("reach_out_said", { lead_id: "ld1", intent: "interested", who: "Dock Dental" })],
   review_reply: [card("review_reply", { review_id: "rv1", comment: "Thank you, Ana!", who: "Ana P." })],
+  review_reply_stop: [card("review_reply_stop", { review_id: "rv1" })],
   follow_up: [
     card("follow_up", {
       follow_ups: [{ id: "f1", said: "the search", prompt: "Say what it found", wake: "search_done" }],
@@ -762,6 +766,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     reach_out_make: ["POST reach-outs"],
     reach_out_said: ["POST reach-outs/leads/[id]/said"],
     review_reply: ["POST google/reviews/[id]/reply"],
+    review_reply_stop: ["POST google/reviews/[id]/stop"],
     follow_up: ["PUT views/[page]"],
     answer_style: ["PUT views/[page]"],
   });

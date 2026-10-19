@@ -87,7 +87,7 @@ what the script writes.
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
-| [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
+| [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
@@ -103,7 +103,7 @@ what the script writes.
 | [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
-| [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
+| [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 2 policies |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
@@ -1077,6 +1077,9 @@ Reviews of the workspace's listing as Google showed them, one row per review, ke
 | `maps_uri` | text | yes |  |  |
 | `first_seen_at` | timestamp with time zone | no | `now()` |  |
 | `last_seen_at` | timestamp with time zone | no | `now()` |  |
+| `draft_text` | text | yes |  | The reply the receptionist wrote for this review and holds (00462, decision 0064 step 6): for a member's OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it. |
+| `drafted_at` | timestamp with time zone | yes |  | When the receptionist wrote the reply it holds (draft_text). |
+| `posts_at` | timestamp with time zone | yes |  | Under Holds it: when the held reply (draft_text) goes; the hourly sync posts it at its first run after, unless a member stopped it, which clears this and leaves the reply waiting for their OK. Null under Ask me. |
 
 Foreign keys:
 
@@ -2368,7 +2371,7 @@ Foreign keys:
 
 ### policies
 
-- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 5 policies
 
@@ -2899,7 +2902,6 @@ Decision 0060: each step of a sequence in its place (playbooks until 00440). A s
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
 | `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
 | `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
-| `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
 | `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
 | `owner_sends` | boolean | no | `false` | A reach-out's root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
 | `sequence_id` | uuid | no |  | The sequence this step is part of (0060); the first step's own id. |
@@ -2910,6 +2912,7 @@ Decision 0060: each step of a sequence in its place (playbooks until 00440). A s
 | `next_template_language` | text | yes |  |  |
 | `next_params` | jsonb | yes |  |  |
 | `source_search_id` | uuid | yes |  | A sequence to leads' first step only (00459): the search whose ready leads join its list without a press (auto-add). Its own list (lead_search_id) holds the leads added by hand; a lead taken out stays on that list, blanked, so it never comes back from here. |
+| `words_ok_at` | timestamp with time zone | yes |  | When a person last let a batch of this step's words go (0064): approved it, or ran it now. Null while its words are new to the owner: at its making, after its message or slots change, after its message's words change on any channel. A batch of a step whose words are new waits for an OK. |
 
 Foreign keys:
 
@@ -2936,7 +2939,7 @@ Decision 0060: anything that sends on its own. How it starts (moment: a moment o
 
 - Owned by: `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts`
 - Primary key: `id`
-- Row-level security: on, 1 policy
+- Row-level security: on, 2 policies
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
@@ -2948,6 +2951,7 @@ Decision 0060: anything that sends on its own. How it starts (moment: a moment o
 | `created_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `mode` | text | yes |  | How its batches are decided (0064): auto, each sent; veto, each held thirty minutes for a stop; ask, each waits for an OK. A batch of a step whose words are new waits for an OK whatever this says (sequence_steps.words_ok_at). Null for a one-off alone, which pressing Send decided. Never auto for a sequence to leads. |
 
 Foreign keys:
 
@@ -2956,6 +2960,7 @@ Foreign keys:
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
+| `sequences_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `sequences_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### sweep_status

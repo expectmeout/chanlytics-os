@@ -1,7 +1,8 @@
 /**
  * What Settings › Autonomy draws of the owner's corrections (decision 0063), on the stub React: under Replies, how often
  * the owner changed what it wrote (and nothing with none held; Bookings' and Questions' lines are their own rows' on
- * Settings since 18 Oct 2026, business/choices); and the notes their
+ * Settings since 18 Oct 2026, business/choices); under the rows a new sequence starts by, what their sequences' batches
+ * did (decision 0064); and the notes their
  * corrections suggest, each with what they wrote and Keep as a note or Dismiss, pressed through the pane's one door, the
  * row gone once it answered and its refusal said in its own words. Nothing is drawn where nothing waits or the read failed.
  */
@@ -34,17 +35,34 @@ const held = heldDraftsByClass([
   { intent: "greeting", held: 6, sent: 5, steered: 0, canceled: 1, person_first: 0 },
 ]);
 
-test("Replies says how often its drafts were changed, and no other row of the matrix says a line", () => {
+test("Replies says how often its drafts were changed, and no other row of the matrix says a line of drafts", () => {
   fresh();
-  const tree = again(() => h(PolicyTable, { rows, put() {}, busy: null, held }));
+  const tree = again(() => h(PolicyTable, { rows, put() {}, busy: null, lines: { held } }));
   assert.equal(said(tree, "pol-held-reply"), "6 held for you in 30 days: 5 sent as written, 1 stopped");
   assert.equal(byTestId(tree, "pol-held-booking"), null, "a booking's drafts are the booking row's, on Settings");
   assert.equal(byTestId(tree, "pol-held-faq"), null, "no draft held under Questions: no line");
   assert.equal(byTestId(tree, "pol-held-reengage"), null, "a campaign's row holds no receptionist's drafts");
   fresh();
-  const phone = again(() => h(PolPhoneRows, { rows, put() {}, busy: null, held }));
+  const phone = again(() => h(PolPhoneRows, { rows, put() {}, busy: null, lines: { held } }));
   assert.match(textOf(byTestId(phone, "pol-phone-reply")), /6 held for you in 30 days/);
   assert.doesNotMatch(textOf(byTestId(phone, "pol-phone-book")), /held for you/);
+});
+
+test("a row a new sequence starts by says what its sequences' batches did, and a row with none of its sequences says nothing", () => {
+  const evidence = [
+    { sequence_id: "q-1", policy_class: "reengage", went: 4, approved: 1, stopped: 1, skipped: 0 },
+    { sequence_id: "q-2", policy_class: "reengage", went: 1, approved: 0, stopped: 0, skipped: 1 },
+  ];
+  fresh();
+  const tree = again(() => h(PolicyTable, { rows, put() {}, busy: null, lines: { held, evidence } }));
+  assert.equal(
+    said(tree, "pol-held-reengage"),
+    "2 sequences · Last 90 days: 5 batches went: 1 after your OK, 4 on their own · you stopped 1 · 1 skipped: nobody answered in time",
+  );
+  assert.equal(byTestId(tree, "pol-held-faq"), null, "a class no sequence is made under says none");
+  fresh();
+  const phone = again(() => h(PolPhoneRows, { rows, put() {}, busy: null, lines: { evidence } }));
+  assert.match(textOf(byTestId(phone, "pol-phone-reengage")), /2 sequences · Last 90 days: 5 batches went/);
 });
 
 const S1 = {

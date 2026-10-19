@@ -160,10 +160,4 @@ export function messageText(m) {
   }
   return `[${m.type}]`;
 }
-export function clipAtWord(text, max) {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max + 1);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
-}
+export { clipAtWord } from "../shared/words.js";

@@ -31,10 +31,10 @@ test("the bounds a playbook's whole numbers keep are said once: the hour the sen
   assert.equal(PLAYBOOK_NAME_MAX, 80);
 });
 
-test("a change names any of nine things, in the order a card says them, and says each of the six in the product's words (the three of 00416: playbook-change-words.test.mjs)", () => {
+test("a change names any of nine things, in the order a card says them, and says each of the six in the product's words (the three of 00416 and 00462: playbook-change-words.test.mjs)", () => {
   assert.deepEqual(
     [...PLAYBOOK_PATCH_KEYS],
-    ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days", "params", "until", "trial_until"],
+    ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days", "params", "until", "mode"],
   );
   const W = PLAYBOOK_PATCH_WORDS;
   assert.deepEqual(
@@ -59,10 +59,8 @@ test("a change names any of nine things, in the order a card says them, and says
     W.pausedWaits(1),
     "The run waiting for you (1 person) stays waiting: approve or skip it under Coming up",
   );
-  assert.equal(
-    W.resumed("Re-engage", "ask", "each run waits for you on Today"),
-    "Runs again under “Re-engage” (ask): each run waits for you on Today",
-  );
+  // A resume says what its batches do by its sequence's mode (decision 0064), never a class's.
+  assert.equal(W.resumed("each batch waits for your OK"), "Runs again: each batch waits for your OK");
   assert.equal(W.same("Win-back"), "“Win-back” already reads so: say so, and change nothing");
   // The state's refusal is the route's own sentence, moved here so core says it, in the product's word.
   assert.equal(W.state, "A campaign is running or paused.");

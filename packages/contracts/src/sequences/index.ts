@@ -1,6 +1,17 @@
 /** Sequences (decision 0060): everything the workspace sends on its own, its steps, batches, sends and replies. */
-export { SEQUENCE_STARTS, SEQUENCE_STATES } from "./sequence";
-export type { SequenceStart, SequenceState } from "./sequence";
+export {
+  SEQUENCE_STARTS,
+  SEQUENCE_STATES,
+  SEQUENCE_MODES,
+  SEQUENCE_MODE_WORDS,
+  SEQUENCE_MODE_LABEL,
+  SEQUENCE_NEW_WORDS_ASK,
+  isSequenceMode,
+  sequenceModesFor,
+  newSequenceMode,
+  batchModeOf,
+} from "./sequence";
+export type { SequenceStart, SequenceState, SequenceMode } from "./sequence";
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpStop, followUpReach, messageAboutOfClass } from "./follow-up";
 export type { FollowUpCondition, FollowUpStop, FollowUpStep } from "./follow-up";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequence-dto";
@@ -116,7 +127,6 @@ export type { SequenceResumeAsk } from "./sequence-acts";
 export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, leadStepTestMail, stepTestMail } from "./sequence-test";
 export {
   LEAD_BUILD_WORDS,
-  leadApprovesOf,
   leadBuildStepsOf,
   leadDraftChainOf,
   leadDraftDockOf,
@@ -173,3 +183,5 @@ export {
   scheduleStepFacts,
 } from "./sequence-schedule";
 export type { ScheduleState, ScheduleCtx } from "./sequence-schedule";
+export { EVIDENCE_DAYS, classEvidenceLine, evidenceOf, evidenceWords } from "./sequence-evidence";
+export type { SequenceEvidence, SequenceEvidenceDto } from "./sequence-evidence";

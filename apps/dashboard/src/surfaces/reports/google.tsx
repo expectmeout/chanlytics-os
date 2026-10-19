@@ -14,9 +14,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { lensEmpty, lensRoute } from "@chanlytics/contracts";
+import { WAIT_ACT_WORDS, lensEmpty, lensRoute, waitEndsWords } from "@chanlytics/contracts";
 import type { GoogleReviewVM, GoogleVM, LensRange, ReviewWaitingVM, ReviewsReportVM } from "@chanlytics/contracts";
-import { draftReply, replyToReview } from "@/legacy-bridge/google";
+import { draftReply, replyToReview, stopHeldReply } from "@/legacy-bridge/google";
 import { canDo, navigate, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
@@ -38,14 +38,20 @@ type Flash = (flash: LegacyFlash) => void;
 // under the review, a few lines, Send. Google keeps one reply per review,
 // so sending again replaces it. Shown only when the Business Profile is
 // connected and the review came through it.
-// The composer under a review. Under Ask (and Auto, for one the receptionist
-// has not reached), opening it asks the receptionist for a draft first, so a
-// reply is one tap: read, change anything, send. Under Never the box opens
-// empty and nothing is asked.
+// The composer under a review. A reply the receptionist already holds for it
+// (decision 0064: written by the sync under Ask me, or under Holds it until it
+// posts) opens in the box, and its line says how its wait ends, with a Stop
+// where it would post on its own. Otherwise, under Ask (and Auto, for one the
+// receptionist has not reached), opening it asks the receptionist for a draft
+// first, so a reply is one tap: read, change anything, send. Under Never the
+// box opens empty and nothing is asked.
 // A reply that lands moves the review out of the waiting card, and this composer with it, before the toast is raised: the toast
 // is the section's (`flash`), so it is still drawn, and so is where focus goes (`sent`, the card's heading), which the row took with it.
 // The review a link names (reports/reviews:<id>) opens its box as it is drawn, as a press on Reply would; once it is answered the
 // address drops the review (`answered`). The section brings it into view.
+/** A held reply stopped, or held under Ask me: it waits for your OK (the wait rule's words). */
+const HELD_REPLY_WAITS = `${waitEndsWords("review_ask")}.`;
+
 function ReviewReply({
   r,
   mode,
@@ -62,13 +68,20 @@ function ReviewReply({
   answered: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(r.replyText || "");
+  const [text, setText] = useState(r.replyText || r.heldReply?.text || "");
+  // A held reply stopped here: it no longer posts on its own (the read behind it says so too).
+  const [stopped, setStopped] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drafting, setDrafting] = useState(false);
   // null · "yes" (the words in the box are the receptionist's) · a sentence saying why there is none
   const [drafted, setDrafted] = useState<string | null>(null);
   const openIt = async () => {
     setOpen(true);
+    // The reply it holds is the draft: no second one is asked for.
+    if (r.heldReply) {
+      setDrafted("yes");
+      return;
+    }
     if (r.replied || mode === "never") return;
     setDrafting(true);
     const d = await draftReply(r.id);
@@ -102,8 +115,32 @@ function ReviewReply({
       sent?.();
     }
   };
+  // Its Stop: a reply that would post on its own waits for your OK instead, its words kept for the box.
+  const stop = async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await stopHeldReply(r.id);
+    setBusy(false);
+    if (res.ok) setStopped(true);
+    // The verb's receipt (contracts reviewReplyStopSpec): stopped, or nothing left to stop.
+    flash({ tone: res.ok ? "ok" : "danger", msg: <>{res.message}</> });
+  };
+  const posts = !!r.heldReply?.posts && !stopped;
   return (
     <div className="rp2-review-reply">
+      {r.heldReply && !open && (
+        <p className="rp2-review-drafted" data-testid="google-review-held-reply">
+          <b>The receptionist wrote:</b> {r.heldReply.text} {posts ? r.heldReply.words : HELD_REPLY_WAITS}
+          {posts && (
+            <>
+              {" "}
+              <LinkButton onClick={stop} disabled={busy} data-testid="google-review-stop">
+                {WAIT_ACT_WORDS.stop}
+              </LinkButton>
+            </>
+          )}
+        </p>
+      )}
       {r.replied && !open && (
         <p className="rp2-review-replytext">
           <b>You replied:</b> {r.replyText}
@@ -111,7 +148,7 @@ function ReviewReply({
       )}
       {!open ? (
         <LinkButton onClick={openIt} data-testid="google-reply">
-          {r.replied ? "Change the reply" : "Reply"}
+          {r.replied ? "Change the reply" : r.heldReply ? "Read and send" : "Reply"}
         </LinkButton>
       ) : (
         <div className="rp2-review-composer" data-testid="google-reply-composer">

@@ -332,11 +332,16 @@ test(
       cadence_days: 30,
       list_id: null,
       list_key: null,
-      // Its message and words, its end and its trial (00416): what a change of the three is judged against.
+      // Its message and words and its end (00416), and its sequence's mode with when its words were last let go
+      // (00462, decision 0064): what a change of the three is judged against.
       template_id: templateId,
       params: [],
       until: null,
-      trial_until: null,
+      sequence_id: id,
+      words_ok_at: null,
+      // The workspace's reengage row, as provisioning seeds it since 00463: a new sequence of the class is held for a
+      // stop (00462 sequence_mode_for).
+      mode: "veto",
       waiting: null,
     });
     const run = ok(

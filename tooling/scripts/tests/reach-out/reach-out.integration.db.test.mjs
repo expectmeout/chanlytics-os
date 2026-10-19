@@ -461,6 +461,14 @@ test(
         },
       }),
     );
+    // Its words were let go in a batch before (decision 0064: a step's first batch of new words waits once for an OK),
+    // so under veto this one goes ahead on its own.
+    ok(
+      await db
+        .from("sequence_steps")
+        .update({ words_ok_at: iso(Date.now() - DAY) })
+        .eq("id", step),
+    );
     const r6 = await stepRun(step);
     assert.deepEqual([r6.outcome, r6.planned], ["sent", 1], "a later run under veto goes ahead on its own");
     const run2 = await runOf(step);

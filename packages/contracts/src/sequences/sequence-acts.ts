@@ -6,7 +6,7 @@
  */
 import { resumeDetailOf } from "../playbooks/lifecycle/lifecycle-tiles";
 import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
-import { campaignRunsOn, trialDayWords } from "../playbooks/playbook-schedule";
+import { campaignRunsOn } from "../playbooks/playbook-schedule";
 import type { SequenceReachDto, SequenceRecordDto, SequenceRowDto } from "./sequence-dto";
 
 /** The head's words past its one act. */
@@ -15,7 +15,7 @@ export const SEQUENCE_ACT_WORDS = {
   askAbout: "Ask about it",
   runNow: "Run now",
   runNowTip:
-    "Runs its first step now, at your request: it waits for your OK where you approve its batches, and outside the sending hours it goes when they open",
+    "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
   rename: "Rename",
   name: "Name",
   save: "Save",
@@ -48,18 +48,22 @@ export interface SequenceResumeAsk {
 
 /**
  * A paused sequence's Turn on, asked first (decision 7): a sequence on a moment or a list says when its first step runs
- * next, from the record (its hour, its last day, its trial and the day it last ran), and to about how many, from its reach
- * (GET sequences/:id/reach; undefined while it is read: the question alone, nothing guessed), and that it sends on its own
- * where its class does (`mode`, the record's own); a workspace paused for billing says so instead of a time, as the home's
- * rows do. A sequence to leads says what a reach-out's Resume says.
+ * next, from the record (its hour, its last day and the day it last ran), and to about how many, from its reach (GET
+ * sequences/:id/reach; undefined while it is read: the question alone, nothing guessed), and what that batch does by its
+ * own mode (decision 0064: it waits for an OK where its words are new, it goes on its own under Sends it); a workspace
+ * paused for billing says so instead of a time, as the home's rows do. A sequence to leads says what a reach-out's Resume
+ * says.
  */
 export function sequenceResumeAsk(
-  rec: { sequence: Pick<SequenceRowDto, "name" | "starts" | "first"> } & Pick<SequenceRecordDto, "last_run_for">,
+  rec: { sequence: Pick<SequenceRowDto, "name" | "starts" | "first" | "mode"> } & Pick<
+    SequenceRecordDto,
+    "last_run_for"
+  >,
   reach: SequenceReachDto | null | undefined,
-  at: { tz: string; nowMs: number; mode: string | null },
+  at: { tz: string; nowMs: number },
 ): SequenceResumeAsk {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const { name, starts, first } = rec.sequence;
+  const { name, starts, first, mode } = rec.sequence;
   const step =
     first && reach
       ? {
@@ -69,7 +73,8 @@ export function sequenceResumeAsk(
           until: first.until,
           candidates: reach.candidates,
           cap_per_run: reach.cap_per_run,
-          trial: trialDayWords(first, at.tz, new Date(at.nowMs)),
+          mode,
+          words_ok_at: first.words_ok_at,
         }
       : null;
   const detail =

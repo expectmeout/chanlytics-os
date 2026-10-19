@@ -164,10 +164,12 @@ export const audiencesOverride: SurfaceOverride = {
   // marked missed or cancelled leaves a reminder's: #1551), and a number, a line or the workspace's pause, which who is reached
   // is judged against. The rules and the business's facts the pools are read with. And the lists To offers and counts: a list
   // made, renamed or emptied by a teammate or another tab (the wiring's second audit, W-person-list-lead-7); a deal (an audience
-  // of proposals out, or a yes since), and the team the people read names. All of it heard where a composer is drawn, and once
-  // as one comes back.
+  // of proposals out, or a yes since), and the team the people read names. And the proposal follow-up's sequence, its step and
+  // its mode (decision 0064: whether its next batch asks), which its facts name. All of it heard where a composer is drawn, and
+  // once as one comes back.
   ...declareReads("audiences", {
     reads: [
+      "campaign",
       "conversation",
       "hold",
       "visit",

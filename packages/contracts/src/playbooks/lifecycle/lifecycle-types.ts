@@ -15,6 +15,7 @@ import type { JourneyStageId } from "../../journey/journey";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import type { CampaignMessage } from "../../templates/campaign-message";
 import type { ChannelStand } from "../playbook-channels";
+import type { SequenceMode } from "../../sequences/sequence";
 import type { LIFECYCLE_WORDS } from "./lifecycle-words";
 
 /** One moment's count as the playbooks surface keeps it (`pools`), less what the home does not read. */
@@ -65,10 +66,11 @@ export interface LifecyclePlaybook {
    */
   ended?: string | null;
   /**
-   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00416 `trial_until`): a run its class
-   * would send by itself waits for a person. Null or absent otherwise.
+   * Its sequence's mode and when its words were last let go (decision 0064): what Resume says its next batch does
+   * (contracts batchModeOf). Absent on a card drawn without them: Resume then says when and to how many alone.
    */
-  trial?: string | null;
+  mode?: SequenceMode | null;
+  words_ok_at?: string | null;
   listArchived?: boolean;
   totals: { waiting: { id: string; recipient_count: number } | null };
   /** The channels it goes by (the row's `channels`): WhatsApp alone where it names none, as one made before them. */
@@ -132,12 +134,6 @@ export interface LifecyclePlaybooks {
    * one more tick would open.
    */
   templates?: readonly LifecycleMessage[] | null;
-  /**
-   * Each autonomy class's mode by class (GET playbooks' `modes`): a Resume asked on a row says a class under `auto` in
-   * full (decision 7). Null where unread, absent on a surface drawn without it: the question then says when and to how
-   * many alone.
-   */
-  modes?: Readonly<Record<string, string>> | null;
 }
 
 /** A run as the broadcasts surface lists it. */

@@ -25,8 +25,9 @@ import { log } from "../log";
 
 const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
+// The reply the receptionist holds, and when it goes under Holds it (00462, decision 0064 step 6), with the rest.
 const REVIEW_COLUMNS =
-  "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
+  "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, draft_text, posts_at, maps_uri, first_seen_at";
 /** Never the credentials name: the row says who and when, not where the token is. */
 export const CONNECTION_COLUMNS =
   "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";

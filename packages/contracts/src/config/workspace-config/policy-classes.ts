@@ -44,30 +44,30 @@ export const POLICY_CLASS_WORDS: Record<PolicyClass, { name: string; short: stri
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    note: `how a new win-back sequence starts · each keeps its own on its page, and asks you before its first batch and after new words`,
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer campaigns · auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`,
+    note: `how a new offer or welcome sequence starts · each keeps its own on its page, and asks you before its first batch and after new words`,
   },
   reviews: {
     name: "Google reviews",
     short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, ask drafts one for you to send, never leaves them all to you",
+    note: `replies under new reviews on Google, through the connected Business Profile · auto answers each within the hour, veto writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask writes one and holds it for your OK, never leaves them all to you`,
   },
   money: { name: "Refunds · rates · negotiation", short: "Money", note: "always goes to you" },
   // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up campaign · one nudge per proposal, with its link, once it has waited with nothing back · auto sends each run, ask leaves it waiting on Today, never runs nothing",
+    note: "how the proposal follow-up starts · one nudge per proposal, with its link · it keeps its own on its page, and asks you before its first batch and after new words",
   },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  // Reach out (Part 3): cold email to the businesses a search found. Never sent on its own (0064).
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: `every email a reach-out sends · its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them · never sends none`,
+    note: "how a new sequence to leads starts · each keeps its own on its page, and asks you before its first batch and after new words",
   },
 };
 
@@ -117,23 +117,24 @@ export const POLICY_MODE_WORDS: Record<PolicyMode, { head: string; sub: string; 
  * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
  * (never). Booking and service questions are answered by the receptionist
  * or by a person: there is no "never" for a salon that takes bookings, and
- * no draft to hold for review. The playbook classes run, wait, wait for a
- * person, or do not run. Reviews are answered, drafted for a person, or
- * left alone — there is no draft to hold on a countdown. Money is the
- * charter's.
+ * no draft to hold for review. The sequences' classes say what a new
+ * sequence starts as (decision 0064): it sends, holds each batch, or asks
+ * for each; a sequence that should not send is paused on its page, so they
+ * have no "never", and cold email never sends on its own. Reviews are
+ * answered, written and held on the veto's countdown (REVIEW_HOLD_MS), drafted
+ * for a person, or left alone. Money is the charter's.
  */
 export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
   reply: ["auto", "veto", "ask", "never"],
   booking: ["auto", "ask"],
   faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  reviews: ["auto", "ask", "never"],
+  reengage: ["auto", "veto", "ask"],
+  campaign: ["auto", "veto", "ask"],
+  // Holds it (decision 0064, step 6): a reply written and posted after its wait unless stopped, as a batch is.
+  reviews: ["auto", "veto", "ask", "never"],
   money: ["never"],
-  follow_up: ["auto", "ask", "never"],
-  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
-  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
-  outreach: ["veto", "ask", "never"],
+  follow_up: ["auto", "veto", "ask"],
+  outreach: ["veto", "ask"],
 };
 
 /**

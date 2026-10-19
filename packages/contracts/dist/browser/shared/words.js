@@ -5,3 +5,10 @@ export const UNKNOWN_MEMBER_WORD = "Someone";
 export const capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 export const joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 export const joinWordsEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+export function clipAtWord(text, max) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
+}

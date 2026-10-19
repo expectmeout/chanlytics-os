@@ -171,6 +171,25 @@ function holdsHeld(): WhatWaits["holds"] {
   };
 }
 
+/**
+ * The threads the Inbox holds, by conversation id, and whether a reply counts down on each now (decision 0064): what a held
+ * reply's bell row waits on. From the same whole read as the holds, so a thread the read did not take settles nothing.
+ */
+function sendsHeld(): WhatWaits["sends"] {
+  const inbox = surfaceValue("inbox");
+  if (!inbox || typeof inbox.readAt !== "number" || inbox.holdsWhole !== true || !Array.isArray(inbox.THREADS))
+    return null;
+  const now = Date.now();
+  return {
+    readAt: serversClockOf(inbox.readAt),
+    held: new Map(
+      inbox.THREADS.flatMap((t) =>
+        t.real ? [[t.conversationId, typeof t.veto?.endsAtMs === "number" && t.veto.endsAtMs > now] as const] : [],
+      ),
+    ),
+  };
+}
+
 /** The searches Leads holds, by id, with their newest round's id and state, from when the read was asked. */
 function searchesHeld(): WhatWaits["searches"] {
   const leads = surfaceValue("leads");
@@ -199,6 +218,7 @@ function whatWaits(): WhatWaits {
     runs,
     days: runDays(runs),
     holds: holdsHeld(),
+    sends: sendsHeld(),
     searches: searchesHeld(),
     heldEmails:
       calendar &&

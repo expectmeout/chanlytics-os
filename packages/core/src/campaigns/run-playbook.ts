@@ -1,8 +1,8 @@
 import {
+  batchModeOf,
   campaignEnded,
   campaignMessageOf,
   clockWhen,
-  effectiveMode,
   localDate,
   messageHolds,
   nextOpenMoment,
@@ -21,8 +21,8 @@ import {
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
-  trialDayWords,
   triggerOf,
+  readyRunNotice,
   vetoRunNotice,
   visitFactsFor,
   theirVisitTest,
@@ -35,6 +35,7 @@ import {
   type PlaybookTrigger,
   type RunPlan,
   type RunReach,
+  type SequenceMode,
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
@@ -64,9 +65,8 @@ interface Run {
   ctx: RunContext;
   by: RunBy;
   runFor: string;
-  mode: string;
-  /** The day its trial ends, in words, where the trial made this run wait as veto does (its class's mode is auto); else null. */
-  trial: string | null;
+  /** How this batch is decided (contracts batchModeOf): what it records, and what its bell says. */
+  mode: SequenceMode;
   /** The channels the playbook ticks (contracts reachFor reads them at enrolment). */
   channels: ConsentChannel[];
   record(data: Record<string, unknown>): Promise<void>;
@@ -442,19 +442,16 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
   const { ports, p, ctx, by, mode } = run;
   const { n, at } = made;
   if (!at) {
-    await ports.notify(
-      // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
-      // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
-      `Campaign “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run from your Inbox or Today. Nothing is sent until you do; it waits until tonight.`,
-      made.madeId,
-    );
+    // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
+    // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before. How its wait ends is
+    // the wait rule's (contracts waitEndsWords: until the end of its day, then skipped and told).
+    const told = readyRunNotice(p.name, n);
+    await ports.notify(told.subject, told.body, made.madeId);
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
-    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone. One
-    // that waits for its trial says so, and until when.
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()), run.trial);
+    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
     // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
     await ports.notify(told.subject, told.body, made.madeId).catch(() => undefined);
@@ -472,11 +469,12 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
  * longest-unheard first, at most the cap. Each is reached once, on the first
  * of the playbook's channels the workspace can send on and the message has a
  * version on (contracts reachFor); a person none of them reaches is held, and
- * counted by why, never moved to another channel. What the run then does is the
- * class's autonomy mode: auto schedules the send now, veto schedules it half
- * an hour ahead with a Stop, ask leaves it waiting for a person, never does
- * nothing. A person who asks for a run now has decided: it sends now, unless
- * the class is set to never. Never at 3 AM, whoever asks: a send that would
+ * counted by why, never moved to another channel. What the run then does is its
+ * batch's mode (contracts batchModeOf, decision 0064): its sequence's own, or
+ * ask while the step's words are new to the owner. Auto schedules the send now,
+ * veto schedules it half an hour ahead with a Stop, ask leaves it waiting for a
+ * person. A person who asks for a run now has decided: it sends now, and its
+ * words are theirs from then on. Never at 3 AM, whoever asks: a send that would
  * go out past the hours a run keeps on its own (a "Run now" at eleven at
  * night, a veto window ending past twenty) goes at nine, and the ledger says
  * what was asked for. Every run is recorded as an event, a run that found
@@ -486,11 +484,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  // No row for the class means ask — the safest. A campaign on trial (00416) waits for a person where its class would
-  // send by itself: auto goes as veto until its trial ends (contracts effectiveMode), and its notice says so.
-  const classMode = ctx.modes.get(p.policy_class) ?? "ask";
-  const mode = effectiveMode(p, classMode, now);
-  const trial = mode === classMode ? null : trialDayWords(p, ctx.tz, now);
+  // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
+  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at });
   const record = (data: Record<string, unknown>) =>
     ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   // Off, and the run says why -- recorded, unless the day's run already stands.
@@ -501,14 +496,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A campaign past its last day (00416 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
   // for the day, before anything is read.
   if (campaignEnded(p, runFor)) return off("ended");
-  // A person who asks has decided: it sends now, unless the class is never.
-  const plan: RunPlan =
-    by.kind === "user"
-      ? mode === "never"
-        ? { kind: "off" }
-        : { kind: "send", state: "scheduled", at: now }
-      : planRun(mode, now);
-  if (plan.kind === "off") return off("never");
+  // A person who asks has decided: it sends now.
+  const plan: RunPlan = by.kind === "user" ? { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
   // Never at 3 AM, whoever asks: the same hours a run keeps on its own, by
   // the business's clock. A send that would go out past them moves to nine.
   const send = plan.kind === "send" ? plan : null;
@@ -518,7 +507,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
 
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);
-  const run: Run = { ports, p, ctx, by, runFor, mode, trial, channels, record, off };
+  const run: Run = { ports, p, ctx, by, runFor, mode, channels, record, off };
 
   // WhatsApp's version, where it is all the run goes by, must still be what Meta approved; the number must be one Meta
   // lets send (when WhatsApp is ticked).

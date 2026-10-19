@@ -463,6 +463,8 @@
     "00458_every_workspace_has_deals_and_says_its_own_word.sql": "1ce22721bd788aac1993dfb158c9f1e5189196c39e28c8a348477b833f972e47",
     "00459_one_road_from_a_lead_to_a_sequence.sql": "008f087ab6fb8f042d68b36868dd47b774c9bb315dadd5d7bff83238cf679793",
     "00460_how_customers_buy_goes.sql": "092f7542238dc0126971b889aa13bc32381027d610f5ac612a60f3f7cdfef85a",
-    "00461_a_decided_run_closes_its_notice.sql": "06fb2334ba1b04fe752afbb930fb03cde59bcc93d9fbb0430108465bc8458fca"
+    "00461_a_decided_run_closes_its_notice.sql": "06fb2334ba1b04fe752afbb930fb03cde59bcc93d9fbb0430108465bc8458fca",
+    "00462_a_sequence_is_approved_once_then_held.sql": "ef20fd400c33f859046f81c1b75ce663550d314524dc8f98afb49864e2c9f810",
+    "00463_the_trial_goes_and_new_sequences_are_held.sql": "4f65cb350b12101f9e7cb7246c26f95d218050d6839089b43e8f681afd4d1d78"
   }
 }

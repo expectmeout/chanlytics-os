@@ -1,6 +1,7 @@
 import { appointmentWords } from "../journey/appointment-word.js";
 import { MIN_MS } from "../shared/time.js";
 import { plural } from "../shared/words.js";
+import { waitEndsWords } from "../waits/wait-rules.js";
 export const PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -127,22 +128,39 @@ export function whenItGoes(receipt, when, nowMs) {
   if (Number.isNaN(at)) return SENDING_NOW_WORDS;
   if (receipt?.moved_from)
     return `scheduled for ${when(at)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  if (receipt?.pressed_now && at > nowMs) {
+    const goes = waitEndsWords("one_off", when(at));
+    return `${goes.charAt(0).toLowerCase()}${goes.slice(1)}`;
+  }
   return at - nowMs > MIN_MS ? `scheduled for ${when(at)}` : SENDING_NOW_WORDS;
 }
 export { PLAYBOOK_BREATH_MS } from "./playbook-time.js";
 export const PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+export const SEND_ONCE_STOP_MS = 10 * MIN_MS;
 export function delayWords(ms) {
   const minutes = Math.round(ms / MIN_MS);
   if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
-export function vetoRunNotice(name, people, when, trialUntil) {
-  const who = `${people} ${people === 1 ? "person" : "people"}`;
-  const trial = trialUntil ? ` \u201C${name}\u201D is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.` : "";
+export const SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
+export function readyRunNotice(name, people) {
+  return {
+    subject: `Campaign \u201C${name}\u201D is ready: ${plural(people, "person", "people")}`,
+    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`
+  };
+}
+export function vetoRunNotice(name, people, when) {
+  const who = plural(people, "person", "people");
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D ${when}. Open the run to stop it before then if it should not go.${trial}`
+    body: `${who} will be sent \u201C${name}\u201D. ${waitEndsWords("batch_hold", when)}, from Today or its run.`
+  };
+}
+export function skippedRunNotice(name, people) {
+  return {
+    subject: `\u201C${name}\u201D didn\u2019t go: nobody approved it`,
+    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change \u201CBefore each batch\u201D in its How it runs.`
   };
 }
 export const PLAYBOOK_NAME_MAX = 80;

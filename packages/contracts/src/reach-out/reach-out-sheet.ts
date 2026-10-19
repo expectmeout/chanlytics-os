@@ -228,11 +228,9 @@ export function startWords(s: ReachOutStartDto, ownerSends = false): { tone: "go
           return { tone: "plain", text: "Saved. The first run is held." };
       }
     case "off":
-      return s.reason === "never"
-        ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings › Autonomy, so nothing runs." }
-        : s.reason === "workspace_paused"
-          ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." }
-          : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
+      return s.reason === "workspace_paused"
+        ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." }
+        : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return s.reason === "already_ran"
         ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." }
@@ -247,8 +245,8 @@ export function startWords(s: ReachOutStartDto, ownerSends = false): { tone: "go
 }
 
 /**
- * The chain's next run (R23), as the database holds it: paused, set to never, held for billing, a run waiting for its
- * owner, or when the sweep runs it (playbook-schedule's nextRunLabel, the moments' own).
+ * The chain's next run (R23), as the database holds it: paused, held for billing, a run waiting for its owner, or when
+ * the sweep runs it (playbook-schedule's nextRunLabel, the moments' own).
  */
 export function nextRunWords(
   c: Pick<ReachOutChainDto, "state" | "next">,
@@ -257,8 +255,6 @@ export function nextRunWords(
 ): { tone: "warn" | "plain"; text: string; run_id: string | null } {
   if (c.state !== "running")
     return { tone: "plain", text: "Paused. Nothing is planned until you resume it.", run_id: null };
-  if (c.next.mode === "never")
-    return { tone: "warn", text: "Outreach is set to Never in Settings › Autonomy, so nothing runs.", run_id: null };
   if (!c.next.may_spend)
     return { tone: "warn", text: "Held for billing: nothing is planned until billing is sorted.", run_id: null };
   if (c.next.waiting_run_id)

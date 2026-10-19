@@ -35,7 +35,7 @@ const FIRST = {
   search_name: null,
   owner_sends: false,
   until: null,
-  trial_until: null,
+  words_ok_at: null,
   template_name: "spring_offer",
   template_language: "en_US",
 };

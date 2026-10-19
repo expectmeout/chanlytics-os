@@ -1,9 +1,10 @@
 /**
- * The veto window's wait, said from the wait itself. A run under veto is scheduled PLAYBOOK_VETO_DELAY_MS ahead, and
- * eight sentences promise that wait: three Autonomy rows, two on the reach-out sheet, and three of Ask's (a
- * definition, the playbooks read, a playbook's card). Each typed "30 minutes" or "thirty minutes" by hand, so a change
- * to the wait would have left every one of them promising the old one. Each is run here and must say the words
- * delayWords derives from the constant, and no other length of time.
+ * The veto window's wait, said from the wait itself. A batch under veto is scheduled PLAYBOOK_VETO_DELAY_MS ahead, and
+ * the sentences that promise that wait are run here: How it runs' choice and what it does (decision 0064, where a
+ * sequence's mode is set; the Autonomy rows say only how a new sequence starts), two on the reach-out sheet, and three of
+ * Ask's (a definition, the playbooks read, a playbook's card). Each typed "30 minutes" or "thirty minutes" by hand once,
+ * so a change to the wait would have left every one of them promising the old one. Each must say the words delayWords
+ * derives from the constant, and no other length of time.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,8 +14,8 @@ import { fakeDb } from "../_fake-db.mjs";
 import {
   PLAYBOOK_VETO_DELAY_MS,
   PLAYBOOK_VETO_DELAY_WORDS,
-  POLICY_CLASS_WORDS,
   REACH_OUT_SHEET_WORDS,
+  SEQUENCE_MODE_WORDS,
   delayWords,
   startWords,
   HOUR_MS,
@@ -55,8 +56,9 @@ test("the wait in words: whole minutes, or whole hours once it is one", () => {
   assert.equal(PLAYBOOK_VETO_DELAY_WORDS, "30 minutes");
 });
 
-test("the Autonomy rows promise the wait a run under veto is given", () => {
-  for (const cls of ["reengage", "campaign", "outreach"]) saysTheWait(POLICY_CLASS_WORDS[cls].note, cls);
+test("How it runs promises the wait a batch under veto is given, as its choice and as what it does", () => {
+  saysTheWait(SEQUENCE_MODE_WORDS.veto.choice, "How it runs' choice");
+  saysTheWait(SEQUENCE_MODE_WORDS.veto.does, "what a batch does under it");
 });
 
 test("the reach-out sheet promises it, before Start and after", () => {
@@ -73,7 +75,7 @@ const TPL = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 
-/** Harbor, with its re-engage and offers classes under veto and one approved template. */
+/** Harbor, whose new re-engage and offers sequences start under veto, with one approved template. */
 function world() {
   return {
     memberships: [
@@ -136,7 +138,7 @@ test("Ask's playbooks read tells the model what veto does in the same words", as
   const out = await runTool(toolContext(), { name: "sequences", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
-  assert.equal(read.modes.reengage, "veto");
+  assert.equal(read.new_sequences_start_as.reengage, "veto");
   saysTheWait(read.mode_words.veto, "the playbooks read's veto words");
 });
 
@@ -148,8 +150,8 @@ test("a playbook Ask proposes under veto says the same wait on its card", async 
     params: [],
   });
   assert.equal(card.isError, false, card.result);
-  assert.equal(card.proposal.payload.mode, "veto");
-  const [, underVeto] = card.proposal.summary.split("(veto): ");
-  assert.ok(underVeto, card.proposal.summary);
-  saysTheWait(underVeto.split(". Says:")[0], "the card's veto words");
+  // Its first batch waits for an OK (decision 0064); after that, each batch waits the veto's wait.
+  const [, afterThat] = card.proposal.summary.split("after that, ");
+  assert.ok(afterThat, card.proposal.summary);
+  saysTheWait(afterThat.split(". Says:")[0], "the card's veto words");
 });

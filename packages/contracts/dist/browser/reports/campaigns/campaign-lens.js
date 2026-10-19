@@ -12,6 +12,7 @@ import { rangeLabelOf } from "../reports.js";
 import {
   ANSWER_META,
   APPROVAL_EMPTY,
+  approvalSkippedLine,
   APPROVAL_ROWS,
   CANCELED_KEY,
   FAILED_WHAT,
@@ -286,7 +287,8 @@ function runsLineOf(series) {
 }
 function waitPart(dist, words) {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  if (dist.n === 0) return noMix(words.empty);
+  const skipped = "skipped" in dist && isCount(dist.skipped) ? dist.skipped : 0;
+  if (dist.n === 0) return noMix(skipped > 0 ? approvalSkippedLine(skipped) : words.empty);
   const buckets = dist.buckets;
   const entries = [];
   for (const [key, label] of words.rows) {
@@ -295,7 +297,7 @@ function waitPart(dist, words) {
     entries.push([key, label, count]);
   }
   const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
-  return { rows: barsOf(entries), line: words.line(dist.n, median), empty: null };
+  return { rows: barsOf(entries), line: words.line(dist.n, median, skipped), empty: null };
 }
 const FIRST_REPLY_WORDS = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };
 const APPROVAL_WORDS = { rows: APPROVAL_ROWS, empty: APPROVAL_EMPTY, line: approvalLine };

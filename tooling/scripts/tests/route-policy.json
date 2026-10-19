@@ -690,6 +690,13 @@
       "rate": "google_reply",
       "spend": false
     },
+    "POST google/reviews/[id]/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "google_reply",
+      "spend": false
+    },
     "GET google": {
       "kind": "read",
       "scope": "workspace",

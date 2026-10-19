@@ -58,7 +58,7 @@ const FIRST = {
   search_name: null,
   owner_sends: false,
   until: null,
-  trial_until: null,
+  words_ok_at: null,
   template_name: "visit_reminder",
   template_language: "en_US",
 };
@@ -354,10 +354,16 @@ test("a row ends on its state only where it is not On; the head's line says what
     label: "Failed",
     tone: "danger",
   });
-  const rec = (mode) => ({ word: "visit", timezone: TZ, mode });
-  assert.equal(sequenceSubLine(row(), rec("auto"), NOW), "Before a visit · sends on its own");
-  assert.equal(sequenceSubLine(row(), rec(null), NOW), "Before a visit · asks you first", "none set asks");
-  assert.equal(sequenceSubLine(oneOff, rec("ask"), NOW), "One message · goes on its own");
+  // Who approves is the sequence's own mode (decision 0064): the row's, never a class's.
+  const rec = { word: "visit", timezone: TZ };
+  assert.equal(sequenceSubLine(row({ mode: "auto" }), rec, NOW), "Before a visit · sends on its own");
+  assert.equal(sequenceSubLine(row({ mode: "veto" }), rec, NOW), "Before a visit · holds each batch for you to stop");
+  assert.equal(
+    sequenceSubLine(row({ mode: null }), rec, NOW),
+    "Before a visit · asks you before each batch",
+    "none asks",
+  );
+  assert.equal(sequenceSubLine(oneOff, rec, NOW), "One message · goes on its own");
 });
 
 test("what goes next: a made batch's day and size, else its first step's next run by its hour, never what it cannot know", () => {
@@ -379,8 +385,9 @@ test("a paused sequence's dock, who approves in its More, a one-off's cancel, an
   });
   assert.deepEqual(sequencePausedDock(row({ state: "paused" })), { line: "Paused", fact: null });
   assert.equal(sequencePausedDock(row()), null);
-  assert.equal(sequenceWhoApprovesHint("auto", "booking"), "Sends on its own · Book · reschedule");
-  assert.equal(sequenceWhoApprovesHint(null, null), "Asks you first");
+  assert.equal(sequenceWhoApprovesHint("auto"), "Sends on its own");
+  assert.equal(sequenceWhoApprovesHint("veto"), "Holds each batch for you to stop");
+  assert.equal(sequenceWhoApprovesHint(null), "Asks you before each batch");
   const oneOff = (state) =>
     row({ starts: "date", date: { batch_id: "b1", state, at: "2026-10-28T13:00:00Z", people: 5 } });
   assert.equal(sequenceCancels(oneOff("scheduled")), true);

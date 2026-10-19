@@ -38,6 +38,7 @@ const { EmailAs } = await import(`${S}/campaigns/sequences/place/email-as.tsx`);
 const { useLeadChain } = await import(`${S}/campaigns/sequences/leads/use-chain.ts`);
 const { LeadStepSheet } = await import(`${S}/campaigns/sequences/leads/step-sheet.tsx`);
 const { LeadPreview } = await import(`${S}/campaigns/sequences/leads/preview.tsx`);
+const { LeadRunsSheet } = await import(`${S}/campaigns/sequences/leads/runs-sheet.tsx`);
 
 const SEQ = "seq-1";
 const chainOf = (over = {}) => ({
@@ -297,4 +298,37 @@ test("Send me a test saves what is typed first, then sends the step to your own 
     [flashes.at(-1).tone, flashes.at(-1).msg],
     ["ok", contracts.SEQUENCE_TEST_WORDS.sent("sam@harbor.example")],
   );
+});
+
+/* ------------------------------------------------------------ how it runs */
+
+/** The chain's hook and its How it runs sheet over it, as the record draws them. */
+function Runs({ rec }) {
+  lc = useLeadChain(
+    rec,
+    (f) => flashes.push(f),
+    () => {},
+  );
+  if (!lc) return null;
+  return W.React.createElement(LeadRunsSheet, {
+    open: true,
+    rec,
+    lc,
+    flash: (f) => flashes.push(f),
+    moved: () => {},
+    onClose: () => {},
+  });
+}
+
+test("Before each batch, picked, reaches the change door as the sequence's own mode, beside its name and nothing else (decision 0064)", async () => {
+  // The picker once sent the payload's `mode`, which the change's spec reads as a card's reading of how its runs go, so
+  // nothing was written; the door reads a sequence's under `sequence_mode` (contracts playbookChangeSpec).
+  const rec = { ...REC, sequence: { ...REC.sequence, starts: "leads", mode: "veto", evidence: null } };
+  const pick = byTestId(sheetOf(again(() => W.React.createElement(Runs, { rec }))), "ld-runs-approves-pick");
+  assert.equal(pick.props.value, "veto", "it opens on the sequence's own mode");
+  pick.props.onValueChange("ask");
+  const put = () => wire.find(([m, p]) => m === "PUT" && p === `playbooks/${SEQ}`);
+  for (let i = 0; i < 200 && !put(); i += 1) await new Promise((r) => setTimeout(r, 5));
+  assert.ok(put(), "one change, at the campaign's own door");
+  assert.deepEqual(put()[2], { name: rec.sequence.name, mode: "ask" });
 });

@@ -122,7 +122,6 @@ export function sampleRuns(nowMs: number = Date.now()): CalendarRunsDto {
         run_hour: 10,
         last_run_for: clock.today,
         until: null,
-        trial_until: null,
         reach_out: false,
       },
       {
@@ -134,7 +133,6 @@ export function sampleRuns(nowMs: number = Date.now()): CalendarRunsDto {
         run_hour: 11,
         last_run_for: clock.today,
         until: null,
-        trial_until: null,
         reach_out: false,
       },
       {
@@ -146,7 +144,6 @@ export function sampleRuns(nowMs: number = Date.now()): CalendarRunsDto {
         run_hour: 9,
         last_run_for: day(1),
         until: day(9),
-        trial_until: null,
         reach_out: false,
       },
       {
@@ -158,7 +155,6 @@ export function sampleRuns(nowMs: number = Date.now()): CalendarRunsDto {
         run_hour: 9,
         last_run_for: day(-1),
         until: null,
-        trial_until: null,
         reach_out: true,
       },
     ],

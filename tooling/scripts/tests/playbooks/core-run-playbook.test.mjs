@@ -108,6 +108,9 @@ const playbook = (over = {}) => ({
   template_language: "en_US",
   params: [{ kind: "first_name" }],
   policy_class: "reengage",
+  // Its sequence sends on its own and its words were seen going (decision 0064): what the run plans by.
+  mode: "auto",
+  words_ok_at: "2026-09-01T10:00:00.000Z",
   state: "running",
   run_hour: 10,
   cap_per_run: 25,
@@ -127,7 +130,6 @@ const context = (over = {}) => ({
   tz: TZ,
   now: NOW,
   people: [person("a"), person("b", { lastContact: { ts: NOW.getTime() - 90 * D, label: "" } })],
-  modes: new Map([["reengage", "auto"]]),
   health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
   ready: ready(),
   touches: { byThis: new Map(), byAny: new Map() },
@@ -220,25 +222,22 @@ function fakes(over = {}) {
   return { ports, log, ops: () => log.map((l) => l[0]), of: (name) => log.filter((l) => l[0] === name) };
 }
 
-test("the mode decides: never runs nothing and says so; no row for the class means ask; a person who asks has decided, it sends now unless the class is never", async () => {
-  const never = fakes();
-  assert.deepEqual(await runPlaybook(never.ports, cmd({ ctx: context({ modes: new Map([["reengage", "never"]]) }) })), {
-    outcome: "off",
-    mode: "never",
-    skipped: "never",
-  });
-  assert.deepEqual(never.log, [
-    ["record", "p1", "2026-09-06", NOW, { run_for: "2026-09-06", by: "system", mode: "never", skipped: "never" }],
-  ]);
-  const noRow = fakes();
-  const held = await runPlaybook(noRow.ports, cmd({ ctx: context({ modes: new Map() }) }));
-  assert.equal(held.outcome, "held", "no row for the class is ask");
-  assert.equal(noRow.of("assemble")[0][1].state, "pending_approval");
-  assert.equal(noRow.of("assemble")[0][4], null, "a run that waits is made with no decision: its approval is one");
+test("the batch's mode decides (decision 0064): new words wait for an OK whatever the mode; a mode it does not know asks; a person who asks has decided, it sends now", async () => {
+  const fresh = fakes();
+  const held = await runPlaybook(fresh.ports, cmd({ playbook: playbook({ words_ok_at: null }) }));
+  assert.equal(held.outcome, "held", "a step whose words are new waits, though its sequence sends on its own");
+  assert.equal(held.mode, "ask");
+  assert.equal(fresh.of("assemble")[0][1].state, "pending_approval");
+  assert.equal(fresh.of("assemble")[0][4], null, "a run that waits is made with no decision: its approval is one");
+  for (const mode of [undefined, null, "never", "sometimes"]) {
+    const unknown = fakes();
+    const r = await runPlaybook(unknown.ports, cmd({ playbook: playbook({ mode }) }));
+    assert.equal(r.outcome, "held", `a mode it does not know (${String(mode)}) asks`);
+  }
   const asked = fakes();
   const r = await runPlaybook(
     asked.ports,
-    cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]) }), by: { kind: "user", userId: "u1" } }),
+    cmd({ playbook: playbook({ mode: "ask" }), by: { kind: "user", userId: "u1" } }),
   );
   assert.deepEqual(
     r,
@@ -271,15 +270,12 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
     },
     "and their decision, written with the run",
   );
-  const refused = fakes();
-  assert.deepEqual(
-    await runPlaybook(
-      refused.ports,
-      cmd({ ctx: context({ modes: new Map([["reengage", "never"]]) }), by: { kind: "user", userId: "u1" } }),
-    ),
-    { outcome: "off", mode: "never", skipped: "never" },
-    "never is never, even asked",
+  const newWords = fakes();
+  const now = await runPlaybook(
+    newWords.ports,
+    cmd({ playbook: playbook({ words_ok_at: null }), by: { kind: "user", userId: "u1" } }),
   );
+  assert.equal(now.outcome, "sent", "a person's run now sends a step's new words: it is their OK");
 });
 
 test("off before a single row: a template Meta withdrew, a flagged number, a run already made for the day (said once, not recorded twice), a visit playbook without its calendar", async () => {
@@ -311,23 +307,20 @@ test("off before a single row: a template Meta withdrew, a flagged number, a run
   // No calendar connected is a final answer for the day: said, and recorded.
   const noCalendar = fakes();
   const p = playbook({ trigger: "visit_tomorrow", policy_class: "booking" });
-  assert.deepEqual(
-    await runPlaybook(
-      noCalendar.ports,
-      cmd({ playbook: p, ctx: context({ modes: new Map([["booking", "auto"]]), calendar: "none" }) }),
-    ),
-    { outcome: "off", mode: "auto", skipped: "no_calendar" },
-  );
+  assert.deepEqual(await runPlaybook(noCalendar.ports, cmd({ playbook: p, ctx: context({ calendar: "none" }) })), {
+    outcome: "off",
+    mode: "auto",
+    skipped: "no_calendar",
+  });
   assert.deepEqual(noCalendar.ops(), ["record"]);
 });
 
 test("a calendar that could not be READ is the run failing, not the day done: nothing is recorded, so the next sweep asks again -- as a template that could not be read is", async () => {
-  const modes = new Map([["booking", "auto"]]);
   // Every moment that reads the calendar: the visit's two, and Lapsed's.
   for (const trigger of ["visit_tomorrow", "visited", "lapsed"]) {
     const blip = fakes();
     const p = playbook({ trigger, policy_class: trigger === "lapsed" ? "reengage" : "booking" });
-    const ctx = context({ modes: new Map([...modes, ["reengage", "auto"]]), calendar: "unavailable" });
+    const ctx = context({ calendar: "unavailable" });
     assert.deepEqual(
       await runPlaybook(blip.ports, cmd({ playbook: p, ctx })),
       { outcome: "failed", error: "calendar: could not be read" },
@@ -352,7 +345,6 @@ test("a calendar that could not be READ is the run failing, not the day done: no
     cmd({
       playbook: playbook({ trigger: "visit_tomorrow", policy_class: "booking", params: [{ kind: "visit_when" }] }),
       ctx: context({
-        modes,
         calendar: "ok",
         people: [row],
         visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
@@ -569,7 +561,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     },
   ]);
   const veto = fakes();
-  await runPlaybook(veto.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
+  await runPlaybook(veto.ports, cmd({ playbook: playbook({ mode: "veto" }) }));
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
   assert.deepEqual(veto.of("assemble")[0][3], at);
   assert.equal(veto.of("assemble")[0][1].scheduled_for, at.toISOString());
@@ -578,7 +570,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.deepEqual(veto.ops(), ["assemble", "notify", "record"]);
   assert.deepEqual(veto.of("notify")[0].slice(1), [
     "Campaign “Win-back” sends today 10:30 AM: 2 people",
-    "2 people will be sent “Win-back” today 10:30 AM. Open the run to stop it before then if it should not go.",
+    "2 people will be sent “Win-back”. Goes today 10:30 AM unless you stop it, from Today or its run.",
     // The run it is about: the bell's row and the phone open that run, where Stop is (it named none, and opened Campaigns' home).
     "b1",
   ]);
@@ -586,21 +578,18 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   const late = fakes();
   await runPlaybook(
     late.ports,
-    cmd({ ctx: context({ now: new Date("2026-09-07T01:00:00Z"), modes: new Map([["reengage", "veto"]]) }) }),
+    cmd({ playbook: playbook({ mode: "veto" }), ctx: context({ now: new Date("2026-09-07T01:00:00Z") }) }),
   );
   assert.equal(late.of("notify")[0][1], "Campaign “Win-back” sends tomorrow 9:00 AM: 2 people");
   // The run is made and on the ledger: a bell that fails does not cost the run its record.
   const deaf = fakes({ notify: new Error("the bell is down") });
-  const made = await runPlaybook(deaf.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
+  const made = await runPlaybook(deaf.ports, cmd({ playbook: playbook({ mode: "veto" }) }));
   assert.equal(made.outcome, "sent");
   assert.ok(deaf.ops().includes("record"), "the run is recorded all the same");
   // A run that goes at once has nothing to stop, and a person who asked for a run decided it: neither is told.
   assert.ok(!ops().includes("notify"), "auto says nothing on the bell");
   const asked = fakes();
-  await runPlaybook(
-    asked.ports,
-    cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }), by: { kind: "user", userId: "u1" } }),
-  );
+  await runPlaybook(asked.ports, cmd({ playbook: playbook({ mode: "veto" }), by: { kind: "user", userId: "u1" } }));
   assert.ok(!asked.ops().includes("notify"), "a person's own Run now is theirs");
 });
 
@@ -631,7 +620,7 @@ test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at
 
 test("ask: the row waits, nobody is scheduled, the owner is told in these words, the run recorded", async () => {
   const { ports, of, ops } = fakes();
-  const r = await runPlaybook(ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]) }) }));
+  const r = await runPlaybook(ports, cmd({ playbook: playbook({ mode: "ask" }) }));
   assert.deepEqual(r, { outcome: "held", broadcast_id: "b1", eligible: 2, mode: "ask", state: "pending_approval" });
   assert.deepEqual(ops(), ["assemble", "notify", "record"]);
   assert.equal(of("assemble")[0][3], null, "a run that waits for a person has no job yet");
@@ -640,12 +629,12 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Campaign “Win-back” is ready: 2 people",
-    "2 people have become eligible for “Win-back”. Approve or skip the run from your Inbox or Today. Nothing is sent until you do; it waits until tonight.",
+    "2 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for your OK until the end of its day; then it is skipped, and you are told.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);
   const one = fakes();
-  await runPlaybook(one.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]), people: [person("a")] }) }));
+  await runPlaybook(one.ports, cmd({ playbook: playbook({ mode: "ask" }), ctx: context({ people: [person("a")] }) }));
   assert.equal(one.of("notify")[0][1], "Campaign “Win-back” is ready: 1 person");
   assert.match(one.of("notify")[0][2], /^1 person has become eligible/);
 });
@@ -668,7 +657,6 @@ test("a visit run keeps each person's words on their row, from the visit the run
         params: [{ kind: "first_name" }, { kind: "visit_when" }, { kind: "visit_service" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [row],
         visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
@@ -700,7 +688,6 @@ test("a visit read from the calendar keeps its appointment's key, its start and 
         params: [{ kind: "visit_when" }, { kind: "visit_service" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [row],
         visits: new Map([["a", read]]),
@@ -739,7 +726,6 @@ test("a person with a visit later today and another tomorrow is reminded of TOMO
         params: [{ kind: "visit_when" }, { kind: "visit_service" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [row],
         visits: new Map([["a", read]]),
@@ -767,7 +753,6 @@ test("a person with a visit later today and another tomorrow is reminded of TOMO
         params: [{ kind: "visit_when" }, { kind: "visit_service" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [toPersonRowVM(dto("a", { visits: old }), TZ, NOW)],
         visits: new Map([["a", old]]),
@@ -801,7 +786,6 @@ test("a second reminder on the same moment names nobody its twin reminded for th
       cmd({
         playbook: reminder,
         ctx: context({
-          modes: new Map([["booking", "auto"]]),
           calendar: "ok",
           people,
           visits: reads,
@@ -844,7 +828,6 @@ test("two visits tomorrow, the first found by name alone and not surely theirs: 
         params: [{ kind: "visit_when" }, { kind: "visit_service" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [row],
         visits: new Map([["a", read]]),
@@ -870,7 +853,6 @@ test("two visits tomorrow, the first found by name alone and not surely theirs: 
         params: [{ kind: "visit_when" }],
       }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [toPersonRowVM(dto("a", { display_name: "Maria", visits: alone }), TZ, NOW)],
         visits: new Map([["a", alone]]),
@@ -898,7 +880,6 @@ test("a person seen yesterday and again this morning is thanked for YESTERDAY's 
     cmd({
       playbook: playbook({ trigger: "visited", policy_class: "booking", params: [{ kind: "visit_service" }] }),
       ctx: context({
-        modes: new Map([["booking", "auto"]]),
         calendar: "ok",
         people: [row],
         visits: new Map([["a", read]]),
@@ -936,7 +917,6 @@ test("a visit's service slot carries the service alone: the person's name comes 
           params: [{ kind: "visit_when" }, { kind: "visit_service" }],
         }),
         ctx: context({
-          modes: new Map([["booking", "auto"]]),
           calendar: "ok",
           people: [row],
           visits: new Map([["a", { timezone: TZ, source: "calendar", state: "ok", next, last: null }]]),
@@ -964,7 +944,7 @@ test("a visit's service slot carries the service alone: the person's name comes 
 test("the people a run enrols are touched for the next run against the same read of the workspace: the week's breath holds between two moments in one hour", async () => {
   // The sweep reads the workspace once and runs every due playbook against it; its touches never changed between the runs,
   // so a second moment judged the breath from a snapshot that did not have the first one's people in it.
-  const ctx = context({ people: [person("a"), person("b")], modes: new Map([["reengage", "auto"]]) });
+  const ctx = context({ people: [person("a"), person("b")] });
   const first = fakes();
   const one = await runPlaybook(first.ports, cmd({ playbook: playbook({ id: "p1" }), ctx }));
   assert.deepEqual([one.outcome, one.eligible], ["sent", 2]);
@@ -1001,7 +981,6 @@ test("the people a run enrols are touched for the next run against the same read
     people: rows,
     calendar: "ok",
     visits: new Map(rows.map((r) => [r.id, { timezone: TZ, source: "calendar", state: "ok", next, last: null }])),
-    modes: new Map([["booking", "auto"]]),
   };
   const r = await runPlaybook(
     reminder.ports,
@@ -1017,8 +996,8 @@ test("a run that was not made touches nobody, and one made to wait for a person 
   assert.equal(failed.outcome, "failed");
   assert.deepEqual([...failedCtx.touches.byAny], []);
   // Ask mode: the run waits for a person, and its people are enrolled all the same.
-  const askCtx = context({ people: [person("a")], modes: new Map([["reengage", "ask"]]) });
-  const asked = await runPlaybook(fakes().ports, cmd({ ctx: askCtx }));
+  const askCtx = context({ people: [person("a")] });
+  const asked = await runPlaybook(fakes().ports, cmd({ playbook: playbook({ mode: "ask" }), ctx: askCtx }));
   assert.equal(asked.outcome, "held");
   assert.deepEqual([...askCtx.touches.byAny], [["a", NOW.getTime()]]);
 });
@@ -1090,7 +1069,7 @@ test('a reminder run asked for at night goes at nine and says "today": the words
         params: [{ kind: "visit_when" }, { kind: "visit_service" }],
         cap_per_run: 1,
       }),
-      ctx: context({ now: night, modes: new Map([["booking", "auto"]]), calendar: "ok", people: rows, visits }),
+      ctx: context({ now: night, calendar: "ok", people: rows, visits }),
       by: { kind: "user", userId: "u1" },
     }),
   );
@@ -1149,7 +1128,6 @@ function visitors(specs, when = { next: NEXT_VISIT, last: null }) {
 }
 const reminderCtx = (specs, over = {}) => ({
   ...visitors(specs),
-  modes: new Map([["booking", "auto"]]),
   calendar: "ok",
   ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),
   ...over,
@@ -1592,7 +1570,6 @@ function proposals(specs) {
 }
 const followUpCtx = (people, over = {}) => ({
   people,
-  modes: new Map([["follow_up", "auto"]]),
   calendar: "none",
   pace: null,
   ready: ready({ textLine: TEXT_LINE, mailbox: true, domain: true }),

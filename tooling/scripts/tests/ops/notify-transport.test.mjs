@@ -628,6 +628,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "member_left",
       "note_for_you",
       "note_to_keep",
+      // A reply waiting to go in the owner's name (decision 0064): the bell and the phone, never a mail for minutes.
+      "reply_held",
       "review",
       "reach_out_day",
     ].sort(),

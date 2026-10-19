@@ -43,7 +43,6 @@ export {
   checkPlaybookPatch,
   playbookNameAsked,
   playbookNumber,
-  trialUntilOf,
   untilOf,
 } from "./check-playbook";
 export type { PlaybookInput, CheckPlaybookPorts, CheckPlaybookPatchPorts, PlaybookPatchRow } from "./check-playbook";

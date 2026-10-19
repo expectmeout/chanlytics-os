@@ -1,6 +1,7 @@
 import "server-only";
 import {
   addressOf,
+  batchModeOf,
   isDayKey,
   isReachOutRun,
   mondayOf,
@@ -14,7 +15,7 @@ import {
   type CalendarRunsDto,
   type CalendarWeekDto,
 } from "@chanlytics/contracts";
-import { momentSchedules, runCounts, runsInSpan, workspacePaused } from "@chanlytics/db";
+import { momentSchedules, runCounts, runsInSpan, sequenceModesOf, workspacePaused } from "@chanlytics/db";
 import { calendarSources, weekFrom, type CalendarSources } from "../calendar/calendar-week";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
@@ -92,8 +93,9 @@ function runsSpanOf(
 
 /**
  * Campaigns over a span of the Calendar (contracts calendar-runs.ts): the runs that fall in it with what each sent
- * (run_counts, 00374, the one statement of what a run earned), every campaign's schedule with its class's mode (the
- * workspace's policies; a class with none is ask, as a run reads it), and whether the workspace is paused. Its own read,
+ * (run_counts, 00374, the one statement of what a run earned), every campaign's schedule with how its next batch is
+ * decided (contracts batchModeOf over its sequence's mode and its words' OK, as the run plans it), and whether the
+ * workspace is paused. Its own read,
  * outside GET calendar: that one is Today's day and the head's first read too, and a send must never count as taken time
  * or re-read the calendar's feed. Each run is a row a citation may name, by its name.
  */
@@ -103,10 +105,7 @@ export const calendarRuns: Reader<
 > = {
   name: "calendarRuns",
   async read(rc, by) {
-    const [{ data: known }, { data: policies }] = await Promise.all([
-      load(rc, facts.facts, undefined),
-      load(rc, facts.policies, undefined),
-    ]);
+    const { data: known } = await load(rc, facts.facts, undefined);
     const tz = known.timezone;
     const span = runsSpanOf(by, tz, rc.now);
     const toDay = shiftKey(span.from, span.days - 1);
@@ -130,7 +129,11 @@ export const calendarRuns: Reader<
         )
       : "missing";
     const counted = read === "missing" ? null : runCountsOf(read);
-    const modes = new Map(policies.map((p) => [p.class, p.mode]));
+    const modes = await sequenceModesOf(
+      db,
+      rc.tenantId,
+      moments.map((p) => p.sequence_id),
+    );
     const runs: CalendarRunsDto = {
       timezone: tz,
       from: span.from,
@@ -154,11 +157,10 @@ export const calendarRuns: Reader<
         name: p.name,
         trigger: p.trigger,
         state: p.state,
-        mode: modes.get(p.policy_class) ?? "ask",
+        mode: batchModeOf({ mode: modes.get(p.sequence_id), words_ok_at: p.words_ok_at }),
         run_hour: p.run_hour,
         last_run_for: p.last_run_for,
         until: p.until,
-        trial_until: p.trial_until,
         reach_out: triggerOf(p.trigger)?.kind === "reach_out",
       })),
     };

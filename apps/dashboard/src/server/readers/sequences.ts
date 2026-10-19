@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   addressOf,
+  evidenceOf,
   historyCovers,
   historyIn,
   historySince,
@@ -26,6 +27,7 @@ import {
   sequenceStepsOf,
   firstStepFacts,
   lastRunSkipped,
+  sequenceEvidence,
 } from "@chanlytics/db";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { repliedConversationsOf } from "../campaigns/broadcasts";
@@ -98,8 +100,8 @@ async function startsWith(
 }
 
 /**
- * GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under; what a sequence
- * to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
+ * GET sequences/:id: one sequence (with its own mode, how its batches are decided: decision 0064) and its steps in their
+ * places; what a sequence to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
  * step's) reads the sequence it belongs to, whose own id the answer names.
  */
 export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
@@ -107,33 +109,26 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   async read(rc, { id: asked }) {
     const own = await sequenceOverview(rc.ctx.supabase, rc.tenantId, asked);
     const id = own.length > 0 ? asked : ((await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked)) ?? asked);
-    const [rows, steps, facts, word, policies, first, lastRunOff] = await Promise.all([
+    const [rows, steps, facts, word, first, lastRunOff, evidence] = await Promise.all([
       id === asked ? own : sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
       sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
-      // Who approves: the first step's class's mode (a class with no row is ask). A matrix that could not be read costs
-      // that one line, never the record.
-      load(rc, readers.policies, undefined).then(
-        (r) => r.data,
-        () => null,
-      ),
       // Its first step's (the sequence's own id) run facts: the day it last ran (when its next run goes), its cap, gap and
       // cadence (Start's Change opens with them). Unreadable costs those lines alone.
       firstStepFacts(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
       // Why its last run did nothing, where it did (the record's notice says it, sequence-run-off.ts). Unreadable: unsaid.
       lastRunSkipped(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
+      // What its batches did (decision 0064, step 5): How it runs says it under Before each batch. Unreadable: unsaid.
+      sequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
     ]);
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));
-    const cls = row.first?.policy_class ?? null;
-    const mode = cls && policies ? (policies.find((p) => p.class === cls)?.mode ?? "ask") : null;
     return {
       data: {
         sequence: row,
         steps,
-        mode,
         timezone: facts.timezone,
         word,
         ...(first === undefined ? {} : { last_run_for: first?.last_run_for ?? null }),
@@ -141,6 +136,8 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
           ? { settings: { cap_per_run: first.cap_per_run, gap_days: first.gap_days, cadence_days: first.cadence_days } }
           : {}),
         ...(lastRunOff === undefined ? {} : { last_run_off: lastRunOff }),
+        // A one-off has no batches of a mode to count.
+        ...(evidence === undefined || read.starts === "date" ? {} : { evidence: evidenceOf(evidence, read.id) }),
         ...(await startsWith(rc, row)),
       },
       rows: [cited(row)],

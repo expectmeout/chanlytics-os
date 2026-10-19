@@ -1175,12 +1175,14 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+var SEND_ONCE_STOP_MS = 10 * MIN_MS;
 function delayWords(ms) {
   const minutes = Math.round(ms / MIN_MS);
   if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+var SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
 var VISIT_TRIGGERS = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
 
 // src/templates/template-languages.ts
@@ -2646,10 +2648,14 @@ function firstReplyLine(n, medianS) {
   if (medianS === null) return null;
   return `The middle one was answered ${durationWords(medianS)} after it was sent, of ${plural(n, "answered message")}.`;
 }
-function approvalLine(n, medianS) {
-  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.`;
+function approvalLine(n, medianS, skipped = 0) {
+  const unanswered = skipped > 0 ? ` ${approvalSkippedLine(skipped)}` : "";
+  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.${unanswered}`;
   if (medianS === null) return null;
-  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.`;
+  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.${unanswered}`;
+}
+function approvalSkippedLine(skipped) {
+  return `${plural(skipped, "run was", "runs were")} skipped: nobody answered before ${skipped === 1 ? "its" : "their"} day ended.`;
 }
 function runsWaitingMeta(n, late) {
   if (n === 0) return "nothing is waiting for your OK";
@@ -2930,7 +2936,8 @@ function runsLineOf(series) {
 }
 function waitPart(dist, words) {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  if (dist.n === 0) return noMix(words.empty);
+  const skipped = "skipped" in dist && isCount(dist.skipped) ? dist.skipped : 0;
+  if (dist.n === 0) return noMix(skipped > 0 ? approvalSkippedLine(skipped) : words.empty);
   const buckets = dist.buckets;
   const entries = [];
   for (const [key, label] of words.rows) {
@@ -2939,7 +2946,7 @@ function waitPart(dist, words) {
     entries.push([key, label, count]);
   }
   const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
-  return { rows: barsOf(entries), line: words.line(dist.n, median), empty: null };
+  return { rows: barsOf(entries), line: words.line(dist.n, median, skipped), empty: null };
 }
 var FIRST_REPLY_WORDS = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };
 var APPROVAL_WORDS = { rows: APPROVAL_ROWS, empty: APPROVAL_EMPTY, line: approvalLine };

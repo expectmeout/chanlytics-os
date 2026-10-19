@@ -56,6 +56,17 @@ export async function planTheHold(at: Answering, turn: Turn) {
           channel,
         )
       : false;
+  // A reply that waits is told to the owner once, as a hold is (decision 0064, step 2): when it goes, and why it waits.
+  // Awaited, so a function that ends with the request does not drop it; never the reply's failure (the adapter logs one).
+  if (queued && at.sink.replyHeld)
+    await at.sink
+      .replyHeld({
+        atMs: Date.now() + delayMs,
+        unsure: heldForConfidence,
+        reply: replyText,
+        who: at.n.profileName ?? null,
+      })
+      .catch(() => undefined);
   // The quality signal on this reply's usage event: how sure, how fast,
   // whether it waited, whether it handed off. The diagnostics read the day
   // back from these; a Reports tile can, later.

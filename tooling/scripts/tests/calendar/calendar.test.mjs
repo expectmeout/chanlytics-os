@@ -750,7 +750,7 @@ test("(lane C) a one-off send stands at its time in Sent's words; a campaign's r
   );
 });
 
-test("(lane C) a running campaign's next run is forecast today or tomorrow, its hour first and said once: never where a run is made for that day or a later one, past its last day, or while the workspace is paused", () => {
+test("(lane C) a running campaign's next run is forecast today or tomorrow, its hour first and said once: never where a run is made for that day or a later one, past its last day, while paused, or while the workspace is paused", () => {
   const forecast = (moment, runs = [], over = {}) =>
     [...calendarRunMarksOf(runsWeek(runs, [moment], over), RUNS_NOW).values()].flat().filter((m) => m.kind === "next");
   const today = forecast(momentOf("Appointment reminder"));
@@ -763,7 +763,7 @@ test("(lane C) a running campaign's next run is forecast today or tomorrow, its 
   assert.deepEqual(
     forecast(momentOf("We miss you", { mode: "ask" })).map(said),
     ["We miss you · to approve today"],
-    "a class that waits for a person: the day alone",
+    "a batch that waits for a person (its sequence asks, or its words are new: decision 0064): the day alone",
   );
   assert.deepEqual(
     forecast(momentOf("Late", { run_hour: 9 })).map((m) => [said(m), m.t]),
@@ -787,7 +787,6 @@ test("(lane C) a running campaign's next run is forecast today or tomorrow, its 
     "a run row already stands for it that day",
   );
   assert.deepEqual(forecast(momentOf("Over", { until: "2026-09-07" })), [], "past its last day");
-  assert.deepEqual(forecast(momentOf("Off", { mode: "never" })), [], "a class that never sends");
   assert.deepEqual(forecast(momentOf("Paused", { state: "paused" })), [], "a paused campaign");
   assert.deepEqual(forecast(momentOf("Any"), [], { paused: true }), [], "the workspace paused: nothing goes out");
   assert.deepEqual(forecast(momentOf("Chain", { reach_out: true })), [], "cold email has no forecast here");

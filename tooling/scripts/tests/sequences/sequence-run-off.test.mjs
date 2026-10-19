@@ -41,7 +41,6 @@ test("a run that did nothing says why, with the door that mends it, until a run 
   assert.equal(calendar.off.mends, "door");
   assert.ok(calendar.off.to, "a door to the channels");
   assert.equal(off("template_not_approved").off.to, "campaigns/message:come_back", "its message in Messages");
-  assert.deepEqual([off("never").act, off("never").off.mends], ["Who approves", "autonomy"]);
   assert.deepEqual([off("no_list").act, off("no_list").off.mends], [null, null], "said, with nothing a door mends");
   const ended = off("ended");
   assert.deepEqual(
@@ -53,6 +52,9 @@ test("a run that did nothing says why, with the door that mends it, until a run 
 test("nothing is said where it ran, found nobody, is not on, sends to leads, or is a one-off; a batch waiting comes first", () => {
   assert.equal(off(null), null, "the last run went");
   assert.equal(off("already_ran_today"), null, "no reason it says");
+  // A class set to Never no longer stops a sequence (decision 0064: one that should not send is paused): an old run's
+  // reason says nothing.
+  assert.equal(off("never"), null, "a reason no run records any more");
   assert.equal(off("no_calendar", { state: "paused" }), null);
   assert.equal(off("no_calendar", { starts: "leads" }), null);
   assert.equal(off("no_calendar", { starts: "date" }), null);

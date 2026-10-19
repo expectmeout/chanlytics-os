@@ -7,7 +7,7 @@ import {
 } from "../consent/consent-channels.js";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words.js";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch.js";
-import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers.js";
+import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers.js";
 import { newSequenceRoute } from "../sequences/sequence-address.js";
 import { clockWhen } from "../shared/clock.js";
 import { joinWords } from "../shared/words.js";
@@ -55,8 +55,8 @@ export const PLAYBOOK_CARD_REFUSALS = {
    */
   weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
   /**
-   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
-   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   * The autonomy modes, unread: what a card says of its runs after the first is what its class's row says a new sequence
+   * starts as (decision 0064), so no card is made on a guess.
    */
   modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
   /** The action named a message and a starter both: a campaign sends one. */
@@ -68,11 +68,10 @@ export const PLAYBOOK_CARD_REFUSALS = {
 export const twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
 export const PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
-   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
+   * 0064): the card says so beside what its batches do after that.
    */
-  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  asksFirst: "its first batch waits for your OK",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -108,8 +107,9 @@ export const broadcastSpec = {
     const leftOut = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
+    const goes = ahead ? "scheduled" : d.pressed_now === true ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it` : SENDING_NOW_WORDS;
     const said = heardWords(leftOut, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -139,8 +139,6 @@ export const playbookSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...pl.trial === true ? { trial: true } : {},
       // Its last day (00416), where the card named one: the route judges it again at its own clock.
       ...typeof pl.until === "string" ? { until: pl.until } : {}
     }
@@ -196,11 +194,15 @@ export const playbookChannelsSpec = {
     return id ? `campaigns/moment:${id}` : "outbound";
   }
 };
-const patchIn = (pl) => Object.fromEntries(
-  PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
-    (k) => [k, pl[k]]
-  )
-);
+const patchIn = (pl, modeKey) => {
+  const body = Object.fromEntries(
+    PLAYBOOK_PATCH_KEYS.filter(
+      (k) => k !== "mode" && pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))
+    ).map((k) => [k, pl[k]])
+  );
+  if (typeof pl[modeKey] === "string") body.mode = pl[modeKey];
+  return body;
+};
 const resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
 const toastWords = (parts) => parts.map((part) => typeof part === "string" ? part : part.b).join("");
 export const playbookChangeSpec = {
@@ -208,7 +210,7 @@ export const playbookChangeSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "playbook_id");
-    const body = patchIn(pl);
+    const body = patchIn(pl, "sequence_mode");
     if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return { route: "PUT playbooks/[id]", params: { id }, body };
   },
@@ -234,7 +236,7 @@ export const playbookChangeSpec = {
       };
     },
     call: (u) => {
-      const was = patchIn(rec(u.was));
+      const was = patchIn(rec(u.was), "mode");
       return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
     },
     receipt: () => "It is as it was"

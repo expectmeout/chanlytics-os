@@ -32,9 +32,10 @@
  * the day it was made for can only be skipped (the approve verb refuses it, contracts runApprovalRefusal), so the sweep
  * skips it through the cancel verb, as the system (a decision with no hand on it, reason `day_passed`), up to
  * DAY_PASSED_BATCH a tick and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed
- * whatever the standing. Nothing is mailed or pushed: Sent shows the run canceled, the Activity log says the system
- * skipped it, and its "is ready" line on the bell reads as read (contracts notice-closes.ts). A read that fails is logged
- * (runs_day_passed_read_failed) and the moments still run (the wiring's second audit, S7-3).
+ * whatever the standing. Its "is ready" line on the bell reads as read (contracts notice-closes.ts), and the owner is
+ * told it did not go (contracts skippedRunNotice, decision 0064: nothing is skipped in silence), on the bell and by mail
+ * as the ready line was; its people are in line again (00453). A read that fails is logged (runs_day_passed_read_failed)
+ * and the moments still run (the wiring's second audit, S7-3).
  *
  * `remaining` is what was due beyond the two pages plus the steps yielded before. noteBacklog (note_sweep_backlog,
  * 00089) counts the ticks in a row that left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still runs its page and
@@ -67,7 +68,18 @@ import {
   waitingPlaybookRuns,
 } from "../packages/db.js";
 import { cancelBroadcast } from "../packages/core.js";
-import { AppError, localDate, runDaysAt, runDueNow, runTooLate, type PlaybookDto } from "../packages/contracts.js";
+import {
+  AppError,
+  addressOf,
+  localDate,
+  runDaysAt,
+  runDueNow,
+  runTooLate,
+  skippedRunNotice,
+  type PlaybookDto,
+} from "../packages/contracts.js";
+import { notify } from "../ops/notify.js";
+import { loadTenantNotifications } from "../tenant-runtime.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /**
@@ -106,8 +118,8 @@ interface Tick {
 /**
  * A missed day's run ends itself: each playbook's run still waiting for approval whose day has passed in its workspace's
  * zone (contracts runTooLate, the approve verb's own rule, in the zone the verb reads) is skipped through the cancel
- * verb, as the system. A run approved or skipped since the read is left as it is (the verb's conflict), quietly. Counted
- * as `ended`.
+ * verb, as the system, and its owner is told (tellSkipped). A run approved or skipped since the read is left as it is
+ * (the verb's conflict), quietly. Counted as `ended`.
  */
 async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
   const { db, now, L, out } = tick;
@@ -134,6 +146,7 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
       );
       out.ended += 1;
       L.info("run_day_passed_skipped", { tenant_id: r.tenant_id, broadcast_id: r.id, run_for: r.run_for });
+      await tellSkipped(db, r, L);
     } catch (e) {
       if (e instanceof AppError && e.code === "conflict") continue;
       L.error("run_day_passed_failed", {
@@ -142,6 +155,34 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
         error: e instanceof Error ? e.message : String(e),
       });
     }
+  }
+}
+
+/**
+ * A skipped run told to its owner (decision 0064): the bell row opens the run, which says it was skipped and why, and the
+ * mail goes where the workspace's notices go. The skip stands either way: a notice that fails is logged, never retried.
+ */
+async function tellSkipped(db: Tick["db"], r: Awaited<ReturnType<typeof waitingPlaybookRuns>>[number], L: Logger) {
+  const about = r.audience && typeof r.audience === "object" ? (r.audience as { label?: unknown }).label : null;
+  const told = skippedRunNotice(typeof about === "string" && about ? about : r.name, r.recipient_count);
+  try {
+    const target = await loadTenantNotifications(db, r.tenant_id);
+    await notify(
+      { tenantId: r.tenant_id, ...target },
+      {
+        kind: "playbook",
+        route: addressOf({ kind: "send", id: r.id }),
+        about: { type: "broadcast", id: r.id },
+        subject: told.subject,
+        body: told.body,
+      },
+    );
+  } catch (e) {
+    L.error("run_day_passed_untold", {
+      tenant_id: r.tenant_id,
+      broadcast_id: r.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 

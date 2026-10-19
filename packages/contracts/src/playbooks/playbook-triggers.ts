@@ -6,6 +6,7 @@ import { appointmentWords, type AppointmentWord } from "../journey/appointment-w
 import type { SchemaSet } from "../shared/schema-sets";
 import { MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";
+import { waitEndsWords } from "../waits/wait-rules";
 
 /**
  * What starts a playbook. A list trigger sends to a list that keeps itself
@@ -181,6 +182,8 @@ export const SENDING_NOW_WORDS = "sending now";
 export interface WhenItGoesReceipt {
   scheduled_for?: string | null;
   moved_from?: string | null;
+  /** A message sent once, pressed for now: it goes SEND_ONCE_STOP_MS on, unless it is stopped (decision 0064, step 3). */
+  pressed_now?: boolean | null;
 }
 
 /**
@@ -199,6 +202,11 @@ export function whenItGoes(
   if (Number.isNaN(at)) return SENDING_NOW_WORDS;
   if (receipt?.moved_from)
     return `scheduled for ${when(at)} — messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  // Pressed for now, it goes in ten minutes unless stopped (decision 0064, step 3), as the wait rule says it.
+  if (receipt?.pressed_now && at > nowMs) {
+    const goes = waitEndsWords("one_off", when(at));
+    return `${goes.charAt(0).toLowerCase()}${goes.slice(1)}`;
+  }
   return at - nowMs > MIN_MS ? `scheduled for ${when(at)}` : SENDING_NOW_WORDS;
 }
 
@@ -209,6 +217,12 @@ export { PLAYBOOK_BREATH_MS } from "./playbook-time";
 /** Under veto, a run is scheduled this far ahead with a Stop. */
 export const PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 
+/**
+ * A message sent once and pressed for now goes this far ahead, with a Stop (decision 0064, step 3): long enough to catch a
+ * typo on a phone, through the cancel every scheduled run has. Shorter than a batch's hold: the person just pressed Send.
+ */
+export const SEND_ONCE_STOP_MS = 10 * MIN_MS;
+
 /** A wait a page promises, in whole minutes or hours as a sentence says it: "30 minutes", "an hour", "2 hours". */
 export function delayWords(ms: number): string {
   const minutes = Math.round(ms / MIN_MS);
@@ -217,31 +231,47 @@ export function delayWords(ms: number): string {
 }
 
 /**
- * The veto window in those words. Every sentence that promises it (the Autonomy rows, the reach-out sheet, Ask's
- * definitions and cards) says this, so a change to the wait changes what each one says.
+ * The veto window in those words. Every sentence that promises it (How it runs, the reach-out sheet, Ask's definitions
+ * and cards) says this, so a change to the wait changes what each one says.
  */
 export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 
+/** The ten minutes a message sent once waits for a Stop, in a sentence's words: "10 minutes". */
+export const SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
+
 /**
- * What the owner is told when the sweep makes a run under veto: it goes by itself `when` (the business's clock, with
- * its day: "today 10:30 AM", "tomorrow 9:00 AM") unless a person stops it, and the promise "unless you stop it" is only kept for someone who is told. A run a person
- * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts). `trialUntil`: the day the
- * campaign's trial ends ("Oct 18"), where its trial made a run its class would send by itself wait (contracts
- * effectiveMode), so the owner reads why this one waits and that the next ones will not; null where veto is its class's.
+ * What the owner is told when a customer's batch waits for their OK (decision 0064: its sequence asks, or its step's words
+ * are new): who it reaches, and how the wait ends (contracts waitEndsWords, batch_ask). Its title is the one Today's away card
+ * and the bell's close find a waiting run by ("Campaign “X” is ready").
  */
-export function vetoRunNotice(
-  name: string,
-  people: number,
-  when: string,
-  trialUntil: string | null,
-): { subject: string; body: string } {
-  const who = `${people} ${people === 1 ? "person" : "people"}`;
-  const trial = trialUntil
-    ? ` “${name}” is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.`
-    : "";
+export function readyRunNotice(name: string, people: number): { subject: string; body: string } {
+  return {
+    subject: `Campaign “${name}” is ready: ${plural(people, "person", "people")}`,
+    body: `${plural(people, "person has", "people have")} become eligible for “${name}”. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`,
+  };
+}
+
+/**
+ * What the owner is told when a batch held for a stop is made (its sequence's mode is veto): who it reaches, and that it
+ * goes at its time unless stopped (contracts waitEndsWords, batch_hold). `when` is said with its day ("today 10:30 AM").
+ */
+export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
+  const who = plural(people, "person", "people");
   return {
     subject: `Campaign “${name}” sends ${when}: ${who}`,
-    body: `${who} will be sent “${name}” ${when}. Open the run to stop it before then if it should not go.${trial}`,
+    body: `${who} will be sent “${name}”. ${waitEndsWords("batch_hold", when)}, from Today or its run.`,
+  };
+}
+
+/**
+ * What the owner is told when the sweep skips a customer's batch that waited for an OK past its day (decision 0064):
+ * it did not go, because nobody approved it, and its people are in line for the sequence's next batch (00453 puts them
+ * back). Said on the bell and by mail, as its "is ready" was, so a skip is never silent.
+ */
+export function skippedRunNotice(name: string, people: number): { subject: string; body: string } {
+  return {
+    subject: `“${name}” didn’t go: nobody approved it`,
+    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change “Before each batch” in its How it runs.`,
   };
 }
 

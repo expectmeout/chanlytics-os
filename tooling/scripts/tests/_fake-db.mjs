@@ -835,13 +835,29 @@ function throughOldName(name, base) {
   });
 }
 
-/** A first step's sequence (00440 sequence_steps_place): its id, its name, how it starts and whether it is on. */
-const sequenceOfFirstStep = (row) => ({
+/**
+ * What a new sequence of a class starts as (00462 sequence_mode_for): its class's row where that is a mode a sequence
+ * takes (never auto to leads), else ask.
+ */
+function sequenceModeFor(tables, tenantId, cls, toLeads) {
+  const row = (tables.policies ?? []).find(
+    (p) => p.tenant_id === tenantId && p.class === cls && p.subject_type == null,
+  );
+  const mode = row?.mode;
+  return mode === "veto" || mode === "ask" || (mode === "auto" && !toLeads) ? mode : "ask";
+}
+
+/**
+ * A first step's sequence (00440 sequence_steps_place, with its mode since 00462): its id, its name, how it starts,
+ * whether it is on, and how its batches are decided.
+ */
+const sequenceOfFirstStep = (tables, row) => ({
   id: row.id,
   tenant_id: row.tenant_id,
   name: row.name,
   starts: row.kind === "reach_out" ? "leads" : row.trigger === "saved_list" ? "list" : "moment",
   state: (row.state ?? "running") === "running" ? "on" : "paused",
+  mode: sequenceModeFor(tables, row.tenant_id, row.policy_class, row.kind === "reach_out"),
 });
 
 /**
@@ -860,7 +876,7 @@ function filledBySequenceTriggers(tables, table, row) {
     } else {
       row.sequence_id = row.id;
       row.place ??= 1;
-      (tables.sequences ??= []).push(sequenceOfFirstStep(row));
+      (tables.sequences ??= []).push(sequenceOfFirstStep(tables, row));
     }
   }
   if (table === "sequence_batches" && row.sequence_id == null) {
@@ -877,6 +893,7 @@ function filledBySequenceTriggers(tables, table, row) {
         name: row.name,
         starts: "date",
         state: ended ? "ended" : "on",
+        mode: null,
       });
     }
   }
@@ -1167,6 +1184,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         );
       if (!("p_decision" in args)) return id;
       if (p_decision == null) return { id };
+      // A member's run of a step lets its words go (00462 words_ok_at): its next batches go by its sequence's mode.
+      if (p_actor && run.playbook_id) {
+        const step = (tables.sequence_steps ?? []).find((st) => st.id === run.playbook_id && st.tenant_id === p_tenant);
+        if (step) step.words_ok_at = at;
+      }
       const decision = insertRow("decisions", {
         tenant_id: p_tenant,
         subject_type: "broadcast",
@@ -1478,9 +1500,16 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         // runDueNow's rule, as the SQL restates it; the SQL is held to it on a stack (ops/sweep-pages.db.test.mjs).
         .filter(({ p, tz }) => runDueNow(p, tz, at) && localHour(tz, at) <= p_last_hour)
         .sort((a, b) => byWaiting(a.p, b.p, "last_run_at", "created_at", "id"));
-      return due
-        .slice(0, Math.max(0, p_limit ?? 0))
-        .map(({ p, tz }) => ({ step: { ...p }, timezone: tz, due_total: due.length }));
+      return (
+        due
+          .slice(0, Math.max(0, p_limit ?? 0))
+          // Each with its sequence's mode (00462), as the SQL joins it.
+          .map(({ p, tz }) => ({
+            step: { ...p, mode: (tables.sequences ?? []).find((q) => q.id === p.sequence_id)?.mode ?? null },
+            timezone: tz,
+            due_total: due.length,
+          }))
+      );
     },
     calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
       const due = (tables.tenant_config ?? [])

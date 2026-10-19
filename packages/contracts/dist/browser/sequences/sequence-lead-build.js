@@ -15,6 +15,7 @@ import {
 } from "../reach-out/reach-out-words.js";
 import { plural } from "../shared/words.js";
 import { slotMentions } from "../templates/slot-sets.js";
+import { SEQUENCE_MODE_LABEL } from "./sequence.js";
 export const LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
   startAdd: "When you add a lead to ",
@@ -98,8 +99,8 @@ export const LEAD_BUILD_WORDS = {
     aDay: "A day, at most",
     every: (minutes) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
-    approves: "Who approves",
-    inAutonomy: "Set in Autonomy",
+    approves: SEQUENCE_MODE_LABEL,
+    newWordsAsk: "New words always ask first",
     signed: "Signed",
     signedNone: "Not set",
     footer: "Footer",
@@ -107,13 +108,6 @@ export const LEAD_BUILD_WORDS = {
     noAddress: "Add your address in Settings \u203A Details: every email carries it at the foot."
   }
 };
-const APPROVES = {
-  ask: "You, each batch",
-  veto: "Goes unless you stop it",
-  auto: "Goes on its own",
-  never: "Nobody: it stays quiet"
-};
-export const leadApprovesOf = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(APPROVES, mode) ? APPROVES[mode] : APPROVES.ask;
 const leadSlotLabel = (key) => REACH_OUT_SLOT_SET.labels[REACH_OUT_SLOT_SET.keys.indexOf(key)] ?? key;
 function leadBuildPartsOf(text) {
   const parts = [];

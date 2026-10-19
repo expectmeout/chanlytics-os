@@ -21,12 +21,13 @@ import { BROADCAST_STATE_LABELS, type BroadcastState } from "../broadcasts/broad
 import { addressOf } from "../activity/record-address";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import type { Tone } from "../shell/tone";
-import { campaignEnded, effectiveMode, nextRunOf, planRun } from "../playbooks/playbook-schedule";
+import { campaignEnded, nextRunOf, planRun } from "../playbooks/playbook-schedule";
 import { clockInZone, dayInZone } from "./zone-math";
 import { shiftKey } from "./day-keys";
 import { clockLabel } from "./calendar-words";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
+import type { SequenceMode } from "../sequences/sequence";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {
@@ -55,12 +56,14 @@ export interface CalendarMomentDto {
   trigger: string;
   /** running, paused, … */
   state: string;
-  /** The class's mode as the workspace set it (auto, veto, ask, never); "ask" where it set none, as a run reads it. */
-  mode: string;
+  /**
+   * How its next batch is decided (contracts batchModeOf over its sequence's mode and its words' OK, decision 0064): auto,
+   * veto or ask, as the run will plan it.
+   */
+  mode: SequenceMode;
   run_hour: number;
   last_run_for: string | null;
   until: string | null;
-  trial_until: string | null;
   /** A reach-out chain's step: its runs are cold email, and it has no forecast here. */
   reach_out: boolean;
 }
@@ -392,9 +395,7 @@ function nextMarks(dto: CalendarRunsDto, days: Days, now: Date, todayKey: string
     // A run already made for that day or a later one (an approval asked a day ahead) is the run: it is drawn, not forecast.
     const made = !!p.last_run_for && p.last_run_for >= day;
     if (made || standing.has(`${p.id}:${day}`) || campaignEnded(p, day)) continue;
-    const plan = planRun(effectiveMode(p, p.mode, now), now);
-    if (plan.kind === "off") continue;
-    const sends = plan.kind === "send";
+    const sends = planRun(p.mode, now).kind === "send";
     const t = sends && !next.soon ? next.hour : null;
     const when = next.day === "today" ? "today" : "tomorrow";
     pushOn(days, day, {

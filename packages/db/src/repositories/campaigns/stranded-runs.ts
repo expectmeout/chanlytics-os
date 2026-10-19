@@ -102,6 +102,8 @@ export interface WaitingPlaybookRun {
   playbook_id: string;
   run_for: string;
   audience: unknown;
+  /** How many it was for: what the owner is told it did not reach, once the sweep skips it (decision 0064). */
+  recipient_count: number;
   /** The workspace's zone, or the one the approve verb reads for a workspace with none (DEFAULT_TIMEZONE). */
   timezone: string;
 }
@@ -114,7 +116,7 @@ export interface WaitingPlaybookRun {
 export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
   const { data, error } = await db
     .from("sequence_batches")
-    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience")
+    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience, recipient_count")
     .eq("state", "pending_approval")
     .not("step_id", "is", null)
     .not("run_for", "is", null)
@@ -142,6 +144,7 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
             playbook_id: r.playbook_id,
             run_for: r.run_for,
             audience: r.audience,
+            recipient_count: r.recipient_count ?? 0,
             timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE,
           },
         ]
@@ -240,6 +243,36 @@ export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRu
     return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
   });
   return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** A run set to go, as Going today reads it (decision 0064): when it goes, and what names it. */
+export interface GoingRunRow {
+  id: string;
+  name: string;
+  state: string;
+  playbook_id: string | null;
+  scheduled_for: string | null;
+  recipient_count: number;
+  audience: unknown;
+}
+
+/**
+ * One workspace's runs set to start between two instants, soonest first (a hundred at most), on the session's client (RLS
+ * decides): what goes on its own unless stopped (contracts goingTodayOf, which keeps those on the business's day). A read
+ * that fails throws.
+ */
+export async function runsGoingBetween(db: Db, tenantId: string, from: Date, until: Date): Promise<GoingRunRow[]> {
+  const { data, error } = await db
+    .from("sequence_batches")
+    .select("id, name, state, playbook_id:step_id, scheduled_for, recipient_count, audience")
+    .eq("tenant_id", tenantId)
+    .eq("state", "scheduled")
+    .gt("scheduled_for", from.toISOString())
+    .lte("scheduled_for", until.toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(100);
+  if (error) throw new Error(`cannot read the runs set to go: ${error.message}`);
+  return data ?? [];
 }
 
 /**

@@ -7,7 +7,6 @@
  * runs (who joins, how it sends), one sheet saved as it changes. Pure: the page draws these, and says every sentence
  * from here.
  */
-import type { PolicyMode } from "../config/workspace-config/policy-classes";
 import {
   LEAD_CARD_WORDS,
   leadCardStepsOf,
@@ -33,6 +32,7 @@ import {
 } from "../reach-out/reach-out-words";
 import { plural } from "../shared/words";
 import { slotMentions } from "../templates/slot-sets";
+import { SEQUENCE_MODE_LABEL } from "./sequence";
 
 /** The record's words for a sequence to leads, said once. */
 export const LEAD_BUILD_WORDS = {
@@ -120,8 +120,8 @@ export const LEAD_BUILD_WORDS = {
     aDay: "A day, at most",
     every: (minutes: number) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
-    approves: "Who approves",
-    inAutonomy: "Set in Autonomy",
+    approves: SEQUENCE_MODE_LABEL,
+    newWordsAsk: "New words always ask first",
     signed: "Signed",
     signedNone: "Not set",
     footer: "Footer",
@@ -129,18 +129,6 @@ export const LEAD_BUILD_WORDS = {
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
   },
 } as const;
-
-/** Who approves its batches, as How it runs says it (Autonomy sets it for the whole class). */
-const APPROVES: Record<PolicyMode, string> = {
-  ask: "You, each batch",
-  veto: "Goes unless you stop it",
-  auto: "Goes on its own",
-  never: "Nobody: it stays quiet",
-};
-
-/** Who approves, by the mode its class runs under: none set, or one it does not know, is ask's. */
-export const leadApprovesOf = (mode: string | null): string =>
-  mode !== null && Object.prototype.hasOwnProperty.call(APPROVES, mode) ? APPROVES[mode as PolicyMode] : APPROVES.ask;
 
 /** A step's words cut into words and slots by name: a box's title and its lines, as the editor's chips name them. */
 export type LeadBuildPart = { kind: "text"; text: string } | { kind: "slot"; key: string; label: string };

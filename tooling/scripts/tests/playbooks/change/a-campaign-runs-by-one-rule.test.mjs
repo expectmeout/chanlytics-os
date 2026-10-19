@@ -74,7 +74,6 @@ test("the home's reading carries the rule's answer on each card, which Sent's we
     list_id: null,
     list_key: null,
     until: null,
-    trial_until: null,
     ...over,
   });
   const read = lifecyclePlaybooksOf(

@@ -1,6 +1,7 @@
 import "server-only";
 import {
   addressOf,
+  DAY_MS,
   type BroadcastDetailDto,
   type BroadcastDto,
   type ChannelsReady,
@@ -10,7 +11,14 @@ import {
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
-import { recentTouches, waitingRunsOf, workspaceOpenToCustomers, type WaitingRunRow } from "@chanlytics/db";
+import {
+  recentTouches,
+  runsGoingBetween,
+  waitingRunsOf,
+  workspaceOpenToCustomers,
+  type GoingRunRow,
+  type WaitingRunRow,
+} from "@chanlytics/db";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as readers from "./facts";
 import { log } from "@/server/log";
@@ -110,6 +118,20 @@ export const broadcast: Reader<{ id: string }, BroadcastDetailDto> = {
   async read(rc, { id }) {
     const data = await getBroadcast(rc.ctx, rc.tenantId, id);
     return { data, rows: [runRef(data.broadcast)], stamp: stamp() };
+  },
+};
+
+/**
+ * The runs set to go on their own in the next day, soonest first (packages/db runsGoingBetween): what Ask's Today says goes
+ * today unless stopped (contracts goingTodayOf keeps those on the business's day), as Today's Going today draws them. Each
+ * run is a row a citation names.
+ */
+export const goingRuns: Reader<undefined, { runs: GoingRunRow[] }> = {
+  name: "going_runs",
+  async read(rc) {
+    const now = new Date();
+    const runs = await runsGoingBetween(rc.ctx.supabase, rc.tenantId, now, new Date(now.getTime() + DAY_MS));
+    return { data: { runs }, rows: runs.map(runRef), stamp: stamp() };
   },
 };
 

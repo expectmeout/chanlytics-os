@@ -886,7 +886,10 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "searches",
     "runs",
     "heldThreads",
+    "going",
   ]);
+  // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
+  assert.deepEqual(r.data.going, []);
   assert.deepEqual(
     r.data.heldThreads.map((c) => c.id),
     [OUTSIDE],
@@ -4208,8 +4211,12 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
-  ["sequence_steps.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
-  ["policies.select", "mode"],
+  [
+    "sequence_steps.select",
+    "id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at",
+  ],
+  // 19 Oct 2026 (decision 0064): whether the follow-up asks is its sequence's mode, where its class's row was read.
+  ["sequences.select", "id, mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
@@ -4254,8 +4261,10 @@ const PEOPLE_ASKED_NOW = [
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
-  ["sequence_steps.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
-  ["policies.select", "mode"],
+  [
+    "sequence_steps.select",
+    "id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at",
+  ],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["rpc:contact_seen", null],
@@ -4267,6 +4276,7 @@ const PEOPLE_ASKED_NOW = [
   ["appointments.select", "*"],
   ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
+  ["sequences.select", "id, mode"],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
   ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
@@ -4340,7 +4350,7 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
             ([k, cols]) =>
               !/^(sequence_steps|tenant_channels|lines|templates|sequence_batches|sequence_sends)\./.test(k) &&
               !(k === "deals.select" && cols !== "id") &&
-              !(k === "policies.select" && cols === "mode") &&
+              k !== "sequences.select" &&
               !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
           ),
       ),
@@ -4810,7 +4820,6 @@ const PLAYBOOKS_KEYS = [
   "bookings_by_email",
   // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): each autonomy class's mode as stored (readers/facts.ts policies), so a
   // Resume asked on Campaigns says in full that a campaign under `auto` sends on its own.
-  "modes",
 ];
 /** A playbook row as the page's read selects it (server/campaigns/playbooks.ts COLUMNS), a moment. */
 const pbRow = (id, over = {}) => ({
@@ -5053,16 +5062,12 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
     [rich.calendar, rich.has_deals, "touched" in rich, rich.lists.map((l) => l.id), rich.pools[`list:${SEG1}`].pool],
     ["ok", true, false, [SEG1], 1],
   );
-  // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
+  // 9 Oct 2026 (spec 2026-10-09 §4.8): the shape's word and booking tool. The matrix's modes by class left the page
+  // with decision 0064: each playbook carries its sequence's own.
   assert.deepEqual(
-    [
-      rich.appointment_word,
-      rich.bookings_by_email,
-      pages["no deal on file"].appointment_word,
-      pages["no deal on file"].modes,
-    ],
-    ["meeting", false, "appointment", {}],
-    "a meeting where the retired answer said proposals and none was picked, else an appointment; no autonomy row is no mode",
+    [rich.appointment_word, rich.bookings_by_email, pages["no deal on file"].appointment_word, "modes" in rich],
+    ["meeting", false, "appointment", false],
+    "a meeting where the retired answer said proposals and none was picked, else an appointment",
   );
 });
 
@@ -5143,8 +5148,11 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "sequence_steps.select") q[1] += ", channels";
-    // 11 Oct 2026 (00416): and each one's last day and the end of its trial, which Campaigns' home says as its state.
-    for (const q of want) if (q[0] === "sequence_steps.select") q[1] += ", until, trial_until";
+    // 11 Oct 2026 (00416): and each one's last day, which Campaigns' home says as its state. 19 Oct 2026 (00462, decision
+    // 0064): its sequence and when its words were last let go, where the trial's end was, and its sequence's mode after.
+    for (const q of want)
+      if (q[0] === "sequence_steps.select")
+        q[1] = q[1].replace("id, name,", "id, sequence_id, name,") + ", until, words_ok_at";
     // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
     // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
     want.splice(
@@ -5165,9 +5173,9 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       want.findIndex(([k, cols]) => k === "sequence_sends.select" && cols.includes("messages(")),
       1,
     );
-    // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows, so the page knows a class under `auto`
-    // (control-plane listPolicies, the readers/facts.ts policies reader Ask's campaigns.playbooks already reads).
-    want.push(["policies.select", "id, class, mode, subject_type, subject_id, limits, updated_at"]);
+    // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows were read here so the page knew a class
+    // under `auto`; since 19 Oct 2026 (decision 0064) each playbook's mode is its sequence's, read after the rows.
+    want.splice(want.findIndex(([k]) => k === "sequence_steps.select") + 1, 0, ["sequences.select", "id, mode"]);
     // 9 Oct 2026: the pools' reads leave with the page's first ones (server/campaigns/playbook-pools.ts poolReads), so the
     // reads no longer reach the database one behind another: the same reads, each as often, the door before them all.
     const w = playbooksWorld();
@@ -6024,7 +6032,15 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), ["policies", "role", "held", "suggestions", "own_modes", "reply_tokens"]);
+    assert.deepEqual(Object.keys(r.data), [
+      "policies",
+      "role",
+      "held",
+      "suggestions",
+      "own_modes",
+      "reply_tokens",
+      "evidence",
+    ]);
     assert.deepEqual(
       [r.data.policies.map((p) => p.class), r.data.role],
       [classes, role],
@@ -6622,49 +6638,50 @@ test("campaigns.journey says the customer journey: 2 of 4 moments covered, first
 });
 
 /**
- * 12 Oct 2026 (Ask, the marketing manager, the review after the merge): campaigns.playbooks says a campaign's end and its
- * trial as its card on Campaigns does, through the page's one reading of GET playbooks' answer (contracts
- * lifecyclePlaybooksOf). A campaign past its last day still reads running and runs nothing, so it has no next run and
- * says why; one on trial under a class that sends on its own runs under veto until its trial ends; a last day ahead is
- * said. Harbor here, on a frozen clock, Thursday 3 December 2026 at nine in the morning in New York, its campaigns' class
- * on auto; the month's offer three times: ended on 30 November, on trial until 8 December and ending on the 31st, and one
- * whose trial ended in November.
+ * 12 Oct 2026 (Ask, the marketing manager, the review after the merge): campaigns.playbooks says a campaign's end as its
+ * card on Campaigns does, through the page's one reading of GET playbooks' answer (contracts lifecyclePlaybooksOf). A
+ * campaign past its last day still reads running and runs nothing, so it has no next run and says why; a last day ahead
+ * is said. Since decision 0064 each says its own sequence's mode, made from its class's row, and whether its next batch
+ * waits for an OK because its words are new (the trial is gone). Harbor here, on a frozen clock, Thursday 3 December
+ * 2026 at nine in the morning in New York, its campaigns' class on auto; the month's offer three times: ended on 30
+ * November, ending on the 31st with new words, and always on.
  */
 const LIFE_NOW = new Date("2026-12-03T14:00:00.000Z");
-test("campaigns.playbooks says a campaign's end and its trial as its card does: one past its last day, still running, has no next run and says it ended; one on trial under auto runs under veto until the day its trial ends, and says its last day ahead; one whose trial is over runs under its class's mode", async () => {
+const SEEN = "2026-11-02T15:00:00.000Z";
+test("campaigns.playbooks says a campaign's end and its sequence's mode as its card does: one past its last day, still running, has no next run and says it ended; one with new words says its next batch asks first, and its last day ahead", async () => {
   const PB3 = "99999999-9999-4999-8999-999999999993";
   const monthly = { trigger: "everyone_monthly", policy_class: "campaign", cadence_days: 30, gap_days: 0 };
   const w = countsWorld(pagedPeople([]), {
     policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, subject_id: null }],
     playbooks: [
-      pbRow(PB1, { ...monthly, name: "November offer", until: "2026-11-30", trial_until: null }),
-      pbRow(PB2, { ...monthly, name: "Winter offer", until: "2026-12-31", trial_until: "2026-12-08T14:00:00.000Z" }),
-      pbRow(PB3, { ...monthly, name: "Always on", until: null, trial_until: "2026-11-20T14:00:00.000Z" }),
+      pbRow(PB1, { ...monthly, name: "November offer", until: "2026-11-30", words_ok_at: SEEN }),
+      pbRow(PB2, { ...monthly, name: "Winter offer", until: "2026-12-31", words_ok_at: null }),
+      pbRow(PB3, { ...monthly, name: "Always on", until: null, words_ok_at: SEEN }),
     ],
   });
   const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
   const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const said = JSON.parse(out.result);
-  assert.equal(said.modes.campaign, "auto", "the class sends on its own");
+  assert.equal(said.new_sequences_start_as.campaign, "auto", "a new one of the class sends on its own");
   const by = Object.fromEntries(said.playbooks.map((p) => [p.name, p]));
   // Its state is the home's words (contracts lifecycleStateOf), never the stored "running" of one past its last day (R13 X5-7).
-  const facts = (p) => [p.state, p.mode, p.next_run, p.runs_nothing, p.ended, p.on_trial_until, p.ends];
+  const facts = (p) => [p.state, p.mode, p.next_batch_asks_first, p.next_run, p.runs_nothing, p.ended, p.ends];
   assert.deepEqual(
     facts(by["November offer"]),
-    ["Ended Nov 30", "auto", null, "Ended Nov 30", "Nov 30", undefined, undefined],
+    ["Ended Nov 30", "auto", false, null, "Ended Nov 30", "Nov 30", undefined],
     "REGRESSION: it said its next run was today at 10, a month after its last day",
   );
   assert.deepEqual(
     facts(by["Winter offer"]),
-    ["On trial until Dec 8", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
-    "REGRESSION: it said a run sends on its own, where each waits 30 minutes with a Stop",
+    ["On · every 30 days", "auto", true, "today 10:00 AM", undefined, undefined, "Dec 31"],
+    "its words new: its next batch waits for an OK, whatever its mode",
   );
   assert.deepEqual(facts(by["Always on"]), [
     "On · every 30 days",
     "auto",
+    false,
     "today 10:00 AM",
-    undefined,
     undefined,
     undefined,
     undefined,
@@ -6678,12 +6695,19 @@ test("campaigns.playbooks says a campaign's end and its trial as its card does: 
   );
 });
 
-test("campaigns.playbooks says the autonomy modes could not be read where their read failed, never that every run waits for a person (the wiring's second audit, R13 X5-8)", async () => {
+test("campaigns.playbooks says what a new sequence starts as could not be read where the autonomy rows' read failed, never a guess; each sequence's own mode is its own row's, and still said (the wiring's second audit, R13 X5-8)", async () => {
   // A read that failed was taken for no rules at all: every class read as ask, and Ask said each campaign's runs wait for a
-  // person, where some send on their own.
+  // person, where some send on their own. Since decision 0064 a campaign's mode is its sequence's, read with it.
   const w = countsWorld(pagedPeople([]), {
     policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, subject_id: null }],
-    playbooks: [pbRow(PB1, { name: "November offer", trigger: "everyone_monthly", policy_class: "campaign" })],
+    playbooks: [
+      pbRow(PB1, {
+        name: "November offer",
+        trigger: "everyone_monthly",
+        policy_class: "campaign",
+        words_ok_at: SEEN,
+      }),
+    ],
   });
   const down = { "policies.select": { message: "policies down" } };
   const { result: out, lines } = await logged("ask_tool_read_failed", () =>
@@ -6694,18 +6718,18 @@ test("campaigns.playbooks says the autonomy modes could not be read where their 
   );
   assert.equal(out.isError, false, out.result);
   const said = JSON.parse(out.result);
-  assert.equal(said.modes, null, "no class's mode is said");
-  assert.match(said.could_not_read, /could not be read just now, never that a campaign's runs wait for a person/);
+  assert.equal(said.new_sequences_start_as, null, "no class's start is said");
+  assert.match(said.could_not_read, /could not be read just now, never what a new one's batches would do/);
   assert.deepEqual(
     said.playbooks.map((p) => [p.name, p.mode]),
-    [["November offer", null]],
-    "nor any campaign's mode, auto or ask",
+    [["November offer", "auto"]],
+    "its sequence's own mode, which no autonomy row's read decides",
   );
   assert.equal(lines.length, 1, "said once in the log");
-  // Read, the mode is said as before.
+  // Read, the start is said as before.
   const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
   const read = JSON.parse((await runTool(tc, { name: "sequences", input: { action: "moments" } })).result);
-  assert.deepEqual([read.modes.campaign, read.could_not_read], ["auto", undefined]);
+  assert.deepEqual([read.new_sequences_start_as.campaign, read.could_not_read], ["auto", undefined]);
 });
 
 /**

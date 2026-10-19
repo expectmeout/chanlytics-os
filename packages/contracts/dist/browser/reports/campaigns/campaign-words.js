@@ -111,10 +111,14 @@ export function firstReplyLine(n, medianS) {
   if (medianS === null) return null;
   return `The middle one was answered ${durationWords(medianS)} after it was sent, of ${plural(n, "answered message")}.`;
 }
-export function approvalLine(n, medianS) {
-  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.`;
+export function approvalLine(n, medianS, skipped = 0) {
+  const unanswered = skipped > 0 ? ` ${approvalSkippedLine(skipped)}` : "";
+  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.${unanswered}`;
   if (medianS === null) return null;
-  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.`;
+  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.${unanswered}`;
+}
+export function approvalSkippedLine(skipped) {
+  return `${plural(skipped, "run was", "runs were")} skipped: nobody answered before ${skipped === 1 ? "its" : "their"} day ended.`;
 }
 export function runsWaitingMeta(n, late) {
   if (n === 0) return "nothing is waiting for your OK";
