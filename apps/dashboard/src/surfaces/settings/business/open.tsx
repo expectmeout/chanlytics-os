@@ -22,6 +22,7 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
+import { hoursLines } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { TzApi } from "@/legacy-bridge/identity";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
@@ -38,7 +39,7 @@ import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
 import type { BusinessTabSave } from "./saver";
-import { activeWorkspaceNow, defaultTimezone, hoursLinesFn, tzApi, workspaceApi, workspacesNow } from "./shell";
+import { activeWorkspaceNow, defaultTimezone, tzApi, workspaceApi, workspacesNow } from "./shell";
 
 type Brain = NonNullable<WorkspaceSettings["brain"]>;
 type Saver = BusinessTabSave["saver"];
@@ -49,21 +50,20 @@ type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 type ClosuresIn = Parameters<typeof BUSINESS_TAB.closuresAheadWords>[0];
 type WeekWordsIn = Parameters<typeof BUSINESS_TAB.openWeekWords>[0];
 /** The hours a record holds, as `hoursLines` reads them. */
-type HoursIn = Parameters<NonNullable<ReturnType<typeof hoursLinesFn>>>[0];
+type HoursIn = Parameters<typeof hoursLines>[0];
 
 /* ------------------------------------ the week's row ------------------------------------ */
 
 /**
- * The owner's own summary of their hours: the composer's run-collapsing (contracts hoursLines, through the shell), joined
+ * The owner's own summary of their hours: the composer's run-collapsing (contracts hoursLines, imported), joined
  * as the old card's hoursSummary joins it (settings.jsx, a wrapper over the same function, which stays where it is until
  * that card goes). Never a second implementation: its comment says why two copies of "which days share the same hours"
  * is how the card and the receptionist start disagreeing, on the one screen an owner glances at to check. The words are
  * the Calendar's too (C3), so this row and the Calendar's bar say one thing.
  */
 const btoHoursLine = (hours: HoursIn): string | null => {
-  const lines = hoursLinesFn();
-  if (!hours || !lines) return null;
-  return lines(hours).join(" · ") || null;
+  if (!hours) return null;
+  return hoursLines(hours).join(" · ") || null;
 };
 
 /**

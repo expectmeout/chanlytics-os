@@ -38,8 +38,6 @@ export const factsNow = () => window.__FACTS;
 export const policiesNow = () => window.__POLICIES;
 export const templatesAllNow = () => window.__TEMPLATES_ALL;
 export const setupNow = () => window.__SETUP;
-/** Setup's verbs (setup/surface.ts installSetup): the Business pane asks Chanlytics for a repair through them. */
-export const setupApi = () => window.__setup;
 /** A broken configuration in Setup's words (seed-globals.ts publishes contracts' BROKEN_CONFIG_WORDS). */
 export const brokenConfigWords = () => window.__brokenConfigWords;
 
@@ -56,7 +54,6 @@ export const defaultTimezone = () => window.DEFAULT_TIMEZONE;
 export const calendarNow = () => window.__CALENDAR;
 export const calendarApi = () => window.__calendar;
 export const calendarPage = () => window.__calendarPage;
-export const hoursLinesFn = () => window.__hoursLines;
 
 /* -------------------------------------------------------- the frame's status and words -------------------------------------------------------- */
 

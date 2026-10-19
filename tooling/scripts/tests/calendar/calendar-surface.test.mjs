@@ -12,7 +12,8 @@ import assert from "node:assert/strict";
 import { coversSpan, routeOfPath, spanForView } from "@chanlytics/contracts";
 import { fresh, again, byTestId, find, installLegacyReact, textOf, unmount } from "../_legacy-react.mjs";
 
-const CACHE = "chanlytics.surfaces.v1";
+// The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
+const CACHE = "chanlytics.surfaces.v2:studio";
 const storage = () => {
   const m = new Map();
   return {
@@ -24,6 +25,7 @@ const storage = () => {
 };
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
 globalThis.sessionStorage = storage();
+globalThis.localStorage = storage();
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
 const S = "../../../../apps/dashboard/src";
@@ -57,7 +59,7 @@ test("the tab's cache gives the Calendar's value back before React draws, so a r
   values.setSurfaceValue("calendar", CALENDAR);
   cache.snapshotSurface("calendar", [], "t-salon", undefined, "calendar");
   cache.flushSurfaceCache();
-  assert.deepEqual(JSON.parse(globalThis.sessionStorage.peek(CACHE)).surfaces.calendar, { $value: CALENDAR });
+  assert.deepEqual(JSON.parse(globalThis.localStorage.peek(CACHE)).surfaces.calendar, { $value: CALENDAR });
   values.setSurfaceValue("calendar", undefined);
   assert.ok(cache.hydrateSurfaceCache().has("calendar"), "the surface has its real data before it draws");
   assert.deepEqual(values.surfaceValue("calendar"), CALENDAR);

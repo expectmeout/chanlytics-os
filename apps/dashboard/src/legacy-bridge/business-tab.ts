@@ -451,6 +451,12 @@ declare global {
   }
 }
 
+/**
+ * The helpers on the window, for the standalone mockup's Business tab (serve-legacy.mjs builds this module as
+ * data/business-tab.js) and the tests that draw it as the mockup does. The app installs none of them: Settings imports
+ * what it draws (BUSINESS_TAB, contracts hoursLines), and the frame stopped carrying the tab's 27 KB, compressed, for a
+ * window name no page of the app read but the hours line (the loadability review, 19 Oct 2026).
+ */
 export function installBusinessTab(): void {
   window.__businessTab = BUSINESS_TAB;
   window.__hoursLines = hoursLines;

@@ -296,6 +296,24 @@ export function warmsOnItsOwn(): boolean {
   return !(link && (link.saveData || /(^|-)2g$/.test(link.effectiveType ?? "")));
 }
 
+/** How long an idle page may wait before something is fetched ahead of need: after the page's own reads and code. */
+const AHEAD_IDLE_MS = 3000;
+
+/**
+ * Something fetched ahead of need (a page's next chunk, a sheet's code, the specs Ask's cards read), once the page is
+ * idle and at most `waitMs` after it is asked for, or after `waitMs` where the browser has no idle callback (Safari).
+ * Never where the page may not warm on its own (warmsOnItsOwn): a press fetches it then. Answers what cancels it.
+ */
+export function aheadWhenIdle(fn: () => void, waitMs: number = AHEAD_IDLE_MS): () => void {
+  if (!warmsOnItsOwn()) return () => undefined;
+  if (typeof requestIdleCallback === "function") {
+    const id = requestIdleCallback(() => fn(), { timeout: waitMs });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, waitMs);
+  return () => clearTimeout(id);
+}
+
 /** Whether the tab is on screen: a document hidden behind another tab or a locked phone is not. */
 const onScreen = (): boolean => typeof document === "undefined" || document.visibilityState !== "hidden";
 

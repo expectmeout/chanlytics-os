@@ -14,7 +14,7 @@ import { formatPhoneDisplay } from "../shared/phone.js";
 import { bookingToolName } from "../calendar/booking-notice.js";
 import { calendarSourceFacts, calendarSourceOf } from "./calendar-source.js";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
-import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run.js";
+import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 export const CONNECTION_KINDS = [
   "whatsapp",
   "phone",

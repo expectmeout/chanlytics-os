@@ -193,11 +193,9 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, and so is the one
-// recogniser (surfaces/kit/talk), as window.useHoldToTalk, over this file's own React.
+// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, over this file's own React.
 useStubHooks(globalThis.React);
 globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
-globalThis.window.useHoldToTalk = kitPages.useHoldToTalk;
 /** What the palette flashed, in order. */
 const flashed = [];
 Object.assign(globalThis.window, {
@@ -211,10 +209,10 @@ await import("../../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
 await import("../../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
 // Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
 await import("../../../../apps/dashboard/src/legacy/components/ask-face.jsx");
-// A lead search's card on the rail is the finder's own plan card (surfaces/leads/finder/plan-card.tsx, hookless), which
-// Ask's palette draws by name until it moves: what seed-globals publishes (surfaces/leads/globals.ts).
-const { LEADS_GLOBALS } = await import("../../../../apps/dashboard/src/surfaces/leads/globals.ts");
-Object.assign(globalThis.window, LEADS_GLOBALS);
+// What the Line draws by name and publishes as it loads (legacy-bridge/ask/line-globals.ts): the one recogniser
+// (surfaces/kit/talk) as window.useHoldToTalk, the answer's charts, and a lead search's card on the rail, the finder's own
+// plan card (surfaces/leads/finder/plan-card.tsx, hookless).
+await import("../../../../apps/dashboard/src/legacy-bridge/ask/line-globals.ts");
 const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
@@ -315,7 +313,8 @@ const later = async (C, props) => {
 
 /* ------------------------------ the palette ------------------------------ */
 
-const Palette = (props) => globalThis.window.AskBar(props);
+// The Line itself (ask-real.jsx), as the frame's AskBar draws it once its chunk is in (legacy-bridge/ask/line.tsx).
+const Palette = (props) => globalThis.window.AskLineReal(props);
 const OPEN = { open: true, onClose() {} };
 const CLOSED = { open: false, onClose() {} };
 /** The shell's open landing: the palette drawn open, and what it asked for on the way. */

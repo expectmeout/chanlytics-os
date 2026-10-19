@@ -7,24 +7,31 @@
  * an entry already cached for this workspace: a new one could carry no workspace, and the runner's guard
  * (surface-runner.ts) skips an entry with none.
  *
- * The real People surface, the real save and the real cache, over a window with sessionStorage and a fake fetch.
+ * The real People surface, the real save and the real cache, over a window with local storage and a fake fetch. The cache is
+ * kept in local storage, one slot per workspace's address, and drawn for a day at most.
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 
 const TID = "t-salon";
-const CACHE = "chanlytics.surfaces.v1";
-/** The tab's storage, counting the writes to the cache's slot. */
+/** A workspace's slot in the browser's local storage, by its address's word. */
+const slot = (ws) => `chanlytics.surfaces.v2:${ws}`;
+const CACHE = slot("salon");
+/** A store as the browser's are, counting the writes to the cache's slots. */
 let cacheWrites = 0;
 const storage = () => {
   const m = new Map();
   return {
     getItem: (k) => (m.has(k) ? m.get(k) : null),
     setItem: (k, v) => {
-      if (k === CACHE) cacheWrites++;
+      if (k.startsWith("chanlytics.surfaces.v2:")) cacheWrites++;
       m.set(k, String(v));
     },
     removeItem: (k) => m.delete(k),
+    key: (i) => [...m.keys()][i] ?? null,
+    get length() {
+      return m.size;
+    },
   };
 };
 const json = (status, body) =>
@@ -98,7 +105,7 @@ const {
   cachedTenant: cachedTenantNow,
 } = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 /** The cache's slot as the next load reads it: after the page's hide, which writes what waits. */
-const stored = () => (flushSurfaceCache(), globalThis.sessionStorage.getItem(CACHE));
+const stored = (at = CACHE) => (flushSurfaceCache(), globalThis.localStorage.getItem(at));
 
 const HIDDEN = { sortBy: "last", sortDir: "desc", columns: { came_from: false } };
 /** The People view in the tab's cache, as a reload would paint it. */
@@ -292,7 +299,7 @@ test("a boot's snapshots are one write, a second after the last: each used to pa
     assert.equal(cachedTenantNow(), TID, "yet the tab reads what it holds: the runner's guard sees it");
     mock.timers.tick(1000);
     assert.equal(cacheWrites, 1, "one write for the boot");
-    assert.deepEqual(Object.keys(JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces).sort(), [
+    assert.deepEqual(Object.keys(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces).sort(), [
       "calendar",
       "inbox",
       "people",
@@ -319,10 +326,10 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
     clearSurfaceCache();
     globalThis.window.__HIDE_PROBE = { n: 1 };
     snapshotSurface("today", ["__HIDE_PROBE"], TID);
-    assert.equal(globalThis.sessionStorage.getItem(CACHE), null, "waiting");
+    assert.equal(globalThis.localStorage.getItem(CACHE), null, "waiting");
     for (const fn of heard.pagehide ?? []) fn(new Event("pagehide"));
     assert.ok(
-      globalThis.sessionStorage.getItem(CACHE),
+      globalThis.localStorage.getItem(CACHE),
       "REGRESSION: a reload straight after a read painted the older cache",
     );
     // Signed out with a snapshot waiting: the clear drops it, and the write it was waiting for never comes.
@@ -330,7 +337,7 @@ test("the page's hide writes what waits, so a reload paints the latest; a sign-o
     clearSurfaceCache();
     mock.timers.tick(10_000);
     assert.equal(
-      globalThis.sessionStorage.getItem(CACHE),
+      globalThis.localStorage.getItem(CACHE),
       null,
       "REGRESSION: customer rows written back after the session ended",
     );
@@ -362,12 +369,13 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
     assert.equal(parses, 0, "REGRESSION: every snapshot after a write parsed the slot");
     assert.equal(cachedTenantNow(), TID);
     JSON.parse = parse;
-    assert.deepEqual(JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces.today.__PARSE_PROBE, { rows: [4] });
+    assert.deepEqual(JSON.parse(globalThis.localStorage.getItem(CACHE)).surfaces.today.__PARSE_PROBE, { rows: [4] });
     // A slot written by anything else is read as it is: parsed again, never the copy.
-    globalThis.sessionStorage.setItem(
+    globalThis.localStorage.setItem(
       CACHE,
       JSON.stringify({
         build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev",
+        savedAt: Date.now(),
         at: "salon",
         tenant: "t-other",
         surfaces: {},
@@ -405,11 +413,8 @@ test("REGRESSION: a load at another workspace's address draws none of the rows c
     assert.equal(w.__INBOX_PROBE, undefined, "none of its rows");
     assert.equal(w.__WORKSPACES, undefined, "nor its name");
     assert.equal(w.__ACTIVE_WORKSPACE, undefined, "nor its id, which every read after would have taken as bayside's");
-    assert.equal(
-      globalThis.sessionStorage.getItem(CACHE),
-      null,
-      "and dropped: nothing at this address may build on it",
-    );
+    assert.equal(globalThis.localStorage.getItem(slot("bayside")), null, "bayside's own slot holds nothing yet");
+    assert.ok(globalThis.localStorage.getItem(CACHE), "and the salon's stays the salon's, for its own next load");
     assert.equal(cachedTenantNow(), null, "so the runner's guard has no other workspace to reload the tab for");
   } finally {
     w.location.pathname = "/w/salon";
@@ -428,7 +433,7 @@ test("off a workspace page (the home, on its way to one) the cache is drawn nowh
   w.location.pathname = "/";
   try {
     assert.deepEqual([...hydrateSurfaceCache()], [], "the home draws none of a workspace's rows");
-    assert.ok(globalThis.sessionStorage.getItem(CACHE), "and keeps them for the address it sends the tab to");
+    assert.ok(globalThis.localStorage.getItem(CACHE), "and keeps them for the address it sends the tab to");
   } finally {
     w.location.pathname = "/w/salon";
   }
@@ -448,21 +453,23 @@ test("REGRESSION: rows read at one workspace's address never join the cache of a
   w.__INBOX_PROBE = { whose: "bayside's" };
   try {
     snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
-    const kept = JSON.parse(stored());
+    const kept = JSON.parse(stored(slot("bayside")));
+    assert.deepEqual(Object.keys(kept.surfaces), ["inbox"], "bayside's Inbox starts bayside's own slot");
+    assert.equal(kept.at, "bayside", "the cache says whose address its rows were read at");
     assert.deepEqual(
-      Object.keys(kept.surfaces),
-      ["inbox"],
+      Object.keys(JSON.parse(stored(CACHE)).surfaces),
+      ["today"],
       "REGRESSION: bayside's Inbox was written into the salon's cache, beside the salon's Today",
     );
-    assert.equal(kept.at, "bayside", "the cache says whose address its rows were read at");
   } finally {
     w.location.pathname = "/w/salon";
   }
-  // Back at the salon's address: nothing of bayside's is drawn there.
+  // Back at the salon's address: nothing of bayside's is drawn there, only the salon's own.
   delete w.__INBOX_PROBE;
   delete w.__TODAY_PROBE;
-  assert.deepEqual([...hydrateSurfaceCache()], []);
+  assert.deepEqual([...hydrateSurfaceCache()], ["today"]);
   assert.equal(w.__INBOX_PROBE, undefined);
+  delete w.__TODAY_PROBE;
   clearSurfaceCache();
 });
 
@@ -479,4 +486,52 @@ test("a cache the server resolved for another workspace is not added to, even at
   delete w.__TODAY_PROBE;
   delete w.__INBOX_PROBE;
   clearSurfaceCache();
+});
+
+test("a snapshot older than a day is not drawn: a page waits for its reads, as on a first visit", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  try {
+    clearSurfaceCache();
+    const w = globalThis.window;
+    w.__AGE_PROBE = { n: 1 };
+    snapshotSurface("today", ["__AGE_PROBE"], TID);
+    flushSurfaceCache();
+    delete w.__AGE_PROBE;
+    mock.timers.tick(23 * 3_600_000);
+    assert.deepEqual([...hydrateSurfaceCache()], ["today"], "drawn within the day");
+    delete w.__AGE_PROBE;
+    mock.timers.tick(2 * 3_600_000);
+    assert.deepEqual([...hydrateSurfaceCache()], [], "and not after it");
+    assert.equal(w.__AGE_PROBE, undefined);
+  } finally {
+    delete globalThis.window.__AGE_PROBE;
+    mock.timers.reset();
+    clearSurfaceCache();
+  }
+});
+
+test("a clear (a sign-in, a sign-out, a 401, a switch) drops every workspace's slot this browser kept, and nothing else of its storage", () => {
+  clearSurfaceCache();
+  const w = globalThis.window;
+  w.__TODAY_PROBE = { n: 1 };
+  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  flushSurfaceCache();
+  w.location.pathname = "/w/bayside";
+  try {
+    snapshotSurface("today", ["__TODAY_PROBE"], "t-bayside");
+    flushSurfaceCache();
+  } finally {
+    w.location.pathname = "/w/salon";
+  }
+  globalThis.localStorage.setItem("chanlytics.theme", "dark");
+  assert.ok(
+    globalThis.localStorage.getItem(CACHE) && globalThis.localStorage.getItem(slot("bayside")),
+    "two workspaces kept",
+  );
+  clearSurfaceCache();
+  assert.equal(globalThis.localStorage.getItem(CACHE), null);
+  assert.equal(globalThis.localStorage.getItem(slot("bayside")), null, "every workspace's, not only this address's");
+  assert.equal(globalThis.localStorage.getItem("chanlytics.theme"), "dark", "and only the cache's own");
+  globalThis.localStorage.removeItem("chanlytics.theme");
+  delete w.__TODAY_PROBE;
 });

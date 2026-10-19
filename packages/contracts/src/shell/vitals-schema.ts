@@ -4,7 +4,8 @@
  * contracts (decision 0024, the browser's entry): a page that reports its load loads none of it.
  */
 import { z } from "zod";
-import { PAGE_BUILD, PAGE_DEVICES, PAGE_NAME, PAGE_VITALS_PER_BEACON, PageVitalReport } from "./vitals";
+import { PAGE_BUILD, PageVitalReport } from "./vitals";
+import { PAGE_DEVICES, PAGE_NAME, PAGE_VITALS_PER_BEACON } from "./vitals-pages";
 
 /**
  * What the shell sends: the page a load landed on, the shape of screen it was on and the deploy it ran (decision

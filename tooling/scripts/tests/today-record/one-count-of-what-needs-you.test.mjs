@@ -49,6 +49,8 @@ const { needsYouNow, hearNeedsYou, needsYouMoved } = await importSrc(`${SRC}/sur
 const { setSurfaceValue } = await importSrc(`${SRC}/surfaces/surface-values.ts`);
 const { surfaceMoved } = await importSrc(`${SRC}/legacy-bridge/surface-status.ts`);
 const { VW_STORE, IX_STORE, inboxData } = await importSrc(`${SRC}/surfaces/inbox/store.ts`);
+// The demo's seed, fetched only in a demo session (inbox/shell.ts demoCode): it hands its rows to the store as it lands.
+const { demoCode } = await importSrc(`${SRC}/surfaces/inbox/shell.ts`);
 const { AgentCommand } = await importSrc(`${SRC}/surfaces/today/pages/queue.tsx`);
 
 const nowMs = Date.now();
@@ -427,9 +429,10 @@ test("the holds, the held sends and the runs waiting are one number, and a reply
   reset();
 });
 
-test("a demo session counts its seeded threads by the mockup's rule, less the decisions it made", () => {
+test("a demo session counts its seeded threads by the mockup's rule, less the decisions it made", async () => {
   reset();
   W.__DEMO_MODE = true;
+  await demoCode();
   try {
     const seeded = needsYouNow(nowMs);
     assert.ok(seeded > 0, "the demo's Inbox has threads that wait");

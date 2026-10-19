@@ -1,4 +1,4 @@
-import { listToken } from "../people/lists/lists.js";
+import { listToken } from "../people/lists/list-token.js";
 import {
   PEOPLE_CHANGED,
   PROPOSAL_WORDS,

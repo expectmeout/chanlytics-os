@@ -1,7 +1,7 @@
 /**
  * People's lists: a list Ask proposes, kept current by its rule (the Phase 4 plan, D10).
  */
-import { listToken } from "../people/lists/lists";
+import { listToken } from "../people/lists/list-token";
 import {
   PEOPLE_CHANGED,
   PROPOSAL_WORDS,

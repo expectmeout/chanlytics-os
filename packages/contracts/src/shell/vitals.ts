@@ -14,27 +14,8 @@
 import "../zod-config";
 import * as z from "zod/mini";
 import { MIN_MS } from "../shared/time";
-import { ROUTE_WORDS } from "./address";
 import type { Tone } from "./tone";
-
-/** The browser's five, in the order the back office says them (web-vitals). */
-export const PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"] as const;
-export type PageVital = (typeof PAGE_VITALS)[number];
-/**
- * The shell's own two (decision 0053): a page or a part of one drawn with its rows, from the press that asked for it
- * (or the document's start), and every surface the page draws read. What a person waits for, which the browser's five
- * cannot say: a paint of "Reading…" is a contentful paint.
- */
-const PAGE_SPEED = ["READY", "SETTLED"] as const;
-export type PageSpeedMetric = (typeof PAGE_SPEED)[number];
-/** Every metric the table keeps. Held to page_vitals.metric (shared/schema-sets.ts). */
-export const PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED] as const;
-export type PageMetric = (typeof PAGE_METRICS)[number];
-/** The two shapes of screen a report is from: the kit's one phone width (kit.css, 900px) and under is a phone. Held to page_vitals.device. */
-export const PAGE_DEVICES = ["desk", "phone"] as const;
-export type PageDevice = (typeof PAGE_DEVICES)[number];
-/** The media query the shell reads a phone by: the kit's one phone width. */
-export const PAGE_PHONE_QUERY = "(max-width: 900px)";
+import { PAGE_METRICS, PAGE_NAME, PAGE_VITALS, type PageVital } from "./vitals-pages";
 
 /**
  * Each metric's thresholds at the 75th percentile, as web.dev states them: good at or under the first, poor over the
@@ -57,16 +38,12 @@ export const PAGE_VITAL_WORDS: Readonly<Record<PageVital, string>> = {
   TTFB: "First byte",
 };
 
-/** A page's name as the table keeps it (page_vitals.page), and a part's (page_vitals.part): a word in lower case. */
-export const PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 /** The browser's id for one metric of one load (web-vitals: "v6-1727430000000-8123456789012"), or the shell's own. */
 const VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 /** The deploy a report came from (NEXT_PUBLIC_BUILD_SHA, its first twelve), or "dev" (page_vitals.build). */
 export const PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 /** No report is larger: ten minutes, in milliseconds (page_vitals.value). */
 const VITAL_CEILING = 10 * MIN_MS;
-/** The most reports one beacon carries: a tab that moved all morning sends its moves in several. */
-export const PAGE_VITALS_PER_BEACON = 100;
 
 /**
  * A word of what the time went on: a read's route (`contacts`, `reports/campaigns`), an element's test id
@@ -133,56 +110,6 @@ export const PageVitalReport = z.object({
   detail: z.optional(PageVitalDetail),
 });
 export type PageVitalReportDto = z.infer<typeof PageVitalReport>;
-
-/**
- * People's scopes, each a page of its own in the field data (decision 0053): what is drawn differs, and so does its time.
- * A person's page is theirs on every tab (`clients/<id>/history`): a tab's press was counted as a visit to the People list
- * (the wiring's second audit, S5-2).
- */
-const PEOPLE_SCOPES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/^leads(:|$)/, "leads"],
-  [/^pipeline(:|$)/, "pipeline"],
-  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/|$)/i, "person"],
-];
-
-/**
- * The page a report is of, from the shell's route (address.ts routeOfAddress): its first segment in the product's
- * word (contracts ROUTE_WORDS: "settings" for "admin", "people" for "clients"), People's scopes by their own names
- * ("leads", "pipeline", "person" for "clients/<id>"), Today for the workspace's own address, and "other" for a route
- * the table would refuse.
- */
-export function vitalsPageOf(route: string): string {
-  const path = (route ?? "").split("?")[0] ?? "";
-  const at = path.indexOf("/");
-  const head = at < 0 ? path : path.slice(0, at);
-  const rest = at < 0 ? "" : path.slice(at + 1);
-  if (head === "") return "today";
-  if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
-  // Messages is a view of Campaigns (`campaigns/messages`, 19 Oct 2026) and keeps the page name its field data has always had.
-  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
-  const word = ROUTE_WORDS[head] ?? head;
-  return PAGE_NAME.test(word) ? word : "other";
-}
-
-/**
- * Each page's first part (decision 0053): the one its READY is said by, a page drawn with the rows a person came for.
- * A page not named here is READY when the frame's gate opens on it and the page is painted.
- */
-export const PRIMARY_PART: Readonly<Record<string, string>> = {
-  today: "queue",
-  inbox: "list",
-  conversations: "list",
-  live: "list",
-  people: "table",
-  leads: "table",
-  pipeline: "board",
-  person: "hero",
-  calendar: "board",
-  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list",
-  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
-  templates: "list",
-};
 
 /**
  * How much of the table the back office reads: the latest `most` reports of the last `days`, so the read costs the

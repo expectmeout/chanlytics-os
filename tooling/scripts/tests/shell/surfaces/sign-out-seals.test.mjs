@@ -12,7 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const CACHE = "chanlytics.surfaces.v1";
+// The cache's slot where the address names no workspace: local storage, one slot a workspace.
+const CACHE = "chanlytics.surfaces.v2:-";
 const store = new Map();
 const storage = {
   getItem: (k) => (store.has(k) ? store.get(k) : null),

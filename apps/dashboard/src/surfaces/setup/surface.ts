@@ -6,16 +6,14 @@
  * the refresh map re-reads this surface.
  *
  * The value is the seam's (`useSurface("setup")`): undefined until read, null when the read failed, so a page shows a
- * retry rather than "Reading…" for ever. `__SETUP` is its mirror and `__setup` the verbs, for the panes of Settings that
- * still read them (settings.jsx, integrations-real.jsx, business-can.jsx), lines to delete as those panes move (step 11).
+ * retry rather than "Reading…" for ever. The surface as the frame registers it (what it reads and hears, its mirror
+ * `__SETUP`) and the first run's landing rule are override.ts's; this module, the read and the verbs, is fetched as the
+ * surface is first read, or imported by the pages that press its verbs (the loadability review, 19 Oct 2026).
  */
 import {
   setupSteps,
   setupLaterOf,
   setupPhoneWantOf,
-  shouldLandOnFirstRun,
-  FIRST_RUN_LANDED_KEY,
-  FIRST_RUN_ROUTE,
   SETUP_LATER_REFUSED,
   type SetupDto,
   type SetupPhoneWant,
@@ -31,13 +29,11 @@ import {
   formatPhoneDisplay,
   agoWords,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
-import { goToRoute, routeOnScreen } from "@/legacy-bridge/workspace";
 import { saveView } from "../people/people-detail";
-import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-values";
+import { setupOverride } from "./override";
+import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export interface SetupSurface {
   dto: SetupDto;
@@ -112,14 +108,6 @@ export interface LineChoice {
   region: string | null;
 }
 
-declare global {
-  interface Window {
-    __setup?: SetupApi;
-  }
-}
-
-declareSurfaceValue("setup", "__SETUP");
-
 function publish(dto: SetupDto, role: string, later: string[], want: SetupPhoneWant | null): void {
   setSurfaceValue("setup", { dto, role, later, want, vm: setupSteps({ ...dto, later, want }), fetchedAt: Date.now() });
 }
@@ -155,96 +143,6 @@ async function readSetup(): Promise<void> {
   laterKnown = !!v || (laterKnown && !!prior);
   publish(d.setup, d.role, later, want);
 }
-
-/** A quiet look still out: a second one waits for it. */
-let peeking = false;
-
-/** How long after the last change Setup is read again, and the longest after the first. */
-const SETUP_QUIET_MS = 2_000;
-const SETUP_LONGEST_WAIT_MS = 10_000;
-
-/**
- * Whether a message or a thread may be the first WhatsApp message Setup is waiting for: the number connected and on, and none
- * answered yet (its `lastInboundAt`). Closed while Setup is unread, and for good once one has arrived: every other message is
- * nothing Setup states, so a busy workspace never reads it for one (the wiring's second audit, W-thread-wait-step-3).
- */
-function awaitsFirstMessage(): boolean {
-  const w = surfaceValue("setup")?.dto?.channels?.whatsapp;
-  return !!w && w.present && w.active && !w.lastInboundAt;
-}
-
-export const setupOverride: SurfaceOverride = {
-  key: "setup",
-  value: "setup",
-  events: ["surface:setup"],
-  // Every row this page derives from: a line's saga steps; a channel connected or
-  // switched off; the owner's activations; the business record the carriers read;
-  // Stripe's answer; the Google profile.
-  // Each is published by the database (00057, 00066, 00108, 00075, 00073,
-  // 00070, 00117), so a change in another tab, or by a webhook, repaints here.
-  // A call reaching the receptionist makes Try it's row ready (the first run's third step and Today's card): read
-  // again when a call ends, until one has reached it, and never for each turn of a call or what follows its end.
-  // A sending domain added, checked, verified or held by the ten-minute clock: Connections' Email row (00175). The Google
-  // row's listing too: its name, rating and count of reviews, which the daily read and the hourly sync write
-  // (W-review-facts-rules-4). And the team step's seats and invitations: a teammate invited or joining in another tab (S3-6,
-  // W-channel-team-plus-2).
-  // These are a few a day, and Today's card is Setup's: heard on every page (`always`).
-  //
-  // The rest of what its rows state is heard where they are drawn, Start and Today's card (and Connections' calendar row), and
-  // read once as one of them comes back (surface-registry.ts PAGE_HEARS; the wiring's second audit, S4-3):
-  // the templates' verdicts ("Add the starters", W-campaign-run-template-reachout-5), the settings and the rules, a visit
-  // read from the calendar, a person's answer and their deals (who can receive an offer: offers_email_reach; a person made is no
-  // answer), and the first WhatsApp message (awaitsFirstMessage, W-thread-wait-step-3).
-  ...declareReads("setup", {
-    reads: [
-      "channel",
-      "billing",
-      "review",
-      "call",
-      "team",
-      "template",
-      "facts",
-      "rules",
-      "visit",
-      "person",
-      "deal",
-      "conversation",
-    ],
-    fresh: "its-page",
-    always: ["channel", "billing", "review", "call", "team"],
-    // The mailbox is heard (the wiring's second audit, W-channel-team-plus-3): the Email row draws it, made, its address, its
-    // intake's error and the first yes it can offer (offersByEmailOf reads its pause).
-    omit: [
-      {
-        tables: ["google_reviews"],
-        why: "the Google row says the listing's count of reviews, which the listing carries; a review seen is no row of its",
-      },
-    ],
-    when: (c) => {
-      if (c.table === "calls")
-        return (
-          c.event === "UPDATE" &&
-          c.row.status === "ended" &&
-          !surfaceValue("setup")?.dto?.channels?.voice?.lastInboundAt
-        );
-      if (c.table === "messages" || c.table === "conversations") return c.event === "INSERT" && awaitsFirstMessage();
-      return c.table !== "contacts" || c.event !== "INSERT";
-    },
-  }),
-  // Its read is the whole workspace's: a burst (a first campaign's messages while the first reply is awaited, an import's
-  // people) is read once it has quietened, and at least every ten seconds while it lasts.
-  debounceMs: SETUP_QUIET_MS,
-  maxWaitMs: SETUP_LONGEST_WAIT_MS,
-  apply: async () => {
-    try {
-      await readSetup();
-    } catch (e) {
-      // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
-      setSurfaceValue("setup", null);
-      throw e;
-    }
-  },
-};
 
 /** The forwarding card's words and codes: contracts', with the number and the age as the app writes them. */
 export const FORWARDING_WORDS: ForwardingWords = {
@@ -320,6 +218,9 @@ function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: stri
   laterSaving = saved;
   return saved;
 }
+
+/** A quiet look still out: a second one waits for it. */
+let peeking = false;
 
 /** Setup's verbs, each through its door. */
 export const setupVerbs: SetupApi = {
@@ -397,27 +298,13 @@ export const setupVerbs: SetupApi = {
   },
 };
 
-/**
- * Setup's verbs for the panes of Settings that still read them (`__setup`), and the landing rule: an owner whose
- * receptionist answers nowhere yet lands on the first run, once a session.
- */
-export function installSetup(win: Window = window): void {
-  win.__setup = setupVerbs;
-  win.addEventListener("surface:setup", () => {
-    let landed: boolean;
-    try {
-      landed = win.sessionStorage.getItem(FIRST_RUN_LANDED_KEY) === "1";
-    } catch {
-      landed = false;
-    }
-    const s = surfaceValue("setup");
-    if (!s || !shouldLandOnFirstRun(s.role, s.vm.readiness.answering, routeOnScreen(win), landed)) return;
-    try {
-      win.sessionStorage.setItem(FIRST_RUN_LANDED_KEY, "1");
-    } catch {
-      /* still land, once */
-    }
-    if (win.appNavigate) win.appNavigate(FIRST_RUN_ROUTE);
-    else goToRoute(FIRST_RUN_ROUTE, {}, win);
-  });
+/** The read, as the surface's description in override.ts asks for it: a read that failed publishes null. */
+export async function applySetup(): Promise<void> {
+  try {
+    await readSetup();
+  } catch (e) {
+    // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
+    setSurfaceValue("setup", null);
+    throw e;
+  }
 }

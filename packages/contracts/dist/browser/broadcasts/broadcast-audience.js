@@ -1,6 +1,6 @@
 import { PURPOSE_REFUSALS } from "../consent/consent.js";
 import { CONSENT_CHANNELS } from "../consent/consent-channels.js";
-import { PEOPLE_LISTS } from "../people/lists/lists.js";
+import { PEOPLE_LISTS } from "../people/lists/builtin-lists.js";
 import { saidYesTo } from "../people/person-consent.js";
 import { firstNameOf } from "../templates/templates.js";
 import { answeredYes } from "./reach-any.js";

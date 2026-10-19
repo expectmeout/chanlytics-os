@@ -1,10 +1,11 @@
 {
-  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx": 3,
+  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx": 1,
   "apps/dashboard/src/legacy-bridge/app-bridge.ts": 2,
   "apps/dashboard/src/legacy-bridge/google.ts": 8,
   "apps/dashboard/src/legacy-bridge/identity.ts": 3,
   "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": 9,
   "apps/dashboard/src/legacy-bridge/invitations/accept.ts": 1,
+  "apps/dashboard/src/legacy-bridge/invitations/handover.tsx": 2,
   "apps/dashboard/src/legacy-bridge/platform.ts": 5,
   "apps/dashboard/src/legacy-bridge/reach-out/replies.ts": 1,
   "apps/dashboard/src/surfaces/calendar/verbs.ts": 1,

@@ -7,7 +7,7 @@ import type { FirstRunLiveVM, FirstRunVM, ReceptionistCardVM } from "@chanlytics
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { businessPart } from "../shell";
+import { BtCanCard } from "../shell";
 import type { CardBrain } from "./inputs";
 
 interface LiveProps {
@@ -21,11 +21,10 @@ interface LiveProps {
 
 /**
  * Live (contracts first-run-live.ts): what the owner set up, in four lines with a way to change each, the greeting every
- * caller hears, and what it will and will not do -- the Business tab's own card (borrowed by name until that tab moves),
+ * caller hears, and what it will and will not do -- the Business tab's own card (setup/shell.ts),
  * reading calls as live since Finish is what records them so. Setup's optional rows follow, as they did.
  */
 export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) => {
-  const CanCard = businessPart("BtCanCard");
   return (
     <div className="fr-line-step" data-testid="fr-live">
       <div className="panel panel-flush fr-summary">
@@ -48,9 +47,7 @@ export const FrLive = ({ lv, config, brain, canEdit, owner, leave }: LiveProps) 
       <p className="fr-quiet" data-testid="fr-live-greeting">
         {lv.greeting}
       </p>
-      {brain && CanCard ? (
-        <CanCard brain={brain} config={config} canEdit={false} activating={owner ? ["voice"] : null} />
-      ) : null}
+      {brain ? <BtCanCard brain={brain} config={config} canEdit={false} activating={owner ? ["voice"] : null} /> : null}
     </div>
   );
 };

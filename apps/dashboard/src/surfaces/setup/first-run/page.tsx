@@ -45,7 +45,7 @@ import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { SetupRows } from "../rows/rows";
 import { SetupTry } from "../rows/try";
-import { businessPart, businessTabSave } from "../shell";
+import { BtServicesSheet, businessTabSave } from "../shell";
 import { setupVerbs, type SetupSurface } from "../surface";
 import { FrCheck } from "./check";
 import { FrFind } from "./find";
@@ -571,8 +571,6 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
   });
   const card = FIRST_RUN_HELPERS.receptionist(cardInputs(S, read));
   const brainRead = read && read.settings ? brainOf(read.settings.config) : null;
-  const ServicesSheet = businessPart("BtServicesSheet");
-  const saveDoors = businessTabSave();
   return (
     <div className="fr-root" data-testid="first-run" data-step={v.fr.shown.key}>
       {tops({ fr: v.fr, go: acts.go, leave: acts.leave, card, cardOpen, toggleCard: () => setCardOpen((x) => !x) })}
@@ -584,8 +582,8 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
         <FrCard card={card} open={cardOpen} />
       </div>
       {/* The services list opens in a sheet, as it does on the Business tab, which draws it last of everything there. */}
-      {v.fr.check && brainRead && ServicesSheet && saveDoors ? (
-        <ServicesSheet brain={brainRead} canEdit={canEdit} flash={flash} saver={saveDoors.saver} />
+      {v.fr.check && brainRead ? (
+        <BtServicesSheet brain={brainRead} canEdit={canEdit} flash={flash} saver={businessTabSave.saver} />
       ) : null}
       {leaving ? leaveAsk(leaving, setLeaving) : null}
       {toastNode}

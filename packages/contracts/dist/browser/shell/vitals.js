@@ -1,12 +1,7 @@
 import "../zod-config.js";
 import * as z from "zod/mini";
 import { MIN_MS } from "../shared/time.js";
-import { ROUTE_WORDS } from "./address.js";
-export const PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
-const PAGE_SPEED = ["READY", "SETTLED"];
-export const PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
-export const PAGE_DEVICES = ["desk", "phone"];
-export const PAGE_PHONE_QUERY = "(max-width: 900px)";
+import { PAGE_METRICS, PAGE_NAME, PAGE_VITALS } from "./vitals-pages.js";
 export const PAGE_VITAL_BANDS = {
   LCP: [2500, 4e3],
   INP: [200, 500],
@@ -21,11 +16,9 @@ export const PAGE_VITAL_WORDS = {
   FCP: "First paint",
   TTFB: "First byte"
 };
-export const PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 const VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 export const PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 const VITAL_CEILING = 10 * MIN_MS;
-export const PAGE_VITALS_PER_BEACON = 100;
 const DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 const detailWord = () => z.optional(z.string().check(z.regex(DETAIL_WORD)));
 const detailMs = () => z.optional(z.number().check(z.minimum(0), z.maximum(VITAL_CEILING)));
@@ -61,37 +54,6 @@ export const PageVitalReport = z.object({
   warm: z.optional(z.boolean()),
   detail: z.optional(PageVitalDetail)
 });
-const PEOPLE_SCOPES = [
-  [/^leads(:|$)/, "leads"],
-  [/^pipeline(:|$)/, "pipeline"],
-  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/|$)/i, "person"]
-];
-export function vitalsPageOf(route) {
-  const path = (route ?? "").split("?")[0] ?? "";
-  const at = path.indexOf("/");
-  const head = at < 0 ? path : path.slice(0, at);
-  const rest = at < 0 ? "" : path.slice(at + 1);
-  if (head === "") return "today";
-  if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
-  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
-  const word = ROUTE_WORDS[head] ?? head;
-  return PAGE_NAME.test(word) ? word : "other";
-}
-export const PRIMARY_PART = {
-  today: "queue",
-  inbox: "list",
-  conversations: "list",
-  live: "list",
-  people: "table",
-  leads: "table",
-  pipeline: "board",
-  person: "hero",
-  calendar: "board",
-  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list",
-  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
-  templates: "list"
-};
 export const PAGE_VITALS_READ = { days: 7, most: 25e3 };
 export const PAGE_VITALS_MIN_LOADS = 20;
 const PAGES_SHOWN = 8;

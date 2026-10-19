@@ -99,7 +99,7 @@
   "packages/contracts/src/lines/channels.ts": 1,
   "packages/contracts/src/mobile/app-bridge.ts": 1,
   "packages/contracts/src/notes/note-suggest.ts": 1,
-  "packages/contracts/src/people/lists/list-rules.ts": 11,
+  "packages/contracts/src/people/lists/list-rules.ts": 4,
   "packages/contracts/src/people/lists/lists.ts": 1,
   "packages/contracts/src/people/person-state.ts": 2,
   "packages/contracts/src/playbooks/playbooks.ts": 1,

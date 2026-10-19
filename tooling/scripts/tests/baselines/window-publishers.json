@@ -1,5 +1,6 @@
 {
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": 1,
+  "apps/dashboard/src/legacy-bridge/ask/line-globals.ts": 1,
   "apps/dashboard/src/legacy-bridge/business-tab.ts": 3,
   "apps/dashboard/src/legacy-bridge/inbox-verbs.ts": 9,
   "apps/dashboard/src/legacy-bridge/mascot/index.ts": 1,
@@ -28,6 +29,5 @@
   "apps/dashboard/src/surfaces/calendar/verbs.ts": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts": 1,
   "apps/dashboard/src/surfaces/campaigns/playbooks/verbs.ts": 1,
-  "apps/dashboard/src/surfaces/people/people-detail.ts": 3,
-  "apps/dashboard/src/surfaces/people/people-lists.ts": 1
+  "apps/dashboard/src/surfaces/people/people-detail.ts": 3
 }

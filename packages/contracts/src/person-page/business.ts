@@ -359,12 +359,3 @@ export function leadPeopleOf(lead: { id: string; contactId: string | null }, ind
     order: people.map((r) => r.id),
   };
 }
-
-/** The dim trail a row draws after a person's name: " · Bloom & Vow Bridal", or null for a stand-in or nobody's. */
-export function businessTrailOf(row: {
-  nameSource?: NameSource | null;
-  worksAt?: { name: string | null; gone: boolean } | null;
-}): string | null {
-  if (row.nameSource === "lead" || !row.worksAt || row.worksAt.gone || !row.worksAt.name) return null;
-  return row.worksAt.name;
-}

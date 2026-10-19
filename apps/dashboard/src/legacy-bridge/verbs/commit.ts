@@ -2,9 +2,11 @@
  * One act, committed through its verb's spec, whichever hand pressed it: a sheet's Save, a bulk bar's press, or Ask's
  * card (legacy-bridge/ask/commit.ts walks a card through the same `sendCall`). What each verb does -- its door, the body
  * it sends, a second call (a deal's next step), the window events, the receipt and what its undo keeps and sends -- is
- * its spec's (contracts PROPOSAL_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026). A page's bundle
- * carries the specs of the verbs a page presses; the cards only Ask proposes come by their own entry, loaded once, when
- * Ask is installed or the first of them is walked (`moreSpecs`).
+ * its spec's (contracts PROPOSAL_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026). The specs of the
+ * verbs the pages press are an entry of their own (contracts' `./page-specs`), fetched once, as the first walk asks for
+ * one or Ask warms them (`pageSpecs`): every page's first load carried all of them, about 31 KB compressed, for a press
+ * not made yet (the loadability review, 19 Oct 2026). The cards only Ask proposes come by their own entry after them,
+ * loaded once, when Ask warms them or the first of them is walked (`moreSpecs`).
  *
  * Every call goes through the typed client as one intent (decision 0035: `once`, a press again before it lands is the
  * same request, which the server answers once), unless a card's own key names it; the moment the door takes it, what
@@ -22,9 +24,7 @@
  */
 import {
   PROPOSAL_WORDS,
-  addProposalSpecs,
   refusalOf,
-  verbSpec,
   type ProposalCall,
   type ProposalSpec,
   type ProposalRefusal,
@@ -34,6 +34,7 @@ import {
   type VerbKind,
 } from "@chanlytics/contracts";
 import type { Api, ApiOptions, ApiRefusal, ApiResult, RouteKey } from "../../client/api";
+import { codeOnce } from "../../lib/code-once";
 import { apiFor } from "../api";
 import { acceptedFor } from "./effects";
 
@@ -175,28 +176,42 @@ async function sendThen(
   return n.ok ? { ok: true } : { ok: false, message: n.message };
 }
 
-/** The load of Ask's own cards (contracts ask-only.ts), once: again after one that failed. */
-let moreLoad: Promise<void> | null = null;
+/** The specs of the verbs the pages press, and the readings of a spec (contracts ask-proposals/page-specs.ts). */
+export type PageSpecs = typeof import("@chanlytics/contracts/page-specs");
+
+/**
+ * The pages' specs, by their own entry: fetched once, shared, and `now()` once in, for a reading that cannot wait (a card
+ * the Line draws, which it draws only once they are: ask/line.tsx). The module is the one the root entry names, so a page
+ * that imports a spec's reading by name holds the same table, and Ask's own kinds added to it are added for both.
+ */
+export const pageSpecs = codeOnce(() => import("@chanlytics/contracts/page-specs"));
 
 /** Ask's own cards into the specs (contracts addProposalSpecs), by their own entry: a page's bundle carries none. */
-export function moreSpecs(): Promise<void> {
-  moreLoad ??= import("@chanlytics/contracts/ask-only").then(
-    (m) => addProposalSpecs(m.ASK_ONLY_SPECS),
-    (e: unknown) => {
-      moreLoad = null;
-      throw e;
-    },
-  );
-  return moreLoad;
+export const moreSpecs = codeOnce(() =>
+  Promise.all([pageSpecs(), import("@chanlytics/contracts/ask-only")]).then(([specs, m]) =>
+    specs.addProposalSpecs(m.ASK_ONLY_SPECS),
+  ),
+);
+
+/** The specs' entry could not be fetched: nothing was sent, said as the client says a lost connection. */
+function unreachedHere(): ApiRefusal {
+  return { ok: false, ...refusalOf({ code: "network", status: 0, write: true }) };
 }
 
 /**
- * A verb's spec, Ask's own cards loaded first where it is none of the pages'; null for a kind no card has. Its spec
- * comes back in a box: a spec has a `then` (a deal's next step), which an awaited value would be taken for.
+ * A verb's spec, Ask's own cards loaded first where it is none of the pages'; null for a kind no card has, and the
+ * client's refusal beside it (`unreached`) where the specs' entry could not be fetched. Its spec comes back in a box: a
+ * spec has a `then` (a deal's next step), which an awaited value would be taken for.
  */
-export async function specOf(kind: string): Promise<{ spec: ProposalSpec | null }> {
-  if (!verbSpec(kind)) await moreSpecs().catch(() => undefined);
-  return { spec: verbSpec(kind) };
+export async function specOf(kind: string): Promise<{ spec: ProposalSpec | null; unreached?: ApiRefusal }> {
+  let specs: PageSpecs;
+  try {
+    specs = await pageSpecs();
+  } catch {
+    return { spec: null, unreached: unreachedHere() };
+  }
+  if (!specs.verbSpec(kind)) await moreSpecs().catch(() => undefined);
+  return { spec: specs.verbSpec(kind) };
 }
 
 /**
@@ -205,7 +220,8 @@ export async function specOf(kind: string): Promise<{ spec: ProposalSpec | null 
  * here after its own checks (fresh, its plan's steps).
  */
 export async function walkVerb(card: VerbCard, use: VerbUse = {}): Promise<VerbResult> {
-  const { spec } = await specOf(card.kind);
+  const { spec, unreached } = await specOf(card.kind);
+  if (unreached) return unreached;
   if (!spec) return refusedHere(PROPOSAL_WORDS.cannotApprove);
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);
@@ -245,7 +261,9 @@ export async function undoVerb(
   record: Record<string, unknown>,
   use: VerbUse = {},
 ): Promise<UndoDone | ApiRefusal> {
-  const undo = (await specOf(kind)).spec?.undo;
+  const { spec, unreached } = await specOf(kind);
+  if (unreached) return unreached;
+  const undo = spec?.undo;
   if (!undo) return refusedHere(PROPOSAL_WORDS.noUndo);
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);

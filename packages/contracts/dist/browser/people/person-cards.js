@@ -6,7 +6,7 @@ import { leadsRoute } from "../leads/leads.js";
 import { reachOutPersonOf } from "../reach-out/reach-out-leads.js";
 import { linkHost } from "../shared/link.js";
 import { listRuleWhy } from "./lists/list-rules.js";
-import { PEOPLE_LISTS } from "./lists/lists.js";
+import { PEOPLE_LISTS } from "./lists/builtin-lists.js";
 import {
   askedFor,
   asPersonMode,

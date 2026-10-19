@@ -274,7 +274,7 @@ test("a single act tells the page the moment the server takes it, while the Inbo
     Promise.all([
       import(`${S}/surfaces/inbox/surface.ts`),
       import(`${S}/surfaces/inbox/conversations-surface.ts`),
-      import(`${S}/surfaces/today/surface.ts`),
+      import(`${S}/surfaces/today/override.ts`),
     ]),
   );
   let joined = 0;

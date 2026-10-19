@@ -1,8 +1,22 @@
 /**
- * The lists this member pinned to Today (moved from pages/dashboard-a-week.jsx, decision 0015, step 4).
+ * The lists this member pinned to Today (moved from pages/dashboard-a-week.jsx, decision 0015, step 4). Their counts are
+ * People's lists' (people-lists.ts, its rules and their schemas), which the row asks for as Today's page loads, beside
+ * People's read it waits for anyway: read off the window, the frame installed them for every page's first load (the
+ * loadability review, 19 Oct 2026).
  */
 import { LIST_GROUP_WORDS, type PeopleListsLike } from "@chanlytics/contracts";
-import { appNavigate, borrowed, pinnedLists, useMoved } from "../shell";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
+import { appNavigate, borrowed, useMoved } from "../shell";
+
+/** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the row draws. */
+const listsCode = codeOnce(() => import("../../people/people-lists"));
+
+/** People's lists' code is in (a test draws the row once it is). */
+export const pinsReady: Promise<void> = listsCode().then(
+  () => undefined,
+  () => undefined,
+);
 
 // The lists this member pinned to Today (decision 0009: any list is a door here, built-in or their own), each with its
 // count (Today's own read of them, People's until it lands), the page it opens. One quiet row, drawn only when something is pinned; a list that isn't here now
@@ -11,10 +25,11 @@ export const TodayPins = () => {
   useMoved("people");
   // Their counts, read on Today (today/pins-surface.ts; R10).
   useMoved("today_pins");
+  const lists = useCode(listsCode, true).loaded;
   const P = borrowed<PeopleListsLike>("__PEOPLE");
-  if (!P) return null;
-  const pins = pinnedLists();
-  if (!pins || !pins.length) return null;
+  if (!P || !lists) return null;
+  const pins = lists.lists.pinned();
+  if (!pins.length) return null;
   return (
     <section className="tsec tp" data-testid="today-pins" aria-label={LIST_GROUP_WORDS.pinned}>
       {/* Any list pins here, one of the ready-made ones or one of your own (decision 0009): the row is named for the pin. */}

@@ -79,8 +79,6 @@ import {
   leadListStripOf,
   type LeadImportInput,
   type ReachOutAddDto,
-  type ReachOutChainPeopleDto,
-  type ReachOutChainDto,
   type OwnerSaidIntent,
   type ReachOutReplySaidInput,
   type ReachOutReachDto,
@@ -90,50 +88,7 @@ import {
 import type { Input } from "@/client/api";
 import { api, read } from "@/legacy-bridge/api";
 import { readCache } from "@/legacy-bridge/read-cache";
-import { declareReads } from "@/legacy-bridge/surface-registry";
 import { broadcasts } from "../broadcasts/verbs";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
-
-/** The chains GET reach-outs lists; null when they could not be read (each page says so), never an empty list it did not read. */
-export type ReachOutsSurface = ReachOutChainDto[] | null;
-
-// Leads (reach-out-leads.jsx) reads this under its old name until it moves.
-declareSurfaceValue("reach_outs", "__REACH_OUTS");
-
-/**
- * The reach-outs surface: the workspace's chains (GET reach-outs, without their reports, R23) as `__REACH_OUTS`, set
- * the moment they are read. Playbooks draws them as rows, and Templates its email rows from them through contracts
- * (emailTemplateRowsOf; R19: `__TEMPLATES_ALL` stays WhatsApp's for its three readers). Null when the chains could not
- * be read: each page says so, never an empty list it did not read. A count of what a chain wrote is its report, read
- * when one of its rows opens, never here: this read, which every page pays, scans no audience. Its own surface, so
- * neither the moments' read nor Settings' waits on it.
- */
-export const reachOutsOverride: SurfaceOverride = {
-  key: "reach_outs",
-  value: "reach_outs",
-  events: ["surface:reach_outs"],
-  // A chain paused or resumed elsewhere (00376), and a step's run made, approved or stopped (00321), move its row and
-  // its Approve: heard wherever the tab is. A message is no chain's, and is never heard here. A reply read, drafted or undone
-  // (reach_out_replies, 00222) is, since the reading ends a held email and a 'no' ends the person's offers (0047, S1-14): a few a day.
-  // And the rule that says whether a chain's reply is answered on its own, its mode (W-review-facts-rules-8): a few saves a month.
-  // And the templates a chain's emails are written from (Meta's verdict, the words), and a deal: a lead's deal won counts once in
-  // a reach-out's People cell (00426). Each a few a week, and the chains' read scans no audience: heard wherever the chains are.
-  ...declareReads("reach_outs", {
-    reads: ["campaign", "send", "reach_out", "rules", "template", "deal"],
-    fresh: "live",
-  }),
-  apply: async () => {
-    try {
-      setSurfaceValue("reach_outs", (await read("GET reach-outs")).chains);
-    } catch (e) {
-      // Null, not undefined, and said at once: each page draws what could not be read instead of waiting for it.
-      setSurfaceValue("reach_outs", null);
-      window.dispatchEvent(new CustomEvent("surface:reach_outs"));
-      throw e;
-    }
-  },
-};
 
 /** The reaches read in this tab, by search, in memory: the first paint of a door or a sheet, read again behind it. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
@@ -241,18 +196,6 @@ export const reachOuts = {
     api()("POST sequences/[id]/leads/check", { params: { id: sequenceId }, body: { lead_ids: leadIds } }),
   /** What an add said, dry or done, in one sentence. */
   addWords: (a: ReachOutAddDto, chainName: string) => reachOutAddWords(a, chainName),
-  /** Who is in a reach-out (00426), its drawer's People: null when it could not be read. */
-  people: async (rootId: string, limit?: number): Promise<ReachOutChainPeopleDto | null> => {
-    try {
-      return await read("GET reach-outs/[id]/people", {
-        params: { id: rootId },
-        ...(limit ? { query: { limit } } : {}),
-      });
-    } catch (e) {
-      console.error("reach_out_people_failed", e instanceof Error ? e.message : e);
-      return null;
-    }
-  },
   /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00429). */
   sayReply: (leadId: string, body: ReachOutReplySaidInput) =>
     api()("POST reach-outs/leads/[id]/said", { params: { id: leadId }, body, once: true }),

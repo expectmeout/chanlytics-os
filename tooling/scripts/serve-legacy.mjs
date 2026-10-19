@@ -20,7 +20,8 @@
  * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
- * TSX since decision 0015, step 5), `data/leads-globals.js`, Leads' plan card, which Ask's palette draws by name,
+ * TSX since decision 0015, step 5), `data/ask-line-globals.js`, the parts only Ask's Line draws by name (its charts, its
+ * hold to talk, Leads' plan card: legacy-bridge/ask/line-globals.ts),
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
  * (see SAMPLES below). The stylesheets the app imports from outside the tree are read where the app has them (the kit's
  * and Campaigns', outsideCss below).
@@ -70,12 +71,14 @@ const SAMPLES = {
     jsx: "transform",
     reactIsTheWindows: true,
   },
-  // The Inbox's and Conversations' names (surfaces/inbox/legacy-globals.ts): the demo's seeded threads and calls, the
-  // session's decisions, and the two rules the shell asks (what waits on you, which tab a row is on). Not React.
+  // The Inbox's and Conversations' names (surfaces/inbox/legacy-globals.ts, through e2e-harness/inbox-src.ts): the
+  // session's decisions and the two rules the shell asks (what waits on you, which tab a row is on), with the demo's seeded
+  // threads and calls, which the app fetches only in a demo. Not React.
   "/data/inbox-globals.js": {
-    entry: path.join(REPO, "apps/dashboard/src/surfaces/inbox/legacy-globals.ts"),
+    entry: path.join(HERE, "e2e-harness/inbox-src.ts"),
     globalName: "__IG",
-    footer: "Object.assign(window, __IG.INBOX_GLOBALS); __IG.hearPresence();",
+    footer: "Object.assign(window, __IG.INBOX_GLOBALS, __IG.INBOX_DEMO); __IG.hearPresence();",
+    atDashboard: true,
     watch: "apps/dashboard/src/surfaces/inbox",
   },
   // The object the app publishes from seed-globals (surfaces/people/people-globals.ts), on the page's own React. A name the
@@ -92,16 +95,20 @@ const SAMPLES = {
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
   },
-  // Leads' plan card (surfaces/leads/globals.ts), on the page's own React, which Ask's palette draws by name until it moves.
-  "/data/leads-globals.js": {
-    entry: path.join(REPO, "apps/dashboard/src/surfaces/leads/globals.ts"),
-    globalName: "__LG",
-    footer: "Object.assign(window, __LG.LEADS_GLOBALS);",
+  // The parts only Ask's Line draws by name (legacy-bridge/ask/line-globals.ts: its charts, its hold to talk, Leads' plan
+  // card), on the page's own React; the app publishes them with the Line's own chunk.
+  "/data/ask-line-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/ask/line-globals.ts"),
+    globalName: "__AG",
+    // And the frame's AskBar, which in the app draws the Line once its chunk is in (legacy-bridge/ask/line.tsx): here
+    // every file is loaded up front, so it draws the Line at once.
+    footer:
+      "Object.assign(window, __AG.ASK_LINE_GLOBALS); window.AskBar = window.AskBar || function AskBar(p) { return window.React.createElement(window.AskLineReal, p); };",
     banner: "var process = globalThis.process || { env: {} };",
     jsx: "transform",
     reactIsTheWindows: true,
     atDashboard: true,
-    watch: ["apps/dashboard/src/surfaces/leads", "apps/dashboard/src/legacy-bridge"],
+    watch: ["apps/dashboard/src/surfaces/kit", "apps/dashboard/src/surfaces/leads", "apps/dashboard/src/legacy-bridge"],
   },
   // The same for the e2e harness's People record: the fixture boots People (peopleOverride) in a bundle of its own, before
   // React loads, so this bundle keeps its own copy of the surface's store and takes People from the window the fixture
@@ -181,6 +188,8 @@ async function sampleBundle(route) {
       "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
       // The kinds only Ask's cards commit (contracts' ask-only entry), which the verb walk loads by import(), the same way.
       "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/dist/ask-only.js"),
+      // The pages' verb specs, which the verb walk loads by import(): the root entry's own module, so one table.
+      "@chanlytics/contracts/page-specs": CONTRACTS,
       "@chanlytics/contracts": CONTRACTS,
       ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
     },
@@ -196,7 +205,7 @@ async function sampleBundle(route) {
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
-export const leadsGlobalsBundle = () => sampleBundle("/data/leads-globals.js");
+export const askLineGlobalsBundle = () => sampleBundle("/data/ask-line-globals.js");
 export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
@@ -230,15 +239,16 @@ const outsideCss = () =>
     .map((sheet) => ({ at: `/${sheet}`, file: path.join(SRC, sheet) }));
 
 /**
- * The files of the shell the app loads, in its order, each as a path under legacy/ (manifest.ts). Their order is the
+ * The files of the shell the app loads, in its order, each as a path under legacy/: the frame's (manifest.ts), then Ask's
+ * Line's (ask/line-code.ts, a chunk of its own in the app, loaded here with the rest). Their order is the
  * shared global scope's: data seeds globals that pages read at module scope. seed-globals
  * is the app's own; the document's stand-ins (data/bridge-stubs.jsx and the bundles after it) stand where it does.
  */
 const appScripts = () =>
-  ["manifest.ts"].flatMap((list) =>
+  ["manifest.ts", "ask/line-code.ts"].flatMap((list) =>
     [...fs.readFileSync(path.join(BRIDGE, list), "utf8").matchAll(/^import "([^"]+)";/gm)]
       .map((m) => m[1])
-      .filter((spec) => spec !== "./seed-globals")
+      .filter((spec) => spec !== "./seed-globals" && spec !== "./line-globals")
       .map((spec) => {
         if (!spec.startsWith("@/legacy/")) throw new Error(`${list} imports ${spec}, which the mockup cannot load`);
         return spec.slice("@/legacy/".length);

@@ -10,7 +10,8 @@
  */
 import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { CONF, FOCUS_COMPOSER_MS, IX_NOW, STALE_AFTER_MS, TICK_MS } from "../constants";
-import { IX_CONCURRENT } from "../sample";
+import type { IX_CONCURRENT } from "../sample";
+import { demoCode, warmDemo } from "../shell";
 import { ixBucketOf, ixDraftKey, ixHeld, ixReadAgain, ixSending, ixWaitsOnYou } from "../rules";
 import { ixKeepPlace, ixPlace } from "../place";
 import {
@@ -344,13 +345,15 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null,
     () => ixFollowReads({ setThreads, setKeepOpenId, setActiveBucket, setActiveThreadId, shownRef, routeThreadRef }),
     [],
   );
+  // A demo's seeded threads, fetched as the page mounts (demo.ts); their landing is heard as a read's is, above.
+  useEffect(warmDemo, []);
 
   // Concurrent change: while you READ a scripted thread, something lands on it.
   // Arm on open, fire once, clear if you navigate away first — never a silent
   // overwrite; the thread pane shows a Refresh banner.
   useEffect(() => {
     if (!demoSession() || activeThreadId === null) return undefined;
-    const cfg = IX_CONCURRENT[activeThreadId];
+    const cfg = demoCode.now()?.IX_CONCURRENT[activeThreadId];
     if (!cfg || firedRef.current[activeThreadId]) return undefined;
     const timer = setTimeout(() => {
       firedRef.current[activeThreadId] = true;

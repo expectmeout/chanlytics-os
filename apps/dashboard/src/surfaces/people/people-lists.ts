@@ -1,5 +1,5 @@
 /**
- * Saved lists, the verbs: `window.__lists`.
+ * Saved lists, the verbs (`lists`), imported by the pages that change them and fetched by Today's pinned row.
  *
  * The lists themselves ride the People surface (window.__PEOPLE.saved), so
  * the rail and the profile read them the way they read every other People
@@ -155,13 +155,3 @@ export const lists = {
   drop: async (id: string, contactIds: string[]) =>
     memberAnswer(await commitVerb("list_member", { list_id: id, remove: contactIds })),
 };
-
-declare global {
-  interface Window {
-    __lists?: typeof lists;
-  }
-}
-
-export function installLists(): void {
-  window.__lists = lists;
-}

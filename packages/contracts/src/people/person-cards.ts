@@ -14,7 +14,7 @@ import { leadsRoute } from "../leads/leads";
 import { reachOutPersonOf } from "../reach-out/reach-out-leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./lists/list-rules";
-import { PEOPLE_LISTS } from "./lists/lists";
+import { PEOPLE_LISTS } from "./lists/builtin-lists";
 import type { PersonDetailDto, PersonRowDto } from "./person-dto";
 import {
   askedFor,

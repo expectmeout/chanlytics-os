@@ -58,7 +58,7 @@ import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { JourneyStageId } from "../journey/journey";
 import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/journey-plan";
-import { parseListToken } from "../people/lists/lists";
+import { parseListToken } from "../people/lists/list-token";
 import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
 import { wallClockAt } from "../shared/clock";

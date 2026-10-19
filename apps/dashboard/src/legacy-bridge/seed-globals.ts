@@ -25,13 +25,13 @@ import {
   formatPhoneDisplay,
   BROKEN_CONFIG_WORDS,
 } from "@chanlytics/contracts";
+import { demoCode as inboxDemo } from "../surfaces/inbox/shell";
 import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
 import { useNeedsYou } from "../surfaces/needs-you";
 import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
-import { LEADS_GLOBALS } from "../surfaces/leads/globals";
-import { BUSINESS_GLOBALS } from "../surfaces/settings/business/globals";
+import { AskLine } from "./ask/line";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { DOOR_NAMES } from "../surfaces/frame-doors";
@@ -67,14 +67,10 @@ if (typeof window !== "undefined") {
     useSurface: surfaceHook(React, routeSurfaces),
     Icon: KIT_GLOBALS.Icon,
     FailedRead: KIT_GLOBALS.FailedRead,
-    SegmentBar: KIT_GLOBALS.SegmentBar,
-    LineChart: KIT_GLOBALS.LineChart,
-    BarList: KIT_GLOBALS.BarList,
     StatePill: KIT_GLOBALS.StatePill,
     Confirm: KIT_GLOBALS.Confirm,
     MoreMenu: KIT_GLOBALS.MoreMenu,
     PolicyChip: KIT_GLOBALS.PolicyChip,
-    useHoldToTalk: KIT_GLOBALS.useHoldToTalk,
     // The bell's alert switch (topbar.jsx) is the one record-kit part a page of the shell still draws by name.
     RecordSwitch: KIT_GLOBALS.RecordSwitch,
     // The doors every page uses to move and to ask, for the pages that read them by name (surfaces/frame-doors.ts: the frame fills the
@@ -85,9 +81,10 @@ if (typeof window !== "undefined") {
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx). Their
     // seeded rows are a demo's: a real session's are its reads', published under these names as they land
-    // (declareSurfaceValue), and nothing stands in for them before (the wiring's second audit, X6-1).
-    INBOX_DATA: demo ? INBOX_GLOBALS.INBOX_DATA : undefined,
-    CONVERSATIONS_DATA: demo ? INBOX_GLOBALS.CONVERSATIONS_DATA : undefined,
+    // (declareSurfaceValue), and nothing stands in for them before (the wiring's second audit, X6-1). A demo's are fetched
+    // below: no real session's first load carries them.
+    INBOX_DATA: undefined,
+    CONVERSATIONS_DATA: undefined,
     IX_STORE: INBOX_GLOBALS.IX_STORE,
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.
@@ -101,20 +98,9 @@ if (typeof window !== "undefined") {
     viewPager: KIT_GLOBALS.viewPager,
     viewDeck: KIT_GLOBALS.viewDeck,
     TabBar: KIT_GLOBALS.TabBar,
-    // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
-    LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
-    // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
-    __businessTabSave: BUSINESS_GLOBALS.__businessTabSave,
-    BtAddressRow: BUSINESS_GLOBALS.BtAddressRow,
-    BtWebsiteRow: BUSINESS_GLOBALS.BtWebsiteRow,
-    BtBookingLinkRow: BUSINESS_GLOBALS.BtBookingLinkRow,
-    BtZoneRow: BUSINESS_GLOBALS.BtZoneRow,
-    BtHoursRow: BUSINESS_GLOBALS.BtHoursRow,
-    BtServicesRow: BUSINESS_GLOBALS.BtServicesRow,
-    BtLanguagesRow: BUSINESS_GLOBALS.BtLanguagesRow,
-    BtRulesRow: BUSINESS_GLOBALS.BtRulesRow,
-    BtCanCard: BUSINESS_GLOBALS.BtCanCard,
-    BtServicesSheet: BUSINESS_GLOBALS.BtServicesSheet,
+    // Ask's Line, which the frame draws on every page: its pages and the parts only they draw come as a chunk of their own,
+    // once the frame is idle or the Line is first opened (ask/line.tsx).
+    AskBar: AskLine,
     // And People's parts the shell still draws or calls by name: the strip's scopes (surface-tabs.jsx), the two sheets the
     // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
@@ -125,6 +111,14 @@ if (typeof window !== "undefined") {
     openDealSheet: PEOPLE_GLOBALS.openDealSheet,
     openStepSheet: PEOPLE_GLOBALS.openStepSheet,
   });
+  // A demo's seeded threads and calls, under the names the pages that have not moved read: fetched (surfaces/inbox/shell.ts demoCode),
+  // and published unless a read has published its own first.
+  if (demo)
+    void inboxDemo().then((m) => {
+      const seeded: Window & { INBOX_DATA?: unknown; CONVERSATIONS_DATA?: unknown } = window;
+      seeded.INBOX_DATA ??= m.inboxSample;
+      seeded.CONVERSATIONS_DATA ??= m.conversationsSample;
+    });
   // Countdowns freeze while the member is Away and thaw when they are back, whichever surface is on screen.
   hearPresence();
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,

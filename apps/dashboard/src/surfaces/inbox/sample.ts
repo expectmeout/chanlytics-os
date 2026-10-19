@@ -10,6 +10,7 @@
  */
 import type { InboxBucket, InboxSurface, InboxView, TimelineEntry } from "./types";
 import { conversationsSample } from "./sample/conversations";
+import { holdDemoSeed } from "./store";
 import { NEEDING_YOU } from "./sample/threads-needing-you";
 import { WATCHING } from "./sample/threads-watching";
 
@@ -71,3 +72,6 @@ export const inboxSample: InboxSurface = {
 };
 
 export { conversationsSample };
+
+// What a demo draws before any read, handed to the store as this module loads (store.ts holdDemoSeed).
+holdDemoSeed(inboxSample, conversationsSample);

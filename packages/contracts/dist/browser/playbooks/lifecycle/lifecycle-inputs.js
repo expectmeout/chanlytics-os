@@ -1,5 +1,5 @@
 import { appointmentWordOf } from "../../journey/appointment-word.js";
-import { PEOPLE_LISTS } from "../../people/lists/lists.js";
+import { PEOPLE_LISTS } from "../../people/lists/builtin-lists.js";
 import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../playbook-schedule.js";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers.js";
 import { LIFECYCLE_WORDS } from "./lifecycle-words.js";

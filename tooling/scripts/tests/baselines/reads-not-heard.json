@@ -1,5 +1,5 @@
 {
-  "owed": 59,
+  "owed": 57,
   "groups": [
     {
       "kind": "seat",
@@ -705,9 +705,7 @@
       "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the mailbox each lead heard from (decision 0056). The chains' read hears a reply and the playbook, never a message or a lead (a chain is not a thread), so an open pane's counts and history wait for its next read (W-campaign-run-template-reachout-8).",
       "reads": {
         "reach_outs": [
-          "calls",
           "contacts",
-          "conversations",
           "lead_search_members",
           "lead_searches",
           "leads",

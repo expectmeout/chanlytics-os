@@ -17,9 +17,23 @@ export function getsIn(source) {
   return [...new Set([...source.matchAll(/["'`](GET [a-z][\w/[\]-]*)["'`]/g)].map((m) => m[1]))].sort();
 }
 
-/** The reads a file of the repository makes, by their route keys; its comments, which name routes to explain them, are left out. */
+/**
+ * A registered surface's own modules: the file the frame registers, and the code it fetches by a relative `import()`. A
+ * surface the frame registers by a light module of its description fetches its read that way (legacy-bridge/surfaces/code.ts),
+ * and what that code reads is the surface's. Paths from the root, with forward slashes.
+ */
+export function surfaceModulesOf(file, root = ROOT) {
+  const text = stripComments(fs.readFileSync(path.join(root, file), "utf8"));
+  const fetched = [...text.matchAll(/import\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g)]
+    .map((m) => path.posix.join(path.posix.dirname(file), m[1]))
+    .flatMap((at) => [`${at}.ts`, `${at}.tsx`].filter((f) => fs.existsSync(path.join(root, f))));
+  return [file, ...fetched];
+}
+
+/** The reads a surface's own modules make (surfaceModulesOf), by their route keys; comments, which name routes to explain them, are left out. */
 export function getsOfFile(file, root = ROOT) {
-  return getsIn(stripComments(fs.readFileSync(path.join(root, file), "utf8")));
+  const texts = surfaceModulesOf(file, root).map((f) => stripComments(fs.readFileSync(path.join(root, f), "utf8")));
+  return [...new Set(texts.flatMap(getsIn))].sort();
 }
 
 /** The tables a surface's override says it leaves unheard on purpose (`omit`). */

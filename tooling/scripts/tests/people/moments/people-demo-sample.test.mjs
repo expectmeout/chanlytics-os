@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
-const { peopleSample, demoPeople } = await importSrc("apps/dashboard/src/surfaces/people/sample.ts");
+const { peopleSample, demoPeople } = await import("../../../../../apps/dashboard/src/surfaces/people/sample.ts");
 const { peopleSurfaceOf } = await importSrc("apps/dashboard/src/surfaces/people/surface-map.ts");
 
 const NOW = new Date("2026-09-28T18:00:00.000Z");
