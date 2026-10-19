@@ -76,7 +76,7 @@
 .set-nav-row .icon { color: var(--ink-dim); }
 .set-nav-row.active .icon { color: var(--ink); }
 .set-nav-label { font-size: var(--set-label); font-weight: 500; color: var(--ink-muted); }
-.set-nav-row:hover .set-nav-label, .set-nav-row.active .set-nav-label { color: var(--ink); }
+.set-nav-row.active .set-nav-label { color: var(--ink); } @media (hover: hover) { .set-nav-row:hover .set-nav-label { color: var(--ink); } }
 /* The rail's groups say whose each section is: you, the business, its receptionist, and the workspace. Without them
    Profile read as one more workspace setting. */
 .set-nav-group {
@@ -219,7 +219,7 @@
   text-decoration: none;
   transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
-.settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); } }
 .settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .settings .cl-tab { font-variant-numeric: tabular-nums; }
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
@@ -233,9 +233,9 @@
 .settings .cl-bucket-link:active, .setup-rows .setup-path:active, .settings .biz-choice:active,
 .setup-rows .setup-number:active { transform: scale(0.97); }
 .settings .set-switch:active { filter: brightness(0.96); }
-.settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); }
-.settings .set-switch.on:hover { background: var(--ink-muted); }
-.setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); }
+@media (hover: hover) { .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); } }
+@media (hover: hover) { .settings .set-switch.on:hover { background: var(--ink-muted); } }
+@media (hover: hover) { .setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); } }
 .set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .set-pane a:not([class]):hover { text-decoration-color: currentColor; }
 
@@ -244,7 +244,7 @@
    `outline: none` on focus with only a border-colour change to stand in --
    which a keyboard user cannot see. Scoped, so nothing outside Settings moves. */
 .settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-sm); margin-bottom: 0; }
-.settings .sd-input:hover { border-color: var(--line-strong); }
+@media (hover: hover) { .settings .sd-input:hover { border-color: var(--line-strong); } }
 .settings .sd-input::placeholder { color: var(--ink-dim); }
 /* Setup's state word carries the row's tone; on white, ok read 3.42. The
    colour is a 6px mark rather than the whole word: ten rows saying "Ready" in
@@ -658,7 +658,7 @@
   cursor: help;
   transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
-.set-mark:hover, .set-mark[data-tip]:focus-visible { color: var(--ink); background: var(--bg-hover); }
+.set-mark[data-tip]:focus-visible { color: var(--ink); background: var(--bg-hover); } @media (hover: hover) { .set-mark:hover { color: var(--ink); background: var(--bg-hover); } }
 .set-mark svg { display: block; }
 /* On a row of the settings kind the mark follows the label; in a list row it
    follows the state, where the chain of facts used to run. */
@@ -722,7 +722,7 @@
   opacity: 0.7;
 }
 .set-spend-row { width: 100%; text-align: left; cursor: pointer; transition: background 100ms; }
-.set-spend-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .set-spend-row:hover { background: var(--bg-hover); } }
 .set-spend-roi { font-size: 11.5px; color: var(--ink-dim); }
 .set-spend-roi.ok { color: var(--ok); font-weight: 500; }
 
@@ -864,7 +864,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
 .pol-note{display:block;margin-top:3px;font-size:var(--set-hint);line-height:1.5;color:var(--ink-dim);max-width:58ch;text-wrap:pretty}
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
-.pol-dot:hover{border-color:var(--ink)}
+@media (hover: hover) { .pol-dot:hover{border-color:var(--ink)} }
 .pol-dot.on{background:var(--ink);border-color:var(--ink);color:var(--bg-raised)}
 /* The dash is the mark that says a mode is not on offer for this row. */
 .pol-dash{color:var(--ink-dim)}
@@ -929,7 +929,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 .set-input::placeholder { color: var(--ink-dim); }
-.set-input:hover { border-color: var(--line-strong); }
+@media (hover: hover) { .set-input:hover { border-color: var(--line-strong); } }
 .set-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 
 /* ── Create your workspace ────────────────────────────────────────────────
@@ -1022,8 +1022,12 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   text-underline-offset: 3px;
 }
 .cw-link { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-.cw-legal a:hover,
-.cw-link:hover { color: var(--ink); }
+@media (hover: hover) {
+  .cw-legal a:hover,
+.cw-link:hover {
+    color: var(--ink);
+  }
+}
 .cw-legal a:focus-visible,
 .cw-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
 
@@ -1125,7 +1129,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-rows .cl-attn-acts { gap: 4px; }
 .setup-rows .cl-attn-cta { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-md); }
 .setup-rows .cl-attn-cta.ghost { padding: 0 8px; border-color: transparent; background: transparent; }
-.setup-rows .cl-attn-cta.ghost:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); }
+@media (hover: hover) { .setup-rows .cl-attn-cta.ghost:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); } }
 .setup-later { opacity: .82; }
 /* A control that refuses is greyed, not unreadable: .55 put the word on a Later row at 4.15. */
 .settings [data-gated] { opacity: 0.66; }
@@ -1188,7 +1192,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-place-where { font-size: var(--text-xs); color: var(--ink-muted); }
 .setup-fw-code { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .setup-fw-dial { font-size: var(--text-2xl); font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
-.setup-fw-dial:hover { text-decoration: underline; }
+@media (hover: hover) { .setup-fw-dial:hover { text-decoration: underline; } }
 .setup-fw-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
 .setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--text-sm); }
 .setup-fw-ok { color: var(--ink); }
@@ -1212,7 +1216,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 
 /* Back, when the create screen was opened from the workspace menu. */
 .cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
-.cw-back:hover { color: var(--ink); }
+@media (hover: hover) { .cw-back:hover { color: var(--ink); } }
 .set-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 
 /* The business on record: three groups of plain fields, read on a phone as
@@ -1244,7 +1248,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   font-size: var(--set-label);
   color: var(--ink);
 }
-.biz-input:hover:not(:disabled) { border-color: var(--line-strong); }
+@media (hover: hover) { .biz-input:hover:not(:disabled) { border-color: var(--line-strong); } }
 .biz-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 .biz-input:disabled { opacity: 0.6; }
 .biz-bad { border-color: var(--danger); }
@@ -1274,7 +1278,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   border-radius: var(--radius-lg);
   padding: 10px 12px;
 }
-.settings .biz-choice:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--accent); }
+@media (hover: hover) { .settings .biz-choice:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--accent); } }
 .biz-choice:disabled { opacity: 0.6; cursor: default; }
 .settings .biz-choice-on { border-color: var(--accent); }
 .biz-choice-label { font-size: var(--set-label); font-weight: 600; }
@@ -1703,7 +1707,7 @@ html.legacy-on .bt-link { position: relative; }
 .bt-tokens { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .bt-token { display: inline-flex; align-items: center; gap: 2px; min-height: 26px; font-size: var(--text-sm); color: var(--ink); }
 .bt-token-x { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; min-width: 0; padding: 0; border-radius: var(--radius-full); color: var(--ink-dim); }
-.bt-token-x:hover { color: var(--ink); background: var(--bg-hover); }
+@media (hover: hover) { .bt-token-x:hover { color: var(--ink); background: var(--bg-hover); } }
 .bt-languages-add[hidden] { display: none; }
 /* The hand-off at rest is one line (contracts handoffWords.line); it was a line per channel under its word. */
 .bt-handoff { min-width: 0; overflow-wrap: anywhere; }
@@ -2049,8 +2053,10 @@ html.legacy-on .bt-link { position: relative; }
   .set-nav-row {
     border-radius: var(--radius-xl);
   }
-  .set-nav-row:hover {
-    background: var(--surface-inset-fill);
+  @media (hover: hover) {
+    .set-nav-row:hover {
+      background: var(--surface-inset-fill);
+    }
   }
   .set-nav-row.active {
     background: var(--selected-fill);
