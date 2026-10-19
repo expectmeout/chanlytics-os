@@ -89,6 +89,93 @@ test("the inherit link keeps its line's ink under a touch's hover too: its reset
     assert.ok(!r.media.some(asksForHover), "the reset of .link-btn-inherit:hover stands inside @media (hover: hover)");
 });
 
+/*
+ * Every sheet, every control (Ruben, 18 Oct 2026, after the toasts: a tapped button, a glass circle, a row stayed lit).
+ * A rule that only paints on `:hover` (a fill, a border, a shadow, an ink, an underline) stands under a media query
+ * that asks for a pointer, so a finger's last tap keeps nothing. Left as they are: a rule that also reveals or moves
+ * something (opacity, display, a transform: a control a tap reaches today), a selector that names a press or focus
+ * as well (`:is(:hover, :active)`), and a reset (transparent, none, inherit), which paints nothing.
+ */
+const PAINTS = new Set([
+  "background",
+  "background-color",
+  "background-image",
+  "border",
+  "border-color",
+  "border-top",
+  "border-right",
+  "border-bottom",
+  "border-left",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
+  "box-shadow",
+  "color",
+  "text-decoration",
+  "text-decoration-color",
+  "text-decoration-line",
+  "text-underline-offset",
+  "outline",
+  "outline-color",
+  "outline-offset",
+  "fill",
+  "stroke",
+  "filter",
+  "backdrop-filter",
+  "cursor",
+  "transition",
+  "transition-duration",
+  "custom",
+]);
+const propertyOf = (d) => (d.property === "unparsed" ? d.value.propertyId.property : d.property);
+/** A value that draws something: a token, or a colour that is not transparent. */
+const draws = (d) => {
+  const v = JSON.stringify(d.value);
+  return (
+    /"type":"var"/.test(v) || /"alpha":(0\.\d*[1-9]|1)\b/.test(v) || /"type":"(oklch|oklab|lab|lch|hsl|hwb)"/.test(v)
+  );
+};
+const hoverOnly = (selector) => {
+  const s = JSON.stringify(selector);
+  return /"kind":"hover"/.test(s) && !/"kind":"(active|focus|focus-visible|focus-within)"/.test(s);
+};
+const asksForPointer = (query) => /"name":"(hover|pointer|any-hover|any-pointer)"/.test(JSON.stringify(query));
+
+test("no sheet paints on :hover outside a pointer's media query, so a finger's last tap keeps nothing lit", () => {
+  const sheets = [];
+  const walkDir = (dir) => {
+    for (const f of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${f.name}`;
+      if (f.isDirectory()) walkDir(rel);
+      else if (f.name.endsWith(".css")) sheets.push(rel);
+    }
+  };
+  walkDir("apps/dashboard/src");
+  walkDir("apps/dashboard/app");
+  assert.ok(sheets.length > 20, "the sheets are read");
+  const lit = [];
+  for (const sheet of sheets) {
+    const walk = (rules, guarded) => {
+      for (const r of rules) {
+        if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
+        else if (r.type === "supports" || r.type === "container" || r.type === "layer-block")
+          walk(r.value.rules, guarded);
+        else if (r.type === "style" && !guarded && r.value.selectors.some(hoverOnly)) {
+          const ds = [
+            ...(r.value.declarations.declarations ?? []),
+            ...(r.value.declarations.importantDeclarations ?? []),
+          ];
+          if (ds.length && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws))
+            lit.push(`${sheet}: ${ds.map(propertyOf).join(", ")}`);
+        }
+      }
+    };
+    walk(parse(sheet).rules, false);
+  }
+  assert.deepEqual(lit, [], "a :hover that paints stands under @media (hover: hover)");
+});
+
 for (const { sheet, cls } of CONTROLS) {
   test(`${cls}'s hover is drawn only under a pointer that hovers (${path.basename(sheet)})`, () => {
     const rules = hoverRulesOf(parse(sheet), cls);

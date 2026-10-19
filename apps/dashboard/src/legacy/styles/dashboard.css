@@ -74,7 +74,7 @@
   transition: background 120ms;
   position: relative;
 }
-.cmd2-bucket:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cmd2-bucket:hover { background: var(--bg-hover); } }
 .cmd2-bucket.active { background: var(--bg-raised); box-shadow: var(--shadow-sm); }
 .cmd2-bucket-dot {
   width: 6px; height: 6px; border-radius: var(--radius-full);
@@ -115,7 +115,7 @@
   text-align: left;
   transition: background 120ms, color 120ms;
 }
-.cmd2-agent:hover { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .cmd2-agent:hover { background: var(--bg-hover); color: var(--ink); } }
 .cmd2-agent.active { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
 .cmd2-agent-mark {
   width: 20px; height: 20px;
@@ -163,9 +163,9 @@
   transition: background 120ms;
 }
 .cmd2-row:last-child { border-bottom: none; }
-.cmd2-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cmd2-row:hover { background: var(--bg-hover); } }
 .cmd2-row.is-urgent { background: oklch(from var(--accent) l c h / 0.025); }
-.cmd2-row.is-urgent:hover { background: oklch(from var(--accent) l c h / 0.05); }
+@media (hover: hover) { .cmd2-row.is-urgent:hover { background: oklch(from var(--accent) l c h / 0.05); } }
 .cmd2-row.is-done { opacity: 0.7; }
 
 /* Spine column with priority chip */
@@ -318,7 +318,7 @@
   font-weight: 500;
   transition: all 120ms;
 }
-.stream2-tab:hover { color: var(--ink); background: var(--bg-hover); }
+@media (hover: hover) { .stream2-tab:hover { color: var(--ink); background: var(--bg-hover); } }
 .stream2-tab.active { color: var(--ink); background: var(--bg-sunken); }
 .stream2-tab-count {
   margin-left: 6px; font-size: 10.5px;

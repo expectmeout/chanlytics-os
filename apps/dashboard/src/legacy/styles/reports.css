@@ -183,7 +183,7 @@
 .rpt-fact .rpt-fact-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 0; text-align: left; border-radius: var(--radius-sm); }
 /* A row that is a link is not underlined text: its words keep their own ink, and the door's chip is what answers a hover. */
 a.rpt-fact-row { text-decoration: none; }
-a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); } }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
 .rpt-fact.is-warn .rpt-fact-text { color: var(--warn-ink); }
 .rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; }

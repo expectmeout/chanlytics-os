@@ -160,10 +160,12 @@ body {
   color: var(--ink-dim);
   text-decoration: none;
 }
-.auth-foot a:hover {
-  color: var(--ink-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .auth-foot a:hover {
+    color: var(--ink-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 
 /* The card. Standalone it is a bordered card, which is what the OS's own
@@ -221,8 +223,10 @@ body {
 .auth-card input::placeholder {
   color: var(--ink-faint);
 }
-.auth-card input:hover {
-  border-color: var(--ink-faint);
+@media (hover: hover) {
+  .auth-card input:hover {
+    border-color: var(--ink-faint);
+  }
 }
 .auth-card input:focus-visible {
   outline: none;
@@ -241,8 +245,10 @@ body {
   cursor: pointer;
   transition: filter var(--duration-fast) var(--ease-out);
 }
-.auth-card button:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .auth-card button:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
 }
 .auth-card button:focus-visible {
   outline: none;
@@ -282,9 +288,11 @@ body {
   font-weight: var(--weight-medium);
   margin-bottom: 6px;
 }
-.auth-card .auth-google:hover:not(:disabled) {
-  filter: none;
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .auth-card .auth-google:hover:not(:disabled) {
+    filter: none;
+    background: var(--bg-hover);
+  }
 }
 .auth-card .auth-google svg {
   width: 18px;
@@ -335,9 +343,11 @@ html.in-app .auth-or {
   text-underline-offset: 2px;
   cursor: pointer;
 }
-.auth-card .auth-linkbtn:hover:not(:disabled) {
-  filter: none;
-  color: var(--ink);
+@media (hover: hover) {
+  .auth-card .auth-linkbtn:hover:not(:disabled) {
+    filter: none;
+    color: var(--ink);
+  }
 }
 .auth-card .auth-linkbtn:disabled {
   opacity: 0.55;

@@ -118,10 +118,10 @@
 /* The switch is the kit's segmented capsule in a pane (kit.css .rec-seg): an inset track, the one picked the lozenge. */
 .ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
 .ck-seg button { font-size: 11.5px; line-height: 1; padding: 5px 10px; border-radius: var(--radius-full); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
-.ck-seg button:hover { color: var(--ink); }
+@media (hover: hover) { .ck-seg button:hover { color: var(--ink); } }
 .ck-seg button.on { background: var(--selected-fill); color: var(--ink); box-shadow: var(--selected-depth); }
 .ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-full); color: var(--ink-dim); }
-.ck-icon-btn:hover { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .ck-icon-btn:hover { background: var(--bg-hover); color: var(--ink); } }
 .ck-seg button:focus-visible, .ck-icon-btn:focus-visible { box-shadow: var(--focus-ring); outline: none; }
 /* On a touch screen legacy.css gives every control 44px of height; the icon button gets the width to match. */
 @media (pointer: coarse) { .ck-icon-btn { min-width: 44px; } }
@@ -131,7 +131,7 @@
 .ck-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .ck-table th { position: sticky; top: 0; background: var(--bg-raised); text-align: left; font-weight: 500; color: var(--ink-dim); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .ck-table td { padding: 5px 10px; color: var(--ink-muted); white-space: nowrap; }
-.ck-table tbody tr:hover td { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .ck-table tbody tr:hover td { background: var(--bg-hover); color: var(--ink); } }
 .ck-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ck-table-empty { color: var(--ink-dim); text-align: center; padding: 18px; }
 
@@ -139,7 +139,7 @@
 .ck-barlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .ck-barlist-row { display: flex; flex-direction: column; gap: 7px; width: calc(100% + 16px); padding: 7px 8px 8px; margin: 0 -8px; border-radius: var(--radius-md); text-align: left; font-size: var(--text-sm); color: var(--ink-muted); }
 .ck-barlist-row.door { cursor: pointer; }
-.ck-barlist-row.door:hover { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .ck-barlist-row.door:hover { background: var(--bg-hover); color: var(--ink); } }
 .ck-barlist-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .ck-barlist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
 .ck-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

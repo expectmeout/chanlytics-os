@@ -68,7 +68,7 @@
   transition: background 100ms;
   min-width: 0;
 }
-.fl-agent:hover { background: var(--bg-hover); }
+@media (hover: hover) { .fl-agent:hover { background: var(--bg-hover); } }
 .fl-agent.active {
   background: var(--bg-raised);
   box-shadow: var(--shadow-sm);
@@ -271,11 +271,11 @@
 
 /* Workspace policy wiring */
 .fl-perm-policy{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim);background:var(--bg-sunken);border:1px solid var(--line);border-radius:var(--radius-full);padding:1px 7px;cursor:pointer;width:fit-content}
-.fl-perm-policy:hover{border-color:var(--accent);color:var(--accent)}
+@media (hover: hover) { .fl-perm-policy:hover{border-color:var(--accent);color:var(--accent)} }
 .fl-perm-policy.never{color:var(--warn);border-color:color-mix(in oklab,var(--warn) 45%,var(--line))}
 .fl-perm-locked{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);background:var(--bg-sunken);border:1px dashed var(--line);border-radius:var(--radius-md);padding:6px 10px}
 .fl-matrix-link{display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:var(--text-xs);color:var(--info);background:none;border:none;cursor:pointer;padding:0}
-.fl-matrix-link:hover{color:var(--ink)}
+@media (hover: hover) { .fl-matrix-link:hover{color:var(--ink)} }
 
 /* Trust card */
 .fl-trust-next{display:flex;align-items:center;gap:10px;padding:10px 14px 12px}
@@ -287,6 +287,6 @@
 
 /* "Hands to you" — live escalation chips */
 .fl-esc-chip { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: border-color 110ms, color 110ms; }
-.fl-esc-chip:hover { border-color: var(--accent); color: var(--ink); }
+@media (hover: hover) { .fl-esc-chip:hover { border-color: var(--accent); color: var(--ink); } }
 .fl-esc-chip.waiting { border-color: oklch(from var(--accent) l c h / 0.5); color: var(--ink); }
 .fl-esc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: live-pulse 2s ease-in-out infinite; }

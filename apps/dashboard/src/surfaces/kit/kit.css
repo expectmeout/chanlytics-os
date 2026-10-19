@@ -50,9 +50,11 @@
     opacity var(--duration-fast) var(--ease-out);
   white-space: nowrap;
 }
-.btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--line-strong);
+@media (hover: hover) {
+  .btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--line-strong);
+  }
 }
 .btn:active {
   background: var(--bg-active);
@@ -73,8 +75,10 @@ a.btn {
   color: var(--primary-ink);
   border-color: var(--primary-fill);
 }
-.btn-primary:hover {
-  background: var(--primary-hover);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--primary-hover);
+  }
 }
 .btn-primary .icon {
   color: var(--primary-ink);
@@ -85,9 +89,11 @@ a.btn {
   border-color: transparent;
   color: var(--quiet-ink);
 }
-.btn-ghost:hover {
-  background: var(--bg-hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .btn-ghost:hover {
+    background: var(--bg-hover);
+    color: var(--ink);
+  }
 }
 
 /* A word in a row of words, one press each (a phone's bar: People's Select, Sort and Export, Leads' Select, Sort, Import
@@ -129,24 +135,30 @@ a.btn {
   color: var(--danger-fg);
   border-color: transparent;
 }
-.btn-danger:hover {
-  background: oklch(from var(--danger) calc(l - 0.12) c h);
-  border-color: transparent;
+@media (hover: hover) {
+  .btn-danger:hover {
+    background: oklch(from var(--danger) calc(l - 0.12) c h);
+    border-color: transparent;
+  }
 }
 .btn-danger .icon {
   color: var(--danger-fg);
 }
-.btn-danger:disabled:hover {
-  background: oklch(from var(--danger) calc(l - 0.06) c h);
-  border-color: transparent;
+@media (hover: hover) {
+  .btn-danger:disabled:hover {
+    background: oklch(from var(--danger) calc(l - 0.06) c h);
+    border-color: transparent;
+  }
 }
 .btn.danger {
   color: var(--danger);
 }
-.btn.danger:hover {
-  background: var(--danger-soft);
-  color: var(--danger);
-  border-color: transparent;
+@media (hover: hover) {
+  .btn.danger:hover {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-color: transparent;
+  }
 }
 
 .btn-sm {
@@ -375,11 +387,13 @@ button.chip,
 a.chip {
   cursor: pointer;
 }
-button.chip:hover,
-a.chip:hover,
-.chip:has(> button:hover) {
-  color: var(--ink);
-  border-color: var(--line-strong);
+@media (hover: hover) {
+  button.chip:hover,
+  a.chip:hover,
+  .chip:has(> button:hover) {
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
 }
 button.chip:focus-visible,
 a.chip:focus-visible {
@@ -418,9 +432,11 @@ a.chip:focus-visible {
   border-radius: 50%;
   color: var(--ink-dim);
 }
-.chip > .chip-x:hover {
-  color: var(--ink);
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .chip > .chip-x:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+  }
 }
 .chip > .chip-x:focus-visible {
   border-radius: 50%;
@@ -545,25 +561,36 @@ a.chip:focus-visible {
   opacity: 0.6;
   cursor: default;
 }
-.btn:disabled:hover {
-  background: var(--secondary-fill);
-  border-color: var(--line);
+@media (hover: hover) {
+  .btn:disabled:hover {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+  }
 }
 /* A primary that cannot be pressed is no longer the accent: the secondary's ground and quiet ink, no depth, so a dimmed
    coral never reads as live (the lead sheet's Add, off with its reason beside it). */
-.btn-primary:disabled,
-.btn-primary:disabled:hover {
+.btn-primary:disabled {
   background: var(--secondary-fill);
   border-color: var(--line);
   color: var(--quiet-ink);
   box-shadow: none;
 }
+@media (hover: hover) {
+  .btn-primary:disabled:hover {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+    color: var(--quiet-ink);
+    box-shadow: none;
+  }
+}
 .btn-primary:disabled .icon {
   color: var(--quiet-ink);
 }
-.btn-ghost:disabled:hover {
-  background: transparent;
-  color: var(--quiet-ink);
+@media (hover: hover) {
+  .btn-ghost:disabled:hover {
+    background: transparent;
+    color: var(--quiet-ink);
+  }
 }
 
 /* ---------- MoreMenu (shared 3-dot popover) ---------- */
@@ -628,8 +655,10 @@ a.chip:focus-visible {
   color: var(--ink);
   text-align: left;
 }
-.more-item:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .more-item:hover {
+    background: var(--bg-hover);
+  }
 }
 .more-item:focus-visible {
   outline: none;
@@ -658,8 +687,10 @@ a.chip:focus-visible {
   color: var(--ink-dim);
   flex-shrink: 0;
 }
-.more-item:hover .icon {
-  color: var(--ink);
+@media (hover: hover) {
+  .more-item:hover .icon {
+    color: var(--ink);
+  }
 }
 .more-item-label {
   flex: 1;
@@ -689,8 +720,10 @@ a.chip:focus-visible {
 .more-item.danger .icon {
   color: var(--danger);
 }
-.more-item.danger:hover {
-  background: var(--danger-soft);
+@media (hover: hover) {
+  .more-item.danger:hover {
+    background: var(--danger-soft);
+  }
 }
 /* A short word at the item's end -- what it will do ("until tomorrow 10:00"), a count: one line, set to the right,
    as readable as the meta line. */
@@ -1439,8 +1472,10 @@ a.more-item {
   font-weight: 500;
   transition: color 100ms;
 }
-.pp-toast-link:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .pp-toast-link:hover {
+    color: var(--ink);
+  }
 }
 .pp-toast-cta {
   flex-shrink: 0;
@@ -1462,8 +1497,10 @@ a.more-item {
   justify-content: center;
   padding: 2px;
 }
-.pp-toast-x:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .pp-toast-x:hover {
+    color: var(--ink);
+  }
 }
 /* Under a finger the Undo keeps the size it is drawn (the phone's 28px, mobile.css) and the touch floor's 44px is the
    press round it. The house's toast has no ×: a tap anywhere besides it takes it (data-bits usePPToast; Ruben,
@@ -1501,20 +1538,35 @@ a.more-item {
 
 /* Role-gated controls (window.gate) keep a working control's look under the pointer and the press: they are dimmed and
    say why (components.css, [data-gated]), and take no hover or press state of their own. */
-.btn[data-gated]:hover,
 .btn[data-gated]:active {
   background: var(--secondary-fill);
   border-color: var(--line);
 }
-.btn-primary[data-gated]:hover,
+@media (hover: hover) {
+  .btn[data-gated]:hover {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+  }
+}
 .btn-primary[data-gated]:active {
   background: var(--primary-fill);
   border-color: var(--primary-fill);
 }
-.btn-ghost[data-gated]:hover,
+@media (hover: hover) {
+  .btn-primary[data-gated]:hover {
+    background: var(--primary-fill);
+    border-color: var(--primary-fill);
+  }
+}
 .btn-ghost[data-gated]:active {
   background: transparent;
   color: var(--quiet-ink);
+}
+@media (hover: hover) {
+  .btn-ghost[data-gated]:hover {
+    background: transparent;
+    color: var(--quiet-ink);
+  }
 }
 .more-item[data-gated]:hover {
   background: transparent;
@@ -1891,9 +1943,13 @@ a.more-item {
   border-radius: var(--radius-sm);
   transition: color var(--duration-fast) var(--ease-out);
 }
-.rec-row:hover .rec-row-act,
 .rec-row:focus-within .rec-row-act {
   color: var(--ink);
+}
+@media (hover: hover) {
+  .rec-row:hover .rec-row-act {
+    color: var(--ink);
+  }
 }
 /* The chevron is the phone's; a desktop reads the act's words, and an act that goes to another page its arrow beside
    them. */
@@ -1914,15 +1970,21 @@ a.more-item {
   z-index: -1;
   transition: background var(--duration-fast) var(--ease-out);
 }
-.rec-row:hover::before {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .rec-row:hover::before {
+    background: var(--bg-hover);
+  }
 }
 /* Something wrong or missing is on the row at full strength, hover or not: the warn wash, the key in the warn ink,
    and the act drawn. The :hover twin outranks every hover rule below (a touch screen's, a phone's), so none of them
    takes the wash away. */
-.rec-row[data-state="warn"]::before,
-.rec-row[data-state="warn"]:hover::before {
+.rec-row[data-state="warn"]::before {
   background: var(--warn-soft);
+}
+@media (hover: hover) {
+  .rec-row[data-state="warn"]:hover::before {
+    background: var(--warn-soft);
+  }
 }
 .rec-row[data-state="warn"] .rec-row-key {
   color: var(--warn-ink);
@@ -2047,8 +2109,10 @@ a.more-item {
   border-radius: var(--radius-sm);
   transition: color var(--duration-fast) var(--ease-out);
 }
-.rec-fold-close:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .rec-fold-close:hover {
+    color: var(--ink);
+  }
 }
 /* Closed, a fold is hidden whole (the `hidden` attribute): no head, no Close, nothing in the tab order or read out,
    and the row it opens from is what shows. It opens on the grid's rows, never max-height: whether it was drawn open
@@ -2445,10 +2509,15 @@ a.more-item {
 .rec-inline-act[data-act="save"] {
   color: var(--ink);
 }
-.rec-inline-act:hover,
 .rec-inline-act:focus-visible {
   color: var(--ink);
   background: var(--bg-hover);
+}
+@media (hover: hover) {
+  .rec-inline-act:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+  }
 }
 .rec-inline-act[aria-disabled="true"] {
   color: var(--ink-faint);
@@ -2553,8 +2622,10 @@ a.more-item {
     color var(--duration-fast) var(--ease-out),
     background var(--duration-fast) var(--ease-out);
 }
-.rec-sheet-close:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .rec-sheet-close:hover {
+    background: var(--bg-hover);
+  }
 }
 /* The tools wrap: a sentence beside a search (a full list's cap) squeezed the search to nothing at 320px. */
 .rec-sheet-tools {
@@ -2733,8 +2804,10 @@ textarea.rec-input {
     width: 100%;
   }
 }
-.rec-input-title:hover {
-  border-color: var(--line);
+@media (hover: hover) {
+  .rec-input-title:hover {
+    border-color: var(--line);
+  }
 }
 /* After the hover, so a box that is touched keeps its ring's edge while the pointer is over it. */
 .rec-input-title:focus-visible {
@@ -2830,8 +2903,10 @@ textarea.rec-input {
     color var(--duration-fast) var(--ease-out),
     background var(--duration-fast) var(--ease-out);
 }
-.rec-seg-btn:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .rec-seg-btn:hover {
+    color: var(--ink);
+  }
 }
 .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"]) {
   background: var(--selected-fill);
@@ -2969,8 +3044,10 @@ textarea.rec-input {
   color: var(--ink);
   transition: background var(--duration-fast) var(--ease-out);
 }
-.date-pick-day:hover .date-pick-num {
-  background: var(--surface-inset-fill);
+@media (hover: hover) {
+  .date-pick-day:hover .date-pick-num {
+    background: var(--surface-inset-fill);
+  }
 }
 .date-pick-day[data-outside="true"] .date-pick-num {
   color: var(--ink-dim);
@@ -3150,11 +3227,16 @@ textarea.rec-input {
 /* The option walked to: the record kit's says aria-selected, and the kit's select and combobox (Base UI's) say
    data-highlighted, keeping aria-selected for the one chosen (data-selected), which is not washed for being chosen.
    The select's option takes focus as it is walked to, so the wash is its ring. */
-.rec-combo-opt:hover,
 .rec-combo-opt[aria-selected="true"]:not([data-selected]),
 .rec-combo-opt[data-highlighted] {
   background: var(--bg-hover);
   color: var(--ink);
+}
+@media (hover: hover) {
+  .rec-combo-opt:hover {
+    background: var(--bg-hover);
+    color: var(--ink);
+  }
 }
 .rec-combo-opt[data-highlighted] {
   outline: none;
@@ -3367,10 +3449,15 @@ select.rec-input :is(option, optgroup) {
     color var(--duration-fast) var(--ease-out),
     background var(--duration-fast) var(--ease-out);
 }
-.rec-tip:hover,
 .rec-tip:focus-visible {
   color: var(--ink);
   background: var(--bg-hover);
+}
+@media (hover: hover) {
+  .rec-tip:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+  }
 }
 .rec-tip svg {
   display: block;
@@ -3549,8 +3636,10 @@ select.rec-input :is(option, optgroup) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.link-btn:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .link-btn:hover {
+    color: var(--ink);
+  }
 }
 /* Words that take where they stand's ink keep that ink under any hover: the quiet link's hover above outranked the
    variant's `inherit`, and a name lost its line's ink. What the variant promises, not a hover style, so it holds under a
@@ -4107,8 +4196,10 @@ a.list-row {
 .subtabs > .subtab[role="tab"] {
   min-height: 0;
 }
-.subtab:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .subtab:hover {
+    color: var(--ink);
+  }
 }
 .subtab:active {
   transform: translateY(0.5px) scale(0.985);
@@ -4329,8 +4420,10 @@ a.list-row {
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-.btn-glass:hover {
-  background-color: var(--selected-fill);
+@media (hover: hover) {
+  .btn-glass:hover {
+    background-color: var(--selected-fill);
+  }
 }
 .btn-primary {
   font-weight: var(--weight-semibold);
@@ -4490,8 +4583,10 @@ a.list-row {
   font-weight: var(--weight-medium);
   color: var(--ink-dim);
 }
-.stabs-tab:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .stabs-tab:hover {
+    color: var(--ink);
+  }
 }
 .stabs-tab.active {
   background: var(--selected-fill);
@@ -4769,25 +4864,41 @@ a.list-row {
     background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
-.more-item:hover,
 .more-item:active,
 .more-item:focus-visible {
   background: var(--accent-soft);
 }
-.more-item:hover .icon,
+@media (hover: hover) {
+  .more-item:hover {
+    background: var(--accent-soft);
+  }
+}
 .more-item:active .icon,
 .more-item:focus-visible .icon {
   color: var(--accent);
 }
-.more-item.danger:hover,
+@media (hover: hover) {
+  .more-item:hover .icon {
+    color: var(--accent);
+  }
+}
 .more-item.danger:active,
 .more-item.danger:focus-visible {
   background: var(--danger-soft);
 }
-.more-item.danger:hover .icon,
+@media (hover: hover) {
+  .more-item.danger:hover {
+    background: var(--danger-soft);
+  }
+}
 .more-item.danger:active .icon,
 .more-item.danger:focus-visible .icon {
   color: var(--danger-ink);
+}
+@media (hover: hover) {
+  .more-item.danger:hover .icon {
+    color: var(--danger-ink);
+  }
 }
 /* A list's options lift as a menu's items do: a lozenge in the accent's soft tint under a pointer or a key, inside the
    list's own margin so the wash never meets the glass's edge. The house's hover was an opaque ground, a dark patch on
@@ -4844,9 +4955,11 @@ a.list-row {
   box-shadow: var(--surface-control-depth);
   color: var(--ink);
 }
-.rec-sheet-close:hover {
-  background-color: var(--selected-fill);
-  color: var(--ink);
+@media (hover: hover) {
+  .rec-sheet-close:hover {
+    background-color: var(--selected-fill);
+    color: var(--ink);
+  }
 }
 .rec-sheet-foot {
   position: relative;
@@ -5065,8 +5178,10 @@ footer.rec-sheet-foot .btn {
   background: none;
   box-shadow: none;
 }
-.rec-input.rec-input-title:hover {
-  border-color: var(--line);
+@media (hover: hover) {
+  .rec-input.rec-input-title:hover {
+    border-color: var(--line);
+  }
 }
 .rec-input.rec-input-title:focus-visible {
   border-color: var(--accent);
@@ -5085,9 +5200,13 @@ footer.rec-sheet-foot .btn {
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-.token:hover,
 .token[data-popup-open] {
   background: var(--selected-fill);
+}
+@media (hover: hover) {
+  .token:hover {
+    background: var(--selected-fill);
+  }
 }
 /* A select's box is pressed, not typed in, so it answers a pointer as a button and the picker's token do: it lifts to
    the selected fill under one, and holds it while its list is open (Base UI says data-popup-open; a box that opens the
@@ -5220,12 +5339,16 @@ textarea.rec-input,
    check 7); the ink reads 4.5 or more. The hover a quiet link and a toast's link keep, the ink, still outranks these. */
 .btn.danger,
 .more-item.danger,
-.btn.danger:hover,
 .more-item.danger .icon,
 .link-btn-danger,
 .confirm-error,
 .field-error {
   color: var(--danger-ink);
+}
+@media (hover: hover) {
+  .btn.danger:hover {
+    color: var(--danger-ink);
+  }
 }
 .pp-toast-link {
   color: var(--info-ink);
@@ -5502,9 +5625,11 @@ textarea.rec-input,
   color: inherit;
   text-decoration: none;
 }
-.figure-door:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@media (hover: hover) {
+  .figure-door:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 .figure-door:focus-visible,
 .figure-term:focus-visible {
