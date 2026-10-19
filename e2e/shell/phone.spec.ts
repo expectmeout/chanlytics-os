@@ -56,6 +56,24 @@ const pullDown = async (page: Page, x: number, y: number, by: number) => {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 };
 
+/**
+ * A thumb down the screen from (x, y) by `by` pixels through the browser's own input (CDP), still down at the end: what
+ * the page does under it is read before `letGo`.
+ */
+const pullHeld = async (page: Page, x: number, y: number, by: number) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 6; i += 1)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * i) / 6 }] });
+  return { letGo: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }) };
+};
+
+/** How far down the screen a pull past its end has moved the route view (kit motion/page-give.ts): 0 at rest. */
+const pageGiven = (page: Page) =>
+  page.evaluate(
+    () => parseFloat(getComputedStyle(document.getElementById("main")!).translate.split(" ")[1] ?? "") || 0,
+  );
+
 /** A thumb across the screen, through the browser's own input (CDP): six moves from one x to another, then let go. */
 const swipeAcross = async (page: Page, from: number, to: number, y = 560) => {
   const cdp = await page.context().newCDPSession(page);
@@ -756,15 +774,16 @@ test.describe("Phone shell on a real workspace", () => {
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
-   * scrolls a page's list (mobile.css, "The window scrolls"), and the window gives way under a thumb however short the
-   * page: the list is no box of its own there, and nothing holds the window's pull. A page that holds still keeps its
-   * own scroller (Live), which holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives
-   * way as a long one does.
+   * scrolls a page's list (mobile.css, "The window scrolls"), and the screen's own band past the window's end dragged
+   * the frame's top with the rows on an iPhone (Ruben, 19 Oct 2026): the screen holds now, and the page gives way by
+   * itself (mobile.css, "A pull past the page's end"), however short, while the frame's top and the strip in it stay
+   * where they stand. A page that holds still keeps its own scroller (Live), which holds a pixel more than its box
+   * (mobile.css, "Every list pulls"), so a short list gives way as a long one does.
    */
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
-    const pulls: Record<string, boolean> = {};
+    const pulls: Record<string, string> = {};
     for (const [hash, sel, own] of [
       ["inbox", ".ix-threads", false],
       ["conversations", ".cv-rows", false],
@@ -783,15 +802,28 @@ test.describe("Phone shell on a real workspace", () => {
       const box = page.locator(sel).first();
       // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
       if ((await box.count()) === 0 || !(await box.isVisible())) continue;
-      pulls[`${hash} ${sel}`] = await box.evaluate((el, ownBox) => {
-        const oy = getComputedStyle(el).overflowY;
-        const scrolls = oy === "auto" || oy === "scroll";
-        if (ownBox) return scrolls && el.scrollHeight > el.clientHeight;
-        return !scrolls && getComputedStyle(document.documentElement).overscrollBehaviorY !== "none";
-      }, own);
+      if (own) {
+        pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
+          const oy = getComputedStyle(el).overflowY;
+          return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight ? "gives" : "holds";
+        });
+        continue;
+      }
+      const at = (await box.boundingBox())!;
+      const top = page.locator(".frame-top");
+      const topWas = (await top.boundingBox())!.y;
+      const thumb = await pullHeld(page, at.x + at.width / 2, Math.min(at.y + 12, 600), 180);
+      const given = await pageGiven(page);
+      const topNow = (await top.boundingBox())!.y;
+      await thumb.letGo();
+      pulls[`${hash} ${sel}`] =
+        given <= 20 ? `held at ${given}px` : topNow !== topWas ? `the frame's top went ${topNow - topWas}px` : "gives";
+      // Let go, it is back where it stands, with no style of its own left on it.
+      await expect.poll(() => pageGiven(page), { message: `${hash} back in its place` }).toBe(0);
+      await expect(page.locator("#main")).not.toHaveAttribute("data-give");
     }
     test.skip(Object.keys(pulls).length === 0, "no list drawn here");
-    for (const [where, ok] of Object.entries(pulls)) expect(ok, `${where} gives way under a thumb`).toBe(true);
+    for (const [where, how] of Object.entries(pulls)) expect(how, `${where} gives way under a thumb`).toBe("gives");
   });
 
   /**
@@ -1178,28 +1210,40 @@ test.describe("Phone shell on a real workspace", () => {
    * Settings holds still under a pull (25 Sep, Ruben): a thumb moves a Settings page sideways, to the tab beside it,
    * and never down. Each page still scrolls through what it holds, but none stretches past its top or its foot, and
    * while Settings is open the screen around it does not either (a short page, or the strip, would otherwise hand the
-   * pull to the screen: iOS bounces it, Android reloads it). Every list elsewhere gives way under a thumb on purpose
-   * ("every list pulls"), so the screen is left as it was on every other page.
+   * pull to the screen: iOS bounces it, Android reloads it). Since 19 Oct 2026 the screen holds on every page and a page
+   * gives way by itself ("every list pulls"); Settings' page says it does not, and stands still under a thumb.
    */
   test("no Settings page gives way under a pull: its pane stops at its top and foot, and so does the screen", async ({
     page,
   }) => {
     const held = () =>
       page.evaluate(() =>
-        [document.querySelector(".set-pane"), document.documentElement, document.body].map((n) =>
-          n ? getComputedStyle(n).overscrollBehaviorY : "missing",
-        ),
+        [
+          document.querySelector(".set-pane"),
+          document.querySelector(".settings"),
+          document.documentElement,
+          document.body,
+        ].map((n) => (n ? getComputedStyle(n).overscrollBehaviorY : "missing")),
       );
     for (const pane of ["workspace", "team", "notifications"]) {
       await page.goto(`/#/admin/${pane}`);
       await page.waitForLoadState("networkidle");
       await expect(page.locator(".set-pane")).toBeVisible();
-      expect(await held(), pane).toEqual(["none", "none", "none"]);
+      expect(await held(), pane).toEqual(["none", "none", "none", "none"]);
+      const at = (await page.locator(".set-pane").boundingBox())!;
+      const thumb = await pullHeld(page, at.x + at.width / 2, Math.min(at.y + 12, 600), 180);
+      expect(await pageGiven(page), `${pane} stands still under the thumb`).toBe(0);
+      await thumb.letGo();
     }
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     await expect(page.locator(".set-pane")).toHaveCount(0);
-    expect(await held(), "People: the screen as it was").toEqual(["missing", "auto", "auto"]);
+    expect(await held(), "People: the screen holds, and the page gives instead").toEqual([
+      "missing",
+      "missing",
+      "none",
+      "none",
+    ]);
   });
 
   /**
