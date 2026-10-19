@@ -682,12 +682,19 @@ test("why people passed: the reason most gave; no reason is not one, and those w
     "Price was the most common reason for passing, 2 of 5; 2 gave no reason.",
   ]);
   // A tie at the top names every reason in it.
-  assert.deepEqual(passed(2, ["price", 1], ["timing", 1]), [
-    "Price and timing were the most common reasons for passing, 1 each of 2.",
+  assert.deepEqual(passed(5, ["price", 2], ["timing", 2], ["elsewhere", 1]), [
+    "Price and timing were the most common reasons for passing, 2 each of 5.",
   ]);
+  // Every reason given came up as often as every other: none was the most common (it read "Price, timing, going
+  // elsewhere, no reply and not being a fit were the most common reasons for passing, 1 each of 5": 18 Oct 2026).
+  assert.deepEqual(passed(2, ["price", 1], ["timing", 1]), ["No one reason stood out: price and timing, 1 each of 2."]);
   assert.deepEqual(passed(3, ["price", 1], ["timing", 1]), [
-    "Price and timing were the most common reasons for passing, 1 each of 3; 1 gave no reason.",
+    "No one reason stood out: price and timing, 1 each of 3; 1 gave no reason.",
   ]);
+  assert.deepEqual(passed(5, ["price", 1], ["timing", 1], ["elsewhere", 1], ["no_reply", 1], ["not_a_fit", 1]), [
+    "No one reason stood out: price, timing, going elsewhere, no reply and not being a fit, 1 each of 5.",
+  ]);
+  assert.deepEqual(passed(4, ["price", 2], ["timing", 2]), ["No one reason stood out: price and timing, 2 each of 4."]);
   // One reason given: the only one, the one every pass gave, or one person's.
   assert.deepEqual(passed(3, ["elsewhere", 1]), ["Going elsewhere was the only reason given for passing, 1 of 3."]);
   assert.deepEqual(passed(2, ["not_a_fit", 2]), ["Not being a fit was the reason given for passing, 2 of 2."]);

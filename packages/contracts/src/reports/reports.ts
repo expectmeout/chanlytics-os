@@ -214,6 +214,11 @@ export interface ReportVM {
     priorShare: number | null;
   };
   reasons: ReportBarVM[];
+  /**
+   * What Why it stopped draws: every reason, or the most frequent where there are more than a card holds, with the line
+   * that says so (null when every one is drawn). The table beside it keeps `reasons`, all of them.
+   */
+  reasonsShown: { bars: ReportBarVM[]; line: string | null };
   replyTime: {
     count: number;
     median: number | null;
@@ -552,12 +557,31 @@ function periodFactsOf(dto: ReportDto) {
 export type PeriodFacts = ReturnType<typeof periodFactsOf>;
 
 /** Why the receptionist handed over, the most frequent first, in the owner's words. */
-const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] =>
-  bars(
-    Object.entries(reasons ?? {})
-      .sort((a, b) => b[1] - a[1])
-      .map(([r, n]) => [r, capitalize(reasonShort(r)) || r, n] as [string, string, number]),
-  );
+const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] => {
+  // One bar a reason as the owner reads it: two reasons said in the same words (a booking asked for, and the same booking
+  // once you could not do its time) are one bar of both, never two bars of one name (Ruben's screenshot, 18 Oct 2026). The
+  // bar keeps the id of its most frequent reason.
+  const byLabel = new Map<string, [string, string, number]>();
+  for (const [r, n] of Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1])) {
+    const label = capitalize(reasonShort(r)) || r;
+    const had = byLabel.get(label);
+    byLabel.set(label, had ? [had[0], label, had[2] + n] : [r, label, n]);
+  }
+  return bars([...byLabel.values()].sort((a, b) => b[2] - a[2]));
+};
+
+/** How many reasons Why it stopped draws before it says the rest are in its table: beside a chart, a column of twenty bars of one stood a card's height of nothing next to it (18 Oct 2026). */
+const REPORT_REASONS_SHOWN = 7;
+
+/** The reasons the card draws, and its line when some are left to the table. One more than the cap is drawn whole: a line in place of one bar saves nothing. */
+const reasonsShownOf = (reasons: ReportBarVM[]): ReportVM["reasonsShown"] => {
+  if (reasons.length <= REPORT_REASONS_SHOWN + 1) return { bars: reasons, line: null };
+  const top = reasons.slice(0, REPORT_REASONS_SHOWN);
+  return {
+    bars: bars(top.map((r) => [r.id, r.label, r.value])),
+    line: `The ${REPORT_REASONS_SHOWN} most frequent of ${reasons.length} reasons. The table lists them all.`,
+  };
+};
 
 /** The callers' moods in their own order (good, then neither, then bad). A mood is an order, not a verdict: no status colour. */
 const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
@@ -720,6 +744,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     tiles,
     answered: answeredOf(f),
     reasons,
+    reasonsShown: reasonsShownOf(reasons),
     replyTime: replyTimeOf(f),
     calls: callsOf(f, sentiments),
     people: peopleOf(f),

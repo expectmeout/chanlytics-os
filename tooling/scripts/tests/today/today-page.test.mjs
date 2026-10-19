@@ -352,7 +352,8 @@ const people = () => ({
 const iso = (ms) => new Date(Date.now() + ms).toISOString();
 const run = (id, state, over = {}) => ({
   id,
-  name: `${id} · run`,
+  // A run is called by its own name (contracts runTitleOf): a campaign's is its campaign's, less the day it ran for.
+  name: over.audience?.label ?? "Win-back",
   state,
   playbook_id: "pb-1",
   audience: { label: "Win-back" },
@@ -842,7 +843,7 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   );
   assert.match(
     textOf(find(queue, (n) => classes(n).includes("tq-sub"))),
-    /1 need you · 1 call worth a listen · 1 run waiting/,
+    /1 person · 1 call worth a listen · 1 run waiting/,
     "the parts from contracts, the runs' count from contracts: a run that goes on its own is its row, and waits on no word",
   );
   const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));

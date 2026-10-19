@@ -353,8 +353,9 @@ export function sequenceRowState(row: SequenceRowDto): { label: string; tone: "p
 
 /**
  * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 · 12 replied", "10 in it". A twin
- * says so first (sequenceTwinOf).
+ * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 people · 12 replied", "10 in it". A
+ * twin says so first (sequenceTwinOf). A count says what it counts: "Sent Oct 12 · 184 · 12 replied" read as a stray number
+ * under "Dec 29 · 5 people" (the sample walk, 18 Oct 2026).
  */
 export function sequenceRowLine(
   row: SequenceRowDto,
@@ -369,7 +370,7 @@ export function sequenceRowLine(
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     if (row.last)
-      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} · ${row.last.replied} replied`;
+      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${plural(row.last.sent, "person", "people")} · ${row.last.replied} replied`;
     return `${clockDate(at, tz, nowMs)} · ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";

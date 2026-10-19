@@ -1,10 +1,12 @@
 /**
  * Campaigns on the board (the Calendar's lane C): the marks a day carries (contracts calendarRunMarksOf), drawn where they
- * never read as a booked chair. In Week and Day a lane under the date in the day's head, two at most and then "+N"; in Day
- * view every one; in Month one named line (a one-off send, a run waiting, a last day) and "+N"; in the agenda a row among
- * the visits. A press opens the day's sheet (the kit's, its kicker the day): each mark with its facts and its one door, Sent
- * for a run and Campaigns for a campaign, and the day's own send. Approve and Skip stay on the run's sheet and Today's row
- * (decision 0048): the Calendar shows a run, it does not decide one.
+ * never read as a booked chair. In Week and Day a mark with a time stands at its minute as a moment (blocks.tsx CrMoment);
+ * one of the day alone (a run waiting, a last day, cold email) sits in the day lane under the dates with the all-day
+ * events, two at most and then "+N", every one in Day view (Ruben, 18 Oct 2026: not in the column's head). In Month one
+ * named line (a one-off send, a run waiting, a last day) and "+N"; in the agenda a row among the visits. A press opens the
+ * day's sheet (the kit's, its kicker the day): each mark with its facts and its one door, Sent for a run and Campaigns for a
+ * campaign, and the day's own send. Approve and Skip stay on the run's sheet and Today's row (decision 0048): the Calendar
+ * shows a run, it does not decide one.
  */
 import { CALENDAR_RUN_SHEET_WORDS as W, type CalendarRunMark } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -14,7 +16,7 @@ import { navigate } from "../legacy-verbs";
 import { composeRoute } from "../campaigns/home/address";
 
 /** A mark's look: still to come is hollow, a run waiting is the page's one amber, a failed one is danger, the rest quiet. */
-function markLook(m: CalendarRunMark): string {
+export function markLook(m: CalendarRunMark): string {
   if (m.tone === "warn") return "wait";
   if (m.tone === "danger") return "fail";
   return m.ahead ? "ahead" : "went";

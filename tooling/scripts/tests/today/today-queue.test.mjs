@@ -767,7 +767,7 @@ test("the queue's head counts who is waiting and the calls worth a listen apart;
   );
   assert.match(
     textOf(find(head.tree, (n) => n.props?.className === "tq-sub")),
-    /2 need you · 1 reply window closing · 1 call worth a listen/,
+    /2 people · 1 reply window closing · 1 call worth a listen/,
     "the sentence beside it still says the call, apart",
   );
   // Six people and four calls: the card draws four rows, so two people are left; the foot said six, counting the calls.

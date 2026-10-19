@@ -189,7 +189,7 @@ export function todayQueue(f, callRows, empty) {
   const earN = countOf("call");
   const searchN = countOf("search");
   const parts = [
-    needN ? `${needN} need you` : "",
+    needN ? `${needN} ${needN === 1 ? "person" : "people"}` : "",
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""

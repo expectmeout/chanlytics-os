@@ -46,8 +46,12 @@ export function TplEmailsFailed() {
   ) : null;
 }
 
-/** An email's key among the page's open messages: a WhatsApp message's is its own, and this one is told apart by its prefix. */
-const emailKey = (t: Emails[number]): string => `e:${t.template_id}`;
+/**
+ * An email's key among the page's open messages: a WhatsApp message's is its own, and this one is told apart by its prefix.
+ * A row is a step's email, so the key is the step's: two reach-outs' follow-ups on one template were one key, React drew
+ * one row for both, and opening either opened the two (18 Oct 2026, the sample walk).
+ */
+const emailKey = (t: Emails[number]): string => `e:${t.step_id}`;
 
 /** The email whose pane is open, by the page's key for the open message; none where the key is a message's, or it is gone. */
 export const tplEmailOpen = (emails: Emails, openKey: string | null): Emails[number] | null =>

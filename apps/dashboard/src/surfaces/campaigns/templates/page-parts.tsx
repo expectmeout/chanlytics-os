@@ -14,7 +14,7 @@ import { gate } from "../../legacy-verbs";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { Field } from "../../kit/field/field";
+import { Search } from "../../kit/search/search";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { CmBanner, CmDot } from "../parts/head";
@@ -109,19 +109,13 @@ interface BarProps {
  * list's width, and beside it when the list last synced with WhatsApp -- a STATE the page is in, not a chore the owner
  * remembers: it says when it last looked and presses to look again, and while it looks it is the only control that says
  * it is working (C20). Both were the frame head's (the search in its act, the state in its sentence), which a phone turns
- * into one coral circle and Glass leaves out of the list's reach.
+ * into one coral circle and Glass leaves out of the list's reach. The box is the kit's search, as Sequences' beside it is: a
+ * plain field here had no glyph and another fill (the sample walk, 18 Oct 2026).
  */
 export function listBar({ q, setQ, hasWhatsApp, lastSync, doing, busy, sync }: BarProps) {
   return (
     <div className="tpl-bar">
-      <Field
-        type="search"
-        aria-label="Search the templates' words"
-        value={q}
-        onValueChange={setQ}
-        placeholder="Search the words"
-        data-testid="templates-search"
-      />
+      <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />
       {hasWhatsApp && (
         <LinkButton
           className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
