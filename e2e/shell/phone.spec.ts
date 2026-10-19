@@ -68,11 +68,15 @@ const pullHeld = async (page: Page, x: number, y: number, by: number) => {
   return { letGo: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }) };
 };
 
-/** How far down the screen a pull past its end has moved the route view (kit motion/page-give.ts): 0 at rest. */
-const pageGiven = (page: Page) =>
+/** How far down the screen a pull past its end has moved the first box `sel` names (kit motion/page-give.ts): 0 at rest. */
+const givenOf = (page: Page, sel: string) =>
   page.evaluate(
-    () => parseFloat(getComputedStyle(document.getElementById("main")!).translate.split(" ")[1] ?? "") || 0,
+    (s) => parseFloat(getComputedStyle(document.querySelector(s)!).translate.split(" ")[1] ?? "") || 0,
+    sel,
   );
+
+/** How far the route view has moved under a pull: on a page of rows only the rows move, and this stays 0. */
+const pageGiven = (page: Page) => givenOf(page, "#main");
 
 /** A thumb across the screen, through the browser's own input (CDP): six moves from one x to another, then let go. */
 const swipeAcross = async (page: Page, from: number, to: number, y = 560) => {
@@ -777,32 +781,36 @@ test.describe("Phone shell on a real workspace", () => {
    * scrolls a page's list (mobile.css, "The window scrolls"), and the screen's own band past the window's end dragged
    * the frame's top with the rows on an iPhone (Ruben, 19 Oct 2026): the screen holds now, and the page gives way by
    * itself (mobile.css, "A pull past the page's end"), however short, while the frame's top and the strip in it stay
-   * where they stand. A page that holds still keeps its own scroller (Live), which holds a pixel more than its box
-   * (mobile.css, "Every list pulls"), so a short list gives way as a long one does.
+   * where they stand. On a page of rows only the rows give, and what stands over them (the buckets, the search, the
+   * list's name and count) holds, as the Calendar's bar does (Ruben, 19 Oct 2026). A page that holds still keeps its
+   * own scroller (Live), which holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives
+   * way as a long one does.
    */
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
     const pulls: Record<string, string> = {};
-    for (const [hash, sel, own] of [
-      ["inbox", ".ix-threads", false],
-      ["conversations", ".cv-rows", false],
-      ["live", ".lm-list", true],
-      ["live", ".lm-panel", true],
-      ["clients", ".cl-main-scroll", false],
-      ["clients/leads", ".cl-main-scroll", false],
-      ["clients/pipeline", ".cl-main-scroll", false],
+    // Where the list is, and what gives under a pull: its own scroller (Live), its rows, or the route view.
+    for (const [hash, sel, gives] of [
+      ["inbox", ".ix-threads", ".ix-threads"],
+      ["conversations", ".cv-rows", ".cv-rows"],
+      ["live", ".lm-list", "own"],
+      ["live", ".lm-panel", "own"],
+      // The table with its foot, under the list's bar, its search and its count.
+      ["clients", ".cl-main-scroll", ".pp-scope .cl-table-wrap"],
+      ["clients/leads", ".cl-main-scroll", ".leads-scope .cl-table-wrap"],
+      ["clients/pipeline", ".cl-main-scroll", ".pipe-scope .cl-table-wrap"],
       // Sequences' list, as Messages' is (parts/split.tsx CmSplit).
-      ["campaigns/sequences", ".sq-page > .cm-list", false],
+      ["campaigns/sequences", ".sq-page > .cm-list", "#main"],
       // Messages' list (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
-      ["messages", ".tpl-page > .cm-list", false],
+      ["messages", ".tpl-page > .cm-list", "#main"],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       const box = page.locator(sel).first();
       // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
       if ((await box.count()) === 0 || !(await box.isVisible())) continue;
-      if (own) {
+      if (gives === "own") {
         pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
           const oy = getComputedStyle(el).overflowY;
           return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight ? "gives" : "holds";
@@ -813,14 +821,21 @@ test.describe("Phone shell on a real workspace", () => {
       const top = page.locator(".frame-top");
       const topWas = (await top.boundingBox())!.y;
       const thumb = await pullHeld(page, at.x + at.width / 2, Math.min(at.y + 12, 600), 180);
-      const given = await pageGiven(page);
+      const given = await givenOf(page, gives);
+      const view = await pageGiven(page);
       const topNow = (await top.boundingBox())!.y;
       await thumb.letGo();
       pulls[`${hash} ${sel}`] =
-        given <= 20 ? `held at ${given}px` : topNow !== topWas ? `the frame's top went ${topNow - topWas}px` : "gives";
+        given <= 20
+          ? `held at ${given}px`
+          : topNow !== topWas
+            ? `the frame's top went ${topNow - topWas}px`
+            : gives !== "#main" && view !== 0
+              ? `the page went ${view}px with its rows`
+              : "gives";
       // Let go, it is back where it stands, with no style of its own left on it.
-      await expect.poll(() => pageGiven(page), { message: `${hash} back in its place` }).toBe(0);
-      await expect(page.locator("#main")).not.toHaveAttribute("data-give");
+      await expect.poll(() => givenOf(page, gives), { message: `${hash} back in its place` }).toBe(0);
+      await expect(page.locator("[data-give]")).toHaveCount(0);
     }
     test.skip(Object.keys(pulls).length === 0, "no list drawn here");
     for (const [where, how] of Object.entries(pulls)) expect(how, `${where} gives way under a thumb`).toBe("gives");
