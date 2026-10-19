@@ -727,14 +727,17 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   /* The dock comes in where the tab bar stands, so the two cross in place, in the dock's own beat: the bar fades and
      settles 6px as the dock rises, and comes back as the dock plays out (data-leaving, data-bits `leaving`), which no
      longer holds it down. Hidden at the end of its fade, so nothing under the dock takes a press (Ruben, 10 Oct 2026: the
-     swap at the foot was one hard frame). Under reduced motion the swap is at once. */
+     swap at the foot was one hard frame). Under reduced motion the swap is at once. A run or a message open over the page
+     (surfaces/see, the Campaigns wiring review's rule C) is a sheet whose dock stands where the tab bar does, drawn on the
+     document's body: the bar stands down for it the same way, or its words showed through the dock's glass. */
   [data-testid="phone-tabs"] {
     transition:
       opacity var(--duration-fast) var(--ease-out),
       translate var(--duration-fast) var(--ease-out),
       visibility 0s linear 0s;
   }
-  .app-root:has([data-dock]:not([data-leaving])) .phone-places {
+  .app-root:has([data-dock]:not([data-leaving])) .phone-places,
+  body:has(.cmh-host-over:not([data-leaving])) .phone-places {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;
@@ -746,7 +749,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   @media (prefers-reduced-motion: reduce) {
     [data-testid="phone-tabs"],
-    .app-root:has([data-dock]:not([data-leaving])) .phone-places {
+    .app-root:has([data-dock]:not([data-leaving])) .phone-places,
+    body:has(.cmh-host-over:not([data-leaving])) .phone-places {
       transition: none;
     }
   }

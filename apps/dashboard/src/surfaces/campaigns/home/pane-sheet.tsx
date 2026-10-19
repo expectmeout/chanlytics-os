@@ -42,6 +42,8 @@ interface PaneSheetProps {
   wide?: boolean;
   /** The pane's foot holds the act that closes it (a composer's Cancel): the corner's Close steps aside on a phone. */
   footCloses?: boolean;
+  /** Open over another page (surfaces/see): on a phone the tab bar stands down while it is (mobile.css). */
+  over?: boolean;
   testid?: string;
   children: ReactNode;
 }
@@ -61,6 +63,7 @@ export function PaneSheet({
   askFirst = false,
   wide = false,
   footCloses = false,
+  over = false,
   testid,
   children,
 }: PaneSheetProps) {
@@ -79,7 +82,7 @@ export function PaneSheet({
       tools={tools}
       kicker
       footCloses={footCloses}
-      className={cx("cmh-host", wide && "cmh-host-wide")}
+      className={cx("cmh-host", wide && "cmh-host-wide", over && "cmh-host-over")}
     >
       <div ref={body} className="cmh-host-body" data-testid={testid}>
         {children}

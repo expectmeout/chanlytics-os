@@ -2177,6 +2177,20 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   gap: 2px;
   padding: 8px 0;
 }
+/* The kit's row is three columns on Today's wide card (clients.css .cl-attn-row: the glyph, the words, the verbs); in this
+   column the verbs took the width and a run's name and sentence fell to nothing (the lanes' walk in the app, 19 Oct 2026).
+   Here the verbs go under the words, as a phone's row draws them. */
+.ix-runs .cl-attn-row {
+  grid-template-columns: 30px minmax(0, 1fr);
+  height: auto;
+  align-items: start;
+  row-gap: 8px;
+  padding: 10px 12px;
+}
+.ix-runs .cl-attn-acts {
+  grid-column: 2;
+  justify-self: start;
+}
 .ix-thread {
   margin: 0 8px;
   border-bottom-color: transparent;

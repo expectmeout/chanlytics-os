@@ -45,12 +45,12 @@ export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolea
   const tools = <HomeDoor seeRef={seeRef} />;
   if (seeRef.kind === "message")
     return (
-      <PaneSheet open={open} title={SEE_WORDS.message} tools={tools} onClose={closeSeeOver} testid="see-message">
+      <PaneSheet open={open} title={SEE_WORDS.message} tools={tools} onClose={closeSeeOver} over testid="see-message">
         <MessageInPlaceWhenRead name={seeRef.name} flash={flash} onClose={closeSeeOver} />
       </PaneSheet>
     );
   return (
-    <PaneSheet open={open} title={SEE_WORDS.run} tools={tools} onClose={closeSeeOver} wide testid="see-run">
+    <PaneSheet open={open} title={SEE_WORDS.run} tools={tools} onClose={closeSeeOver} wide over testid="see-run">
       <BroadcastRun
         id={seeRef.id}
         flash={flash}
