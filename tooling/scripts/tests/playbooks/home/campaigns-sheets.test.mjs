@@ -1,11 +1,11 @@
 /**
- * Campaigns' sheet over Sequences (decision 0060, S6: home/sheets.tsx), a message's drawer, and Send once inside the one New
- * (home/new-message.tsx NewOnce, the Campaigns wiring review's lane 6), where the composer's sheet over Sequences went. Drawn
- * on the stub React over the surfaces the seam hands it, in the real surfaces' shape (the Broadcasts sample). What is proved:
- * nothing stands over Sequences while the address names no message, the composer's old addresses among them (they land on
- * New, or on a sequence's record, before the page is drawn); Send once draws the send screen on the audience its address
- * names, with New's who and when over it; a read it is made of that has not landed, or failed, is said in New's own pane;
- * and New hands the send screen the route's toast host and its close.
+ * Send once inside the one New (home/new-message.tsx NewOnce, the Campaigns wiring review's lane 6), where the composer's
+ * sheet over Sequences went; Campaigns draws no sheet of its own over Sequences now, a message's drawer having gone into
+ * its home, the Library open on it (the framework's rating, 19 Oct 2026). Drawn on the stub React over the surfaces the
+ * seam hands it, in the real surfaces' shape (the Broadcasts sample). What is proved: every address of the composer and of
+ * the drawer lands before the page is drawn (on New, a sequence's record, or the message's home); Send once draws the send
+ * screen on the audience its address names, with New's who and when over it; a read it is made of that has not landed, or
+ * failed, is said in New's own pane; and New hands the send screen the route's toast host and its close.
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -48,18 +48,15 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
 const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
 // The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
 // door fetches them, so every draw below finds them in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
 warmCampaignsCode("campaigns/message:any");
-await import(`${SRC}/surfaces/campaigns/home/open-sheets.tsx`);
 await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const status = await import(`${SRC}/legacy-bridge/surface-status.ts`);
@@ -97,7 +94,6 @@ const fresh = () => {
   replaced.length = 0;
   toasts.length = 0;
 };
-const page = (param = null) => again(() => CampaignsSheets({ param, flash() {} }));
 /** New's own pane, as NewOncePane draws it while the screen cannot be: the body handed, under its testid. */
 const PANE = (body) => globalThis.React.createElement("section", { "data-testid": "sq-new" }, body);
 const WHO = globalThis.React.createElement("div", { "data-testid": "sq-new-starts" });
@@ -106,26 +102,24 @@ const once = (to = null, over = {}) =>
   again(() =>
     NewOnce({ to, flash() {}, onDone() {}, onYes: (r) => replaced.push(r), above: WHO, pane: PANE, ...over }),
   );
-const sheet = (tree) => find(tree, (n) => n.type === PaneSheet);
-
-test("nothing stands over Sequences while the address names no message: its list, a record, a word it does not know, and every address of the composer, which went into the one New", () => {
-  surfaces();
-  for (const param of [
-    null,
-    "sequences",
-    "sequences/pb-sample-winback/history",
-    "surprise",
-    // Each lands on New, for whom it named or on its moment, or on the sequence's record (contracts retiredRouteOf).
-    "new",
-    "new:to:s-1",
-    "new:leads",
-    "new:edit:ro-1",
-    "new:every",
-    "new:moment:visited",
-  ]) {
-    fresh();
-    assert.equal(sheet(page(param)), null, String(param));
-  }
+test("every address of the composer and of a message's drawer lands before the page is drawn: on New, a sequence's record, or the message's home, which a press elsewhere opens over its page", () => {
+  const lands = {
+    new: "campaigns/sequences/new:once",
+    "new:to:s-1": "campaigns/sequences/new:once:to:s-1",
+    "new:leads": "campaigns/sequences/new:leads",
+    "new:edit:ro-1": "campaigns/sequences/ro-1",
+    "new:every": "campaigns/sequences/new",
+    "new:moment:visited": "campaigns/sequences/new:moment:visited",
+    "message:spring_offer": "campaigns/messages/spring_offer",
+  };
+  for (const [param, home] of Object.entries(lands))
+    assert.equal(contracts.retiredRouteOf(`campaigns/${param}`), home, param);
+  // A message's home is a thing that opens over the page it is pressed on, as a run's is (contracts see-over.ts).
+  assert.deepEqual(contracts.seeRefOfRoute("campaigns/messages/spring_offer"), {
+    kind: "message",
+    name: "spring_offer",
+  });
+  assert.equal(contracts.seeHomeOf({ kind: "message", name: "spring_offer" }), "campaigns/messages/spring_offer");
 });
 
 test("Send once is the send screen inside New, on the audience its address names, with New's who and when over its sentence", () => {
@@ -136,6 +130,11 @@ test("Send once is the send screen inside New, on the audience its address names
   assert.equal(send.props.initialSegment, "s-sample-regulars", "the send opens on the list it was asked for");
   assert.ok(byTestId(tree, "sq-new-starts"), "New's who and when, over the sentence");
   assert.ok(byTestId(tree, "bc-composer"), "the send screen is New's pane: one head, one foot");
+  assert.equal(
+    byTestId(tree, "bc-name").props.placeholder,
+    contracts.SEQUENCE_NEW_WORDS.title,
+    "New's title until the send is named, as a sequence's draft keeps it: a message's name would read as one opened",
+  );
   const audience = find(tree, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
   assert.equal(audience.props.value, "saved:s-sample-regulars");
   for (const to of ["s-1", null]) {

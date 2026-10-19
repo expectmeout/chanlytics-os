@@ -4744,7 +4744,7 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
   );
   assert.deepEqual([by[P3].state, by[P3].reason, by[P3].replied], ["skipped", "no_consent", false]);
   const gone = (e) => {
-    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Broadcast not found."]);
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Run not found."]);
     return true;
   };
   await assert.rejects(kernel.load(turnIn(worldCtx(w), B), oneBroadcast, { id: BC1 }), gone);
@@ -6241,7 +6241,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       r.data.templates.map((t) => ({
         kind: "template",
         id: t.id,
-        route: `campaigns/message:${t.name}`,
+        route: `campaigns/messages/${t.name}`,
         label: t.title || t.name,
       })),
       "a template opens its own message in the Library, from Settings' read and the composers' alike (W-campaign-run-template-reachout-6)",

@@ -1,7 +1,8 @@
 /**
  * Campaigns as the route draws it: its two views, Sequences (decision 0060) and Messages (D4: the Library is Messages, at
- * `campaigns/messages`), the sheet Campaigns opens over them (sheets.tsx: a message at `campaigns/message:<name>`), and the
- * toast every press under it says its word in (route-toast.ts). The home that stood here went in S6: its address and a campaign's (`campaigns`,
+ * `campaigns/messages`, a message open in it at `campaigns/messages/<name>`, its home), and the toast every press under it
+ * says its word in (route-toast.ts). A message pressed on Sequences opens over it, as one pressed anywhere does
+ * (surfaces/see): its drawer over Sequences (`campaigns/message:<name>`) went, and lands on its home. The home that stood here went in S6: its address and a campaign's (`campaigns`,
  * `campaigns/in:<group>`, `campaigns/moment:<id>[:people]`) land on Sequences, or on the campaign's sequence, by the one
  * table of retired addresses (contracts retiredRouteOf): every edge moves them before the page is asked, and one that
  * reaches it some other way (a history entry from before) is replaced here. `campaigns/ads…` is the Ads view, where it is
@@ -19,6 +20,7 @@ import { Activity, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   LIFECYCLE_WORDS,
+  MESSAGES_ROUTE,
   SEQUENCES_ROUTE,
   isAdsParam,
   isMessagesParam,
@@ -33,7 +35,6 @@ import { surfaceValue } from "../../surface-values";
 import { useAdsShown } from "../ads/shown";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
-import { CampaignsSheets } from "./sheets";
 
 // The Ads view is a page of its own: its code is its own chunk, fetched only when an Ads address is opened where Ads is drawn.
 const AdsPage = lazy(() => import("../ads/ads-page").then((m) => ({ default: m.AdsPage })));
@@ -56,8 +57,9 @@ const VIEW_ORDER: readonly View[] = ["sequences", "messages"];
 const VIEW_SEAT = "campaigns-view";
 
 /**
- * Which views are drawn (each kept from then), the address Sequences was last at (hidden, it keeps the record or list it
- * was left on), and the side the view shown comes in from: the view before it, on the draw that changes it.
+ * Which views are drawn (each kept from then), the address each was last at (hidden, Sequences keeps the record or list it
+ * was left on, Messages the message), and the side the view shown comes in from: the view before it, on the draw that
+ * changes it.
  */
 function useKeptViews(view: View, route: string, ahead: boolean) {
   const drawn = useRef(new Set<View>());
@@ -65,6 +67,8 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
   if (ahead) drawn.current.add(view === "sequences" ? "messages" : "sequences");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
   if (view === "sequences") sequencesAt.current = route;
+  const messagesAt = useRef(MESSAGES_ROUTE);
+  if (view === "messages") messagesAt.current = route;
   const before = useRef<View | null>(null);
   const was = before.current;
   useEffect(() => {
@@ -74,7 +78,7 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
     was && was !== view ? (VIEW_ORDER.indexOf(view) > VIEW_ORDER.indexOf(was) ? "next" : "prev") : undefined;
   const seat = viewDeck.view(VIEW_SEAT);
   const viewOf = (v: View): CmView => ({ ref: seat, slide: v === view ? slide : undefined, shown: v === view });
-  return { drawn: drawn.current, sequencesAt: sequencesAt.current, viewOf };
+  return { drawn: drawn.current, sequencesAt: sequencesAt.current, messagesAt: messagesAt.current, viewOf };
 }
 
 /**
@@ -97,7 +101,7 @@ function useViewsAhead(view: View): boolean {
 
 export function CampaignsRoute() {
   const route = routeOfPath(usePathname()) ?? "campaigns";
-  // The route's second word, as the shell reads its param (`campaigns/message:welcome` names message:welcome).
+  // The route's second word, as the shell reads its param (`campaigns/messages/welcome` names Messages).
   const param = route.split("/")[1] || null;
   // The mount's toast: a send made in New, which closes as it sends, says so here, with its Stop (route-toast.ts).
   const [toastNode, flash] = useLegacyToast();
@@ -127,7 +131,7 @@ export function CampaignsRoute() {
     <CampaignsToast value={flash}>
       {kept.drawn.has("sequences") ? (
         <Activity mode={view === "sequences" ? "visible" : "hidden"}>
-          {/* The message's pane, which the message drawer holds, handed down to the step editor (parts/message-pane.ts). */}
+          {/* The message's pane, handed down to the step editor (parts/message-pane.ts). */}
           <Suspense fallback={<ViewReading />}>
             <MessagePaneProvider>
               <SequencesPage route={kept.sequencesAt} view={kept.viewOf("sequences")} />
@@ -137,10 +141,9 @@ export function CampaignsRoute() {
       ) : null}
       {kept.drawn.has("messages") ? (
         <Activity mode={view === "messages" ? "visible" : "hidden"}>
-          {Messages ? <Messages view={kept.viewOf("messages")} /> : <ViewReading />}
+          {Messages ? <Messages view={kept.viewOf("messages")} route={kept.messagesAt} /> : <ViewReading />}
         </Activity>
       ) : null}
-      <CampaignsSheets param={param} flash={flash} />
       {toastNode}
     </CampaignsToast>
   );

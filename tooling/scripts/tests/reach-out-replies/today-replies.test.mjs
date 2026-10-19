@@ -1,5 +1,5 @@
 /**
- * A reply to a reach-out on Today and in the bell (Reach out Part 5, PR 8): contracts' withReplies over Today's queue,
+ * A reply from a lead on Today and in the bell (Reach out Part 5, PR 8): contracts' withReplies over Today's queue,
  * the reply's row in place of its thread's handoff (Task 8.1); the bell's door for a reply whose draft waits, and two
  * replies grouped under their own noun (Task 8.3); and the words the phone is sent, which stay the notice's own.
  */
@@ -18,7 +18,7 @@ const handoff = (id, conversationId, waitedMs) => ({
   initials: "BC",
   channel: "Email",
   when: "waited 2h",
-  sentence: "They wrote back to your reach-out. Nothing is sent without you.",
+  sentence: "They wrote back to your sequence. Nothing is sent without you.",
   quoted: false,
   status: ["Escalated", "Needs review", "since 2:04 PM"],
   tone: "escalated",
@@ -115,7 +115,7 @@ test("replies fold under their own noun in the bell, and the phone is sent the n
   const [section] = bellSections([bellRow("a"), bellRow("b")]);
   assert.deepEqual(
     section.lines.map((l) => [l.title ?? l.row.title, l.count]),
-    [["2 replies to a reach-out", 2]],
+    [["2 replies from leads", 2]],
   );
   const [push] = pushFor(
     {

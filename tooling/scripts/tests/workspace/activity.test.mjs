@@ -98,9 +98,9 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
   assert.equal(
     activityWords("send_broadcast", { name: "Spring offer", recipients: 40, approved: true }),
-    "Sent a broadcast · Spring offer · 40 people · approved by hand",
+    "Sent a message once · Spring offer · 40 people · approved by hand",
   );
-  assert.equal(activityWords("broadcast.sent", { sent: 38, held: 2 }), "A broadcast finished · 38 got it · 2 held");
+  assert.equal(activityWords("broadcast.sent", { sent: 38, held: 2 }), "A run finished · 38 got it · 2 held");
   assert.equal(
     activityWords("settings.changed", { fields: ["hours", "closures", "calendar", "notifications", "extra"] }),
     "Settings changed · hours, closures, calendar, notifications",
@@ -704,7 +704,7 @@ test("a lead's life says what happened, from the fields its writers file, in the
   assert.equal(activityWords("lead.emailed", { by: "u1" }), "A lead was marked as emailed");
   assert.equal(
     activityWords("lead.emailed", { by: "reach_out", send_id: "s1" }),
-    "A reach-out email went to a lead",
+    "An email went to a lead",
     "what is recorded of the owner's is their word; a reach-out's email is the product's own act",
   );
   assert.equal(
@@ -975,7 +975,7 @@ test("a fold counts what its kind counts: the calls, not the rows about one call
   const byHand = [3, 4].map((i) => line(`e-h${i}`, "lead.emailed", `2026-10-08T0${i}:00:00Z`));
   assert.deepEqual(
     activityLines([...emailed, ...byHand], utcDay).map((l) => l.title),
-    ["2 reach-out emails went to leads", "2 leads were marked as emailed"],
+    ["2 emails went to leads", "2 leads were marked as emailed"],
     "a reach-out's emails and an owner's own marks are two lines, each in its words",
   );
 });
@@ -1346,16 +1346,16 @@ test("the second batch of what the ledgers never kept reads in an owner's words:
     activityWords("member.left", { by: "u1", how: "account_deleted" }),
     "Left the workspace · deleted their account",
   );
-  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A reach-out stopped writing to a lead");
+  assert.equal(activityWords("reach_out.lead_stopped", { by: "u1" }), "A sequence stopped writing to a lead");
   assert.equal(
     activityWords("reach_out.send_decided", { decision: "skip", by: "u1" }),
-    "A held reach-out email was skipped",
+    "A held email to a lead was skipped",
   );
   assert.equal(
     activityWords("reach_out.send_decided", { decision: "include" }),
-    "A held reach-out email was sent as written",
+    "A held email to a lead was sent as written",
   );
-  assert.equal(activityWords("reach_out.send_decided", { decision: "banana" }), "A held reach-out email was decided");
+  assert.equal(activityWords("reach_out.send_decided", { decision: "banana" }), "A held email to a lead was decided");
   assert.equal(activityWords("lead.kept", { by: "u1", search_id: "s1" }), "A lead was kept from Needs review");
   assert.equal(
     activityWords("lead.search_renamed", { name: "Movers in Tampa", by: "u1" }),
@@ -1436,7 +1436,7 @@ test("missed calls fold with missed calls and recorded with recorded; a triage s
   });
   assert.deepEqual(
     activityLines([...skipped, sent], utcDay).map((l) => l.title),
-    ["A held reach-out email was skipped · 2 times", null],
+    ["A held email to a lead was skipped · 2 times", null],
     "each decision folds with its own; one alone is a row",
   );
   const booked = [1, 2].map((i) => line(`e-b${i}`, "appointment.booked", `2026-10-08T1${i}:00:00Z`));
@@ -1542,7 +1542,7 @@ test("(1.6) a message sent to WhatsApp opens its drawer in the Library by name w
   const r = await route.GET.run(get("&from=2026-09-14"), ctxFor(t, rpcs));
   assert.deepEqual(
     r.doors,
-    { "template:tp1": "campaigns/message:spring_offer" },
+    { "template:tp1": "campaigns/messages/spring_offer" },
     "only a message still in the Library",
   );
   assert.deepEqual(

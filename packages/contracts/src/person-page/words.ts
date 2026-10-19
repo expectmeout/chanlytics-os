@@ -109,7 +109,7 @@ export const WORKS_AT_WORDS = {
   stageNote: "changed on Leads",
   fit: "Fit",
   checks: (n: number) => plural(n, "check"),
-  reachOut: "Reach out",
+  reachOut: "Sequence",
   readWhatWentOut: "Read what went out",
   listingPhone: "Listing phone",
   listingHours: (line: string) => `Listing hours: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,

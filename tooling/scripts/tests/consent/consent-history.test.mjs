@@ -201,7 +201,7 @@ test("an unsubscribe is email's own answer: read as one, and never said as a sto
   );
 });
 
-test("a reply to a reach-out read as no, and that no undone, are said as what they were (00220)", () => {
+test("a reply from a lead read as no, and that no undone, are said as what they were (00220)", () => {
   const of = (data) =>
     consentChangeWords(
       consentChangeOf({
@@ -213,7 +213,7 @@ test("a reply to a reach-out read as no, and that no undone, are said as what th
     );
   assert.deepEqual(of({ consent: "opted_out", source: "reply", message_id: "m1" }), {
     who: "Email",
-    text: "Said no in a reply to your reach-out",
+    text: "Said no in a reply to your email",
   });
   assert.deepEqual(of({ consent: "unknown", source: "reply_undone", message_id: "m1" }), {
     who: "Email",

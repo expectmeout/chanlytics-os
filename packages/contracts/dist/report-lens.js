@@ -113,15 +113,15 @@ var MISSED_CALL_TOUCH_WORDS = "an hour";
 // src/reports/report-metrics.ts
 var METRIC_WORDS = {
   customer_messages: "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",
-  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a broadcast or a campaign message is nobody's answer.",
+  answered_share: "Of the customer messages that came in, the share whose first reply was the receptionist's. A message you answered first, and one nobody answered, are not the receptionist's; a campaign message is nobody's answer.",
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
-  said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
-  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   rating: "Your Google rating as of the last check: the average of every rating Google holds for your listing, not only this period's.",
   reviews: "How many ratings Google counts for your listing as of the last check, with words or without.",
   ratings_gained: "How many ratings Google's count rose by in this period, from the daily checks Chanlytics keeps: new ratings, with words or without. It needs two days of readings.",
@@ -135,7 +135,7 @@ var METRIC_WORDS = {
   answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
   waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
   call_backs: "Of the conversations that need you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
-  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a campaign message the door held are not counted.",
   people_reached: "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
   yeses_won: "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded: "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
@@ -146,13 +146,13 @@ var METRIC_WORDS = {
   can_receive_offers: "People on your Can receive offers list, as of now, whatever period is picked: they said yes to offers and can be reached on a channel you send on now. A yes with no number or address to send to, a channel you have not connected, and a person who asked to stop are not counted.",
   opted_out_now: "People on your Opted out list, as of now, whatever period is picked: they asked to stop being messaged, or are on do-not-contact, whenever that was. A person who has said yes again since and is not on do-not-contact is not counted.",
   quiet_now: "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted.",
-  emails_written: "Emails your reach-outs wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
-  emails_landed: "Of the emails your reach-outs wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
-  emails_bounced: "Emails your reach-outs wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
-  people_sent_to: "People a campaign or a broadcast sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and a reach-out's email are not counted.",
+  emails_written: "Emails your sequences to leads wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
+  emails_landed: "Of the emails your sequences to leads wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
+  emails_bounced: "Emails your sequences to leads wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
+  people_sent_to: "People a campaign sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and an email to a lead are not counted.",
   people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,
-  runs_waiting: "Runs waiting for your OK, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
-  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
+  runs_waiting: "Runs waiting for your OK, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
+  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign's, a one-off send's or a step to leads. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
   campaign_replies_waiting: `People who answered a campaign in the last ${STUCK_DAYS} whose conversation waits for a person, as of now, whatever period is picked. One a teammate or you have taken over, and one put aside until later, are not counted.`,
   templates_paused: "WhatsApp messages Meta paused, turned off or rejected, as of now, whatever period is picked. A message hidden from the library and one only waiting for review are not counted.",
   number_health: "How WhatsApp rates your sending number, its quality and what Meta holds against it, as of now, whatever period is picked. A text line and a mailbox are not counted."
@@ -1060,12 +1060,6 @@ var MAILBOX_CONNECT_WORDS = {
   failed: CONNECT_FAILED
 };
 
-// src/sequences/sequence-address.ts
-var SEQUENCES_ROUTE = "campaigns/sequences";
-var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
-var TO_SEND_PARAM = "to-send";
-var TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
-
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1152,7 +1146,7 @@ var PLAYBOOK_TRIGGERS = [
     list: null,
     cls: "outreach",
     kind: "reach_out",
-    hint: "The first email of a reach-out"
+    hint: "The first email to a lead"
   },
   {
     id: "after_step",
@@ -1410,8 +1404,8 @@ var REACH_OUT_SHEET_WORDS = {
   remove: "Remove",
   removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
-  /** A business on a run's sheet, held or ready, opens its lead in Leads (the name's tip). */
-  openLead: "Open this business in Leads"
+  /** A business on a run's sheet, held, ready or to send, opens its lead over the page (the name's tip). */
+  openLead: "Open this business's lead"
 };
 var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
@@ -1441,9 +1435,9 @@ var REACH_OUT_REFUSALS = {
   givenUp: "This email waited two weeks for your answer and was given up.",
   decision: "Include, rewrite, skip or not a fit.",
   /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
-  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  unsaved: "That sequence could not be saved as it is. Check its steps and try again.",
   /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
-  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  notHere: "A sequence to leads is removed from its own row, and only before its first email goes. After that, pause it.",
   /** The preview on a deployment that runs nothing. */
   preview: "Previews only work on the production dashboard.",
   previewDown: "The preview could not be written just now. Try again in a moment.",
@@ -1457,6 +1451,12 @@ function stepLabelOf(s) {
   if (!s.hand) return stepLabel(s.n);
   return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
 }
+
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
+var TO_SEND_PARAM = "to-send";
+var TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
 
 // src/reports/campaigns/reach-out-lens.ts
 var NO_BUSINESSES = "This database does not count businesses yet.";
@@ -1663,7 +1663,7 @@ function chainBusinesses(steps) {
 function chainSourceLine(c, nowMs, tz) {
   const last = c.last_at ? Date.parse(c.last_at) : NaN;
   const meta = [
-    "Reach-out",
+    "To leads",
     plural(c.steps.length, "step"),
     plural(c.runs, "run"),
     c.search ? c.search.name : null,
@@ -1742,7 +1742,7 @@ function periodLines(dto, when) {
   return {
     written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
     mailboxes: MAILBOXES_LINE,
-    empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
+    empty: `No sequence to leads wrote ${withinWords(dto.days, when.until)}.`,
     sources: SOURCES_LINE
   };
 }
@@ -2044,7 +2044,7 @@ var STARTER_TEMPLATES = [
     key: "quick_note",
     name: "quick_note",
     title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
+    purpose: "for any one-off send: news, hours, a heads-up",
     category: "marketing",
     trigger: null,
     texts: {
@@ -2358,7 +2358,7 @@ function toCampaignReportVM(dto) {
   const sources = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Sent once",
     name: s.name,
     templateName: s.template_name,
     template: s.template_name ? templateTitle(s.template_name) : "",
@@ -2389,7 +2389,7 @@ function toCampaignReportVM(dto) {
       rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied])
     },
     lines: {
-      sent: sends ? sends === 1 ? "From one broadcast or campaign run." : `From ${sends} broadcast and campaign runs.` : null,
+      sent: sends ? sends === 1 ? "From one run." : `From ${sends} runs.` : null,
       channels: channelsLine(channels)
     }
   };
@@ -2562,7 +2562,7 @@ var NOTHING_WENT_OUT = "Nothing went out in this period.";
 function reachOutsWroteWords(emails, businesses) {
   if (emails === 0) return "";
   const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
-  return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
+  return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
 }
 function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
   const sentence = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
@@ -2606,7 +2606,7 @@ var HELD_OTHER = "Another reason";
 var heldKeyOf = (key) => ownWord(HELD_REASONS, key) === void 0 ? "other" : key;
 var heldReasonWords = (key) => capitalize(ownWord(HELD_REASONS, key) ?? HELD_OTHER);
 var heldBackLine = (held, sent) => `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
-var REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
+var REACH_OUTS_UNDER = "Runs to leads are not counted here.";
 var STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 var CANCELED_KEY = "canceled";
 var stoppedKeyOf = (key) => readFailure(key) === null ? "other" : key;
@@ -2629,7 +2629,7 @@ function messageRateWords(m) {
 function runsLineWords(moment, broadcast) {
   const kinds = [
     moment > 0 ? plural(moment, "campaign run") : null,
-    broadcast > 0 ? plural(broadcast, "one-off broadcast") : null
+    broadcast > 0 ? plural(broadcast, "one-off send") : null
   ].filter((kind) => kind !== null);
   return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
 }
@@ -2671,7 +2671,7 @@ function runsWaitingMeta(n, late) {
   return `${late} past their day (skip those), ${n - late} can still be approved`;
 }
 var RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
-var REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
+var REACH_OUT_STEP_COUNTS = "a step to leads counts too";
 function failedRunMeta(failed) {
   if (failed.n === 0) return RUNS_FAILED_NONE;
   const what = failed.latest === null ? `${plural(failed.n, "run")} failed in the last ${STUCK_DAYS}` : `the latest: ${failed.latest.name}, ${broadcastFailureWords(failed.latest.failure)}`;
@@ -2702,13 +2702,13 @@ var FAILED_WHAT = {
   campaigns: "the campaign numbers",
   ledger: "who it reached and what is stuck",
   stuck: "what is stuck now",
-  reach_outs: "the reach-out numbers"
+  reach_outs: "the numbers for leads"
 };
 var STILL_READ = {
   campaigns: "the sends and their channels",
   ledger: "who it reached",
   stuck: "what is stuck now",
-  reach_outs: "the reach-outs"
+  reach_outs: "the sequences to leads"
 };
 var REST_IS_CURRENT = "The rest of this page is current.";
 var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";

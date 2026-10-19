@@ -158,7 +158,6 @@ export {
   startWords,
   nextRunWords,
   approvalWordsOf,
-  leadDoorOf,
   chainHintOf,
   chainReportWordsOf,
   emailTemplateWords,

@@ -2,6 +2,7 @@ import {
   SEQUENCES_ROUTE,
   TO_SEND_PARAM,
   TO_SEND_ROUTE,
+  messageRoute,
   newForLeadsRoute,
   newSequenceRoute,
   runRoute,
@@ -49,6 +50,8 @@ function campaignsLandingOf(path, param) {
   }
   const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+  const drawer = /^message:([^/]+)$/.exec(param);
+  if (drawer?.[1]) return messageRoute(drawer[1]);
   if (param === "new:every") return newSequenceRoute();
   if (param === "new") return sendOnceRoute();
   if (param.startsWith("new:to:")) return sendOnceRoute(param.slice("new:to:".length) || null);

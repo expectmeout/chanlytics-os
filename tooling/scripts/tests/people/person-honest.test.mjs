@@ -1879,7 +1879,7 @@ test("a person's page names the runs that reached them and what came of each -- 
       [
         "b-queued",
         "Autumn offer",
-        "Broadcast · Email · Waiting to send",
+        "Sent once · Email · Waiting to send",
         "plain",
         "campaigns/sequences/b-queued/runs/b-queued",
       ],
@@ -1888,14 +1888,14 @@ test("a person's page names the runs that reached them and what came of each -- 
       [
         "b-spring",
         "Spring offer",
-        "Broadcast · WhatsApp · Sent",
+        "Sent once · WhatsApp · Sent",
         "plain",
         "campaigns/sequences/b-spring/runs/b-spring",
       ],
       [
         "b-held",
         "Summer offer",
-        "Broadcast · Text · Held — no yes to offers",
+        "Sent once · Text · Held — no yes to offers",
         "warn",
         "campaigns/sequences/b-held/runs/b-held",
       ],
@@ -1903,7 +1903,7 @@ test("a person's page names the runs that reached them and what came of each -- 
       [
         "b-refused",
         "May offer",
-        "Broadcast · WhatsApp · Didn't send — the provider refused it",
+        "Sent once · WhatsApp · Didn't send — the provider refused it",
         "warn",
         "campaigns/sequences/b-refused/runs/b-refused",
       ],
@@ -1933,7 +1933,7 @@ test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
   const who = (id) => vm.timeline.find((i) => i.id === `m-${id}`)?.who;
   assert.equal(who("mb-win"), "The Win-back campaign");
-  assert.equal(who("mb-spring"), "A broadcast (Spring offer)");
+  assert.equal(who("mb-spring"), "A one-off send (Spring offer)");
   assert.equal(who("m-team"), "Your team", "the row does not say which member sent it");
   assert.equal(who("m1"), "Daniela", "their own words are theirs");
   // A run's message that kept no meta is still the run's: its recipient row names it.
@@ -2087,7 +2087,7 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
     [found.who, found.text, found.link && found.link.to],
     ["Leads", "Found on Google Maps by “salons in Miami” · strong fit · address checked", `clients/leads:p-${LEAD}`],
   );
-  const about = vm.about.find((a) => a.k === "Reach out");
+  const about = vm.about.find((a) => a.k === "Sequence");
   assert.ok(about && about.v.startsWith("Salons in Miami · Talking · wrote back"), about && about.v);
   // A lead with no reach-out, or one whose story could not be read, adds none of it.
   const plain = toPersonVM(
@@ -2100,7 +2100,7 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
     undefined,
   );
   assert.equal(
-    plain.about.find((a) => a.k === "Reach out"),
+    plain.about.find((a) => a.k === "Sequence"),
     undefined,
   );
 });

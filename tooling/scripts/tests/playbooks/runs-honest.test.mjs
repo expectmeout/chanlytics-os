@@ -293,7 +293,7 @@ broadcasts.detail = async (id) => {
       ok: false,
       code: "not_found",
       status: 404,
-      message: "Broadcast not found.",
+      message: "Run not found.",
     }
   );
 };
@@ -441,7 +441,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
   assert.equal(asked.filter((id) => id === "b-sent").length, 2, "Retry reads it again");
   assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Rosa Díaz"), "and draws what it read");
 
-  answers.set("b-elsewhere", [{ ok: false, code: "not_found", status: 404, message: "Broadcast not found." }]);
+  answers.set("b-elsewhere", [{ ok: false, code: "not_found", status: 404, message: "Run not found." }]);
   const gone = { initialSegment: null, initialRun: "b-elsewhere" };
   page(gone);
   await settle();

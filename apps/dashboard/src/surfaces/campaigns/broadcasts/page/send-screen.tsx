@@ -17,6 +17,7 @@ import {
   LIST_GROUP_WORDS,
   NO_TEMPLATE_WORDS,
   PREVIEW_WORDS,
+  SEQUENCE_NEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heardTooWords,
@@ -414,7 +415,7 @@ function bcMessageCaption(v: BcV) {
             chevron={cmChevron()}
             face={group.labels[tpl.language] || starters.langLabel(tpl.language)}
             inline
-            note="A broadcast sends one language to everyone on the list."
+            note="A one-off send goes in one language to everyone on the list."
             data-testid="bc-template-lang"
           />
           <span className="cm-msg-cap-dim"> · </span>
@@ -570,7 +571,7 @@ function bcSendFoot(v: BcV) {
         disabled={!ready || !whenNote.ok}
         onClick={() => submit(true)}
         data-testid="bc-schedule"
-        {...gate("approve", "schedule a broadcast")}
+        {...gate("approve", "schedule a send")}
       >
         <Icon name="clock" size={13} /> {S.scheduleFor(S.at(pageClock().when(whenAt)))}
       </Button>
@@ -581,7 +582,7 @@ function bcSendFoot(v: BcV) {
         disabled={!ready}
         onClick={() => setArmed(true)}
         data-testid="bc-send"
-        {...gate("approve", "send a broadcast")}
+        {...gate("approve", "send a message")}
       >
         <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
       </Button>
@@ -601,7 +602,7 @@ function bcSendFoot(v: BcV) {
       {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
       {!canSend && (
         <div className="bc-excl-hint" data-testid="bc-role">
-          {gateTitle("approve", "stop or cancel a broadcast")}
+          {gateTitle("approve", "stop or cancel a send")}
         </div>
       )}
       <span className="bc-actions-spacer" />
@@ -626,15 +627,16 @@ function bcSendFoot(v: BcV) {
 }
 
 // The send's name, the pane's own title, written where it is read: the message's own name where none is typed (it stood as
-// a row of its own, "Name · Optional", under When).
-function bcTitleField({ name, setName, tpl }: BcV) {
+// a row of its own, "Name · Optional", under When). In New's pane it reads New until it is named, as a sequence's draft
+// does, so picking Once is not read as a message opened (the framework's rating, 19 Oct 2026).
+function bcTitleField({ name, setName, tpl }: BcV, inNew: boolean) {
   return (
     <span className="pb-title-wrap">
       <Field
         className="pb-title-box"
         shape="title"
-        aria-label="Name this broadcast"
-        placeholder={tpl ? bcTitle(tpl.name) : CAMPAIGN_ROOMS.newMessage}
+        aria-label="Name this send"
+        placeholder={inNew ? SEQUENCE_NEW_WORDS.title : tpl ? bcTitle(tpl.name) : CAMPAIGN_ROOMS.newMessage}
         value={name}
         onValueChange={setName}
         maxLength={80}
@@ -655,7 +657,7 @@ export function bcComposerGlass(v: BcV, above: ReactNode = null) {
     <CmPane
       testid="bc-composer"
       className="bc-pane bc-glass"
-      title={bcTitleField(v)}
+      title={bcTitleField(v, above !== null)}
       closeLabel="Cancel"
       closeTestid="bc-compose-close"
       onClose={v.work.leave}

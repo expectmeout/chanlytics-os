@@ -74,11 +74,10 @@ Object.assign(globalThis, {
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 // Send once inside the one New (the Campaigns wiring review's lane 6): the composer's sheet over Sequences went into it.
 const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
-// The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
-// door fetches them, so every draw below finds them in, as a press after that reach does.
+// The Library's pane is a chunk of its own (campaigns-code.tsx): fetched here as a reach for a message's door fetches it,
+// so every draw below finds it in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
-warmCampaignsCode("campaigns/message:any");
-await import(`${SRC}/surfaces/campaigns/home/open-sheets.tsx`);
+warmCampaignsCode("campaigns/messages/any");
 await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
@@ -278,7 +277,7 @@ const playbooksSurface = (over = {}) => ({
 // server takes. The words (failureWords, noNumberWords, saidYesWords) are the verbs' own, over contracts.
 broadcasts.report = (d) =>
   contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null });
-broadcasts.detail = async () => ({ ok: false, code: "not_found", status: 404, message: "Broadcast not found." });
+broadcasts.detail = async () => ({ ok: false, code: "not_found", status: 404, message: "Run not found." });
 broadcasts.send = async () => ({
   ok: true,
   data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
@@ -313,7 +312,7 @@ const openByLink = () => {
 /** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
 const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
 /** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
-const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
+const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this send");
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },

@@ -36,7 +36,10 @@ export function overQuery(word: string): OverQuery {
       ? null
       : new URLSearchParams(window.location.search).get(word) || null;
   const addressWith = (value: string | null): string => {
-    const url = new URL(window.location.href);
+    const l = window.location;
+    const url = l.href
+      ? new URL(l.href)
+      : new URL(`${l.pathname || "/"}${l.search || ""}${l.hash || ""}`, "https://app.invalid");
     if (value) url.searchParams.set(word, value);
     else url.searchParams.delete(word);
     return `${url.pathname}${url.search}${url.hash}`;

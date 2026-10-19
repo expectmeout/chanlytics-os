@@ -116,7 +116,7 @@ test("the current period by source: a playbook's runs together, a broadcast alon
     [
       // The playbook sends the retired win-back (2 Oct 2026), called apart from the set's own by its title.
       ["Win-back", "Campaign", 2, 14, 86, 21, "Win-back (earlier)"],
-      ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 17, "A quick note"],
+      ["A quick note · Sep 1", "Sent once", 1, 6, 67, 17, "A quick note"],
     ],
   );
   assert.deepEqual(
@@ -220,14 +220,14 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
 
 test("the one sentence under the day card: how many runs sent it", () => {
   const vm = toCampaignReportVM(dto());
-  assert.equal(vm.lines.sent, "From 3 broadcast and campaign runs.", "the win-back's two runs and the broadcast");
+  assert.equal(vm.lines.sent, "From 3 runs.", "the win-back's two runs and the broadcast");
   const one = toCampaignReportVM(
     dto({
       series: dto().series.map((d) => day(d.day, d.day === "2026-09-01" ? { sent: 6, opt_ins: 1, opt_outs: 1 } : {})),
       sources: [dto().sources[1]],
     }),
   );
-  assert.equal(one.lines.sent, "From one broadcast or campaign run.");
+  assert.equal(one.lines.sent, "From one run.");
   const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
   assert.equal(nothing.lines.sent, null, "no run sent anything");
   // The yes and the stop are the lens's figures (campaign-lens.test.mjs says them against the period before, in counts); this fold

@@ -197,7 +197,7 @@ test("the call's text says what the library holds: one WhatsApp approved is on, 
   const on = callText([callTextTemplate()]);
   assert.deepEqual([on.status, on.stateWords, on.tone], ["always", "Live", "ok"]);
   // Its door opens the message in a drawer of its own over the home, by its name (11 Oct 2026: never the Library's page).
-  assert.deepEqual(on.open, { kind: "route", label: "Open", route: `campaigns/message:${callTextTemplate().name}` });
+  assert.deepEqual(on.open, { kind: "route", label: "Open", route: `campaigns/messages/${callTextTemplate().name}` });
   const unapproved = callText([callTextTemplate({ meta_status: "pending" })]);
   assert.deepEqual(
     [unapproved.status, unapproved.stateWords, unapproved.tone],
@@ -550,7 +550,7 @@ test("the drawer's kicker is the campaign's group: its moment's caption, Lists &
   );
   assert.equal(C.lifecycleKicker(home, "pb-1"), "Quiet or lapsed");
   assert.equal(C.lifecycleKicker(home, "pb-l"), "Lists & offers");
-  assert.equal(C.lifecycleKicker(home, "ro-1"), "Reach-outs");
+  assert.equal(C.lifecycleKicker(home, "ro-1"), "To leads");
   assert.equal(C.lifecycleKicker(home, "nobody"), "Campaign");
 });
 

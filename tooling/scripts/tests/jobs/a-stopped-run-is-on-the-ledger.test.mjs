@@ -110,11 +110,11 @@ test("a run the ledger gives up on, and a stranded run the watchdog finds, are o
 test("the Activity log says a stopped run in the words its page has, and how far it got", () => {
   assert.equal(
     activityWords("broadcast.stopped", { failure: "paused", sent: 2 }),
-    "A broadcast stopped · the workspace was paused · 2 got it first",
+    "A run stopped · the workspace was paused · 2 got it first",
   );
   assert.equal(
     activityWords("broadcast.stopped", { failure: "throttled:email", sent: 0 }),
-    `A broadcast stopped · ${activityWords("broadcast.stopped", { failure: "throttled:email" }).split(" · ")[1]} · nobody got it`,
+    `A run stopped · ${activityWords("broadcast.stopped", { failure: "throttled:email" }).split(" · ")[1]} · nobody got it`,
   );
   assert.match(activityWords("broadcast.stopped", { failure: "throttled:email" }), /the mail provider/);
   assert.equal(activityWords("broadcast.stopped", { failure: "run_interrupted", sent: null }).split(" · ").length, 2);

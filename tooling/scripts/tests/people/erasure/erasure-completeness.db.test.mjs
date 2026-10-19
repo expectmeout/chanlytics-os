@@ -202,7 +202,7 @@ async function seed() {
     body: WORDS,
     quote: WORDS,
   });
-  // Their reply to a reach-out, read: it hangs on their message and their thread.
+  // Their reply from a lead, read: it hangs on their message and their thread.
   ok(
     await db.from("sequence_replies").insert({
       message_id: message,

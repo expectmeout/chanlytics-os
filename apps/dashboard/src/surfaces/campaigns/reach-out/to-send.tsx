@@ -14,6 +14,7 @@
  */
 import { useState } from "react";
 import {
+  REACH_OUT_SHEET_WORDS,
   REACH_OUT_TO_SEND_LABELS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
@@ -31,6 +32,7 @@ import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
+import { leadOverDoor } from "../../leads/sheet/lead-over";
 import { RoSaidAsk, type SaidMore } from "./said-ask";
 import { reachOuts } from "./surface";
 
@@ -85,13 +87,14 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   return (
     <div className="ro-send" data-testid="ro-to-send-row">
       <div className="ro-send-line">
-        {row.to ? (
-          <LinkButton className="bc-person-name" onClick={() => navigate(row.to ?? "")} data-testid="ro-to-send-lead">
-            {row.name}
-          </LinkButton>
-        ) : (
-          <span className="bc-person-name">{row.name}</span>
-        )}
+        <LinkButton
+          className="bc-person-name"
+          title={REACH_OUT_SHEET_WORDS.openLead}
+          {...leadOverDoor(row.leadId)}
+          data-testid="ro-to-send-lead"
+        >
+          {row.name}
+        </LinkButton>
         <span className="bc-person-words" data-testid="ro-to-send-what">
           {row.subject} · {row.address} · {row.since}
         </span>

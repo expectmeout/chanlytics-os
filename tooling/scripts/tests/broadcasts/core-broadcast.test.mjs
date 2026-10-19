@@ -483,7 +483,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   assert.equal(news.kind, "broadcast_sent", "a broadcast that went out is not a job that did not finish");
   // The run it is about, not the list of runs: the bell, the phone and the mail open THIS broadcast (wiring task 1.7, A2b).
   assert.deepEqual([news.route, news.about], ["campaigns/sequences/b1/runs/b1", { type: "broadcast", id: "b1" }]);
-  assert.equal(news.subject, "Broadcast “Spring offer” sent");
+  assert.equal(news.subject, "Campaign “Spring offer” sent");
   assert.equal(
     news.body,
     "1 of 2 people got it; 1 held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish). Replies land in the Inbox.",
@@ -522,7 +522,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(all.ports, cmd());
   assert.equal(
     all.log.at(-1)[1].body,
-    `None of the 3 people on it got it: each was held back (no recorded yes, asked to stop, no number, a person had the thread, ${HELD_REASONS.email_marketing_disabled}, ${HELD_REASONS.heard_this_week}, ${HELD_REASONS.month_allowance}, or a run that did not finish). The broadcast's page says who and why.`,
+    `None of the 3 people on it got it: each was held back (no recorded yes, asked to stop, no number, a person had the thread, ${HELD_REASONS.email_marketing_disabled}, ${HELD_REASONS.heard_this_week}, ${HELD_REASONS.month_allowance}, or a run that did not finish). The run's page says who and why.`,
   );
   // Read before the run is closed: a read that fails leaves the run open for the job's next try, the owner's news not lost.
   const unread = fakes({ remaining: 0, tally: { sent: 1, held: 1 }, heldFor: new Error("PostgREST down") });
@@ -802,7 +802,7 @@ test("each wait follows the last, a clean batch starts the count again, and past
   assert.deepEqual(call(last.log, "fail").slice(1), ["b1", "throttled"]);
   const alert = call(last.log, "alert")[1];
   assert.equal(alert.kind, "broadcast_stopped");
-  assert.equal(alert.subject, "Broadcast “Spring offer” stopped");
+  assert.equal(alert.subject, "Campaign “Spring offer” stopped");
   assert.match(
     alert.body,
     /^WhatsApp kept limiting how fast this number may send for about an hour, so the rest was not sent\. 3 people got it\. WhatsApp lifts these limits on its own; send it again later\.$/,
@@ -924,7 +924,7 @@ test("a run that reached nobody is not said to be sent: the finish says none of 
   const { ports, log } = fakes({ remaining: 0, tally: { sent: 0, held: 3 } });
   await sendBroadcastBatch(ports, cmd());
   const news = log.at(-1)[1];
-  assert.equal(news.subject, "Broadcast “Spring offer” reached nobody");
+  assert.equal(news.subject, "Campaign “Spring offer” reached nobody");
   assert.match(news.body, /^None of the 3 people on it got it: each was held back/);
   // Nor is it KEPT as sent: the kind is what the bell draws (a green tick for broadcast_sent) and what Today counts as
   // "1 broadcast finished". A run that reached nobody did not go out.
@@ -937,7 +937,7 @@ test("a run that reached nobody is not said to be sent: the finish says none of 
   await sendBroadcastBatch(some.ports, cmd());
   assert.deepEqual(
     [some.log.at(-1)[1].kind, some.log.at(-1)[1].subject],
-    ["broadcast_sent", "Broadcast “Spring offer” sent"],
+    ["broadcast_sent", "Campaign “Spring offer” sent"],
     "one that reached anyone is a broadcast that finished",
   );
 });
@@ -2480,7 +2480,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
     const alerts = f.log.filter((l) => l[0] === "alert");
     assert.equal(alerts.length, 1, `${reason}: the owner is told once`);
     assert.equal(alerts[0][1].kind, "broadcast_stopped");
-    assert.match(alerts[0][1].subject, /^Broadcast “.+” stopped$/, reason);
+    assert.match(alerts[0][1].subject, /^Campaign “.+” stopped$/, reason);
     assert.ok(
       !f.ops().includes("scheduleNext") && !f.ops().includes("finish"),
       `${reason}: stopped, not waiting or done`,
@@ -2795,7 +2795,7 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
       [alert.kind, alert.route, alert.about],
       ["broadcast_stopped", "campaigns/sequences/b1/runs/b1", { type: "broadcast", id: "b1" }],
     );
-    assert.equal(alert.subject, "Broadcast “Visit reminder · 2026-09-11” stopped");
+    assert.equal(alert.subject, "Campaign “Visit reminder · 2026-09-11” stopped");
     return alert.body;
   };
   assert.equal(

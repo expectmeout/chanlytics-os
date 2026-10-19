@@ -214,7 +214,7 @@ function writeOrBegin(db: Acting, tenantId: string, v: VersionRequest, held: num
  */
 export async function saveVersion(ctx: RouteContext, member: Member, v: VersionRequest): Promise<VersionSaved> {
   if (isReachOutRow({ name: v.name })) {
-    if (v.channel !== "email") throw new AppError("validation", "A reach-out sends email only.");
+    if (v.channel !== "email") throw new AppError("validation", "A sequence to leads sends email only.");
     const saved = await saveReachOutEmail(ctx, member, v);
     return { version: saved.template, warnings: [], rechecked: saved.rechecked };
   }

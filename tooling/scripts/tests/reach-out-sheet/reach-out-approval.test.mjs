@@ -351,7 +351,8 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   assert.equal(textOf(byTestId(tree, "ro-run-k")), "Scheduled");
   assert.equal(byTestId(tree, "ro-run-approve"), null, "approved already, or under veto: no Approve");
   assert.ok(byTestId(tree, "bc-stop"), "the run's own verbs");
-  const held = all(tree, (n) => n.props?.["data-testid"] === "ro-held");
+  // The rows drawn: the kit's ListRow is its own node and the element it draws, both carrying the id.
+  const held = all(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === "ro-held");
   assert.equal(held.length, 2, "open at once: the notice and Playbooks' link land on them");
   assert.match(textOf(held[0]), /Studio One/);
   assert.deepEqual(
@@ -362,9 +363,10 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
     contracts.holdDoors("unbacked_fact").map((d) => `ro-door-${d}`),
   );
   // One group per row: in the sheet's narrow layout a row's grid has one door cell, and doors laid in it one by one
-  // stacked on each other, so a press on Include landed on Skip (seen in the real app, 27 Sep 2026).
+  // stacked on each other, so a press on Include landed on Skip (seen in the real app, 27 Sep 2026). The held row is the
+  // kit's ListRow, as a sequence's Needs you draws it (held-row.tsx): its doors are its facts' one line.
   for (const row of held) {
-    const groups = all(row, (n) => /\bbc-person-doors\b/.test(n.props?.className || ""));
+    const groups = all(row, (n) => /\blist-row-facts\b/.test(n.props?.className || ""));
     assert.equal(groups.length, 1, "a held row's doors are one group");
     assert.equal(
       all(groups[0], (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).length,
@@ -402,11 +404,17 @@ test("Check the held again, for the holds the check could not answer: one press 
   assert.equal(byTestId(none(), "ro-run-recheck"), null);
 });
 
-test("D1-lead-person-door: a held and a ready business on the sheet each open their lead in the Leads peek; one with no lead named is its name alone", async () => {
-  // The page moves through the bridge's door, which without a frame is the shell's own (CHANLY.nav).
+test("D1-lead-person-door: a held and a ready business on the sheet each open their lead over the page (?lead=), so the owner stays on the run; one with no lead named is its name alone", async () => {
+  // A page move goes through the bridge's door, which without a frame is the shell's own (CHANLY.nav): none is made. The
+  // lead opens over the page as its own entry in the history (leads/sheet/lead-over.ts), here a record of it.
   const went = [];
   const nav = W.CHANLY.nav;
   W.CHANLY.nav = (to) => went.push(to);
+  const history = W.history;
+  const pushed = [];
+  W.history = { state: null, pushState: (_s, _t, url) => pushed.push(url), replaceState() {}, back() {} };
+  const pressDoor = (n) => n.props.onClick({ button: 0, stopPropagation() {}, preventDefault() {} });
+  const leadOf = (address) => new URL(address, "https://app.invalid").searchParams.get("lead");
   try {
     const LEAD_HELD = "6f1c2a4e-3b7d-4c58-9a10-2d5e8b7c4f01";
     const LEAD_READY = "9d3e5b21-7a64-4f0c-8e12-5c7a1d9b3e22";
@@ -426,9 +434,9 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     const held = byTestId(tree, "ro-held-lead");
     assert.equal(textOf(held), "Studio One");
     assert.equal(held.props.title, contracts.REACH_OUT_SHEET_WORDS.openLead);
-    press(held);
-    assert.deepEqual(went, [contracts.addressOf({ kind: "lead", id: LEAD_HELD })]);
-    assert.equal(went[0], `clients/leads:p-${LEAD_HELD}`);
+    assert.equal(leadOf(held.props.href), LEAD_HELD, "its address, for a new tab");
+    pressDoor(held);
+    assert.equal(leadOf(pushed[0]), LEAD_HELD);
     press(byTestId(tree, "ro-run-list-press"));
     tree = redraw();
     const ready = all(tree, (n) => n.props?.["data-testid"] === "ro-run-person");
@@ -436,10 +444,12 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     assert.equal(textOf(byTestId(ready[0], "ro-person-lead")), "Studio Two");
     assert.equal(byTestId(ready[1], "ro-person-lead"), null, "no lead named, no door");
     assert.match(textOf(ready[1]), /Studio Nine/);
-    press(byTestId(ready[0], "ro-person-lead"));
-    assert.equal(went[1], `clients/leads:p-${LEAD_READY}`);
+    pressDoor(byTestId(ready[0], "ro-person-lead"));
+    assert.equal(leadOf(pushed[1]), LEAD_READY);
+    assert.deepEqual(went, [], "the page stays where it is");
   } finally {
     W.CHANLY.nav = nav;
+    W.history = history;
   }
 });
 
@@ -541,7 +551,7 @@ test("the watch stops on a run this member may not read, or that is gone: a 4xx 
   let asked = 0;
   W.fetch = async () => {
     asked += 1;
-    return new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "Broadcast not found." } }), {
+    return new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "Run not found." } }), {
       status: 404,
       headers: { "content-type": "application/json" },
     });

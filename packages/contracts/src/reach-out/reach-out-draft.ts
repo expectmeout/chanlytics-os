@@ -65,7 +65,7 @@ export const REACH_OUT_GAP_FIRST = 20;
 
 /** A chain's name when it is given none: the search it writes to. */
 export function reachOutDefaultName(searchName: string): string {
-  return `Reach out · ${searchName}`.slice(0, 80);
+  return `Write to ${searchName}`.slice(0, 80);
 }
 
 /**
@@ -186,7 +186,7 @@ export function reachOutAfterDayChoices(): number[] {
 /** The body the sheet saves: ReachOutChainSchema's shape, each step's id kept where it has one (an edit). */
 export function reachOutChainBodyOf(d: ReachOutDraft, searchId: string): ReachOutChainInput {
   return {
-    name: d.name.trim() || "Reach out",
+    name: d.name.trim() || "Write to leads",
     search_id: searchId,
     include_unconfirmed: d.include_unconfirmed,
     gap_minutes: d.gap_minutes,
@@ -375,7 +375,7 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
   const run = saved.start ? saved.start.run_id : null;
   return run
     ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS }
-    : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
+    : { ...said, to: sequenceRoute(saved.root_id), label: "Open its sequence" };
 }
 
 /** The sheet's own labels: its parts, its fields and its acts. */
@@ -406,7 +406,7 @@ export const REACH_OUT_SHEET_PARTS = {
   starting: "Starting…",
   saving: "Saving…",
   cancel: "Cancel",
-  name: "The reach-out's name",
+  name: "The sequence's name",
   fromLine: "From",
   toLine: "To",
   subjectLine: "Subject",

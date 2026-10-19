@@ -83,7 +83,7 @@ const NOTE_FROM = {
   call: "After a call",
   thread: "After a conversation",
   // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
-  reach_out: "From a reach-out"
+  reach_out: "From a sequence to leads"
 };
 function noteStepOf(n, tz, nowMs) {
   const day = stepDayOf(n.due_on, tz, nowMs);

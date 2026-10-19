@@ -75,13 +75,11 @@ export const PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
-  // settings read its pane is drawn from and the channels read's numbers.
-  "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
-  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now.
+  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
+  // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
   "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
   admin: ["settings", "team", "policies", "templates?all=1"],
   start: ["setup", "views"]
@@ -134,9 +132,9 @@ export function routePrefetchScript() {
     'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
     // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
     'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
-    'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
-    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
-    'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
+    // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), a message open in it among its addresses,
+    // and opens on its own reads; a message's drawer over Sequences (`message:<name>`) went into it, and lands there.
+    'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

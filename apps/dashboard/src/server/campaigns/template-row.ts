@@ -73,7 +73,7 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
     .eq("template_language", tpl.language)
     .in("state", ["scheduled", "sending"]);
   if (bErr) throw new Error(bErr.message);
-  if (count) throw new AppError("conflict", "A broadcast is still using this template. Cancel it first.", 409);
+  if (count) throw new AppError("conflict", "A send is still using this message. Cancel it first.", 409);
   // A running playbook that sends it would skip every run from now on: named, so the owner can pause it or give
   // it another message first. A paused one runs nothing, and the page names it before the delete.
   const { data: running, error: pErr } = await ctx.supabase

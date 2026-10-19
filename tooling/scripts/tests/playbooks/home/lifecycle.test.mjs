@@ -1238,7 +1238,7 @@ test("a read that failed is said where its data would be, in contracts' words, w
     surface: "playbooks",
   });
   assert.deepEqual(home({ reachOuts: null }).failed.chains, {
-    what: "your reach-outs",
+    what: "your sequences to leads",
     body: "The moments above are current.",
     surface: "reach_outs",
   });

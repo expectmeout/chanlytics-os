@@ -71,9 +71,6 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
   // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
   campaigns: ["settings"],
-  // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
-  // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
-  "campaigns/message": ["playbooks", "settings", "channels"],
   // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
   // switch, and the messages a step may send (offered-templates.ts).
   "campaigns/sequences": ["sequences", "settings"],

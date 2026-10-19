@@ -2,7 +2,7 @@
  * What the frame says around Campaigns' pages: the crumbs each address wears and the strip of its views. Campaigns is
  * Sequences (decision 0060; the home that stood here went in S6), with Messages and, where it is drawn, Ads beside it in the
  * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, the one New among them, and
- * a message's drawer over it, `campaigns/message:<name>`); the home's and a campaign's addresses land on Sequences, and the
+ * Messages, a message open in it at its home, `campaigns/messages/<name>`); the home's and a campaign's addresses land on Sequences, and the
  * composer's (`campaigns/new…`) on New. A run is at its home under its sequence (`campaigns/sequences/<id>/runs/<run>`, the
  * Campaigns wiring review's lane 2), crumbed under its sequence. Sent draws nothing of its own: its list, a run's sheet, To
  * send and Get their yes land on Sequences, the run's home, the Inbox's Needs you and People (lanes 2, 4 and 7), and an
@@ -20,6 +20,7 @@ import {
   SEQUENCE_WORDS,
   isAdsParam,
   isMessagesParam,
+  messageOfRoute,
   parseAds,
   parseSequencesRoute,
   routeOfPath,
@@ -133,13 +134,24 @@ function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; 
   };
 }
 
+/** A message's title, by its name, as the settings read holds it; null before it is read, or for a name it no longer has. */
+function messageTitleOf(name: string): string | null {
+  return surfaceValue("settings")?.messages?.find((m) => m.name === name)?.title || null;
+}
+
 /**
  * Messages' crumbs as the view of Campaigns it is (`campaigns/messages`, 19 Oct 2026): Campaigns, then Messages, under
- * Campaigns' one mount, so a switch to it from Sequences is no new page: the view kept beside Sequences is shown.
+ * Campaigns' one mount, so a switch to it from Sequences is no new page: the view kept beside Sequences is shown. A message
+ * open in it (its home, `campaigns/messages/<name>`) is named once the settings read holds it, Messages a crumb back.
  */
 function messagesViewChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
+  const route = typeof window === "undefined" ? null : routeOfPath(window.location.pathname);
+  const name = route ? messageOfRoute(route) : null;
+  const title = name ? messageTitleOf(name) : null;
   return {
-    crumbs: [CAMPAIGNS, ADS_WORDS.messagesTab],
+    crumbs: title
+      ? [CAMPAIGNS, { label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE }, title]
+      : [CAMPAIGNS, ADS_WORDS.messagesTab],
     mount: "campaigns",
     act: null,
     views: campaignsViews("messages"),

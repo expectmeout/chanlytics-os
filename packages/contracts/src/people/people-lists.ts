@@ -115,7 +115,7 @@ export function savedListAction(id: string, members: PersonRowVM[]): PeopleListA
  * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
  * `noNumberWords`, and the arithmetic under Today's reach row (today-leaks.ts todayLeaks), in one spelling.
  */
-export const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+export const NO_NUMBER_REACH = "a send reaches only a recorded yes with a number to send to";
 
 /**
  * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
@@ -131,7 +131,7 @@ export function noNumberWords(who: string, purpose: AskedPurpose): string {
  * now (its WhatsApp number is not connected or not allowed to send, for an offer): reachFor's "no_channel". The reason
  * in `noChannelWords`, and the arithmetic under Today's reach row, in one spelling.
  */
-export const NO_CHANNEL_REACH = "a broadcast needs a channel you can send on, and none can carry it right now";
+export const NO_CHANNEL_REACH = "a send needs a channel you can send on, and none can carry it right now";
 
 /**
  * Nobody on a list can be sent this, somebody on it said yes, and the workspace has no channel to send it on now: what

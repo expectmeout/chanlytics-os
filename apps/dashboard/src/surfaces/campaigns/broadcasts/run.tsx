@@ -278,8 +278,8 @@ function bcAside(vm: RunReportVM) {
       <section className="bc-card" data-testid="bc-back">
         <span className="bc-card-title">What came back</span>
         <p className="bc-card-lede">
-          A broadcast does not hold a conversation. Every reply is a thread in the Inbox, and the receptionist answers
-          it under its usual autonomy.
+          A send does not hold a conversation. Every reply is a thread in the Inbox, and the receptionist answers it
+          under its usual autonomy.
         </p>
         {vm.replies.length > 0 ? (
           <div className="bc-back-list">
@@ -457,7 +457,7 @@ export function BroadcastDetail({
       <div className="bc-report" data-testid="bc-detail">
         <EmptyState
           kind="line"
-          title="This broadcast isn't in this workspace."
+          title="This run isn't in this workspace."
           body="The link may be old, or from another workspace."
           testid="bc-detail-gone"
         />
@@ -470,7 +470,7 @@ export function BroadcastDetail({
       <div className="bc-report" data-testid="bc-detail">
         <FailedRead
           kind="line"
-          what="who got this broadcast"
+          what="who got this run"
           onRetry={() => {
             setRetrying(true);
             ask();

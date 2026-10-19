@@ -94,18 +94,18 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
   template_blocked: ["template cannot be sent", "templates cannot be sent"],
-  // "A broadcast finished" is already this repo's word for the event
-  // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
-  // the same thing about the same fact.
-  broadcast_sent: ["broadcast finished", "broadcasts finished"],
-  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
+  // "A run finished" is this repo's word for the event (activity.ts, kind
+  // broadcast.sent), so the bell and the Activity log say the same thing about
+  // the same fact.
+  broadcast_sent: ["run finished", "runs finished"],
+  broadcast_stopped: ["run did not go out", "runs did not go out"],
   note_for_you: ["note left for you", "notes left for you"],
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
   // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
   leads_ready: ["search finished", "searches finished"],
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
-  reach_out_replied: ["reply to a reach-out", "replies to a reach-out"],
+  reach_out_replied: ["reply from a lead", "replies from leads"],
   // A campaign's unsubscribes and STOPs come in a run (decision 0048): several are one pattern, in the Inbox's words.
   opted_out: ["person asked to stop", "people asked to stop"],
   // A day of bookings is one pattern, each its own visit (S1-01); a read of the calendar that found several is one row already.

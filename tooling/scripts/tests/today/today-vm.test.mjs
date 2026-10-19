@@ -1279,7 +1279,7 @@ test("a team's note or a reply that never left, after the customer's words, does
   );
 });
 
-test("a reply to a reach-out read as a wrong person is not someone waiting with nothing back: nobody there is to answer, and a not-now still is one", () => {
+test("a reply from a lead read as a wrong person is not someone waiting with nothing back: nobody there is to answer, and a not-now still is one", () => {
   // The day's view model lists who waits; the readings (the Inbox's surface holds them) take out whom nobody is there to answer.
   const waiting = (readings) =>
     withoutWrongPerson(toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).noReply, readings);

@@ -75,7 +75,7 @@ function cameIn(vm) {
 }
 const runSentence = (r) => [
   bold(r.label),
-  plain(` ${r.verb ?? "is"} ${r.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r.sentence}`)
+  plain(` ${r.says ?? `${r.verb ?? "is"} ${r.waits ?? RUN_WAITING_WORDS.toLowerCase()}`}: ${r.sentence}`)
 ];
 export function todayBriefWords(vm, day, runs) {
   const dayWords = daySentence(day);

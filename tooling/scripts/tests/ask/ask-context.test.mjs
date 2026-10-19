@@ -991,7 +991,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   );
   assert.equal(
     textOf(msgs.blocks[1]),
-    "Win-back offer · MARKETING · approved · en_US · route: campaigns/message:winback_offer",
+    "Win-back offer · MARKETING · approved · en_US · route: campaigns/messages/winback_offer",
     "the message's own address, not the Library's list",
   );
   // Each row as its page's reader gave it; a Broadcasts row, which the page calls a run, is cited as a broadcast.
@@ -1000,7 +1000,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     [
       [{ kind: "playbook", id: PB1, route: `campaigns/sequences/${PB1}`, label: "Win-back" }],
       [{ kind: "broadcast", id: BC1, route: `campaigns/sequences/${BC1}/runs/${BC1}`, label: "September offer" }],
-      [{ kind: "template", id: T1, route: "campaigns/message:winback_offer", label: "Win-back offer" }],
+      [{ kind: "template", id: T1, route: "campaigns/messages/winback_offer", label: "Win-back offer" }],
     ],
   );
 

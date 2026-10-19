@@ -28,7 +28,6 @@ import { clockLabel } from "./calendar-words";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
 import type { SequenceMode } from "../sequences/sequence";
-import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {
@@ -107,8 +106,11 @@ export interface CalendarRunMark {
   ahead: boolean;
   /** Cold email: drawn only with Show's Cold email on. */
   cold: boolean;
-  /** Its one door, and the door's words. */
-  route: string;
+  /**
+   * Its one door, and the door's words: none for a fold of several runs, whose items are each a door (the framework's
+   * rating, 19 Oct 2026: the fold's door opened the Sequences list, which is none of them).
+   */
+  route: string | null;
   door: string;
   /** Named in Month, where the runs that went and the forecasts are not drawn. */
   named: boolean;
@@ -116,8 +118,8 @@ export interface CalendarRunMark {
   items: CalendarRunItem[];
 }
 
-/** The two doors a mark opens: a run is Sent's, a campaign Campaigns'. */
-const CALENDAR_RUN_DOORS = { sent: "Open in Sent", campaigns: "Open in Campaigns" } as const;
+/** The two doors a mark opens: a run, over the Calendar (its one home, runRoute), and a campaign, in Campaigns. */
+const CALENDAR_RUN_DOORS = { run: "Open the run", campaigns: "Open in Campaigns" } as const;
 
 /**
  * The words Show says: its switches (the first is the workspace's own word for what is booked, appointmentWords' `Many`,
@@ -219,7 +221,7 @@ function sendMark(r: CalendarRunDto, tz: string): CalendarRunMark | null {
     ahead: r.state === "scheduled" || waiting,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
   };
@@ -239,7 +241,7 @@ function waitingMark(r: CalendarRunDto, name: string, todayKey: string): Calenda
     ahead: !late,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
   };
@@ -260,7 +262,7 @@ function failedMark(r: CalendarRunDto, name: string, tz: string): CalendarRunMar
     ahead: false,
     cold: false,
     route: addressOf({ kind: "send", id: r.id }),
-    door: CALENDAR_RUN_DOORS.sent,
+    door: CALENDAR_RUN_DOORS.run,
     named: true,
     items: [],
   };
@@ -306,8 +308,8 @@ function wentMark(
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((x) => ({
       name: x.name,
@@ -340,8 +342,8 @@ function coldMark(
     tone: waiting ? "warn" : "plain",
     ahead: waiting || (!sent && planned > 0),
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
-    door: CALENDAR_RUN_DOORS.sent,
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : null,
+    door: CALENDAR_RUN_DOORS.run,
     named: false,
     items: runs.map((r) => ({
       name,

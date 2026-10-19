@@ -79,7 +79,7 @@ const RECORDS = [
   // A run's home, under its sequence (the Campaigns wiring review's lane 2): a writer that does not know the sequence names
   // the run in its place.
   { ref: { kind: "send", id: ID }, route: `campaigns/sequences/${ID}/runs/${ID}` },
-  { ref: { kind: "template", name: "appointment_reminder" }, route: "campaigns/message:appointment_reminder" },
+  { ref: { kind: "template", name: "appointment_reminder" }, route: "campaigns/messages/appointment_reminder" },
   { ref: { kind: "review" }, route: "reports/reviews" },
   // One review, by its row: the lens with that review's reply box open (task 5.2, D1-review-twice).
   { ref: { kind: "review", id: ID }, route: `reports/reviews:${ID}` },

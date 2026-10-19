@@ -73,7 +73,7 @@ test("seven lenses in the strip's order, each with its words, and none for a len
   );
   assert.equal(
     lensEmpty("campaigns", { since: "Aug 29", until: "Sep 4" }).body,
-    "No broadcast or campaign run reached anyone between Aug 29 and Sep 4, and nobody said yes or asked to stop.",
+    "No campaign run reached anyone between Aug 29 and Sep 4, and nobody said yes or asked to stop.",
     "a campaign to its reader, never a playbook (decision 19)",
   );
 });

@@ -645,7 +645,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!row) throw new AppError("not_found", "Broadcast not found.", 404);
+  if (!row) throw new AppError("not_found", "Run not found.", 404);
 
   // Its numbers as the database counts them go out WITH its people, not after every read below; read where the sheet
   // says them (sheetCountsOf). The catch is for a sheet that fails first and never reads them: one that does still throws.

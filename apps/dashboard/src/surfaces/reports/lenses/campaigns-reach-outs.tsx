@@ -84,7 +84,7 @@ function SourcesTable({ rows }: { rows: ReachOutLensSourceLine[] }) {
       <table className="ck-table">
         <thead>
           <tr>
-            <th>Reach-out</th>
+            <th>Sequence</th>
             <th className="num">Written</th>
             <th className="num">Delivered</th>
             <th className="num">Businesses</th>
@@ -196,7 +196,7 @@ function writtenCard(ro: ReachOutLensVM, className: string) {
         height={150}
         yTicks={2}
         animKey={ro.days}
-        ariaLabel="Reach-out emails written per day. The arrow keys read each day."
+        ariaLabel="Emails to leads written per day. The arrow keys read each day."
         describe={(d) => d.writtenWords}
       />
     </ChartCard>
@@ -208,13 +208,13 @@ function sourcesCard(ro: ReachOutLensVM) {
   return (
     <ChartCard
       className="rpt-span-12"
-      title="By reach-out and step"
+      title="By sequence and step"
       testid="ro-sources"
       takeaway={ro.lines.sources}
       switchable={false}
       table={{
         columns: [
-          "Reach-out",
+          "Sequence",
           "Written",
           "Delivered",
           "Businesses",
@@ -298,7 +298,7 @@ export function reachOutsSection(fold: CampaignLensVM) {
   const ro = fold.reachOuts;
   if (failed === undefined && (ro === null || !ro.present)) return null;
   return (
-    <RptSection title="Reach-outs" testid="rpt-reach-outs">
+    <RptSection title="Sequences to leads" testid="rpt-reach-outs">
       {failed === undefined ? (
         ro && reachOutsBody(ro)
       ) : (

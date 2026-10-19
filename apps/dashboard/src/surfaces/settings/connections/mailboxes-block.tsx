@@ -454,7 +454,7 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
     <div className="set-domains" data-testid="connected-mailboxes">
       <div className="set-domains-head">
         <span>Mailboxes you write from</span>
-        <span className="k">reach-outs leave from these · replies come back to them and to your Inbox</span>
+        <span className="k">emails to leads leave from these · replies come back to them and to your Inbox</span>
       </div>
       {note && (
         <div className="set-dom set-dom-note" data-testid="mailbox-note" data-ok={note.ok ? "yes" : "no"}>

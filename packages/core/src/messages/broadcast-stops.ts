@@ -81,7 +81,7 @@ export async function stopForTheWorkspace(
     kind: "broadcast_stopped",
     route: runRoute(b.id),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
+    subject: `Campaign “${b.name}” ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
     body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger(b.audience) })}`,
   });
 }

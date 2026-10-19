@@ -127,7 +127,7 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
   );
   assert.deepEqual(
     [broadcast.messages[1].by, broadcast.answeredBy, broadcast.summary.bullets[1]],
-    ["a broadcast (Spring offer)", "broadcast", "Last message: a broadcast (Spring offer)"],
+    ["a one-off send (Spring offer)", "broadcast", "Last message: a one-off send (Spring offer)"],
   );
 
   const playbook = row(

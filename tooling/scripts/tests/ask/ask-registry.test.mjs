@@ -869,7 +869,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     propose_policy: "Preparing an autonomy change",
     propose_settings: "Preparing a settings change",
     propose_whisper: "Preparing a whisper",
-    propose_broadcast: "Preparing a broadcast",
+    propose_broadcast: "Preparing a send",
     propose_playbook: "Preparing a campaign",
     propose_lead_search: "Planning a search",
   };

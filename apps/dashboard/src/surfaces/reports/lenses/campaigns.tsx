@@ -132,7 +132,7 @@ function sourcesCard(report: CampaignReportVM) {
   return (
     <ChartCard
       className="rpt-span-12"
-      title="By campaign and broadcast"
+      title="By campaign and one-off send"
       testid="chart-sources"
       switchable={false}
       table={{

@@ -351,7 +351,7 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
     key: "quick_note",
     name: "quick_note",
     title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
+    purpose: "for any one-off send: news, hours, a heads-up",
     category: "marketing",
     trigger: null,
     texts: {

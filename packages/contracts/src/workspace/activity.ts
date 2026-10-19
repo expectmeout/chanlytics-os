@@ -75,7 +75,7 @@ export interface ActivityPageDto {
   /**
    * Where a row opens, for the subjects whose page had to be looked up: `<subject_type>:<subject_id>` → a route without
    * its slash (a message's or an escalation's thread, a deal's person, a visit's panel on its day: `calendar/<day>:a-<id>`,
-   * the day by the workspace's clock, a template's message in the Library: `campaigns/message:<name>`). Every other subject's door is contracts activityDoor's, from the row alone.
+   * the day by the workspace's clock, a template's message in the Library: `campaigns/messages/<name>`). Every other subject's door is contracts activityDoor's, from the row alone.
    */
   doors: Record<string, string>;
   /** The workspace's members, for the picker of who did it; empty where the roster could not be read. */
@@ -147,8 +147,8 @@ const WORDS: Record<string, string> = {
   whisper: "Whispered to the phone receptionist",
   connect_channel: "Connected a channel",
   consent_change: "Recorded a consent answer",
-  send_broadcast: "Sent a broadcast",
-  cancel_broadcast: "Canceled a broadcast",
+  send_broadcast: "Sent a message once",
+  cancel_broadcast: "Canceled a send",
   start_playbook: "Started a campaign",
   pause_playbook: "Paused a campaign",
   change_playbook: "Changed a campaign",
@@ -215,23 +215,23 @@ const WORDS: Record<string, string> = {
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
   "booking_link.sent": "The booking link was sent",
-  "broadcast.sent": "A broadcast finished",
-  "broadcast.stopped": "A broadcast stopped",
+  "broadcast.sent": "A run finished",
+  "broadcast.stopped": "A run stopped",
   "playbook.run": "A campaign ran",
   "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
   "template.removed": "A message was deleted from Messages",
   "member.joined": "Joined the workspace",
   "member.left": "Left the workspace",
-  "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
-  "reach_out.send_decided": "A held reach-out email was decided",
-  "reach_out.lead_added": "Leads were added to a reach-out",
-  "reach_out.lead_taken_back": "Leads were taken back from a reach-out",
+  "reach_out.lead_stopped": "A sequence stopped writing to a lead",
+  "reach_out.send_decided": "A held email to a lead was decided",
+  "reach_out.lead_added": "Leads were added to a sequence",
+  "reach_out.lead_taken_back": "Leads were taken back from a sequence",
   "lead.kept": "A lead was kept from Needs review",
   "lead.excluded": "A lead was left out of Needs review",
   "lead.put_back": "A lead was put back in Needs review",
   "lead.later": "A lead was put off for later",
-  "lead.addressee_chosen": "A company's reach-out was set to write to someone else",
+  "lead.addressee_chosen": "A company's sequence was set to write to someone else",
   "lead.search_renamed": "A search was renamed",
   "lead.search_removed": "A search was removed",
   "reach_out.source_set": "A sequence was set to add a search's new leads, or to stop",
@@ -296,7 +296,7 @@ const WORDS: Record<string, string> = {
   "lead.set_aside": "A lead was set aside",
   "lead.ideas_written": "Ideas for a search were written",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
-  "reach_out.replied": "A business wrote back to a reach-out",
+  "reach_out.replied": "A business wrote back to a sequence",
   "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
   "workspace.activated": "The workspace passed a milestone",
@@ -443,7 +443,7 @@ function leadNotAFitWords(p: Record<string, unknown>, base: string): string {
  * A lead emailed has two writers: the owner saying they sent it (what is recorded is their word, never that it left), and a
  * reach-out's own email, which names itself as the author.
  */
-export const REACH_OUT_EMAILED_WORDS = "A reach-out email went to a lead";
+export const REACH_OUT_EMAILED_WORDS = "An email went to a lead";
 function leadEmailedWords(p: Record<string, unknown>, base: string): string {
   return textAt(p, "by") === "reach_out" ? REACH_OUT_EMAILED_WORDS : base;
 }
@@ -518,10 +518,10 @@ function callRecordedWords(p: Record<string, unknown>, base: string): string {
 
 /** What was decided of a held reach-out email (contracts REACH_OUT_DECISIONS), as the sentence's last words. */
 const SEND_DECIDED_WORDS: Record<string, string> = {
-  include: "A held reach-out email was sent as written",
-  rewrite: "A held reach-out email was sent back to be written again",
-  skip: "A held reach-out email was skipped",
-  not_a_fit: "A held reach-out email was dropped: the lead is not a fit",
+  include: "A held email to a lead was sent as written",
+  rewrite: "A held email to a lead was sent back to be written again",
+  skip: "A held email to a lead was skipped",
+  not_a_fit: "A held email to a lead was dropped: the lead is not a fit",
 };
 
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */

@@ -98,7 +98,7 @@ export const REPORT_LENSES = [
     role: "viewer",
     empty: (r) => ({
       title: "Nothing went out",
-      body: `No broadcast or campaign run reached anyone between ${r.since} and ${r.until}, and nobody said yes or asked to stop.`,
+      body: `No campaign run reached anyone between ${r.since} and ${r.until}, and nobody said yes or asked to stop.`,
       door: { label: "Open Sequences", to: "campaigns/sequences" },
     }),
   },

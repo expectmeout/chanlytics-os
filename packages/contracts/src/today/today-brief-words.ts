@@ -27,6 +27,8 @@ export interface TodayBriefRun {
   waits?: string;
   /** "are" for a label that is many ("Your reach-outs are waiting for you"); "is" where absent. */
   verb?: "is" | "are";
+  /** What the label does, in place of its verb and its wait: several runs folded ("4 runs" "wait for your OK"). */
+  says?: string;
 }
 export interface TodayBriefWords {
   /** Each sentence as its runs of words; drawn in order, a space between sentences. */
@@ -147,7 +149,7 @@ function cameIn(vm: TodayVM): TodayBriefSegment[][] {
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */
 const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
   bold(r.label),
-  plain(` ${r.verb ?? "is"} ${r.waits ?? RUN_WAITING_WORDS.toLowerCase()}: ${r.sentence}`),
+  plain(` ${r.says ?? `${r.verb ?? "is"} ${r.waits ?? RUN_WAITING_WORDS.toLowerCase()}`}: ${r.sentence}`),
 ];
 
 /**

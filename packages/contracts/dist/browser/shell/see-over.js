@@ -1,4 +1,4 @@
-import { messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address.js";
+import { messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address.js";
 export const SEE_PARAM = "see";
 const WORD = /^[A-Za-z0-9_-]+$/;
 export function seeValueOf(ref) {
@@ -19,8 +19,8 @@ export function seeRefOfRoute(route) {
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
-  const message = /^campaigns\/message:([A-Za-z0-9_-]+)$/.exec(path);
-  return message?.[1] ? { kind: "message", name: message[1] } : null;
+  const message = messageOfRoute(path);
+  return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 export function seeHomeOf(ref) {
   return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);

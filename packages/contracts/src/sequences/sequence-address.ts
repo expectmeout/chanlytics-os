@@ -122,10 +122,24 @@ export const sendOnceRoute = (audience?: string | null): string =>
 export const newForLeadsRoute = (): string => `${SEQUENCES_ROUTE}/new:leads`;
 
 /**
- * A message of the Library, open in its own drawer over Sequences by its name (`campaigns/message:<name>`): a template's
- * notice, an Activity line about it, the call's text. The one writer.
+ * A message's home: the Library, Campaigns' Messages view, open on it by its name (`campaigns/messages/<name>`, the
+ * Campaigns wiring review's rule A for a message, as a run's is under its sequence). A template's notice, an Activity line
+ * about it, the call's text, a step's message: the one writer. A press on one anywhere but the Library opens it over the
+ * page it was pressed on (shell/see-over.ts); its drawer over Sequences (`campaigns/message:<name>`) went, and lands here.
  */
-export const messageRoute = (name: string): string => `campaigns/message:${name}`;
+export const messageRoute = (name: string): string => `campaigns/messages/${encodeURIComponent(name)}`;
+
+/** The message a route opens in the Library (`campaigns/messages/<name>`, messageRoute's), or null for any other route. */
+export function messageOfRoute(route: string): string | null {
+  const [path = ""] = route.split("?");
+  const m = /^campaigns\/messages\/([^/#]+)$/.exec(path);
+  if (!m?.[1]) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * A sequence's replies in the Inbox (the canvas's History board: Replied is a door to the Inbox): `inbox/from:<id>` over

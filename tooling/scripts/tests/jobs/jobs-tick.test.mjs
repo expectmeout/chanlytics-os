@@ -218,7 +218,7 @@ test("a broadcast the ledger handed to a fresh run is told as carrying on, never
   ]) {
     const { ports, calls } = fakes([job("b", "broadcast_send", 1)], { throwOn: new Set(["b"]), settled });
     await runTick(ports, OPTS);
-    assert.equal(calls.alert[0].subject, "A broadcast stopped partway");
+    assert.equal(calls.alert[0].subject, "A run stopped partway");
     assert.match(calls.alert[0].body, /^It stopped and carries on in a fresh run\./, `${what}: the bell's line`);
     assert.doesNotMatch(calls.alert[0].body.split("\n")[0], /will not start again/, what);
     assert.match(
@@ -589,7 +589,7 @@ test("a send whose run died is never run a second time", async () => {
       [calls.alert[0].kind, calls.alert[0].subject, calls.alert[0].route],
       kind === "outbound_send"
         ? ["job_failed", "A message may not have been sent", "inbox"]
-        : ["job_failed", "A broadcast stopped partway", "campaigns/sequences"],
+        : ["job_failed", "A run stopped partway", "campaigns/sequences"],
       "the one alert that IS a job not finishing says so itself, in the owner's words, on the work's own page",
     );
     assert.equal(counts.gaveUp, 1);

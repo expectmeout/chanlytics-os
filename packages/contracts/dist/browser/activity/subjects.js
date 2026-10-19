@@ -35,7 +35,7 @@ export const ACTIVITY_SUBJECT_HOMES = {
   escalation: { lookup: "its thread, which the server reads off the handover (activity.ts, doors)" },
   deal: { lookup: "its person's page, which the server reads off the deal (activity.ts, doors)" },
   template: {
-    lookup: "the Library message, addressed by its name (campaigns/message:<name>), which the server reads off the template row; one deleted has no page"
+    lookup: "the Library message, addressed by its name (campaigns/messages/<name>, the Library open on it), which the server reads off the template row; one deleted has no page"
   },
   list: { lookup: "its page depends on what kind of list it is, which the log's list route says (listRoute)" },
   // The subjects that open nowhere, and why.

@@ -40,7 +40,7 @@ test("a run that did nothing says why, with the door that mends it, until a run 
   );
   assert.equal(calendar.off.mends, "door");
   assert.ok(calendar.off.to, "a door to the channels");
-  assert.equal(off("template_not_approved").off.to, "campaigns/message:come_back", "its message in Messages");
+  assert.equal(off("template_not_approved").off.to, "campaigns/messages/come_back", "its message in Messages");
   assert.deepEqual([off("no_list").act, off("no_list").off.mends], [null, null], "said, with nothing a door mends");
   const ended = off("ended");
   assert.deepEqual(

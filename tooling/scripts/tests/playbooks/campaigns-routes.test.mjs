@@ -8,7 +8,7 @@
  *   campaigns/sequences/<id>         a sequence open beside it     crumbs: Campaigns › <its name>
  *   campaigns/sequences/<id>/runs/<run>  a run's home, its one screen   crumbs: Campaigns › <its sequence> › <the run>
  *   campaigns/sequences/new[:once[:to:<list>]|:leads|:moment:<trigger>]  the one New   crumbs: Campaigns › New
- *   campaigns/message:<name>         a message's drawer over it    crumbs: Campaigns
+ *   campaigns/messages/<name>        a message at its home, in Messages   crumbs: Campaigns › Messages › <its title>
  *   campaigns, campaigns/moment:<id>, campaigns/in:<group>  retired: Sequences, or the campaign's sequence
  *   campaigns/new[:to:<list>|:leads|:every|:moment:<trigger>|:edit:<id>]  retired: the one New, or the sequence's record
  *   broadcasts[/run:<id>[/sheet]|/to-send|/get-yes|/<list>]  retired: Sequences, the run's home, the Inbox's To send,
@@ -130,12 +130,14 @@ test("the home's addresses, Sent's, and the composer's land in one move on the p
     runRoute("b-1", "sq-1"),
     sendOnceRoute("s1"),
     newForLeadsRoute(),
-    "campaigns/message:spring_offer",
+    "campaigns/messages/spring_offer",
     "campaigns/messages",
     TO_SEND_ROUTE,
     GET_YES_ROUTE,
   ])
     assert.equal(retiredRouteOf(kept), null, kept);
+  // A message's drawer over Sequences went into its home, the Library open on it (the framework's rating, 19 Oct 2026).
+  assert.equal(retiredRouteOf("campaigns/message:spring_offer"), "campaigns/messages/spring_offer");
 });
 
 test("a run's home is under its sequence, one screen whatever the run is (the Campaigns wiring review's lane 2)", () => {
@@ -284,6 +286,7 @@ test("the frame takes every address of Campaigns, and of its rooms: a sequence, 
     "campaigns/new:to:s1",
     "campaigns/new:edit:ch-1",
     "campaigns/message:spring_offer",
+    "campaigns/messages/spring_offer",
     "broadcasts",
     "broadcasts/run:b-1",
     "broadcasts/run:b-1/sheet",
@@ -318,8 +321,8 @@ test("a move between two addresses of Campaigns is the page's own: opening a seq
   assert.ok(onOnePage("campaigns/sequences/q-1", "campaigns/new"));
   assert.ok(onOnePage("campaigns/new", "campaigns/sequences"));
   assert.ok(
-    onOnePage("campaigns/sequences/q-1", "campaigns/message:spring_offer"),
-    "a step's message over its sequence",
+    onOnePage("campaigns/sequences/q-1", "campaigns/messages/spring_offer"),
+    "a message at its home is a view of the same mount",
   );
   assert.ok(onOnePage("campaigns/new:to:s1", "campaigns"));
   assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Sequences and Messages are one mount's two views");

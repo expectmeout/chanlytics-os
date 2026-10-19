@@ -50,7 +50,7 @@ function didLine(r, now, tz) {
     case "away":
       if (r.claim === "auto_reply" && r.until_at) {
         const back = clockDate(Date.parse(r.until_at), tz, now);
-        return `Away until ${back} (an automatic reply). The reach-out goes on after that.`;
+        return `Away until ${back} (an automatic reply). The sequence goes on after that.`;
       }
       return r.named_day ? `Away until ${replyDayWords(r.named_day, tz, now)}. A step is on Today for that day.` : step;
     default:
@@ -65,7 +65,7 @@ export function replyStripOf(r, now, tz) {
       title: "Wrote back",
       said,
       answers,
-      did: r.claim === "auto_reply" ? "Read as no, then undone. It was an automatic reply, so the reach-out goes on." : "Read as no, then undone. The reach-out stays stopped: they wrote back.",
+      did: r.claim === "auto_reply" ? "Read as no, then undone. It was an automatic reply, so the sequence goes on." : "Read as no, then undone. The sequence stays stopped: they wrote back.",
       doors: []
     };
   }

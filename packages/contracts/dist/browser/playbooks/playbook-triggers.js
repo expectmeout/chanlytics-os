@@ -87,7 +87,7 @@ export const PLAYBOOK_TRIGGERS = [
     list: null,
     cls: "outreach",
     kind: "reach_out",
-    hint: "The first email of a reach-out"
+    hint: "The first email to a lead"
   },
   {
     id: "after_step",
@@ -165,7 +165,7 @@ export function skippedRunNotice(name, people) {
 }
 export const PLAYBOOK_NAME_MAX = 80;
 export const CAMPAIGN_NOT_FOUND = "Campaign not found.";
-export const REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
+export const REACH_OUT_IS_NOT_A_MOMENT = "A sequence to leads starts from a search's leads, not at a moment.";
 export function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }

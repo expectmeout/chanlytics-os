@@ -101,7 +101,7 @@ export function campaignsOf(d, tz, nowMs) {
       when: at !== null ? clockDate(at, tz, nowMs) : "\u2014",
       outcome,
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Campaign" : "Broadcast"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
+      line: `${c.playbook_id ? "Campaign" : "Sent once"} \xB7 ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} \xB7 ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
       to: addressOf({ kind: "send", id: c.broadcast_id })
     };

@@ -145,7 +145,7 @@ test("once the thread is answered the derived row is gone and the notice stays a
   assert.equal(feed({ threads: [], notices: [notice(K1, C1)] })[0].unread, true);
 });
 
-test("only a hold's notices carry the derived row's marks: a reply to a reach-out about the same thread stays under it, unmarked", () => {
+test("only a hold's notices carry the derived row's marks: a reply from a lead about the same thread stays under it, unmarked", () => {
   const reply = notice(K2, C1, { kind: "reach_out_replied", title: "A business wrote back" });
   const rows = feed({ notices: [notice(K1, C1, { read: true }), reply] });
   assert.deepEqual(keys(rows), [`needs:th-${C1}`], "hidden while the thread waits, as dedupeFeed always hid it");

@@ -489,7 +489,7 @@ test("approving and canceling a run: judged where it lives; a run not waiting is
     cancel.POST.run(send("POST"), ctxFor(tables, { id: B4 })),
     "conflict",
     409,
-    "This broadcast has already been sent.",
+    "This send has already been sent.",
   );
   const skipped = await cancel.POST.run(send("POST"), ctxFor(tables, { id: B2 }));
   assert.deepEqual(skipped, { id: B2, state: "canceled", was: "pending_approval", decision_id: skipped.decision_id });
@@ -909,7 +909,7 @@ test("one template: hidden or titled through the definer doors; deleting is refu
     template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })),
     "conflict",
     409,
-    "A broadcast is still using this template.",
+    "A send is still using this message.",
   );
   tables.broadcasts[0].state = "sent";
   // REGRESSION (C8): a running playbook that sends it would skip every run from then on, and the delete said nothing.

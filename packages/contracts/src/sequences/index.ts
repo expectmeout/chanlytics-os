@@ -153,6 +153,7 @@ export {
   sendOnceRoute,
   newForLeadsRoute,
   messageRoute,
+  messageOfRoute,
   sequenceRepliesOf,
   sequenceRepliesRoute,
   TO_SEND_PARAM,

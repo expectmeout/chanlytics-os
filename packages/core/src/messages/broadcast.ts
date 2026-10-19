@@ -349,7 +349,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       kind: "broadcast_stopped",
       route: addressOf({ kind: "send", id: b.id }),
       about: { type: "broadcast", id: b.id },
-      subject: `Broadcast “${b.name}” stopped`,
+      subject: `Campaign “${b.name}” stopped`,
       body: whatsappStoppedRunWords(message),
     });
     return;
@@ -482,11 +482,11 @@ function finishedNews(
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: sent > 0 ? `Broadcast “${b.name}” sent` : `Broadcast “${b.name}” reached nobody`,
+    subject: sent > 0 ? `Campaign “${b.name}” sent` : `Campaign “${b.name}” reached nobody`,
     body:
       sent > 0
         ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.`
-        : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`,
+        : `None of the ${people(held)} on it got it: each was held back (${why}). The run's page says who and why.`,
   };
 }
 
@@ -609,7 +609,7 @@ async function stall(
     kind: "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” stopped`,
+    subject: `Campaign “${b.name}” stopped`,
     body: [
       `${what === "people" ? "The people on it" : WIRE_WORDS[what].credentials} could not be read for about half an hour, so the rest was not sent.`,
       gotIt(sent),
@@ -635,7 +635,7 @@ async function stopAfterHours(ports: BroadcastBatchPorts, b: StoppedRun, waited:
     kind: "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” stopped`,
+    subject: `Campaign “${b.name}” stopped`,
     body: [
       waited
         ? "It was waiting to go on when the day's sending hours ran out, so the rest was not sent."
@@ -686,7 +686,7 @@ async function stopForTheWire(
     kind: "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” stopped`,
+    subject: `Campaign “${b.name}” stopped`,
     body: theirs
       ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}`
       : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`,
@@ -717,7 +717,7 @@ async function stopForTheLimit(
     kind: "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” stopped`,
+    subject: `Campaign “${b.name}” stopped`,
     body: [
       `${words.reached}, so the rest was not sent.`,
       gotIt(sent),
@@ -781,7 +781,7 @@ async function backOff(
     kind: "broadcast_stopped",
     route: addressOf({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast “${b.name}” stopped`,
+    subject: `Campaign “${b.name}” stopped`,
     body:
       why === "throttled"
         ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}`

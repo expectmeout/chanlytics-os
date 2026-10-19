@@ -22,6 +22,7 @@ import {
   SEQUENCES_ROUTE,
   TO_SEND_PARAM,
   TO_SEND_ROUTE,
+  messageRoute,
   newForLeadsRoute,
   newSequenceRoute,
   runRoute,
@@ -133,6 +134,9 @@ function campaignsLandingOf(path: string, param: string): string | null {
   }
   const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+  // A message's drawer over Sequences went into its home, the Library open on it (messageRoute).
+  const drawer = /^message:([^/]+)$/.exec(param);
+  if (drawer?.[1]) return messageRoute(drawer[1]);
   if (param === "new:every") return newSequenceRoute();
   // The composer's sheet went into the one New (the Campaigns wiring review's lane 6): Send once, on its audience, and
   // Write to leads land on New for them; a reach-out's change lands on its sequence's record, which reads a sequence by

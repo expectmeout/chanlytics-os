@@ -28,8 +28,8 @@ const MERGED = [
   ],
   ["Ask on a phone: one thread, the three lead each answer, and the refinements (D1–D16)", true],
   ["Ask's contract is seven modules, none over 240 lines: a pure move, every export equal to main", true],
-  ["Reach out 5h: Today, the bell and Settings say a reply to a reach-out", true],
-  ["Reach out 5g: the Inbox shows a reply to a reach-out, read", true],
+  ["Reach out 5h: Today, the bell and Settings say a reply from a lead", true],
+  ["Reach out 5g: the Inbox shows a reply from a lead, read", true],
   ["Ask Rewired, Phase 5 planned: a follow-up is answered with what came before it", true],
   // One character either side of the limit.
   ["Today's view model is fourteen modules, none over 400 lines: a pure move, every export equal to main", true],

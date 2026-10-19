@@ -187,7 +187,7 @@ export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automate
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
   reach_out:
-    "They wrote back to your reach-out. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
+    "They wrote back to your sequence. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
 };
 
 export async function ingestEmail(

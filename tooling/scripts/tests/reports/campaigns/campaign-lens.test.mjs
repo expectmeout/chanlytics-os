@@ -21,8 +21,8 @@ const fold = (over = {}) =>
 const tile = (t) => [t.id, t.metric, t.label, t.value, t.meta, t.compare];
 const rows = (part) => part.rows.map((r) => [r.id, r.label, r.value]);
 /** The sentence the Runs that stopped card ends on, and what the stuck figure of failed runs adds: the two counts differ by kind alone. */
-const REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
-const STEP_COUNTS = "a reach-out's step counts too";
+const REACH_OUTS_UNDER = "Runs to leads are not counted here.";
+const STEP_COUNTS = "a step to leads counts too";
 
 const dayRow = (day, over = {}) => ({
   day,
@@ -151,16 +151,16 @@ test("a period that sent nothing says so, and what the reach-outs wrote if only 
   assert.equal(fold(quiet).head, "Nothing went out in this period.");
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, 9) }).head,
-    "Nothing went out in this period. Your reach-outs wrote 12 emails to 9 businesses.",
+    "Nothing went out in this period. Your sequences to leads wrote 12 emails to 9 businesses.",
   );
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(1, 1) }).head,
-    "Nothing went out in this period. Your reach-outs wrote 1 email to 1 business.",
+    "Nothing went out in this period. Your sequences to leads wrote 1 email to 1 business.",
   );
   // A database that does not count businesses yet (before 00404) says the emails alone; a reach-out that wrote none says nothing.
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, undefined) }).head,
-    "Nothing went out in this period. Your reach-outs wrote 12 emails.",
+    "Nothing went out in this period. Your sequences to leads wrote 12 emails.",
   );
   assert.equal(fold({ ...quiet, reachOuts: reachOutReport(0, 0) }).head, "Nothing went out in this period.");
   // The reach-outs are not in a head where campaigns went out: the head is the sends'.
@@ -661,11 +661,11 @@ test("each message's rate: the share who wrote back of the sends that have had t
 });
 
 test("the runs behind the sends, said once", () => {
-  assert.equal(fold().runsLine, "From 12 campaign runs and 2 one-off broadcasts.");
+  assert.equal(fold().runsLine, "From 12 campaign runs and 2 one-off sends.");
   const runs = (moment, broadcast) =>
     fold({ ledger: ledgerWith({ runs: { now: { moment, broadcast }, before: SERIES.runs.before } }) }).runsLine;
   assert.equal(runs(1, 0), "From 1 campaign run.");
-  assert.equal(runs(0, 1), "From 1 one-off broadcast.");
+  assert.equal(runs(0, 1), "From 1 one-off send.");
   assert.equal(runs(0, 0), null);
   assert.equal(fold({ ledger: null }).runsLine, null);
 });
@@ -923,7 +923,10 @@ test("nothing in the period: one quiet lens, every window part with its words, a
   // The reach-outs alone keep the period quiet and say what they wrote.
   const reachOnly = fold({ campaigns: CAMPAIGNS_QUIET, ledger: ledgerWith(QUIET), reachOuts: reachOutReport(12, 9) });
   assert.equal(reachOnly.quiet, true);
-  assert.equal(reachOnly.head, "Nothing went out in this period. Your reach-outs wrote 12 emails to 9 businesses.");
+  assert.equal(
+    reachOnly.head,
+    "Nothing went out in this period. Your sequences to leads wrote 12 emails to 9 businesses.",
+  );
   assert.equal(reachOnly.reachOuts.present, true);
   assert.equal(reachOnly.reachOuts.totals.written, 12);
 });
@@ -1026,7 +1029,7 @@ test("each read alone: the sends failing fails the sends and keeps the ledger's 
   assert.equal(vm.failedWhy.rows.length, 2);
   assert.equal(vm.byMessage.rows.length, 2);
   assert.equal(vm.firstReply.rows.length, 5);
-  assert.equal(vm.runsLine, "From 12 campaign runs and 2 one-off broadcasts.");
+  assert.equal(vm.runsLine, "From 12 campaign runs and 2 one-off sends.");
   assert.equal(vm.stuck.length, 5);
   // What was held is said, but not as a share of what was planned: the messages sent are not known.
   assert.deepEqual([vm.held.rows.length, vm.held.line], [4, null]);
@@ -1038,7 +1041,7 @@ test("each read alone: the reach-outs undefined are none, failed are one failure
   const failed = fold({ reachOuts: null });
   assert.equal(failed.reads.reachOuts, "failed");
   assert.deepEqual(failed.failed, [
-    { part: "reach_outs", what: "the reach-out numbers", body: "The rest of this page is current." },
+    { part: "reach_outs", what: "the numbers for leads", body: "The rest of this page is current." },
   ]);
   assert.equal(failed.reachOuts, null);
   const read = fold({ reachOuts: reachOutReport(12, 9) });
@@ -1063,7 +1066,7 @@ test("when more than one read failed, each failure says what could still be read
     },
     {
       part: "reach_outs",
-      what: "the reach-out numbers",
+      what: "the numbers for leads",
       body: "Only who it reached and what is stuck now could be read.",
     },
   ]);
@@ -1075,8 +1078,8 @@ test("when more than one read failed, each failure says what could still be read
   assert.deepEqual(
     stuckAndSends.failed.map((f) => [f.part, f.body]),
     [
-      ["campaigns", "Only who it reached and the reach-outs could be read."],
-      ["stuck", "Only who it reached and the reach-outs could be read."],
+      ["campaigns", "Only who it reached and the sequences to leads could be read."],
+      ["stuck", "Only who it reached and the sequences to leads could be read."],
     ],
   );
   const one = fold({ campaigns: null, ledger: dtoWith(null), reachOuts: null });

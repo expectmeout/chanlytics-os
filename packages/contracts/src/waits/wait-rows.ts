@@ -60,15 +60,23 @@ export function waitRowsOf<R extends RowRun>(
   return rows;
 }
 
+/** The first two by name, then how many more: "VIP color clients, Holiday gift cards and 1 more". */
+const approvalsSentence = (names: readonly string[]) =>
+  `${joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names)}. Each one you answer opens the next.`;
+
 /** The folded row's words: how many wait for an OK, who they are, and that each answer opens the next. */
 export const WAIT_ROW_WORDS = {
   approvals: {
     name: (n: number) => `${plural(n, "run waits", "runs wait")} for your OK`,
     meta: "Campaigns · ready",
-    /** The first two by name, then how many more: "VIP color clients, Holiday gift cards and 1 more". */
-    sentence: (names: readonly string[]) =>
-      `${joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names)}. Each one you answer opens the next.`,
+    sentence: approvalsSentence,
     status: [RUN_WAITING_WORDS],
     open: "Open",
+    /** Today's brief, saying the folded row once (contracts todayBriefWords): "4 runs wait for your OK: …". */
+    brief: (names: readonly string[]) => ({
+      label: plural(names.length, "run", "runs"),
+      says: names.length === 1 ? "waits for your OK" : "wait for your OK",
+      sentence: approvalsSentence(names),
+    }),
   },
 } as const;

@@ -6,9 +6,10 @@
  *
  * The frame's own move (legacy-bridge/workspace.ts goToRoute) asks `inPlace` before it moves: a press anywhere on a mention
  * of a run or a message -- a door (data-bits routeDoor), the bell's row, a page's own press -- opens the thing over the page
- * it was pressed on, rather than taking the person to the thing's home. Campaigns' own pages are the homes, and there a
- * press goes to the home as it did (the run beside Sequences' list). A move that asks for the home itself (the sheet's Open
- * in Campaigns) says so (`home`).
+ * it was pressed on, rather than taking the person to the thing's home. A run's home is beside Sequences' list, so on
+ * Campaigns' own pages a press on a run goes there; a message's is the Library (Messages), so only there does a press go
+ * to it, and on Sequences a step's message or the call's text opens over the list (Ruben, 11 Oct 2026: a message is never
+ * a page of its own). A move that asks for the home itself (the sheet's Open in Campaigns) says so (`home`).
  */
 import { SEE_PARAM, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "@chanlytics/contracts";
 import { overQuery } from "./over-query";
@@ -35,19 +36,23 @@ export function hearSeeOver(fn: () => void): () => void {
   return SEE.hear(fn);
 }
 
-/** The head of the route on screen: a Campaigns page is a home, where a press goes to the thing's home itself. */
-const HOMES = new Set(["campaigns", "broadcasts", "templates", "playbooks"]);
+/** The head of the route on screen where a run is at home: Campaigns' pages, where a press goes to the run's home itself. */
+const RUN_HOMES = new Set(["campaigns", "broadcasts", "playbooks"]);
+/** The path where a message is at home: the Library, Campaigns' Messages view (and its old path, `templates`). */
+const MESSAGE_HOME = /^\/w\/[^/?#]+\/(campaigns\/messages|templates)(\/|$)/;
 
 /**
- * Open a route's thing over the page, where it is one (a run's home, a message's drawer) and the page on screen is no home of
- * Campaigns': true where it opened, false for a route the move should go to. `route` as the shell names it (canonicalRoute).
+ * Open a route's thing over the page, where it is one (a run's home, a message's) and the page on screen is not where the
+ * thing is at home: true where it opened, false for a route the move should go to. `route` as the shell names it
+ * (canonicalRoute).
  */
 export function inPlace(route: string): boolean {
   if (typeof window === "undefined") return false;
   const ref = seeRefOfRoute(route);
   if (!ref) return false;
-  const head = /^\/w\/[^/?#]+\/([^/?#]*)/.exec(window.location.pathname)?.[1] ?? "";
-  if (HOMES.has(head)) return false;
+  const path = window.location.pathname;
+  const head = /^\/w\/[^/?#]+\/([^/?#]*)/.exec(path)?.[1] ?? "";
+  if (ref.kind === "run" ? RUN_HOMES.has(head) : MESSAGE_HOME.test(path)) return false;
   openSeeOver(ref);
   return true;
 }

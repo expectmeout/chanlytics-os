@@ -1198,7 +1198,7 @@ var EMAIL_REVIEW_WORDS = {
   person: "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
   automated: "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
-  reach_out: "They wrote back to your reach-out. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one."
+  reach_out: "They wrote back to your sequence. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one."
 };
 async function ingestEmail(ports, cmd) {
   const mailboxId = typeof cmd.payload.mailbox_id === "string" ? cmd.payload.mailbox_id : "";
@@ -1865,7 +1865,7 @@ async function stopForTheWorkspace(ports, b, why) {
     kind: "broadcast_stopped",
     route: runRoute(b.id),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
+    subject: `Campaign \u201C${b.name}\u201D ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
     body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger2(b.audience) })}`
   });
 }
@@ -2058,7 +2058,7 @@ async function sendBroadcastBatch(ports, cmd) {
       kind: "broadcast_stopped",
       route: addressOf3({ kind: "send", id: b.id }),
       about: { type: "broadcast", id: b.id },
-      subject: `Broadcast \u201C${b.name}\u201D stopped`,
+      subject: `Campaign \u201C${b.name}\u201D stopped`,
       body: whatsappStoppedRunWords(message)
     });
     return;
@@ -2145,8 +2145,8 @@ function finishedNews(b, { sent, held, counted }) {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
-    body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
+    subject: sent > 0 ? `Campaign \u201C${b.name}\u201D sent` : `Campaign \u201C${b.name}\u201D reached nobody`,
+    body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The run's page says who and why.`
   };
 }
 async function outsideTheHours(ports, b, cmd, timezone) {
@@ -2199,7 +2199,7 @@ async function stall(ports, b, cmd, what) {
     kind: "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    subject: `Campaign \u201C${b.name}\u201D stopped`,
     body: [
       `${what === "people" ? "The people on it" : WIRE_WORDS[what].credentials} could not be read for about half an hour, so the rest was not sent.`,
       gotIt(sent),
@@ -2218,7 +2218,7 @@ async function stopAfterHours(ports, b, waited) {
     kind: "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    subject: `Campaign \u201C${b.name}\u201D stopped`,
     body: [
       waited ? "It was waiting to go on when the day's sending hours ran out, so the rest was not sent." : "The day's sending hours ran out before it was done, so the rest was not sent.",
       gotIt(sent),
@@ -2244,7 +2244,7 @@ async function stopForTheWire(w, out, channel) {
     kind: "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    subject: `Campaign \u201C${b.name}\u201D stopped`,
     body: theirs ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}` : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`
   });
 }
@@ -2261,7 +2261,7 @@ async function stopForTheLimit(w, contactId, out, limit) {
     kind: "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    subject: `Campaign \u201C${b.name}\u201D stopped`,
     body: [
       `${words.reached}, so the rest was not sent.`,
       gotIt(sent),
@@ -2300,7 +2300,7 @@ async function backOff(ports, b, cmd, how) {
     kind: "broadcast_stopped",
     route: addressOf3({ kind: "send", id: b.id }),
     about: { type: "broadcast", id: b.id },
-    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    subject: `Campaign \u201C${b.name}\u201D stopped`,
     body: why === "throttled" ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}` : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.fine, `${words.fine}; send it again later.`, "tomorrow")}`
   });
 }
@@ -3167,7 +3167,7 @@ async function createBroadcast(ports, cmd) {
   const enrolled = enrolFor(pool, "everyone", null, null, purpose, how);
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
-    throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+    throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one send.`);
   const ahead = !timed.pressedNow;
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
   if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
@@ -3233,7 +3233,7 @@ async function createBroadcast(ports, cmd) {
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
-    throw new AppError12("internal", "The broadcast could not be created. Nothing was sent; try again.", 500);
+    throw new AppError12("internal", "The send could not be created. Nothing was sent; try again.", 500);
   }
   if (made.decisionId === null) throw new Error("createBroadcast: the run's door answered without its decision");
   return {
@@ -3360,10 +3360,10 @@ async function cancelBroadcast(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {
     const said = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
-    throw new AppError14("conflict", `This broadcast has ${said}.`, 409);
+    throw new AppError14("conflict", `This send has ${said}.`, 409);
   }
   if (!await ports.cancel(b.id, b.state))
-    throw new AppError14("conflict", "This broadcast just changed state; look again.", 409);
+    throw new AppError14("conflict", "This send just changed state; look again.", 409);
   if (b.state === "scheduled") await ports.withdraw(b.id);
   const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", {
     name: b.name,

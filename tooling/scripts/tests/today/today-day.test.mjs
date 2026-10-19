@@ -420,7 +420,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     initials: "BC",
     channel: "Email",
     when: "waited 2h",
-    sentence: "They wrote back to your reach-out. Nothing is sent without you.",
+    sentence: "They wrote back to your sequence. Nothing is sent without you.",
     quoted: false,
     status: ["Escalated", "Needs review", "since 2:04 PM"],
     tone: "escalated",

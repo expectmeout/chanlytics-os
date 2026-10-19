@@ -109,7 +109,7 @@ test("Start says what really happened, each reason in its own words; within the 
     said("held", "waiting_for_you", 30),
     "Planned 30 emails. The first run waits on you: open it to approve.",
   );
-  assert.equal(said("held", "waiting_for_you", 0), "A run of this reach-out already waits on you. Answer it first.");
+  assert.equal(said("held", "waiting_for_you", 0), "A run of this sequence already waits on you. Answer it first.");
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
   assert.equal(
     said("held", "no_mailbox"),
@@ -215,7 +215,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
   const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING });
   assert.equal(
     flat(w.sub),
-    "Reach-out · step 1, your email · goes from 9:40 AM once you approve it, one every 12 minutes as each business opens",
+    "To leads · step 1, your email · goes from 9:40 AM once you approve it, one every 12 minutes as each business opens",
   );
   assert.deepEqual([w.will, w.of], ["30 will get it today", "of 42"]);
   assert.deepEqual(w.why, [
@@ -235,12 +235,12 @@ test("the approval sheet says who today, who later, what the check held, and nam
   );
   assert.equal(flat(w.approve), "Approve — 30 from 9:40 AM");
   assert.equal(w.approveNote, null);
-  assert.equal(w.note, "Skipping loses this run only — the reach-out keeps its place and asks again tomorrow.");
+  assert.equal(w.note, "Skipping loses this run only — the sequence keeps its place and asks again tomorrow.");
   assert.deepEqual(w.held[0], {
     id: "s",
     name: "Hyde Park Bootcamp",
-    // Its lead, in the Leads peek: the sheet's name is a door to who it is (D1-lead-person-door).
-    to: `clients/leads:p-${LEAD}`,
+    // Its lead, opened over the page: the sheet's name is a door to who it is (D1-lead-person-door).
+    leadId: LEAD,
     why: "reads like a chain: 3 listings share their website",
     doors: [
       ["include", "Send as written"],
@@ -282,7 +282,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     today: "2026-09-28",
     now: MORNING,
   });
-  assert.match(dropped.sub, /^Reach-out · a step since removed · goes from/);
+  assert.match(dropped.sub, /^To leads · a step since removed · goes from/);
   // Today's run whose first time has passed goes from now, never at 9:40 once it is 10 (R21).
   const past = approvalWordsOf(RUN(), {
     timezone: "America/Chicago",
@@ -331,7 +331,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
   assert.equal(none.approve, "Approve — 0");
 });
 
-test("D1-lead-person-door: each held and each ready business carries its lead's address, built once (addressOf); none named, none carried", () => {
+test("D1-lead-person-door: each held and each ready business carries its lead's id, which its name opens over the page; none named, none carried", () => {
   const LEAD_READY = "9d3e5b21-7a64-4f0c-8e12-5c7a1d9b3e22";
   const run = RUN({
     planned: [
@@ -347,17 +347,17 @@ test("D1-lead-person-door: each held and each ready business carries its lead's 
     ],
   });
   const at = { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING };
-  assert.equal(approvalWordsOf(run, at).held[0].to, contracts.addressOf({ kind: "lead", id: LEAD }));
+  assert.equal(approvalWordsOf(run, at).held[0].leadId, LEAD);
   const said = contracts.reachOutRunWordsOf(run, { state: "pending_approval", ...at });
   assert.deepEqual(
-    said.list.map((x) => [x.name, x.to]),
+    said.list.map((x) => [x.name, x.leadId]),
     [
-      ["Studio Two", `clients/leads:p-${LEAD_READY}`],
+      ["Studio Two", LEAD_READY],
       ["Studio Three", null],
     ],
   );
   const noLead = approvalWordsOf(RUN({ held: [{ ...RUN().held[0], lead_id: undefined }] }), at);
-  assert.equal(noLead.held[0].to, null);
+  assert.equal(noLead.held[0].leadId, null);
 });
 
 const CHAIN = {
@@ -472,7 +472,7 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
     checkLabel: "What is checked before each send",
     checkNote:
       "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
-    edit: "Edit the reach-out",
+    edit: "Edit the sequence",
   });
 });
 

@@ -1244,7 +1244,7 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   // The receipt says who it went to and who was left out, from the route's answer.
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 }),
-    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
+    "Send “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
   );
   // Whether it was scheduled is the route's answer, not the card's time: one set for a time that passed before it was
   // approved went now; one the route set ahead is scheduled.
@@ -1252,11 +1252,11 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
   const answer = { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 };
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: false }),
-    "Broadcast “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
+    "Send “Visit note” — 1 person, sending now · 1 left out: they hear from you within a week of it",
   );
   assert.equal(
     PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: true }),
-    "Broadcast “Visit note” — 1 person, scheduled · 1 left out: they hear from you within a week of it",
+    "Send “Visit note” — 1 person, scheduled · 1 left out: they hear from you within a week of it",
   );
   // Nobody heard: the card is what it always was.
   const quiet = await propose(BROADCAST, heardBy());

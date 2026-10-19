@@ -231,7 +231,7 @@ test("writing a version: who may, and what is said in the person's words before 
     post(write({ name: "reach_out_0123456789abcdef0123456789abcdef", channel: "sms", body: "Hi" })),
     "validation",
     400,
-    "A reach-out sends email only.",
+    "A sequence to leads sends email only.",
   );
   await refused(post(write({ subject: "  " })), "validation", 400, "Give the email a subject.");
   await refused(post(write({ subject: null })), "validation", 400, "Give the email a subject.");

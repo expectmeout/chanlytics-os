@@ -198,7 +198,7 @@ test("every row, line and title a card draws is the fold's, and each offers its 
   }
   // The days card says the runs behind the sends; the channels card the report's own line and rows, in the colour each channel wears.
   assert.equal(lineOf(tree, "chart-campaigns"), v.runsLine);
-  assert.equal(v.runsLine, "From 12 campaign runs and 2 one-off broadcasts.");
+  assert.equal(v.runsLine, "From 12 campaign runs and 2 one-off sends.");
   assert.equal(lineOf(tree, "chart-campaign-channels"), v.report.lines.channels);
   assert.deepEqual(
     Object.fromEntries(rowsOf(tree, "chart-campaign-channels").map((r) => [r.id, r.color])),
@@ -206,7 +206,7 @@ test("every row, line and title a card draws is the fold's, and each offers its 
     "a channel is one colour wherever it is drawn",
   );
   // The sources are the report's own, with the table twin the card has always offered.
-  assert.equal(titleOf(tree, "chart-sources"), "By campaign and broadcast");
+  assert.equal(titleOf(tree, "chart-sources"), "By campaign and one-off send");
   assert.deepEqual(
     cardOf(tree, "chart-sources").props.table.rows.map((r) => r.slice(0, 2)),
     v.report.sources.map((x) => [x.name, x.kindLabel]),
@@ -530,7 +530,7 @@ test("a read that could not be made says so with its Retry, and never holds the 
     assert.ok(textOf(byTestId(none, "ro-failed")).includes("Nothing else on this page could be read either."));
     assert.equal(byTestId(none, "campaigns-failed-stuck"), null);
     assert.deepEqual(present(none, [...TIME_IDS, "campaigns-stuck"]), no([...TIME_IDS, "campaigns-stuck"]));
-    assert.deepEqual(sectionsOf(none), ["Campaigns", "Reach-outs"]);
+    assert.deepEqual(sectionsOf(none), ["Campaigns", "Sequences to leads"]);
     assert.deepEqual(dimmed(none), [], "nothing is dimmed: a dimmed card takes no press, and the Retry is on it");
     assert.equal(standingSaid().sentence, undefined, "the head says nothing of a read that failed");
   } finally {
@@ -758,9 +758,9 @@ test("the five parts, in order, for a workspace that has everything", () => {
   ];
   assert.deepEqual(inOrder(cards), cards, "the sentence's strip and mix, the waits, what is stuck, and the reach-outs");
   assert.deepEqual(inOrder(sections), sections, "and the three parts that follow the lens, in order");
-  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now", "Reach-outs"]);
+  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now", "Sequences to leads"]);
   // The lens's own sections are bare (their tab says it); the reach-outs, a part of their own under it, name themselves.
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Reach-outs"]);
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Sequences to leads"]);
   // Every row of cards fills the twelve columns.
   assert.deepEqual(rowsOfSpans(tree), [[5, 7], [4, 4, 4], [6, 6], [12], [6, 6], [4, 4, 4], [5, 7], [12]]);
   assert.deepEqual(metricsOf(byTestId(tree, "campaigns-stuck-strip")), STUCK_METRICS);
@@ -921,7 +921,7 @@ test("a quiet period hides neither the stuck nor the reach-outs, and draws no wi
   assert.deepEqual(present(tree, RO_CARDS), yes(RO_CARDS));
   assert.deepEqual(present(tree, ORDER), no(ORDER), "no strip and none of the window's cards");
   assert.deepEqual(present(tree, TIME_IDS), no(TIME_IDS), "and no waits of an empty window");
-  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Stuck now", "Reach-outs"]);
+  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Stuck now", "Sequences to leads"]);
   assert.deepEqual(rowsOfSpans(tree), [[4, 4, 4], [5, 7], [12]]);
   assert.equal(
     standingSaid().sentence,
@@ -929,7 +929,7 @@ test("a quiet period hides neither the stuck nor the reach-outs, and draws no wi
   );
   assert.equal(
     standingSaid().sentence,
-    "Nothing went out in this period. Your reach-outs wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your sequences to leads wrote 40 emails to 25 businesses.",
   );
   assert.doesNotMatch(textOf(tree), /NaN|Infinity/);
 });
@@ -1023,11 +1023,11 @@ test("the angles' bars grey where the businesses they are of are fewer than five
 test("the sources say a business once: the Businesses column, a door on a reach-out's name, a count where fewer than five", () => {
   const v = liveFoldOf({ reachOuts: reachOuts() }).reachOuts;
   const tree = draw({ own: everything() });
-  assert.equal(titleOf(tree, "ro-sources"), "By reach-out and step");
+  assert.equal(titleOf(tree, "ro-sources"), "By sequence and step");
   assert.equal(lineOf(tree, "ro-sources"), v.lines.sources);
   assert.match(lineOf(tree, "ro-sources"), /as it stands now/, "what came of each is state now, and the card says so");
   assert.deepEqual(headersOf(tree, "ro-sources"), [
-    "Reach-out",
+    "Sequence",
     "Written",
     "Delivered",
     "Businesses",
@@ -1078,7 +1078,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
   );
   // The table twin carries the Businesses column too.
   assert.deepEqual(cardOf(tree, "ro-sources").props.table.columns, [
-    "Reach-out",
+    "Sequence",
     "Written",
     "Delivered",
     "Businesses",
@@ -1309,7 +1309,7 @@ test("a reach-out period that wrote nothing is the old card with the fold's word
   const card = byTestId(tree, "ro-report-empty");
   assert.ok(card, "nothing written");
   assert.ok(textOf(card).includes("Nothing written") && textOf(card).includes(v.lines.empty), textOf(card));
-  assert.equal(v.lines.empty, "No reach-out wrote in the last 30 days.");
+  assert.equal(v.lines.empty, "No sequence to leads wrote in the last 30 days.");
   assert.ok(byTestId(tree, "rpt-reach-outs"), "the section is still there, under its heading");
   for (const id of RO_CARDS) assert.equal(byTestId(tree, id), null, `${id}: no card of nothing`);
   assert.equal(byTestId(tree, "ro-strip"), null, "and no strip of zeros");
@@ -1360,7 +1360,7 @@ test("the time cards and the stuck strip are absent where their functions are; a
   const roFailed = draw({ own: own({ reachOuts: null }) });
   const roFail = all(roFailed, (n) => n.props?.["data-testid"] === "ro-failed");
   assert.equal(roFail.length, 1, "one");
-  assert.ok(textOf(roFail[0]).includes("Couldn't read the reach-out numbers"), textOf(roFail[0]));
+  assert.ok(textOf(roFail[0]).includes("Couldn't read the numbers for leads"), textOf(roFail[0]));
   assert.ok(textOf(roFail[0]).includes("The rest of this page is current."));
   assert.ok(byTestId(roFailed, "rpt-reach-outs"), "under the section's own heading");
   assert.deepEqual(present(roFailed, RO_CARDS), no(RO_CARDS));

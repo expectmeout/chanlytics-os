@@ -4,8 +4,8 @@
  * one of the day alone (a run waiting, a last day, cold email) sits in the day lane under the dates with the all-day
  * events, two at most and then "+N", every one in Day view (Ruben, 18 Oct 2026: not in the column's head). In Month one
  * named line (a one-off send, a run waiting, a last day) and "+N"; in the agenda a row among the visits. A press opens the
- * day's sheet (the kit's, its kicker the day): each mark with its facts and its one door, Sent for a run and Campaigns for a
- * campaign, and the day's own send. Approve and Skip stay on the run's sheet and Today's row (decision 0048): the Calendar
+ * day's sheet (the kit's, its kicker the day): each mark with its facts and its one door, the run (opened over the Calendar)
+ * or the campaign (in Campaigns), a fold of several runs a door for each, and the day's own send. Approve and Skip stay on the run's sheet and Today's row (decision 0048): the Calendar
  * shows a run, it does not decide one.
  */
 import { CALENDAR_RUN_SHEET_WORDS as W, sendOnceRoute, type CalendarRunMark } from "@chanlytics/contracts";
@@ -71,8 +71,9 @@ export function DayMarks({
   );
 }
 
-/** One mark in the day's sheet: its words, what it folds, and its one door. */
+/** One mark in the day's sheet: its words, what it folds (each its own door), and its one door where it has one. */
 function sheetRow(m: CalendarRunMark) {
+  const to = m.route;
   return (
     <li key={m.key} className="cal-run-row" data-look={markLook(m)} data-testid="cal-run-row">
       <span className="cal-run-dot" aria-hidden="true" />
@@ -91,9 +92,11 @@ function sheetRow(m: CalendarRunMark) {
           </ul>
         ) : null}
       </div>
-      <Button variant="quiet" size="sm" onClick={() => navigate(m.route)} data-testid="cal-run-door">
-        {m.door} <Icon name="arrow-right" size={10} />
-      </Button>
+      {to ? (
+        <Button variant="quiet" size="sm" onClick={() => navigate(to)} data-testid="cal-run-door">
+          {m.door} <Icon name="arrow-right" size={10} />
+        </Button>
+      ) : null}
     </li>
   );
 }

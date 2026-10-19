@@ -108,9 +108,7 @@ const FOLD_WORDS: Record<string, FoldWords> = {
     counts: "subjects",
     split: (row) => row.text,
     many: (n, newest) =>
-      newest.text === REACH_OUT_EMAILED_WORDS
-        ? `${n} reach-out emails went to leads`
-        : `${n} leads were marked as emailed`,
+      newest.text === REACH_OUT_EMAILED_WORDS ? `${n} emails went to leads` : `${n} leads were marked as emailed`,
   },
   "lead.call": rows((n) => `${n} calls to leads were logged`),
   "google.reviews": rows((n) => `New Google reviews were read ${n} times`),

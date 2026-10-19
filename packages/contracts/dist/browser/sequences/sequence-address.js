@@ -34,7 +34,17 @@ export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:mom
 export const runRoute = (id, sequenceId) => `${SEQUENCES_ROUTE}/${sequenceId || id}/runs/${id}`;
 export const sendOnceRoute = (audience) => audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
 export const newForLeadsRoute = () => `${SEQUENCES_ROUTE}/new:leads`;
-export const messageRoute = (name) => `campaigns/message:${name}`;
+export const messageRoute = (name) => `campaigns/messages/${encodeURIComponent(name)}`;
+export function messageOfRoute(route) {
+  const [path = ""] = route.split("?");
+  const m = /^campaigns\/messages\/([^/#]+)$/.exec(path);
+  if (!m?.[1]) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
 export const sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
 export const TO_SEND_PARAM = "to-send";
 export const TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;

@@ -75,6 +75,15 @@ export interface TemplateListing {
 /** The key a message the workspace wrote is listed under, and opened by: its name. */
 export const customKey = (name: string): string => `c:${name}`;
 
+/** The message by its name in the Library's listing: a starter by its own name, a message the workspace wrote by its key. */
+export function groupNamed(groups: readonly TemplateGroup[], name: string): TemplateGroup | null {
+  return groups.find((g) => (g.starter ? g.starter.name === name : g.key === customKey(name))) ?? null;
+}
+
+/** A listed message's name, as its address says it (contracts messageRoute): a starter's own, else its key's. */
+export const nameOfGroup = (g: TemplateGroup): string =>
+  g.starter ? g.starter.name : g.key.slice(customKey("").length);
+
 /** The languages a message holds a version in, on any channel: WhatsApp's, an email's or a text's. */
 export const onFileOf = (g: TemplateGroup): TemplateRow[] => g.rows.filter((r) => r.row || r.message);
 

@@ -254,7 +254,7 @@ test("an email's queued row leaves as the request it was frozen with, to the add
     messageId: "m1",
     holdIfNotTaken: true,
   });
-  // A person's reply to a reach-out carries its twin on the chain's own domain (G15) beside the mailbox's request.
+  // A person's reply from a lead carries its twin on the chain's own domain (G15) beside the mailbox's request.
   const twin = { ...request, from: "Sam <sam@getharbor.example.com>" };
   const replied = fakes({ queued: { ...row, ownEmail: twin } });
   await core.sendQueued(replied.ports, byEmail());

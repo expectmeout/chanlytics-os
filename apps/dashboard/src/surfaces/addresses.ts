@@ -26,6 +26,7 @@ import {
   GET_YES_PARAM,
   GET_YES_ROUTE,
   MESSAGES_ROUTE,
+  messageOfRoute,
   isToSendParam,
   newConversationOf,
   parseLeadsRoute,
@@ -124,6 +125,9 @@ function opensCalendar(param: string): Opened | null {
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
   if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
+  // A message at its home, the Library open on it (contracts messageRoute).
+  const message = messageOfRoute(`campaigns/${param}`);
+  if (message) return { ref: { kind: "template", name: message } };
   const sequences = parseSequencesRoute(`campaigns/${param}`);
   // A run at its home under its sequence is the run (lane 2: addressOf's send).
   if (sequences?.view === "record" && sequences.run) return { ref: { kind: "send", id: sequences.run } };

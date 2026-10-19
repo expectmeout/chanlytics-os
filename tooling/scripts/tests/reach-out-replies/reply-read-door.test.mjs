@@ -364,7 +364,7 @@ test("a person's reply: the intake schedules one reading and tells nobody; the r
     const ingest = w.job("email_ingest", { mailbox_id: "mb1", received_id: email.id });
     assert.equal(await dispatchJob(w.ctx(email), ingest), "done");
     assert.equal(w.intakeTold.length, 0, "the intake does not tell: the reading does, with what it meant");
-    assert.match(w.tables.escalations[0].details, /^They wrote back to your reach-out/);
+    assert.match(w.tables.escalations[0].details, /^They wrote back to your sequence/);
     const jobs = w.readJobs();
     assert.equal(jobs.length, 1);
     const messageId = jobs[0].payload.message_id;

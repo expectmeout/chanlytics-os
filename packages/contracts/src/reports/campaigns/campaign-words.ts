@@ -42,7 +42,7 @@ export const NOTHING_WENT_OUT = "Nothing went out in this period.";
 export function reachOutsWroteWords(emails: number, businesses: number | undefined): string {
   if (emails === 0) return "";
   const to = businesses === undefined ? "" : ` to ${plural(businesses, "business", "businesses")}`;
-  return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
+  return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
 }
 
 /** The people the period's runs reached, and how many of them wrote back, against the period before's. */
@@ -149,7 +149,7 @@ export const heldBackLine = (held: number, sent: number): string =>
   `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
 
 /** Under the Runs that stopped card: the window counts a campaign's and a broadcast's runs; a reach-out's are its own part's (00405). */
-const REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
+const REACH_OUTS_UNDER = "Runs to leads are not counted here.";
 export const STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 export const CANCELED_KEY = "canceled";
 
@@ -200,7 +200,7 @@ export function messageRateWords(m: { sent: number; mature: number; replied: num
 export function runsLineWords(moment: number, broadcast: number): string | null {
   const kinds = [
     moment > 0 ? plural(moment, "campaign run") : null,
-    broadcast > 0 ? plural(broadcast, "one-off broadcast") : null,
+    broadcast > 0 ? plural(broadcast, "one-off send") : null,
   ].filter((kind): kind is string => kind !== null);
   return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
 }
@@ -261,7 +261,7 @@ export function runsWaitingMeta(n: number, late: number): string {
 
 const RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
 /** What the stuck figure counts that the window's card leaves out: it reads every kind of run (00406), a reach-out's step among them. */
-const REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
+const REACH_OUT_STEP_COUNTS = "a step to leads counts too";
 
 /**
  * The newest failed run, by name, and why (the words are the failure's own, broadcastFailureWords, as they read after a comma),
@@ -319,7 +319,7 @@ export const FAILED_WHAT: Readonly<Record<ReadPart, string>> = {
   campaigns: "the campaign numbers",
   ledger: "who it reached and what is stuck",
   stuck: "what is stuck now",
-  reach_outs: "the reach-out numbers",
+  reach_outs: "the numbers for leads",
 };
 
 /** What a part is called among those that could still be read. */
@@ -327,7 +327,7 @@ const STILL_READ: Readonly<Record<ReadPart, string>> = {
   campaigns: "the sends and their channels",
   ledger: "who it reached",
   stuck: "what is stuck now",
-  reach_outs: "the reach-outs",
+  reach_outs: "the sequences to leads",
 };
 
 export const REST_IS_CURRENT = "The rest of this page is current.";

@@ -47,7 +47,7 @@ export const POLICY_CLASS_WORDS = {
   // Reach out (Part 3): cold email to the businesses a search found. Never sent on its own (0064).
   outreach: {
     name: "Cold email to businesses a search found",
-    short: "Reach-outs",
+    short: "Sequences to leads",
     note: "how a new sequence to leads starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words"
   }
 };
