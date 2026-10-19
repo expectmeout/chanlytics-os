@@ -307,7 +307,7 @@ test("propose_campaign.run over the database in memory, from a table: each refus
   assert.deepEqual(read.broadcast.get(RUN), {
     kind: "broadcast",
     id: RUN,
-    route: `broadcasts/run:${RUN}`,
+    route: `campaigns/sequences/${RUN}/runs/${RUN}`,
     label: `Win-back · ${TODAY}`,
   });
   // The day check is the route's own rule, one sentence (contracts runDayPassed): today's run passes it.

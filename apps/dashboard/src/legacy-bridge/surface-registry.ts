@@ -38,6 +38,7 @@ import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusCha
 import { routeOnScreen } from "./workspace";
 import { hearMoves } from "./hearing/after-the-move";
 import { PAGE_HEARS, type PageCell } from "./hearing/page-hears";
+import { PERSON_ROUTE, ROUTE_DRAWS, ROUTE_WAITS, ROUTE_WAIT_MS } from "./hearing/route-draws";
 
 export type SurfaceState = "real" | "demo";
 
@@ -74,7 +75,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "campaigns/sequences": "real",
   "campaigns/messages": "real", // Campaigns › Messages (D4: the Library), a view kept beside Sequences under Campaigns' one mount (19 Oct 2026)
   content: "demo",
-  broadcasts: "real", // Sent's sheets (a run's, To send, Get their yes) beside Sequences' list; its own address lands on Sequences
+  broadcasts: "real", // Sent's addresses land on Campaigns' screens, the Inbox's To send and People's Get their yes (lanes 2, 4, 7)
   messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   // Settings, the page itself. Every pane it draws is classified below, and one nobody has listed is not a pane: Settings
@@ -163,9 +164,6 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/partner": "settings",
 };
 
-/** A person's page, as ROUTE_DRAWS names it. */
-export const PERSON_ROUTE = "clients/person";
-
 /**
  * The person a route opens (`clients/<id>`), or null. A real person's id is a uuid (the route refuses anything else,
  * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
@@ -178,125 +176,9 @@ export function personRouteId(page: string, param?: string | null): string | nul
     : null;
 }
 
-/**
- * What a page draws from surfaces other than its own, in the order the page
- * draws them, so a boot on that page reads them right after its own surface
- * (surface-runner.ts screenRank) rather than in the runner's fixed order.
- *
- * Today draws the day beside its queue from the calendar, the queue's runs from
- * broadcasts, the card's period line and Worth a look from the reports headline (one small read, never the whole report), the day's
- * playbook rows, the bell's rows for While you were away, a call in progress
- * from live, the card's Setup and Google lines, and from People the day card's
- * needs-someone flag and channel glyphs and Worth a look's people -- last,
- * because contacts is the heaviest read; the bands that read it draw without it
- * and again when it lands (surface:clients). Measured on the salon
- * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
- * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
- * beside it. The Calendar draws its campaign marks from their own span read. A
- * route absent here draws only its own surface.
- */
-export const ROUTE_DRAWS: Record<string, readonly string[]> = {
-  // Setup first: what is left to set up is drawn ABOVE the queue (surfaces/today/pages/setup-card.tsx TodaySetup), and read seventh it
-  // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
-  today: [
-    "setup",
-    "calendar",
-    "broadcasts",
-    "reports_headline",
-    "playbooks",
-    "notifications",
-    "live",
-    "google",
-    "people",
-    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
-    "reach_out_replies",
-    // The line and the runs' number: Live's strip and Sent's are made of the channels read (surfaces/channels/surface.ts).
-    "channels",
-    // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
-    // last read, which nothing on Today reads again.
-    "today_pins",
-  ],
-  // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
-  // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
-  // (contracts calendar-person-facts.ts), so a cold Calendar reads no People.
-  calendar: ["calendar_runs"],
-  // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
-  // watches the Live page's calls for the test call (first-run-try.ts).
-  start: ["settings", "live"],
-  // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
-  // head while that read is out, so People is read next. The person surface is the page's own read, heard there.
-  [PERSON_ROUTE]: ["people", "person"],
-  // Get their yes, a sheet over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): the number and the
-  // opt-in its code carries are Sent's read (campaigns/broadcasts/surface.ts), beside People's own.
-  "clients/get-yes": ["people", "broadcasts"],
-  // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
-  // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
-  // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
-  // read, nothing of People, started from the document's head with the Inbox's (the Inbox's run review, 18 Oct 2026).
-  inbox: ["reach_out_replies", "conversations", "broadcasts"],
-  // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
-  // surface, read beside each page's own.
-  // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
-  outbound: ["reach_outs", "channels"],
-  // Campaigns is Sequences' list (decision 0060): its own address, a group's (`in:<group>`) and a campaign's (`moment:<id>`)
-  // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
-  // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
-  campaigns: ["settings"],
-  // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
-  // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
-  "campaigns/message": ["playbooks", "settings", "channels"],
-  // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
-  // switch, and the messages a step may send (offered-templates.ts).
-  "campaigns/sequences": ["sequences", "settings"],
-  // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's.
-  messages: ["reach_outs", "playbooks", "channels"],
-  "campaigns/messages": ["reach_outs", "playbooks", "channels"],
-  // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
-  // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
-  // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).
-  broadcasts: ["sequences", "playbooks", "channels", "audiences"],
-  // Live's line, its number and its switch: the channels read, which Live is made of beside its calls.
-  live: ["channels"],
-  // The Reviews, Receptionist, People and Campaigns lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts,
-  // receptionist-surface.ts, people-surface.ts, campaigns-surface.ts): no other lens of Reports does, and the Pipeline's row says so
-  // (an empty one), or it would fall to the page's.
-  "reports/reviews": ["reports_reviews"],
-  "reports/receptionist": ["reports_receptionist"],
-  "reports/people": ["reports_people"],
-  "reports/campaigns": ["reports_campaigns"],
-  "reports/pipeline": [],
-  // The Ads lens (a demo session's, from the Ads sample) reads nothing of its own: an empty row, or it would fall to the Overview's
-  // read of the Campaigns lens.
-  "reports/ads": [],
-  // The Overview draws the Campaigns lens's reads for one fact, which campaign drew the most replies (the page makes it from
-  // `campaigns.sources`): the page's own row, which the Overview and a lens with no row of its own fall to. It is read as the
-  // Overview comes on screen and again when it has aged, never for each burst of messages (campaigns-surface.ts heardOnTheLens).
-  reports: ["reports_campaigns"],
-  // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
-  // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
-  // Its WhatsApp and phone rows are the channels read's (surfaces/channels/surface.ts).
-  "admin/integrations": ["google", "channels"],
-  // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
-  "admin/notifications": ["alerts"],
-};
-
-/**
- * What a page's first draw waits for besides its own surface: a band drawn ABOVE the page's own content, which would
- * push that content down if it landed after it. Today draws what is left to set up above its queue. A wait that
- * failed is over (the band says so where it would be, or draws nothing), and a wait never makes a page unavailable:
- * that is its own surface's to say, and a page whose own surface is in draws after ROUTE_WAIT_MS whatever else is
- * still out (app-shell.jsx).
- */
-export const ROUTE_WAITS: Record<string, readonly string[]> = {
-  today: ["setup"],
-  // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
-  // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
-  inbox: ["broadcasts"],
-  // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
-  // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
-  reports: ["workspace"],
-};
-export const ROUTE_WAIT_MS = 3000;
+// What each route draws beside its own surface, and what its first draw waits for: tables of their own
+// (hearing/route-draws.ts), read here.
+export { PERSON_ROUTE, ROUTE_DRAWS, ROUTE_WAITS, ROUTE_WAIT_MS };
 
 /**
  * The pane a param names. Settings' may name a Business row after its pane (`workspace/calendar`, a door from another
@@ -305,19 +187,26 @@ export const ROUTE_WAIT_MS = 3000;
  * would not have waited for the settings read at all.
  */
 function paneOf(page: string, param?: string | null): string | null | undefined {
+  // Every word after the page, as the bridge reads a route (routePartsOf), or its second word alone, as the shell's own table
+  // does: each page is fed by its first word.
+  const first = param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
   // Reports' param may say the days a member picked, alone or after its lens (`reviews:2026-09-01~2026-09-20`, contracts
   // lensRoute): the lens is what is classified and fed, and days alone are the Overview, which is the bare page.
-  if (page === "reports" && param) {
-    const at = reportsParamParts(param);
+  if (page === "reports" && first) {
+    const at = reportsParamParts(first);
     if (at) return at.lens === "overview" ? null : at.lens;
+  }
+  if (page === "campaigns" && param) {
+    // Sequences' two screens deeper in its address, each made of more than its list (the Campaigns wiring review's lanes 2
+    // and 6): a run at its home under its sequence (`sequences/<id>/runs/<run>`), of Sent's runs, and the one New
+    // (`sequences/new…`), of what Send once is made of.
+    if (/^sequences\/[^/]+\/runs\/[^/]+/.test(param)) return "sequences/runs";
+    if (/^sequences\/new(:|\/|$)/.test(param)) return "sequences/new";
   }
   // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), a message
   // (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
-  // Sequences' own addresses (a record, a run at its home, New) are its view's, `sequences`, as the shell parses a route: their
-  // screens ask for what they are made of beyond its list as they are drawn (use-surface.ts useReadsHere).
-  if (page === "campaigns" && param) return param.split(/[/:]/)[0] || param;
-  // A Settings pane's: the first word is what is fed.
-  return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
+  if (page === "campaigns" && first) return first.split(":")[0] || first;
+  return first;
 }
 
 /**
@@ -351,11 +240,17 @@ export { PAGE_HEARS, type PageCell };
 
 /* ------------------------- what a message re-reads ------------------------- */
 
-/** The page and its param a route names, as the shell parses it (app-shell.jsx parseRoute). */
-function pageOfRoute(route: string): { page: string; param: string | null } {
-  const [page, param] = route.split("/");
-  return { page: page || "today", param: param || null };
+/**
+ * The page a route names, and every word after it: what the registry asks of a route the bridge reads (paneOf feeds each
+ * page by its first word, and Sequences' deeper screens by theirs). The shell's own table parses the second word alone
+ * (app-shell.jsx parseRoute), which asks the same of every page but Sequences' deeper screens.
+ */
+export function routePartsOf(route: string): { page: string; param: string | null } {
+  const at = route.indexOf("/");
+  const page = at < 0 ? route : route.slice(0, at);
+  return { page: page || "today", param: at < 0 ? null : route.slice(at + 1) || null };
 }
+const pageOfRoute = routePartsOf;
 
 /** The scope of People that Leads is (`clients/leads…`), as PAGE_HEARS names it. */
 const LEADS_SCOPE = "clients/leads";

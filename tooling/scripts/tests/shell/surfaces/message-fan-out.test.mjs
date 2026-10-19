@@ -200,7 +200,7 @@ test("a receipt reads the threads everywhere, and the counts made of receipts wh
     // Campaigns lands on Sequences' list, which counts no receipt, and its composer is Send once and Write to leads alone
     // since its Every time went (the closed-loop audit of 17 Oct 2026, G): neither draws a count made of them.
     "#/campaigns": { now: THREADS, back: [] },
-    "#/campaigns/new": { now: THREADS, back: [] },
+    "#/campaigns/sequences/new:once": { now: THREADS, back: [] },
     "#/broadcasts": { now: ["broadcasts", ...THREADS], back: [] },
     "#/reports/campaigns": { now: [...THREADS, "reports_campaigns"], back: [] },
   };
@@ -375,7 +375,7 @@ test("Campaigns' landing hears what Sequences hears, and its composer owns what 
       "read once, as the list it draws comes back; nothing of its sheets'",
     );
     r.asked.length = 0;
-    win.location.hash = "#/campaigns/new";
+    win.location.hash = "#/campaigns/sequences/new:once";
     win.dispatchEvent({ type: "popstate" });
     await settle();
     assert.deepEqual(
@@ -810,7 +810,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' composer, Today's headline and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
+test("the page that owns what it draws is an explicit one: the surface registry names New's Send once, Today's headline and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
   // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
   assert.equal(owns("reports_reviews", "reports/reviews"), true);
@@ -865,7 +865,7 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   // The composer draws Send once and Write to leads alone since its Every time went (the closed-loop audit of 17 Oct
   // 2026, G): neither it nor Campaigns' landing, Sequences' list, owns the playbooks or Campaigns' 30 days.
   for (const key of ["playbooks"]) {
-    assert.equal(owns(key, "campaigns/new"), false, `the composer does not own ${key}`);
+    assert.equal(owns(key, "campaigns/sequences/new:once"), false, `the composer does not own ${key}`);
     assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
   }
   assert.equal(owns("playbooks", "campaigns/message:hello"), true, "a message's drawer waits for the playbooks");
@@ -873,22 +873,30 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   // pause on offers and the Send by ticks: owned there for what moves those (a cell of kinds), and left to Sent for a message,
   // which moves a run's replies.
   for (const key of ["audiences", "broadcasts"]) {
-    assert.equal(owns(key, "campaigns/new"), true, `${key}: drawn in the composer, for some kinds`);
+    assert.equal(owns(key, "campaigns/sequences/new:once"), true, `${key}: drawn in the composer, for some kinds`);
     assert.equal(owns(key, "campaigns"), false, `${key}: and not on Campaigns' landing`);
-    assert.equal(registry.ownsTable(key, "messages", "campaigns/new"), false, `${key}: a message is re-read on Sent`);
+    assert.equal(
+      registry.ownsTable(key, "messages", "campaigns/sequences/new:once"),
+      false,
+      `${key}: a message is re-read on Sent`,
+    );
   }
   assert.equal(
-    registry.ownsTable("audiences", "contacts", "campaigns/new"),
+    registry.ownsTable("audiences", "contacts", "campaigns/sequences/new:once"),
     true,
     "a person's answer moves who can hear you",
   );
-  assert.equal(registry.ownsTable("broadcasts", "contacts", "campaigns/new"), false, "and moves no run");
+  assert.equal(registry.ownsTable("broadcasts", "contacts", "campaigns/sequences/new:once"), false, "and moves no run");
   assert.equal(
-    registry.ownsTable("audiences", "segments", "campaigns/new"),
+    registry.ownsTable("audiences", "segments", "campaigns/sequences/new:once"),
     true,
     "a list To offers moves who can hear you",
   );
-  assert.equal(registry.ownsTable("broadcasts", "tenant_channels", "campaigns/new"), true, "a number moves Send by");
+  assert.equal(
+    registry.ownsTable("broadcasts", "tenant_channels", "campaigns/sequences/new:once"),
+    true,
+    "a number moves Send by",
+  );
   // Settings is drawn there whole: a message's drawer is the Library's pane, which says what sends it (the playbooks and runs its
   // read joins: W-campaign-run-template-reachout-2), as the Library itself does; and Sequences' step editor offers its messages.
   for (const route of ["campaigns", "campaigns/message:hello", "messages"])
@@ -898,11 +906,11 @@ test("the page that owns what it draws is an explicit one: the surface registry 
       `a run moves what sends a message, on ${route}`,
     );
   assert.equal(registry.ownsTable("settings", "sequence_batches", "today"), false, "and is kept for them elsewhere");
-  // The reach-outs are drawn there for a change to one (`new:edit:<root>`); they have no table of their own to refresh on a
-  // message, but a route that draws them owns them for the refreshes that name a page. Settings is drawn there: the templates
-  // Send once offers are the settings read's, the one read of them (surfaces/offered-templates.ts).
-  assert.equal(owns("reach_outs", "campaigns/new"), true);
-  assert.equal(owns("settings", "campaigns/new"), true);
+  // The reach-outs were drawn in the composer for a change to one (`new:edit:<root>`), which lands on its sequence's record
+  // now (the Campaigns wiring review's lane 6): New draws none. Settings is drawn there: the templates Send once offers are
+  // the settings read's, the one read of them (surfaces/offered-templates.ts).
+  assert.equal(owns("reach_outs", "campaigns/sequences/new:once"), false);
+  assert.equal(owns("settings", "campaigns/sequences/new:once"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
   // feed there, a long wait later: reports/headline.ts), the replies to a reach-out its queue draws, and the setup band, which hears

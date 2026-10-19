@@ -214,7 +214,7 @@ test("the campaign that drew the most replies, and for the same replies the one 
   );
   assert.equal(one.sub, "1 of 40 was answered", "the verb agrees with the count");
   assert.doesNotMatch(JSON.stringify([c, one]), /wrote back/);
-  assert.deepEqual(c.door, { label: "Open it", to: "broadcasts/run:b1" });
+  assert.deepEqual(c.door, { label: "Open it", to: "campaigns/sequences/b1/runs/b1" });
   const tied = campaigns([
     source("p1", "playbook", "Win-back", 40, 6),
     source("p2", "playbook", "Quiet for a month", 12, 6),

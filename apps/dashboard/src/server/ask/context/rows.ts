@@ -15,7 +15,7 @@ export interface ContextRow {
   source: string;
   /** The name the page shows for it. */
   title: string;
-  /** who · state · last activity · `route: <where it opens>`, 160 characters at most. */
+  /** who · state · last activity · `route: <where it opens>`, 160 characters at most where the route is short (line). */
   text: string;
   /** The row a citation may name, as its reader gave it: every kind of row a page shows is one (a run, a broadcast). */
   ref: RowRef | null;
@@ -31,9 +31,20 @@ export type Provider = (rc: ReaderContext, ctx: PageContext) => Promise<Provided
 
 /**
  * The caps (the plan, D11): rows, a row's line, a title, the aggregate, and every block together, in characters. A
- * title is a name as a prompt may show one (contracts promptSafeName), so its cap is that one's.
+ * title is a name as a prompt may show one (contracts promptSafeName), so its cap is that one's. A row's line is `text`
+ * long at most, but its facts keep `parts` before its route however long the route: a run's home is two ids
+ * (`campaigns/sequences/<id>/runs/<id>`, the Campaigns wiring review's lane 2), and at 160 it left a run's name, state,
+ * reach and sends 52 characters. `line` is what no line passes.
  */
-export const CONTEXT_CAPS = { rows: 40, text: 160, title: PROFILE_NAME_MAX, aggregate: 1_200, total: 8_000 } as const;
+export const CONTEXT_CAPS = {
+  rows: 40,
+  text: 160,
+  parts: 90,
+  line: 220,
+  title: PROFILE_NAME_MAX,
+  aggregate: 1_200,
+  total: 8_000,
+} as const;
 
 /** Cut to `n` characters, the cut said with an ellipsis. */
 export const clip = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, Math.max(0, n - 1))}…`);
@@ -51,7 +62,7 @@ const parts = (xs: Part[]): string[] =>
  */
 export function line(xs: Part[], route: string | null): string {
   const tail = route ? ` · route: ${route}` : "";
-  return clip(parts(xs).join(" · "), CONTEXT_CAPS.text - tail.length) + tail;
+  return clip(parts(xs).join(" · "), Math.max(CONTEXT_CAPS.text - tail.length, CONTEXT_CAPS.parts)) + tail;
 }
 
 /** The page's aggregate: its parts between dots. */

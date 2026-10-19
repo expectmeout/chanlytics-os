@@ -225,7 +225,8 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
 });
-const { BroadcastsPage, BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastSend, BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
 const { bcWhenNote, BcWhenPick } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 const { BroadcastDetail, BcRunVerbs } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
@@ -340,18 +341,53 @@ broadcasts.detail = async (id) => {
     }
   );
 };
+/** What the screens are drawn from: Sent's runs, with who each audience reaches once that is read (the page's own read). */
+const dataNow = () => {
+  const live = surfaceValue("broadcasts");
+  return live ? { ...surfaceValue("audiences"), ...live } : null;
+};
+/** Whether New, which hosts the send screen, has been told it was left (sent, scheduled or cancelled): it closes then. */
+let left = false;
+/**
+ * The send screen as the one New hosts it (home/new-message.tsx NewOnce: the Campaigns wiring review's lane 6), on the
+ * audience its address names: its toast the host's, its door to their yes New's address replaced, and New closed once the
+ * screen says it was left. Sent's page, which hosted it beside Sequences' list, went with its mount.
+ */
+function SendHost({ initialSegment = null }) {
+  const data = dataNow();
+  if (left || !data) return null;
+  return globalThis.React.createElement(BroadcastSend, {
+    data,
+    initialSegment,
+    flash: (t) => toasts.push(t),
+    onDone: () => {
+      left = true;
+    },
+    // The door to their yes moves New itself: its address is replaced by People's sheet's, and New is left with it.
+    onYes: (route) => {
+      went.push(route);
+      left = true;
+    },
+  });
+}
+/**
+ * What a test asks to see: a run's one screen at its home (`initialRun`: BroadcastRun, lane 2), People's Get their yes
+ * (`initialYes`: lane 7), else the send screen as New hosts it, on the audience named.
+ */
+const screen = (props) => {
+  if (props.initialRun) return BroadcastRun({ id: props.initialRun });
+  if (props.initialYes) return globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
+  return SendHost(props);
+};
 const page = (props) => {
   fresh();
-  return BroadcastsPage(props);
+  left = false;
+  return screen(props);
 };
-const again = (props) => drawAgain(() => BroadcastsPage(props));
-/**
- * The composer, opened the way the page still opens it: a link that names a list is asking to write to it. The Sent room's own
- * New message is the home's address (campaigns/new: home/new-message.tsx hosts this same screen, in a sheet), so the page no
- * longer opens the screen for it; this one names no list the page has, which opens it on the audience it would have opened on.
- */
+const again = (props) => drawAgain(() => screen(props));
+/** The send screen, open on the audience named, or on the one it opens on where none is: drawn twice, as a page settles. */
 const writing = (props) => {
-  page({ ...props, initialSegment: props.initialSegment ?? "no-such-list" });
+  page(props);
   return again(props);
 };
 /**
@@ -675,7 +711,7 @@ test("REGRESSION: Send it again puts right a slot a run filled with what it cann
     page(props);
     await settle();
     press(byTestId(again(props), "bc-again"));
-    assert.equal(went.at(-1), "campaigns/new", "Campaigns' composer, filled with what the run sent");
+    assert.equal(went.at(-1), "campaigns/sequences/new:once", "New's Send once, filled with what the run sent");
     const tree = sentAgain();
     assert.deepEqual(
       slotsOf(tree),
@@ -781,7 +817,11 @@ test("an opened run is sent again from its own head: Campaigns' composer, filled
     await settle();
     let tree = again(props);
     press(byTestId(tree, "bc-again"));
-    assert.equal(went.at(-1), "campaigns/new", "onto Campaigns' composer, pushed, so Back returns to the run");
+    assert.equal(
+      went.at(-1),
+      "campaigns/sequences/new:once",
+      "onto New's Send once, pushed, so Back returns to the run",
+    );
     tree = sentAgain();
     assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
     assert.ok(audienceOf(tree).startsWith("Regulars"), "its list");
@@ -971,7 +1011,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     // Approved, the next run waiting opens.
     await press(byTestId(tree, "bc-sheet-approve"));
     assert.deepEqual(approved, ["b-wait"]);
-    assert.equal(went.at(-1), "broadcasts/run:b-wait-2/sheet", "a queue of two is two presses");
+    assert.equal(went.at(-1), "campaigns/sequences/pb-1/runs/b-wait-2", "a queue of two is two presses, at its home");
 
     // Skip arms before it acts, as every stop on the page does (D13).
     const skipped = [];
@@ -994,7 +1034,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     );
     await press(byTestId(tree, "bc-sheet-skip-yes"));
     assert.deepEqual(skipped, ["b-wait"]);
-    assert.equal(went.at(-1), "broadcasts/run:b-wait-2/sheet");
+    assert.equal(went.at(-1), "campaigns/sequences/pb-1/runs/b-wait-2");
 
     // A run whose day has passed is refused by approveRun: the sheet says why, and offers the skip.
     const stale = { ...first, run_for: "2020-01-01" };
@@ -1246,26 +1286,23 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(textOf(card).includes("each said yes to offers"), false, "the counts stand where the rules stood");
   // Of every reason, the one an owner can change opens where it is changed.
   press(byTestId(card, "bc-sheet-door"));
-  assert.equal(went.at(-1), "broadcasts/get-yes");
+  assert.equal(went.at(-1), contracts.GET_YES_ROUTE, "People's Get their yes");
 });
 
-test("Sent's list went to each sequence's History (decision 0060, D3): its page is Sequences' list, with what its address opens beside it, and nothing at rest", () => {
+test("Sent drew the send screen beside Sequences' list; New's Send once hosts it now, opened on a list's old address and told when it is left", () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
-  const props = { initialSegment: null, initialRun: null };
-  let tree = page(props);
-  const split = byTestId(tree, "broadcasts-real");
-  assert.ok(String(split.props.className).includes("sq-page"), "Sequences' page, its list on the left");
+  // A link that names a list is asking to write one (the app moves `broadcasts/<list>` to `campaigns/sequences/new:once:to:<list>`,
+  // contracts retiredRouteOf): the send screen opens on that list, and Cancel, its Close, tells New it was left.
+  assert.equal(contracts.retiredRouteOf("broadcasts/s1"), "campaigns/sequences/new:once:to:s1");
+  let tree = page({ initialSegment: "s1", initialRun: null });
+  assert.ok(byTestId(tree, "bc-composer"), "People's 'message this list' lands on the send screen");
   assert.equal(byTestId(tree, "bc-band"), null, "no list of runs: a run is a day of its sequence's History");
-  assert.equal(byTestId(tree, "bc-run-solo"), null, "nothing open beside the list at rest");
-  assert.equal(byTestId(tree, "bc-composer"), null);
-  // A link that names a list is asking to write one: the composer opens on that list in the pane beside the list, and Cancel
-  // closes the pane. (The app moves such a link to Campaigns' composer, contracts retiredRouteOf.)
-  tree = page({ initialSegment: "s1", initialRun: null });
-  assert.ok(byTestId(tree, "bc-composer"), "People's 'broadcast to this list' lands on the composer");
-  assert.equal(byTestId(tree, "bc-compose-close").props["aria-label"], "Cancel", "its Close is the composer's Cancel");
+  assert.equal(byTestId(tree, "bc-compose-close").props["aria-label"], "Cancel", "its Close is the screen's Cancel");
   press(byTestId(tree, "bc-compose-close"));
+  // The screen says it was left as it draws again; New closes on its next draw.
+  again({ initialSegment: "s1", initialRun: null });
   tree = again({ initialSegment: "s1", initialRun: null });
-  assert.equal(byTestId(tree, "bc-composer"), null);
+  assert.equal(byTestId(tree, "bc-composer"), null, "New closes as the screen says it was left");
 });
 
 test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR -- it said 'the phrase and QR below', and since the send became its own screen nothing is below it", () => {
@@ -1307,17 +1344,18 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
       "the way to their yes is the door, in the sentence that names it",
     );
 
-    // Pressed: the send screen closes onto Get their yes, its pane beside Sequences' list, where the QR is.
+    // Pressed: the send screen closes onto Get their yes, People's sheet, where the QR is (the Campaigns wiring review's
+    // lane 7).
     press(door);
     assert.equal(went.at(-1), contracts.GET_YES_ROUTE, "where every other 'nobody has said yes' goes (#663)");
+    assert.equal(contracts.GET_YES_ROUTE, "clients/get-yes");
     tree = again(props);
     assert.equal(
       byTestId(tree, "bc-composer"),
       null,
       "REGRESSION: navigating while the send screen was up kept it up, and the card undrawn",
     );
-    assert.ok(byTestId(tree, "bc-optin"), "the pane the door is for");
-    // Then the shell follows the address it went to, broadcasts/get-yes, which names no list: the send stays shut.
+    // Then the shell follows the address it went to, People's sheet, which names no list: the send stays shut.
     tree = again({ ...props, initialYes: true });
     assert.equal(byTestId(tree, "bc-composer"), null);
     assert.ok(byTestId(tree, "bc-optin"));
@@ -1477,8 +1515,8 @@ test("REGRESSION: the send screen tells a list with no number from a list with n
   // People says the same of the same list, and nothing to press (contracts broadcastStep, #663).
   assert.deepEqual(contracts.savedListAction("s-reg", on(["c-ana", "c-luis"])), {
     text: "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
-    cta: "Use in a broadcast",
-    to: "campaigns/new:to:s-reg",
+    cta: "Send them a message",
+    to: "campaigns/sequences/new:once:to:s-reg",
     enabled: false,
   });
 
@@ -2058,7 +2096,7 @@ test("each run opens on a pane of its own: the open run's filter and expanded ro
   assert.equal(second.props.key, "b-sent-2");
 });
 
-test("the run open beside Sequences' list is the address's: closing it goes back to where it was opened from, else onto Sequences, and a link out pushes one", async () => {
+test("the run open at its home is the address's: closing it goes back to where it was opened from, else onto its sequence's History, and a link out pushes one", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   const calls = [];
@@ -2078,10 +2116,10 @@ test("the run open beside Sequences' list is the address's: closing it goes back
     press(door);
     assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its sequence, by the sequence's own id the run names");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
-    // Closed with no frame to say what opened it (a link, a reload): onto Sequences, never a Back out of the app. The frame's
-    // own Back to the opener is the shell's (shell-status.test.mjs).
+    // Closed with no frame to say what opened it (a link, a reload): onto its sequence's History, the days it is one of,
+    // never a Back out of the app. The frame's own Back to the opener is the shell's (shell-status.test.mjs).
     press(byTestId(tree, "bc-detail-close"));
-    assert.equal(went.at(-1), "campaigns/sequences");
+    assert.equal(went.at(-1), "campaigns/sequences/pb-1/history");
     assert.equal(calls.length, before, "nothing replaced here: the page is left as it is drawn");
     tree = again(props);
     assert.ok(
@@ -2914,7 +2952,7 @@ test("Send now asks before it sends, and the question names the template, its la
   // The receipt's one door out, in the verb the row itself uses: a message
   // already delivered stays delivered, so it is not offered as an Undo.
   assert.equal(toasts.at(-1).action.label, "Stop it");
-  assert.equal(toasts.at(-1).links[0].to, "broadcasts/run:b-new");
+  assert.equal(toasts.at(-1).links[0].to, "campaigns/sequences/b-new/runs/b-new");
 });
 
 test("The preview is the message as the customer receives it: the name in the chat header, what fills per person marked, a link drawn as one, and the hour it really goes", () => {
@@ -5343,7 +5381,7 @@ test("Send it again finds the message a run sent by its name and language: a Wha
     let tree = again(props);
     assert.ok(byTestId(tree, "bc-again"), "the run can be sent again: its message is still there, by name");
     press(byTestId(tree, "bc-again"));
-    assert.equal(went.at(-1), "campaigns/new", "onto Campaigns' composer");
+    assert.equal(went.at(-1), "campaigns/sequences/new:once", "onto New's Send once");
     tree = sentAgain();
     assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
     assert.equal(pickerOf(tree, "bc-template").props.value, "autumn_offer", "on its message");

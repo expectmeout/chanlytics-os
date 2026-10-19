@@ -8,22 +8,22 @@ import { broadcastSlots, messagesOffered, type TemplatesRead } from "./offered";
 /**
  * Campaigns' sends on a real workspace: the send screen, Get their yes and a run's report.
  *
- * Sent's list went to each sequence's History (decision 0060, D3): its address lands on Sequences, and what it opened stands
- * beside Sequences' list at its own address -- a run's report (`broadcasts/run:<id>/sheet`) and Get their yes
- * (`broadcasts/get-yes`). The send screen is Campaigns' composer, in a sheet from the side at `campaigns/new` (a date's New
- * opens it), the audience a token in the To sentence, which says how many of the list can hear the message, the templates
- * the ones the page can send (or the honest line), and the number what WhatsApp has said about it. Sending is never done
- * here — the workspace keeps no test broadcast — but the send button must be disabled whenever nobody on the chosen
- * audience has said yes.
+ * Sent's list went to each sequence's History (decision 0060, D3), and its mount with the Campaigns wiring review (19 Oct
+ * 2026): its addresses land where their pages went -- a run's report (`broadcasts/run:<id>/sheet`) at the run's home under
+ * its sequence, and Get their yes (`broadcasts/get-yes`) on People's sheet (`clients/get-yes`). The send screen is New's
+ * Once (`campaigns/sequences/new:once`, where the composer's `campaigns/new` lands), the audience a token in the To
+ * sentence, which says how many of the list can hear the message, the templates the ones the page can send (or the honest
+ * line), and the number what WhatsApp has said about it. Sending is never done here — the workspace keeps no test
+ * broadcast — but the send button must be disabled whenever nobody on the chosen audience has said yes.
  */
 const INVENTED = ["credits", "Booked from broadcasts", "April win-back", "Serenity"];
 
-/** The composer, Campaigns' sheet at `campaigns/new` (its foot and its Cancel are the send screen's own), by its address. */
+/** The send screen, New's Once (its foot and its Cancel the screen's own), by the composer's old address, which lands there. */
 async function openComposer(page: Page) {
   await page.goto("/#/campaigns/new");
   await page.waitForLoadState("networkidle");
-  await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
-  const composer = page.getByTestId("cmh-composer").getByTestId("bc-composer");
+  await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:once$/));
+  const composer = page.getByTestId("bc-composer");
   await expect(composer).toBeVisible();
   return composer;
 }
@@ -122,35 +122,37 @@ test.describe("Broadcasts on a real workspace", () => {
       await expect(composer.getByTestId("tpl-preview")).toContainText("{{1}}");
     }
 
-    // Cancel closes the sheet, which a link arrived at: the address goes to Sequences. Get their yes holds how a customer says
-    // yes: the code and the phrase, whenever there is a number.
-    // The sheet's Close, which presses the composer's own Cancel (hidden in the sheet: home/pane-sheet.tsx).
-    await page.getByRole("dialog").getByLabel("Close", { exact: true }).click();
+    // Cancel closes New, which a link arrived at: the address goes to Sequences. Get their yes, People's sheet, holds how a
+    // customer says yes: the code and the phrase, whenever there is a number.
+    await page.getByTestId("bc-compose-close").click();
     await expect(page.getByTestId("bc-composer")).toHaveCount(0);
     await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
     await page.goto("/#/broadcasts/get-yes");
-    const real = page.getByTestId("broadcasts-real");
-    await expect(real).toBeVisible();
+    await expect(page).toHaveURL(atRoute(/^clients\/get-yes$/));
+    const yes = page.getByTestId("bc-optin");
+    await expect(yes).toBeVisible();
     if (hasNumber) {
-      await expect(real.getByTestId("bc-optin")).toBeVisible();
-      await expect(real.getByTestId("bc-optin")).toContainText("YES OFFERS");
+      await expect(yes).toContainText("YES OFFERS");
       const qr = await apiGet(page, "/api/v1/consent/qr");
       expect(qr.status()).toBe(200);
       expect(qr.headers()["content-type"]).toContain("image/svg+xml");
       expect((await qr.text()).startsWith("<svg")).toBe(true);
     }
 
-    // A run that went opens its people at its sheet's address, in the pane beside Sequences' list; Close goes to Sequences.
+    // A run that went: its sheet's old address lands on its home under its sequence, its one screen beside Sequences' list,
+    // its people under its report; Close goes to its sequence's History, the days it is one of.
     const went = (broadcasts as { id: string; state: string }[]).find((b) => b.state === "sent");
     if (went) {
       await page.goto(`/#/broadcasts/run:${went.id}/sheet`);
-      await expect(real.getByTestId("bc-run-solo")).toBeVisible();
-      await expect(real.getByTestId("bc-detail")).toBeVisible();
-      await expect(real.getByTestId("bc-touched")).toBeVisible();
-      const report = await real.getByTestId("bc-run-solo").innerText();
+      await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/[^/]+/runs/${went.id}$`)));
+      const run = page.getByTestId("bc-run-solo");
+      await expect(run).toBeVisible();
+      await expect(run.getByTestId("bc-detail")).toBeVisible();
+      await expect(run.getByTestId("bc-touched")).toBeVisible();
+      const report = await run.innerText();
       for (const s of INVENTED) expect(report, `invented in a run's report: "${s}"`).not.toContain(s);
-      await real.getByTestId("bc-detail-close").click();
-      await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
+      await run.getByTestId("bc-detail-close").click();
+      await expect(page).toHaveURL(atRoute(/^campaigns\/sequences(\/[^/]+\/history)?$/));
     }
   });
 

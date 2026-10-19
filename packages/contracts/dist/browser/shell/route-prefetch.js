@@ -47,6 +47,34 @@ export const PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): what Sequences opens on, and Sent's runs
+  // and the channels read its screen is made of; the run's own read is the screen's, which paints a run the tab has read at
+  // once.
+  "campaigns/sequences/runs": [
+    "sequences",
+    "broadcasts",
+    "channels",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; lane 6, where the composer over the list
+  // went): what Sequences opens on, and Send once, made of Sent's runs and who each audience reaches (People's book, its
+  // lists and the week's touches, their own read), the channels read and the settings read, which holds the messages it
+  // offers. Write to leads reads its searches as it is chosen. Each surface's first reads.
+  "campaigns/sequences/new": [
+    "sequences",
+    "channels",
+    "settings",
+    "broadcasts",
+    "broadcasts/touches",
+    "contacts",
+    "segments",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
   // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
   // settings read its pane is drawn from and the channels read's numbers.
   "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
@@ -100,12 +128,12 @@ export function routePrefetchScript() {
     'if(s==="clients"&&l==="leads")s="leads";',
     // Get their yes is a sheet over People's list, which opens on Sent's read too.
     'if(s==="clients"&&l==="get-yes")s="clients/get-yes";',
-    // Sequences is Campaigns' view with a surface of its own: its list, a record, a run at its home and the one New all open
-    // on its read (their screens ask for the rest as they are drawn). A message is a sheet over its list that opens on its
-    // own (`message:<name>`).
-    'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
-    // The composer's old address (`campaigns/new…`) lands on the one New, Sequences' too (the Campaigns wiring review's lane 6).
-    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences";',
+    // Sequences is Campaigns' view with a surface of its own: its list and a record open on its read, a run at its home and
+    // the one New on what their screens are made of too; a day of History's older address is its run, where it lands
+    // (retiredRouteOf). A message is a sheet over its list that opens on its own (`message:<name>`).
+    'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
+    // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
+    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
     'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
     'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',

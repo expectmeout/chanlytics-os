@@ -70,7 +70,7 @@ const isStartsOn = (v: string): v is StartsOn => STARTS_ON.some((s) => s === v);
 const startsOnOf = (who: NewWho | null): StartsOn => (who === "once" ? "date" : who === "leads" ? "leads" : "moment");
 
 /** Who a way it starts is for, as the address says it: a moment and a list are New's own address, and say none. */
-const whoOf = (on: StartsOn): NewWho | null => (on === "date" ? "once" : on === "leads" ? "leads" : null);
+const newWhoOf = (on: StartsOn): NewWho | null => (on === "date" ? "once" : on === "leads" ? "leads" : null);
 
 /** Send once and Write to leads, each its own chunk (Sent's send screen, the searches): asked for as one is picked. */
 const NewOnce = lazy(() => import("../home/new-message").then((m) => ({ default: m.NewOnce })));
@@ -429,12 +429,12 @@ export function NewSequence({ moment = null, who = null, to = null }: NewSequenc
   const hosted = useCampaignsToast();
   const [on, setOn] = useState<StartsOn>(() => startsOnOf(who));
   // The address chose it (a door, Back): New follows it, keeping a moment or a list picked where it names neither.
-  useEffect(() => setOn((was) => (whoOf(was) === who ? was : startsOnOf(who))), [who]);
+  useEffect(() => setOn((was) => (newWhoOf(was) === who ? was : startsOnOf(who))), [who]);
   // Who it is for is the address's, replaced as it is picked: a reload opens on it, Back is where New was opened from, and
   // the moment or the audience a door named is kept.
   const pick = (next: StartsOn) => {
     setOn(next);
-    const nextWho = whoOf(next);
+    const nextWho = newWhoOf(next);
     if (nextWho === who) return;
     replaceRoute(
       nextWho === "once" ? sendOnceRoute(to) : nextWho === "leads" ? newForLeadsRoute() : newSequenceRoute(moment),

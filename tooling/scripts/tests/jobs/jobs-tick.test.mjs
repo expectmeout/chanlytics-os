@@ -564,7 +564,7 @@ test("a job's news opens the thread or the run its payload names, and its list w
   const B = "b0000000-0000-4000-8000-000000000001";
   for (const [kind, payload, route, about] of [
     ["outbound_send", { conversation_id: C, message_id: "m1" }, `inbox/th-${C}`, { type: "conversation", id: C }],
-    ["broadcast_send", { broadcast_id: B }, `broadcasts/run:${B}`, { type: "broadcast", id: B }],
+    ["broadcast_send", { broadcast_id: B }, `campaigns/sequences/${B}/runs/${B}`, { type: "broadcast", id: B }],
     // A payload that names nothing keeps the list (the tests above: an empty payload opens the Inbox and Sent).
     ["outbound_send", { message_id: "m1" }, "inbox", null],
   ]) {

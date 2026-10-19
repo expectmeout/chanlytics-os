@@ -130,6 +130,9 @@ const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbo
 const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+// Sent's surface, as the app registers it: its value is mirrored where the rows of runs waiting read it (window.__BROADCASTS,
+// surfaces/waits/run-acts.tsx), Today's and the Inbox's alike.
+await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
 const { getSurfaceStatuses, setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
 Object.assign(globalThis, {
@@ -367,10 +370,20 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
       return again(() => InboxList(listProps({ threads: [], allThreads: [unsent], activeBucket: "escalated" })));
     };
     const tree = list("");
-    const rows = all(tree, (n) => n.props?.["data-testid"] === "inbox-run-row");
+    // The Inbox's wait rows are Today's too (surfaces/waits/wait-rows.tsx, the Campaigns wiring review's lane 4).
+    const rows = all(tree, (n) => n.props?.testid === "brief-run-row");
     assert.equal(rows.length, 1, "the run is a row of Needs you");
-    assert.equal(textOf(rows[0]).startsWith("Win-back"), true, "called by its own name, less its day");
-    assert.equal(rows[0].props.href.endsWith("broadcasts/run:b-wait/sheet"), true, "and its door is its sheet");
+    assert.equal(rows[0].props.name.startsWith("Win-back"), true, "called by its own name, less its day");
+    // Its door is the run at its home under its sequence, which the frame opens over the Inbox (lanes 2 and 3).
+    const went = [];
+    const keepNav = globalThis.window.appNavigate;
+    globalThis.window.appNavigate = (route) => went.push(route);
+    try {
+      rows[0].props.onOpen();
+    } finally {
+      globalThis.window.appNavigate = keepNav;
+    }
+    assert.deepEqual(went, ["campaigns/sequences/q-1/runs/b-wait"], "and its door is the run, at its home");
     assert.equal(
       textOf(tree).includes("Nobody's waiting on you"),
       false,

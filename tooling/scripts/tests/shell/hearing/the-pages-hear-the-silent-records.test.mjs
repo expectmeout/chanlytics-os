@@ -187,7 +187,7 @@ const ON_ITS_PAGE = [
   // 17 Oct 2026, G).
   [playbooksOverride, "#/outbound", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
   // Who each audience Sent's composer offers reaches (audiences-surface.ts), with the settings read's messages (offered-templates.ts):
-  // it hears every other table the playbooks do. Away is the Inbox: Campaigns' composer hears these for the audiences too
+  // it hears every other table the playbooks do. Away is the Inbox: New's Send once hears these for the audiences too
   // (PAGE_HEARS, a cell of kinds; the test below).
   [audiencesOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
   [reportsOverride, "#/reports", "#/inbox", ["contacts"]],
@@ -330,7 +330,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   }
 });
 
-test("in Campaigns' composer the audiences hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
+test("in New's Send once the audiences hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
   // The composer draws who each audience reaches for who can hear you and the send-once composer, and Sent's runs for the pause on
   // offers and the Send by ticks (the wiring's second audit, W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved
   // moved them nowhere while it was open. A message moves a run's replies, which the composer reads from Campaigns' own 30 days: it
@@ -340,7 +340,7 @@ test("in Campaigns' composer the audiences hear what moves them there, a person,
     false,
     "Campaigns' landing keeps a person for Sent's pages",
   );
-  at("#/campaigns/new");
+  at("#/campaigns/sequences/new:once");
   for (const table of [
     "contacts",
     "tenant_channels",
@@ -377,7 +377,7 @@ test("in Campaigns' composer the audiences hear what moves them there, a person,
     hears(audiencesOverride, "messages", "INSERT");
     at("#/inbox");
     win.on?.();
-    at("#/campaigns/new");
+    at("#/campaigns/sequences/new:once");
     win.on?.();
     assert.deepEqual(
       read,
@@ -389,7 +389,7 @@ test("in Campaigns' composer the audiences hear what moves them there, a person,
     assert.deepEqual(read, ["audiences"], "it is read once as Sent comes on screen");
     at("#/inbox");
     hears(audiencesOverride, "contacts");
-    at("#/campaigns/new");
+    at("#/campaigns/sequences/new:once");
     win.on?.();
     assert.deepEqual(
       read,

@@ -331,8 +331,8 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   test("Campaigns: Send now asks before it sends", async ({ page }) => {
-    // The send is Campaigns' composer, a sheet over Sequences at its own address.
-    await page.goto("/#/campaigns/new");
+    // The send is New's Once (`campaigns/sequences/new:once`), where the composer's old address lands.
+    await page.goto("/#/campaigns/sequences/new:once");
     await page.waitForLoadState("networkidle");
     const send = page.getByTestId("bc-send");
     test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");

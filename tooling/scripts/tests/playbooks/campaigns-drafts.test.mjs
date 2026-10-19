@@ -71,8 +71,9 @@ Object.assign(globalThis, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
+const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+// Send once inside the one New (the Campaigns wiring review's lane 6): the composer's sheet over Sequences went into it.
+const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
 // The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
 // door fetches them, so every draw below finds them in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
@@ -89,7 +90,7 @@ const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/temp
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
-const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -283,22 +284,36 @@ broadcasts.send = async () => ({
   data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
 });
 
-const page = (props = { initialSegment: null, initialRun: null }) => BroadcastsPage(props);
+/** Whether New, which hosts the send screen, has been told the screen was left (sent, scheduled or cancelled). */
+let left = false;
 /**
- * The send screen, opened as the page still opens it: a link that names a list is asking to write to it. The Sent room's own New
- * message is the home's address (campaigns/new, which hosts this same screen in a sheet), so the page opens nothing for it. Two
- * draws: the first moves the page onto the link, the second draws the screen it opened (a mount opens on it at once).
+ * The send screen as New's Send once hosts it (home/new-message.tsx), on the list its address names: its toast the host's,
+ * its door to their yes New's address replaced, and New closed once the screen says it was left.
  */
+const page = (props = { initialSegment: null }) =>
+  left
+    ? null
+    : BroadcastSend({
+        data: { ...surfaceValue("audiences"), ...surfaceValue("broadcasts") },
+        initialSegment: props.initialSegment ?? null,
+        flash: (t) => toasts.push(t),
+        onDone: () => {
+          left = true;
+        },
+        onYes: (route) => replaced.push(route),
+      });
+/** New opened on Send once, as a door does: the send screen, drawn twice as a mount settles. */
 const openByLink = () => {
-  redraw(() => page({ initialSegment: "no-such-list", initialRun: null }));
+  unmount();
+  fresh();
+  left = false;
+  redraw(() => page({ initialSegment: "no-such-list" }));
   return redraw(page);
 };
 /** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
 const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
 /** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
 const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
-/** Campaigns' sheets at an address's param (null: none open), as the route draws them over Sequences. */
-const home = (param = null) => CampaignsSheets({ param });
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
@@ -332,10 +347,14 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   tree = redraw(page);
   assert.deepEqual(drafts(), {}, "a choice alone is not work");
   press(byTestId(tree, "bc-compose-close"));
+  redraw(page);
   tree = redraw(page);
-  assert.equal(byTestId(tree, "bc-composer"), null, "Cancel closes it, as it did");
+  assert.equal(byTestId(tree, "bc-composer"), null, "Cancel closes New, as it did the sheet");
 
+  // New opened again is a mount of its own: the list is picked again, and this time words are written for it.
   tree = openByLink();
+  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
+  tree = redraw(page);
   typedSlots(tree)[0].props.onTyped("20% off colour");
   tree = redraw(page);
   type(nameBox(tree), "Autumn colour");
@@ -369,6 +388,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
 
   // Left and come back to: the send screen, on the same list, with the same words.
   unmount();
+  fresh();
   tree = page();
   assert.ok(byTestId(tree, "bc-composer"), "opens on the send half-written");
   assert.equal(nameBox(tree).props.value, "Autumn colour");
@@ -382,15 +402,18 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   );
   // A link that names a list wins the list.
   unmount();
-  tree = page({ initialSegment: "s1", initialRun: null });
+  fresh();
+  tree = page({ initialSegment: "s1" });
   assert.ok(byTestId(tree, "bc-composer"));
   unmount();
+  fresh();
   tree = page();
 
   // Yes, throw it away: closed, cleared, and nothing kept -- the next send opens empty.
   press(byTestId(tree, "bc-compose-close"));
   tree = redraw(page);
   press(byTestId(tree, "bc-leave-yes"));
+  redraw(page);
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null);
   assert.equal(TM.draft("broadcast"), null);
@@ -400,7 +423,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   assert.equal(pickerOf(tree, "bc-when-mode").props.value, "now", "and no time picked");
 });
 
-test("a send the server took keeps nothing: the screen closes onto the ledger and the next send is empty", async () => {
+test("a send the server took keeps nothing: New closes and the next send is empty", async () => {
   let tree = openByLink();
   typedSlots(tree)[0].props.onTyped("20% off colour");
   tree = redraw(page);
@@ -408,6 +431,7 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
   press(byTestId(tree, "bc-send"));
   tree = redraw(page);
   await press(byTestId(tree, "bc-send-yes"));
+  redraw(page);
   tree = redraw(page);
   assert.equal(byTestId(tree, "bc-composer"), null, "sent, the screen closes");
   assert.equal(TM.draft("broadcast"), null, "and nothing is kept");
@@ -415,12 +439,11 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
   assert.equal(typedSlots(tree)[0].props.typed, "", "the next one starts empty");
 });
 
-test("a send made in Campaigns' sheet raises its toast on the sheets' own host: the screen draws none of its own, so the toast and its Stop outlive the sheet that closes over it", async () => {
+test("a send made in New's Send once raises its toast on the host New hands it, the route's: the screen draws none of its own, so the toast and its Stop outlive New, which closes as it sends", async () => {
   const keepToast = globalThis.usePPToast;
   const keepSend = broadcasts.send;
   const keepCancel = broadcasts.cancel;
-  // One host to each component that asks for one, told apart by the node it would draw: the home's, asked for first, and the
-  // send screen's own (which, drawn, would go with the sheet the moment the send closes it).
+  // A host for each component that asks for one, told apart by the node it would draw; the route's own is the one handed in.
   const hosts = [];
   globalThis.usePPToast = () => {
     const ref = globalThis.React.useRef(null);
@@ -431,6 +454,7 @@ test("a send made in Campaigns' sheet raises its toast on the sheets' own host: 
     const host = ref.current;
     return [host.node, (t) => host.said.push(t)];
   };
+  const route = { node: "ROUTE", said: [] };
   const stopped = [];
   broadcasts.send = async () => ({
     ok: true,
@@ -445,32 +469,38 @@ test("a send made in Campaigns' sheet raises its toast on the sheets' own host: 
   try {
     unmount();
     fresh();
-    const draw = () => redraw(() => home("new"));
+    const once = () =>
+      NewOnce({
+        to: null,
+        flash: (t) => route.said.push(t),
+        onDone() {},
+        onYes() {},
+        above: null,
+        pane: (body) => body,
+      });
+    const draw = () => redraw(once);
     let tree = draw();
-    const [page] = hosts;
-    assert.ok(textOf(tree).includes(page.node), "the sheets draw their toast host");
-    for (const own of hosts.slice(1))
-      assert.ok(!textOf(tree).includes(own.node), "the send screen draws none of its own");
+    for (const own of hosts) assert.ok(!textOf(tree).includes(own.node), "the send screen draws no host of its own");
     typedSlots(tree)[0].props.onTyped("20% off colour");
     tree = draw();
     press(byTestId(tree, "bc-send"));
     tree = draw();
     await press(byTestId(tree, "bc-send-yes"));
-    // The toast is said on the sheets' host, with its Stop and its See who; the screen's own host was never asked.
-    const said = page.said.at(-1);
+    // The toast is said on the route's host, with its Stop and its See who; no host of the screen's own was asked.
+    const said = route.said.at(-1);
     assert.equal(said.action.label, "Stop it");
-    assert.equal(said.links[0].to, "broadcasts/run:b-new");
+    assert.equal(said.links[0].to, "campaigns/sequences/b-new/runs/b-new");
     assert.match(textOf(said.msg), /Autumn/);
     assert.deepEqual(
-      hosts.slice(1).flatMap((h) => h.said),
+      hosts.flatMap((h) => h.said),
       [],
-      "nothing was said on a host that would go with the sheet",
+      "nothing was said on a host that would go with New",
     );
-    // The sheet closes onto Sequences and the screen goes with it; the toast is the sheets', and its Stop still stops the send.
+    // New closes as it sends, and the screen goes with it; the toast is the route's, and its Stop still stops the send.
     unmount();
     await said.action.onClick();
-    assert.deepEqual(stopped, ["b-new"], "Stop it, after the sheet is gone");
-    assert.match(textOf(page.said.at(-1).msg), /stops after this batch/, "and says so on the same host");
+    assert.deepEqual(stopped, ["b-new"], "Stop it, after New is gone");
+    assert.match(textOf(route.said.at(-1).msg), /stops after this batch/, "and says so on the same host");
   } finally {
     globalThis.usePPToast = keepToast;
     broadcasts.send = keepSend;
@@ -478,7 +508,7 @@ test("a send made in Campaigns' sheet raises its toast on the sheets' own host: 
   }
 });
 
-test("the send screen's door to their yes, pressed in Campaigns' sheet, replaces the sheet's address with the section's: the sheet is not closed past it, which a step Back would undo", () => {
+test("the send screen's door to their yes, pressed in New's Send once, is New's to follow: its address is replaced by People's sheet's, and New is never closed past it, which a step Back would undo", () => {
   const backs = [];
   const keep = globalThis.history.back;
   globalThis.history.back = () => backs.push("back");
@@ -505,15 +535,30 @@ test("the send screen's door to their yes, pressed in Campaigns' sheet, replaces
     );
     unmount();
     fresh();
+    const yes = [];
+    let done = 0;
+    const once = () =>
+      NewOnce({
+        to: null,
+        flash() {},
+        onDone: () => (done += 1),
+        onYes: (route) => yes.push(route),
+        above: null,
+        pane: (body) => body,
+      });
     // Send once's screen says nobody on the list has said yes, with the door to get it.
-    const tree = redraw(() => home("new"));
+    const tree = redraw(once);
     press(byTestId(tree, "bc-nobody-door"));
-    assert.deepEqual(replaced, ["broadcasts/get-yes"], "the sheet's address becomes the section: one move");
-    // The screen has been left, and the host was not told it was done: a close now would go Back over the move.
-    redraw(() => home("new"));
-    redraw(() => home("new"));
+    assert.deepEqual(
+      yes,
+      ["clients/get-yes"],
+      "New's address becomes People's sheet: one move (the wiring review's lane 7)",
+    );
+    // The screen has been left, and New was not told it was done: a close now would go Back over the move.
+    redraw(once);
+    redraw(once);
+    assert.equal(done, 0, "New is not told the screen was left: it follows the door, not a close");
     assert.deepEqual(backs, [], "no step Back after the door");
-    assert.deepEqual(replaced, ["broadcasts/get-yes"], "and the address was not replaced with Sequences either");
     assert.deepEqual(went, []);
   } finally {
     globalThis.history.back = keep;

@@ -341,7 +341,8 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     __DEMO_MODE: false,
   });
   const SRC = "../../../../apps/dashboard/src";
-  const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+  // Get their yes is People's sheet (the Campaigns wiring review's lane 7), drawn from Sent's read.
+  const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
   setSurfaceValue("broadcasts", {
     rows: [],
@@ -359,7 +360,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
       qrPath: "/api/v1/consent/qr",
       pageUrl: "https://app.chanlytics.com/yes/marisas",
     },
-    getYes: "broadcasts/get-yes",
+    getYes: "clients/get-yes",
     businessName: "Marisa's Beauty Salon",
     bookingLink: false,
     offersNote: "",
@@ -368,7 +369,8 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     fetchedAt: 1,
   });
   fresh();
-  const line = textOf(byTestId(BroadcastsPage({ initialYes: true }), "bc-optin-page"));
+  const sheet = globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
+  const line = textOf(byTestId(sheet, "bc-optin-page"));
   assert.ok(
     line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone carriers ask for"),
     line,

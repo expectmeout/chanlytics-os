@@ -11,7 +11,7 @@
  * next run waiting moves the sheet to it in place; the toast host is the frame's (see-mount.tsx).
  */
 import { SEE_WORDS, seeHomeOf, type SeeRef } from "@chanlytics/contracts";
-import { closeSeeOver, openSeeOver } from "@/legacy-bridge/see-over";
+import { closeSeeOver, openSeeOver } from "./see-over";
 import { goToRoute } from "@/legacy-bridge/workspace";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";

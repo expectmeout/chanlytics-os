@@ -4,11 +4,11 @@
  * `reachOuts` object, which the TSX parts import (a test sets what a verb answers there, as it once set
  * `window.__reachOuts`):
  *
- * - Campaigns' sheets over Sequences (home/sheets.tsx; the home and its drawer went in decision 0060's S6, a chain being a
- *   sequence to leads there): Write to leads opens Leads, where a sequence to leads is made (the lead-to-sequence canvas,
- *   18 Oct 2026); a chain's change (`campaigns/new:edit:<root>`, an older link) lands on its sequence's record, by its root
- *   or any of its steps, once the reach-outs are read, and an id that is no chain's on its own record (the composer's
- *   Every time went: the closed-loop audit of 17 Oct 2026, G).
+ * - New's Leads (campaigns/sequences/new:leads, the one New of the Campaigns wiring review's lane 6, where the composer's
+ *   sheet over Sequences went; a chain is a sequence to leads): Write to leads opens Leads, where a sequence to leads is made
+ *   (the lead-to-sequence canvas, 18 Oct 2026); a chain's change (`campaigns/new:edit:<id>`, an older link) lands on its
+ *   sequence's record in one move, by its root or any of its steps' ids, which the record reads a sequence by, whether the
+ *   reach-outs are read or not, and nothing is drawn over Sequences for it.
  * - Templates: a chain's emails are messages in the Templates list (reach-out-email-message.test.mjs: their rows, their
  *   pane and its editor, counted by contracts' emailTemplateRowsOf over the chains, which this file holds to the surface's
  *   reads).
@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, byTestId, press } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -124,25 +124,23 @@ const verbs = (report = REPORT(), ok = true) => {
   return pressed;
 };
 
-/* ------------------------------ Campaigns' sheets ------------------------------ */
+/* ------------------------------ New's Leads, and an older change ------------------------------ */
 
 /** The reach-outs not read yet: the surface holds nothing (a read that failed is null, and one that came back is its chains). */
 const UNREAD = "unread";
-/** Campaigns' sheets at an address (`campaigns/<param>`), over the reach-outs' own surface (the seam's "reach_outs"). */
+/** Campaigns' sheet at an address (`campaigns/<param>`), over the reach-outs' own surface (the seam's "reach_outs"). */
 const homeAt = (param = null, chains = [chainOf()]) => {
   setSurfaceValue("reach_outs", chains === UNREAD ? undefined : chains);
   fresh();
   return again(() => CampaignsSheets({ param }));
 };
 
-test("Write to leads, New message's third choice, opens Leads: a sequence to leads is made where its leads are chosen (the lead-to-sequence canvas, 18 Oct 2026)", () => {
+test("Write to leads, New's Leads, opens Leads: a sequence to leads is made where its leads are chosen (the lead-to-sequence canvas, 18 Oct 2026)", () => {
   verbs();
   went.length = 0;
-  const tree = homeAt("new:leads");
-  assert.ok(
-    find(tree, (n) => n.type === WriteToLeads),
-    "Write to leads, in New message",
-  );
+  // The composer's address of it lands on New for leads, which draws Write to leads as its own pane (sequences/new.tsx).
+  assert.equal(contracts.retiredRouteOf("campaigns/new:leads"), contracts.newForLeadsRoute());
+  assert.deepEqual(contracts.parseSequencesRoute(contracts.newForLeadsRoute()), { view: "new", who: "leads" });
   fresh();
   const rows = again(() => WriteToLeads());
   press(byTestId(rows, "ro-source-add"));
@@ -153,31 +151,17 @@ test("Write to leads, New message's third choice, opens Leads: a sequence to lea
   );
 });
 
-test("a reach-out's change (`campaigns/new:edit:<root>`, an older link) lands on its sequence's record, by its root or any of its steps", () => {
+test("a reach-out's change (`campaigns/new:edit:<id>`, an older link) lands on its sequence's record in one move, by its root or any of its steps' ids, read or not: nothing waits on the reach-outs, and nothing is drawn over Sequences", () => {
+  assert.equal(contracts.retiredRouteOf(`campaigns/new:edit:${ROOT}`), contracts.sequenceRoute(ROOT));
+  // The record reads a sequence by the id of any of its parts, and then writes its own (contracts retiredRouteOf).
+  assert.equal(contracts.retiredRouteOf("campaigns/new:edit:n1"), contracts.sequenceRoute("n1"), "a later step's id");
   verbs();
-  went.length = 0;
-  const at = homeAt(`new:edit:${ROOT}`);
-  assert.equal(byTestId(at, "cmh-composer"), null, "no composer is drawn for a reach-out's id");
-  assert.deepEqual(went, [contracts.sequenceRoute(ROOT)], "its record, in the address's place");
-  went.length = 0;
-  homeAt("new:edit:n1");
-  assert.deepEqual(went, [contracts.sequenceRoute(ROOT)], "a later step's id lands on its chain's record");
-});
-
-test("a change waits on the reach-outs while they are out; where they could not be read, or the id is no chain's, it lands on its own record", () => {
-  verbs();
-  went.length = 0;
-  homeAt(`new:edit:${ROOT}`, UNREAD);
-  assert.deepEqual(went, [], "not known yet: it waits");
-  homeAt("new:edit:pb-7", null);
-  assert.deepEqual(went, ["campaigns/sequences/pb-7"], "unread for good: the id as named, never a page left blank");
-  went.length = 0;
-  homeAt("new:edit:pb-7", []);
-  assert.deepEqual(
-    went,
-    ["campaigns/sequences/pb-7"],
-    "a moment's sequence, on its own record, in the address's place",
-  );
+  for (const chains of [[chainOf()], UNREAD, null, []]) {
+    went.length = 0;
+    const at = homeAt(`new:edit:${ROOT}`, chains);
+    assert.equal(byTestId(at, "cmh-composer"), null, "no composer is drawn for a reach-out's id");
+    assert.deepEqual(went, [], "the address landed before the page: nothing moves from here");
+  }
 });
 
 /* ------------------------------ the bridge ------------------------------ */

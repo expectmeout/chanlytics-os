@@ -108,7 +108,7 @@ test("a live run holding sends is told once, through the real door, with its lin
     );
     assert.deepEqual(
       w.tables.notifications.map((n) => [n.kind, n.route, n.subject_type, n.subject_id]),
-      [["playbook", "broadcasts/run:run-1", "broadcast", "run-1"]],
+      [["playbook", "campaigns/sequences/run-1/runs/run-1", "broadcast", "run-1"]],
       "the bell's row, with the run's link",
     );
     assert.ok(w.tables.broadcasts[0].audience.held_notice.sent_at);

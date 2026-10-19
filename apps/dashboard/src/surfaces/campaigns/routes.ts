@@ -1,12 +1,12 @@
 /**
  * What the frame says around Campaigns' pages: the crumbs each address wears and the strip of its views. Campaigns is
  * Sequences (decision 0060; the home that stood here went in S6), with Messages and, where it is drawn, Ads beside it in the
- * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, and the sheets Campaigns
- * opens over it, `campaigns/new…`, `campaigns/message:<name>`); the home's and a campaign's addresses land on Sequences. A
- * run is at its home under its sequence (`campaigns/sequences/<id>/runs/<run>`, the Campaigns wiring review's lane 2),
- * crumbed under its sequence. Sent's sheet keeps its address (`broadcasts/get-yes`), beside Sequences' list and under its
- * strip; Sent's own list, a run's sheet and To send there land on Sequences, the run's home and the Inbox's Needs you (lane
- * 4). Campaigns' crumbs are People's and Reports' kind:
+ * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, the one New among them, and
+ * a message's drawer over it, `campaigns/message:<name>`); the home's and a campaign's addresses land on Sequences, and the
+ * composer's (`campaigns/new…`) on New. A run is at its home under its sequence (`campaigns/sequences/<id>/runs/<run>`, the
+ * Campaigns wiring review's lane 2), crumbed under its sequence. Sent draws nothing of its own: its list, a run's sheet, To
+ * send and Get their yes land on Sequences, the run's home, the Inbox's Needs you and People (lanes 2, 4 and 7), and an
+ * address that reaches it some other way wears Campaigns' crumbs. Campaigns' crumbs are People's and Reports' kind:
  * its first view, Sequences' list, is Campaigns alone, and anything under it goes back to it, the strip saying the view.
  */
 import {

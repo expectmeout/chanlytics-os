@@ -296,7 +296,7 @@ export function sayAsDrawn(say) {
 const num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
-const ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
+const ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|campaigns\/sequences\/[^/]+\/runs\/|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:|get-yes$))/;
 function groundRef(v, read) {
   const r = asObj(v);
   const kind = typeof r.kind === "string" ? r.kind : "none";

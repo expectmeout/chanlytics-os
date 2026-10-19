@@ -129,7 +129,7 @@ function TheCode({
 }
 
 /** What the sheet holds, and the line under its title: by what the workspace has, once Sent's read says it. */
-function bodyOf(bc: BroadcastsSurface | undefined | null, flash: Flash): { sub: string; body: ReactNode } {
+function yesSheetBodyOf(bc: BroadcastsSurface | undefined | null, flash: Flash): { sub: string; body: ReactNode } {
   const optIn = bc?.optIn ?? null;
   const link = optIn?.link ?? null;
   if (!bc || !optIn)
@@ -154,7 +154,7 @@ export function GetYesSheet({ open, onClose }: { open: boolean; onClose: () => v
   useEffect(() => {
     if (open && surfaceValue("broadcasts") === undefined) void refreshSurface("broadcasts");
   }, [open]);
-  const { sub, body } = bodyOf(bc, flash);
+  const { sub, body } = yesSheetBodyOf(bc, flash);
   return (
     <>
       <Sheet

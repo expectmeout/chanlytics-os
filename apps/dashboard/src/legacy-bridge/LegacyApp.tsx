@@ -156,10 +156,10 @@ markHydrated(hydrateSurfaceCache());
 // A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
 warmPersonOnScreen();
 
-/** A route as the shell parses it (app-shell.jsx parseRoute): its page, and the param after it. */
+/** A route as the registry reads it (surface-registry.ts routePartsOf): its page, and every word after it. */
 const routeParts = (route: string): [string, string | null] => {
-  const [page, param] = route.split("/");
-  return [page || "today", param || null];
+  const { page, param } = routePartsOf(route);
+  return [page, param];
 };
 
 /**
@@ -288,6 +288,7 @@ import {
   installSurfaceRegistry,
   readWhatWasMissed,
   routeGateOpen,
+  routePartsOf,
   routeSurfaceFor,
   routeSurfaces,
   warmWhatItDraws,

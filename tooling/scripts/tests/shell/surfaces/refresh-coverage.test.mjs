@@ -40,13 +40,25 @@ function keysOn(hash, route) {
  */
 const COMPOSERS = ["audiences", "playbooks"];
 /**
- * The page that draws each of them whole: who each audience reaches in Campaigns' composer (Send once), the playbooks on
+ * The page that draws each of them whole: who each audience reaches in New's Send once (Send once), the playbooks on
  * Campaigns' old address, since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G); and Sent's runs, whose
  * Send by ticks the composer draws too.
  */
-const PAGE_OF = { audiences: "#/campaigns/new", playbooks: "#/outbound", broadcasts: "#/campaigns/new" };
+const PAGE_OF = {
+  audiences: "#/campaigns/sequences/new:once",
+  playbooks: "#/outbound",
+  broadcasts: "#/campaigns/sequences/new:once",
+};
 /** Pages each row's surfaces are drawn on: a row whose surfaces are all read where they are drawn names one on some page. */
-const PAGES = ["#/inbox", "#/today", "#/clients", "#/campaigns/new", "#/outbound", "#/calendar", "#/admin/workspace"];
+const PAGES = [
+  "#/inbox",
+  "#/today",
+  "#/clients",
+  "#/campaigns/sequences/new:once",
+  "#/outbound",
+  "#/calendar",
+  "#/admin/workspace",
+];
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {
   assert.ok(writes.length > 100, `the generated routes are read: ${writes.length} writes`);
@@ -132,8 +144,8 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
       const on = keysOn(PAGE_OF[key], route);
       assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
     }
-    const keys = keysOn("#/campaigns/new", route);
-    assert.equal(keys.includes("playbooks"), false, `${route}: Campaigns' composer draws no playbook`);
+    const keys = keysOn("#/campaigns/sequences/new:once", route);
+    assert.equal(keys.includes("playbooks"), false, `${route}: New's Send once draws no playbook`);
     const landing = keysOn("#/campaigns", route);
     for (const key of counted)
       assert.equal(landing.includes(key), false, `${route} on Campaigns' landing: ${key} is left for its pages`);
@@ -941,7 +953,7 @@ test("a person erased takes their messages, calls and threads with them: the rep
   try {
     for (const [hash, drawn, notDrawn] of [
       ["#/reports", "reports", null],
-      ["#/campaigns/new", null, "reports"],
+      ["#/campaigns/sequences/new:once", null, "reports"],
       ["#/inbox", null, "reports"],
     ]) {
       globalThis.location.hash = hash;

@@ -14650,14 +14650,17 @@ function retiredPathOf(path) {
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
-  if (head === "broadcasts") {
-    if (!param) return SEQUENCES_ROUTE;
-    if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
-    if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
-    if (param === GET_YES_PARAM) return GET_YES_ROUTE;
-    return sendOnceRoute(param);
-  }
-  if (head !== "campaigns") return null;
+  if (head === "broadcasts") return sentLandingOf(param);
+  return head === "campaigns" ? campaignsLandingOf(path, param) : null;
+}
+function sentLandingOf(param) {
+  if (!param) return SEQUENCES_ROUTE;
+  if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
+  if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
+  if (param === GET_YES_PARAM) return GET_YES_ROUTE;
+  return sendOnceRoute(param);
+}
+function campaignsLandingOf(path, param) {
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
   if (param === "sequences") {
     const [, , id, tab, day] = path.split("/");
@@ -14802,6 +14805,8 @@ function isPageRoute(route) {
     }
     case "clients":
       return route === GET_YES_ROUTE || isPeopleView(route, param);
+    case "inbox":
+      return route === TO_SEND_ROUTE;
     default:
       return false;
   }
@@ -14819,7 +14824,14 @@ var ASK_PAGES = new Set(ASK_PAGE_ROUTES);
 var CALLS_ROUTE = "conversations/phone";
 var OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true };
 var CAMPAIGN_GROUPS = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
-var RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts", "messages"]);
+var RETIRED_PAGES = /* @__PURE__ */ new Set([
+  "campaigns",
+  "outbound",
+  "broadcasts",
+  "broadcasts/to-send",
+  "broadcasts/get-yes",
+  "messages"
+]);
 function movedPageOf(route) {
   const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
   return RETIRED_PAGES.has(route) || group !== null && CAMPAIGN_GROUPS.includes(group) ? retiredRouteOf(route) : null;
@@ -25208,7 +25220,7 @@ function sayAsDrawn(say2) {
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
-var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
+var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|campaigns\/sequences\/[^/]+\/runs\/|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:|get-yes$))/;
 function groundRef(v, read) {
   const r2 = asObj(v);
   const kind = typeof r2.kind === "string" ? r2.kind : "none";
@@ -54996,6 +55008,34 @@ var PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): what Sequences opens on, and Sent's runs
+  // and the channels read its screen is made of; the run's own read is the screen's, which paints a run the tab has read at
+  // once.
+  "campaigns/sequences/runs": [
+    "sequences",
+    "broadcasts",
+    "channels",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; lane 6, where the composer over the list
+  // went): what Sequences opens on, and Send once, made of Sent's runs and who each audience reaches (People's book, its
+  // lists and the week's touches, their own read), the channels read and the settings read, which holds the messages it
+  // offers. Write to leads reads its searches as it is chosen. Each surface's first reads.
+  "campaigns/sequences/new": [
+    "sequences",
+    "channels",
+    "settings",
+    "broadcasts",
+    "broadcasts/touches",
+    "contacts",
+    "segments",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
   // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
   // settings read its pane is drawn from and the channels read's numbers.
   "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
@@ -55049,12 +55089,12 @@ function routePrefetchScript() {
     'if(s==="clients"&&l==="leads")s="leads";',
     // Get their yes is a sheet over People's list, which opens on Sent's read too.
     'if(s==="clients"&&l==="get-yes")s="clients/get-yes";',
-    // Sequences is Campaigns' view with a surface of its own: its list, a record, a run at its home and the one New all open
-    // on its read (their screens ask for the rest as they are drawn). A message is a sheet over its list that opens on its
-    // own (`message:<name>`).
-    'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
-    // The composer's old address (`campaigns/new…`) lands on the one New, Sequences' too (the Campaigns wiring review's lane 6).
-    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences";',
+    // Sequences is Campaigns' view with a surface of its own: its list and a record open on its read, a run at its home and
+    // the one New on what their screens are made of too; a day of History's older address is its run, where it lands
+    // (retiredRouteOf). A message is a sheet over its list that opens on its own (`message:<name>`).
+    'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
+    // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
+    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
     'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
     'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
@@ -56962,7 +57002,6 @@ var ROUTE_VERBS = [
   [/^admin\/activity/, "Open Activity"],
   [/^admin\/team/, "Open Team"],
   [/^admin\/billing/, "Open Billing"],
-  // To send, a part of Needs you (the Campaigns wiring review's lane 4): every email handed to its owner, one list.
   [/^inbox\/to-send$/, "Open To send"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
@@ -56978,7 +57017,7 @@ var ROUTE_VERBS = [
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],
-  // Every email handed to its owner, from each reach-out they send themselves (00429): one list, kept as Sent's.
+  // Sent's To send and Get their yes, in a row kept from before: the Inbox's and People's now, under the same words.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],
   // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
@@ -56990,7 +57029,6 @@ var ROUTE_VERBS = [
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
   // Leads is a scope of People, and its rows name it: a finished search said "Open People" over a door to Leads.
   [/^clients\/leads/, "Open Leads"],
-  // Get their yes, People's sheet (the Campaigns wiring review's lane 7).
   [/^clients\/get-yes$/, "Open Get their yes"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],

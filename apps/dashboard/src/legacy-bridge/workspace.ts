@@ -28,7 +28,7 @@ import {
 import type { AddressParts } from "@chanlytics/contracts";
 import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
-import { inPlace } from "./see-over";
+import { inPlace } from "../surfaces/see/see-over";
 
 const LAST_KEY = "chanlytics.workspace";
 

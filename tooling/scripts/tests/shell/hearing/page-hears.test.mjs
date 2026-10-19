@@ -72,7 +72,12 @@ const ROUTE_FAMILIES = [
 /** A person's id as a real one is written (the registry takes a person's page for a uuid alone). */
 const PERSON = "0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f";
 /** The address a family is asked at, where the family's own name is not one of it: a person, and a pane Settings does not list. */
-const ASKED_AT = { [PERSON_ROUTE]: `clients/${PERSON}`, admin: "admin/unlisted" };
+const ASKED_AT = {
+  [PERSON_ROUTE]: `clients/${PERSON}`,
+  admin: "admin/unlisted",
+  // A run's home under its sequence (the Campaigns wiring review's lane 2): the family names the screen, no address.
+  "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1",
+};
 const askedAt = (family) => ASKED_AT[family] ?? family;
 
 /**
@@ -98,11 +103,20 @@ const ADDRESSES = [
   "campaigns/new",
   "campaigns/sequences",
   "campaigns/sequences/sq-1/people",
+  // A run at its home, and the one New on each who (the Campaigns wiring review's lanes 2 and 6).
+  "campaigns/sequences/sq-1/runs/b-1",
+  "campaigns/sequences/new",
+  "campaigns/sequences/new:once:to:s-1",
+  "campaigns/sequences/new:leads",
   "campaigns/messages",
   "messages",
   "broadcasts",
   "broadcasts/run:b-1",
   "broadcasts/get-yes",
+  "broadcasts/to-send",
+  // To send, a part of the Inbox's Needs you (lane 4), and Get their yes, a sheet over People's list (lane 7).
+  "inbox/to-send",
+  "clients/get-yes",
   "clients",
   `clients/${PERSON}`,
   "clients/new-list",
@@ -187,8 +201,17 @@ const FAMILY_OF = {
   "admin/hours": "admin/hours",
   "admin/setup": "admin/setup",
   "inbox/th-1": "inbox",
+  "inbox/to-send": "inbox",
   "campaigns/moment:pb-1": "campaigns",
+  // The composer's old address lands on New before a page is drawn: no family of its own any more (lane 6).
+  "campaigns/new": "campaigns",
+  "campaigns/sequences/sq-1/people": "campaigns/sequences",
+  "campaigns/sequences/sq-1/runs/b-1": "campaigns/sequences/runs",
+  "campaigns/sequences/sq-1/history/b-1": "campaigns/sequences",
+  "campaigns/sequences/new:once:to:s-1": "campaigns/sequences/new",
+  "campaigns/sequences/new:leads": "campaigns/sequences/new",
   "broadcasts/run:b-1": "broadcasts",
+  "clients/get-yes": "clients/get-yes",
   "start/find": "start",
   "": "today",
   nowhere: "nowhere",
@@ -205,8 +228,8 @@ test("the addresses whose family is not their first word are the family each is 
 test("each row holds its family's own surface whole, and only surfaces the shell registers; a cell of kinds names kinds its surface hears on its page alone; each family is asked at an address of it", () => {
   for (const [family, cells] of Object.entries(PAGE_HEARS)) {
     assert.equal(routeFamilyOf(askedAt(family)), family, `${family} is asked at ${askedAt(family)}, of another family`);
-    const [page, param] = askedAt(family).split("/");
-    const own = routeSurfaceFor(page, param ?? null);
+    const { page, param } = registry.routePartsOf(askedAt(family));
+    const own = routeSurfaceFor(page, param);
     if (own) assert.equal(cells[own], true, `${family}: its own surface ${own} is on its row, every kind of it`);
     for (const [key, cell] of Object.entries(cells)) {
       assert.ok(KEYS.has(key), `${family}: ${key} is no surface the shell registers`);

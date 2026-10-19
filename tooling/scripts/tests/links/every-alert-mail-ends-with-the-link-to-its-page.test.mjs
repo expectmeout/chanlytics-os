@@ -145,12 +145,13 @@ test("a notice kept to be told exactly once (notifyOnce, notifyEvent) ends its m
     ["notifyEvent", notifyEvent, { sourceEvent: "escalation.opened:e1" }],
   ]) {
     const t = transport();
-    const told = await tell(harbor(), msg("playbook", { route: `broadcasts/run:${ID}`, ...extra }), {
+    // A run's notice names the run at its home under its sequence (the Campaigns wiring review's lane 2).
+    const told = await tell(harbor(), msg("playbook", { route: `campaigns/sequences/${ID}/runs/${ID}`, ...extra }), {
       db: world(),
       send: t.send,
     });
     assert.equal(told, true, name);
-    assert.ok(t.sent[0].text.endsWith(`Open it: ${ORIGIN}/w/harbor/broadcasts/run:${ID}`), name);
+    assert.ok(t.sent[0].text.endsWith(`Open it: ${ORIGIN}/w/harbor/campaigns/sequences/${ID}/runs/${ID}`), name);
   }
 });
 

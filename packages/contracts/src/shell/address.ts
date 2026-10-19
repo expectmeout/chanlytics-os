@@ -108,17 +108,24 @@ function retiredPathOf(path: string): string | null {
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
-  if (head === "broadcasts") {
-    if (!param) return SEQUENCES_ROUTE;
-    if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
-    // Sent's own views went too (the Campaigns wiring review's lanes 4 and 7): To send is a part of the Inbox's Needs you
-    // (Ruben's call 3), and Get their yes is People's (call 6). Any other word is an audience, which New's Send once is
-    // asked to message.
-    if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
-    if (param === GET_YES_PARAM) return GET_YES_ROUTE;
-    return sendOnceRoute(param);
-  }
-  if (head !== "campaigns") return null;
+  if (head === "broadcasts") return sentLandingOf(param);
+  return head === "campaigns" ? campaignsLandingOf(path, param) : null;
+}
+
+/** Where an address of Sent (`broadcasts/<param>`) lands: Sent draws nothing of its own, so every one lands somewhere. */
+function sentLandingOf(param: string): string {
+  if (!param) return SEQUENCES_ROUTE;
+  if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
+  // Sent's own views went too (the Campaigns wiring review's lanes 4 and 7): To send is a part of the Inbox's Needs you
+  // (Ruben's call 3), and Get their yes is People's (call 6). Any other word is an audience, which New's Send once is
+  // asked to message.
+  if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
+  if (param === GET_YES_PARAM) return GET_YES_ROUTE;
+  return sendOnceRoute(param);
+}
+
+/** Where a retired address of Campaigns (`campaigns/<param>`) lands, or null where it is the page's own. */
+function campaignsLandingOf(path: string, param: string): string | null {
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
   if (param === "sequences") {
     const [, , id, tab, day] = path.split("/");

@@ -92,7 +92,7 @@ Object.assign(globalThis, {
 });
 const quiet = console.error;
 console.error = () => {};
-const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
@@ -287,7 +287,10 @@ const broadcastsSurface = (over = {}) => ({
   bookingLink: true,
   ...over,
 });
-/** The composer, opened the way the home hosts it: the surface as it publishes the templates read, the page's own offer. */
+/**
+ * The send screen, opened as New's Send once hosts it (home/new-message.tsx, the Campaigns wiring review's lane 6): the surface
+ * as it publishes the templates read, the page's own offer, handed in as New hands it.
+ */
 const broadcastComposer = (record) => {
   const number = hasNumber(record)
     ? {
@@ -305,9 +308,15 @@ const broadcastComposer = (record) => {
     }),
   );
   freshTree();
-  const props = { initialSegment: "no-such-list", initialRun: null };
-  BroadcastsPage(props);
-  return drawAgain(() => BroadcastsPage(props));
+  const props = {
+    data: surfaceValue("broadcasts"),
+    initialSegment: "no-such-list",
+    flash() {},
+    onDone() {},
+    onYes() {},
+  };
+  BroadcastSend(props);
+  return drawAgain(() => BroadcastSend(props));
 };
 
 test("the broadcast composer's picker lists what the spec expects of the rows, and says what it says where there is none or one cannot go out", () => {

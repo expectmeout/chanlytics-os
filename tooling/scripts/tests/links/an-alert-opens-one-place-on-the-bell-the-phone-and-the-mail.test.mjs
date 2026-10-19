@@ -84,7 +84,7 @@ test("with no workspace known, a link is the front door with the route as a hash
 test("every link reads back as the route it was written for", () => {
   for (const route of [
     "inbox/th-" + ID,
-    "broadcasts/run:" + ID,
+    `campaigns/sequences/${ID}/runs/${ID}`,
     "conversations/cv-" + ID,
     "admin/workspace/calendar",
     "clients/leads",

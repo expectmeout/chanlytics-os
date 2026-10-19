@@ -125,7 +125,7 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   assert.deepEqual(kept.ids, ["p1"]);
   assert.equal(
     kept.action.to,
-    "campaigns/new:to:s1",
+    "campaigns/sequences/new:once:to:s1",
     "and the list carries its one step: a broadcast to those who said yes",
   );
   const v = readCode("apps/dashboard/src/surfaces/people/people-lists.ts");

@@ -531,11 +531,11 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** The twelve kinds of row, in the grammar's order: a row not read as the kind written is looked for under each. */
 const ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 /**
- * A route that names a row -- a thread, a call, a person, a list of the workspace's own, a playbook, a broadcast, a
- * lead or a search -- whatever id it carries: never a page.
+ * A route that names a row -- a thread, a call, a person (never People's Get their yes), a list of the workspace's own, a
+ * playbook, a run (at its home, or Sent's older spelling), a lead or a search -- whatever id it carries: never a page.
  */
 const ROW_ROUTE =
-  /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
+  /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|campaigns\/sequences\/[^/]+\/runs\/|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:|get-yes$))/;
 
 /**
  * A source grounded in this turn's reads, opened where its reader said (the read set's RowRef); null for kind none or a

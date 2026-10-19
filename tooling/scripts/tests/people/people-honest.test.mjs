@@ -1090,10 +1090,10 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   assert.ok(step, "a kept list has its one door, as a smart list has its step");
   assert.match(textOf(step), /1 of 2 on this list said yes to offers/, textOf(step));
   const cta = find(step, (n) => n.type === "button");
-  assert.equal(textOf(cta).trim(), "Use in a broadcast");
+  assert.equal(textOf(cta).trim(), "Send them a message");
   went.length = 0;
   click(cta);
-  assert.deepEqual(went, ["campaigns/new:to:s1"], "and it opens the composer on this list");
+  assert.deepEqual(went, ["campaigns/sequences/new:once:to:s1"], "and it opens New's Send once on this list");
   // Renamed where the name is.
   click(byTestId(tree, "list-rename"));
   tree = draw({ initialSaved: "s1" });

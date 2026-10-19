@@ -27,6 +27,7 @@ import {
   LOOK_OPTIONS,
   LOOK_OFFERED,
   retiredRouteOf,
+  runRoute,
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
@@ -676,13 +677,11 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   setSurfaceValue("audiences", {
     audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }],
   });
-  // Sent's sheets go back to Campaigns (decision 0060, D3: its list went to each sequence's History).
-  assert.equal(
-    mount("#/broadcasts/lapsed").title,
-    "Lapsed · Campaigns · Chanlytics",
-    "a real audience by its own name",
-  );
+  // Sent's addresses land on Campaigns' screens (the Campaigns wiring review's lanes 2 and 6: an audience's on New's Send
+  // once), and Sent names nothing of its own; New names no list, seeded or real.
+  assert.equal(mount("#/broadcasts/lapsed").title, "Campaigns · Chanlytics");
   assert.equal(mount("#/broadcasts/lapsed-60").title, "Campaigns · Chanlytics");
+  assert.equal(mount("#/campaigns/sequences/new:once:to:lapsed-60").title, "New · Campaigns · Chanlytics");
 
   setPeople({ rows: [], lists: [{ id: "opted_in", label: "Opted in" }], saved: [] });
   assert.equal(mount("#/clients/seg:opted_in").title, "Opted in · People · Chanlytics");
@@ -869,7 +868,7 @@ test("a link to a call opens that call on Live, named in the crumbs -- the route
   }
 });
 
-test("a page that follows its own address is one mount across it -- Settings' panes, the Inbox's threads, Broadcasts' runs, Live's calls -- and every other page's param is its own mount, the safe default", () => {
+test("a page that follows its own address is one mount across it -- Settings' panes, the Inbox's threads, Campaigns' runs, Live's calls -- and every other page's param is its own mount, the safe default", () => {
   // Run, where chrome.test.mjs used to match the Set's source text: the shell as drawn is what decides.
   shell.installShell(win);
   globalThis.LiveMonitorPage = "LiveMonitorPage";
@@ -879,7 +878,8 @@ test("a page that follows its own address is one mount across it -- Settings' pa
     const one = (...hashes) => assert.equal(new Set(hashes.map(key)).size, 1, `one mount: ${hashes.join(", ")}`);
     one("#/admin/workspace", "#/admin/billing", "#/admin/team");
     one("#/inbox", "#/inbox/th-1", "#/inbox/th-2");
-    one("#/broadcasts", "#/broadcasts/run:r-1");
+    // Campaigns follows its address: Sequences' list, a run at its home, the one New.
+    one("#/campaigns/sequences", "#/campaigns/sequences/q-1/runs/r-1", "#/campaigns/sequences/new:once");
     one("#/live", "#/live/c-1", "#/live/c-2");
     one("#/conversations", "#/conversations/phone", "#/conversations/phone:cv-1", "#/conversations/cv-2");
     // The Calendar follows its address (its views, a day, a visit over a view: the Calendar's lane A), so a view picked
@@ -893,13 +893,11 @@ test("a page that follows its own address is one mount across it -- Settings' pa
   }
 });
 
-test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs, on the page already open -- Broadcasts read every param as a list's id", () => {
+test("REGRESSION (C9): a link to a run opens that run, named in the crumbs, on the page already open -- at its home under its sequence now (the Campaigns wiring review's lane 2)", () => {
   shell.installShell(win);
   setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }] });
-  setSurfaceValue("audiences", { audiences: [{ kind: "saved", id: "s1", label: "Regulars" }] });
   try {
-    // What the page is handed for each address is the route's (campaigns-routes.test.mjs, broadcastsProps); the frame
-    // names the trail and keeps one mount for the page.
+    // The frame names the trail and keeps one mount for Campaigns.
     const at = (hash) => {
       const { tree } = mount(hash);
       return {
@@ -907,19 +905,20 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
         key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key,
       };
     };
-    const run = at("#/broadcasts/run:b-1");
+    const run = at(`#/${runRoute("b-1", "q-1")}`);
     assert.equal(run.crumbs.at(-1), "Win-back · 2026-09-10");
-    const list = at("#/broadcasts/s1");
-    assert.equal(list.crumbs.at(-1), "Regulars");
     assert.equal(
-      at("#/broadcasts/run:b-older").crumbs.at(-1),
+      at(`#/${runRoute("b-older")}`).crumbs.at(-1),
       "Run",
       "a run past the newest fifty is still named for what it is, before its own read names it",
     );
-    assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
+    assert.equal(
+      run.key,
+      at("#/campaigns/sequences").key,
+      "one mount with Sequences' list, which the run opens beside",
+    );
   } finally {
     setSurfaceValue("broadcasts", undefined);
-    setSurfaceValue("audiences", undefined);
   }
 });
 
@@ -1088,23 +1087,37 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   }
 });
 
-test("REGRESSION: a run's sheet closes back to the page it was opened from, by the browser's own Back -- it closed onto Sequences from the Inbox (the Inbox's run review, 18 Oct 2026)", async () => {
+test("REGRESSION: a run opened from the Inbox closes back to it by the browser's own Back -- it closed onto Sequences from the Inbox (the Inbox's run review, 18 Oct 2026); it opens over the Inbox now, and by a link at its home (the Campaigns wiring review's lanes 2 and 3)", async () => {
   shell.installShell(win);
   const doors = await importSrc("apps/dashboard/src/surfaces/frame-doors.ts");
+  const see = await importSrc("apps/dashboard/src/surfaces/see/see-over.ts");
   const keepHistory = win.history;
-  const h = {
-    backs: 0,
+  const keepHref = Object.getOwnPropertyDescriptor(win.location, "href");
+  // The browser's History as far as the sheet reads it: the entry's state, and a Back counted.
+  const h = { backs: 0, state: null };
+  win.history = {
+    ...keepHistory,
+    get state() {
+      return h.state;
+    },
+    pushState(data, unused, url) {
+      h.state = data;
+      keepHistory.pushState(data, unused, url);
+    },
+    replaceState(data, unused, url) {
+      h.state = data;
+      keepHistory.replaceState(data, unused, url);
+    },
     back() {
       h.backs += 1;
     },
   };
-  win.history = { ...keepHistory, back: () => h.back() };
+  Object.defineProperty(win.location, "href", {
+    configurable: true,
+    get: () => `https://app.example.com${win.location.pathname}${win.location.search || ""}${win.location.hash || ""}`,
+  });
   // The frame as the bridge draws it, filling the doors a page asks for (LegacyApp's fillDoors).
-  const draw = (path) => {
-    if (path) {
-      win.location.pathname = path;
-      fire("popstate");
-    }
+  const draw = () => {
     deep = false;
     frames.begin();
     const t = win.ChanlyticsApp({
@@ -1122,33 +1135,38 @@ test("REGRESSION: a run's sheet closes back to the page it was opened from, by t
   try {
     cells = [];
     placeAt("#/inbox");
+    win.location.search = "";
     draw();
-    // The Inbox's run row opens the run's sheet, a new entry (the frame's own move, as a page's door makes it).
-    doors.navigate("broadcasts/run:b-1/sheet");
-    draw("/w/acme/broadcasts/run:b-1/sheet");
-    doors.backFrom("campaigns/sequences", { replace: true });
-    assert.equal(h.backs, 1, "opened from the Inbox: the browser's Back, to the Inbox as it was left");
-    assert.equal(win.location.pathname, "/w/acme/broadcasts/run:b-1/sheet", "nothing pushed or replaced");
+    // The Inbox's run row opens the run (the frame's own move, as a page's door makes it): over the Inbox, one entry.
+    doors.navigate(runRoute("b-1", "q-1"));
+    assert.equal(win.location.pathname, "/w/acme/inbox", "the Inbox stays under it, as it was left");
+    assert.deepEqual(see.seeOverNow(), { kind: "run", id: "b-1", sequenceId: "q-1" }, "the run, over it");
+    see.closeSeeOver();
+    assert.equal(h.backs, 1, "its close is the browser's Back, to the Inbox as it was left");
 
-    // The arrival writes the sheet's own address over the run's (route.tsx): the same entry, so Back is still the Inbox.
+    // An older link to its sheet in Sent is the same run, opened over the page it was pressed on.
+    win.location.search = "";
+    h.state = null;
     h.backs = 0;
-    placeAt("#/inbox");
-    draw();
-    doors.navigate("broadcasts/run:b-1");
-    draw("/w/acme/broadcasts/run:b-1");
-    doors.navigate("broadcasts/run:b-1/sheet", { replace: true });
-    doors.backFrom("campaigns/sequences", { replace: true });
-    assert.equal(h.backs, 1, "a run's address landed on its sheet: Back is the Inbox's");
+    doors.navigate("broadcasts/run:b-1/sheet");
+    assert.equal(win.location.pathname, "/w/acme/inbox");
+    assert.deepEqual(see.seeOverNow(), { kind: "run", id: "b-1", sequenceId: null });
 
-    // Reached by a link or a reload (a frame drawn afresh): its home, the address replaced, never a Back out of the app.
+    // Reached by a link or a reload (a frame drawn afresh): its home, beside Sequences' list; its way back replaces the
+    // address with Sequences, never a Back out of the app.
+    win.location.search = "";
+    h.state = null;
     h.backs = 0;
     cells = [];
-    placeAt("#/broadcasts/run:b-1/sheet");
+    placeAt(`#/${runRoute("b-1", "q-1")}`);
     draw();
     doors.backFrom("campaigns/sequences", { replace: true });
     assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/campaigns/sequences"], "by a link: Sequences");
   } finally {
     win.history = keepHistory;
+    if (keepHref) Object.defineProperty(win.location, "href", keepHref);
+    else delete win.location.href;
+    win.location.search = "";
     doors.emptyDoors();
   }
 });

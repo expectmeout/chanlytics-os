@@ -55,7 +55,9 @@ test("a page citation is a listed page, or a shape its page parses", () => {
     "calendar/2026-10-11",
     "calendar/month",
     "calendar/week:2026-10-11",
-    "broadcasts/get-yes",
+    // Get their yes over People's list, and To send in the Inbox's Needs you (the Campaigns wiring review's lanes 7 and 4).
+    "clients/get-yes",
+    "inbox/to-send",
     "conversations/phone",
   ];
   assert.deepEqual(kept(real), real, "every one of them is a page a person lands on");
@@ -73,6 +75,8 @@ test("a page citation is a listed page, or a shape its page parses", () => {
   assert.deepEqual(kept(["campaigns/sequences", ...moved]), ["campaigns/sequences"], "one place, one citation");
   // The Library's old route is Messages, Campaigns' other view (19 Oct 2026).
   assert.deepEqual(kept(["messages"]), ["campaigns/messages"]);
+  // Sent's views, in an older card, are where they went: To send the Inbox's, Get their yes People's.
+  assert.deepEqual(kept(["broadcasts/to-send", "broadcasts/get-yes"]), ["inbox/to-send", "clients/get-yes"]);
 });
 
 test("an address that begins with a page word and is not one of its shapes is dropped (REGRESSION: all came back as a door)", () => {

@@ -180,7 +180,10 @@ test("an email the check held is decided, and one handed over said of, through o
   ]);
   assert.equal(decide.undo, undefined, "an email let go may be on its way: nothing to undo");
   // Open is the run that holds the email, its sheet in Sent.
-  assert.equal(decide.open({ payload: { send_id: SEND, run_id: SEQ } }, null), `broadcasts/run:${SEQ}`);
+  assert.equal(
+    decide.open({ payload: { send_id: SEND, run_id: SEQ } }, null),
+    `campaigns/sequences/${SEQ}/runs/${SEQ}`,
+  );
   assert.equal(decide.open({ payload: { send_id: SEND } }, null), null);
 
   assert.deepEqual(commit("sequence_send_said", { send_id: SEND, outcome: "sent", name: "Bloom Bar" }), {

@@ -6,11 +6,13 @@
  *
  *   campaigns[/sequences]            Sequences, Campaigns' first view   crumbs: Campaigns
  *   campaigns/sequences/<id>         a sequence open beside it     crumbs: Campaigns › <its name>
- *   campaigns/new[:to:<list>|:every|:leads|:moment:<trigger>|:edit:<id>]  a composer over it   crumbs: Campaigns
+ *   campaigns/sequences/<id>/runs/<run>  a run's home, its one screen   crumbs: Campaigns › <its sequence> › <the run>
+ *   campaigns/sequences/new[:once[:to:<list>]|:leads|:moment:<trigger>]  the one New   crumbs: Campaigns › New
  *   campaigns/message:<name>         a message's drawer over it    crumbs: Campaigns
  *   campaigns, campaigns/moment:<id>, campaigns/in:<group>  retired: Sequences, or the campaign's sequence
- *   broadcasts[/run:<id>|/get-yes|/to-send]  Sent's sheets         crumbs: Campaigns [› …]; Sent's list is retired: Sequences
- *   broadcasts/<list>                        retired: campaigns/new:to:<list>
+ *   campaigns/new[:to:<list>|:leads|:every|:moment:<trigger>|:edit:<id>]  retired: the one New, or the sequence's record
+ *   broadcasts[/run:<id>[/sheet]|/to-send|/get-yes|/<list>]  retired: Sequences, the run's home, the Inbox's To send,
+ *                                                             People's Get their yes, New's Send once on that list
  *   campaigns/messages               Messages, its other view      crumbs: Campaigns › Messages
  *   messages (the path's templates)          retired: campaigns/messages
  *   outbound[/<id>] (the path's playbooks)   retired: campaigns/sequences, campaigns/sequences/<id>
@@ -19,8 +21,8 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 const S = "../../../../apps/dashboard/src/surfaces";
-const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
-const { parseHome, composeRoute } = await import(`${S}/campaigns/home/address.ts`);
+const { campaignsChrome, broadcastsChrome } = await import(`${S}/campaigns/routes.ts`);
+const { parseHome } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { rememberRun } = await import(`${S}/campaigns/broadcasts/run-names.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
@@ -30,9 +32,12 @@ const {
   routeOfHash,
   movedAddress,
   retiredRouteOf,
-  arrivedRunOf,
-  runLandingOf,
-  runSheetRoute,
+  runRoute,
+  sendOnceRoute,
+  newForLeadsRoute,
+  parseSequencesRoute,
+  TO_SEND_ROUTE,
+  GET_YES_ROUTE,
   runTitleOf,
   runApproveWords,
 } = await import("@chanlytics/contracts");
@@ -46,113 +51,111 @@ const HOME = { label: "Campaigns", to: "campaigns/sequences" };
 
 /* ------------------------------------------------- Campaigns' addresses ------------------------------------------------- */
 
-test("Campaigns' sheets' addresses say the composer or a message, and spell back to the same words; the home's are still read", () => {
-  assert.deepEqual(parseHome(null), { group: null, moment: null, message: null, compose: null });
+test("Campaigns' sheet's address says a message, and the home's are still read; the composer's went into the one New", () => {
+  const none = { group: null, moment: null, message: null };
+  assert.deepEqual(parseHome(null), none);
   // The home's addresses, read so a link kept from before says what it named as it lands on Sequences (retiredRouteOf).
-  assert.deepEqual(parseHome("moment:pb-1"), { group: null, moment: "pb-1", message: null, compose: null });
-  assert.deepEqual(parseHome("moment:ro-1:people"), {
-    group: null,
-    moment: "ro-1",
-    part: "people",
-    message: null,
-    compose: null,
-  });
+  assert.deepEqual(parseHome("moment:pb-1"), { ...none, moment: "pb-1" });
+  assert.deepEqual(parseHome("moment:ro-1:people"), { ...none, moment: "ro-1", part: "people" });
   assert.deepEqual(parseHome("moment:ro-1:elsewhere"), parseHome("moment:ro-1"));
-  assert.deepEqual(parseHome("in:before"), { group: "before", moment: null, message: null, compose: null });
+  assert.deepEqual(parseHome("in:before"), { ...none, group: "before" });
   // Word-free ids only (decision 46): a word, a hyphen, a capital or nothing is no group.
   for (const odd of ["in:", "in:Before", "in:visit-tomorrow", "in:../x", "in:1st", "in:before:x"])
-    assert.deepEqual(parseHome(odd), parseHome(null), odd);
-  // The composer, on each of its modes.
-  assert.deepEqual(parseHome("new"), { group: null, moment: null, message: null, compose: { mode: "once", to: null } });
-  assert.deepEqual(
-    parseHome("new:to:s1"),
-    { group: null, moment: null, message: null, compose: { mode: "once", to: "s1" } },
-    "the audience it is for",
-  );
-  assert.deepEqual(parseHome("new:to:"), parseHome("new"), "no audience named is no audience");
-  // Its Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses open no sheet, and land on New sequence,
-  // or on it on a moment, before the page is drawn (the next test).
-  for (const went of ["new:every", "new:moment:quiet_30"]) assert.deepEqual(parseHome(went), parseHome(null), went);
-  // A reach-out's change, its own sheet (a sequence to leads' step's Edit), spelled as it is read.
-  assert.deepEqual(parseHome("new:edit:ro-1"), {
-    group: null,
-    moment: null,
-    message: null,
-    compose: { mode: "change", root: "ro-1" },
-  });
+    assert.deepEqual(parseHome(odd), none, odd);
   // A message open in a drawer of its own, by its name (the call's text's, or the one a step's editor names).
-  assert.deepEqual(parseHome("message:spring_offer"), {
-    group: null,
-    moment: null,
-    message: "spring_offer",
-    compose: null,
-  });
-  // A word the page does not know names nothing: a link never lands on nothing, and lands on Sequences.
-  for (const odd of ["surprise", "moment:", "message:", "new:edit:", "run:b-1", ""])
-    assert.deepEqual(parseHome(odd), parseHome(null), odd);
-  // Write to leads, New message's other choice (00426), spelled as it is read.
-  assert.equal(composeRoute("leads"), "campaigns/new:leads");
-  assert.deepEqual(parseHome("new:leads"), { group: null, moment: null, message: null, compose: { mode: "leads" } });
-  assert.equal(composeRoute("once"), "campaigns/new");
-  assert.equal(composeRoute("once", { to: "s1" }), "campaigns/new:to:s1");
-  assert.equal(composeRoute("once", { to: null }), "campaigns/new", "none named");
-  assert.equal(parseHome(composeRoute("once", { to: "s1" }).split("/")[1]).compose.to, "s1", "and back");
+  assert.deepEqual(parseHome("message:spring_offer"), { ...none, message: "spring_offer" });
+  // The composer's addresses open no sheet any more: they land on the one New for whom they named, or on the sequence's
+  // record (the Campaigns wiring review's lane 6), before the page is drawn (the next test). A word the page does not know
+  // names nothing either: a link never lands on nothing, and lands on Sequences.
+  for (const odd of [
+    "new",
+    "new:to:s1",
+    "new:leads",
+    "new:edit:ro-1",
+    "new:every",
+    "surprise",
+    "moment:",
+    "message:",
+    "",
+  ])
+    assert.deepEqual(parseHome(odd), none, odd);
+  // New's addresses, by who it is for, spell back to the same words.
+  assert.equal(sendOnceRoute(), "campaigns/sequences/new:once");
+  assert.equal(sendOnceRoute("s1"), "campaigns/sequences/new:once:to:s1");
+  assert.equal(sendOnceRoute("seg:needs_you"), "campaigns/sequences/new:once:to:seg:needs_you");
+  assert.equal(newForLeadsRoute(), "campaigns/sequences/new:leads");
+  assert.deepEqual(parseSequencesRoute(sendOnceRoute()), { view: "new", who: "once" });
+  assert.deepEqual(parseSequencesRoute(sendOnceRoute("s1")), { view: "new", who: "once", to: "s1" });
+  assert.deepEqual(
+    parseSequencesRoute(sendOnceRoute("seg:needs_you")),
+    { view: "new", who: "once", to: "seg:needs_you" },
+    "an audience's id keeps its own colons",
+  );
+  assert.deepEqual(parseSequencesRoute(newForLeadsRoute()), { view: "new", who: "leads" });
+  assert.deepEqual(parseSequencesRoute("campaigns/sequences/new:moment:quiet_30"), { view: "new", moment: "quiet_30" });
+  assert.deepEqual(parseSequencesRoute("campaigns/sequences/new:odd"), { view: "new" }, "a who it does not know asks");
 });
 
-test("the home's addresses, and Sent's list, land on Sequences: a campaign's on its sequence; a run's by what the run is", () => {
+test("the home's addresses, Sent's, and the composer's land in one move on the page that took each over", () => {
   assert.equal(retiredRouteOf("campaigns"), "campaigns/sequences");
   assert.equal(retiredRouteOf("campaigns/in:before"), "campaigns/sequences", "a group of the ledger that went");
   assert.equal(retiredRouteOf("campaigns/moment:pb-1"), "campaigns/sequences/pb-1");
   assert.equal(retiredRouteOf("campaigns/moment:ro-1:people"), "campaigns/sequences/ro-1/people");
   assert.equal(retiredRouteOf("broadcasts"), "campaigns/sequences");
-  // A run's address says nothing of what the run is: runLandingOf lands it once the run is known (below).
-  assert.equal(retiredRouteOf("broadcasts/run:b-1"), null);
+  // A run's sheet in Sent is the run's home under its sequence (lane 2), the run naming the sequence until the page writes
+  // its own; a day of History is that run, at its home.
+  assert.equal(retiredRouteOf("broadcasts/run:b-1"), "campaigns/sequences/b-1/runs/b-1");
+  assert.equal(retiredRouteOf("broadcasts/run:b-1/sheet"), "campaigns/sequences/b-1/runs/b-1");
+  assert.equal(retiredRouteOf("broadcasts/run:"), "campaigns/sequences", "a run named by nothing is Sequences");
+  assert.equal(retiredRouteOf("campaigns/sequences/sq-1/history/b-1"), "campaigns/sequences/sq-1/runs/b-1");
+  // Sent's own views: To send is a part of the Inbox's Needs you (lane 4), Get their yes People's sheet (lane 7).
+  assert.equal(retiredRouteOf("broadcasts/to-send"), TO_SEND_ROUTE);
+  assert.equal(retiredRouteOf("broadcasts/get-yes"), GET_YES_ROUTE);
+  // The composer is the one New (lane 6): Send once on its audience, Write to leads; a reach-out's change its record.
+  assert.equal(retiredRouteOf("campaigns/new"), "campaigns/sequences/new:once");
+  assert.equal(retiredRouteOf("campaigns/new:to:s1"), "campaigns/sequences/new:once:to:s1");
+  assert.equal(retiredRouteOf("campaigns/new:to:"), "campaigns/sequences/new:once", "no audience named is no audience");
+  assert.equal(retiredRouteOf("campaigns/new:leads"), "campaigns/sequences/new:leads");
+  assert.equal(retiredRouteOf("campaigns/new:edit:ro-1"), "campaigns/sequences/ro-1");
   // The composer's Every time: New, and New on its moment.
   assert.equal(retiredRouteOf("campaigns/new:every"), "campaigns/sequences/new");
   assert.equal(retiredRouteOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
   // A query after the route rides along.
   assert.equal(retiredRouteOf("campaigns/moment:pb-1?from=email"), "campaigns/sequences/pb-1?from=email");
-  // Where a sheet stands, and Sequences' own addresses, nothing moves.
+  // Each page's own address stays where it is.
   for (const kept of [
     "campaigns/sequences",
     "campaigns/sequences/pb-1",
-    "campaigns/new",
-    "campaigns/new:to:s1",
-    "campaigns/new:edit:ro-1",
+    "campaigns/sequences/pb-1/history",
+    runRoute("b-1", "sq-1"),
+    sendOnceRoute("s1"),
+    newForLeadsRoute(),
     "campaigns/message:spring_offer",
-    "broadcasts/run:b-1/sheet",
-    "broadcasts/get-yes",
-    "broadcasts/to-send",
     "campaigns/messages",
+    TO_SEND_ROUTE,
+    GET_YES_ROUTE,
   ])
     assert.equal(retiredRouteOf(kept), null, kept);
 });
 
-test("a link to a run lands by what the run is: on its sheet while it is decided there, on its sequence's History once it went (the Inbox's run review, 18 Oct 2026)", () => {
-  const run = (over) => ({ id: "b-1", sequence_id: "sq-1", state: "sent", ...over });
-  assert.equal(arrivedRunOf("broadcasts/run:b-1"), "b-1");
-  assert.equal(arrivedRunOf("broadcasts/run:b-1?x=1"), "b-1", "its query is no part of its run");
-  for (const other of ["broadcasts/run:b-1/sheet", "broadcasts", "broadcasts/to-send", "campaigns/sequences/b-1"])
-    assert.equal(arrivedRunOf(other), null, other);
-  // Waiting for approval (an Approve, or, its day gone, the Skip it is left): its sheet, where the address already drew it.
-  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "pending_approval" })), "broadcasts/run:b-1/sheet");
-  // Going, with emails the check holds for your say or hands you to send: its page decides them.
-  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "sending", held: 2 })), "broadcasts/run:b-1/sheet");
-  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "scheduled", drafted: 1 })), "broadcasts/run:b-1/sheet");
-  // Gone, or going with nothing for you: its day of its sequence's History, by the sequence's own id (no lookup, no swap).
-  assert.equal(runLandingOf("broadcasts/run:b-1", run()), "campaigns/sequences/sq-1/history/b-1");
-  assert.equal(
-    runLandingOf("broadcasts/run:b-1", run({ state: "sending", held: 0 })),
-    "campaigns/sequences/sq-1/history/b-1",
+test("a run's home is under its sequence, one screen whatever the run is (the Campaigns wiring review's lane 2)", () => {
+  assert.equal(runRoute("b-1", "sq-1"), "campaigns/sequences/sq-1/runs/b-1");
+  // A writer that does not know the sequence names the run in its place: the server reads a sequence by any of its parts.
+  assert.equal(runRoute("b-1"), "campaigns/sequences/b-1/runs/b-1");
+  assert.equal(runRoute("b-1", null), "campaigns/sequences/b-1/runs/b-1");
+  assert.deepEqual(parseSequencesRoute(runRoute("b-1", "sq-1")), {
+    view: "record",
+    id: "sq-1",
+    tab: "history",
+    run: "b-1",
+  });
+  // An older day of History reads as that run too, which the table of retired addresses moves on (above).
+  assert.deepEqual(
+    parseSequencesRoute("campaigns/sequences/sq-1/history/b-1"),
+    parseSequencesRoute(runRoute("b-1", "sq-1")),
   );
-  // A row that does not say its sequence: the run's id, which the server reads its sequence by.
-  assert.equal(
-    runLandingOf("broadcasts/run:b-1", run({ sequence_id: undefined })),
-    "campaigns/sequences/b-1/history/b-1",
-  );
-  // Another run's answer, or an address that is no run's, lands nothing.
-  assert.equal(runLandingOf("broadcasts/run:b-1", run({ id: "b-2" })), null);
-  assert.equal(runLandingOf("broadcasts/run:b-1/sheet", run({ state: "pending_approval" })), null);
+  // A run word with nothing after it is the record's History.
+  assert.deepEqual(parseSequencesRoute("campaigns/sequences/sq-1/runs"), { view: "record", id: "sq-1", tab: "steps" });
 });
 
 test("Campaigns' crumbs are its first view's at every address but Ads, a sheet over it among them -- Campaigns alone, as People's and Reports' are -- and every address is one mount", () => {
@@ -181,7 +184,21 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   setSurfaceValue("sequences", { sequences: [{ id: "q-1", name: "Win-back" }] });
   assert.deepEqual(c("sequences").crumbs, [HOME, "Win-back"]);
   globalThis.window = { location: { pathname: "/w/acme/campaigns/sequences/new" } };
-  assert.deepEqual(c("sequences").crumbs, [HOME, "New sequence"]);
+  assert.deepEqual(c("sequences").crumbs, [HOME, "New"], "the one New (lane 6)");
+  // A run at its home: under its sequence, which goes back to its History, the days it is one of.
+  globalThis.window = { location: { pathname: "/w/acme/campaigns/sequences/q-1/runs/b-1" } };
+  setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · 2026-09-10", run_for: "2026-09-10" }] });
+  // One that went keeps its day in its name, as its report's head says it.
+  assert.deepEqual(c("sequences").crumbs, [
+    HOME,
+    { label: "Win-back", to: "campaigns/sequences/q-1/history" },
+    "Win-back · 2026-09-10",
+  ]);
+  // A run older than Sent's newest fifty is named by its own read once the tab has made it, and "Run" before.
+  globalThis.window = { location: { pathname: "/w/acme/campaigns/sequences/q-1/runs/b-old" } };
+  assert.equal(c("sequences").crumbs.at(-1), "Run");
+  rememberRun({ id: "b-old", name: "Win-back · 2026-08-01", run_for: "2026-08-01", state: "sent" });
+  assert.equal(c("sequences").crumbs.at(-1), "Win-back · 2026-08-01");
   // The strip: Sequences and Messages, and Ads only where it is drawn.
   assert.deepEqual(
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
@@ -221,61 +238,19 @@ test("a run is called by one name wherever it is named -- its own, less the day 
   assert.equal(runApproveWords(7), "Approve · 7 people");
 });
 
-test("a run's link lands whenever it is reached, the page open or not: the page's own doors to a run write its sheet's address, which no landing reads", () => {
-  // The page never writes a bare run address (its rows, its queue and the Inbox open runSheetRoute), so every bare one is a
-  // link from elsewhere (a bell row, Ask's card, search), and lands even on Sent's page already open: it landed only on
-  // the address the page first opened on, and a run tapped in the bell over an open sheet stayed on Sent's page.
-  assert.equal(arrivedRunOf(runSheetRoute("b-1")), null);
-  assert.equal(arrivedRunOf("broadcasts/run:b-1"), "b-1");
-});
-
-test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes, or an audience the surface offers; every address is one mount", () => {
-  const b = (param) => broadcastsChrome({ param });
-  assert.deepEqual(b(null).crumbs, ["Campaigns"]);
-  // Beside Sequences' list: Campaigns' strip, on Sequences, and the page its panes.
-  assert.equal(b("get-yes").views.picked, "sequences");
-  assert.equal(b("run:b-1").pane, true);
-  // A run nothing holds yet is a run, not "Broadcast": Sent's room, which a sequence's run never was.
-  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Run"], "a run nothing holds yet");
-  assert.deepEqual(b("get-yes").crumbs, [HOME, "Get their yes"]);
-  assert.deepEqual(b("to-send").crumbs, [HOME, "To send"]);
-  assert.deepEqual(b("s1").crumbs, ["Campaigns"], "an audience nothing holds yet");
-  setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · Sep 10" }] });
-  // Who each audience reaches is its own read (broadcasts/audiences-surface.ts): an audience's address is named from it.
-  setSurfaceValue("audiences", {
-    audiences: [
-      { kind: "everyone", id: null, label: "Everyone" },
-      { kind: "saved", id: "s1", label: "Regulars" },
-      { kind: "list", id: "new_week", label: "New this week" },
-      { kind: "playbook", id: "pb-1", label: "Win-back" },
-    ],
-  });
-  assert.deepEqual(b("run:b-1").crumbs, [HOME, "Win-back · Sep 10"]);
-  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Run"]);
-  // A run older than Sent's newest fifty is named as its own read names it (broadcasts/run-names.ts), as Sent's row would:
-  // one that went keeps its day, one waiting on its page is called as its sheet's head calls it.
-  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "sent" });
-  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours · 2026-09-01"]);
-  rememberRun({ id: "b-9", name: "Autumn hours · 2026-09-01", run_for: "2026-09-01", state: "pending_approval" });
-  assert.deepEqual(b("run:b-9").crumbs, [HOME, "Autumn hours"]);
-  assert.deepEqual(b("s1").crumbs, [HOME, "Regulars"]);
-  assert.deepEqual(b("new_week").crumbs, [HOME, "New this week"]);
-  assert.deepEqual(
-    b("pb-1").crumbs,
-    ["Campaigns"],
-    "only a list or a kept list is an audience the composer opens on, never a playbook's",
-  );
-  assert.deepEqual(b("nobody").crumbs, ["Campaigns"]);
-  assert.equal(b("run:b-1").mount, "broadcasts");
-});
-
-test("Broadcasts is handed a run, the get-yes section, or the audience a word names -- a run's id was once read as a list's (C9)", () => {
-  const none = { initialSegment: null, initialRun: null, initialYes: false, initialToSend: false };
-  assert.deepEqual(broadcastsProps("run:b-1"), { ...none, initialRun: "b-1" });
-  assert.deepEqual(broadcastsProps("get-yes"), { ...none, initialYes: true });
-  assert.deepEqual(broadcastsProps("to-send"), { ...none, initialToSend: true }, "the one To send is no audience");
-  assert.deepEqual(broadcastsProps("s1"), { ...none, initialSegment: "s1" });
-  assert.deepEqual(broadcastsProps(null), none);
+test("Sent draws nothing of its own: every address of it lands, and while it does its crumbs are Campaigns', on Sequences", () => {
+  for (const param of [null, "run:b-1", "get-yes", "to-send", "s1"]) {
+    const at = broadcastsChrome({ param });
+    assert.deepEqual(at.crumbs, ["Campaigns"], String(param));
+    assert.equal(at.views.picked, "sequences", String(param));
+    assert.equal(at.mount, "broadcasts");
+    assert.equal(at.pane, true);
+    assert.notEqual(
+      retiredRouteOf(param ? `broadcasts/${param}` : "broadcasts"),
+      null,
+      `broadcasts/${param ?? ""} lands`,
+    );
+  }
 });
 
 test("Messages' crumbs go back to Campaigns, whose first view is Sequences, and the routes' own crumbs say the same", () => {
@@ -297,7 +272,10 @@ test("the frame takes every address of Campaigns, and of its rooms: a sequence, 
     "campaigns/sequences",
     "campaigns/sequences/q-1",
     "campaigns/sequences/q-1/history/b-1",
+    "campaigns/sequences/q-1/runs/b-1",
     "campaigns/sequences/new",
+    "campaigns/sequences/new:once:to:s1",
+    "campaigns/sequences/new:leads",
     "campaigns/moment:pb-1",
     "campaigns/new",
     "campaigns/new:every",
@@ -364,7 +342,7 @@ test("the old Playbooks addresses land on Sequences in one move: outbound on the
     "campaigns/sequences",
     "campaigns/sequences/pb-1",
     "campaigns/sequences/pb-1/people",
-    "broadcasts/run:b-1",
+    "campaigns/sequences/pb-1/runs/b-1",
     "campaigns/messages",
     "clients/c-1",
     "today",
@@ -376,49 +354,42 @@ test("the old Playbooks addresses land on Sequences in one move: outbound on the
   assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/sequences/pb-1");
   assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns/sequences");
   assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/sequences/pb-1");
-  assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/new");
-  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
+  assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/sequences/new:once");
+  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/campaigns/sequences/b-1/runs/b-1");
   // Messages is Campaigns' other view (19 Oct 2026): its old route is a door to it.
   assert.equal(retiredRouteOf("messages"), "campaigns/messages");
   assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
 });
 
-test("broadcasts/<audience>, which People and a list write to message these people, is a door to Campaigns' composer on that audience; a run, Get their yes and Sent itself stay", () => {
-  assert.equal(retiredRouteOf("broadcasts/s1"), "campaigns/new:to:s1");
-  assert.equal(retiredRouteOf("broadcasts/new_week"), "campaigns/new:to:new_week");
+test("broadcasts/<audience>, which People and a list wrote to message these people, is New's Send once on that audience", () => {
+  assert.equal(retiredRouteOf("broadcasts/s1"), "campaigns/sequences/new:once:to:s1");
+  assert.equal(retiredRouteOf("broadcasts/new_week"), "campaigns/sequences/new:once:to:new_week");
   assert.equal(
     retiredRouteOf("broadcasts/s1/x"),
-    "campaigns/new:to:s1",
+    "campaigns/sequences/new:once:to:s1",
     "the route's second word, as the shell reads its param",
   );
-  for (const kept of [
-    "broadcasts/run:b-1",
-    "broadcasts/run:b-1/x",
-    "broadcasts/get-yes",
-    "broadcasts/to-send",
-    "broadcast",
-    "campaigns/new:to:s1",
-  ])
+  for (const kept of ["broadcast", "campaigns/sequences/new:once:to:s1"])
     assert.equal(retiredRouteOf(kept), null, `${kept} is where it is`);
   // Sent's own list went to each sequence's History (D3): Sequences.
   assert.equal(retiredRouteOf("broadcasts"), "campaigns/sequences");
   // Written: People's "Message these people" lands in one move.
-  assert.equal(workspacePath("acme", "broadcasts/s1"), "/w/acme/campaigns/new:to:s1");
-  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1");
+  assert.equal(workspacePath("acme", "broadcasts/s1"), "/w/acme/campaigns/sequences/new:once:to:s1");
   assert.equal(workspacePath("acme", "broadcasts"), "/w/acme/campaigns/sequences");
   // And an old link, a bookmark or a bell row that says it moves as the frame loads.
   const moved = (address) => movedAddress({ search: "", hash: "", ...address });
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/s1" }), "/w/acme/campaigns/new:to:s1");
-  assert.equal(moved({ pathname: "/w/acme/broadcasts/s1" }), "/w/acme/campaigns/new:to:s1");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/s1" }), "/w/acme/campaigns/sequences/new:once:to:s1");
+  assert.equal(moved({ pathname: "/w/acme/broadcasts/s1" }), "/w/acme/campaigns/sequences/new:once:to:s1");
   assert.equal(
     moved({ pathname: "/w/acme/broadcasts/s1", search: "?from=people" }),
-    "/w/acme/campaigns/new:to:s1?from=people",
+    "/w/acme/campaigns/sequences/new:once:to:s1?from=people",
   );
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/get-yes" }), "/w/acme/broadcasts/get-yes");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/get-yes" }), "/w/acme/people/get-yes");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/to-send" }), "/w/acme/inbox/to-send");
   assert.equal(moved({ pathname: "/w/acme/broadcasts" }), "/w/acme/campaigns/sequences");
-  // The address it lands on reads back as the composer on that audience.
-  assert.equal(routeOfPath("/w/acme/campaigns/new:to:s1"), "campaigns/new:to:s1");
-  assert.deepEqual(parseHome("new:to:s1").compose, { mode: "once", to: "s1" });
+  // The address it lands on reads back as New's Send once on that audience.
+  assert.equal(routeOfPath("/w/acme/campaigns/sequences/new:once:to:s1"), "campaigns/sequences/new:once:to:s1");
+  assert.deepEqual(parseSequencesRoute("campaigns/sequences/new:once:to:s1"), { view: "new", who: "once", to: "s1" });
 });
 
 test("a bookmark, a bell row or an email link that says the old route moves to the new address as the frame loads", () => {
@@ -441,9 +412,12 @@ test("a bookmark, a bell row or an email link that says the old route moves to t
     moved({ pathname: "/w/acme", hash: "#/campaigns/moment:pb-1:people" }),
     "/w/acme/campaigns/sequences/pb-1/people",
   );
-  // The rooms and Sequences are where they are; Messages' old names move to Campaigns' view.
+  // Sequences is where it is, a run's sheet moves to the run's home; Messages' old names move to Campaigns' view.
   assert.equal(moved({ pathname: "/w/acme/campaigns/sequences/pb-1" }), null);
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }), "/w/acme/broadcasts/run:b-1");
+  assert.equal(
+    moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }),
+    "/w/acme/campaigns/sequences/b-1/runs/b-1",
+  );
   assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/messages");
   assert.equal(moved({ pathname: "/w/acme/templates" }), "/w/acme/campaigns/messages");
   assert.equal(routeOfPath("/w/acme/campaigns/moment:pb-1"), "campaigns/moment:pb-1");

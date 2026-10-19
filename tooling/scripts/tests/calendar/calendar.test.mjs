@@ -725,7 +725,7 @@ test("(lane C) a one-off send stands at its time in Sent's words; a campaign's r
     !tueSaid(dto).some((s) => s.startsWith("We miss you")),
     "REGRESSION: a run made for tomorrow was forecast again today as 'to approve today'",
   );
-  assert.deepEqual([wed[0].t, wed[0].tone, wed[0].route], [null, "warn", "broadcasts/run:w1"]);
+  assert.deepEqual([wed[0].t, wed[0].tone, wed[0].route], [null, "warn", "campaigns/sequences/w1/runs/w1"]);
   assert.deepEqual(
     marksOn(dto, "2026-09-07").map(said),
     ["We miss you · Too late to approve"],

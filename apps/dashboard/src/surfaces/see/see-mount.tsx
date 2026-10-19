@@ -1,13 +1,13 @@
 /**
- * Where the frame keeps a thing open over the page (`?see=<kind>:<id>`, legacy-bridge/see-over.ts; the Campaigns wiring
+ * Where the frame keeps a thing open over the page (`?see=<kind>:<id>`, see-over.ts; the Campaigns wiring
  * review's rule C, lane 3): nothing until one is asked for, then the sheet's own chunk, loaded on demand (see-sheet.tsx),
  * so a page that never opens one pays nothing for it. The toast host stays here, at the frame, whatever page is under the
  * sheet: what an Approve says, with its Stop, outlives the sheet that closed over it (the run review's item 6).
  */
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { seeValueOf, type SeeRef } from "@chanlytics/contracts";
-import { hearSeeOver, seeOverNow } from "@/legacy-bridge/see-over";
-import { hearPageMoves, useLegacyToast } from "../legacy-verbs";
+import { useLegacyToast } from "../legacy-verbs";
+import { hearSeeOver, seeOverNow } from "./see-over";
 
 const SeeSheet = lazy(() => import("./see-sheet").then((m) => ({ default: m.SeeSheet })));
 
@@ -19,14 +19,7 @@ function useSeeOver(): SeeRef | null {
       const now = seeOverNow();
       setRef((was) => (was && now && seeValueOf(was) === seeValueOf(now) ? was : now));
     };
-    window.addEventListener("popstate", follow);
-    const offMoves = hearPageMoves(follow);
-    const offOwn = hearSeeOver(follow);
-    return () => {
-      window.removeEventListener("popstate", follow);
-      offMoves();
-      offOwn();
-    };
+    return hearSeeOver(follow);
   }, []);
   return ref;
 }

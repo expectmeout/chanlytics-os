@@ -5,7 +5,7 @@
  * line and a person's page read that word, and the write re-read the Calendar alone: People kept the old Next visit, Campaigns
  * counted a missed visit as a reminder owed, the headline kept its booking gap. Run on the real refresh map and the real
  * overrides: the mark re-reads, in the writer's tab, what counts visits (and, by the lens pattern, forgets the reads of the
- * pages that draw them elsewhere; Campaigns' composers, where they are drawn, and left for those pages elsewhere: the wiring's second
+ * pages that draw them elsewhere; New's Send onces, where they are drawn, and left for those pages elsewhere: the wiring's second
  * audit, S10-6); and the pages that count visits hear the `appointments` table, which a teammate's mark, a
  * booking email and the hourly calendar read write: People on every page (a few a day; the Inbox's visit chip and Today's
  * "Asked, never booked" are drawn from its read), the playbooks, the audiences and the lenses on their own page.
@@ -86,11 +86,11 @@ test("a visit marked kept, missed or cancelled re-reads the Calendar and People 
     ["calendar", "people"],
     "the Inbox draws Sent's runs waiting for your word, which count no visit (the Inbox's run review, 18 Oct 2026)",
   );
-  at("#/campaigns/new");
+  at("#/campaigns/sequences/new:once");
   assert.deepEqual(
     keysOf(MARK),
     ["calendar", "people", "audiences"],
-    "Campaigns' composer draws who each audience reaches: its playbook composer went (the closed-loop audit of 17 Oct 2026, G)",
+    "New's Send once draws who each audience reaches: its playbook composer went (the closed-loop audit of 17 Oct 2026, G)",
   );
   at("#/outbound");
   assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks"], "and the playbooks' own page, the playbooks");
@@ -149,12 +149,12 @@ test("marked on the Calendar, the composers are left for the pages that draw the
     at("#/outbound");
     win.on?.();
     assert.deepEqual(read, ["playbooks"], "and nothing is owed once they are read");
-    at("#/campaigns/new");
+    at("#/campaigns/sequences/new:once");
     win.on?.();
     assert.deepEqual(
       read,
       ["playbooks", "audiences"],
-      "the audiences as Campaigns' composer comes on screen, which draws them",
+      "the audiences as New's Send once comes on screen, which draws them",
     );
     at("#/calendar");
     win.on?.();
@@ -162,12 +162,12 @@ test("marked on the Calendar, the composers are left for the pages that draw the
     at("#/campaigns");
     win.on?.();
     assert.deepEqual(read, ["playbooks", "audiences"], "Campaigns' landing draws neither: still owed");
-    at("#/campaigns/new");
+    at("#/campaigns/sequences/new:once");
     win.on?.();
     assert.deepEqual(
       read,
       ["playbooks", "audiences", "audiences"],
-      "or as Campaigns' composer comes on screen, which draws the audiences",
+      "or as New's Send once comes on screen, which draws the audiences",
     );
     at("#/outbound");
     win.on?.();
@@ -278,7 +278,7 @@ test("People hears the appointments the live feed tells a workspace of on every 
 test("the playbooks and the audiences hear the appointments the live feed tells a workspace of, each on its own page", () => {
   for (const [o, home, away] of [
     [playbooksOverride, "#/outbound", "#/inbox"],
-    // Who each audience reaches leaves a missed visit's person out (Campaigns' composer hears it there too): away is the Inbox, which
+    // Who each audience reaches leaves a missed visit's person out (New's Send once hears it there too): away is the Inbox, which
     // draws Sent's runs alone.
     [audiencesOverride, "#/broadcasts", "#/inbox"],
   ]) {
@@ -338,9 +338,9 @@ test("an appointment passed over on another page is read once when the playbooks
     assert.deepEqual(read, [], "People was not kept for its page: it was read when the visit moved");
     at("#/inbox");
     win.on?.();
-    at("#/campaigns/new");
+    at("#/campaigns/sequences/new:once");
     win.on?.();
-    assert.deepEqual(read, [], "Campaigns' composer draws no playbook");
+    assert.deepEqual(read, [], "New's Send once draws no playbook");
     at("#/outbound");
     win.on?.();
     assert.deepEqual(read, ["playbooks"], "the playbooks once, on their own page");

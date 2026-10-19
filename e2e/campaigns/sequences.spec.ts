@@ -133,16 +133,16 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     );
     const sent = historyFigures(historyIn(history.batches, since, list.timezone)).find((f) => f.id === "sent");
     await expect(record.getByTestId("sq-figure-sent")).toContainText(sent?.value ?? "0");
-    // A day opens in place, onto what came back and the door to its run (which the open day holds: the first of the two).
+    // A day is its run: pressed, the run's one screen opens at its home under the sequence (the Campaigns wiring review's
+    // lane 2), and its Close comes back to History.
     const day = history.batches.find((b) => b.state === "sent");
     if (!day) return;
     await record.getByTestId(`sq-batch-${day.id}`).click();
-    await expect(
-      record.getByTestId(`sq-day-open-${day.id}`).or(record.getByTestId("sq-day-run")).first(),
-    ).toBeVisible();
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/runs/${day.id}$`)));
+    await expect(page.getByTestId("bc-run-solo")).toBeVisible();
   });
 
-  test("a run's address that went, as a bell row or Ask's card names it, lands on its sequence's History with that day open", async ({
+  test("a run's old address that went, as a bell row or Ask's card kept it, lands on the run's home under its sequence", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -150,14 +150,11 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     test.skip(!s?.last, "no sequence here has sent anything yet");
     if (!s?.last) return;
     await page.goto(`/#/broadcasts/run:${s.last.id}`);
-    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/history/${s.last.id}$`)));
-    const record = page.getByTestId("sq-record");
-    await expect(record.getByTestId(`sq-batch-${s.last.id}`)).toHaveAttribute("aria-expanded", "true");
-    // Its sheet in Sent stays a door away, at an address no landing takes.
-    await expect(record.getByTestId("sq-day-run").first()).toBeVisible();
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/runs/${s.last.id}$`)));
+    await expect(page.getByTestId("bc-run-solo")).toBeVisible();
   });
 
-  test("a run's address still waiting for an OK stays on its sheet, where it is decided (the Inbox's run review, 18 Oct 2026)", async ({
+  test("a run's old address still waiting for an OK lands on its home, where it is decided (the Campaigns wiring review's lane 2)", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -165,11 +162,11 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     test.skip(!waiting, "no batch here waits for an OK");
     if (!waiting) return;
     await page.goto(`/#/broadcasts/run:${waiting.id}`);
-    await expect(page).toHaveURL(atRoute(new RegExp(`^broadcasts/run:${waiting.id}/sheet$`)));
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/[^/]+/runs/${waiting.id}$`)));
     await expect(page.getByTestId("bc-sheet")).toBeVisible();
   });
 
-  test("New starts from what starts it; a date and leads open their own composers, and nothing is drafted here", async ({
+  test("New asks who and when; Once is the send screen and Leads the searches, in New, and nothing is drafted here", async ({
     page,
   }) => {
     await page.goto("/#/campaigns/sequences/new");
@@ -178,20 +175,17 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     // A moment is the default: the owner's line, and Draft it waits for one.
     await expect(pane.getByTestId("sq-new-words")).toBeVisible();
     await expect(pane.getByTestId("sq-new-draft")).toBeDisabled();
-    // A date is the one-off composer's: it opens over Sequences, never over a page of its own, and closes back here.
+    // Once is the send screen, as New's own pane with who and when over it (the Campaigns wiring review's lane 6); the choice
+    // is the address's, replaced, beside Sequences' list.
     await pane.getByTestId("sq-new-on-date").click();
-    await expect(pane.getByTestId("sq-new-open-date")).toBeVisible();
-    await pane.getByTestId("sq-new-open-date").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
-    await expect(page.getByTestId("cmh-composer")).toBeVisible();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:once$/));
+    const once = page.getByTestId("bc-composer");
+    await expect(once).toBeVisible();
     await expect(page.getByTestId("sq-page")).toBeVisible();
-    await page.goBack();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new$/));
-    // Back is New again, on what starts it (the choice is not in the address yet, so it starts on a moment again).
-    await expect(pane.getByTestId("sq-new-on-date")).toBeVisible();
-    // Leads are the composer's on Write to leads.
-    await pane.getByTestId("sq-new-on-leads").click();
-    await expect(pane.getByTestId("sq-new-open-leads")).toBeVisible();
+    // Leads are the searches a sequence to leads is written to, in New.
+    await once.getByTestId("sq-new-on-leads").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:leads$/));
+    await expect(pane.getByTestId("sq-new-part-leads")).toBeVisible();
     // A list asks which list before the line can be drafted (its picker sits in the pane's body: the first of the two).
     await pane.getByTestId("sq-new-on-list").click();
     await expect(pane.getByTestId("sq-new-list").or(pane.locator(".sq-new-body")).first()).toBeVisible();

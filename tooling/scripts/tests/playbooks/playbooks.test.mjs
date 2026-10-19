@@ -422,9 +422,11 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
     "through the edge, production only",
   );
   // The check is run: core-campaigns.test.mjs.
-  const queue = readCode("apps/dashboard/src/surfaces/today/pages/queue-runs.tsx");
+  // Today's queue and the Inbox's Needs you draw the runs that wait through one builder (the Campaigns wiring review's
+  // rule D): today-page.test.mjs and inbox-counts.test.mjs run it.
+  const rows = readCode("apps/dashboard/src/surfaces/waits/wait-rows.tsx");
   assert.ok(
-    queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'),
+    rows.includes('testid="brief-run-row"') && rows.includes("runsPending()"),
     "Today's queue shows a run that waits, from the surface it already has",
   );
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
@@ -622,7 +624,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   const broadcastsTsx = [
     "broadcasts-page.tsx",
     "when.tsx",
-    ...["acts", "audience", "runs", "send-screen", "state", "yes-pane"].map((f) => `page/${f}.tsx`),
+    ...["acts", "audience", "runs", "send-screen", "state"].map((f) => `page/${f}.tsx`),
     ...["reach", "types", "words"].map((f) => `page/${f}.ts`),
   ];
   assert.ok(

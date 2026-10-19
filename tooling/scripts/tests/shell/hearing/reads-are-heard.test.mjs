@@ -102,8 +102,8 @@ const PAGES = [
   "reports/campaigns",
   "reports/reviews",
   "campaigns",
-  // Campaigns' composer, where Campaigns' own 30 days and the playbooks' moments are drawn: its landing is Sequences' list.
-  "campaigns/new",
+  // New's Send once, where Campaigns' own 30 days and the playbooks' moments are drawn: its landing is Sequences' list.
+  "campaigns/sequences/new:once",
   "campaigns/sequences",
   "clients",
   "calendar",

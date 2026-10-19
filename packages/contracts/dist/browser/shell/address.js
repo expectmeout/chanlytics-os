@@ -31,14 +31,17 @@ function retiredPathOf(path) {
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
-  if (head === "broadcasts") {
-    if (!param) return SEQUENCES_ROUTE;
-    if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
-    if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
-    if (param === GET_YES_PARAM) return GET_YES_ROUTE;
-    return sendOnceRoute(param);
-  }
-  if (head !== "campaigns") return null;
+  if (head === "broadcasts") return sentLandingOf(param);
+  return head === "campaigns" ? campaignsLandingOf(path, param) : null;
+}
+function sentLandingOf(param) {
+  if (!param) return SEQUENCES_ROUTE;
+  if (param.startsWith("run:")) return param.length > 4 ? runRoute(param.slice(4)) : SEQUENCES_ROUTE;
+  if (param === TO_SEND_PARAM) return TO_SEND_ROUTE;
+  if (param === GET_YES_PARAM) return GET_YES_ROUTE;
+  return sendOnceRoute(param);
+}
+function campaignsLandingOf(path, param) {
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
   if (param === "sequences") {
     const [, , id, tab, day] = path.split("/");

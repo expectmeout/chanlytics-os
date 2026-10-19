@@ -147,7 +147,7 @@ const drain = () =>
     "#/calendar",
     "#/clients",
     "#/campaigns",
-    "#/campaigns/new",
+    "#/campaigns/sequences/new:once",
     "#/outbound",
     "#/broadcasts",
   ]);
@@ -182,7 +182,7 @@ const ANNOUNCES = {
     heard: [
       ["inbox", ["#/inbox", "#/today"]],
       ["people", ["#/clients"]],
-      ["audiences", ["#/broadcasts", "#/campaigns/new"]],
+      ["audiences", ["#/broadcasts", "#/campaigns/sequences/new:once"]],
       ["playbooks", ["#/outbound"]],
       ["calendar", ["#/calendar", "#/today"]],
       // The person's own page, where the row's button may open: their surface hears them changed there.
@@ -194,7 +194,7 @@ const ANNOUNCES = {
   sweep: {
     change: ["mailboxes", "UPDATE"],
     heard: [
-      ["broadcasts", ["#/broadcasts", "#/campaigns/new"]],
+      ["broadcasts", ["#/broadcasts", "#/campaigns/sequences/new:once"]],
       ["playbooks", ["#/outbound"]],
     ],
   },
@@ -296,8 +296,8 @@ test("heard while the owner is elsewhere, it is kept for the page that draws it 
   const pause = { table: "mailboxes", event: "UPDATE", row: {} };
   for (const o of [playbooksOverride, broadcastsOverride])
     assert.equal(wantsRefresh(o, "mailboxes", pause), false, o.key);
-  assert.deepEqual(owedOnArrival(["#/campaigns/new", "#/broadcasts", "#/outbound"]), {
-    "#/campaigns/new": ["broadcasts"],
+  assert.deepEqual(owedOnArrival(["#/campaigns/sequences/new:once", "#/broadcasts", "#/outbound"]), {
+    "#/campaigns/sequences/new:once": ["broadcasts"],
     "#/broadcasts": [],
     "#/outbound": ["playbooks"],
   });
