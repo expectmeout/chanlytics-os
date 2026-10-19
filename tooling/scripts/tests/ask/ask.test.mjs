@@ -1466,6 +1466,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     reach_out_make: "approve",
     reach_out_said: "approve",
     review_reply: "approve",
+    review_reply_stop: "approve",
     follow_up: "approve",
     answer_style: "approve",
   });

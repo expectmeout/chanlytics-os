@@ -2,17 +2,7 @@ import { shiftKey, zoneMidnight } from "../calendar/day-keys.js";
 import { appointmentWords } from "../journey/appointment-word.js";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers.js";
 import { clockDate, clockHour } from "../shared/clock.js";
-import { dateFormat, HOUR_MS, WEEK_MS } from "../shared/time.js";
-function onTrialAt(p, now) {
-  const end = Date.parse(p.trial_until ?? "");
-  return Number.isFinite(end) && now.getTime() < end;
-}
-export function effectiveMode(p, mode, now) {
-  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
-}
-export function newCampaignTrialUntil(now) {
-  return new Date(now.getTime() + WEEK_MS).toISOString();
-}
+import { dateFormat, HOUR_MS } from "../shared/time.js";
 export function campaignEnded(p, day) {
   return p.until && day > p.until ? p.until : null;
 }
@@ -23,20 +13,11 @@ export function campaignRunsOn(p, at) {
 export function campaignDayWords(day, tz, now) {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
 }
-export function trialDayWords(p, tz, now) {
-  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
-}
 export function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
+  if (mode === "auto") return { kind: "send", state: "scheduled", at: now };
+  if (mode === "veto")
+    return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+  return { kind: "hold", state: "pending_approval" };
 }
 function parts(tz, now) {
   try {

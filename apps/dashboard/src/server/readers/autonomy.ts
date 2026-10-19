@@ -8,6 +8,7 @@ import {
   type FactSuggestionDto,
   type HeldDraftsByIntent,
   type OwnModesDto,
+  type SequenceEvidenceDto,
 } from "@chanlytics/contracts";
 import {
   factSuggestionsWaiting,
@@ -15,6 +16,7 @@ import {
   namesOfPeople,
   peopleOnTheirOwnMode,
   replyTokensSince,
+  sequenceEvidence,
   type PolicyRecord,
 } from "@chanlytics/db";
 import { log } from "@/server/log";
@@ -36,6 +38,11 @@ interface AutonomyMatrix {
    * step in the replies it buys (contracts budgetDial). Null where the read failed.
    */
   reply_tokens: { replies: number; tokens: number } | null;
+  /**
+   * What each sequence's batches did over the last EVIDENCE_DAYS (decision 0064, step 5): what the rows for the
+   * sequences' classes say under them, so a new sequence's start is set on what happened. Null where the read failed.
+   */
+  evidence: SequenceEvidenceDto[] | null;
 }
 
 /** How far back a reply's size is measured: a week, so a quiet day or a busy one does not move it much. */
@@ -67,7 +74,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
   name: "autonomy",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [p, held, suggestions, own, replyTokens] = await Promise.all([
+    const [p, held, suggestions, own, replyTokens, evidence] = await Promise.all([
       load(rc, facts.policies, undefined),
       heldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
         log.error("autonomy_held_drafts_failed", { tenant_id: rc.tenantId, error });
@@ -90,6 +97,10 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         log.error("autonomy_reply_tokens_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
+      sequenceEvidence(db, rc.tenantId).catch((error: unknown) => {
+        log.error("autonomy_evidence_failed", { tenant_id: rc.tenantId, error });
+        return null;
+      }),
     ]);
     return {
       data: {
@@ -99,6 +110,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         suggestions,
         own_modes: own,
         reply_tokens: replyTokens,
+        evidence,
       },
       rows: [],
       stamp: stamp(),

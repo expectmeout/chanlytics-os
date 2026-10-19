@@ -16,6 +16,7 @@ import {
   enrolPurpose,
   isDayKey,
   isPlaybookState,
+  isSequenceMode,
   isWinBack,
   localDate,
   messageFitsMoment,
@@ -38,6 +39,7 @@ import {
   type PlaybookPatchKey,
   type PlaybookPolicyClass,
   type PlaybookState,
+  type SequenceMode,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { parseChannels } from "./message-channels";
@@ -252,8 +254,8 @@ export interface PlaybookPatchRow {
   params: unknown;
   /** Its last day (00416), YYYY-MM-DD by the business's clock, or null. */
   until: string | null;
-  /** Until when it runs on trial (00416), an instant, or null. */
-  trial_until: string | null;
+  /** Its sequence's mode (decision 0064, `sequences.mode`): how its batches are decided. */
+  mode: SequenceMode;
 }
 
 /** A name as it is kept: trimmed, its runs of space one; "" for anything but words. */
@@ -303,8 +305,8 @@ async function patchParams(
 
 /**
  * When a change is judged (`now`) and whether it is an undo (`undo`): one that writes back what the door recorded a
- * change held (its `was`), which restores a past end or a past trial as it was, since nothing clears either when it
- * passes. A change that is not an undo names a date still to come at `now`.
+ * change held (its `was`), which restores a past end as it was, since nothing clears it when it passes. A change that is
+ * not an undo names a day still to come at `now`.
  */
 interface PatchWhen {
   now: Date;
@@ -331,22 +333,16 @@ export async function untilOf(
   return v;
 }
 
-/** An instant with its zone, as a trial's end is written: a date, a time, and Z or an offset. */
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
-
 /**
- * The end of its trial a change or a new campaign names (00416 `trial_until`): an instant still to come at `now`, kept
- * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
- * refused, from every caller but an undo (`when.undo`), which writes back the instant the door recorded, past or not.
- * The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook, before a starter is filed)
- * ask.
+ * The mode a change names (decision 0064): one of the three a sequence takes, and never Send it for a sequence to leads,
+ * whose cold email waits for an OK or holds; undefined where the change names none.
  */
-export function trialUntilOf(v: unknown, when: PatchWhen): string | null | undefined {
-  if (v === undefined || v === null) return v;
-  const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
-  if (!Number.isFinite(at)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
-  if (!when.undo && at <= when.now.getTime()) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialPast);
-  return new Date(at).toISOString();
+function patchMode(row: Pick<PlaybookPatchRow, "trigger">, v: unknown): SequenceMode | undefined {
+  if (v === undefined) return undefined;
+  if (!isSequenceMode(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeWhich);
+  if (v === "auto" && triggerOf(row.trigger)?.kind === "reach_out")
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeLeads);
+  return v;
 }
 
 /** What the row holds of each key a change may name: its words read as a run reads them, a date it has none of null. */
@@ -360,15 +356,13 @@ function patchHeldOf(row: PlaybookPatchRow): Required<PlaybookPatch> {
     cadence_days: row.cadence_days,
     params: parseParamSpecs(row.params),
     until: row.until ?? null,
-    trial_until: row.trial_until ?? null,
+    mode: row.mode,
   };
 }
 
-/** Whether a value a change names is what the row holds: its words as the specs they are, a trial's end as the instant. */
+/** Whether a value a change names is what the row holds: its words as the specs they are. */
 function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean {
   if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
-  if (k === "trial_until" && typeof to === "string" && typeof held === "string")
-    return Date.parse(to) === Date.parse(held);
   return to === held;
 }
 
@@ -377,10 +371,10 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
  * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
- * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its trial's end
- * to an instant after it (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). An undo
- * (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes back what the door recorded, so its end and its
- * trial are restored past or not, their shapes still judged. It answers only what differs from the row as it stands,
+ * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its sequence's
+ * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state and its
+ * mode alone (its sheet changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
+ * back what the door recorded, so its end is restored past or not, its shape still judged. It answers only what differs from the row as it stands,
  * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
  * words and the route answers without a write.
  */
@@ -394,8 +388,8 @@ export async function checkPlaybookPatch(
   if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
   // A reach-out's step is changed on its own sheet (Reach out, Part 4); here it is paused or resumed, as the sheet's
-  // Pause asks, and nothing else.
-  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+  // Pause asks, or its sequence's mode is set (decision 0064), and nothing else.
+  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state" && k !== "mode"))
     throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   if (asked.state !== undefined && !isPlaybookState(asked.state))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);
@@ -408,7 +402,7 @@ export async function checkPlaybookPatch(
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked.params),
     until: await untilOf(ports, asked.until, when),
-    trial_until: trialUntilOf(asked.trial_until, when),
+    mode: patchMode(row, asked.mode),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};

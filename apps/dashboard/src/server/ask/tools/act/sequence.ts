@@ -4,6 +4,7 @@ import {
   CONSENT_CHANNELS,
   FOLLOW_UP_CONDITIONS,
   LEAD_LIST_MAX,
+  PLAYBOOK_CARD_WORDS,
   PROPOSAL_SPECS,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_DECISIONS,
@@ -12,6 +13,8 @@ import {
   REACH_OUT_STEPS_MAX,
   ReachOutChainSchema,
   SEQUENCE_DRAFT_THEN_MAX,
+  SEQUENCE_MODE_WORDS,
+  isSequenceMode,
   plural,
   sequenceRoute,
   sequenceRunsNow,
@@ -252,7 +255,7 @@ async function proposeStart(t: ToolContext, input: { sequence_id: string }): Pro
     return propose({
       kind: "sequence_start",
       title: `Start the sequence step ${token} makes`,
-      summary: "Its first step runs from its next run, under its class's autonomy mode.",
+      summary: `Its first step runs from its next run: ${PLAYBOOK_CARD_WORDS.asksFirst}.`,
       payload: { sequence_id: id },
     });
   const rec = await sequenceOnCard(t, id);
@@ -264,7 +267,7 @@ async function proposeStart(t: ToolContext, input: { sequence_id: string }): Pro
   return propose({
     kind: "sequence_start",
     title: `Start ${rec.sequence.name}`,
-    summary: `Its first step runs from its next run, under its class's autonomy mode (${rec.mode ?? "as set"}).`,
+    summary: `Its first step runs from its next run: ${PLAYBOOK_CARD_WORDS.asksFirst}, and after that ${SEQUENCE_MODE_WORDS[isSequenceMode(rec.sequence.mode) ? rec.sequence.mode : "ask"].does}.`,
     payload: { sequence_id: rec.sequence.id, name: rec.sequence.name },
   });
 }

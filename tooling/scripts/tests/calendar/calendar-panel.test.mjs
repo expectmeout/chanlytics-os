@@ -360,7 +360,6 @@ test("(lane E) the reminder it gets, by the rule: the day-before campaign's hour
       run_hour: 10,
       last_run_for: null,
       until: null,
-      trial_until: null,
       reach_out: false,
     },
   ];

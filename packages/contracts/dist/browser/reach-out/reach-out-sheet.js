@@ -168,7 +168,7 @@ export function startWords(s, ownerSends = false) {
           return { tone: "plain", text: "Saved. The first run is held." };
       }
     case "off":
-      return s.reason === "never" ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings \u203A Autonomy, so nothing runs." } : s.reason === "workspace_paused" ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
+      return s.reason === "workspace_paused" ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return s.reason === "already_ran" ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." } : { tone: "plain", text: "Saved. Nobody on this search can be written to yet; it looks again each day." };
     case "failed":
@@ -182,8 +182,6 @@ export function startWords(s, ownerSends = false) {
 export function nextRunWords(c, tz, now) {
   if (c.state !== "running")
     return { tone: "plain", text: "Paused. Nothing is planned until you resume it.", run_id: null };
-  if (c.next.mode === "never")
-    return { tone: "warn", text: "Outreach is set to Never in Settings \u203A Autonomy, so nothing runs.", run_id: null };
   if (!c.next.may_spend)
     return { tone: "warn", text: "Held for billing: nothing is planned until billing is sorted.", run_id: null };
   if (c.next.waiting_run_id)

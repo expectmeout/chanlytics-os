@@ -3,71 +3,60 @@ import { z } from "zod";
 import {
   LIFECYCLE_WORDS,
   PLAN_WORDS,
-  PLAYBOOK_CARD_REFUSALS,
-  PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_STATES,
+  PLAYBOOK_CARD_WORDS,
   PLAYBOOK_VETO_DELAY_WORDS,
+  SEQUENCE_MODES,
+  SEQUENCE_MODE_WORDS,
+  batchModeOf,
   campaignDayWords,
   clockHour,
-  effectiveMode,
   isPlaybookState,
   noteRows,
-  planRun,
   sequenceRoute,
-  trialDayWords,
   triggerOf,
   type PlaybookPatch,
   type PlaybookPatchKey,
-  type PlaybookPolicyClass,
+  type SequenceMode,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, untilOf } from "@chanlytics/core";
-import { listPolicies, playbookForChange } from "@chanlytics/db";
+import { playbookForChange } from "@chanlytics/db";
 import { playbookPatchPorts } from "../../../campaigns/playbooks";
 import { UUID, actAction, propose, refuse, stepNamed, str, type ProposalOutcome, type ToolContext } from "../context";
 import { paramSpecsOf } from "./playbook";
-import { MODE_WORDS } from "./playbook-card";
 
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "sequences with action moments";
 
 /**
- * How a resumed playbook's runs go, in full (D7): under auto, that it sends on its own and nothing waits for approval, in
- * the drawer's Resume sentence (LIFECYCLE_WORDS.ledger.resume.auto), which a pause card's undo says too: one fact, one
- * sentence. `mode` is the one its runs go under (contracts effectiveMode): a campaign on trial goes as veto, and says so.
+ * How a resumed playbook's batches go, in full (D7): under auto, that it sends on its own and nothing waits for approval,
+ * in the drawer's Resume sentence (LIFECYCLE_WORDS.ledger.resume.auto), which a pause card's undo says too: one fact, one
+ * sentence. `mode` is its sequence's; where its words are new its first batch waits for an OK whatever that says
+ * (decision 0064), and the card says so before what its batches do after that.
  */
-const resumeDoes = (mode: string): string =>
-  mode === "auto" ? LIFECYCLE_WORDS.ledger.resume.auto : (MODE_WORDS[mode] ?? mode);
+const resumeDoes = (mode: SequenceMode, wordsNew: boolean): string => {
+  const does = mode === "auto" && !wordsNew ? LIFECYCLE_WORDS.ledger.resume.auto : SEQUENCE_MODE_WORDS[mode].does;
+  return wordsNew && mode !== "ask" ? `${PLAYBOOK_CARD_WORDS.asksFirst}; after that, ${does}` : does;
+};
 
 /**
- * What a change of its trial says (00416): its last day, by the business's calendar (contracts trialDayWords), and what
- * the trial does, by its class's mode. Where a run sends by itself or after a Stop (contracts planRun: auto, veto) each
- * waits for a Stop; under ask or never the trial changes nothing, and the card says so with what a run does there,
- * never that each run waits for a Stop. Null ends it, which reads the same under any mode.
- */
-function trialSaid(set: PlaybookPatch, how: { cls: string; classMode: string }, at: { tz: string; now: Date }): string {
-  const day = trialDayWords(set, at.tz, at.now);
-  if (!day || planRun(how.classMode, at.now).kind === "send") return PLAYBOOK_PATCH_WORDS.trial_until(day);
-  return PLAYBOOK_PATCH_WORDS.trialInert(day, how.cls, how.classMode, MODE_WORDS[how.classMode] ?? how.classMode);
-}
-
-/**
- * A change's parts, in the card's words and the keys' order. Its words are quoted as the run fills them; its last day
- * is said by the business's calendar at `at` (contracts campaignDayWords: "Nov 30"), and its trial by trialSaid.
+ * A change's parts, in the card's words and the keys' order. Its words are quoted as the run fills them, and its last day
+ * is said by the business's calendar at `at` (contracts campaignDayWords: "Nov 30").
  */
 function changeParts(
   set: PlaybookPatch,
   was: PlaybookPatch,
-  how: { cls: string; mode: string; classMode: string; waits: number | null },
+  how: { mode: SequenceMode; wordsNew: boolean; waits: number | null },
   at: { tz: string; now: Date },
 ) {
   const W = PLAYBOOK_PATCH_WORDS;
   const parts: string[] = [];
   if (set.state === "paused") parts.push(W.paused, ...(how.waits === null ? [] : [W.pausedWaits(how.waits)]));
-  if (set.state === "running") parts.push(W.resumed(how.cls, how.mode, resumeDoes(how.mode)));
+  if (set.state === "running") parts.push(W.resumed(resumeDoes(how.mode, how.wordsNew)));
   if (set.name !== undefined) parts.push(W.name(set.name));
   for (const k of ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const) {
     const to = set[k];
@@ -75,7 +64,7 @@ function changeParts(
   }
   if (set.params !== undefined) parts.push(W.params(set.params));
   if (set.until !== undefined) parts.push(W.until(set.until && campaignDayWords(set.until, at.tz, at.now)));
-  if (set.trial_until !== undefined) parts.push(trialSaid(set, how, at));
+  if (set.mode !== undefined) parts.push(W.mode(set.mode, was.mode ?? set.mode));
   return parts;
 }
 
@@ -99,7 +88,7 @@ const ALREADY: Record<PlaybookPatchKey, (held: PlaybookPatch) => string> = {
   cadence_days: (h) => `already runs every ${h.cadence_days ?? 0} days`,
   params: () => "already says those words",
   until: (h) => (h.until ? "already ends that day" : "already has no last day"),
-  trial_until: (h) => (h.trial_until ? "is already on trial until then" : "is already off trial"),
+  mode: (h) => `already ${SEQUENCE_MODE_WORDS[h.mode ?? "ask"].line}`,
 };
 
 /**
@@ -162,7 +151,7 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
     kind: "playbook_change",
     title: PLAYBOOK_PATCH_WORDS.title(named, name),
     // A pause, words and an end need nothing of the campaign's row to be said.
-    summary: changeParts(named, {}, { cls: "", mode: "ask", classMode: "ask", waits: null }, at).join(" · "),
+    summary: changeParts(named, {}, { mode: "ask", wordsNew: false, waits: null }, at).join(" · "),
     payload: {
       playbook_id: str(token, 40),
       playbook_name: name,
@@ -174,17 +163,26 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
   });
 }
 
-/** A sequence to leads asked for more than its state: the refusal, in the model's words; null where it asks its state alone. */
+/** A sequence to leads asked for more than its state and mode: the refusal, in the model's words; null where it asks those alone. */
 function leadsPastState(id: string, input: ChangeAsked): string | null {
-  return PLAYBOOK_PATCH_KEYS.some((k) => k !== "state" && input[k] !== undefined)
-    ? `a sequence to leads is only paused or resumed here (state); its emails and steps are changed on its page: say so, and open ${sequenceRoute(id)}`
+  return PLAYBOOK_PATCH_KEYS.some((k) => k !== "state" && k !== "mode" && input[k] !== undefined)
+    ? `a sequence to leads is only paused, resumed or given its mode here (state, mode); its emails and steps are changed on its page: say so, and open ${sequenceRoute(id)}`
     : null;
 }
 
 /**
- * A sequence to leads paused or resumed (its state alone): said as its page says it (decision 0060), its pause with how
- * its next emails wait, its resume as a reach-out's Resume says it (LIFECYCLE_WORDS.ledger.resume.chain), never in a
- * class's autonomy mode, which a sequence to leads does not run under. The same card and undo as any change of state.
+ * A card's payload: what changes, under the keys the PUT takes, but its sequence's mode as `sequence_mode` (contracts
+ * playbookChangeSpec: the payload's own `mode` is what a pause's undo resumes under).
+ */
+function payloadOf(set: PlaybookPatch): Record<string, unknown> {
+  const { mode, ...rest } = set;
+  return { ...rest, ...(mode ? { sequence_mode: mode } : {}) };
+}
+
+/**
+ * A sequence to leads paused, resumed or given its mode: said as its page says it (decision 0060), its pause with how its
+ * next emails wait, its resume as a reach-out's Resume says it (LIFECYCLE_WORDS.ledger.resume.chain), its mode as How it
+ * runs says it. The same card and undo as any change.
  */
 function proposeLeadsState(
   t: ToolContext,
@@ -193,15 +191,18 @@ function proposeLeadsState(
   noted: string | null | undefined,
 ): ProposalOutcome {
   const W = PLAYBOOK_PATCH_WORDS;
-  const said = set.state === "paused" ? W.paused : LIFECYCLE_WORDS.ledger.resume.chain;
+  const said = [
+    ...(set.state === "paused" ? [W.paused] : set.state === "running" ? [LIFECYCLE_WORDS.ledger.resume.chain] : []),
+    ...(set.mode ? [W.mode(set.mode, was.mode ?? set.mode)] : []),
+  ];
   return propose({
     kind: "playbook_change",
     title: W.title(set, row.name),
-    summary: [said, ...(noted ? [noted] : [])].join(" · "),
+    summary: [...said, ...(noted ? [noted] : [])].join(" · "),
     payload: {
       playbook_id: row.id,
       playbook_name: row.name,
-      ...set,
+      ...payloadOf(set),
       was,
       run_waits: row.waiting !== null,
       timezone: t.timezone,
@@ -212,13 +213,13 @@ function proposeLeadsState(
 
 /**
  * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00416 given new
- * words, a last day or a trial's end (D5: null ends its trial): what its drawer does, proposed as a card. It reads the
+ * words or a last day, and since 00462 its sequence's mode (decision 0064): what its drawer does, proposed as a card. It reads the
  * one playbook (packages/db playbookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
  * what is asked by the PUT's own judgement (core checkPlaybookPatch, against the playbook as it stands), so a value its
  * Approve would refuse is refused here in the same words. The card carries what changes and what each field held, and
  * nothing else of the playbook, so its Approve and its Undo change nothing else. A pause leaves a run that waits
- * waiting, and says so (D8); a resume says its class's mode, in full under auto (D7). A reach-out's step is changed on
- * its own sheet, never here.
+ * waiting, and says so (D8); a resume says what its next batch does by its sequence's mode, in full under auto (D7). A
+ * reach-out's step is changed on its own sheet, but for its state and its mode.
  */
 async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promise<ProposalOutcome> {
   // The campaign an earlier step of Ask's plan makes, named by its token: no row to read yet (proposeChangeOnStep).
@@ -229,8 +230,8 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   if (!UUID.test(id)) return refuse(`playbook_id must be a playbook's id, as ${PLAYBOOK_FROM} gives it`);
   const read = await playbookForChange(t.ctx.supabase, t.tenantId, id);
   if (!read) return refuse(`no such playbook in this workspace; ${PLAYBOOK_FROM} names them`);
-  // A sequence to leads is paused or resumed here, as its page's Pause and Turn on are (core checkPlaybookPatch: its state
-  // alone); its emails and steps are its own page's (decision 0060: Ask runs every sequence).
+  // A sequence to leads is paused, resumed or given its mode here, as its page's Pause, Turn on and How it runs are (core
+  // checkPlaybookPatch: its state and mode alone); its emails and steps are its own page's (decision 0060).
   const leads = triggerOf(read.trigger)?.kind === "reach_out";
   const pastState = leads ? leadsPastState(read.id, input) : null;
   if (pastState) return refuse(pastState);
@@ -259,39 +260,25 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   // runs waits for its resume: each said on the card and beside it.
   const noted = changeNoted(row, given, set);
   if (leads) return proposeLeadsState(t, row, { set, was }, noted);
-  // The table's check holds the class to the set (playbooks.policy_class).
-  const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
-  // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a
-  // pause, whose undo resumes it and says it the same way, and for a trial set, whose words follow it (trialSaid). A
-  // resume or a trial whose read fails makes no card: the card would say a mode it does not know, in the words a new
-  // campaign's card declines in (PLAYBOOK_CARD_REFUSALS.modeUnread). A pause needs none, so it is still a card, and its
-  // undo claims no mode (`mode` null); a trial ended says the same under any mode.
-  const trialSet = typeof set.trial_until === "string";
-  const policies = set.state || trialSet ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
-  if (!policies && (set.state === "running" || trialSet)) return refuse(PLAYBOOK_CARD_REFUSALS.modeUnread);
-  // A class with no row of its own runs under ask, as a run reads it (core run-playbook). And a run goes as the campaign
-  // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00416), so the
-  // card and a pause's undo say how its runs go, never its class's mode alone.
-  const classMode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
-  const mode = classMode === null ? null : effectiveMode({ ...row, ...set }, classMode, t.now);
+  // Its sequence's mode as the campaign will stand after this change, and whether its words are new (new words wait for
+  // an OK: decision 0064), said for a resume (D7: under auto a resume sends on its own); a pause's undo resumes it under
+  // the mode its next batch goes under (contracts batchModeOf), so it never promises a batch of new words goes alone.
+  const seqMode = set.mode ?? row.mode;
+  const wordsOk = set.params ? null : row.words_ok_at;
+  const mode = batchModeOf({ mode: seqMode, words_ok_at: wordsOk });
   const waits = row.waiting ? row.waiting.recipient_count : null;
   return propose(
     {
       kind: "playbook_change",
       title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
       summary: [
-        ...changeParts(
-          set,
-          was,
-          { cls, mode: mode ?? "ask", classMode: classMode ?? "ask", waits },
-          { tz: t.timezone, now: t.now },
-        ),
+        ...changeParts(set, was, { mode: seqMode, wordsNew: !wordsOk, waits }, { tz: t.timezone, now: t.now }),
         ...(noted ? [noted] : []),
       ].join(" · "),
       payload: {
         playbook_id: row.id,
         playbook_name: row.name,
-        ...set,
+        ...payloadOf(set),
         was,
         run_waits: row.waiting !== null,
         timezone: t.timezone,
@@ -316,14 +303,15 @@ export const playbookChangeAction = actAction({
     cadence_days: z.number().optional(),
     params: z.array(z.string()).optional(),
     until: z.string().optional(),
-    trial_until: z.string().nullable().optional(),
+    mode: z.enum(SEQUENCE_MODES).optional(),
   }),
   examples: [
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", state: "paused" },
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", name: "Win-back for past clients", run_hour: 9 },
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", params: ["@first_name", "15% off"], until: "2026-11-30" },
+    { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", mode: "veto" },
   ],
   label: "Preparing a campaign's change",
-  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A sequence to leads (cold email) takes state alone here, its emails and steps being its page's; anything else asked of one, a value outside its bounds and a playbook that already reads so are refused in words; a part of the change it already holds (a pause of one paused) is left off the card, which says so, and the answer says it too.`,
+  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its own mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or mode (how its batches are decided, its "Before each batch": ask, each waits for an OK; veto, each waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, then goes; auto, each goes on its own, never for a sequence to leads; a batch of new words waits for an OK whatever it says). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A sequence to leads (cold email) takes state and mode alone here, its emails and steps being its page's; anything else asked of one, a value outside its bounds and a playbook that already reads so are refused in words; a part of the change it already holds (a pause of one paused) is left off the card, which says so, and the answer says it too.`,
   build: proposePlaybookChange,
 });

@@ -4,6 +4,7 @@ import {
   addressOf,
   ASK_CAPS,
   callerName,
+  goingTodayOf,
   runDaysAt,
   runsThatWait,
   toTodayVM,
@@ -17,7 +18,7 @@ async function getToday(t: ToolContext): Promise<unknown> {
   // Today as the page composes it (readers/today.ts), read once in the turn: the Inbox's threads, the metrics the
   // page's Today reads (every line, the workspace's email one too), the calls and the searches. A calls or searches
   // read that failed is null, its own state on the page, never none.
-  const { metrics, conversations, escalations, calls, searches, runs, heldThreads } = (
+  const { metrics, conversations, escalations, calls, searches, runs, heldThreads, going } = (
     await load(t.rc, today, undefined)
   ).data;
   // The page's own builder, with the waiting searches the page passes (the queue reads them), and the runs waiting and
@@ -106,6 +107,22 @@ async function getToday(t: ToolContext): Promise<unknown> {
               vm.runs_waiting,
             ),
           },
+    // What goes on its own today unless stopped (decision 0064), as Today's Going today draws it: the runs, each with when it
+    // goes (its replies counting down are needs_you's replies_on_their_way); null where the runs could not be read.
+    going_today:
+      going === null
+        ? null
+        : goingTodayOf({
+            runs: going.map((r) => ({ ...r, title: r.name })),
+            replies: [],
+            tz: metrics.workspace.timezone,
+            nowMs: t.now.getTime(),
+          })
+            .slice(0, 5)
+            .map((r) => {
+              if (r.stop.kind === "run") noteRow(t, "broadcast", r.stop.id, r.name, r.to);
+              return { name: r.name, what: r.meta, sentence: r.sentence, route: r.to };
+            }),
     searches_waiting: searchRows.map((r) => ({ name: r.who, question: r.sentence, route: r.cta.to })),
     period: {
       messages_in: metrics.period.messages_in,
@@ -138,7 +155,7 @@ function waitingRunsNamed(
 export const todayTool = defineRead({
   name: "today",
   description:
-    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. needs_you counts the holds and the replies counting down to send in your name (replies_on_their_way, which it does not list: inbox with action list has them); campaign_runs_waiting are the runs waiting for your say: those an approval can still send, and going reach-out runs whose check holds emails for you (sequences with action sent lists them); searches_waiting stopped to ask you. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. Nor the bell's notifications, what was sent to this person: workspace with action notifications reads them. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. needs_you counts the holds and the replies counting down to send in your name (replies_on_their_way, which it does not list: inbox with action list has them); campaign_runs_waiting are the runs waiting for your say: those an approval can still send, and going reach-out runs whose check holds emails for you (sequences with action sent lists them); going_today is what goes on its own later today unless it is stopped (a batch held for a stop, a message sent once and set for later, a reach-out's run), each with when it goes, as Today's Going today draws it; searches_waiting stopped to ask you. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. Nor the bell's notifications, what was sent to this person: workspace with action notifications reads them. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
   input: z.object({}),
   label: "Reading Today",
   run: getToday,

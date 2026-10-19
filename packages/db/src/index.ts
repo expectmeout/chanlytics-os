@@ -102,9 +102,15 @@ export {
   cancelBroadcastFrom,
   recordSystemDecision,
   waitingRunsOf,
+  runsGoingBetween,
   runsNamed,
 } from "./repositories/campaigns/stranded-runs";
-export type { StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./repositories/campaigns/stranded-runs";
+export type {
+  GoingRunRow,
+  StrandedRun,
+  WaitingPlaybookRun,
+  WaitingRunRow,
+} from "./repositories/campaigns/stranded-runs";
 export {
   mailboxConnectionsOf,
   mailboxConnectionOf,
@@ -249,7 +255,6 @@ export {
   reachOutRunSendsOf,
   stampReachOutStep,
   recheckSends,
-  outreachModeOf,
   tenantZoneOf,
   heldNoticeDue,
   runWaitingCounts,
@@ -262,7 +267,6 @@ export type {
   ReachOutStepRow,
   ReachOutSaved,
   ReachOutRunSend,
-  OutreachMode,
   HeldNoticeMark,
   HeldNoticeRun,
   HandItem,
@@ -330,6 +334,8 @@ export {
   sequenceReached,
   sequenceRow,
   sequenceOfPart,
+  sequenceModesOf,
+  sequenceEvidence,
   sequenceOverview,
   sequenceStepsOf,
   sequenceNamesOf,

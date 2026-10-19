@@ -44,14 +44,14 @@ as unknown as                       123
 as never                             12
 non-null assertions, x!              95
 index reads the compiler lets pass  424   in 114 files
-table names outside packages/db     419
+table names outside packages/db     418
 SQL functions outside packages/db   117   called by .rpc
 edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     60   469 writers among them
-doors writing a record with no event   92   writing 105 tables (invariant 2)
+tables with more than one writer     60   473 writers among them
+doors writing a record with no event   94   writing 108 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          32   in 11 files
 literal style values                825   in 22 stylesheets

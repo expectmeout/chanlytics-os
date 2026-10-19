@@ -1,7 +1,7 @@
 {
-  "rows": 137,
+  "rows": 138,
   "same": 2,
-  "differ": 135,
+  "differ": 136,
   "writes": {
     "DELETE capabilities/[kind]": {
       "changes": "capability_activations UPDATE"
@@ -360,7 +360,7 @@
       }
     },
     "POST broadcasts": {
-      "changes": "sequence_batches INSERT · sequence_enrollments INSERT UPDATE · sequence_sends INSERT UPDATE · sequences INSERT",
+      "changes": "sequence_batches INSERT · sequence_enrollments INSERT UPDATE · sequence_sends INSERT UPDATE · sequence_steps UPDATE · sequences INSERT UPDATE",
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
@@ -374,17 +374,15 @@
       }
     },
     "POST broadcasts/[id]/approve": {
-      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequence_steps UPDATE · sequences UPDATE",
       "tells": "notifications",
-      "extra": {
-        "reports_campaigns": "reports"
-      },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
         "notifications": "every page",
         "people": "clients, segments",
         "person": "clients/person",
+        "reach_out_replies": "inbox, today",
         "sequences": "every page",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/message, campaigns/messages, campaigns/new, campaigns/sequences, messages",
         "setup": "admin/integrations, start, today"
@@ -889,6 +887,13 @@
         "reports_reviews": "every page"
       }
     },
+    "POST google/reviews/[id]/stop": {
+      "changes": "",
+      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "door": {
+        "reports_reviews": "every page"
+      }
+    },
     "POST lead-operations/[id]/undo": {
       "changes": "contacts UPDATE · lead_operations UPDATE · lead_search_members DELETE UPDATE · lead_searches UPDATE · lead_suppressions DELETE · leads UPDATE · sequence_enrollments INSERT UPDATE · sequence_sends UPDATE",
       "tells": "contacts",
@@ -1313,8 +1318,8 @@
       }
     },
     "POST messages/[id]/cancel-send": {
-      "changes": "contacts UPDATE · messages UPDATE",
-      "tells": "contacts",
+      "changes": "contacts UPDATE · messages UPDATE · notifications UPDATE",
+      "tells": "contacts · notifications",
       "extra": {
         "reports_campaigns": "reports"
       },
@@ -1324,6 +1329,7 @@
         "calendar_runs": "calendar",
         "channels": "admin/integrations, broadcasts, campaigns/message, campaigns/messages, campaigns/new, live, messages, outbound, today",
         "live": "live, start, today",
+        "notifications": "every page",
         "people": "clients, segments, today",
         "person": "clients/person",
         "playbooks": "campaigns/message, outbound",
@@ -1338,7 +1344,7 @@
     },
     "POST messages/[id]/steer": {
       "changes": "",
-      "doors": "contacts · conversations · messages",
+      "doors": "contacts · conversations · messages · notifications",
       "door": {
         "conversations": "every page",
         "inbox": "every page",
@@ -1738,6 +1744,9 @@
     },
     "POST sequences/[id]/steps": {
       "changes": "sequence_steps INSERT UPDATE · sequences INSERT UPDATE",
+      "extra": {
+        "audiences": "campaigns/new"
+      },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
@@ -1751,6 +1760,7 @@
     "POST sequences/[id]/steps/[step]/words": {
       "changes": "sequence_steps UPDATE · sequences UPDATE",
       "extra": {
+        "audiences": "campaigns/new",
         "settings": "admin/setup, broadcasts, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
       "missing": {
@@ -2122,6 +2132,7 @@
     "PUT playbooks/[id]": {
       "changes": "sequence_steps UPDATE · sequences UPDATE",
       "extra": {
+        "audiences": "campaigns/new",
         "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/message, campaigns/messages, campaigns/new, campaigns/sequences, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start, today"
       },
       "missing": {
@@ -2142,6 +2153,7 @@
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
         "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/message, campaigns/messages, campaigns/new, campaigns/sequences, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
         "person": "clients/person",
         "reach_outs": "every page",
@@ -2203,6 +2215,9 @@
     },
     "PUT sequences/[id]/steps/[step]": {
       "changes": "sequence_steps INSERT UPDATE · sequences INSERT UPDATE",
+      "extra": {
+        "audiences": "campaigns/new"
+      },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",

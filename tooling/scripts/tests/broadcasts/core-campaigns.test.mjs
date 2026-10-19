@@ -24,6 +24,7 @@ import {
   noNumberWords,
   numberHealth,
   paramLabel,
+  SEND_ONCE_STOP_MS,
   starterForTrigger,
   templateTitle,
   toPersonRowVM,
@@ -40,6 +41,8 @@ const { cancelBroadcast } = await importSrc("packages/core/src/campaigns/cancel.
 const { checkPlaybook } = await importSrc("packages/core/src/campaigns/check-playbook.ts");
 
 const NOW = new Date("2026-09-06T14:00:00Z");
+/** When a send pressed NOW goes: ten minutes on, with a Stop (decision 0064, step 3). */
+const GOES = new Date(NOW.getTime() + SEND_ONCE_STOP_MS);
 const D = 86_400_000;
 const T1 = "77777777-7777-4777-8777-777777777771";
 const S1 = "66666666-6666-4666-8666-666666666661";
@@ -981,7 +984,9 @@ test("when, and what it is called: not a time, past the window, a past time is n
     audience: everyone,
     scheduled_for: new Date(NOW.getTime() - D).toISOString(),
   });
-  assert.equal(r1.scheduled_for, NOW.toISOString(), "a past time is now");
+  // A past time is now, and now goes ten minutes on with a Stop (decision 0064, step 3).
+  assert.equal(r1.scheduled_for, GOES.toISOString(), "a past time is now, with its ten minutes to stop it");
+  assert.deepEqual([r1.pressed_now, r1.scheduled_ahead], [true, false]);
   assert.equal(r1.name, broadcastName("month_offer", ZONE, NOW, null), "the template and the day");
   const later = new Date(NOW.getTime() + 2 * D);
   const future = fakes();
@@ -992,6 +997,7 @@ test("when, and what it is called: not a time, past the window, a past time is n
     name: "  Spring offer  ",
   });
   assert.equal(r2.scheduled_for, later.toISOString());
+  assert.equal(r2.pressed_now, false, "set for a time ahead: no ten minutes added");
   assert.deepEqual(future.of("assemble")[0][3], later, "the job is due when the run is");
   assert.equal(future.of("assemble")[0][1].scheduled_for, later.toISOString());
   assert.equal(r2.name, "Spring offer");
@@ -1011,7 +1017,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     params: specs,
     audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },
     state: "scheduled",
-    scheduled_for: NOW.toISOString(),
+    scheduled_for: GOES.toISOString(),
     recipient_count: 2,
     created_by: "u1",
     // Step 3: the run says the channels it may go by (WhatsApp alone when it names none), each person the one they are on.
@@ -1021,7 +1027,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     { contact_id: "a", facts: null, channel: "whatsapp" },
     { contact_id: "b", facts: null, channel: "whatsapp" },
   ]);
-  assert.deepEqual(f.of("assemble")[0][3], NOW);
+  assert.deepEqual(f.of("assemble")[0][3], GOES, "pressed now, the job is due ten minutes on (decision 0064)");
   // The ledger's line rides with the run (00381): whose decision the send is, and what is kept of it.
   assert.deepEqual(f.of("assemble")[0][4], {
     by: { kind: "user", userId: "u1" },
@@ -1033,7 +1039,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
       channels: ["whatsapp"],
       values: specs.map(paramLabel),
       recipients: 2,
-      scheduled_for: NOW.toISOString(),
+      scheduled_for: GOES.toISOString(),
     },
   });
   assert.deepEqual(r, {
@@ -1041,12 +1047,13 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     name,
     state: "scheduled",
     recipient_count: 2,
-    scheduled_for: NOW.toISOString(),
+    scheduled_for: GOES.toISOString(),
     moved_from: null,
     held_for_allowance: 0,
     left_out: 0,
-    // Sent now, not set for a time ahead: its breath was this week's.
+    // Sent now, not set for a time ahead: its breath was this week's, and it goes ten minutes on with a Stop.
     scheduled_ahead: false,
+    pressed_now: true,
     decision_id: "d1",
   });
 });
@@ -1251,10 +1258,19 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
   const f = fakes();
   const r = await createBroadcast(f.ports, { userId: "u1", body: { template_id: T1, audience: everyone }, now: night });
   assert.equal(r.scheduled_for, nine.toISOString(), "nine in the morning, by the business's clock");
-  assert.equal(r.moved_from, night.toISOString(), "and it says what was asked for");
+  // What was asked for: now, ten minutes on (decision 0064, step 3), outside the hours.
+  assert.equal(
+    r.moved_from,
+    new Date(night.getTime() + SEND_ONCE_STOP_MS).toISOString(),
+    "and it says what was asked for",
+  );
   assert.deepEqual(f.of("assemble")[0][3], nine);
   assert.equal(f.of("assemble")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
-  assert.equal(f.of("assemble")[0][4].payload.moved_from, night.toISOString(), "the ledger keeps the move");
+  assert.equal(
+    f.of("assemble")[0][4].payload.moved_from,
+    new Date(night.getTime() + SEND_ONCE_STOP_MS).toISOString(),
+    "the ledger keeps the move",
+  );
   // Asked for 05:30 New York (09:30 UTC): the same morning's nine.
   const early = new Date("2026-09-07T09:30:00Z");
   const r2 = await createBroadcast(fakes().ports, {
@@ -1279,7 +1295,7 @@ test("never at 3 AM: a send asked for outside nine to twenty by the business's c
     body: { template_id: T1, audience: everyone },
     now: NOW,
   });
-  assert.equal(r4.scheduled_for, NOW.toISOString());
+  assert.equal(r4.scheduled_for, GOES.toISOString(), "now, and its ten minutes to stop it");
   assert.equal(r4.moved_from, null);
   assert.ok(!("moved_from" in f4.of("assemble")[0][4].payload), "nothing recorded about a move that did not happen");
   // An approval at night goes at nine as well.
@@ -1854,7 +1870,7 @@ test("the month is counted at the moment the run opens, not the day it is made: 
   const night = [];
   const moved = fakes({ ...MONTH, people: byEmailAndText(), monthSent: used(night) });
   const r = await run(moved, new Date("2026-10-01T03:30:00Z"), undefined);
-  assert.equal(r.moved_from, "2026-10-01T03:30:00.000Z");
+  assert.equal(r.moved_from, "2026-10-01T03:40:00.000Z", "now, and its ten minutes to stop it");
   assert.deepEqual(
     night.map((c) => c[1]),
     ["2026-10-01T13:00:00.000Z", "2026-10-01T13:00:00.000Z"],

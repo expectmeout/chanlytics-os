@@ -1,14 +1,13 @@
 /**
  * The playbook runs Today's queue draws (moved from pages/dashboard-a-command.jsx, decision 0015, step 4).
  *
- * A playbook's run that waits for a person, or one under the veto window (scheduled, not yet sending) as rows of the
- * same grammar, with Approve or Cancel where the button goes. What already went out is a line of the day's card. The
- * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords, runStopWords). Cancel
- * asks what Sent asks before the same cancel ("Cancel X? Nothing will send."): it was a "Stop" at one tap here
- * (D1-run-words). A run's Approve or Cancel waits while it is on its way (useRunsActing), as Sent's does: a second press
- * was a second request (the wiring's second audit, S9-10).
+ * A playbook's run that waits for a person, as rows of the queue's grammar, with Approve where the button goes. One under
+ * the veto window (scheduled, not yet sending) is Going today's (going-today.tsx, decision 0064), with its Stop, above the
+ * queue; what already went out is a line of the day's card. The page keeps deciding WHICH rows wait; the words are
+ * contracts' (todayRunWords). A run's Approve waits while it is on its way (useRunsActing), as Sent's does: a second
+ * press was a second request (the wiring's second audit, S9-10).
  */
-import { useMemo, useReducer, useRef, useState } from "react";
+import { useMemo, useReducer, useRef } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   LIFECYCLE_WORDS,
@@ -16,7 +15,6 @@ import {
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
   runStopDoorWords,
-  runStopWords,
   runStoppedWords,
   runHeldEmails,
   runDraftedEmails,
@@ -29,7 +27,6 @@ import {
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { AttnRow } from "../../kit/attention/attn-row";
-import { Confirm } from "../../kit/confirm/confirm";
 import { gatedProps } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { TODAY_HELPERS } from "../helpers";
@@ -95,9 +92,8 @@ export const broadcastsRead = () => borrowed<BroadcastsSurface>("__BROADCASTS");
 
 /**
  * The runs that want a seat: one waiting for your word (`waiting`, the count's own rule: contracts runWaitsOnYou), which is
- * a run an approval can still send or a going run whose emails the check holds for your say, one whose day has passed and
- * can only be skipped (`late`, which waits on nobody and the hourly sweep skips), and one inside the veto window, about to
- * send (`soon`).
+ * a run an approval can still send or a going run whose emails the check holds for your say, and one whose day has passed
+ * and can only be skipped (`late`, which waits on nobody and the hourly sweep skips). One about to send is Going today's.
  */
 export const runsPending = () => {
   const s = broadcastsRead();
@@ -109,7 +105,6 @@ export const runsPending = () => {
   return {
     waiting: days ? runsThatWait(judged, days) : [],
     late: days ? pending.filter((r) => runTooLate(r, days)) : [],
-    soon: all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now()),
   };
 };
 
@@ -119,57 +114,6 @@ export const runsPending = () => {
  * Approve that answers 409. A reach-out's run has no day to pass (the predicate's own exemption).
  */
 const runLate = (r: BroadcastVM): string | null => bcLateWords(r);
-
-interface SoonRunProps {
-  r: BroadcastVM;
-  nav: Nav;
-  verbKind: VerbKind;
-  stop: (r: BroadcastVM) => unknown;
-  /** A Cancel of this run is on its way: the button waits. */
-  busy: boolean;
-}
-
-/**
- * A run under the veto window: its row, and, once Cancel is pressed, the question Sent asks before the same cancel (contracts
- * runStopWords: "Cancel X?", "Nothing will send."), in the kit's Confirm under it.
- */
-function SoonRun({ r, nav, verbKind, stop, busy }: SoonRunProps) {
-  const [asking, setAsking] = useState(false);
-  const W = runStopWords("scheduled");
-  const words = TODAY_HELPERS.runs(r).soon;
-  return (
-    <>
-      <AttnRow
-        initials="▶"
-        glyph="bolt"
-        name={runTitleOf(r)}
-        meta={words.meta}
-        sentence={words.sentence}
-        status={words.status}
-        tone="warn"
-        cta={{ label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }}
-        also={{ label: W.verb, onClick: () => setAsking(true), busy, gate: gate("approve", "cancel a run") }}
-        onOpen={() => nav(`broadcasts/run:${r.id}`)}
-        testid="brief-run-soon"
-      />
-      {asking && (
-        <Confirm
-          block
-          danger
-          question={W.question({ name: runTitleOf(r) })}
-          detail={W.detail}
-          yes={W.yes}
-          onYes={() => {
-            setAsking(false);
-            void stop(r);
-          }}
-          onNo={() => setAsking(false)}
-          testid="brief-run-soon-stop"
-        />
-      )}
-    </>
-  );
-}
 
 /** The one To send's row: how many emails wait for you to send them, from how many reach-outs, and its door. */
 function toSendRow(t: NonNullable<ReturnType<typeof toSendRunsOf>>, nav: Nav, verbKind: VerbKind) {
@@ -200,7 +144,7 @@ interface RunSeat {
 export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting }: RunSeat) => {
   const api = broadcastVerbs();
   const refreshed = () => refreshPlaybooks();
-  const { waiting, late: tooLate, soon } = runsPending();
+  const { waiting, late: tooLate } = runsPending();
   const words = (r: BroadcastVM) => TODAY_HELPERS.runs(r);
   const can = canDo("approve");
   // A paused workspace sends nothing, and approving is refused (core approveRun): the row says so, in the words every
@@ -211,10 +155,10 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
   // What a verb returns is the caller's (the tests await it), so it is typed as nothing React would read.
   const stop: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => stopNow(r));
   const approve: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => approveNow(r));
+  // An approved run stopped from its toast (#1727): what the server stopped, said as Sent says it (runStoppedWords).
   const stopNow = async (r: BroadcastVM) => {
     if (!can || !api) return;
     let said = false;
-    // What the server stopped, said as Sent says it (runStoppedWords): a run still to come is canceled, nothing will send.
     const say = (data?: Record<string, unknown>) => {
       said = true;
       flash({
@@ -261,7 +205,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
   // owner works down, never a row a run (00429). One alone opens its run.
   const toSend = toSendRunsOf(waiting);
   const asked = [...waiting.filter((r) => !toSend || !toSend.runs.includes(r)), ...tooLate];
-  const count = asked.length + (toSend ? 1 : 0) + soon.length;
+  const count = asked.length + (toSend ? 1 : 0);
   const handed = toSend && room > 0 ? [toSendRow(toSend, nav, verbKind)] : [];
   const left = room - handed.length;
   const drawn = [
@@ -305,11 +249,6 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
         />
       );
     }),
-    ...soon
-      .slice(0, Math.max(0, left - Math.min(asked.length, left)))
-      .map((r) => (
-        <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} busy={acting.busy(r.id)} />
-      )),
   ];
   return { drawn, count, cut: count - drawn.length };
 };

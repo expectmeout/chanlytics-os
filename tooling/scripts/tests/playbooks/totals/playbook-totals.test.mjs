@@ -389,8 +389,8 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
   );
   assert.deepEqual(
     bare.seen.map((q) => q.table ?? `rpc:${q.rpc}`),
-    ["sequence_steps"],
-    "and nothing of a run",
+    ["sequence_steps", "sequences"],
+    "and nothing of a run: the steps, and their sequences' modes (decision 0064)",
   );
 });
 

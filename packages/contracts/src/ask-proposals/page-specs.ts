@@ -11,6 +11,7 @@ import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
 import type { AskOnlyKind } from "./ask-only";
 import { bookingRequestSpec } from "./inbox";
 import { factSuggestionSpec } from "./autonomy";
+import { reviewReplyStopSpec } from "./reviews";
 import { answerStyleSpec } from "./follow-up";
 import { listMemberSpec } from "./lists";
 import {
@@ -85,6 +86,8 @@ export const PAGE_SPECS = {
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
+  // A reply the receptionist holds under a review, stopped before it posts, on Reports' Reviews (decision 0064).
+  review_reply_stop: reviewReplyStopSpec,
   // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
   answer_style: answerStyleSpec,
   // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence

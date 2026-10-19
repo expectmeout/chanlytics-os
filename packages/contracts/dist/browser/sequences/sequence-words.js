@@ -1,4 +1,3 @@
-import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes.js";
 import { appointmentWords } from "../journey/appointment-word.js";
 import { campaignRunsOn, nextRunOf } from "../playbooks/playbook-schedule.js";
 import { triggerOf } from "../playbooks/playbook-triggers.js";
@@ -7,6 +6,7 @@ import { DAY_MS } from "../shared/time.js";
 import { plural } from "../shared/words.js";
 import { RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms.js";
 import { runWaitsOnYou } from "../waits/waits.js";
+import { SEQUENCE_MODE_WORDS, isSequenceMode } from "./sequence.js";
 import { sequenceRunOff } from "./sequence-run-off.js";
 export const SEQUENCE_WORDS = {
   title: "Sequences",
@@ -58,7 +58,7 @@ export const SEQUENCE_WORDS = {
   next: "Next",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
-  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
+  /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
   /** A phone dock's Turn on: it asks first, so it says so. */
@@ -66,14 +66,7 @@ export const SEQUENCE_WORDS = {
   review: "Review",
   answer: "Answer"
 };
-const SEQUENCE_APPROVAL_WORDS = {
-  auto: "sends on its own",
-  veto: "holds each batch for you to stop",
-  ask: "asks you first",
-  never: "stays quiet"
-};
-const isApprovalMode = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
-const sequenceApprovalWords = (mode) => isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
+const sequenceApprovalWords = (mode) => SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
 export const SEQUENCE_FLOW_WORDS = {
   starts: "Starts",
   stops: "Stops",
@@ -293,9 +286,9 @@ export function sequenceSubLine(row, rec, nowMs) {
   }
   if (row.starts === "leads") {
     const from = row.first?.search_name ? `Leads from \u201C${row.first.search_name}\u201D` : "Leads";
-    return `${from} \xB7 ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec.mode)}`;
+    return `${from} \xB7 ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode)}`;
   }
-  return `${sequenceStartWords(row, rec.word)} \xB7 ${sequenceApprovalWords(rec.mode)}`;
+  return `${sequenceStartWords(row, rec.word)} \xB7 ${sequenceApprovalWords(row.mode)}`;
 }
 export function sequenceNextOf(row, lastRunFor, tz, nowMs) {
   if (row.state !== "on" || row.starts === "date") return null;
@@ -321,11 +314,9 @@ export function sequencePausedDock(row) {
     fact: row.in_it > 0 ? `${plural(row.in_it, "person waits", "people wait")} for it` : null
   };
 }
-const isPolicyClass = (c) => !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
-export function sequenceWhoApprovesHint(mode, policyClass) {
+export function sequenceWhoApprovesHint(mode) {
   const how = sequenceApprovalWords(mode);
-  const said = how.charAt(0).toUpperCase() + how.slice(1);
-  return isPolicyClass(policyClass) ? `${said} \xB7 ${POLICY_CLASS_WORDS[policyClass].name}` : said;
+  return how.charAt(0).toUpperCase() + how.slice(1);
 }
 export const sequenceCancels = (row) => row.starts === "date" && row.date?.state === "scheduled";
 const noticeOf = (n) => ({

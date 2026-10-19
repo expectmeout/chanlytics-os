@@ -315,8 +315,8 @@ const takesAbsent = (field: z.ZodType): boolean => field.safeParse(undefined).su
 /**
  * A `null` on an optional key is "absent", before the zod sees it. zod's `.optional()` refuses null, and the model
  * does write `"audience_id": null` where the handlers always read null as nothing; a null on a required key stays,
- * and is refused as missing, and so does one on a key that takes null itself (`.nullable()`: a change's trial_until,
- * whose null ends the trial). Walked into a nested shape, an array's items and the action a union picks the same way,
+ * and is refused as missing, and so does one on a key that takes null itself (`.nullable()`: a change's until, whose
+ * null ends its last day). Walked into a nested shape, an array's items and the action a union picks the same way,
  * once here for every tool.
  */
 function withoutNulls(schema: z.ZodType, value: unknown): unknown {

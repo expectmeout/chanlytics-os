@@ -10,7 +10,7 @@
  * word is contracts' (sequence-schedule.ts). A step opened is the kit's sheet (step-sheet.tsx): its words, its facts and its
  * acts, and its editor in the same sheet; the record's dock opens a step to be changed there too (`editing`).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   SCHEDULE_WORDS as SW,
   SEQUENCE_FLOW_WORDS as F,
@@ -67,14 +67,21 @@ function StartsOn({ rec, name }: { rec: SequenceRecordDto; name: string }) {
  * Where it starts: what starts it, the list it starts on a door to it, and the line under (its hour and Change where a
  * moment or a list starts it, a one-off's day and how it stands).
  */
-function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; moved: () => void }) {
+function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; howAsked: number }) {
+  const { rec, flash, moved, howAsked } = p;
   const row = rec.sequence;
   const first = row.first;
-  // How it runs, in its own sheet; a new key each time it opens, so it opens on what the record holds now.
+  // How it runs, in its own sheet; a new key each time it opens, so it opens on what the record holds now. The head's
+  // Who approves asks it open too (`howAsked`, a count).
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(0);
   const start = scheduleStart(row, rec.word, { tz: rec.timezone, nowMs: Date.now() });
   const changes = !!first && (row.starts === "moment" || row.starts === "list");
+  useEffect(() => {
+    if (howAsked === 0 || !changes) return;
+    setOpened((n) => n + 1);
+    setOpen(true);
+  }, [howAsked, changes]);
   return (
     <RailRow day={row.starts === "date" ? SW.date : SW.start} testid="sq-starts">
       <div className="sq-rail-line">
@@ -269,6 +276,8 @@ interface StepsProps {
   /** The step open to be changed ("new" for a step being added), held by the record so its dock can open one. */
   editing: string | null;
   onEditing: (id: string | null) => void;
+  /** How it runs, asked open by the head's Who approves: a count, each ask opening it again. */
+  howAsked: number;
   /** Cancel this send, asked first by the record (a one-off waiting for its day). */
   onCancelSend: () => void;
 }
@@ -287,7 +296,7 @@ function usePeopleOf(rec: SequenceRecordDto, again: number): SequencePeopleDto |
   return wants && read.state === "read" ? read.data : null;
 }
 
-export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, onCancelSend }: StepsProps) {
+export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, howAsked, onCancelSend }: StepsProps) {
   const row = rec.sequence;
   const people = usePeopleOf(rec, again);
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.
@@ -309,7 +318,15 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, on
   // drawn once its chain is read with it.
   if (row.starts === "leads")
     return rec.chain ? (
-      <LeadSteps rec={rec} flash={flash} moved={moved} ctx={ctx} editing={editing} onEditing={onEditing} />
+      <LeadSteps
+        rec={rec}
+        flash={flash}
+        moved={moved}
+        ctx={ctx}
+        editing={editing}
+        onEditing={onEditing}
+        howAsked={howAsked}
+      />
     ) : (
       <div className="sq-steps-body" data-testid="sq-steps" aria-busy="true" />
     );
@@ -341,7 +358,7 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, on
         {row.starts === "date" ? null : <span className="sq-span-per">{SW.per}</span>}
       </p>
       <ol className="sq-rail">
-        <StartRow rec={rec} flash={flash} moved={moved} />
+        <StartRow rec={rec} flash={flash} moved={moved} howAsked={howAsked} />
         {rec.steps.flatMap((step) => [
           step.place > 1 ? <WaitRow key={`wait-${step.id}`} step={step} /> : null,
           <StepRow

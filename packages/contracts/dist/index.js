@@ -265,6 +265,13 @@ var UNKNOWN_MEMBER_WORD = "Someone";
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 var joinWordsEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+function clipAtWord(text, max) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut2 = t.slice(0, max + 1);
+  const space = cut2.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut2.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
+}
 
 // src/ads/words.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -8173,6 +8180,58 @@ function promptSafeName(name) {
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
 }
 
+// src/waits/wait-rules.ts
+var WAIT_KINDS = [
+  "reply",
+  "hold",
+  "batch_ask",
+  "batch_hold",
+  "leads_batch",
+  "held_email",
+  "to_send",
+  "review_ask",
+  "review_hold",
+  "one_off"
+];
+var WAIT_RULES = {
+  reply: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
+  hold: { goes: "by_you", ends: "never", act: "answer" },
+  batch_ask: { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" },
+  batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
+  leads_batch: { goes: "with_your_ok", ends: "never", act: "approve" },
+  held_email: { goes: "by_you", ends: "never", act: "answer" },
+  to_send: { goes: "by_you", ends: "never", act: "send" },
+  review_ask: { goes: "with_your_ok", ends: "never", act: "approve" },
+  review_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
+  one_off: { goes: "on_its_own", ends: "at_its_time", act: "stop" }
+};
+function waitRuleOf(kind) {
+  return WAIT_RULES[kind];
+}
+var WAIT_ACT_WORDS = {
+  stop: "Stop",
+  approve: "Approve",
+  answer: "Answer",
+  send: "Send"
+};
+function waitEndsWords(kind, at3) {
+  const r2 = WAIT_RULES[kind];
+  if (r2.ends === "at_its_time") return `Goes ${at3 ?? "at its time"} unless you stop it`;
+  if (r2.ends === "end_of_its_day")
+    return "Waits for your OK until the end of its day; then it is skipped, and you are told";
+  if (r2.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
+  if (r2.act === "send") return "Waits for you to send it from your own inbox";
+  return "Waits for you; nothing more goes until you answer";
+}
+var HELD_REPLY_QUOTE = 140;
+function heldReplyNotice(n) {
+  const why = n.unsure ? "The receptionist was not sure of its reply" : "Your hold for replies is on";
+  return {
+    subject: `Reply to ${n.who} goes ${n.at}`,
+    body: `${why}: \u201C${clipAtWord(n.reply, HELD_REPLY_QUOTE)}\u201D. ${waitEndsWords("reply", n.at)}, from the Inbox.`
+  };
+}
+
 // src/playbooks/playbook-time.ts
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var SWEEP_TICK_MS = 5 * MIN_MS;
@@ -8307,21 +8366,38 @@ function whenItGoes(receipt, when, nowMs) {
   if (Number.isNaN(at3)) return SENDING_NOW_WORDS;
   if (receipt?.moved_from)
     return `scheduled for ${when(at3)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock`;
+  if (receipt?.pressed_now && at3 > nowMs) {
+    const goes2 = waitEndsWords("one_off", when(at3));
+    return `${goes2.charAt(0).toLowerCase()}${goes2.slice(1)}`;
+  }
   return at3 - nowMs > MIN_MS ? `scheduled for ${when(at3)}` : SENDING_NOW_WORDS;
 }
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+var SEND_ONCE_STOP_MS = 10 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
   if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
-function vetoRunNotice(name, people, when, trialUntil) {
-  const who = `${people} ${people === 1 ? "person" : "people"}`;
-  const trial = trialUntil ? ` \u201C${name}\u201D is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.` : "";
+var SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
+function readyRunNotice(name, people) {
+  return {
+    subject: `Campaign \u201C${name}\u201D is ready: ${plural(people, "person", "people")}`,
+    body: `${plural(people, "person has", "people have")} become eligible for \u201C${name}\u201D. Approve or skip it from your Inbox or Today. ${waitEndsWords("batch_ask")}.`
+  };
+}
+function vetoRunNotice(name, people, when) {
+  const who = plural(people, "person", "people");
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D ${when}. Open the run to stop it before then if it should not go.${trial}`
+    body: `${who} will be sent \u201C${name}\u201D. ${waitEndsWords("batch_hold", when)}, from Today or its run.`
+  };
+}
+function skippedRunNotice(name, people) {
+  return {
+    subject: `\u201C${name}\u201D didn\u2019t go: nobody approved it`,
+    body: `${plural(people, "person", "people")} waited for your OK until the day ended, and nothing was sent. They are in line for its next batch. To stop being asked each time, change \u201CBefore each batch\u201D in its How it runs.`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -8399,30 +8475,30 @@ var POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `how a new win-back sequence starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `how a new offer or welcome sequence starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words`
   },
   reviews: {
     name: "Google reviews",
     short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+    note: `replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, veto writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask writes one and holds it for your OK, never leaves them all to you`
   },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
   // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+    note: "how the proposal follow-up starts \xB7 one nudge per proposal, with its link \xB7 it keeps its own on its page, and asks you before its first batch and after new words"
   },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  // Reach out (Part 3): cold email to the businesses a search found. Never sent on its own (0064).
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
+    note: "how a new sequence to leads starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words"
   }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -8446,14 +8522,13 @@ var POLICY_CLASS_MODES = {
   reply: ["auto", "veto", "ask", "never"],
   booking: ["auto", "ask"],
   faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  reviews: ["auto", "ask", "never"],
+  reengage: ["auto", "veto", "ask"],
+  campaign: ["auto", "veto", "ask"],
+  // Holds it (decision 0064, step 6): a reply written and posted after its wait unless stopped, as a batch is.
+  reviews: ["auto", "veto", "ask", "never"],
   money: ["never"],
-  follow_up: ["auto", "ask", "never"],
-  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
-  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
-  outreach: ["veto", "ask", "never"]
+  follow_up: ["auto", "veto", "ask"],
+  outreach: ["veto", "ask"]
 };
 function policyModeOffered(cls, mode) {
   return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);
@@ -8987,13 +9062,6 @@ function messageText(m) {
     return caption ? `${label}: ${caption}` : label;
   }
   return `[${m.type}]`;
-}
-function clipAtWord(text, max) {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut2 = t.slice(0, max + 1);
-  const space = cut2.lastIndexOf(" ");
-  return `${(space > max * 0.6 ? cut2.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
 
 // src/email/free-mail.ts
@@ -14528,10 +14596,10 @@ function heardFor(heard, sendsAt, now) {
   return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
 }
 function breathSplit(reached, idOf, out) {
-  const goes = [];
+  const goes2 = [];
   const leftOut2 = [];
-  for (const person of reached) (out.has(idOf(person)) ? leftOut2 : goes).push(person);
-  return { goes, leftOut: leftOut2 };
+  for (const person of reached) (out.has(idOf(person)) ? leftOut2 : goes2).push(person);
+  return { goes: goes2, leftOut: leftOut2 };
 }
 function reachAfterBreath(split, heardBy, breathe) {
   if (!breathe) return split;
@@ -15255,6 +15323,26 @@ var factSuggestionSpec = {
   }),
   receipt: (p) => p.payload.keep === true ? FACT_SUGGEST_WORDS.kept(asText(p.payload.title)) : FACT_SUGGEST_WORDS.dismissed,
   open: () => "admin/autonomy"
+};
+
+// src/ask-proposals/reviews.ts
+var reviewReplySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "review_id") && asText(pl.comment).trim() ? {
+    route: "POST google/reviews/[id]/reply",
+    params: { id: asText(pl.review_id) },
+    body: { comment: asText(pl.comment).trim() }
+  } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: ({ payload: pl }) => `Replied to ${asText(pl.who) || "the review"} on Google`,
+  open: () => "reports/reviews"
+};
+var reviewReplyStopSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => idIn(pl, "review_id") ? { route: "POST google/reviews/[id]/stop", params: { id: asText(pl.review_id) }, body: {} } : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: (_p, data) => rec(data).held === true ? "Stopped. The reply waits for your OK, under the review." : "Nothing to stop: that reply had already gone, or was stopped.",
+  open: () => "reports/reviews"
 };
 
 // src/ask-proposals/follow-ups.ts
@@ -17146,8 +17234,6 @@ var LIFECYCLE_WORDS = {
   monthsOffer: { name: "The month's offer" },
   /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
   ended: (day) => `Ended ${day}`,
-  /** A campaign on trial (00416 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
-  onTrial: (day) => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers."
@@ -17378,8 +17464,10 @@ var LIFECYCLE_WORDS = {
       /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
       detail: (when, n) => n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
-      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      /** Said in full where its next batch goes without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
+      /** Said where its next batch's words are new to you (decision 0064): that batch waits for your OK, whatever the mode. */
+      asksFirst: "Its first batch waits for your OK.",
       yes: "Yes, resume it"
     },
     /** What the drawer's head calls a campaign whose group the page does not hold. */
@@ -17516,7 +17604,6 @@ function lifecycleStateOf(p) {
   const paused = p.state !== "running";
   if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   if (paused) return stated("Paused", "plain", true);
-  if (p.trial) return stated(LIFECYCLE_WORDS.onTrial(p.trial), "ok");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 function lifecycleChainStateOf(c) {
@@ -17881,6 +17968,33 @@ function templateSentWords(s, tz, nowMs) {
   };
 }
 
+// src/sequences/sequence.ts
+var SEQUENCE_STARTS = ["moment", "list", "leads", "date"];
+var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
+var SEQUENCE_MODES = ["auto", "veto", "ask"];
+var isSequenceMode = (m) => typeof m === "string" && SEQUENCE_MODES.includes(m);
+var SEQUENCE_MODE_WORDS = {
+  auto: { line: "sends on its own", choice: "Send it", does: "each batch goes on its own" },
+  veto: {
+    line: "holds each batch for you to stop",
+    choice: `Hold it ${PLAYBOOK_VETO_DELAY_WORDS} so I can stop it`,
+    does: `each batch waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, then goes`
+  },
+  ask: { line: "asks you before each batch", choice: "Ask me", does: "each batch waits for your OK" }
+};
+var SEQUENCE_MODE_LABEL = "Before each batch";
+var SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your OK first, whatever this says.";
+function sequenceModesFor(starts) {
+  return starts === "leads" ? ["veto", "ask"] : SEQUENCE_MODES;
+}
+function newSequenceMode(classMode, starts) {
+  return isSequenceMode(classMode) && sequenceModesFor(starts).includes(classMode) ? classMode : "ask";
+}
+function batchModeOf(s) {
+  if (!s.words_ok_at) return "ask";
+  return isSequenceMode(s.mode) ? s.mode : "ask";
+}
+
 // src/playbooks/playbook-patch.ts
 var PLAYBOOK_PATCH_KEYS = [
   "state",
@@ -17891,9 +18005,9 @@ var PLAYBOOK_PATCH_KEYS = [
   "cadence_days",
   "params",
   "until",
-  "trial_until"
+  "mode"
 ];
-var PLAYBOOK_PATCH_CLEARS = ["until", "trial_until"];
+var PLAYBOOK_PATCH_CLEARS = ["until"];
 var keysSaid = (last) => `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
 var PLAYBOOK_PATCH_WORDS = {
   title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
@@ -17906,18 +18020,19 @@ var PLAYBOOK_PATCH_WORDS = {
   params: (to) => `Its words changed: ${to.map(paramSaid).join(", ")}`,
   /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
   until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
-  /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
-  trial_until: (day) => day ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it` : "No longer on trial: its runs go as its class is set in Settings \u203A Autonomy",
-  /**
-   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
-   * what a run does under that mode (`does`), never that each run waits for a Stop.
-   */
-  trialInert: (day, cls, mode, does) => `On trial until ${day}, which changes nothing under \u201C${cls}\u201D (${mode}): ${does}`,
+  /** Its sequence's mode (decision 0064), as How it runs says it: "Before each batch: Ask me, where it was Send it". */
+  mode: (to, was) => `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
+  /** A mode that is none of the three (decision 0064). */
+  modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
+  /** A mode a sequence to leads does not take: cold email never goes on its own. */
+  modeLeads: "A sequence to leads waits for your OK or holds each batch: it never sends on its own.",
+  /** A mode a one-off does not take: pressing Send decided it. */
+  modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
-  /** D7: a resume says its class's mode, in full. */
-  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
+  /** D7: a resume says what its batches do, by its sequence's mode (decision 0064), in full. */
+  resumed: (does) => `Runs again: ${does}`,
   same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
   nothing: `Name what changes: ${keysSaid("or")}.`,
   state: "A campaign is running or paused.",
@@ -17929,10 +18044,6 @@ var PLAYBOOK_PATCH_WORDS = {
   untilDay: "An end is a day, written YYYY-MM-DD.",
   /** An end before the business's today (`today` in campaignDayWords). */
   untilPast: (today) => `An end is today or later: today is ${today} by your clock.`,
-  /** A trial's end that is no instant with its zone. */
-  trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
-  /** A trial's end that has already passed: a trial that ended is none. */
-  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
@@ -19423,10 +19534,10 @@ var MESSAGE_BEGIN_WORDS = {
 // src/ask-proposals/campaigns.ts
 var RUN_VERBS = ["approve", "skip"];
 function proposalChannelsWords(channels, byChannel) {
-  const goes = channelsWords(channels);
+  const goes2 = channelsWords(channels);
   const carrying = channels.filter((c) => byChannel[c] > 0);
-  if (carrying.length < 2) return goes;
-  return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
+  if (carrying.length < 2) return goes2;
+  return `${goes2} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
 }
 var PLAYBOOK_CARD_REFUSALS = {
   /** A typed slot the proposal gave no words for: a question for the person. */
@@ -19451,8 +19562,8 @@ var PLAYBOOK_CARD_REFUSALS = {
    */
   weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
   /**
-   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
-   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   * The autonomy modes, unread: what a card says of its runs after the first is what its class's row says a new sequence
+   * starts as (decision 0064), so no card is made on a guess.
    */
   modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
   /** The action named a message and a starter both: a campaign sends one. */
@@ -19464,11 +19575,10 @@ var PLAYBOOK_CARD_REFUSALS = {
 var twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
 var PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
-   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
+   * 0064): the card says so beside what its batches do after that.
    */
-  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  asksFirst: "its first batch waits for your OK",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -19504,8 +19614,9 @@ var broadcastSpec = {
     const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
+    const goes2 = ahead ? "scheduled" : d.pressed_now === true ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it` : SENDING_NOW_WORDS;
     const said = heardWords(leftOut2, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes2}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -19535,8 +19646,6 @@ var playbookSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...pl.trial === true ? { trial: true } : {},
       // Its last day (00416), where the card named one: the route judges it again at its own clock.
       ...typeof pl.until === "string" ? { until: pl.until } : {}
     }
@@ -19592,11 +19701,15 @@ var playbookChannelsSpec = {
     return id ? `campaigns/moment:${id}` : "outbound";
   }
 };
-var patchIn = (pl) => Object.fromEntries(
-  PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
-    (k) => [k, pl[k]]
-  )
-);
+var patchIn = (pl, modeKey) => {
+  const body = Object.fromEntries(
+    PLAYBOOK_PATCH_KEYS.filter(
+      (k) => k !== "mode" && pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))
+    ).map((k) => [k, pl[k]])
+  );
+  if (typeof pl[modeKey] === "string") body.mode = pl[modeKey];
+  return body;
+};
 var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
 var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
 var playbookChangeSpec = {
@@ -19604,7 +19717,7 @@ var playbookChangeSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "playbook_id");
-    const body = patchIn(pl);
+    const body = patchIn(pl, "sequence_mode");
     if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return { route: "PUT playbooks/[id]", params: { id }, body };
   },
@@ -19630,7 +19743,7 @@ var playbookChangeSpec = {
       };
     },
     call: (u) => {
-      const was = patchIn(rec(u.was));
+      const was = patchIn(rec(u.was), "mode");
       return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
     },
     receipt: () => "It is as it was"
@@ -20364,16 +20477,6 @@ function messageFitsMoment(policyClass, category) {
 }
 
 // src/playbooks/playbook-schedule.ts
-function onTrialAt(p, now) {
-  const end = Date.parse(p.trial_until ?? "");
-  return Number.isFinite(end) && now.getTime() < end;
-}
-function effectiveMode(p, mode, now) {
-  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
-}
-function newCampaignTrialUntil(now) {
-  return new Date(now.getTime() + WEEK_MS).toISOString();
-}
 function campaignEnded(p, day) {
   return p.until && day > p.until ? p.until : null;
 }
@@ -20384,20 +20487,11 @@ function campaignRunsOn(p, at3) {
 function campaignDayWords(day, tz, now) {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
 }
-function trialDayWords(p, tz, now) {
-  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
-}
 function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
+  if (mode === "auto") return { kind: "send", state: "scheduled", at: now };
+  if (mode === "veto")
+    return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+  return { kind: "hold", state: "pending_approval" };
 }
 function parts(tz, now) {
   try {
@@ -20668,7 +20762,7 @@ function toApprovalVM(d, opts) {
   const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
   const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
   const runFor = b.run_for ?? "";
-  const goes = late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it";
+  const goes2 = late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it";
   return {
     will,
     byChannel: by ? {
@@ -20686,8 +20780,8 @@ function toApprovalVM(d, opts) {
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
     approve: refusal ? null : runApproveWords(will),
     expired: refusal,
-    goes,
-    goesLine: capitalize(goes),
+    goes: goes2,
+    goesLine: capitalize(goes2),
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
 }
@@ -22011,7 +22105,7 @@ function startWords(s, ownerSends = false) {
           return { tone: "plain", text: "Saved. The first run is held." };
       }
     case "off":
-      return s.reason === "never" ? { tone: "warn", text: "Saved. Outreach is set to Never in Settings \u203A Autonomy, so nothing runs." } : s.reason === "workspace_paused" ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
+      return s.reason === "workspace_paused" ? { tone: "warn", text: "Saved. This workspace is paused, so nothing runs until it is resumed." } : { tone: "plain", text: "Saved. It is paused, so nothing was planned." };
     case "empty":
       return s.reason === "already_ran" ? { tone: "plain", text: "Saved. It already ran today; it runs again tomorrow." } : { tone: "plain", text: "Saved. Nobody on this search can be written to yet; it looks again each day." };
     case "failed":
@@ -22025,8 +22119,6 @@ function startWords(s, ownerSends = false) {
 function nextRunWords(c, tz, now) {
   if (c.state !== "running")
     return { tone: "plain", text: "Paused. Nothing is planned until you resume it.", run_id: null };
-  if (c.next.mode === "never")
-    return { tone: "warn", text: "Outreach is set to Never in Settings \u203A Autonomy, so nothing runs.", run_id: null };
   if (!c.next.may_spend)
     return { tone: "warn", text: "Held for billing: nothing is planned until billing is sorted.", run_id: null };
   if (c.next.waiting_run_id)
@@ -22095,11 +22187,11 @@ function approvalWordsOf(r2, p) {
     if (leads) words3.push({ text: open, opening: true });
     if (rest.trim()) words3.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
-  const goes = r2.owner_sends ? " \xB7 handed to you as each is checked, once you approve it" : earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at3 ? ` \xB7 goes from ${at3} once you approve it` : "";
+  const goes2 = r2.owner_sends ? " \xB7 handed to you as each is checked, once you approve it" : earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at3 ? ` \xB7 goes from ${at3} once you approve it` : "";
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
-    sub: `Reach-out \xB7 ${step2}${goes}, ${sender.pace}`,
+    sub: `Reach-out \xB7 ${step2}${goes2}, ${sender.pace}`,
     will: sender.will,
     of: `of ${total + sender.drafted + r2.held.length + r2.checking}`,
     why,
@@ -24514,6 +24606,8 @@ var PAGE_SPECS = {
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
+  // A reply the receptionist holds under a review, stopped before it posts, on Reports' Reviews (decision 0064).
+  review_reply_stop: reviewReplyStopSpec,
   // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
   answer_style: answerStyleSpec,
   // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence
@@ -26643,10 +26737,10 @@ function stageInput(id, moment2, world) {
   const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
   if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
   const review = reviews.find((m) => languageBase(m.language) === world.language);
-  const goes = (review?.versions ?? []).filter(
+  const goes2 = (review?.versions ?? []).filter(
     (v) => LIVE_VERSION_STATES.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
   );
-  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
+  const version = goes2.find((v) => v.channel === "whatsapp") ?? goes2.at(0);
   return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
 }
 var APPOINTMENT_ES = {
@@ -28726,19 +28820,6 @@ var reachOutAddSpec = {
   }
 };
 
-// src/ask-proposals/reviews.ts
-var reviewReplySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => idIn(pl, "review_id") && asText(pl.comment).trim() ? {
-    route: "POST google/reviews/[id]/reply",
-    params: { id: asText(pl.review_id) },
-    body: { comment: asText(pl.comment).trim() }
-  } : refuseWith(PROPOSAL_WORDS.cannotApprove),
-  receipt: ({ payload: pl }) => `Replied to ${asText(pl.who) || "the review"} on Google`,
-  open: () => "reports/reviews"
-};
-
 // src/ask-proposals/ask-only.ts
 var ASK_ONLY_SPECS = {
   // The Inbox's and Live's.
@@ -28803,7 +28884,8 @@ var WHY = {
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
-  add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on"
+  add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
+  stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are"
 };
 var ASK_GUIDE_PAGES = [
   {
@@ -28925,7 +29007,7 @@ var ASK_GUIDE_PAGES = [
     page: "Reports",
     route: "reports",
     for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
-    verbs: ["review_reply"],
+    verbs: ["review_reply", "review_reply_stop"],
     pageOnly: []
   },
   {
@@ -28949,7 +29031,8 @@ var ASK_PAGE_ONLY_VERBS = {
   sequence_end: WHY.end,
   sequence_add: WHY.add,
   sequence_move: WHY.add,
-  lead_search_aim: WHY.add
+  lead_search_aim: WHY.add,
+  review_reply_stop: WHY.stop
 };
 
 // src/ask-skills/skill.ts
@@ -32701,9 +32784,7 @@ function nextMarks(dto, days, now, todayKey) {
     const day = next.day === "today" ? todayKey : shiftKey(todayKey, 1);
     const made = !!p.last_run_for && p.last_run_for >= day;
     if (made || standing2.has(`${p.id}:${day}`) || campaignEnded(p, day)) continue;
-    const plan = planRun(effectiveMode(p, p.mode, now), now);
-    if (plan.kind === "off") continue;
-    const sends2 = plan.kind === "send";
+    const sends2 = planRun(p.mode, now).kind === "send";
     const t = sends2 && !next.soon ? next.hour : null;
     const when = next.day === "today" ? "today" : "tomorrow";
     pushOn(days, day, {
@@ -34273,8 +34354,35 @@ function promptBlocks(text, channel, from) {
 // src/google/review-reply.ts
 function reviewReplyModeOf(rows2) {
   const m = rows2?.find((r2) => r2.class === "reviews")?.mode;
-  return m === "auto" || m === "never" ? m : "ask";
+  return m === "auto" || m === "veto" || m === "never" ? m : "ask";
 }
+var REVIEW_HOLD_MS = PLAYBOOK_VETO_DELAY_MS;
+function heldReviewReplyOf(r2, tz) {
+  if (r2.reply_text || !r2.draft_text) return null;
+  return { text: r2.draft_text.trim(), words: reviewHeldReplyWords(r2.posts_at, tz), posts: !!r2.posts_at };
+}
+function reviewHeldReplyWords(postsAt, tz) {
+  const at3 = postsAt ? Date.parse(postsAt) : NaN;
+  return Number.isFinite(at3) ? `${waitEndsWords("review_hold", `after ${clockTime(at3, tz)}`)}.` : `${waitEndsWords("review_ask")}.`;
+}
+function reviewDraftsBell(drafted2, tz) {
+  const [d, ...rest] = drafted2;
+  if (!d) return null;
+  if (rest.length === 0) {
+    const who = (d.author ?? "").trim();
+    const goes2 = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your OK";
+    return {
+      title: `${REVIEW_REPLY_HELD_TITLE} ${who ? `${who}'s review` : "a review"} ${goes2}`,
+      body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`
+    };
+  }
+  const holds2 = drafted2.some((r2) => r2.posts_at);
+  return {
+    title: `${drafted2.length} replies to reviews ${holds2 ? "post unless you stop them" : "wait for your OK"}`,
+    body: "Each is on Reports, under its review."
+  };
+}
+var REVIEW_REPLY_HELD_TITLE = "A reply to";
 var REVIEW_REPLY_MAX_WORDS = 60;
 var REVIEW_REPLY_MAX_CHARS = 1e3;
 var REVIEW_AUTO_REPLIES_PER_SYNC = 3;
@@ -34357,7 +34465,8 @@ function autoReplyBell(answered) {
 function reviewReplyWords(mode, canReply) {
   if (!canReply || !mode) return "";
   if (mode === "auto") return "new ones are answered by the receptionist within the hour";
-  if (mode === "ask") return "the receptionist drafts, you send";
+  if (mode === "veto") return "the receptionist writes each reply and posts it after 30 minutes unless you stop it";
+  if (mode === "ask") return "the receptionist writes each reply and holds it for your OK";
   return "";
 }
 
@@ -34502,6 +34611,7 @@ function toGoogleReviewVM(r2, linkedAt, tz, nowMs) {
     text: (r2.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r2.reply_text,
     replyText: (r2.reply_text ?? "").replace(/\s+/g, " ").trim(),
+    heldReply: heldReviewReplyOf(r2, tz),
     mapsUri: r2.maps_uri,
     isNew: reviewIsNew(r2, linkedAt, nowMs),
     fromProfile: r2.origin === "profile"
@@ -39362,7 +39472,6 @@ var RUN_OFF_REASONS = [
   "list_uncounted",
   "template_not_approved",
   "number_flagged",
-  "never",
   "ended"
 ];
 var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
@@ -39372,7 +39481,6 @@ var RUN_OFF_WORDS = {
   list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
   template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
   number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
   ended: { said: "its last day has passed", act: "End it", mends: "end" }
 };
 function sequenceRunOff(row2, lastRun, clock3) {
@@ -39446,7 +39554,7 @@ var SEQUENCE_WORDS = {
   next: "Next",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
-  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
+  /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
   /** A phone dock's Turn on: it asks first, so it says so. */
@@ -39454,14 +39562,7 @@ var SEQUENCE_WORDS = {
   review: "Review",
   answer: "Answer"
 };
-var SEQUENCE_APPROVAL_WORDS = {
-  auto: "sends on its own",
-  veto: "holds each batch for you to stop",
-  ask: "asks you first",
-  never: "stays quiet"
-};
-var isApprovalMode = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
-var sequenceApprovalWords = (mode) => isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
+var sequenceApprovalWords = (mode) => SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
 var SEQUENCE_FLOW_WORDS = {
   starts: "Starts",
   stops: "Stops",
@@ -39547,20 +39648,20 @@ function needsCount(n) {
   return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
 }
 function sequenceWaitsNow(row2, days) {
-  const batches = row2.needs.batches.filter(
+  const batches2 = row2.needs.batches.filter(
     (b) => runWaitsOnYou(
       { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
       days
     )
   );
-  if (batches.length === row2.needs.batches.length && batches.length === row2.needs.waiting) return row2;
+  if (batches2.length === row2.needs.batches.length && batches2.length === row2.needs.waiting) return row2;
   return {
     ...row2,
     needs: {
       ...row2.needs,
-      batches,
-      waiting: batches.length,
-      waiting_people: batches.reduce((n, b) => n + b.people, 0)
+      batches: batches2,
+      waiting: batches2.length,
+      waiting_people: batches2.reduce((n, b) => n + b.people, 0)
     }
   };
 }
@@ -39681,9 +39782,9 @@ function sequenceSubLine(row2, rec2, nowMs) {
   }
   if (row2.starts === "leads") {
     const from = row2.first?.search_name ? `Leads from \u201C${row2.first.search_name}\u201D` : "Leads";
-    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec2.mode)}`;
+    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row2.mode)}`;
   }
-  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(rec2.mode)}`;
+  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(row2.mode)}`;
 }
 function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
   if (row2.state !== "on" || row2.starts === "date") return null;
@@ -39709,11 +39810,9 @@ function sequencePausedDock(row2) {
     fact: row2.in_it > 0 ? `${plural(row2.in_it, "person waits", "people wait")} for it` : null
   };
 }
-var isPolicyClass = (c) => !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
-function sequenceWhoApprovesHint(mode, policyClass) {
+function sequenceWhoApprovesHint(mode) {
   const how = sequenceApprovalWords(mode);
-  const said = how.charAt(0).toUpperCase() + how.slice(1);
-  return isPolicyClass(policyClass) ? `${said} \xB7 ${POLICY_CLASS_WORDS[policyClass].name}` : said;
+  return how.charAt(0).toUpperCase() + how.slice(1);
 }
 var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
 var noticeOf = (n) => ({
@@ -46528,7 +46627,7 @@ function todayRunWords(r2) {
   const sent = `${r2.counts.sent} sent`;
   const held = `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted2 = `${plural(r2.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  const waiting = `${people}. Nothing sends until you say so.`;
+  const waiting = `${people}. ${waitEndsWords(!reach && r2.playbook_id ? "batch_ask" : "leads_batch")}.`;
   return {
     people,
     waiting: {
@@ -46645,9 +46744,10 @@ function nextShare(p) {
 function resumeDetailOf(p, at3) {
   const W = LIFECYCLE_WORDS.ledger.resume;
   const when = nextRunLabel({ ...p, state: "running" }, at3.tz, new Date(at3.nowMs), at3.paused);
-  const auto = at3.mode === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return auto ? `${detail}. ${W.auto}` : detail;
+  if (p.mode === void 0) return detail;
+  if (!p.words_ok_at) return `${detail}. ${W.asksFirst}`;
+  return batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at }) === "auto" ? `${detail}. ${W.auto}` : detail;
 }
 function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
@@ -46972,13 +47072,7 @@ function rowWaitingOf(p, at3) {
 }
 function resumeOf(p, input) {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const detail = resumeDetailOf(p, {
-    tz: input.tz,
-    nowMs: input.nowMs,
-    paused: workspacePausedOf(input),
-    mode: cls === null ? null : input.playbooks?.modes?.[cls]
-  });
+  const detail = resumeDetailOf(p, { tz: input.tz, nowMs: input.nowMs, paused: workspacePausedOf(input) });
   return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 function playbookRow(p, at3) {
@@ -47566,7 +47660,6 @@ function cardReadOf(p, pb, at3) {
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
     off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
-    trial: trialDayWords(p, at3.tz, at3.now),
     runs: campaignRunsOn(p, { tz: at3.tz, now: at3.now })
   };
 }
@@ -48028,10 +48121,6 @@ function bookedSeenOf(items, own) {
   return out.slice(0, BOOKED_SEEN_CAP);
 }
 
-// src/sequences/sequence.ts
-var SEQUENCE_STARTS = ["moment", "list", "leads", "date"];
-var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
-
 // src/sequences/sequence-dto.ts
 var SEQUENCE_PEOPLE_GROUPS = [
   "waiting",
@@ -48242,8 +48331,8 @@ function historySince(period, tz, nowMs) {
   const p = SEQUENCE_HISTORY_PERIODS.find((x) => x.id === period);
   return p && p.days !== null ? zoneDayKey(nowMs - (p.days - 1) * DAY_MS, tz) : null;
 }
-function historyIn(batches, since, tz) {
-  return since === null ? [...batches] : batches.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since);
+function historyIn(batches2, since, tz) {
+  return since === null ? [...batches2] : batches2.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since);
 }
 function historyCovers(h, since, tz) {
   if (!h.more) return true;
@@ -48251,8 +48340,8 @@ function historyCovers(h, since, tz) {
   const last = h.batches[h.batches.length - 1];
   return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since;
 }
-function historyFigures(batches) {
-  const went = batches.filter(batchWent);
+function historyFigures(batches2) {
+  const went = batches2.filter(batchWent);
   const sum3 = (k) => went.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
   const sent = sum3("sent");
   const delivered = sum3("delivered");
@@ -48301,11 +48390,11 @@ function historyStamp(atMs, tz, nowMs) {
   return when.startsWith("tomorrow ") ? `Tomorrow \xB7 ${time}` : when;
 }
 function historyUpcomingWords(people, mode) {
-  const goes = mode === "auto" || mode === "veto";
-  return { end: people ? plural(people, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes) };
+  const goes2 = mode === "auto" || mode === "veto";
+  return { end: people ? plural(people, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes2) };
 }
-function historyDays(batches, tz) {
-  return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
+function historyDays(batches2, tz) {
+  return new Set(batches2.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
 }
 function historyDayWords(b, place) {
   const c = b.counts;
@@ -48328,7 +48417,7 @@ var SEQUENCE_ACT_WORDS = {
   more: (name) => `More for ${name}`,
   askAbout: "Ask about it",
   runNow: "Run now",
-  runNowTip: "Runs its first step now, at your request: it waits for your OK where you approve its batches, and outside the sending hours it goes when they open",
+  runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
   rename: "Rename",
   name: "Name",
   save: "Save",
@@ -48343,7 +48432,7 @@ function sequenceRunsNow(row2, at3) {
 }
 function sequenceResumeAsk(rec2, reach, at3) {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const { name, starts, first } = rec2.sequence;
+  const { name, starts, first, mode } = rec2.sequence;
   const step2 = first && reach ? {
     run_hour: first.run_hour,
     last_run_for: rec2.last_run_for ?? null,
@@ -48351,7 +48440,8 @@ function sequenceResumeAsk(rec2, reach, at3) {
     until: first.until,
     candidates: reach.candidates,
     cap_per_run: reach.cap_per_run,
-    trial: trialDayWords(first, at3.tz, new Date(at3.nowMs))
+    mode,
+    words_ok_at: first.words_ok_at
   } : null;
   const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
@@ -48441,8 +48531,8 @@ var LEAD_BUILD_WORDS = {
     aDay: "A day, at most",
     every: (minutes) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
-    approves: "Who approves",
-    inAutonomy: "Set in Autonomy",
+    approves: SEQUENCE_MODE_LABEL,
+    newWordsAsk: "New words always ask first",
     signed: "Signed",
     signedNone: "Not set",
     footer: "Footer",
@@ -48450,13 +48540,6 @@ var LEAD_BUILD_WORDS = {
     noAddress: "Add your address in Settings \u203A Details: every email carries it at the foot."
   }
 };
-var APPROVES = {
-  ask: "You, each batch",
-  veto: "Goes unless you stop it",
-  auto: "Goes on its own",
-  never: "Nobody: it stays quiet"
-};
-var leadApprovesOf = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(APPROVES, mode) ? APPROVES[mode] : APPROVES.ask;
 var leadSlotLabel = (key) => REACH_OUT_SLOT_SET.labels[REACH_OUT_SLOT_SET.keys.indexOf(key)] ?? key;
 function leadBuildPartsOf(text) {
   const parts2 = [];
@@ -48745,6 +48828,50 @@ var SequenceDraftAnswerSchema = z25.object({
   ).max(SEQUENCE_DRAFT_THEN_MAX + 2),
   cannot: z25.string().trim().max(300)
 });
+
+// src/sequences/sequence-evidence.ts
+var EVIDENCE_DAYS = 90;
+var batches = (n) => plural(n, "batch", "batches");
+function wentWords(e) {
+  const own = e.went - e.approved;
+  if (e.approved === e.went) return `${batches(e.went)} went, ${e.went === 1 ? "after" : "each after"} your OK`;
+  if (e.approved === 0) return `${batches(e.went)} went on ${e.went === 1 ? "its" : "their"} own`;
+  return `${batches(e.went)} went: ${e.approved} after your OK, ${own} on ${own === 1 ? "its" : "their"} own`;
+}
+function evidenceWords(e) {
+  if (!e) return null;
+  const parts2 = [
+    e.went > 0 ? wentWords(e) : "",
+    e.stopped > 0 ? `you stopped ${e.stopped}` : "",
+    e.skipped > 0 ? `${e.skipped} skipped: nobody answered in time` : ""
+  ].filter(Boolean);
+  if (parts2.length === 0) return `No batch in the last ${EVIDENCE_DAYS} days`;
+  return `Last ${EVIDENCE_DAYS} days: ${parts2.join(" \xB7 ")}`;
+}
+function evidenceOf(rows2, sequenceId) {
+  if (!rows2) return null;
+  const r2 = rows2.find((x) => x.sequence_id === sequenceId);
+  return r2 ?? { went: 0, approved: 0, stopped: 0, skipped: 0 };
+}
+function classEvidenceOf(rows2, cls) {
+  const of = (rows2 ?? []).filter((r2) => r2.policy_class === cls);
+  if (of.length === 0) return null;
+  return of.reduce(
+    (a, r2) => ({
+      went: a.went + r2.went,
+      approved: a.approved + r2.approved,
+      stopped: a.stopped + r2.stopped,
+      skipped: a.skipped + r2.skipped,
+      sequences: a.sequences + 1
+    }),
+    { went: 0, approved: 0, stopped: 0, skipped: 0, sequences: 0 }
+  );
+}
+function classEvidenceLine(rows2, cls) {
+  const e = classEvidenceOf(rows2, cls);
+  const w = evidenceWords(e);
+  return e && w ? `${plural(e.sequences, "sequence", "sequences")} \xB7 ${w}` : null;
+}
 
 // src/reports/booking-report.ts
 var BOOKED_NEEDS_TODAY = "It follows people as they stand today, so it is only true of a period that ends today.";
@@ -50680,10 +50807,14 @@ function firstReplyLine(n, medianS) {
   if (medianS === null) return null;
   return `The middle one was answered ${durationWords(medianS)} after it was sent, of ${plural(n, "answered message")}.`;
 }
-function approvalLine(n, medianS) {
-  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.`;
+function approvalLine(n, medianS, skipped2 = 0) {
+  const unanswered = skipped2 > 0 ? ` ${approvalSkippedLine(skipped2)}` : "";
+  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.${unanswered}`;
   if (medianS === null) return null;
-  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.`;
+  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.${unanswered}`;
+}
+function approvalSkippedLine(skipped2) {
+  return `${plural(skipped2, "run was", "runs were")} skipped: nobody answered before ${skipped2 === 1 ? "its" : "their"} day ended.`;
 }
 function runsWaitingMeta(n, late) {
   if (n === 0) return "nothing is waiting for your OK";
@@ -50964,7 +51095,8 @@ function runsLineOf(series) {
 }
 function waitPart(dist, words3) {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  if (dist.n === 0) return noMix(words3.empty);
+  const skipped2 = "skipped" in dist && isCount(dist.skipped) ? dist.skipped : 0;
+  if (dist.n === 0) return noMix(skipped2 > 0 ? approvalSkippedLine(skipped2) : words3.empty);
   const buckets = dist.buckets;
   const entries = [];
   for (const [key, label] of words3.rows) {
@@ -50973,7 +51105,7 @@ function waitPart(dist, words3) {
     entries.push([key, label, count2]);
   }
   const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
-  return { rows: barsOf2(entries), line: words3.line(dist.n, median), empty: null };
+  return { rows: barsOf2(entries), line: words3.line(dist.n, median, skipped2), empty: null };
 }
 var FIRST_REPLY_WORDS = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };
 var APPROVAL_WORDS = { rows: APPROVAL_ROWS, empty: APPROVAL_EMPTY, line: approvalLine };
@@ -54417,7 +54549,8 @@ var SCHEMA_SETS = {
     "booking",
     "member_joined",
     "member_left",
-    "note_to_keep"
+    "note_to_keep",
+    "reply_held"
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
@@ -54486,6 +54619,7 @@ var SCHEMA_SETS = {
     "lead_first",
     "after_step"
   ],
+  "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],
   "sequences.state": ["draft", "on", "paused", "ended"],
   "sweep_status.judged_by": ["request", "run"],
@@ -54665,6 +54799,7 @@ var ROUTE_KEYS = [
   "POST google/refresh",
   "POST google/reviews/[id]/draft",
   "POST google/reviews/[id]/reply",
+  "POST google/reviews/[id]/stop",
   "POST google/search",
   "POST handovers/[id]/accept",
   "POST handovers/[id]/decline",
@@ -56309,7 +56444,9 @@ var PUSH_KINDS = [
   "billing",
   "number",
   "review",
-  "reach_out_replied"
+  "reach_out_replied",
+  // A reply counting down to go in the owner's name (decision 0064): minutes to stop it, so the phone is where it is seen.
+  "reply_held"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
 function pushOffOf(raw) {
@@ -56636,7 +56773,14 @@ var SERVER_NOTIFICATION_KINDS = [
    * bell that opens Settings › Autonomy, where the note waits for Keep or Dismiss. Its words stay on the pane. No mail, no
    * phone; the answer closes it.
    */
-  "note_to_keep"
+  "note_to_keep",
+  /**
+   * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): the hold window they set, or a reply
+   * it was not sure of. A line on the bell and the phone, told once per reply as it is queued (the edge's draft queue),
+   * that opens the thread; closed when the reply goes or is stopped (00462 messages_reply_held_closes). No mail: it waits
+   * minutes, not hours.
+   */
+  "reply_held"
 ];
 function settledRow(row2) {
   return { ...row2, unread: false, tone: row2.tone === "warn" ? "" : row2.tone };
@@ -56720,6 +56864,8 @@ var SERVER_LOOK = {
    * row reads as read and loses the warning (notice-closes.ts).
    */
   playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
+  reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Hours & booking. */
   booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
@@ -57149,7 +57295,9 @@ var NOTIFICATION_DELIVERY = {
   // A teammate who left: the same, the other way (00437).
   member_left: "bell",
   // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
-  note_to_keep: "bell"
+  note_to_keep: "bell",
+  // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
+  reply_held: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 function emailsNotificationKind(kind) {
@@ -57180,6 +57328,16 @@ var ALERT_TOPICS = [
     email: "always",
     phone: true,
     kinds: ["deadman"]
+  },
+  {
+    key: "reply_held",
+    group: "needs_you",
+    title: "A reply waits to go in your name",
+    what: "The receptionist wrote a reply that waits before it goes: the hold you set for replies, or one it was not sure of. It says when it goes; stop it in the Inbox before then. Closed once it goes or is stopped.",
+    onBell: "replies about to go",
+    email: null,
+    phone: true,
+    kinds: ["reply_held"]
   },
   {
     key: "playbook",
@@ -57460,6 +57618,7 @@ var NOTHING_WAITS_KNOWN = {
   heldEmails: null,
   reviews: null,
   holds: null,
+  sends: null,
   searches: null
 };
 var heldFor2 = (source, kept) => source && kept <= source.readAt ? source.held : null;
@@ -57508,7 +57667,10 @@ var NOTICE_ENDS = {
   note_to_keep: {
     ends: "news",
     why: "A note to keep is told once; its answer, Keep or Dismiss, closes the row for everyone (fact_suggestion_answer)."
-  }
+  },
+  // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
+  // (sent or stopped: 00461 messages_reply_held_closes).
+  reply_held: { ends: "send", server: "reply_gone" }
 };
 function kindsEndedBy(source) {
   return Object.keys(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
@@ -57536,7 +57698,8 @@ function judgeEmail(row2, about, waits) {
   return held ? held.has(about.id) : null;
 }
 function judgeReview(row2, about, waits) {
-  if (about.type !== "review" || !row2.title.startsWith(NEW_REVIEW_NEWS)) return null;
+  const asks = row2.title.startsWith(NEW_REVIEW_NEWS) || row2.title.startsWith(REVIEW_REPLY_HELD_TITLE);
+  if (about.type !== "review" || !asks) return null;
   const review = heldFor2(waits.reviews, row2.at)?.find((r2) => reviewNoticeIsAbout(about, r2));
   return review ? !review.replied : null;
 }
@@ -57544,6 +57707,11 @@ function judgeHold(row2, about, waits) {
   if (about.type !== "conversation") return null;
   const needsYou = heldFor2(waits.holds, row2.at)?.get(about.id);
   return needsYou === void 0 ? null : needsYou;
+}
+function judgeSend(row2, about, waits) {
+  if (about.type !== "conversation") return null;
+  const counting = heldFor2(waits.sends ?? null, row2.at)?.get(about.id);
+  return counting === void 0 ? null : counting;
 }
 function judgeSearch(row2, about, waits) {
   if (about.type !== "lead_round") return null;
@@ -57557,6 +57725,7 @@ var JUDGES = {
   email: judgeEmail,
   review: judgeReview,
   hold: judgeHold,
+  send: judgeSend,
   search: judgeSearch
 };
 function noticeStillWaits(row2, waits) {
@@ -57618,6 +57787,62 @@ function bellFeed(input) {
     });
   }
   return dedupeFeed([...own, ...closeSettledNotices(serverNotificationRows(kept), input.waits ?? NOTHING_WAITS_KNOWN)]);
+}
+
+// src/waits/going-today.ts
+var REPLY_QUOTE = 90;
+var GOING_TODAY_WORDS = {
+  title: "Going today",
+  /** Beside the count: what each row does, and how many past the rows drawn are in Sent and the Inbox. */
+  sub: (n, drawn) => [
+    n === 1 ? "Goes on its own unless you stop it" : "Each goes on its own unless you stop it",
+    n > drawn ? `${n - drawn} more in Sent and the Inbox` : ""
+  ].filter(Boolean).join(" \xB7 "),
+  stop: "Stop"
+};
+function goes(kind, atMs, tz) {
+  const at3 = `at ${clockTime(atMs, tz)}`;
+  return { at: at3, ends: waitEndsWords(kind, at3) };
+}
+function goingTodayOf(input) {
+  const { tz, nowMs } = input;
+  const today = zoneDayKey(nowMs, tz);
+  const rows2 = [];
+  for (const r2 of input.runs) {
+    const atMs = r2.scheduled_for ? Date.parse(r2.scheduled_for) : NaN;
+    const soon = atMs - nowMs <= HOUR_MS;
+    if (r2.state !== "scheduled" || !(atMs > nowMs) || !soon && zoneDayKey(atMs, tz) !== today) continue;
+    const reach = isReachOutRun(r2.audience);
+    const kind = r2.playbook_id ? "batch" : "one_off";
+    const g = goes(kind === "batch" ? "batch_hold" : "one_off", atMs, tz);
+    const people = reach ? plural(r2.recipient_count, "business", "businesses") : plural(r2.recipient_count, "person", "people");
+    const what = reach ? "Reach-out" : kind === "batch" ? "Campaign" : "Sent once";
+    rows2.push({
+      key: `run-${r2.id}`,
+      kind,
+      name: r2.title,
+      meta: `${what} \xB7 goes ${g.at}`,
+      sentence: `${people}. ${g.ends}.`,
+      atMs,
+      stop: { kind: "run", id: r2.id },
+      to: addressOf({ kind: "send", id: r2.id })
+    });
+  }
+  for (const p of input.replies) {
+    if (!(p.endsAtMs > nowMs)) continue;
+    const g = goes("reply", p.endsAtMs, tz);
+    rows2.push({
+      key: `reply-${p.messageId}`,
+      kind: "reply",
+      name: p.who,
+      meta: `Reply \xB7 goes ${g.at}`,
+      sentence: `\u201C${clipAtWord(p.draft, REPLY_QUOTE)}\u201D ${g.ends}.`,
+      atMs: p.endsAtMs,
+      stop: { kind: "reply", messageId: p.messageId, conversationId: p.conversationId },
+      to: addressOf({ kind: "conversation", id: p.conversationId })
+    });
+  }
+  return rows2.sort((a, b) => a.atMs - b.atMs);
 }
 
 // src/workspace/signup.ts
@@ -60612,6 +60837,7 @@ export {
   EVENT_SUBSCRIBERS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
+  EVIDENCE_DAYS,
   EXAMPLE,
   EXPORT_HOLDS_WORDS,
   EXPORT_OF,
@@ -60658,6 +60884,7 @@ export {
   GET_YES_PAUSED_WORDS,
   GET_YES_ROUTE,
   GMAIL_FORWARD_NOTE,
+  GOING_TODAY_WORDS,
   GOOGLE_SHOWN_REVIEWS,
   GOOGLE_SYNC_NOTICE_WORDS,
   GOOGLE_SYNC_TOLD_AFTER_MS,
@@ -61311,8 +61538,10 @@ export {
   REVIEWS_WAITING_SHOWN,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
+  REVIEW_HOLD_MS,
   REVIEW_NEWS_MAX_AGE_MS,
   REVIEW_NEWS_MS,
+  REVIEW_REPLY_HELD_TITLE,
   REVIEW_REPLY_MAX_CHARS,
   REVIEW_REPLY_MAX_WORDS,
   REVIEW_WITHIN,
@@ -61362,6 +61591,8 @@ export {
   SENDING_HOURS_WORDS,
   SENDING_NOW_WORDS,
   SEND_DAY_FRAME,
+  SEND_ONCE_STOP_MS,
+  SEND_ONCE_STOP_WORDS,
   SEND_WHEN_WORDS,
   SEND_WINDOW_MARGIN_MIN,
   SENTENCE,
@@ -61375,8 +61606,12 @@ export {
   SEQUENCE_GROUPS,
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS,
+  SEQUENCE_MODES,
+  SEQUENCE_MODE_LABEL,
+  SEQUENCE_MODE_WORDS,
   SEQUENCE_NEEDS_WORDS,
   SEQUENCE_NEW_WORDS,
+  SEQUENCE_NEW_WORDS_ASK,
   SEQUENCE_PEOPLE_GROUPS,
   SEQUENCE_PEOPLE_WORDS,
   SEQUENCE_REPLIES_WORDS,
@@ -61524,6 +61759,9 @@ export {
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
   WAITING_REASONS,
+  WAIT_ACT_WORDS,
+  WAIT_KINDS,
+  WAIT_RULES,
   WA_WINDOW_MS,
   WEEKDAY_KEYS,
   WEEK_MS,
@@ -61664,6 +61902,7 @@ export {
   autoReplyCandidates,
   autoReplyHold,
   awayUntilOf,
+  batchModeOf,
   batchWaitsUntilTonight,
   batchWent,
   bellActionOf,
@@ -61816,6 +62055,7 @@ export {
   citationRoute,
   claimsWrite,
   clampWords,
+  classEvidenceLine,
   classify,
   cleanAnswer,
   cleanDisplayName,
@@ -61969,7 +62209,6 @@ export {
   earlierVisitsOf,
   editFootOf,
   editOf,
-  effectiveMode,
   effortAbove,
   effortInForce,
   effortMessage,
@@ -62005,6 +62244,8 @@ export {
   escapeHtml,
   estimateRoundUsd,
   eventText,
+  evidenceOf,
+  evidenceWords,
   exampleParams,
   exampleParamsFor,
   exportLeftOut,
@@ -62104,6 +62345,7 @@ export {
   fromZonedInput,
   gainedOver,
   goesToOf,
+  goingTodayOf,
   googleAudienceWords,
   googleCallbackUrl,
   googleFillsOf,
@@ -62151,6 +62393,8 @@ export {
   heldLine,
   heldNoticeWords,
   heldPill,
+  heldReplyNotice,
+  heldReviewReplyOf,
   heldThreadIds,
   heldWords,
   hexOf,
@@ -62280,6 +62524,7 @@ export {
   isReportDto,
   isReportPeriod,
   isReviewsLedgerDto,
+  isSequenceMode,
   isSequencesParam,
   isSidebarPref,
   isSiteRoot,
@@ -62334,7 +62579,6 @@ export {
   leadAddresseeRefusal,
   leadAllowanceFact,
   leadAnd,
-  leadApprovesOf,
   leadAreaFrom,
   leadAskedFor,
   leadBand,
@@ -62610,10 +62854,10 @@ export {
   newAdModel,
   newAdRoute,
   newCampaignChannels,
-  newCampaignTrialUntil,
   newConversationOf,
   newReceptionistDefaults,
   newSequenceLine,
+  newSequenceMode,
   newSequenceRoute,
   newSinceOf,
   newestPostFor,
@@ -63024,6 +63268,7 @@ export {
   readsAsModel,
   readyForMessage,
   readyOrWhatsApp,
+  readyRunNotice,
   reasonLabelOf,
   reasonShort,
   reasonSummaryOf,
@@ -63095,6 +63340,8 @@ export {
   resolveTheme,
   resultsOf,
   retentionWords,
+  reviewDraftsBell,
+  reviewHeldReplyWords,
   reviewHeldWords,
   reviewIsNew,
   reviewNoticeIsAbout,
@@ -63203,6 +63450,7 @@ export {
   sequenceHeadLine,
   sequenceLandingOf,
   sequenceLeftWords,
+  sequenceModesFor,
   sequenceNextOf,
   sequenceNextWords,
   sequenceNotice,
@@ -63266,6 +63514,7 @@ export {
   siteHost,
   skillGuide,
   skillsAsked,
+  skippedRunNotice,
   slotChoices,
   slotCount,
   slotKnown,
@@ -63475,7 +63724,6 @@ export {
   totalOf,
   totalsOf,
   touchesAfterRun,
-  trialDayWords,
   trialOffer,
   trialWords,
   triggerOf,
@@ -63559,6 +63807,8 @@ export {
   waMeLink,
   waWindow,
   waitAfterDays,
+  waitEndsWords,
+  waitRuleOf,
   waitWords,
   waitedLabel,
   waitingOnProposal,

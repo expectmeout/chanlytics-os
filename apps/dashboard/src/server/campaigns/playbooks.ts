@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
+  batchModeOf,
   breathTouchOf,
   campaignMessageOf,
   campaignRunsOn,
@@ -39,6 +40,7 @@ import {
   playbookTotals,
   readAllRows,
   recentTouches,
+  sequenceModesOf,
   touchIndex,
   workspacePaused,
   type Touch,
@@ -64,7 +66,7 @@ import { tenantFacts } from "@/server/tenant";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, trial_until";
+  "id, sequence_id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, words_ok_at";
 
 /** One moment playbook's totals as the database counts them (playbook_totals, 00374): the card's shapes are read off it. */
 type TotalsRow = PlaybookTotalsDto[string];
@@ -185,14 +187,12 @@ function whatsappStops(
 }
 
 /**
- * The proposal follow-up as People and Today read it (0006, contracts FollowUpFactsDto): its playbook's clock,
- * whether its class asks, what its template is for, and, of the people who hold a proposal out, who had theirs, who
- * is in a run on its way or waiting for a person, and whom the week's breath holds. Null wherever the run itself
- * would send nothing before drawing anyone -- none made, paused, its class set to never, the workspace paused by
- * billing, its WhatsApp version not one Meta approved where WhatsApp is all it goes by, its number flagged (contracts
- * playbookStopBy) --
- * and where no proposal is out: every row then says what it said. A class with no row runs as ask, as the run reads
- * it (core run-playbook). And past its last day (00416 `until`, by the business's day in `tz`), which the run refuses: the one
+ * The proposal follow-up as People and Today read it (0006, contracts FollowUpFactsDto): its playbook's clock, what
+ * its template is for, and, of the people who hold a proposal out, who had theirs, who is in a run on its way or waiting
+ * for a person, and whom the week's breath holds. Null wherever the run itself would send nothing before drawing anyone
+ * -- none made, paused, the workspace paused by billing, its WhatsApp version not one Meta approved where WhatsApp is all
+ * it goes by, its number flagged (contracts playbookStopBy) -- and where no proposal is out: every row then says what it
+ * said. And past its last day (00416 `until`, by the business's day in `tz`), which the run refuses: the one
  * rule every page asks of a campaign (contracts campaignRunsOn; the wiring's second audit, S1-3). A read that fails throws.
  */
 export async function followUpFacts(
@@ -201,19 +201,12 @@ export async function followUpFacts(
   now: Date,
   tz: string,
 ): Promise<FollowUpFactsDto | null> {
-  const [pb, cls, paused, number, out] = await Promise.all([
+  const [pb, paused, number, out] = await Promise.all([
     ctx.supabase
       .from("sequence_steps")
-      .select("id, state, run_hour, last_run_for, until, template_name, template_language")
+      .select("id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at")
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
-      .maybeSingle(),
-    ctx.supabase
-      .from("policies")
-      .select("mode")
-      .eq("tenant_id", tenantId)
-      .eq("class", "follow_up")
-      .is("subject_type", null)
       .maybeSingle(),
     workspacePaused(ctx.supabase, tenantId),
     // The number as the send screen reads it (channels-ready.ts): none, or its health.
@@ -221,21 +214,22 @@ export async function followUpFacts(
     proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
-  if (cls.error) throw new Error(cls.error.message);
-  const mode = cls.data?.mode ?? "ask";
   const p = pb.data;
   // It is the proposal follow-up, read where a deal is on file (readers/people.ts).
   const runs = !!p && campaignRunsOn({ ...p, trigger: "proposal_waiting" }, { tz, now });
-  if (!p || !runs || mode === "never" || paused || !out) return null;
+  if (!p || !runs || paused || !out) return null;
   // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
   if (!p.template_name || !p.template_language) return null;
   // The channels it ticks (step 3; null on a database before 00298, WhatsApp alone): the number and Meta's approval stop
   // only a follow-up that goes by WhatsApp, as the run's own stop does (core run-playbook).
   // Its message, read once from its rows (contracts campaignMessageOf), with or without a WhatsApp version.
-  const [channels, rows] = await Promise.all([
+  const [channels, rows, modes] = await Promise.all([
     playbookChannels(ctx.supabase, p.id),
     messageVersionRowsOf(ctx.supabase, tenantId, { name: p.template_name, language: p.template_language }),
+    sequenceModesOf(ctx.supabase, tenantId, [p.sequence_id]),
   ]);
+  // Whether its next batch waits for an OK (contracts batchModeOf: its sequence's mode, or ask while its words are new).
+  const mode = batchModeOf({ mode: modes.get(p.sequence_id), words_ok_at: p.words_ok_at });
   const message = campaignMessageOf(rows, p.template_name, p.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
   // Who heard, or is due a message, is the breath's one read (packages/db recentTouches), as every other page and the
@@ -303,13 +297,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   let { data: rows, error } = await read(COLUMNS);
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
-  // A database 00416 has not reached has no end and no trial, and every playbook there runs on with neither: read again
-  // without them, and each of the reads below keeps that.
   let columns = COLUMNS;
-  if (missing("until")) {
-    columns = columns.replace(", until, trial_until", "");
-    ({ data: rows, error } = await read(columns));
-  }
   // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
   // and each of the reads below keeps that.
   if (missing("channels")) {
@@ -322,8 +310,15 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   if (missing("list_key")) ({ data: rows, error } = await read(columns.replace("list_key, ", ""), moments));
   if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
   if (error) throw new Error(error.message);
+  // Each step's sequence's mode (decision 0064): what its batches do, which the run, Resume and Ask say by.
+  const modes = await sequenceModesOf(
+    ctx.supabase,
+    tenantId,
+    (rows ?? []).map((r) => String(r.sequence_id)),
+  );
   return (rows ?? []).map((r) => ({
-    ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state">),
+    ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state" | "mode">),
+    mode: modes.get(String(r.sequence_id)) ?? "ask",
     list_id: (r.list_id as string | null | undefined) ?? null,
     list_key: (r.list_key as string | null | undefined) ?? null,
     trigger: r.trigger as PlaybookTrigger,

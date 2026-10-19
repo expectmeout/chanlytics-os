@@ -24,6 +24,7 @@ import {
   type LeadBuildPart,
   type ScheduleCtx,
   type SequenceRecordDto,
+  type SequenceRowDto,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
@@ -79,12 +80,57 @@ interface LeadStepsProps {
   /** The step the record's dock opened to be written (its id), or none. */
   editing: string | null;
   onEditing: (id: string | null) => void;
+  /** How it runs, asked open by the head's Who approves: a count, each ask opening it again. */
+  howAsked: number;
 }
 
-export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing }: LeadStepsProps) {
+/**
+ * The rail's start: who it starts with and when (contracts leadStartOf), How it runs, which opens its sheet, and Add
+ * leads, which takes the finder to the search its leads came from.
+ */
+function LeadStartRow({
+  row,
+  start,
+  onRuns,
+}: {
+  row: SequenceRowDto;
+  start: ReturnType<typeof leadStartOf>;
+  onRuns: () => void;
+}) {
+  return (
+    <RailRow day={SW.start} testid="sq-starts">
+      <div className="sq-rail-line">
+        <span className="sq-rail-lead">
+          {start.lead}
+          <b>{start.name}</b>
+        </span>
+        <span className="sq-rail-sub">{start.sub}</span>
+        <span className="ld-start-acts">
+          <LinkButton onClick={onRuns} data-testid="ld-how-it-runs">
+            {W.howItRuns}
+          </LinkButton>
+          <LinkButton
+            onClick={() =>
+              addLeadsTo(row.id, row.name, row.first?.source_search_id ?? row.first?.source_could?.id ?? null)
+            }
+            data-testid="sq-add-leads"
+            {...gate("approve", "add leads to this sequence")}
+          >
+            {F.addLeads}
+          </LinkButton>
+        </span>
+      </div>
+    </RailRow>
+  );
+}
+
+export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing, howAsked }: LeadStepsProps) {
   const lc = useLeadChain(rec, flash, moved);
   const [open, setOpen] = useState<number | null>(null);
   const [runs, setRuns] = useState(false);
+  useEffect(() => {
+    if (howAsked > 0) setRuns(true);
+  }, [howAsked]);
   const draft = lc?.draft ?? null;
   // The dock's Write step N: the step it names, by its place in the draft.
   useEffect(() => {
@@ -140,29 +186,7 @@ export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing }: LeadSt
         {row.state === "draft" ? null : <span className="sq-span-per">{SW.per}</span>}
       </p>
       <ol className="sq-rail">
-        <RailRow day={SW.start} testid="sq-starts">
-          <div className="sq-rail-line">
-            <span className="sq-rail-lead">
-              {start.lead}
-              <b>{start.name}</b>
-            </span>
-            <span className="sq-rail-sub">{start.sub}</span>
-            <span className="ld-start-acts">
-              <LinkButton onClick={() => setRuns(true)} data-testid="ld-how-it-runs">
-                {W.howItRuns}
-              </LinkButton>
-              <LinkButton
-                onClick={() =>
-                  addLeadsTo(row.id, row.name, row.first?.source_search_id ?? row.first?.source_could?.id ?? null)
-                }
-                data-testid="sq-add-leads"
-                {...gate("approve", "add leads to this sequence")}
-              >
-                {F.addLeads}
-              </LinkButton>
-            </span>
-          </div>
-        </RailRow>
+        <LeadStartRow row={row} start={start} onRuns={() => setRuns(true)} />
         {chain.steps.flatMap((s, i) => {
           const box = boxes.get(s.id);
           if (!box) return [];
@@ -219,7 +243,7 @@ export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing }: LeadSt
         ) : null}
       </ol>
       <LeadStepSheet open={open !== null} place={open} rec={rec} lc={lc} flash={flash} onClose={() => setOpen(null)} />
-      <LeadRunsSheet open={runs} rec={rec} lc={lc} onClose={() => setRuns(false)} />
+      <LeadRunsSheet open={runs} rec={rec} lc={lc} flash={flash} moved={moved} onClose={() => setRuns(false)} />
     </div>
   );
 }

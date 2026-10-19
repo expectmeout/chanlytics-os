@@ -146,7 +146,14 @@ function OpenRecord(p: {
     },
     [tab, phone, row.id],
   );
-  const a = useRecordActs(rec, flash, moved, editStep);
+  // How it runs, asked open from the head's More (Who approves, decision 0064): on Steps, where its sheet stands. A count,
+  // so each ask opens it again.
+  const [howAsked, setHowAsked] = useState(0);
+  const openHow = useCallback(() => {
+    setHowAsked((n) => n + 1);
+    if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
+  }, [tab, phone, row.id]);
+  const a = useRecordActs(rec, flash, moved, { step: editStep, how: openHow });
   // On a phone the record is the screen and its Back the only way out: a record Leads opened goes back there (every trip
   // comes back, and a pile's end says "Back brings you here"); a desk says that way in the head, and Close is the list.
   const wayBack = phone ? recordBackNow(row.id) : null;
@@ -171,7 +178,7 @@ function OpenRecord(p: {
     <CmPane
       title={row.name}
       badge={<StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} />}
-      sub={sequenceSubLine(row, { word: rec.word, timezone: rec.timezone, mode: rec.mode }, Date.now())}
+      sub={sequenceSubLine(row, { word: rec.word, timezone: rec.timezone }, Date.now())}
       tools={<HeadActs a={a} phone={phone} />}
       foot={foot}
       onClose={close}
@@ -193,6 +200,7 @@ function OpenRecord(p: {
                 again={again}
                 editing={editingStep}
                 onEditing={setEditingStep}
+                howAsked={howAsked}
                 onCancelSend={() => a.setAsking("cancel")}
               />
             ) : null}

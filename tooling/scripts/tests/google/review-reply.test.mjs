@@ -42,19 +42,21 @@ const FACTS = {
   services: ["Balayage", "Keratin treatment", "Blowout"],
 };
 
-test("the row's mode: no row or a mode the class cannot take reads as ask; auto and never stand", () => {
+test("the row's mode: no row or a mode the class cannot take reads as ask; auto, veto (Holds it: decision 0064) and never stand", () => {
   assert.equal(reviewReplyModeOf([]), "ask");
   assert.equal(reviewReplyModeOf(null), "ask");
   assert.equal(reviewReplyModeOf([{ class: "reply", mode: "auto" }]), "ask", "another class's mode is not this one's");
   assert.equal(reviewReplyModeOf([{ class: "reviews", mode: "auto" }]), "auto");
   assert.equal(reviewReplyModeOf([{ class: "reviews", mode: "never" }]), "never");
+  // A review's reply waits like everything else (decision 0064, step 6): written and posted after its wait unless stopped.
+  assert.equal(reviewReplyModeOf([{ class: "reviews", mode: "veto" }]), "veto");
   assert.equal(
-    reviewReplyModeOf([{ class: "reviews", mode: "veto" }]),
+    reviewReplyModeOf([{ class: "reviews", mode: "sometimes" }]),
     "ask",
-    "veto is not a mode reviews can take: fail safe",
+    "a mode it does not know: fail safe",
   );
   assert.ok(POLICY_CLASSES.includes("reviews"));
-  assert.deepEqual(POLICY_CLASS_MODES.reviews, ["auto", "ask", "never"]);
+  assert.deepEqual(POLICY_CLASS_MODES.reviews, ["auto", "veto", "ask", "never"]);
   assert.equal(POLICY_CLASS_WORDS.reviews.name, "Google reviews");
 });
 
@@ -203,7 +205,11 @@ test("why a reply was held, in words: one set for each answer autoReplyHold give
 
 test("the words beside the source, and the view model carrying the mode", () => {
   assert.equal(reviewReplyWords("auto", true), "new ones are answered by the receptionist within the hour");
-  assert.equal(reviewReplyWords("ask", true), "the receptionist drafts, you send");
+  assert.equal(reviewReplyWords("ask", true), "the receptionist writes each reply and holds it for your OK");
+  assert.equal(
+    reviewReplyWords("veto", true),
+    "the receptionist writes each reply and posts it after 30 minutes unless you stop it",
+  );
   assert.equal(reviewReplyWords("never", true), "");
   assert.equal(reviewReplyWords("auto", false), "", "nothing can go out until the profile is connected");
   const dto = {
@@ -259,10 +265,12 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
       lib.includes("reviewReplyModeOf(await listPolicies(db, tenantId))"),
   );
   assert.ok(
-    /const answered = first\s*\?\s*\[\]\s*:\s*await answerNewReviews\(/.test(lib),
+    /const \{ answered, drafted \} = first\s*\?\s*\{ answered: \[\], drafted: \[\] \}\s*:\s*await answerNewReviews\(/.test(
+      lib,
+    ),
     "the first sync is history, never answered",
   );
-  assert.ok(lib.includes('if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];'));
+  assert.ok(lib.includes('if (mode === "never") return nothingAnswered();'), "Never answers nothing");
   assert.ok(lib.includes("autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC)"));
   // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google-door.test.mjs.
   assert.ok(
@@ -299,8 +307,9 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   // Keyed (decision 0035): a second press while the first is in flight is the same draft, not a second model call.
   assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true }'));
 
-  // The pane's row, as it is drawn: Auto, Ask and Never, no countdown to hold.
-  assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"]);
+  // The pane's row, as it is drawn: Auto, Veto (Holds it: a reply posted after its wait unless stopped, decision 0064),
+  // Ask and Never.
+  assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Veto", "Ask", "Never"]);
   const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
   assert.ok(
     reports.includes('if (r.replied || mode === "never") return;'),

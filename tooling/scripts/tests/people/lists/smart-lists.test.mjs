@@ -479,10 +479,6 @@ const runCtx = (over = {}) => ({
   tz: "America/New_York",
   now: new Date(NOW),
   people: [vm("1"), vm("2")],
-  modes: new Map([
-    ["campaign", "auto"],
-    ["reengage", "auto"],
-  ]),
   health: contracts.numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
   // Step 3: a run reads what the workspace can send on.
   ready: HOW.ready,
@@ -511,6 +507,9 @@ const pbRow = (over = {}) => ({
   cadence_days: 30,
   created_by: "owner",
   last_run_for: null,
+  // Its sequence sends on its own and its words were seen going (decision 0064).
+  mode: "auto",
+  words_ok_at: "2026-09-01T10:00:00.000Z",
   ...over,
 });
 

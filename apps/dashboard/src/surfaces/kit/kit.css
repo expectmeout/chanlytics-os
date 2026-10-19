@@ -80,6 +80,12 @@ a.btn {
     background: var(--primary-hover);
   }
 }
+/* A press keeps a variant's own colour: the grey press above is the plain button's. A finger draws no hover (#1718), and
+   a pressed Save fell to that grey under its near-black words on a phone (Ruben, 19 Oct 2026: "this ugly color"), where
+   the hover's coral had always shown under a press. Each variant presses in the colour its hover lights. */
+.btn-primary:active {
+  background: var(--primary-hover);
+}
 .btn-primary .icon {
   color: var(--primary-ink);
 }
@@ -94,6 +100,10 @@ a.btn {
     background: var(--bg-hover);
     color: var(--ink);
   }
+}
+.btn-ghost:active {
+  background: var(--bg-hover);
+  color: var(--ink);
 }
 
 /* A word in a row of words, one press each (a phone's bar: People's Select, Sort and Export, Leads' Select, Sort, Import
@@ -136,15 +146,20 @@ a.btn {
    contrast in both themes. `.btn.danger` is the quiet form, for the control
    that ARMS the question (Delete…, Stop) -- red words, no fill until hovered. */
 .btn-danger {
+  --btn-danger-press: oklch(from var(--danger) calc(l - 0.12) c h);
   background: oklch(from var(--danger) calc(l - 0.06) c h);
   color: var(--danger-fg);
   border-color: transparent;
 }
 @media (hover: hover) {
   .btn-danger:hover {
-    background: oklch(from var(--danger) calc(l - 0.12) c h);
+    background: var(--btn-danger-press);
     border-color: transparent;
   }
+}
+.btn-danger:active {
+  background: var(--btn-danger-press);
+  border-color: transparent;
 }
 .btn-danger .icon {
   color: var(--danger-fg);
@@ -164,6 +179,11 @@ a.btn {
     color: var(--danger);
     border-color: transparent;
   }
+}
+.btn.danger:active {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  border-color: transparent;
 }
 
 .btn-sm {
@@ -4434,6 +4454,9 @@ a.list-row {
   .btn-glass:hover {
     background-color: var(--selected-fill);
   }
+}
+.btn-glass:active {
+  background-color: var(--selected-fill);
 }
 .btn-primary {
   font-weight: var(--weight-semibold);

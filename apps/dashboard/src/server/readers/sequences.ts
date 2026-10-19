@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   addressOf,
+  evidenceOf,
   historyCovers,
   historyIn,
   historySince,
@@ -26,6 +27,7 @@ import {
   sequenceStepsOf,
   firstStepFacts,
   lastRunSkipped,
+  sequenceEvidence,
 } from "@chanlytics/db";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { repliedConversationsOf } from "../campaigns/broadcasts";
@@ -112,22 +114,19 @@ function sequenceReads(rc: ReaderContext, id: string) {
 }
 
 /**
- * GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under; what a sequence
- * to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
+ * GET sequences/:id: one sequence (with its own mode, how its batches are decided: decision 0064) and its steps in their
+ * places; what a sequence to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
  * step's) reads the sequence it belongs to, whose own id the answer names.
  */
 export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   name: "sequence",
   async read(rc, { id: asked }) {
-    // The workspace's: its clock, its word and who approves what. A matrix that could not be read costs that one line, never
-    // the record. Asked at once, beside the sequence's own reads, and awaited once those are in.
+    // The workspace's: its clock, its word, and what its batches did (decision 0064, step 5: How it runs says it under
+    // Before each batch; unreadable, unsaid). Asked at once, beside the sequence's own reads, and awaited once those are in.
     const workspace = Promise.all([
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
-      load(rc, readers.policies, undefined).then(
-        (r) => r.data,
-        () => null,
-      ),
+      sequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
     ]);
     workspace.catch(() => {});
     // The id asked for is a sequence's own as a row's door or a record's address names it, so its row, steps and run facts
@@ -139,17 +138,14 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
       const id = await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked);
       if (id && id !== asked) [rows, steps, first, lastRunOff] = await sequenceReads(rc, id);
     }
-    const [facts, word, policies] = await workspace;
+    const [facts, word, evidence] = await workspace;
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
     const row = sequenceWaitsNow(read, runDaysAt(facts.timezone, rc.now));
-    const cls = row.first?.policy_class ?? null;
-    const mode = cls && policies ? (policies.find((p) => p.class === cls)?.mode ?? "ask") : null;
     return {
       data: {
         sequence: row,
         steps,
-        mode,
         timezone: facts.timezone,
         word,
         ...(first === undefined ? {} : { last_run_for: first?.last_run_for ?? null }),
@@ -157,6 +153,8 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
           ? { settings: { cap_per_run: first.cap_per_run, gap_days: first.gap_days, cadence_days: first.cadence_days } }
           : {}),
         ...(lastRunOff === undefined ? {} : { last_run_off: lastRunOff }),
+        // A one-off has no batches of a mode to count.
+        ...(evidence === undefined || read.starts === "date" ? {} : { evidence: evidenceOf(evidence, read.id) }),
         ...(await startsWith(rc, row)),
       },
       rows: [cited(row)],

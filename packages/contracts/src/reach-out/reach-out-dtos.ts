@@ -26,8 +26,8 @@ export interface ReachOutNextFacts {
   run_hour: number;
   /** The workspace's day the chain's first step last ran for. */
   last_run_for: string | null;
-  /** Settings › Autonomy's outreach row (none reads as ask). */
-  mode: "ask" | "veto" | "never";
+  /** Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop, or asks for each. */
+  mode: "ask" | "veto";
   /** Whether billing lets the workspace spend on reach-out (contracts maySpend). */
   may_spend: boolean;
   /** A run of the chain waiting for its owner's approval, when there is one. */

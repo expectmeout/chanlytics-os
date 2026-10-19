@@ -578,10 +578,11 @@
    state. The line is the kit's list row's (kit.css), drawn on the Inbox's, Conversations', Live's and People's and
    Leads' rows, which are their pages' own: at the top of every row but a list's first, from under the name
    (--row-rule-start) to the row's far padding, inside the row, since a row out of sight is painted only inside its box
-   (content-visibility). A row in a fill of its own (under the pointer, picked, a call going on) stands clear of the
-   lines on either side of it, which fade with the fill. Under the pointer only where a pointer hovers, as the fill is
-   (#1718): a touch keeps :hover on the last row tapped, and its lines went while it wore no fill (Ruben, 19 Oct 2026).
-   Above 900px each list keeps the row it has. Messages' line is campaigns.css's, on the lozenge inside its row, and
+   (content-visibility). A row in a fill of its own (under the pointer or the last a finger opened, picked, a call
+   going on) stands clear of the lines on either side of it, which fade with the fill, and only while the fill is
+   there: a row's hover fill stands under a finger too (the list's selection, Ruben, 19 Oct 2026), so its lines go
+   with it at both kinds of pointer (touch-hover.test.mjs holds the two together). Above 900px each list keeps the
+   row it has. Messages' line is campaigns.css's, on the lozenge inside its row, and
    History's days say where they take none (sequences.css). */
 @media (max-width: 900px) {
   .ix-thread + .ix-thread::after,
@@ -598,24 +599,14 @@
     pointer-events: none;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
-  .ix-thread + .ix-thread.selected::after,
-  .ix-thread.selected + .ix-thread::after,
-  .cv-row + .cv-row:is(.selected, .is-live:not(.active))::after,
-  .cv-row:is(.selected, .is-live:not(.active)) + .cv-row::after,
-  .pl-table tbody > tr[id] + tr[id].selected::after,
-  .pl-table tbody > tr[id].selected + tr[id]::after {
-    opacity: 0;
-  }
-}
-@media (max-width: 900px) and (hover: hover) {
-  .ix-thread + .ix-thread:hover::after,
-  .ix-thread:hover + .ix-thread::after,
-  .cv-row + .cv-row:hover::after,
-  .cv-row:hover + .cv-row::after,
+  .ix-thread + .ix-thread:is(:hover, .selected)::after,
+  .ix-thread:is(:hover, .selected) + .ix-thread::after,
+  .cv-row + .cv-row:is(:hover, .selected, .is-live:not(.active))::after,
+  .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
   .lm-row + .lm-row:hover::after,
   .lm-row:hover + .lm-row::after,
-  .pl-table tbody > tr[id] + tr[id]:hover::after,
-  .pl-table tbody > tr[id]:hover + tr[id]::after {
+  .pl-table tbody > tr[id] + tr[id]:is(:hover, .selected)::after,
+  .pl-table tbody > tr[id]:is(:hover, .selected) + tr[id]::after {
     opacity: 0;
   }
 }

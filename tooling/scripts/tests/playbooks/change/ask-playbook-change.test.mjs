@@ -3,7 +3,7 @@
  * proposed as a card through the real registry over a workspace in memory. The card is judged by the PUT's own core
  * judgement (checkPlaybookPatch, against the playbook as it stands), carries what changes and what it held and nothing
  * else of the playbook, says a pause leaves a waiting run waiting and a resume's mode in full, and its Approve and Undo
- * go to the real route.
+ * go to the real route. Since 00462 it also sets its sequence's mode (decision 0064), which a resume says.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -18,13 +18,13 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook-card.ts"));
 const {
   LIFECYCLE_WORDS,
   PLAYBOOK_CARD_REFUSALS,
   PROPOSAL_SPECS,
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
+  SEQUENCE_MODE_WORDS,
   lifecyclePlaybooksOf,
 } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -59,6 +59,8 @@ const playbookRow = (over = {}) => ({
   cadence_days: 30,
   created_at: "2026-09-01T00:00:00Z",
   channels: null,
+  // Its words seen going (00462): its batches go by its sequence's mode, the class's row's when it was made.
+  words_ok_at: "2026-09-02T14:00:00Z",
   ...over,
 });
 const tables = (over = {}) => ({
@@ -139,7 +141,7 @@ test("a rename and a new hour: a card that carries what changes and what it held
   assert.deepEqual([rows.playbooks[0].name, rows.playbooks[0].run_hour], ["Win-back", 10]);
 });
 
-test("a pause says the run that waits stays waiting; a resume says its class's mode in full, under auto in the Resume ask's own sentence", async () => {
+test("a pause says the run that waits stays waiting; a resume says its sequence's mode in full, under auto in the Resume ask's own sentence, and that a batch of new words waits for an OK first (decision 0064)", async () => {
   const waiting = {
     id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
     tenant_id: A,
@@ -149,18 +151,18 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   };
   const pause = await change({ state: "paused" }, tables({ broadcasts: [waiting] }));
   assert.equal(pause.isError, false, pause.result);
-  // Its undo resumes it, under its class's mode: auto here, said in full in the Resume ask's own sentence (D7).
+  // Its undo resumes it, under its sequence's mode: auto here, said in full in the Resume ask's own sentence (D7).
   assert.deepEqual(
     [pause.proposal.title, pause.proposal.undo],
     ["Pause: Win-back", `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`],
   );
   assert.equal(pause.proposal.payload.mode, "auto");
+  assert.equal(pause.proposal.payload.sequence_mode, undefined, "a pause changes no mode");
   assert.equal(pause.proposal.summary, `${PLAYBOOK_PATCH_WORDS.paused} · ${PLAYBOOK_PATCH_WORDS.pausedWaits(12)}`);
   assert.equal(pause.proposal.payload.run_waits, true);
-  // A pause needs no mode, so one whose mode could not be read is still a card; its undo claims no mode.
-  const unknown = await change({ state: "paused" }, tables(), { "policies.select": { message: "the read failed" } });
-  assert.equal(unknown.isError, false, unknown.result);
-  assert.deepEqual([unknown.proposal.undo, unknown.proposal.payload.mode], ["Resume it", null]);
+  // Its words are new: its next batch asks whatever its mode, so its undo never promises it sends on its own.
+  const fresh = await change({ state: "paused" }, tables({ playbooks: [playbookRow({ words_ok_at: null })] }));
+  assert.deepEqual([fresh.proposal.undo, fresh.proposal.payload.mode], ["Resume it", "ask"]);
   // With no run waiting, a pause says what it does and nothing of a run.
   const quiet = await change({ state: "paused" });
   assert.equal(quiet.proposal.summary, PLAYBOOK_PATCH_WORDS.paused);
@@ -168,50 +170,77 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   assert.equal(resume.isError, false, resume.result);
   assert.deepEqual([resume.proposal.title, resume.proposal.undo], ["Resume: Win-back", "Pause it again"]);
   // Under auto it sends on its own: one fact, one sentence, the drawer's Resume line, which the pause's undo says too.
-  assert.equal(
-    resume.proposal.summary,
-    PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
-  );
+  assert.equal(resume.proposal.summary, PLAYBOOK_PATCH_WORDS.resumed(LIFECYCLE_WORDS.ledger.resume.auto));
   assert.ok(pause.proposal.undo.endsWith(LIFECYCLE_WORDS.ledger.resume.auto));
-  // A class with no row of its own runs under ask, a missing row's mode, and the card says that one.
+  // A class with no row made its sequence one that asks (00462 sequence_mode_for), and the card says that one.
   const asks = await change(
     { state: "running" },
     tables({ policies: [], playbooks: [playbookRow({ state: "paused" })] }),
   );
-  assert.match(asks.proposal.summary, /^Runs again under “Re-engage” \(ask\): each run waits for you on Today$/);
-  // The mode is the one thing a resume says that it cannot know unread (D7): a failed read is no card, never a guess.
-  const unread = await change({ state: "running" }, tables({ playbooks: [playbookRow({ state: "paused" })] }), {
-    "policies.select": { message: "the read failed" },
-  });
-  assert.equal(unread.isError, true);
-  assert.match(said(unread), /sending mode .* could not be read/);
+  assert.equal(asks.proposal.summary, "Runs again: each batch waits for your OK");
+  // New words under auto: its first batch waits for an OK, and after that each goes on its own.
+  const newWords = await change(
+    { state: "running" },
+    tables({ playbooks: [playbookRow({ state: "paused", words_ok_at: null })] }),
+  );
+  assert.equal(
+    newWords.proposal.summary,
+    "Runs again: its first batch waits for your OK; after that, each batch goes on its own",
+  );
 });
 
-test("a campaign on trial goes as veto (00416): its resume card says veto's words, never that it sends on its own, and its pause's undo claims no auto; once its trial is over, auto's words again", async () => {
-  // A week of trial from the 14th: its runs wait half an hour for a Stop, whatever its auto class says.
-  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
-  const resume = await change(
-    { state: "running" },
-    tables({ playbooks: [playbookRow({ state: "paused", ...onTrial })] }),
-  );
-  assert.equal(resume.isError, false, resume.result);
-  assert.equal(resume.proposal.summary, PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "veto", MODE_WORDS.veto));
-  assert.ok(!resume.proposal.summary.includes(LIFECYCLE_WORDS.ledger.resume.auto), resume.proposal.summary);
-  const pause = await change({ state: "paused" }, tables({ playbooks: [playbookRow(onTrial)] }));
-  assert.equal(pause.isError, false, pause.result);
-  assert.deepEqual([pause.proposal.undo, pause.proposal.payload.mode], ["Resume it", "veto"]);
-  // A minute before now, the trial ended: its class's auto is how its runs go.
-  const over = { trial_until: "2026-09-14T13:59:00Z" };
-  const after = await change({ state: "running" }, tables({ playbooks: [playbookRow({ state: "paused", ...over })] }));
-  assert.equal(
-    after.proposal.summary,
-    PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
-  );
-  const pausedAfter = await change({ state: "paused" }, tables({ playbooks: [playbookRow(over)] }));
+test("its mode (decision 0064): How it runs' choice said with what it was, carried as sequence_mode, committed as the PUT's mode, written on its sequence and undone to what it held; a mode it holds is no change", async () => {
+  const rows = tables();
+  const made = await change({ mode: "ask" }, rows);
+  assert.equal(made.isError, false, made.result);
+  const p = made.proposal;
+  assert.deepEqual([p.title, p.undo], ["Change: Win-back", "Put it back"]);
+  assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.mode("ask", "auto"));
+  assert.equal(p.summary, "Before each batch: Ask me, where it was Send it");
+  assert.deepEqual([p.payload.sequence_mode, p.payload.mode, p.payload.was], ["ask", undefined, { mode: "auto" }]);
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const commit = spec.commit(p, { settings: null });
+  assert.deepEqual(commit.body, { mode: "ask" }, "the mode, and nothing else");
+  const sequence = () => rows.sequences.find((q) => q.id === PB);
+  const approved = await sendTo(rows, commit);
+  assert.deepEqual(approved.was, { mode: "auto" });
+  assert.equal(sequence().mode, "ask");
+  await undoTo(rows, p, approved);
+  assert.equal(sequence().mode, "auto");
   assert.deepEqual(
-    [pausedAfter.proposal.undo, pausedAfter.proposal.payload.mode],
-    [`Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`, "auto"],
+    rows.decisions.map((d) => [d.verb, d.undo_of ?? null]),
+    [
+      ["change_playbook", null],
+      ["change_playbook", approved.decision_id],
+    ],
   );
+  assert.equal(said(await change({ mode: "auto" }, rows)), PLAYBOOK_PATCH_WORDS.same("Win-back"));
+  // A resume beside a new mode says the mode it resumes under, then the change.
+  const resume = await change(
+    { state: "running", mode: "veto" },
+    tables({ playbooks: [playbookRow({ state: "paused" })] }),
+  );
+  assert.equal(
+    resume.proposal.summary,
+    [PLAYBOOK_PATCH_WORDS.resumed(SEQUENCE_MODE_WORDS.veto.does), PLAYBOOK_PATCH_WORDS.mode("veto", "auto")].join(
+      " · ",
+    ),
+  );
+});
+
+test("a sequence to leads takes its mode here as its state: held or asked, said as How it runs says it, never Send it", async () => {
+  const leads = tables({
+    playbooks: [
+      playbookRow({ id: STEP, kind: "reach_out", trigger: "lead_first", name: "Movers", policy_class: "outreach" }),
+    ],
+  });
+  const held = await change({ playbook_id: STEP, mode: "veto" }, leads);
+  assert.equal(held.isError, false, held.result);
+  assert.equal(held.proposal.summary, PLAYBOOK_PATCH_WORDS.mode("veto", "ask"));
+  assert.deepEqual([held.proposal.payload.sequence_mode, held.proposal.payload.was], ["veto", { mode: "ask" }]);
+  await sendTo(leads, PROPOSAL_SPECS.playbook_change.commit(held.proposal, { settings: null }));
+  assert.equal(leads.sequences.find((q) => q.id === STEP).mode, "veto");
+  assert.equal(said(await change({ playbook_id: STEP, mode: "auto" }, leads)), PLAYBOOK_PATCH_WORDS.modeLeads);
 });
 
 test("a change is refused in words before any card: not an id, not this workspace's, a sequence to leads past its state, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {
@@ -230,7 +259,10 @@ test("a change is refused in words before any card: not an id, not this workspac
     [paused.proposal?.kind, paused.proposal?.summary, paused.proposal?.payload.state, paused.proposal?.payload.was],
     ["playbook_change", PLAYBOOK_PATCH_WORDS.paused, "paused", { state: "running" }],
   );
-  assert.match(said(await change({ playbook_id: STEP, name: "Movers again" }, step)), /only paused or resumed here/);
+  assert.match(
+    said(await change({ playbook_id: STEP, name: "Movers again" }, step)),
+    /only paused, resumed or given its mode here/,
+  );
   assert.equal(said(await change({ run_hour: 7 })), "The hour must be a whole number from 9 to 20.");
   assert.equal(said(await change({ name: "x".repeat(81) })), PLAYBOOK_PATCH_WORDS.nameLong(80));
   assert.equal(said(await change({ cadence_days: 14 })), PLAYBOOK_PATCH_WORDS.cadenceOffer("Win-back"));
@@ -368,102 +400,17 @@ test("its end (00416 until): a day by the business's clock, said as the product 
   assert.equal(said(await change({ until: "the end of November" })), PLAYBOOK_PATCH_WORDS.untilDay);
 });
 
-test("its trial (00416 trial_until): an instant says its last day; null ends it, said in the change's words and committed as the null that clears it; a resume on a trial the card ends says its class's own mode", async () => {
-  const set = await change({ trial_until: "2026-09-21T14:00:00Z" });
-  assert.equal(set.isError, false, set.result);
-  assert.equal(set.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until("Sep 21"));
-  assert.equal(set.proposal.summary, "On trial until Sep 21: each run waits 30 minutes for you to stop it");
-  assert.deepEqual(
-    [set.proposal.payload.trial_until, set.proposal.payload.was],
-    ["2026-09-21T14:00:00.000Z", { trial_until: null }],
-  );
-  // Its undo writes back what the door recorded, past or not: the PUT judges at its own clock, by which this trial has
-  // ended, and an undo restores it all the same (core checkPlaybookPatch `undo`).
-  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
-  const rows = tables({ playbooks: [playbookRow(onTrial)] });
-  const ended = await change({ trial_until: null }, rows);
-  assert.equal(ended.isError, false, ended.result);
-  const p = ended.proposal;
-  assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.trial_until(null));
-  assert.deepEqual([p.payload.trial_until, p.payload.was], [null, onTrial]);
-  const spec = PROPOSAL_SPECS.playbook_change;
-  const commit = spec.commit(p, { settings: null });
-  assert.deepEqual(commit.body, { trial_until: null }, "the null that clears it, and nothing else");
-  const approved = await sendTo(rows, commit);
-  assert.equal(rows.playbooks[0].trial_until, null);
-  await undoTo(rows, p, approved);
-  // The same instant, kept in the one spelling a change writes (core trialUntilOf).
-  assert.equal(rows.playbooks[0].trial_until, "2026-09-21T14:00:00.000Z");
-  // A trial's end already past is refused: null is how a trial ends now.
-  assert.equal(
-    PLAYBOOK_PATCH_WORDS.trialPast,
-    "A trial ends at a time still to come: name a later one, or null, which ends it now.",
-  );
-  assert.equal(said(await change({ trial_until: "2026-09-14T13:59:00Z" })), PLAYBOOK_PATCH_WORDS.trialPast);
-  // A resume that ends the trial too goes under its auto class at once, and says so in full.
-  const resume = await change(
-    { state: "running", trial_until: null },
-    tables({ playbooks: [playbookRow({ state: "paused", ...onTrial })] }),
-  );
-  assert.equal(
-    resume.proposal.summary,
-    [
-      PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
-      PLAYBOOK_PATCH_WORDS.trial_until(null),
-    ].join(" · "),
-  );
-  assert.equal(said(await change({ trial_until: "next week" })), PLAYBOOK_PATCH_WORDS.trialWhen);
-});
-
-test("a trial follows its class's mode: under ask or never a trial changes nothing, and the card says so with what a run does there, never that each run waits half an hour; under veto its runs wait as they did; a trial whose mode could not be read is no card", async () => {
-  const trial = { trial_until: "2026-09-21T14:00:00Z" };
-  const asks = await change(trial, tables({ policies: [] }));
-  assert.equal(asks.isError, false, asks.result);
-  assert.equal(asks.proposal.summary, PLAYBOOK_PATCH_WORDS.trialInert("Sep 21", "Re-engage", "ask", MODE_WORDS.ask));
-  assert.equal(
-    asks.proposal.summary,
-    "On trial until Sep 21, which changes nothing under “Re-engage” (ask): each run waits for you on Today",
-  );
-  const never = await change(
-    trial,
-    tables({ policies: [{ tenant_id: A, class: "reengage", mode: "never", subject_type: null, limits: null }] }),
-  );
-  assert.equal(
-    never.proposal.summary,
-    PLAYBOOK_PATCH_WORDS.trialInert("Sep 21", "Re-engage", "never", MODE_WORDS.never),
-  );
-  const veto = await change(
-    trial,
-    tables({ policies: [{ tenant_id: A, class: "reengage", mode: "veto", subject_type: null, limits: null }] }),
-  );
-  assert.equal(veto.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until("Sep 21"));
-  const unread = await change(trial, tables(), { "policies.select": { message: "the read failed" } });
-  assert.equal(unread.isError, true);
-  assert.match(said(unread), /sending mode .* could not be read/);
-  // Ending a trial says the same under any mode, so it reads none.
-  const ends = await change(
-    { trial_until: null },
-    tables({ playbooks: [playbookRow({ trial_until: "2099-09-21T14:00:00Z" })] }),
-    { "policies.select": { message: "the read failed" } },
-  );
-  assert.equal(ends.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until(null));
-});
-
-test("an undo restores what the door recorded, past or not: a resume with a new trial on a campaign whose earlier trial ended, and a later end on a campaign that has ended, are undone to the past values, each line naming the line it undoes; a PUT that is no undo still refuses a past end or a past trial", async () => {
-  // Its first week's trial ended on the 1st; resumed now with a new one (far off, still to come by the PUT's own clock).
-  const ended = { state: "paused", trial_until: "2026-09-01T14:00:00Z" };
-  const rows = tables({ playbooks: [playbookRow(ended)] });
-  const resumed = (await change({ state: "running", trial_until: "2099-09-21T14:00:00Z" }, rows)).proposal;
-  assert.deepEqual(resumed.payload.was, ended);
+test("an undo restores what the door recorded, past or not: a resume under a new mode, and a later end on a campaign that has ended, are undone to the past values, each line naming the line it undoes; a PUT that is no undo still refuses a past end or a mode none of the three", async () => {
+  // Paused, its sequence sending on its own; resumed now to be held for a stop.
+  const rows = tables({ playbooks: [playbookRow({ state: "paused" })] });
+  const resumed = (await change({ state: "running", mode: "veto" }, rows)).proposal;
+  assert.deepEqual(resumed.payload.was, { state: "paused", mode: "auto" });
   const spec = PROPOSAL_SPECS.playbook_change;
   const approved = await sendTo(rows, spec.commit(resumed, { settings: null }));
-  assert.deepEqual([rows.playbooks[0].state, rows.playbooks[0].trial_until], ["running", "2099-09-21T14:00:00.000Z"]);
+  const sequence = () => rows.sequences.find((q) => q.id === PB);
+  assert.deepEqual([rows.playbooks[0].state, sequence().mode], ["running", "veto"]);
   await undoTo(rows, resumed, approved);
-  assert.deepEqual(
-    [rows.playbooks[0].state, rows.playbooks[0].trial_until],
-    ["paused", "2026-09-01T14:00:00.000Z"],
-    "the trial that had ended, as it was",
-  );
+  assert.deepEqual([rows.playbooks[0].state, sequence().mode], ["paused", "auto"], "as it was");
   assert.deepEqual(
     rows.decisions.map((d) => [d.verb, d.undo_of ?? null]),
     [
@@ -494,16 +441,20 @@ test("an undo restores what the door recorded, past or not: a resume with a new 
   assert.deepEqual([home.cards[0].read.ended, home.cards[0].read.off], ["Sep 10", LIFECYCLE_WORDS.ended("Sep 10")]);
   assert.equal(LIFECYCLE_WORDS.ended("Sep 10"), "Ended Sep 10");
 
-  // A PUT that names no undo is judged as any change is: a past end and a past trial are refused, nothing written.
+  // A PUT that names no undo is judged as any change is: a past end and a mode none of the three are refused.
   const direct = (body) => sendTo(over, { route: "PUT playbooks/[id]", params: { id: PB }, body });
   await assert.rejects(direct({ until: "2026-09-11" }), (e) => {
     assert.match(e.message, /^An end is today or later: today is /);
     return true;
   });
-  await assert.rejects(direct({ trial_until: "2026-09-21T14:00:00Z" }), (e) => {
-    assert.equal(e.message, PLAYBOOK_PATCH_WORDS.trialPast);
+  await assert.rejects(direct({ mode: "never" }), (e) => {
+    assert.equal(e.message, PLAYBOOK_PATCH_WORDS.modeWhich);
     return true;
   });
-  assert.deepEqual([over.playbooks[0].until, over.playbooks[0].trial_until ?? null], ["2026-09-10", null]);
+  assert.deepEqual(
+    [over.playbooks[0].until, over.sequences.find((q) => q.id === PB).mode],
+    ["2026-09-10", "auto"],
+    "nothing written",
+  );
   assert.equal(over.decisions.length, 2, "no line for a refused change");
 });

@@ -164,6 +164,8 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
     ownModes: pol.own_modes ?? null,
     // The day's budget said in replies (item 12): absent from a server from before, said in tokens.
     replyTokens: pol.reply_tokens ?? null,
+    // What each sequence's batches did (decision 0064, step 5): absent from a server from before, read as unread.
+    evidence: pol.evidence ?? null,
   };
 }
 

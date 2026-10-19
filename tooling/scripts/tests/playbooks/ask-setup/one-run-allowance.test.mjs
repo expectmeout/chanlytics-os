@@ -395,7 +395,7 @@ test("the week's touches could not be read: the card declines in its words, and 
   assert.doesNotMatch(contracts.PLAYBOOK_CARD_REFUSALS.weekUnread, /this week/);
 });
 
-test("the autonomy modes could not be read: the card declines in its words, and never guesses its class's mode (a guess of ask under auto would drop the trial week)", async () => {
+test("the autonomy modes could not be read: the card declines in its words, and never guesses the mode a new sequence of its class starts as (decision 0064)", async () => {
   // The read the class's mode is made of (the turn's policies) fails; every other read answers.
   const rows = tables({
     policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, limits: null }],

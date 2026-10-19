@@ -7,8 +7,8 @@ import { PLAYBOOK_PUT_BODY, changePlaybook, deletePlaybook } from "@/server/camp
  *
  * PUT    /api/v1/playbooks/:id — one of three bodies, strict (PLAYBOOK_PUT_BODY):
  *        any of { state, name, run_hour, cap_per_run, gap_days, cadence_days,
- *        params, until, trial_until } (its words, its last day and its
- *        trial's end, 00416; a null clears either date), a change in place
+ *        params, until, mode } (its words and its last day, 00416, a null
+ *        clearing the day; its sequence's mode, 00462), a change in place
  *        judged against the playbook as it stands and written
  *        with its line in the ledger in one transaction (the change_playbook
  *        door; on a database before it, the way it was written before, for one

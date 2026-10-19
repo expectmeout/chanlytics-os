@@ -6364,7 +6364,11 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
       [1, 1],
       "Rosa's visit tomorrow, read from the feed: her yes to messages and her number",
     );
-    assert.equal(read.modes.booking, "ask", "the Bookings class, which the reminder runs under, with no row: ask");
+    assert.equal(
+      read.new_sequences_start_as.booking,
+      "ask",
+      "a new Bookings sequence, which the reminder runs as, with no row: ask",
+    );
   } finally {
     globalThis.fetch = fetchWas;
     forgetFeeds();

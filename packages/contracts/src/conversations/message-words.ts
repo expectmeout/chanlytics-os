@@ -308,11 +308,6 @@ export function messageText(m: MessageDto): string {
   return `[${m.type}]`;
 }
 
-/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
-export function clipAtWord(text: string, max: number): string {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max + 1);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}…`;
-}
+// Words cut after a whole word: shared, since the wait rules quote a reply with it and must not reach the thread's
+// modules (a cycle through brain.ts in the bundle).
+export { clipAtWord } from "../shared/words";

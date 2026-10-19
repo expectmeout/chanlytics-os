@@ -1,9 +1,9 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
- * goes. The first run of a chain waits for its owner (the class outreach asks, §4.8), and so does every first-email run
- * of a chain fed by a list (00426: each of its leads was added by hand, so each run is a new say); a later run gives
- * thirty minutes to be stopped, or waits too when its owner asked for every run to (E7), and while any run of the chain
- * waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
+ * goes. A run of a step whose words are new to its owner waits for them (decision 0064: its first, and its first after
+ * new words), and so does every first-email run of a chain fed by a list (00426: each of its leads was added by hand, so
+ * each run is a new say); any other gives thirty minutes to be stopped, or waits too when its sequence asks for each
+ * (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
@@ -13,6 +13,7 @@
  * reach-out clock claims what is due (Part 3, PR 5 and 6).
  */
 import {
+  batchModeOf,
   PLAYBOOK_VETO_DELAY_MS,
   REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
@@ -35,13 +36,13 @@ export async function runReachOut(
   cmd: { runFor: string },
 ): Promise<ReachOutRunOutcome> {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
-  if (ports.mode === "never") return { outcome: "off", reason: "never", planned: 0 };
   if (!ports.maySpend) return { outcome: "held", reason: "billing", planned: 0 };
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
-  const chain = await ports.chainState(step.root_id);
   // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
-  if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks = chain === "none" || ports.mode === "ask" || (step.trigger === "lead_first" && step.fed_by === "list");
+  if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
+  const asks =
+    batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask" ||
+    (step.trigger === "lead_first" && step.fed_by === "list");
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
   // chain bounced; any lead that keeps no open hour all week.

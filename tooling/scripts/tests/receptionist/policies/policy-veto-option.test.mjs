@@ -85,14 +85,18 @@ test("the rule: a class takes exactly the modes POLICY_CLASS_MODES gives it, and
   assert.equal(policyModeOffered("reply", "loud"), false);
   // Veto is real wherever something waits to be stopped: a reply in the hold window, a playbook run thirty minutes
   // out, a reach-out's later run.
-  for (const cls of ["reply", "reengage", "campaign", "outreach"]) assert.ok(policyModeOffered(cls, "veto"), cls);
-  for (const cls of ["booking", "faq", "reviews", "follow_up", "money"])
-    assert.ok(!policyModeOffered(cls, "veto"), cls);
+  // A follow-up's batch too, since it is a sequence's (decision 0064).
+  // And a review's reply, held for a stop before it posts (decision 0064, step 6).
+  for (const cls of ["reply", "reengage", "campaign", "follow_up", "outreach", "reviews"])
+    assert.ok(policyModeOffered(cls, "veto"), cls);
+  for (const cls of ["booking", "faq", "money"]) assert.ok(!policyModeOffered(cls, "veto"), cls);
 });
 
 test("the refusals say why, in the owner's words: nothing to hold, no never for bookings and questions, money locked", () => {
   assert.equal(policyModeRefusal("booking", "veto"), "The Bookings row has nothing to hold for review.");
-  assert.equal(policyModeRefusal("reviews", "veto"), "The Reviews row has nothing to hold for review.");
+  assert.equal(policyModeRefusal("faq", "veto"), "The Questions row has nothing to hold for review.");
+  // A review's reply is held for a stop since decision 0064 (step 6): Holds it is on offer.
+  assert.equal(policyModeRefusal("reviews", "veto"), null);
   assert.equal(
     policyModeRefusal("faq", "never"),
     'Bookings and service questions are answered by the receptionist or by you — there is no "never".',

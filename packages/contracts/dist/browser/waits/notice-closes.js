@@ -1,5 +1,6 @@
 import { RUN_GOING_STATES } from "../broadcasts/broadcasts.js";
 import { NEW_REVIEW_NEWS, reviewNoticeIsAbout } from "../google/google.js";
+import { REVIEW_REPLY_HELD_TITLE } from "../google/review-reply.js";
 import { parseLeadsRoute } from "../leads/lead-plan.js";
 import {
   SERVER_KEY_PREFIX,
@@ -13,6 +14,7 @@ export const NOTHING_WAITS_KNOWN = {
   heldEmails: null,
   reviews: null,
   holds: null,
+  sends: null,
   searches: null
 };
 const heldFor = (source, kept) => source && kept <= source.readAt ? source.held : null;
@@ -61,7 +63,10 @@ export const NOTICE_ENDS = {
   note_to_keep: {
     ends: "news",
     why: "A note to keep is told once; its answer, Keep or Dismiss, closes the row for everyone (fact_suggestion_answer)."
-  }
+  },
+  // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
+  // (sent or stopped: 00461 messages_reply_held_closes).
+  reply_held: { ends: "send", server: "reply_gone" }
 };
 export function kindsEndedBy(source) {
   return Object.keys(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
@@ -89,7 +94,8 @@ function judgeEmail(row, about, waits) {
   return held ? held.has(about.id) : null;
 }
 function judgeReview(row, about, waits) {
-  if (about.type !== "review" || !row.title.startsWith(NEW_REVIEW_NEWS)) return null;
+  const asks = row.title.startsWith(NEW_REVIEW_NEWS) || row.title.startsWith(REVIEW_REPLY_HELD_TITLE);
+  if (about.type !== "review" || !asks) return null;
   const review = heldFor(waits.reviews, row.at)?.find((r) => reviewNoticeIsAbout(about, r));
   return review ? !review.replied : null;
 }
@@ -97,6 +103,11 @@ function judgeHold(row, about, waits) {
   if (about.type !== "conversation") return null;
   const needsYou = heldFor(waits.holds, row.at)?.get(about.id);
   return needsYou === void 0 ? null : needsYou;
+}
+function judgeSend(row, about, waits) {
+  if (about.type !== "conversation") return null;
+  const counting = heldFor(waits.sends ?? null, row.at)?.get(about.id);
+  return counting === void 0 ? null : counting;
 }
 function judgeSearch(row, about, waits) {
   if (about.type !== "lead_round") return null;
@@ -110,6 +121,7 @@ const JUDGES = {
   email: judgeEmail,
   review: judgeReview,
   hold: judgeHold,
+  send: judgeSend,
   search: judgeSearch
 };
 export function noticeStillWaits(row, waits) {

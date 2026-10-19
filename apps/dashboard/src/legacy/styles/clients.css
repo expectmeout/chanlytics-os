@@ -74,11 +74,11 @@
   transition: background 100ms;
   position: relative;
 }
-@media (hover: hover) {
-  .cl-rail-row:hover {
-    background: var(--bg-hover);
-    color: var(--ink);
-  }
+/* A row keeps its fill under a finger too: on a phone the row last opened stays lit, a list's selection (Ruben, 19 Oct
+   2026: the hover select colour we had before). Buttons keep theirs to a pointer (#1718). */
+.cl-rail-row:hover {
+  background: var(--bg-hover);
+  color: var(--ink);
 }
 .cl-rail-row.active {
   background: var(--bg-raised);
@@ -868,7 +868,8 @@
   cursor: pointer;
   transition: background 80ms;
 }
-@media (hover: hover) { .cl-table tbody tr:hover { background: var(--bg-hover); } }
+/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026). */
+.cl-table tbody tr:hover { background: var(--bg-hover); }
 .cl-table tbody tr:last-child { border-bottom: none; }
 .cl-table tbody tr.checked { background: var(--accent-soft); }
 
@@ -2117,7 +2118,7 @@
   .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; --pl-head: 39px; scroll-padding-top: var(--pl-head); }
   .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; }
   .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
-  @media (hover: hover) { .pl-table tbody tr:hover { --pl-row: var(--bg-hover); } }
+  .pl-table tbody tr:hover { --pl-row: var(--bg-hover); }
   .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
   .pl-table tbody tr.focused { --pl-row: var(--bg-hover); }
   .pl-table tbody td { border-bottom: 1px solid var(--line); }
@@ -2296,7 +2297,7 @@
   transition: background 100ms;
 }
 .cl-attn-row:first-child { border-top: none; }
-.cl-attn-row:focus-visible { background: var(--bg-hover); outline: none; } @media (hover: hover) { .cl-attn-row:hover { background: var(--bg-hover); outline: none; } }
+.cl-attn-row:focus-visible { background: var(--bg-hover); outline: none; } .cl-attn-row:hover { background: var(--bg-hover); outline: none; }
 .cl-attn-avatar {
   width: 30px; height: 30px;
   border-radius: 50%;
@@ -2874,11 +2875,9 @@
     font-weight: var(--weight-regular);
     color: var(--ink-faint);
   }
-  @media (hover: hover) {
-    .main-scroll .cl-rail-row:hover {
-      background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
-      color: var(--ink);
-    }
+  .main-scroll .cl-rail-row:hover {
+    background: color-mix(in oklab, var(--surface-inset-fill) 55%, transparent);
+    color: var(--ink);
   }
   .main-scroll .cl-rail-row.active {
     background: var(--selected-fill);
@@ -3012,12 +3011,10 @@
     background: transparent;
     box-shadow: none;
   }
-  @media (hover: hover) {
-    .main-scroll .pl-table tbody tr:hover {
-      --pl-row: var(--pl-hover);
-      background: transparent;
-      box-shadow: none;
-    }
+  .main-scroll .pl-table tbody tr:hover {
+    --pl-row: var(--pl-hover);
+    background: transparent;
+    box-shadow: none;
   }
   .main-scroll .pl-table tbody tr.selected {
     --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--surface-pane-solid);
@@ -3050,10 +3047,10 @@
   .main-scroll .pl-table .cl-sel + .pl-pin {
     left: 42px;
   }
-  @media (hover: hover) {
-    .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
-      background: var(--pl-hover);
-    }
+  /* The row under the pointer and the cursor's row (the person last opened), at both widths: #1718 held this to a
+     pointer whole, and the cursor's row lost its lozenge on a phone with the hover (19 Oct 2026). */
+  .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
+    background: var(--pl-hover);
   }
   /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
   .main-scroll .pl-table tbody tr.focused > td:first-child {
@@ -3334,10 +3331,8 @@
     border-bottom-color: transparent;
     border-radius: var(--surface-row-radius);
   }
-  @media (hover: hover) {
-    .pl-table tbody > tr[id]:hover {
-      background: var(--hover-fill);
-    }
+  .pl-table tbody > tr[id]:hover {
+    background: var(--hover-fill);
   }
   /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on
      the first screen under the Inbox's tiers. */

@@ -166,6 +166,7 @@ export const ROUTES = {
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
   "POST google/reviews/[id]/draft": { method: "POST", path: "/api/v1/google/reviews/[id]/draft" },
   "POST google/reviews/[id]/reply": { method: "POST", path: "/api/v1/google/reviews/[id]/reply" },
+  "POST google/reviews/[id]/stop": { method: "POST", path: "/api/v1/google/reviews/[id]/stop" },
   "POST google/search": { method: "POST", path: "/api/v1/google/search" },
   "POST handovers/[id]/accept": { method: "POST", path: "/api/v1/handovers/[id]/accept" },
   "POST handovers/[id]/decline": { method: "POST", path: "/api/v1/handovers/[id]/decline" },
@@ -460,6 +461,7 @@ export type Routes = {
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;
   "POST google/reviews/[id]/draft": typeof import("../../app/api/v1/google/reviews/[id]/draft/route").POST;
   "POST google/reviews/[id]/reply": typeof import("../../app/api/v1/google/reviews/[id]/reply/route").POST;
+  "POST google/reviews/[id]/stop": typeof import("../../app/api/v1/google/reviews/[id]/stop/route").POST;
   "POST google/search": typeof import("../../app/api/v1/google/search/route").POST;
   "POST handovers/[id]/accept": typeof import("../../app/api/v1/handovers/[id]/accept/route").POST;
   "POST handovers/[id]/decline": typeof import("../../app/api/v1/handovers/[id]/decline/route").POST;

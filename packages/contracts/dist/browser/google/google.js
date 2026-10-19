@@ -1,7 +1,7 @@
 import { clockDate, zoneDayKey } from "../shared/clock.js";
 import { agoWords, isoMs, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time.js";
 import { plural, reviewsPhrase } from "../shared/words.js";
-import { reviewReplyWords } from "./review-reply.js";
+import { heldReviewReplyOf, reviewReplyWords } from "./review-reply.js";
 import { reviewRoute } from "../reports/lenses.js";
 import { dayPointOf, fmtDay, rangeLabelOf, withinWords } from "../reports/reports.js";
 import { beforeWords, compareWords } from "../reports/report-tiles.js";
@@ -150,6 +150,7 @@ export function toGoogleReviewVM(r, linkedAt, tz, nowMs) {
     text: (r.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r.reply_text,
     replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
+    heldReply: heldReviewReplyOf(r, tz),
     mapsUri: r.maps_uri,
     isNew: reviewIsNew(r, linkedAt, nowMs),
     fromProfile: r.origin === "profile"

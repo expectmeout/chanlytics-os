@@ -13,7 +13,7 @@ import {
 } from "../consent/consent-channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
-import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
+import { SEND_ONCE_STOP_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers";
 import { newSequenceRoute } from "../sequences/sequence-address";
 import { clockWhen } from "../shared/clock";
 import { joinWords } from "../shared/words";
@@ -86,8 +86,8 @@ export const PLAYBOOK_CARD_REFUSALS = {
   weekUnread:
     "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
   /**
-   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
-   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   * The autonomy modes, unread: what a card says of its runs after the first is what its class's row says a new sequence
+   * starts as (decision 0064), so no card is made on a guess.
    */
   modeUnread:
     "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
@@ -112,11 +112,10 @@ export const twinRunsWords = (name: string): string =>
 /** What a new campaign's card says beside its moment, its reach and its class's mode (propose_sequence.moment). */
 export const PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
-   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
+   * 0064): the card says so beside what its batches do after that.
    */
-  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  asksFirst: "its first batch waits for your OK",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -175,8 +174,14 @@ export const broadcastSpec: ProposalSpec = {
     // Whether it was scheduled is the route's answer (`scheduled_ahead`), never the card's time: one set for a time that
     // passed before it was approved went now. Who it left out hear from you within a week of the time it goes (leftOutBy).
     const ahead = d.scheduled_ahead === true;
+    // Pressed for now, it goes ten minutes on unless stopped (decision 0064, step 3): its Undo is that Stop.
+    const goes = ahead
+      ? "scheduled"
+      : d.pressed_now === true
+        ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it`
+        : SENDING_NOW_WORDS;
     const said = heardWords(leftOut, true);
-    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` · ${said}` : ""}`;
+    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` · ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -207,8 +212,6 @@ export const playbookSpec: ProposalSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...(pl.trial === true ? { trial: true } : {}),
       // Its last day (00416), where the card named one: the route judges it again at its own clock.
       ...(typeof pl.until === "string" ? { until: pl.until } : {}),
     },
@@ -292,20 +295,28 @@ export const playbookChannelsSpec: ProposalSpec = {
  * What a change card's commit sends: the fields it changes, and nothing else of the playbook. A null names nothing, but
  * for the two dates a null clears (PLAYBOOK_PATCH_CLEARS), so an undo of a campaign's first end writes "no end" back.
  */
-const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(
-    PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== undefined && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
-      (k) => [k, pl[k]],
-    ),
+/**
+ * The keys a change names, as the PUT takes them: from a card's payload, whose sequence's mode rides as `sequence_mode`
+ * (decision 0064; its own `mode` is what a pause's undo resumes under, which no change names), or from what the route
+ * answered the playbook held (`was`), whose `mode` is the sequence's.
+ */
+const patchIn = (pl: Record<string, unknown>, modeKey: "sequence_mode" | "mode"): Record<string, unknown> => {
+  const body: Record<string, unknown> = Object.fromEntries(
+    PLAYBOOK_PATCH_KEYS.filter(
+      (k) => k !== "mode" && pl[k] !== undefined && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k)),
+    ).map((k) => [k, pl[k]]),
   );
+  if (typeof pl[modeKey] === "string") body.mode = pl[modeKey];
+  return body;
+};
 
 /**
  * The undo of a pause: it resumes the campaign under the mode its runs go under, so where the card read that mode as
  * `auto` it says in full that the campaign sends on its own, in the Resume ask's own sentence
  * (LIFECYCLE_WORDS.ledger.resume.auto, decision 7). Any other mode adds nothing, and a card made where the mode could not
- * be read (`mode` null) claims none. The payload's `mode` is decided where the row and the clock are, by the card's
- * builder through contracts effectiveMode (00416): a campaign on trial under an auto class is `veto` there, so its undo
- * never promises it sends on its own. This label has neither: it is written once, from the payload, when the card is made.
+ * be read (`mode` null) claims none. The payload's `mode` is decided where the row is, by the card's builder through
+ * contracts batchModeOf (decision 0064): a step whose words are new is `ask` there, so its undo never promises it sends on
+ * its own. This label has neither: it is written once, from the payload, when the card is made.
  */
 const resumeUndoLabel = (mode: unknown): string =>
   mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
@@ -327,7 +338,7 @@ export const playbookChangeSpec: ProposalSpec = {
   gate: "approve",
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "playbook_id");
-    const body = patchIn(pl);
+    const body = patchIn(pl, "sequence_mode");
     if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return { route: "PUT playbooks/[id]", params: { id }, body };
   },
@@ -358,7 +369,7 @@ export const playbookChangeSpec: ProposalSpec = {
       };
     },
     call: (u) => {
-      const was = patchIn(rec(u.was));
+      const was = patchIn(rec(u.was), "mode");
       return !asText(u.playbook_id) || Object.keys(was).length === 0
         ? refuseWith(PROPOSAL_WORDS.noUndo)
         : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };

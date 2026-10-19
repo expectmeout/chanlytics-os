@@ -632,7 +632,8 @@ var ERASURE_STRATEGIES = {
   // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
   // (purge_google_reviews, 00392). Its ids and language are nobody's.
   google_reviews: {
-    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text"),
+    // The reply the receptionist holds (00462) names the reviewer as a posted one does, and goes with the review.
+    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text", "draft_text"),
     ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id")
   },
   idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
@@ -1653,6 +1654,388 @@ import {
   HOUR_MS
 } from "../../contracts/dist/index.js";
 
+// src/repositories/campaigns/sequences.ts
+import {
+  CONSENT_CHANNELS,
+  EVIDENCE_DAYS,
+  isLeadList as isLeadList2,
+  isSequenceMode
+} from "../../contracts/dist/index.js";
+
+// src/repositories/campaigns/reach-out-leads.ts
+import { isLeadList } from "../../contracts/dist/index.js";
+var answer = (data, error) => error ? { data: null, error: { code: error.code, message: error.message } } : { data, error: null };
+async function reachOutAdd(db, p) {
+  const { data, error } = await db.rpc("reach_out_add", { p_root_id: p.rootId, p_lead_ids: p.leadIds, p_dry: p.dry });
+  return answer(data, error);
+}
+async function leadMemberLater(db, p) {
+  const { data, error } = await db.rpc("lead_member_later", { p_search_id: p.searchId, p_lead_id: p.leadId });
+  return answer(data, error);
+}
+async function leadPileCounts(db, p) {
+  const { data, error } = await db.rpc("lead_pile_counts", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    ...p.listId ? { p_list_id: p.listId } : {},
+    ...p.cls ? { p_class: p.cls } : {}
+  });
+  return answer(data, error);
+}
+async function reachOutChainPeople(db, p) {
+  const { data, error } = await db.rpc("reach_out_chain_people", {
+    p_tenant_id: p.tenantId,
+    p_root_id: p.rootId,
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  return answer(data, error);
+}
+async function reachOutFedByOf(db, tenantId, searchId) {
+  if (!searchId) return "search";
+  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
+  if (error) throw new Error(`cannot read the chain's search: ${error.message}`);
+  return isLeadList(data) ? "list" : "search";
+}
+async function leadsBackToday(db, tenantId) {
+  const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
+  return answer(data, error);
+}
+async function reachOutLeaveOut(db, p) {
+  const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: p.rootId, p_lead_id: p.leadId });
+  return answer(data, error);
+}
+async function reachOutSources(db, tenantId) {
+  const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
+  return answer(data, error);
+}
+async function reachOutPeopleCounts(db, tenantId) {
+  try {
+    const { data, error } = await db.rpc("reach_out_people_counts", { p_tenant_id: tenantId });
+    const r = answer(data, error);
+    return r.error ? null : r.data;
+  } catch {
+    return null;
+  }
+}
+
+// src/repositories/campaigns/sequences.ts
+async function followUpsDue(db, stepId, runFor) {
+  const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
+  if (error) throw new Error(`cannot read who the step is due to: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => r.enrollment_id && r.contact_id ? [{ enrollment_id: r.enrollment_id, contact_id: r.contact_id, sent_at: r.sent_at ?? null }] : []
+  );
+}
+async function leaveSequence(db, p) {
+  if (p.enrollmentIds.length === 0) return 0;
+  const { data, error } = await db.rpc("sequence_enrollments_leave", {
+    p_tenant_id: p.tenantId,
+    p_ids: [...p.enrollmentIds],
+    p_why: p.why,
+    ...p.by ? { p_by: p.by } : {}
+  });
+  if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function leadsLeaveSequence(db, p) {
+  if (p.leads.length === 0) return 0;
+  const { data, error } = await db.rpc("sequence_leads_leave", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_leads: p.leads.map((l) => ({ lead_id: l.lead_id, why: l.why }))
+  });
+  if (error) throw new Error(`cannot pass over the step's leads: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function sequenceReached(db, tenantId, sequenceId) {
+  const rows = await readAllRows(
+    "who the sequence reached",
+    (from, to) => db.from("sequence_enrollments").select("contact_id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).is("lead_id", null).or("state.eq.in,sent_at.not.is.null").order("id").range(from, to)
+  );
+  return new Set(rows.flatMap((r) => r.contact_id ? [r.contact_id] : []));
+}
+async function sequencesOfPerson(db, tenantId, contactId) {
+  const { data, error } = await db.from("sequence_enrollments").select("sequence_id, place, next_at").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("state", "in").order("next_at", { ascending: true, nullsFirst: false }).limit(20);
+  if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+  const names = await db.from("sequences").select("id, name").in(
+    "id",
+    rows.map((r) => r.sequence_id)
+  );
+  if (names.error) throw new Error(`cannot read the sequences they are in: ${names.error.message}`);
+  const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
+  return rows.flatMap((r) => {
+    const name = nameOf.get(r.sequence_id);
+    return name ? [{ id: r.sequence_id, name, place: r.place, next_at: r.next_at }] : [];
+  });
+}
+async function sequenceRow(db, id) {
+  const own = await sequenceById(db, id);
+  if (own) return own;
+  const [step, batch] = await Promise.all([
+    db.from("sequence_steps").select("sequence_id").eq("id", id).maybeSingle(),
+    db.from("sequence_batches").select("sequence_id").eq("id", id).maybeSingle()
+  ]);
+  if (step.error) throw new Error(`cannot read the sequence's step: ${step.error.message}`);
+  if (batch.error) throw new Error(`cannot read the sequence's batch: ${batch.error.message}`);
+  const of = step.data?.sequence_id ?? batch.data?.sequence_id ?? null;
+  return of ? sequenceById(db, of) : null;
+}
+async function sequenceById(db, id) {
+  const { data, error } = await db.from("sequences").select("id, tenant_id, name, starts, state").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the sequence: ${error.message}`);
+  return data;
+}
+function readerRowsOf(data) {
+  return Array.isArray(data) ? data.filter((r) => typeof r === "object" && r !== null) : [];
+}
+async function sequenceModesOf(db, tenantId, ids) {
+  const out = /* @__PURE__ */ new Map();
+  if (ids.length === 0) return out;
+  const { data, error } = await db.from("sequences").select("id, mode").eq("tenant_id", tenantId).in("id", [...new Set(ids)]);
+  if (error) throw new Error(`cannot read the sequences' modes: ${error.message}`);
+  for (const r of data ?? []) out.set(r.id, isSequenceMode(r.mode) ? r.mode : "ask");
+  return out;
+}
+async function sequenceEvidence(db, tenantId, days = EVIDENCE_DAYS) {
+  const { data, error } = await db.rpc("sequence_evidence", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`cannot read what the sequences' batches did: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    sequence_id: r.sequence_id,
+    policy_class: r.policy_class,
+    went: r.went,
+    approved: r.approved,
+    stopped: r.stopped,
+    skipped: r.skipped
+  }));
+}
+async function sequenceOverview(db, tenantId, sequenceId) {
+  const { data, error } = await db.rpc("sequence_overview", {
+    p_tenant_id: tenantId,
+    ...sequenceId ? { p_sequence_id: sequenceId } : {}
+  });
+  if (error) throw new Error(`cannot read the sequences: ${error.message}`);
+  return readerRowsOf(data);
+}
+async function sequenceOfPart(db, tenantId, id) {
+  const [batch, step] = await Promise.all([
+    db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
+    db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
+  ]);
+  if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
+  if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
+  const of = (r) => {
+    const v = r && typeof r === "object" ? r.sequence_id : null;
+    return typeof v === "string" ? v : null;
+  };
+  return of(batch.data) ?? of(step.data);
+}
+async function firstStepFacts(db, tenantId, stepId) {
+  const { data, error } = await db.from("sequence_steps").select("last_run_for, cap_per_run, gap_days, cadence_days").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
+  if (error) throw new Error(`cannot read the first step's run: ${error.message}`);
+  return data;
+}
+async function lastRunSkipped(db, tenantId, stepId) {
+  const { data, error } = await db.from("events").select("data").eq("tenant_id", tenantId).eq("subject_type", "playbook").eq("subject_id", stepId).eq("kind", "playbook.run").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the step's last run: ${error.message}`);
+  const said = data?.data;
+  return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string" ? said.skipped : null;
+}
+async function oneOffMessageOf(db, tenantId, batchId) {
+  const [batch, ...by] = await Promise.all([
+    db.from("sequence_batches").select("template_name, template_language, params").eq("tenant_id", tenantId).eq("id", batchId).maybeSingle(),
+    ...CONSENT_CHANNELS.map(
+      (channel) => db.from("sequence_sends").select("id").eq("tenant_id", tenantId).eq("batch_id", batchId).is("lead_id", null).eq("channel", channel).neq("state", "skipped").limit(1)
+    )
+  ]);
+  if (batch.error) throw new Error(`cannot read the one-off's message: ${batch.error.message}`);
+  const failed = by.find((r) => r.error);
+  if (failed?.error) throw new Error(`cannot read how the one-off goes: ${failed.error.message}`);
+  if (!batch.data) return null;
+  return {
+    template_name: batch.data.template_name,
+    template_language: batch.data.template_language,
+    params: batch.data.params,
+    channels: CONSENT_CHANNELS.filter((_, i) => (by[i]?.data ?? []).length > 0)
+  };
+}
+async function leadsFedBy(db, tenantId, searchId) {
+  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
+  if (error) throw new Error(`cannot read what the sequence writes to: ${error.message}`);
+  return isLeadList2(data) ? "list" : "search";
+}
+async function runningStepsOn(db, tenantId, triggers) {
+  if (triggers.length === 0) return [];
+  const { data, error } = await db.from("sequence_steps").select("id, name, trigger").eq("tenant_id", tenantId).eq("state", "running").in("trigger", [...triggers]);
+  if (error) throw new Error(`cannot read what runs at this moment: ${error.message}`);
+  return data ?? [];
+}
+async function sequenceNamesOf(db, tenantId) {
+  const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
+  if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
+  return data ?? [];
+}
+async function sequenceStepsOf(db, tenantId, sequenceId) {
+  const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
+  if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
+  return readerRowsOf(data);
+}
+var REPLIES_IN_CHUNK = 200;
+async function leadRepliesOfBatches(db, tenantId, batchIds) {
+  const out = /* @__PURE__ */ new Set();
+  for (let i = 0; i < batchIds.length; i += REPLIES_IN_CHUNK) {
+    const chunk = batchIds.slice(i, i + REPLIES_IN_CHUNK);
+    const sends = await db.from("sequence_sends").select("id").eq("tenant_id", tenantId).not("lead_id", "is", null).in("batch_id", [...chunk]);
+    if (sends.error) throw new Error(`cannot read the batches' emails: ${sends.error.message}`);
+    const ids = (sends.data ?? []).map((s) => s.id);
+    for (let j = 0; j < ids.length; j += REPLIES_IN_CHUNK) {
+      const replies = await db.from("sequence_replies").select("conversation_id").eq("tenant_id", tenantId).in("send_id", ids.slice(j, j + REPLIES_IN_CHUNK)).in("claim", ["person", "owner"]).is("undone_at", null);
+      if (replies.error) throw new Error(`cannot read the replies: ${replies.error.message}`);
+      for (const r of replies.data ?? []) out.add(r.conversation_id);
+    }
+  }
+  return [...out];
+}
+async function sequencePeopleOf(db, p) {
+  const { data, error } = await db.rpc("sequence_people", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  if (error) throw new Error(`cannot read who is in the sequence: ${error.message}`);
+  const got = data ?? {};
+  return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
+}
+async function sequencePlaceOf(db, tenantId, leadId) {
+  const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
+  if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
+  const got = data;
+  return got && got.sequence && got.place ? { ...got, sends: Array.isArray(got.sends) ? got.sends : [] } : null;
+}
+async function sequencePlacesOf(db, tenantId, leadIds) {
+  if (leadIds.length === 0) return [];
+  const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
+  if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
+  const rows = data;
+  return Array.isArray(rows) ? rows : [];
+}
+async function sequenceHistoryOf(db, p) {
+  const { data, error } = await db.rpc("sequence_history", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...p.before ? { p_before: p.before } : {},
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  if (error) throw new Error(`cannot read what the sequence sent: ${error.message}`);
+  const got = data ?? {};
+  return { batches: Array.isArray(got.batches) ? got.batches : [], more: got.more === true };
+}
+var decided = (d) => ({
+  ...d.decision !== void 0 ? { p_decision: d.decision } : {},
+  ...d.via ? { p_via: d.via } : {},
+  ...d.undoOf ? { p_undo_of: d.undoOf } : {}
+});
+async function saveSequenceStep(db, p) {
+  const { data, error } = await db.rpc("sequence_step_save", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_step: p.step,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function removeSequenceStep(db, p) {
+  const { data, error } = await db.rpc("sequence_step_remove", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function setSequenceStepWords(db, p) {
+  const { data, error } = await db.rpc("sequence_step_words", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_template_id: p.templateId,
+    ...p.params !== void 0 ? { p_params: p.params } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function takeOutOfSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_leave", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_enrollment_ids: [...p.enrollmentIds],
+    ...p.leadIds && p.leadIds.length > 0 ? { p_lead_ids: [...p.leadIds] } : {},
+    ...p.why ? { p_why: p.why } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function putBackInSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_return", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function makeSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_create", {
+    p_tenant_id: p.tenantId,
+    p_first: p.first,
+    p_then: p.then,
+    p_start: p.start,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function moveToSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_move", {
+    p_tenant_id: p.tenantId,
+    p_lead_id: p.leadId,
+    p_to_root: p.toRoot,
+    ...p.decision !== void 0 ? { p_decision: p.decision } : {},
+    ...p.via ? { p_via: p.via } : {}
+  });
+  return answer(data, error);
+}
+async function setChainSource(db, p) {
+  const { data, error } = await db.rpc("reach_out_source_set", {
+    p_tenant_id: p.tenantId,
+    p_root_id: p.rootId,
+    ...p.searchId ? { p_search_id: p.searchId } : {}
+  });
+  return answer(data, error);
+}
+async function aimSearchAt(db, p) {
+  const { data, error } = await db.rpc("lead_search_aim", {
+    p_tenant_id: p.tenantId,
+    p_search_id: p.searchId,
+    ...p.sequenceId ? { p_sequence_id: p.sequenceId } : {}
+  });
+  return answer(data, error);
+}
+async function discardSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_discard", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function cancelSequenceBatch(db, p) {
+  const { data, error } = await db.rpc("sequence_batch_cancel", {
+    p_tenant_id: p.tenantId,
+    p_batch_id: p.batchId,
+    p_from: p.from
+  });
+  if (error) throw new Error(`cannot cancel the batch: ${error.message}`);
+  return data === true;
+}
+
 // src/repositories/campaigns/campaign-channels.ts
 async function whatsappChannelFacts(db, tenantId) {
   const { data, error } = await db.from("tenant_channels").select("config, number_e164").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").order("created_at", { ascending: true }).limit(1).maybeSingle();
@@ -1687,14 +2070,15 @@ async function playbookForChannels(db, tenantId, playbookId) {
 }
 async function playbookForChange(db, tenantId, playbookId) {
   const { data, error } = await db.from("sequence_steps").select(
-    "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until"
+    "id, sequence_id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, words_ok_at"
   ).eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
   if (error) throw new Error(`playbook_for_change: ${error.message}`);
   if (!data) return null;
   const waiting = await db.from("sequence_batches").select("id, recipient_count").eq("tenant_id", tenantId).eq("step_id", playbookId).eq("state", "pending_approval").limit(1);
   if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
   const [w] = waiting.data ?? [];
-  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+  const mode = (await sequenceModesOf(db, tenantId, [data.sequence_id])).get(data.sequence_id) ?? "ask";
+  return { ...data, mode, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
 }
 async function runningTwins(db, tenantId, on) {
   const { data, error } = await db.from("sequence_steps").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
@@ -2504,12 +2888,6 @@ async function recheckSends(db, p) {
   if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
-async function outreachModeOf(db, tenantId) {
-  const { data, error } = await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "outreach").is("subject_type", null).maybeSingle();
-  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
-  const said = data?.mode;
-  return said === "veto" || said === "never" ? said : "ask";
-}
 async function tenantZoneOf(db, tenantId) {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
   return error ? null : data?.timezone ?? null;
@@ -2600,7 +2978,7 @@ async function failStrandedRun(db, p) {
   return true;
 }
 async function waitingPlaybookRuns(db, p) {
-  const { data, error } = await db.from("sequence_batches").select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience").eq("state", "pending_approval").not("step_id", "is", null).not("run_for", "is", null).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("run_for", { ascending: true }).order("created_at", { ascending: true }).limit(p.limit);
+  const { data, error } = await db.from("sequence_batches").select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience, recipient_count").eq("state", "pending_approval").not("step_id", "is", null).not("run_for", "is", null).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("run_for", { ascending: true }).order("created_at", { ascending: true }).limit(p.limit);
   if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
   const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
   if (!runs.length) return [];
@@ -2617,6 +2995,7 @@ async function waitingPlaybookRuns(db, p) {
         playbook_id: r.playbook_id,
         run_for: r.run_for,
         audience: r.audience,
+        recipient_count: r.recipient_count ?? 0,
         timezone: zoneOf.get(r.tenant_id) || DEFAULT_TIMEZONE
       }
     ] : []
@@ -2656,6 +3035,11 @@ async function waitingRunsOf(db, tenantId) {
     return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
   });
   return [...pending.data ?? [], ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+async function runsGoingBetween(db, tenantId, from, until) {
+  const { data, error } = await db.from("sequence_batches").select("id, name, state, playbook_id:step_id, scheduled_for, recipient_count, audience").eq("tenant_id", tenantId).eq("state", "scheduled").gt("scheduled_for", from.toISOString()).lte("scheduled_for", until.toISOString()).order("scheduled_for", { ascending: true }).limit(100);
+  if (error) throw new Error(`cannot read the runs set to go: ${error.message}`);
+  return data ?? [];
 }
 async function runsNamed(db, tenantId, ids) {
   if (!ids.length) return [];
@@ -3336,62 +3720,6 @@ async function workspaceAbout(db, tenantId) {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business record: ${error.message}`);
   return data?.about?.trim() || null;
-}
-
-// src/repositories/campaigns/reach-out-leads.ts
-import { isLeadList } from "../../contracts/dist/index.js";
-var answer = (data, error) => error ? { data: null, error: { code: error.code, message: error.message } } : { data, error: null };
-async function reachOutAdd(db, p) {
-  const { data, error } = await db.rpc("reach_out_add", { p_root_id: p.rootId, p_lead_ids: p.leadIds, p_dry: p.dry });
-  return answer(data, error);
-}
-async function leadMemberLater(db, p) {
-  const { data, error } = await db.rpc("lead_member_later", { p_search_id: p.searchId, p_lead_id: p.leadId });
-  return answer(data, error);
-}
-async function leadPileCounts(db, p) {
-  const { data, error } = await db.rpc("lead_pile_counts", {
-    p_tenant_id: p.tenantId,
-    p_search_id: p.searchId,
-    ...p.listId ? { p_list_id: p.listId } : {},
-    ...p.cls ? { p_class: p.cls } : {}
-  });
-  return answer(data, error);
-}
-async function reachOutChainPeople(db, p) {
-  const { data, error } = await db.rpc("reach_out_chain_people", {
-    p_tenant_id: p.tenantId,
-    p_root_id: p.rootId,
-    ...p.limit ? { p_limit: p.limit } : {}
-  });
-  return answer(data, error);
-}
-async function reachOutFedByOf(db, tenantId, searchId) {
-  if (!searchId) return "search";
-  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
-  if (error) throw new Error(`cannot read the chain's search: ${error.message}`);
-  return isLeadList(data) ? "list" : "search";
-}
-async function leadsBackToday(db, tenantId) {
-  const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
-  return answer(data, error);
-}
-async function reachOutLeaveOut(db, p) {
-  const { data, error } = await db.rpc("reach_out_leave_out", { p_root_id: p.rootId, p_lead_id: p.leadId });
-  return answer(data, error);
-}
-async function reachOutSources(db, tenantId) {
-  const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
-  return answer(data, error);
-}
-async function reachOutPeopleCounts(db, tenantId) {
-  try {
-    const { data, error } = await db.rpc("reach_out_people_counts", { p_tenant_id: tenantId });
-    const r = answer(data, error);
-    return r.error ? null : r.data;
-  } catch {
-    return null;
-  }
 }
 
 // src/repositories/campaigns/reach-out-drafts.ts
@@ -4494,307 +4822,8 @@ async function runsInSpan(db, tenantId, span) {
 async function momentSchedules(db, tenantId) {
   return readAllRows(
     "calendar_moment_schedules",
-    (from, to) => db.from("sequence_steps").select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
+    (from, to) => db.from("sequence_steps").select("id, sequence_id, name, trigger, state, run_hour, last_run_for, until, words_ok_at").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
   );
-}
-
-// src/repositories/campaigns/sequences.ts
-import { CONSENT_CHANNELS, isLeadList as isLeadList2 } from "../../contracts/dist/index.js";
-async function followUpsDue(db, stepId, runFor) {
-  const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
-  if (error) throw new Error(`cannot read who the step is due to: ${error.message}`);
-  return (data ?? []).flatMap(
-    (r) => r.enrollment_id && r.contact_id ? [{ enrollment_id: r.enrollment_id, contact_id: r.contact_id, sent_at: r.sent_at ?? null }] : []
-  );
-}
-async function leaveSequence(db, p) {
-  if (p.enrollmentIds.length === 0) return 0;
-  const { data, error } = await db.rpc("sequence_enrollments_leave", {
-    p_tenant_id: p.tenantId,
-    p_ids: [...p.enrollmentIds],
-    p_why: p.why,
-    ...p.by ? { p_by: p.by } : {}
-  });
-  if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-async function leadsLeaveSequence(db, p) {
-  if (p.leads.length === 0) return 0;
-  const { data, error } = await db.rpc("sequence_leads_leave", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    p_leads: p.leads.map((l) => ({ lead_id: l.lead_id, why: l.why }))
-  });
-  if (error) throw new Error(`cannot pass over the step's leads: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-async function sequenceReached(db, tenantId, sequenceId) {
-  const rows = await readAllRows(
-    "who the sequence reached",
-    (from, to) => db.from("sequence_enrollments").select("contact_id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).is("lead_id", null).or("state.eq.in,sent_at.not.is.null").order("id").range(from, to)
-  );
-  return new Set(rows.flatMap((r) => r.contact_id ? [r.contact_id] : []));
-}
-async function sequencesOfPerson(db, tenantId, contactId) {
-  const { data, error } = await db.from("sequence_enrollments").select("sequence_id, place, next_at").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("state", "in").order("next_at", { ascending: true, nullsFirst: false }).limit(20);
-  if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
-  const rows = data ?? [];
-  if (rows.length === 0) return [];
-  const names = await db.from("sequences").select("id, name").in(
-    "id",
-    rows.map((r) => r.sequence_id)
-  );
-  if (names.error) throw new Error(`cannot read the sequences they are in: ${names.error.message}`);
-  const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
-  return rows.flatMap((r) => {
-    const name = nameOf.get(r.sequence_id);
-    return name ? [{ id: r.sequence_id, name, place: r.place, next_at: r.next_at }] : [];
-  });
-}
-async function sequenceRow(db, id) {
-  const own = await sequenceById(db, id);
-  if (own) return own;
-  const [step, batch] = await Promise.all([
-    db.from("sequence_steps").select("sequence_id").eq("id", id).maybeSingle(),
-    db.from("sequence_batches").select("sequence_id").eq("id", id).maybeSingle()
-  ]);
-  if (step.error) throw new Error(`cannot read the sequence's step: ${step.error.message}`);
-  if (batch.error) throw new Error(`cannot read the sequence's batch: ${batch.error.message}`);
-  const of = step.data?.sequence_id ?? batch.data?.sequence_id ?? null;
-  return of ? sequenceById(db, of) : null;
-}
-async function sequenceById(db, id) {
-  const { data, error } = await db.from("sequences").select("id, tenant_id, name, starts, state").eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the sequence: ${error.message}`);
-  return data;
-}
-function readerRowsOf(data) {
-  return Array.isArray(data) ? data.filter((r) => typeof r === "object" && r !== null) : [];
-}
-async function sequenceOverview(db, tenantId, sequenceId) {
-  const { data, error } = await db.rpc("sequence_overview", {
-    p_tenant_id: tenantId,
-    ...sequenceId ? { p_sequence_id: sequenceId } : {}
-  });
-  if (error) throw new Error(`cannot read the sequences: ${error.message}`);
-  return readerRowsOf(data);
-}
-async function sequenceOfPart(db, tenantId, id) {
-  const [batch, step] = await Promise.all([
-    db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
-    db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
-  ]);
-  if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
-  if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
-  const of = (r) => {
-    const v = r && typeof r === "object" ? r.sequence_id : null;
-    return typeof v === "string" ? v : null;
-  };
-  return of(batch.data) ?? of(step.data);
-}
-async function firstStepFacts(db, tenantId, stepId) {
-  const { data, error } = await db.from("sequence_steps").select("last_run_for, cap_per_run, gap_days, cadence_days").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
-  if (error) throw new Error(`cannot read the first step's run: ${error.message}`);
-  return data;
-}
-async function lastRunSkipped(db, tenantId, stepId) {
-  const { data, error } = await db.from("events").select("data").eq("tenant_id", tenantId).eq("subject_type", "playbook").eq("subject_id", stepId).eq("kind", "playbook.run").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(`cannot read the step's last run: ${error.message}`);
-  const said = data?.data;
-  return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string" ? said.skipped : null;
-}
-async function oneOffMessageOf(db, tenantId, batchId) {
-  const [batch, ...by] = await Promise.all([
-    db.from("sequence_batches").select("template_name, template_language, params").eq("tenant_id", tenantId).eq("id", batchId).maybeSingle(),
-    ...CONSENT_CHANNELS.map(
-      (channel) => db.from("sequence_sends").select("id").eq("tenant_id", tenantId).eq("batch_id", batchId).is("lead_id", null).eq("channel", channel).neq("state", "skipped").limit(1)
-    )
-  ]);
-  if (batch.error) throw new Error(`cannot read the one-off's message: ${batch.error.message}`);
-  const failed = by.find((r) => r.error);
-  if (failed?.error) throw new Error(`cannot read how the one-off goes: ${failed.error.message}`);
-  if (!batch.data) return null;
-  return {
-    template_name: batch.data.template_name,
-    template_language: batch.data.template_language,
-    params: batch.data.params,
-    channels: CONSENT_CHANNELS.filter((_, i) => (by[i]?.data ?? []).length > 0)
-  };
-}
-async function leadsFedBy(db, tenantId, searchId) {
-  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
-  if (error) throw new Error(`cannot read what the sequence writes to: ${error.message}`);
-  return isLeadList2(data) ? "list" : "search";
-}
-async function runningStepsOn(db, tenantId, triggers) {
-  if (triggers.length === 0) return [];
-  const { data, error } = await db.from("sequence_steps").select("id, name, trigger").eq("tenant_id", tenantId).eq("state", "running").in("trigger", [...triggers]);
-  if (error) throw new Error(`cannot read what runs at this moment: ${error.message}`);
-  return data ?? [];
-}
-async function sequenceNamesOf(db, tenantId) {
-  const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
-  if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
-  return data ?? [];
-}
-async function sequenceStepsOf(db, tenantId, sequenceId) {
-  const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
-  if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
-  return readerRowsOf(data);
-}
-var REPLIES_IN_CHUNK = 200;
-async function leadRepliesOfBatches(db, tenantId, batchIds) {
-  const out = /* @__PURE__ */ new Set();
-  for (let i = 0; i < batchIds.length; i += REPLIES_IN_CHUNK) {
-    const chunk = batchIds.slice(i, i + REPLIES_IN_CHUNK);
-    const sends = await db.from("sequence_sends").select("id").eq("tenant_id", tenantId).not("lead_id", "is", null).in("batch_id", [...chunk]);
-    if (sends.error) throw new Error(`cannot read the batches' emails: ${sends.error.message}`);
-    const ids = (sends.data ?? []).map((s) => s.id);
-    for (let j = 0; j < ids.length; j += REPLIES_IN_CHUNK) {
-      const replies = await db.from("sequence_replies").select("conversation_id").eq("tenant_id", tenantId).in("send_id", ids.slice(j, j + REPLIES_IN_CHUNK)).in("claim", ["person", "owner"]).is("undone_at", null);
-      if (replies.error) throw new Error(`cannot read the replies: ${replies.error.message}`);
-      for (const r of replies.data ?? []) out.add(r.conversation_id);
-    }
-  }
-  return [...out];
-}
-async function sequencePeopleOf(db, p) {
-  const { data, error } = await db.rpc("sequence_people", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    ...p.limit ? { p_limit: p.limit } : {}
-  });
-  if (error) throw new Error(`cannot read who is in the sequence: ${error.message}`);
-  const got = data ?? {};
-  return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
-}
-async function sequencePlaceOf(db, tenantId, leadId) {
-  const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
-  if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
-  const got = data;
-  return got && got.sequence && got.place ? { ...got, sends: Array.isArray(got.sends) ? got.sends : [] } : null;
-}
-async function sequencePlacesOf(db, tenantId, leadIds) {
-  if (leadIds.length === 0) return [];
-  const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
-  if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
-  const rows = data;
-  return Array.isArray(rows) ? rows : [];
-}
-async function sequenceHistoryOf(db, p) {
-  const { data, error } = await db.rpc("sequence_history", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    ...p.before ? { p_before: p.before } : {},
-    ...p.limit ? { p_limit: p.limit } : {}
-  });
-  if (error) throw new Error(`cannot read what the sequence sent: ${error.message}`);
-  const got = data ?? {};
-  return { batches: Array.isArray(got.batches) ? got.batches : [], more: got.more === true };
-}
-var decided = (d) => ({
-  ...d.decision !== void 0 ? { p_decision: d.decision } : {},
-  ...d.via ? { p_via: d.via } : {},
-  ...d.undoOf ? { p_undo_of: d.undoOf } : {}
-});
-async function saveSequenceStep(db, p) {
-  const { data, error } = await db.rpc("sequence_step_save", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    p_step: p.step,
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function removeSequenceStep(db, p) {
-  const { data, error } = await db.rpc("sequence_step_remove", {
-    p_tenant_id: p.tenantId,
-    p_step_id: p.stepId,
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function setSequenceStepWords(db, p) {
-  const { data, error } = await db.rpc("sequence_step_words", {
-    p_tenant_id: p.tenantId,
-    p_step_id: p.stepId,
-    p_template_id: p.templateId,
-    ...p.params !== void 0 ? { p_params: p.params } : {},
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function takeOutOfSequence(db, p) {
-  const { data, error } = await db.rpc("sequence_leave", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    p_enrollment_ids: [...p.enrollmentIds],
-    ...p.leadIds && p.leadIds.length > 0 ? { p_lead_ids: [...p.leadIds] } : {},
-    ...p.why ? { p_why: p.why } : {},
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function putBackInSequence(db, p) {
-  const { data, error } = await db.rpc("sequence_return", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function makeSequence(db, p) {
-  const { data, error } = await db.rpc("sequence_create", {
-    p_tenant_id: p.tenantId,
-    p_first: p.first,
-    p_then: p.then,
-    p_start: p.start,
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function moveToSequence(db, p) {
-  const { data, error } = await db.rpc("sequence_move", {
-    p_tenant_id: p.tenantId,
-    p_lead_id: p.leadId,
-    p_to_root: p.toRoot,
-    ...p.decision !== void 0 ? { p_decision: p.decision } : {},
-    ...p.via ? { p_via: p.via } : {}
-  });
-  return answer(data, error);
-}
-async function setChainSource(db, p) {
-  const { data, error } = await db.rpc("reach_out_source_set", {
-    p_tenant_id: p.tenantId,
-    p_root_id: p.rootId,
-    ...p.searchId ? { p_search_id: p.searchId } : {}
-  });
-  return answer(data, error);
-}
-async function aimSearchAt(db, p) {
-  const { data, error } = await db.rpc("lead_search_aim", {
-    p_tenant_id: p.tenantId,
-    p_search_id: p.searchId,
-    ...p.sequenceId ? { p_sequence_id: p.sequenceId } : {}
-  });
-  return answer(data, error);
-}
-async function discardSequence(db, p) {
-  const { data, error } = await db.rpc("sequence_discard", {
-    p_tenant_id: p.tenantId,
-    p_sequence_id: p.sequenceId,
-    ...decided(p)
-  });
-  return answer(data, error);
-}
-async function cancelSequenceBatch(db, p) {
-  const { data, error } = await db.rpc("sequence_batch_cancel", {
-    p_tenant_id: p.tenantId,
-    p_batch_id: p.batchId,
-    p_from: p.from
-  });
-  if (error) throw new Error(`cannot cancel the batch: ${error.message}`);
-  return data === true;
 }
 
 // src/repositories/routing.ts
@@ -6408,8 +6437,9 @@ var NARROWED_UPDATES = {
   memberships: ["role"],
   // The workspace's status, name, zone, word for a booking and logo (00431, 00458, 00460).
   tenants: ["status", "name", "timezone", "appointment_word", "logo_path"],
-  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
-  google_reviews: ["reply_text", "replied_at"],
+  // A review answered (00431), and the reply it holds written, stopped or posted (00462). Not last_seen_at, which the
+  // sync stamps on every review.
+  google_reviews: ["reply_text", "replied_at", "draft_text", "posts_at"],
   // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
   lead_rounds: [
     "state",
@@ -7278,7 +7308,6 @@ export {
   optOutTold,
   ourLastWire,
   outreachFactsOf,
-  outreachModeOf,
   ownAddressIn,
   ownLineOf,
   ownVersionsFiled,
@@ -7403,6 +7432,7 @@ export {
   runWaitingCounts,
   runningStepsOn,
   runningTwins,
+  runsGoingBetween,
   runsInSpan,
   runsNamed,
   runsWaitingOf,
@@ -7425,7 +7455,9 @@ export {
   sentEmailIdByMessageId,
   sentEmailOf,
   sentEmailWithMessageId,
+  sequenceEvidence,
   sequenceHistoryOf,
+  sequenceModesOf,
   sequenceNamesOf,
   sequenceOfPart,
   sequenceOverview,

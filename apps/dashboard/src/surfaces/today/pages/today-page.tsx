@@ -6,7 +6,10 @@
  *   a line that is down (brief.tsx TodayAlert, only then)
  *   the strip: what is on the line, the next appointment, the next opening
  *   what is left to set up,       | the brief: who needs you, the day, what came in, the runs waiting
- *   then the queue, the steps due | and While you were away (the bell's rows)
+ *   what goes on its own today    | and While you were away (the bell's rows)
+ *   (going-today.tsx, decision    |
+ *   0064), then the queue, the    |
+ *   steps due                     |
  *   among its rows                |
  *   (TodaySetup, only while something is left, in the queue's column: canvas R10)
  *   the day's card                | Worth a look
@@ -20,6 +23,7 @@
  * trust review, a segment pulse) are gone from this page.
  */
 import { AgentCommand } from "./queue";
+import { TodayGoing } from "./going-today";
 import { HeroBrief } from "./brief";
 import { TodayBriefPane } from "./brief-pane";
 import { TodayCard } from "./card";
@@ -37,6 +41,7 @@ export const DashboardA = () => (
     <TodayStrip />
     <div className="dash-a-v2-work">
       <TodaySetup />
+      <TodayGoing />
       <AgentCommand />
     </div>
     <div className="dash-a-v2-side">

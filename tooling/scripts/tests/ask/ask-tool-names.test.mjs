@@ -41,6 +41,7 @@ const {
   PERSON_STATE_LABELS,
   PLAYBOOK_TRIGGERS,
   PROPOSAL_SPECS,
+  SEQUENCE_MODE_WORDS,
   momentOffered,
   roleAtLeast,
   toReceptionistReportVM,
@@ -1254,6 +1255,41 @@ function withHowItAnswers(frozen) {
   );
 }
 
+/**
+ * 19 Oct 2026 (decision 0064): a sequence's mode is its own, so campaigns.playbooks says what a NEW sequence of each class
+ * starts as (new_sequences_start_as: the rows the frozen answer called modes) and what each mode does to a batch in How
+ * it runs' words, Never gone (a sequence is paused on its page) and a batch of new words waiting first. Each playbook says
+ * its own mode; this world has none. Nothing else moved.
+ */
+function withEachSequencesMode(frozen) {
+  const said = JSON.parse(frozen);
+  if (!("modes" in said)) return frozen;
+  const words = {
+    auto: SEQUENCE_MODE_WORDS.auto.does,
+    veto: SEQUENCE_MODE_WORDS.veto.does,
+    ask: SEQUENCE_MODE_WORDS.ask.does,
+    new_words:
+      "a batch of a step whose words are new to the owner (next_batch_asks_first) waits for their OK first, whatever the mode",
+  };
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(said).map(([k, v]) =>
+        k === "modes" ? ["new_sequences_start_as", v] : k === "mode_words" ? [k, words] : [k, v],
+      ),
+    ),
+  );
+}
+
+/**
+ * 19 Oct 2026 (decision 0064): a new campaign's card says what its batches do by the mode its sequence starts with, where
+ * it said its class's mode and a run's wait; this world's Re-engage has no row, so its sequence asks before each batch.
+ */
+const withTheSequencesStart = (frozen) =>
+  frozen.replaceAll(
+    "under “Re-engage” (ask): each run waits for you on Today.",
+    "Each batch waits for your OK (Re-engage).",
+  );
+
 test("every old tool's call, made by its new name and action, answers the bytes the old tool answered at 7405e34b, and makes the same reads", async () => {
   assert.equal(FIXTURE.length, CASES.length, "one frozen answer per call");
   for (let i = 0; i < CASES.length; i++) {
@@ -1303,7 +1339,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       result = withPeople(withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result))))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "get_today") result = withTheOneCount(result);
+    // 19 Oct 2026 (decision 0064, step 2): Today says what goes on its own later today unless it is stopped, as its Going
+    // today draws it, before the searches that wait: nothing in this world.
+    if (old === "get_today") result = result.replace('"searches_waiting":', '"going_today":[],"searches_waiting":');
     if (old === "get_settings") result = withHowItAnswers(result);
+    if (NAMES[old] === "sequences.moments") result = withEachSequencesMode(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     if (NAMES[old] === "sequences.lists")
@@ -1315,7 +1355,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (campaignsOwn) result = withTheClocksHour(result);
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
     const playbookCard = NAMES[old] === "propose_sequence.moment";
-    if (playbookCard) result = withCampaignWord(result);
+    if (playbookCard) result = withTheSequencesStart(withCampaignWord(result));
     // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
     const leadPlan = NAMES[old] === "propose_lead_search.find";
     if (leadPlan) result = withThePlansWords(result);
@@ -1323,7 +1363,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       campaignsOwn && typeof want.proposal === "string"
         ? {
             proposal: playbookCard
-              ? withCampaignWord(withTheClocksHour(want.proposal))
+              ? withTheSequencesStart(withCampaignWord(withTheClocksHour(want.proposal)))
               : withTheClocksHour(want.proposal),
           }
         : leadPlan && typeof want.proposal === "string"
@@ -1467,8 +1507,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : withBreath;
     // 13 Oct 2026 (Ruben: held emails count): and the going runs, whose check may hold emails for your say (db
     // waitingRunsOf): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
+    // 19 Oct 2026 (decision 0064, step 2): and the runs set to go before the day ends (db runsGoingBetween), one more.
     const withRunsWaiting =
-      old === "get_today" ? [...halves, "sequence_batches.select", "sequence_batches.select"] : halves;
+      old === "get_today"
+        ? [...halves, "sequence_batches.select", "sequence_batches.select", "sequence_batches.select"]
+        : halves;
     // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
     // they were combined into another (db keptPersonOf), so their old address opens the person they became: one
     // `contacts` read more where the profile is refused. Its bytes are unchanged for nobody combined.

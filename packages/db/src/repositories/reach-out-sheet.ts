@@ -304,26 +304,6 @@ export async function recheckSends(
   return typeof data === "number" ? data : 0;
 }
 
-export type OutreachMode = "ask" | "veto" | "never";
-
-/**
- * Settings › Autonomy's outreach row (00183), the one reading of it: a workspace's own row, its mode as said; none, or
- * a mode it does not know, reads as ask, so a missing row can only wait for its owner. The step's run and the
- * dashboard's chains both ask it. A read that fails throws.
- */
-export async function outreachModeOf(db: Db, tenantId: string): Promise<OutreachMode> {
-  const { data, error } = await db
-    .from("policies")
-    .select("mode")
-    .eq("tenant_id", tenantId)
-    .eq("class", "outreach")
-    .is("subject_type", null)
-    .maybeSingle();
-  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
-  const said = data?.mode;
-  return said === "veto" || said === "never" ? said : "ask";
-}
-
 /** A workspace's zone; null when it could not be read (the caller says which zone it falls back to). */
 export async function tenantZoneOf(db: Db, tenantId: string): Promise<string | null> {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();

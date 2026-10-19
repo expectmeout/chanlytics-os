@@ -421,10 +421,11 @@ test("the wiring: one row component for People and Today, the queue in the comma
     },
   ];
   const quietDay = toTodayVM(metrics(), [], [], [], NOW);
+  // The run under its Stop is Going today's (going-today.tsx, decision 0064), above the queue: the queue draws the one waiting.
   assert.deepEqual(
     rowsDrawn(quietDay, runs).testids,
-    ["brief-run-row", "brief-run-soon"],
-    "a run waiting for a word and a run under its Cancel are rows of the same grammar",
+    ["brief-run-row"],
+    "a run waiting for a word is a row of the queue's grammar; one that goes on its own is not the queue's",
   );
   // People drew three of these rows above its table -- the table's own first rows
   // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,

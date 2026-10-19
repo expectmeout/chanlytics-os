@@ -1,6 +1,6 @@
 import { clockHour } from "../shared/clock.js";
 import { paramSaid } from "../templates/templates.js";
-import { PLAYBOOK_VETO_DELAY_WORDS } from "./playbook-triggers.js";
+import { SEQUENCE_MODE_WORDS } from "../sequences/sequence.js";
 export const PLAYBOOK_PATCH_KEYS = [
   "state",
   "name",
@@ -10,9 +10,9 @@ export const PLAYBOOK_PATCH_KEYS = [
   "cadence_days",
   "params",
   "until",
-  "trial_until"
+  "mode"
 ];
-export const PLAYBOOK_PATCH_CLEARS = ["until", "trial_until"];
+export const PLAYBOOK_PATCH_CLEARS = ["until"];
 const keysSaid = (last) => `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
 export const PLAYBOOK_PATCH_WORDS = {
   title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
@@ -25,18 +25,19 @@ export const PLAYBOOK_PATCH_WORDS = {
   params: (to) => `Its words changed: ${to.map(paramSaid).join(", ")}`,
   /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
   until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
-  /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
-  trial_until: (day) => day ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it` : "No longer on trial: its runs go as its class is set in Settings \u203A Autonomy",
-  /**
-   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
-   * what a run does under that mode (`does`), never that each run waits for a Stop.
-   */
-  trialInert: (day, cls, mode, does) => `On trial until ${day}, which changes nothing under \u201C${cls}\u201D (${mode}): ${does}`,
+  /** Its sequence's mode (decision 0064), as How it runs says it: "Before each batch: Ask me, where it was Send it". */
+  mode: (to, was) => `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
+  /** A mode that is none of the three (decision 0064). */
+  modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
+  /** A mode a sequence to leads does not take: cold email never goes on its own. */
+  modeLeads: "A sequence to leads waits for your OK or holds each batch: it never sends on its own.",
+  /** A mode a one-off does not take: pressing Send decided it. */
+  modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
-  /** D7: a resume says its class's mode, in full. */
-  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
+  /** D7: a resume says what its batches do, by its sequence's mode (decision 0064), in full. */
+  resumed: (does) => `Runs again: ${does}`,
   same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
   nothing: `Name what changes: ${keysSaid("or")}.`,
   state: "A campaign is running or paused.",
@@ -48,10 +49,6 @@ export const PLAYBOOK_PATCH_WORDS = {
   untilDay: "An end is a day, written YYYY-MM-DD.",
   /** An end before the business's today (`today` in campaignDayWords). */
   untilPast: (today) => `An end is today or later: today is ${today} by your clock.`,
-  /** A trial's end that is no instant with its zone. */
-  trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
-  /** A trial's end that has already passed: a trial that ended is none. */
-  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
