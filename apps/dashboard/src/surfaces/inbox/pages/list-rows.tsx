@@ -228,12 +228,7 @@ export function threadRows(L: ListCtx, shown: ShownRows) {
  * One row. `place`, where it is one of a list's (threadRows): what measures it once drawn, and how many rows the list has,
  * so it says its place in all of them to a screen reader.
  */
-export function threadRow(
-  L: ListCtx,
-  t: Thread,
-  i: number,
-  place?: { measure: (el: Element | null) => void; of: number },
-) {
+function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Element | null) => void; of: number }) {
   const { activeThreadId, selected, tabStopId, onSelectThread, onToggleSelect, onRowKey } = L;
   const isActive = activeThreadId === t.id;
   const isSelected = selected.includes(t.id);
