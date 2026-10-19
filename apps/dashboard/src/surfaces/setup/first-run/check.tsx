@@ -8,8 +8,8 @@
  * sets it up. `canEdit` is whether the role may change the business, as the
  * tab asks it.
  *
- * The Business tab's rows are Settings' (pages/business-tab-*.jsx), borrowed by name through setup/shell.ts until the
- * Business tab moves (step 11).
+ * The Business tab's rows are Settings' own, imported through setup/shell.ts (which says why their props are loose there)
+ * until the Business tab moves (step 11).
  */
 import type { ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type FIRST_RUN_WORDS, type FirstRunCheckVM } from "@chanlytics/contracts";
@@ -18,7 +18,18 @@ import { FailedRead } from "../../kit/empty/empty";
 import { recFolds } from "../../kit/record/registry";
 import { gate, surfaceFailed, type LegacyFlash } from "../../legacy-verbs";
 import { BtPriceChoiceRow } from "../../settings/business/choices/rows";
-import { businessPart, businessTabSave, type BusinessPart, type BusinessTabSave } from "../shell";
+import {
+  BtAddressRow,
+  BtBookingLinkRow,
+  BtHoursRow,
+  BtLanguagesRow,
+  BtRulesRow,
+  BtServicesRow,
+  BtWebsiteRow,
+  BtZoneRow,
+  businessTabSave,
+  type BusinessTabSave,
+} from "../shell";
 import { brainOf, type CardBrain } from "./inputs";
 import { FrChips } from "./chips";
 
@@ -34,9 +45,6 @@ interface CheckProps {
   canEdit: boolean;
   settings: SettingsRecord | null;
 }
-
-/** A part of the Business tab, by the name Settings' JSX publishes it under: drawn where the call stands, as the JSX did. */
-const part = (name: Parameters<typeof businessPart>[0]): BusinessPart => businessPart(name) as BusinessPart;
 
 /** No brain read yet: the owner's press, who sets it up, the read on its way, or a read that failed and its retry. */
 function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making: boolean): ReactNode {
@@ -95,11 +103,9 @@ function offerCard(o: {
 }) {
   const { W, brain, rows, canEdit, flash, saver, chips } = o;
   const C = W.chips;
-  const ServicesRow = part("BtServicesRow");
-  const LanguagesRow = part("BtLanguagesRow");
   return (
     <section className="rec-card fr-check-group" aria-label={W.groups.offer}>
-      <ServicesRow brain={brain} canEdit={canEdit} saver={saver} />
+      <BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
       {chips.services.chips.length || chips.services.full ? (
         <FrChips
           list="services"
@@ -113,7 +119,7 @@ function offerCard(o: {
           moreTestid="fr-chip-own-service"
         />
       ) : null}
-      <LanguagesRow
+      <BtLanguagesRow
         {...rows}
         rest={({ request: open, can }: { request: () => void; can: boolean }) => (
           <FrChips
@@ -138,7 +144,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }
   // The settings read's brain draws the rows. None there: the owner's press, who sets it up, or, set up and not read back
   // yet, the read on its way; and a read that failed, its retry.
   if (!settings || !brain) return noBrain(check, W, make, making);
-  const S = businessTabSave() as BusinessTabSave;
+  const S = businessTabSave;
   const saver = S.saver;
   const base = saver.base();
   const rows = { brain, base, canEdit, flash, saver };
@@ -154,17 +160,11 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }
   const offered = FIRST_RUN_HELPERS.bookingPageOffered(check.bookingPage, !!brainNow.booking_link);
   const profile = brainNow.profile || {};
   const chips = FIRST_RUN_HELPERS.chips({ type: check.type, services: profile.services, languages: profile.languages });
-  const HoursRow = part("BtHoursRow");
-  const ZoneRow = part("BtZoneRow");
-  const AddressRow = part("BtAddressRow");
-  const WebsiteRow = part("BtWebsiteRow");
-  const BookingLinkRow = part("BtBookingLinkRow");
-  const RulesRow = part("BtRulesRow");
   const find = check.find;
   return (
     <div className="fr-check" data-testid="fr-check">
       <section className="rec-card fr-check-group" aria-label={W.groups.facts}>
-        <HoursRow
+        <BtHoursRow
           brain={brain}
           prompt={settings.prompt || null}
           canEdit={canEdit}
@@ -172,12 +172,12 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }
           saver={saver}
           note={note}
         />
-        <ZoneRow brain={brain} canEdit={canEdit} flash={flash} />
-        <AddressRow {...rows} />
-        <WebsiteRow {...rows} />
+        <BtZoneRow brain={brain} canEdit={canEdit} flash={flash} />
+        <BtAddressRow {...rows} />
+        <BtWebsiteRow {...rows} />
       </section>
       <section className="rec-card fr-check-group" aria-label={W.groups.booking}>
-        <BookingLinkRow
+        <BtBookingLinkRow
           {...rows}
           other={
             offered
@@ -186,7 +186,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }
           }
         />
         <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
-        <RulesRow {...rows} config={settings.config} />
+        <BtRulesRow {...rows} config={settings.config} />
       </section>
       {offerCard({ W, brain, rows, canEdit, flash, saver, chips })}
       {find ? (

@@ -18,7 +18,8 @@ import assert from "node:assert/strict";
 import { SESSION_ENDED } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
-const CACHE = "chanlytics.surfaces.v1";
+// The cache's slot for this window's workspace (its address, /w/bayside): local storage, one slot a workspace.
+const CACHE = "chanlytics.surfaces.v2:bayside";
 const store = new Map();
 const storage = {
   getItem: (k) => (store.has(k) ? store.get(k) : null),

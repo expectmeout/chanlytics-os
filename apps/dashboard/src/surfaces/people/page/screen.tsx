@@ -24,7 +24,7 @@ import { PhoneSheetRow } from "../sheets/phone-sheet";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleFileActs } from "./file-acts";
 import { PeopleTable } from "../table/table";
-import { PersonPeek } from "../peek/person-peek";
+import { PersonPeekWhenRead } from "../peek/peek-code";
 import type { TableEmpty } from "../types";
 import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
 import type { PeopleState } from "./state";
@@ -546,7 +546,7 @@ function listActRows(s: PeopleState) {
 function peekBlock(s: PeopleState) {
   if (s.phone || !s.peekId) return null;
   return (
-    <PersonPeek
+    <PersonPeekWhenRead
       id={s.peekId}
       row={s.peekRow}
       person={s.peekPerson}

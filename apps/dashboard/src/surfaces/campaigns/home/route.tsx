@@ -27,7 +27,7 @@ import {
   retiredRouteOf,
   routeOfPath,
 } from "@chanlytics/contracts";
-import { warmsOnItsOwn } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle } from "@/legacy-bridge/workspace";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { refreshSurface, replaceRoute, useLegacyToast } from "../../legacy-verbs";
 import type { CmView } from "../parts/split";
@@ -81,9 +81,6 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
   return { drawn: drawn.current, sequencesAt: sequencesAt.current, messagesAt: messagesAt.current, viewOf };
 }
 
-/** How long an idle frame on one view may wait before the other is drawn ahead, hidden. */
-const AHEAD_IDLE_MS = 3000;
-
 /**
  * The other view, drawn ahead once the frame is idle on this one (true from then), where the frame may fetch with nobody
  * reaching (workspace.ts warmsOnItsOwn): its code fetched and, for Sequences, its list read, which only its own page reads
@@ -93,17 +90,11 @@ const AHEAD_IDLE_MS = 3000;
 function useViewsAhead(view: View): boolean {
   const [ahead, setAhead] = useState(false);
   useEffect(() => {
-    if (ahead || typeof window === "undefined" || !warmsOnItsOwn()) return undefined;
-    const go = () => {
+    if (ahead || typeof window === "undefined") return undefined;
+    return aheadWhenIdle(() => {
       if (view === "messages" && surfaceValue("sequences") === undefined) void refreshSurface("sequences");
       setAhead(true);
-    };
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(go, { timeout: AHEAD_IDLE_MS });
-      return () => window.cancelIdleCallback(id);
-    }
-    const id = window.setTimeout(go, AHEAD_IDLE_MS);
-    return () => window.clearTimeout(id);
+    });
   }, [ahead, view]);
   return ahead;
 }

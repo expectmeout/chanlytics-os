@@ -508,26 +508,27 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   const W = globalThis.window.__brokenConfigWords;
   const asks = [];
   const broken = { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } };
-  workspace({
-    __SETTINGS: broken,
-    __SETUP: { dto: { requests: { line: null } } },
-    __setup: {
-      request: async (what) => {
-        asks.push(what);
-        return { ok: true, already: false, message: "" };
-      },
-      refresh: async () => {},
-    },
-  });
-  let tree = settings("workspace");
-  const ask = byTestId(tree, "settings-broken-ask");
-  assert.ok(ask, "REGRESSION: no way to ask");
-  assert.equal(textOf(ask).trim(), W.ask);
-  press(ask);
-  await new Promise((r) => setImmediate(r));
-  assert.deepEqual(asks, ["repair"]);
+  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null } } } });
+  // Setup's verb, as the card imports it (surfaces/setup/surface.ts), answering here without a server.
+  const { setupVerbs } = await import("../../../../../apps/dashboard/src/surfaces/setup/surface.ts");
+  const requestWas = setupVerbs.request;
+  setupVerbs.request = async (what) => {
+    asks.push(what);
+    return { ok: true, already: false, message: "" };
+  };
+  try {
+    const tree = settings("workspace");
+    const ask = byTestId(tree, "settings-broken-ask");
+    assert.ok(ask, "REGRESSION: no way to ask");
+    assert.equal(textOf(ask).trim(), W.ask);
+    press(ask);
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(asks, ["repair"]);
+  } finally {
+    setupVerbs.request = requestWas;
+  }
   workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null, repair: "2026-09-07T13:00:00Z" } } } });
-  tree = settings("workspace");
+  const tree = settings("workspace");
   assert.equal(byTestId(tree, "settings-broken-ask"), null, "asked once");
   assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
 });

@@ -30,7 +30,7 @@ import { templatesRead } from "./templates-read.mjs";
 import {
   inboxGlobalsBundle,
   kitGlobalsBundle,
-  leadsGlobalsBundle,
+  askLineGlobalsBundle,
   legacyDocument,
   mascotBundle,
   peopleGlobalsHarnessBundle,
@@ -272,8 +272,8 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".js"], await peopleGlobalsHarnessBundle());
         return;
       }
-      if (p === "/data/leads-globals.js") {
-        send(res, 200, TYPES[".js"], await leadsGlobalsBundle());
+      if (p === "/data/ask-line-globals.js") {
+        send(res, 200, TYPES[".js"], await askLineGlobalsBundle());
         return;
       }
       if (p === "/data/mascot.js") {

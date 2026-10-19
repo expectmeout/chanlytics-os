@@ -293,13 +293,16 @@ before(async () => {
     from_local: "sam",
     from_name: "Tenancy",
   });
-  // A mailbox the business connected (00423): what a reach-out writes from now; the domain above is 00175's, kept.
+  // A mailbox the business connected (00423): what a reach-out writes from now; the domain above is 00175's, kept. Its
+  // host is its address's (mailbox_connections_host_is_address), so both are written from one stamp: three reads of the
+  // clock crossed a millisecond on main's run of 19 Oct 2026, and the row was refused.
+  const stamp = Date.now().toString(36);
   ctx.mailbox = await seed("mailbox_connections", {
     tenant_id: A,
     provider: "google",
-    provider_account: `tenancy-${Date.now().toString(36)}`,
-    address: `sam@tenancy-mail-${Date.now().toString(36)}.example`,
-    host: `tenancy-mail-${Date.now().toString(36)}.example`,
+    provider_account: `tenancy-${stamp}`,
+    address: `sam@tenancy-mail-${stamp}.example`,
+    host: `tenancy-mail-${stamp}.example`,
     from_name: "Tenancy",
   });
   // One day of that domain (00314): the clock's function writes it, a member of the workspace reads it.

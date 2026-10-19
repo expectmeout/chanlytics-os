@@ -38,19 +38,12 @@ import { api } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 import { heldViews } from "@/legacy-bridge/held-views";
-import { SURFACE_VALUE_SLOT } from "@/legacy-bridge/surface-cache";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
 import { canDo } from "../legacy-verbs";
 import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
-import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-values";
-
-// Ask reads the Leads surface by its old name (legacy-bridge/ask/context.ts, palette.ts) until it moves (decision 0015,
-// step 12): one line, deleted with its last reader.
-declareSurfaceValue("leads", "__LEADS");
+import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadsSurface, LeadsView } from "./surface-types";
+import type { LeadsView } from "./surface-types";
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
 interface LeadSearchesAnswer {
@@ -70,7 +63,6 @@ interface LeadsPageAnswer {
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
 const LEADS_PAGE = 500;
-const SNAPSHOT_ROWS = 100;
 
 /* ------------------------------------------------------ how a call is sent */
 
@@ -367,37 +359,22 @@ async function refreshView(): Promise<void> {
   void peekAgain();
 }
 
-export const leadsOverride: SurfaceOverride = {
-  key: "leads",
-  value: "leads",
-  // The tab's cache holds the first hundred rows of the view: all an instant paint needs, and a fifth of what a
-  // full page costs to keep and to parse on every boot. The read behind the paint says the rest, so the snapshot
-  // offers nothing and has no page after it.
-  trimSnapshot: (snap) => {
-    const L = snap[SURFACE_VALUE_SLOT] as LeadsSurface | undefined;
-    return L
-      ? { ...snap, [SURFACE_VALUE_SLOT]: { ...L, rows: L.rows.slice(0, SNAPSHOT_ROWS), next: null, offered: 0 } }
-      : snap;
-  },
-  events: ["surface:leads"],
-  // Heard while Leads is on screen, read once as it comes back (PAGE_HEARS): a running search, a page every few seconds, was
-  // read in every tab whatever page was open (the wiring's second audit, S10-5).
-  // Each row says where its lead stands in a sequence (00459 sequence_places_of): the sequences, batches and replies too.
-  ...declareReads("leads", { reads: ["lead", "campaign", "send", "reach_out"], fresh: "its-page" }),
-  debounceMs: 800,
-  apply: async () => {
-    // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
-    // again when it is shown (staleView). The view on screen is read here.
-    leadsChangeCount += 1;
-    try {
-      if (!leadsLoaded) view = leadsBootView(routeOnScreen(), surfaceValue("leads"));
-      await (leadsLoaded ? refreshView() : readView(view));
-    } catch (e) {
-      publishLeads(true);
-      throw e;
-    }
-  },
-};
+/**
+ * The Leads surface's read, which its override (override.ts, in the frame) runs once this module is in: the view on screen
+ * read, or every view held read again as Leads changed.
+ */
+export async function applyLeads(): Promise<void> {
+  // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
+  // again when it is shown (staleView). The view on screen is read here.
+  leadsChangeCount += 1;
+  try {
+    if (!leadsLoaded) view = leadsBootView(routeOnScreen(), surfaceValue("leads"));
+    await (leadsLoaded ? refreshView() : readView(view));
+  } catch (e) {
+    publishLeads(true);
+    throw e;
+  }
+}
 
 /** A new view: a route (clients/leads:…) or a patch of the current one. Answers when the rows are in. */
 export async function leadsView(to: string | Partial<LeadsView>): Promise<void> {

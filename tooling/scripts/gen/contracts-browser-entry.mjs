@@ -73,11 +73,15 @@ export const PAGE_ONLY = [
  * `./alert-pane`, `./ask-only`), by the module each is. The browser's build (contracts-browser.mjs) writes them a file
  * per module beside the root entry's, and their `browser` condition names that file, so a page that loads one shares
  * every module it reaches with the rest of the page instead of carrying its own copy. None may reach classic zod.
+ * `./page-specs` is the specs of the verbs the pages press, which the frame fetches when a press or Ask first needs
+ * one (legacy-bridge/verbs/commit.ts pageSpecs): its names stay in the root entry as well, since its module must be the
+ * root's own (Ask's kinds join its table in place), and on the server and in the tests it is the index itself.
  */
 export const PAGE_ENTRIES = {
   "report-window": "reports/report-window.ts",
   "report-lens": "reports/report-lens.ts",
   "ads-page": "ads/ads-page.ts",
+  "page-specs": "ask-proposals/page-specs.ts",
 };
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
 const CLASSIC_ZOD = new Set(["zod", "zod/v4", "zod/v4/classic"]);

@@ -2,7 +2,7 @@ import { agoShort as spanAgo, MIN_MS } from "../shared/time.js";
 import { callAttemptWords } from "../conversations/call-dto.js";
 import { replyWaitsOnYou } from "../conversations/standing.js";
 import { missedCallIsNews } from "../voice/live.js";
-import { FINISH_SETTING_UP } from "../setup/first-run.js";
+import { FINISH_SETTING_UP } from "../setup/first-run-door.js";
 import { lensRoute } from "../reports/lenses.js";
 import { firstLine } from "./push.js";
 import { RUN_OPEN_WORDS } from "../shell/campaign-rooms.js";

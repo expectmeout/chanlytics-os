@@ -51,6 +51,7 @@ import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { pageClock } from "@/legacy-bridge/zone";
 import { focusAsDrawn } from "@/surfaces/legacy-verbs";
 import { feedFromGlobals } from "../notifications";
+import { pageSpecs } from "../verbs/commit";
 import type { Workspace } from "../surface-data";
 
 /** A playbook's run as the broadcasts surface publishes it, as far as who is waiting reads it. */
@@ -318,7 +319,11 @@ export function askPalette(win: Window, storage: Storage | null) {
     callsToday: () => callsToday(calls(), Date.now(), timezone()),
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
-      oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
+      // A card's Open is its spec's, which the Line has fetched before it draws an answer (line.tsx).
+      oneDoor(
+        m.answer ?? answerFromV1(m),
+        (m.proposals ?? []).map((c) => ({ id: c.id, open: pageSpecs.now()?.cardOpenRoute(c) ?? null })),
+      ),
     /**
      * A conversation as its questions and the answers to them, in order. A run of questions is paired with the run of
      * answers after it, oldest with oldest: a turn saved after the next question was asked (a Stop that reached no

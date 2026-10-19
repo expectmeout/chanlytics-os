@@ -3,29 +3,30 @@
  * for. Drawn beside the shell (legacy-bridge/LegacyApp.tsx), as New conversation's host is, so one sheet answers the
  * Calendar, Today's setup card and Reports alike.
  *
- * The sheet is imported, not loaded on the press. The Business tab's fold and its saver already load with the shell
- * (the first run draws its rows), so there is nothing to keep out of a first load; and asked for on demand, the sheet
- * made the bundler divide a chunk the route shares, and Sent, People, Templates and Reports each downloaded ten to
- * thirteen kilobytes of it a second time (measured 9 October 2026).
+ * The sheet is fetched as it is first asked for, as New conversation's is. It was imported (9 October 2026) because the
+ * Business tab's fold and saver it draws already loaded with the shell, for the first run's rows, so a chunk of its own
+ * kept nothing out of a first load and divided a chunk the route shared. The first run imports those rows itself now
+ * (setup/shell.ts), so the shell carries none of the tab, and the sheet's 25 KB, compressed, are fetched by the few who
+ * open it (the loadability review, 19 Oct 2026).
  */
 import { useEffect } from "react";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 import { hostBookingTool, useLegacyToast } from "../../legacy-verbs";
-import { BookingToolSheet } from "./sheet";
 import { askBookingTool, closeBookingTool, useBookingToolAsked } from "./store";
 
-/**
- * Nothing until the sheet is asked for. `route` is where the frame stands: a move to another page closes the sheet,
- * since Settings draws the same row and one fold has one hook (the kit's registry). The toast outlives the sheet, so
- * "Saved" is said after it has closed.
- */
+/** The sheet's code, fetched once; a fetch that failed is asked for again by the next press. */
+const sheetCode = codeOnce(() => import("./sheet").then(({ BookingToolSheet }) => ({ BookingToolSheet })));
+
 export function BookingToolHost({ route }: { route: string | null }) {
   const ask = useBookingToolAsked();
   const [toast, flash] = useLegacyToast();
   useEffect(() => hostBookingTool(askBookingTool), []);
   useEffect(() => closeBookingTool, [route]);
+  const Sheet = useCode(sheetCode, ask.open).loaded?.BookingToolSheet;
   return (
     <>
-      {ask.open ? <BookingToolSheet key={ask.session} onClosed={closeBookingTool} flash={flash} /> : null}
+      {ask.open && Sheet ? <Sheet key={ask.session} onClosed={closeBookingTool} flash={flash} /> : null}
       {toast}
     </>
   );

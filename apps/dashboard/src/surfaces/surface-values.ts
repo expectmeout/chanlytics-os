@@ -24,7 +24,7 @@ import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { AudiencesSurface } from "./campaigns/broadcasts/audiences-surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
-import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
+import type { ReachOutsSurface } from "./campaigns/reach-out/override";
 import type { SequencesSurface } from "./campaigns/sequences/surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ChannelsSurface } from "./channels/surface";

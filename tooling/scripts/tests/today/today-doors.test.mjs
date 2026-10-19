@@ -163,7 +163,10 @@ globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { TodayBriefPane } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief-pane.tsx");
-const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
+// The card is a chunk of its own (setup-card-body.tsx), asked for as Today's page loads: drawn here once it is in.
+const { TodaySetup, setupCardReady } =
+  await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
+await setupCardReady;
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
 // The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");

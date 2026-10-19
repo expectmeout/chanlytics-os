@@ -18,7 +18,9 @@ installLegacyReact({ __DEMO_MODE: false });
 globalThis.appNavigate = () => {};
 // The pages are the TSX surface's (apps/dashboard/src/surfaces/today/pages, decision 0015), drawn as elements of the stub React.
 const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
-const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
+// The pins' counts are People's lists' code, a chunk Today's page asks for as it loads: drawn here once it is in.
+const { TodayPins, pinsReady } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
+await pinsReady;
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { Icon } = await import("../../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 

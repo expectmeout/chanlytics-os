@@ -18,6 +18,8 @@ import type { ReportRange } from "@chanlytics/contracts";
 import { reportWindowOf, type ReportWindowVM } from "@chanlytics/contracts/report-window";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
+import { codeOnce } from "@/lib/code-once";
+import { useCode } from "@/lib/use-code";
 
 export interface PeriodPickerProps {
   /** The range the control shows: the pick as it is made, until the page's own catches up with it. */
@@ -55,24 +57,19 @@ export function periodButton(win: ReportWindowVM, on: { onClick?: () => void; on
   );
 }
 
-type PopoverModule = typeof import("./period-popover");
-let popoverModule: PopoverModule | null = null;
-let popoverLoading: Promise<PopoverModule> | null = null;
-
-/** What the button opens, loaded once for the tab; a test loads it before drawing the page. */
-export function loadPeriodPopover(): Promise<PopoverModule> {
-  // What it reads of the module is named, so the dead-exports check (knip) sees the use.
-  popoverLoading ??= import("./period-popover").then(({ PeriodPopover }) => (popoverModule = { PeriodPopover }));
-  return popoverLoading;
-}
+/**
+ * What the button opens, loaded once for the tab, and again after a fetch that failed; a test loads it before drawing the
+ * page. What it reads of the module is named, so the dead-exports check (knip) sees the use.
+ */
+export const loadPeriodPopover = codeOnce(() =>
+  import("./period-popover").then(({ PeriodPopover }) => ({ PeriodPopover })),
+);
 
 export function PeriodPicker(p: PeriodPickerProps) {
   // A press before what it opens has loaded: drawn open as it lands.
   const [pressed, setPressed] = useState(false);
-  const [, landed] = useState(0);
   const win = reportWindowOf(p.chosen, p.today);
-  const Opened = popoverModule?.PeriodPopover;
-  const warm = () => void loadPeriodPopover();
+  const Opened = useCode(loadPeriodPopover, pressed).loaded?.PeriodPopover;
   return (
     <div className="rpt-period" data-testid="reports-period">
       {p.desk ? <span className="rpt-dates">{win.beside}</span> : null}
@@ -80,11 +77,8 @@ export function PeriodPicker(p: PeriodPickerProps) {
         <Opened {...p} win={win} openFirst={pressed} />
       ) : (
         periodButton(win, {
-          onWarm: warm,
-          onClick: () => {
-            setPressed(true);
-            void loadPeriodPopover().then(() => landed((n) => n + 1));
-          },
+          onWarm: loadPeriodPopover.warm,
+          onClick: () => setPressed(true),
         })
       )}
     </div>

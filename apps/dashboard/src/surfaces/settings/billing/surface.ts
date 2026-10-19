@@ -27,7 +27,7 @@ import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
-import { setupOverride } from "@/surfaces/setup/surface";
+import { setupOverride } from "@/surfaces/setup/override";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
 
 export interface BillingSurface {

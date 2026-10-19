@@ -47,7 +47,10 @@ await import(`${S}/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
 const { surfaceValue } = await import(`${S}/surface-values.ts`);
-const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
+const bridge = {
+  ...(await import(`${S}/campaigns/reach-out/surface.ts`)),
+  ...(await import(`${S}/campaigns/reach-out/override.ts`)),
+};
 const WORDS = bridge.reachOuts.words;
 // The verbs as the surface has them: a test stubs some on the surface's one object, and `realVerbs()` puts every one back.
 const REAL_VERBS = { ...bridge.reachOuts };

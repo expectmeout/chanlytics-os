@@ -588,16 +588,24 @@ test("refused because a teammate changed the step since, the sheet reads it agai
   );
 });
 
-test("the frame publishes the host and the verb under the names the deal card and the Inbox's thread open the sheet by, and the published verb asks the published host", async () => {
+test("the frame publishes the sheet's doors under the names the deal card and the Inbox's thread open the sheet by: the published host draws the sheet once its code is in, and the published verb asks it once it listens, however early", async () => {
   const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
-  assert.equal(PEOPLE_GLOBALS.StepSheetHost, StepSheetHost);
-  assert.equal(PEOPLE_GLOBALS.openStepSheet, openStepSheet);
+  const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
+  assert.equal(PEOPLE_GLOBALS.StepSheetHost, doors.StepSheetHost);
+  assert.equal(PEOPLE_GLOBALS.openStepSheet, doors.askStepSheet);
   wire(() => personDto(Date.now()));
-  open();
+  // The frame's host, as app-shell.jsx draws it, asked for the sheet before it has drawn one.
+  unmount();
+  recFolds.reset();
+  clearReadCaches();
+  toasts.length = 0;
+  said.length = 0;
+  drawn = () => W.React.createElement(PEOPLE_GLOBALS.StepSheetHost, {});
+  drawn();
   assert.equal(PEOPLE_GLOBALS.openStepSheet({ personId: "p1", dealId: "d1" }), true);
-  let tree = redraw();
-  assert.equal(title(tree), "Set a next step");
-  tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
+  assert.equal(PEOPLE_GLOBALS.openStepSheet({}), false, "an ask that names nobody is refused at once");
+  await until("the sheet the ask waited for", (t) => title(t) === "Set a next step");
+  const tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(sub(tree), "Tove Lind · Website");
 });
 
@@ -618,11 +626,15 @@ test("a note's write answers when the server takes it: People, whose rows carry 
     }
     return answered(url, init);
   };
-  const N = W.__personNotes;
+  // The note's verbs as the sheet and the person's page import them (people-detail.ts); the courier publishes only the done.
+  const N = await import(`${PEOPLE}/people-detail.ts`);
   for (const [what, press] of [
-    ["a step written", () => N.write("p1", { body: "Call", due_on: zoneDayKey(now + 3 * D, ZONE), team_only: true })],
-    ["a step done", () => N.done("p1", "n1", true, 2)],
-    ["a note taken away", () => N.remove("p1", "n1")],
+    [
+      "a step written",
+      () => N.writePersonNote("p1", { body: "Call", due_on: zoneDayKey(now + 3 * D, ZONE), team_only: true }),
+    ],
+    ["a step done", () => W.__personNotes.done("p1", "n1", true, 2)],
+    ["a note taken away", () => N.removePersonNote("p1", "n1")],
   ]) {
     const waited = new Promise((r) => setTimeout(() => r("waited on People's read"), 1000));
     const r = await Promise.race([press(), waited]);

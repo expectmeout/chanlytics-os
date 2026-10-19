@@ -1006,7 +1006,7 @@ test("Setup says what texting actually is, and names a mock filing as a mock fil
   );
 });
 
-test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", () => {
+test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", async () => {
   for (const [file, bucket] of [
     ["search", "lines_search"],
     ["buy", "lines_buy"],
@@ -1043,15 +1043,32 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
       readCode("apps/dashboard/src/server/workspace/setup.ts"),
     ),
   );
-  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
-  assert.ok(
-    /declareReads\("setup", \{\s*reads: \[\s*"channel",\s*"billing",\s*"review",\s*"call",\s*"team",\s*"template",\s*"facts",\s*"rules",\s*"visit",\s*"person",\s*"deal",\s*"conversation",?\s*\],\s*fresh: "its-page",\s*always: \["channel", "billing", "review", "call", "team"\],/.test(
-      bridge,
-    ),
-    "every kind of record a row derives from repaints the page, the rarest everywhere and the rest where Setup is drawn (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
+  // What Setup reads and hears is its override's, the light module the frame registers (override.ts), run here; its read
+  // and verbs are surface.ts, fetched as the surface is first read (the loadability review, 19 Oct 2026). Which of the
+  // tables those kinds derive it hears on every page (`always`) is each page's golden (page-hears.test.mjs).
+  const { setupOverride } = await importSrc("apps/dashboard/src/surfaces/setup/override.ts");
+  assert.deepEqual(
+    setupOverride.reads,
+    [
+      "channel",
+      "billing",
+      "review",
+      "call",
+      "team",
+      "template",
+      "facts",
+      "rules",
+      "visit",
+      "person",
+      "deal",
+      "conversation",
+    ],
+    "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );
+  assert.equal(setupOverride.fresh, "its-page", "the rarest everywhere and the rest where Setup is drawn");
+  const verbs = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"'])
-    assert.ok(bridge.includes(pin), pin);
+    assert.ok(verbs.includes(pin), pin);
   // Setup's rows are TSX (surfaces/setup/rows, decision 0015 step 10): what a verb does, and the chooser it opens.
   const [acts, chooser] = ["acts", "line-chooser"].map((f) =>
     readCode(`apps/dashboard/src/surfaces/setup/rows/${f}.tsx`),
@@ -1114,7 +1131,7 @@ test("wiring: the page, the surface, routes, rate bucket, event kind, migration"
     ),
   );
   assert.ok(EVENT_KINDS.includes("setup.requested"));
-  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
+  const bridge = readCode("apps/dashboard/src/surfaces/setup/override.ts");
   assert.ok(
     bridge.includes('key: "setup"') &&
       bridge.includes('value: "setup"') &&

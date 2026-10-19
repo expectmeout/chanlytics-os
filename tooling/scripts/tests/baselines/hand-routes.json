@@ -1,10 +1,10 @@
 {
   "apps/dashboard/src/auth/sign-in-return.ts": 1,
-  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx": 1,
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": 2,
   "apps/dashboard/src/legacy-bridge/app-bridge.ts": 1,
   "apps/dashboard/src/legacy-bridge/ask/context.ts": 2,
   "apps/dashboard/src/legacy-bridge/ask/palette.ts": 2,
+  "apps/dashboard/src/legacy-bridge/invitations/handover.tsx": 1,
   "apps/dashboard/src/legacy-bridge/workspace.ts": 3,
   "apps/dashboard/src/legacy/components/data-bits.jsx": 1,
   "apps/dashboard/src/legacy/components/surface-tabs.jsx": 1,

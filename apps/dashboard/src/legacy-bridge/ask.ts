@@ -14,14 +14,11 @@
  * palette may do is the list below.
  */
 import {
-  PROPOSAL_GATE,
   answerBlocks,
   answerCopy,
   answerRuns,
   answerSpoken,
   answerText,
-  askUndoOpen,
-  cardOpenRoute,
   cardsInPlans,
   planGroupOf,
   type AskAnswer,
@@ -32,8 +29,8 @@ import {
 } from "@chanlytics/contracts";
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
-import { createClient } from "../lib/supabase/client";
-import { hearAddress, routeOnScreen } from "./workspace";
+import { browserClient } from "../lib/supabase/browser-client";
+import { aheadWhenIdle, hearAddress, routeOnScreen } from "./workspace";
 import {
   commitCard,
   commitPlan,
@@ -44,7 +41,7 @@ import {
   type UndoResult,
 } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
-import { moreSpecs } from "./verbs/commit";
+import { moreSpecs, pageSpecs, type PageSpecs } from "./verbs/commit";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { askAloud } from "./ask/aloud";
 import { installVoice } from "./ask/voice";
@@ -78,8 +75,8 @@ export type AskApi = ReturnType<typeof askPalette> &
     undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
-    /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen. */
-    undoOpen: typeof askUndoOpen;
+    /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen; false before the specs are in. */
+    undoOpen: PageSpecs["askUndoOpen"];
     /** A quick question's answer, without a model: Today's queue, today's calls or the openings route; null for the rest. */
     quick(question: string): Promise<AskAnswer> | null;
     /** An answer's words, for a folded turn: its list a line an entry, each with its mark. */
@@ -92,8 +89,8 @@ export type AskApi = ReturnType<typeof askPalette> &
     answerCopy: typeof answerCopy;
     /** An answer's words as Read aloud and a spoken question's answer say them: its list an entry a sentence. */
     answerSpoken: typeof answerSpoken;
-    /** Where a card's Open goes, or null. */
-    cardOpenRoute: typeof cardOpenRoute;
+    /** Where a card's Open goes, or null (contracts' cardOpenRoute; null before the specs are in). */
+    cardOpenRoute: PageSpecs["cardOpenRoute"];
     /**
      * The page, as Ask is sent it: the rows on screen and the row open or named (ask/context.ts) -- asked in an open
      * thread (its messages as the Line holds them), a row by its place is the last answer's item first.
@@ -112,7 +109,7 @@ export type AskApi = ReturnType<typeof askPalette> &
  * there would race the browser's and sign the member out).
  */
 async function freshSession(): Promise<void> {
-  const client = createClient();
+  const client = await browserClient();
   const { data } = await client.auth.getSession();
   const exp = data.session?.expires_at;
   if (typeof exp === "number" && exp * 1000 - Date.now() < ASK_VOICE_TOKEN_MIN_MS) await client.auth.refreshSession();
@@ -151,11 +148,16 @@ export function oneVoice(
   };
 }
 
+/** How long an idle frame may wait before the cards' specs are fetched: after the page's own reads and code. */
+const SPECS_IDLE_MS = 2000;
+
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
-  // The kinds only Ask's cards commit come by their own entry (contracts ask-only.ts), loaded now; a turn and a thread
-  // are handed over once it is in, so every card draws its gate, its undo and its Open (a load that fails leaves the
+  // The specs every card reads (contracts' page-specs entry, and the kinds only Ask's cards commit, ask-only.ts) come by
+  // their own entries, fetched once the frame is idle, or at once when a turn or a thread asks first; a turn and a thread
+  // are handed over once they are in, so every card draws its gate, its undo and its Open (a load that fails leaves the
   // pages' kinds alone, and a card of the others commits after the walk has tried again).
-  const specsIn = moreSpecs().catch(() => undefined);
+  const specsIn = (): Promise<void> => moreSpecs().catch(() => undefined);
+  aheadWhenIdle(() => void specsIn(), SPECS_IDLE_MS);
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
@@ -185,18 +187,20 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
     const asked = { ...input, column: input.column ?? askColumn(win) };
-    if (!input.following) return specsIn.then(() => api.send(asked, on));
+    if (!input.following) return specsIn().then(() => api.send(asked, on));
     followUps.cameBackTo(input.following.id);
-    return specsIn.then(() => api.send(asked, on)).finally(() => void followUps.readFollowUps());
+    return specsIn()
+      .then(() => api.send(asked, on))
+      .finally(() => void followUps.readFollowUps());
   };
   const keptOrCleared = <T>(kinds: readonly AskProposal[], done: Promise<T>): Promise<T> =>
     kinds.some((p) => p.kind === "follow_up") ? done.finally(() => void followUps.readFollowUps()) : done;
-  const thread: AskApiCalls["thread"] = (...args) => specsIn.then(() => api.thread(...args));
+  const thread: AskApiCalls["thread"] = (...args) => specsIn().then(() => api.thread(...args));
   // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
   const spoken = spokenTurns(voice, api);
   const sendSpoken: typeof spoken.sendSpoken = (input, words, on) => {
     palette.rememberLanguage(palette.language(words));
-    return specsIn.then(() => spoken.sendSpoken(input, words, on));
+    return specsIn().then(() => spoken.sendSpoken(input, words, on));
   };
   const ask: AskApi = {
     ...palette,
@@ -214,18 +218,17 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     planGroupOf,
     undo: (p, o) => keptOrCleared([p], undoProposal(win, p, o)),
     editReply: (p) => editReply(win, p),
-    undoOpen: askUndoOpen,
+    undoOpen: (...a) => pageSpecs.now()?.askUndoOpen(...a) ?? false,
     quick: quickAnswer(palette, api.openings),
     answerText,
     answerBlocks,
     answerRuns,
     answerCopy,
     answerSpoken,
-    cardOpenRoute,
+    cardOpenRoute: (p) => pageSpecs.now()?.cardOpenRoute(p) ?? null,
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };
-  (win as unknown as { __ask?: AskApi; PROPOSAL_GATE?: typeof PROPOSAL_GATE }).__ask = ask;
-  (win as unknown as { PROPOSAL_GATE?: typeof PROPOSAL_GATE }).PROPOSAL_GATE = PROPOSAL_GATE;
+  (win as unknown as { __ask?: AskApi }).__ask = ask;
   return ask;
 }
 

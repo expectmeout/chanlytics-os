@@ -55,7 +55,8 @@ globalThis.window = {
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
 
-const { leadsOverride, leadsView } = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { leadsView } = await import("../../../../../apps/dashboard/src/surfaces/leads/surface.ts");
+const { leadsOverride } = await import("../../../../../apps/dashboard/src/surfaces/leads/override.ts");
 const { restoreSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What the surface cache put back before anything mounted (surface-cache.ts, through the seam): the view this tab read
 // last, in its order.

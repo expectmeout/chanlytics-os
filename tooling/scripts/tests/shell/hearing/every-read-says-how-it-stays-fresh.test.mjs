@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, stripComments } from "../../_source.mjs";
 import { BANK, BANK_HINT, BASELINES_DIR, readBaseline, writeBaseline } from "../../_ratchet.mjs";
-import { getsIn, registeredSurfaces } from "./_reads.mjs";
+import { getsIn, registeredSurfaces, surfaceModulesOf } from "./_reads.mjs";
 
 const FILE = "on-demand-reads.json";
 const KINDS = ["link", "search", "boot", "surface", "on-open", "follows", "owed"];
@@ -30,11 +30,14 @@ const KINDS = ["link", "search", "boot", "surface", "on-open", "follows", "owed"
 const FINDING = /^(R\d+|[SX]\d+-\d+|W-[a-z-]+-\d+)$/;
 const SRC = "apps/dashboard/src";
 
-/** The modules whose reads are a surface's: each registered override's own. Its helpers are held when they read for themselves. */
-const SURFACE_MODULES = new Set(registeredSurfaces().map((s) => s.file));
+/**
+ * The modules whose reads are a surface's: each registered override's own, and the code it fetches for its read
+ * (surfaceModulesOf). Its helpers are held when they read for themselves.
+ */
+const SURFACE_MODULES = new Set(registeredSurfaces().flatMap((s) => surfaceModulesOf(s.file)));
 /** The keys of those surfaces, as their overrides name them. */
 const SURFACE_KEYS = new Set(
-  [...SURFACE_MODULES].flatMap((file) =>
+  registeredSurfaces().flatMap(({ file }) =>
     [...stripComments(fs.readFileSync(path.join(ROOT, file), "utf8")).matchAll(/\bkey: "([a-z_]+)"/g)].map((m) => m[1]),
   ),
 );

@@ -901,7 +901,7 @@ const todayWire = (rows, replies) => {
 test("Today sends no number for the badge: it reads, and the badge is the selector over the Inbox's threads -- a reply held in the tab is not put back by a Today read", async () => {
   const realFetch = globalThis.fetch;
   try {
-    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
     VW_STORE.state = {};
     const inbox = salon().map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
     inboxWith(inbox);
@@ -929,7 +929,7 @@ test("Today sends no number for the badge: it reads, and the badge is the select
 test("Today's headline says the badge's number, and a flagged thread older than the newest hundred counts in both", async () => {
   const realFetch = globalThis.fetch;
   try {
-    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
     const { surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
     VW_STORE.state = {};
     // Rosa, Jess whose reply is counting down, and a customer flagged weeks ago whose thread is past the conversations
@@ -975,7 +975,7 @@ test("Today's headline says the badge's number, and a flagged thread older than 
 test("a Today load asks for the replies to reach-outs once, as the surface that holds them does: Today asks for none of its own", async () => {
   const realFetch = globalThis.fetch;
   try {
-    const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
+    const { todayOverride } = await import(`${S}/surfaces/today/override.ts`);
     const { repliesOverride } = await import(`${S}/legacy-bridge/reach-out/replies.ts`);
     const reading = (conversation_id, intent) => ({ conversation_id, intent, undone: false, claim: "person" });
     const requests = [];

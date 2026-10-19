@@ -36,18 +36,18 @@ import { receptionist as receptionistLens } from "@/surfaces/reports/receptionis
 import { forgetReviews, reviews as reviewsLens, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { channelsOverride } from "@/surfaces/channels/surface";
-import { todayOverride } from "@/surfaces/today/surface";
+import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "@/surfaces/settings/billing/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { googleOverride } from "./google";
-import { leadsOverride } from "@/surfaces/leads/surface";
-import { setupOverride } from "@/surfaces/setup/surface";
+import { leadsOverride } from "@/surfaces/leads/override";
+import { setupOverride } from "@/surfaces/setup/override";
 import { refreshSurfaces } from "./surface-runner";
 import { drawnHere, ownsTheScreen, whereDrawn } from "./surface-registry";
 import { routeOnScreen } from "./workspace";
-import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
+import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/override";
 import { repliesOverride } from "./reach-out/replies";
 
 /** A read that counts over days, held by range (period-surface.ts): a Reports lens, or Today's headline. */

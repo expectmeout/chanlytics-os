@@ -17,7 +17,6 @@ import {
   citationRoute,
   groundCitations
 } from "./citations.js";
-import { cardOpenRoute } from "../ask-proposals/page-specs.js";
 import { planCountWords } from "./plan-steps.js";
 import { rightNowCounts, rightNowLine } from "./ask-waiting.js";
 import { canonicalRoute } from "../shell/address.js";
@@ -89,10 +88,9 @@ export function oneDoor(a, cards = []) {
   const open = a.do.open && !offered.has(canonicalRoute(a.do.open.to)) ? a.do.open : null;
   if (open) offered.add(canonicalRoute(open.to));
   const cardOpen = {};
-  for (const c2 of cards) {
-    const to = cardOpenRoute(c2);
-    cardOpen[c2.id] = !!to && !offered.has(canonicalRoute(to));
-    if (to && cardOpen[c2.id]) offered.add(canonicalRoute(to));
+  for (const { id, open: to } of cards) {
+    cardOpen[id] = !!to && !offered.has(canonicalRoute(to));
+    if (to && cardOpen[id]) offered.add(canonicalRoute(to));
   }
   const receipt = (s) => {
     if (!s) return null;

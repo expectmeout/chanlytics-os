@@ -185,7 +185,6 @@ const { installClock } = await import("../../../../apps/dashboard/src/legacy-bri
 installClock();
 const { routeOnScreen } = await import("../../../../apps/dashboard/src/legacy-bridge/workspace.ts");
 const { installTabMemory, clearTabMemory } = await import("../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
-const { installLists } = await import("../../../../apps/dashboard/src/surfaces/people/people-lists.ts");
 // A page's own replace (usePeopleAddress) writes the path, as the App Router leaves it, and fires nothing.
 historyOf(globalThis.window);
 /** The route on screen, `clients/seg:needs_you`: what the address says (workspace.ts routeOnScreen). */
@@ -493,12 +492,13 @@ Object.assign(globalThis.window, {
   __mayReceive: mayReceive,
 });
 // People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
-// window and as the bare names a classic script reads; and the saved lists' verbs, which the person page reads as
-// `window.__lists`. The page itself is TSX, imported here.
+// window and as the bare names a classic script reads. The saved lists' verbs are imported by the pages that press them
+// (people-lists.ts), and the page itself is TSX, imported here.
 Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
-installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
+// The peek beside the rows is a chunk of its own (peek/peek-code.tsx), fetched once the list is idle: in before any test.
+await (await import("../../../../apps/dashboard/src/surfaces/people/peek/peek-code.tsx")).peekCode();
 const { PeopleAddSheet } = await import("../../../../apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 /** A browser that can watch a list's box, where the table draws a window of its rows (kit/rows/shown-rows.ts). */
@@ -1656,10 +1656,18 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     assert.equal(openSheet(draw(), "bulk-sheet"), null);
     // Note, from the dock: the note sheet for the selection (step-sheet.tsx, which writes the line through the batch door:
     // notes/step-sheet.test.mjs), asked with who is picked; once it says what it reached, the bar says it and clears.
+    // The ask goes through the frame's door (sheets/doors.tsx), said once the frame's sheet listens: drawn here as
+    // app-shell.jsx draws it.
     const asked = [];
     const hear = (e) => asked.push(e.detail);
+    const frameSheet = () => {
+      frames.begin();
+      return globalThis.React.createElement(peoplePages.StepSheetHost, {});
+    };
     globalThis.window.addEventListener("step:sheet", hear);
+    frameSheet();
     click(byTestId(draw(), "bulk-note"));
+    await until(() => (frameSheet(), asked.length > 0), "the note sheet asked for, once it listens");
     globalThis.window.removeEventListener("step:sheet", hear);
     assert.equal(openSheet(draw(), "bulk-sheet"), null, "the bar's own sheet stays shut: the note is the note sheet's");
     assert.deepEqual(

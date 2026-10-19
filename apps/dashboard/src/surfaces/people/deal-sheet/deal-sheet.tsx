@@ -98,7 +98,7 @@ export function openDealSheet({
 } = {}): boolean {
   if (!personId || !mode) return false;
   // The month behind a day's token starts loading as the sheet is asked for, so it is there by the first press.
-  void loadDayPick();
+  loadDayPick.warm();
   return announce("deal:sheet", { personId, mode, service: service || null, dealId: dealId || null });
 }
 

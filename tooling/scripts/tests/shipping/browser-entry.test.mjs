@@ -290,6 +290,15 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     import: "./dist/ask-only.js",
     default: "./dist/ask-only.js",
   });
+  // The pages' verb specs: the root entry's own module in the browser, the index itself elsewhere, so the table Ask's
+  // kinds join is one table however it was reached.
+  assert.deepEqual(pkg.exports["./page-specs"], {
+    types: "./dist/index.d.ts",
+    browser: "./dist/browser/ask-proposals/page-specs.js",
+    import: "./dist/index.js",
+    default: "./dist/index.js",
+  });
+  assert.ok(current.names.includes("verbSpec"), "the root entry names the specs' readings too");
 });
 
 test("every page-only path names a file, since one that names none would filter nothing, silently", () => {

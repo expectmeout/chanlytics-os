@@ -11,7 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, redrawWanted, quiet } from "../_legacy-react.mjs";
 
-const CACHE = "chanlytics.surfaces.v1";
+// The cache's slot for the stub window's workspace (its address, /w/studio): local storage, one slot a workspace.
+const CACHE = "chanlytics.surfaces.v2:studio";
 const storage = () => {
   const m = new Map();
   return {
@@ -23,6 +24,7 @@ const storage = () => {
 };
 installLegacyReact();
 globalThis.sessionStorage = storage();
+globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 globalThis.__ACTIVE_WORKSPACE = "t-salon";
 
@@ -30,7 +32,7 @@ const S = "../../../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);
 const cache = await import(`${S}/legacy-bridge/surface-cache.ts`);
 // Importing an override declares its mirror, as the app's boot does: Today's names one, Reports' and Google's none.
-await import(`${S}/surfaces/today/surface.ts`);
+await import(`${S}/surfaces/today/override.ts`);
 await import(`${S}/surfaces/reports/surface.ts`);
 // The surface's signal, from the module the surface reads it through (the stub's own copy is the shell pages').
 const { surfaceMoved: surfaceLanded } = await import(`${S}/legacy-bridge/surface-status.ts`);
@@ -70,7 +72,7 @@ test("the tab's cache keeps the value beside the globals a surface owns, and giv
   values.setSurfaceValue("reports", REPORTS);
   cache.snapshotSurface("reports", [], "t-salon", undefined, "reports");
   cache.flushSurfaceCache();
-  const kept = JSON.parse(globalThis.sessionStorage.peek(CACHE));
+  const kept = JSON.parse(globalThis.localStorage.peek(CACHE));
   assert.deepEqual(kept.surfaces.reports, { $value: REPORTS }, "the value, under its reserved name");
   values.setSurfaceValue("reports", undefined);
   const restored = cache.hydrateSurfaceCache();
@@ -80,10 +82,10 @@ test("the tab's cache keeps the value beside the globals a surface owns, and giv
 });
 
 test("a surface with no global and no value caches nothing; a name in the cache that is no surface's key is not taken for one", () => {
-  const before = globalThis.sessionStorage.peek(CACHE);
+  const before = globalThis.localStorage.peek(CACHE);
   cache.snapshotSurface("nothing", [], "t-salon");
   cache.flushSurfaceCache();
-  assert.equal(globalThis.sessionStorage.peek(CACHE), before, "nothing to keep, nothing written");
+  assert.equal(globalThis.localStorage.peek(CACHE), before, "nothing to keep, nothing written");
   values.restoreSurfaceValue("not-a-surface", { a: 1 });
   assert.equal(values.surfaceValue("not-a-surface"), undefined, "a name that is no surface's key holds nothing");
   values.restoreSurfaceValue("toString", { a: 1 });

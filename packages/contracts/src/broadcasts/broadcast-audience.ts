@@ -4,7 +4,7 @@
  */
 import { type AskedPurpose, type MessageAbout, PURPOSE_REFUSALS } from "../consent/consent";
 import { CONSENT_CHANNELS, type ConsentChannel } from "../consent/consent-channels";
-import { PEOPLE_LISTS } from "../people/lists/lists";
+import { PEOPLE_LISTS } from "../people/lists/builtin-lists";
 import { saidYesTo } from "../people/person-consent";
 import type { PersonRowVM } from "../people/person-row";
 import type { RunReach } from "../playbooks/playbooks";

@@ -285,7 +285,7 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
     globalThis.window.INBOX_PROBE = { threads: ["harbor-moving's"] };
     cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     cache.flushSurfaceCache();
-    assert.ok(globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"), "cached");
+    assert.ok(globalThis.localStorage.getItem("chanlytics.surfaces.v2:harbor-moving"), "cached");
     switchWorkspace("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "glow-studio");
     assert.deepEqual(
       assigned,
@@ -297,12 +297,16 @@ test("a workspace created a moment ago opens at its slug, once: the app never bo
       "glow-studio",
       "and the home returns to the slug, not the id",
     );
-    assert.equal(globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"), null, "the cache cleared before it left");
+    assert.equal(
+      globalThis.localStorage.getItem("chanlytics.surfaces.v2:harbor-moving"),
+      null,
+      "the cache cleared before it left",
+    );
     // A read lands before the page unloads: the runner persists it, as it persists every read, and the hide writes it.
     cache.snapshotSurface("inbox", ["INBOX_PROBE"], "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     cache.flushSurfaceCache();
     assert.equal(
-      globalThis.sessionStorage.getItem("chanlytics.surfaces.v1"),
+      globalThis.localStorage.getItem("chanlytics.surfaces.v2:harbor-moving"),
       null,
       "REGRESSION: the workspace left had its rows written back into the tab it was leaving (the sign-out's defect 52)",
     );

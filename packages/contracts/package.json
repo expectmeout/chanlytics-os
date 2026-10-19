@@ -45,6 +45,12 @@
       "import": "./dist/ask-only.js",
       "default": "./dist/ask-only.js"
     },
+    "./page-specs": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/browser/ask-proposals/page-specs.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
   "sideEffects": [

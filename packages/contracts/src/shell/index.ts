@@ -130,29 +130,28 @@ export type { NoMessageWords, RunStopWords } from "./campaign-rooms";
 export { stateTone, stateLabel, stateOf, stateWordList, leadPinTone, leadMapLegend, TONES } from "./tone";
 export type { Tone, StateKind, LeadPinnable } from "./tone";
 export {
-  PAGE_VITALS,
-  PAGE_METRICS,
-  PAGE_DEVICES,
-  PAGE_PHONE_QUERY,
   PAGE_BUILD,
-  PAGE_VITALS_PER_BEACON,
   PAGE_VITAL_BANDS,
   PAGE_VITAL_WORDS,
   PAGE_VITALS_READ,
   PAGE_VITALS_MIN_LOADS,
-  PRIMARY_PART,
   PageVitalReport,
-  vitalsPageOf,
   vitalValueWords,
   vitalVerdict,
   pageVitalsWords,
 } from "./vitals";
 export { PageVitalsInput } from "./vitals-schema";
+export {
+  PAGE_VITALS,
+  PAGE_METRICS,
+  PAGE_DEVICES,
+  PAGE_PHONE_QUERY,
+  PAGE_VITALS_PER_BEACON,
+  PRIMARY_PART,
+  vitalsPageOf,
+} from "./vitals-pages";
+export type { PageVital, PageSpeedMetric, PageMetric, PageDevice } from "./vitals-pages";
 export type {
-  PageVital,
-  PageSpeedMetric,
-  PageMetric,
-  PageDevice,
   PageVitalDetailDto,
   PageVitalReportDto,
   PageVitalsRowDto,

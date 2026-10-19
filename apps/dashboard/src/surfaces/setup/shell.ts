@@ -1,67 +1,44 @@
 /**
- * What Setup's rows and the first run still borrow from the shell (decision 0015, step 10): the Business tab's rows, its saver and its doors,
- * which Settings' JSX publishes (pages/business-tab-*.jsx) and which the first run's Check and Live draw as that tab does,
- * so the two screens never disagree. Each is read as it is asked for, never when this module loads. A line here is deleted
- * on the day its owner moves: the Business tab with Settings (step 11).
+ * What the first run draws of the Business tab (decision 0015, step 10): its rows, its saver and its doors, which the first
+ * run's Check and Live draw as that tab does, so the two screens never disagree. They were read off the window, where the
+ * frame published them for every page (seed-globals.ts), so each page's first load carried the tab's rows, about 33 KB
+ * compressed, that only the first run draws (the loadability review, 19 Oct 2026). Imported here, they come with the
+ * first run's own page: only its modules import this one.
+ *
+ * The tab types the workspace's settings its own way (settings/business/save.tsx Brain and Config), and the first run hands
+ * them the settings read as contracts types it (WorkspaceSettings): one value under two hand-written types until the tab's
+ * are contracts' (step 11). So the parts cross into the first run under the looser props below, as they did when they
+ * were read off the window, and this module is the one place that says so.
  */
 import type { ComponentType } from "react";
-import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
-import { windowValue } from "../legacy-verbs";
+import { BtLanguagesRow as LanguagesRow, BtRulesRow as RulesRow } from "../settings/business/answers";
+import { BtCanCard as CanCard } from "../settings/business/can";
+import { BtServicesRow as ServicesRow } from "../settings/business/offer";
+import { BtHoursRow as HoursRow, BtZoneRow as ZoneRow } from "../settings/business/open";
+import { BtServicesSheet as ServicesSheet } from "../settings/business/services";
+import {
+  BtAddressRow as AddressRow,
+  BtBookingLinkRow as BookingLinkRow,
+  BtWebsiteRow as WebsiteRow,
+} from "../settings/business/who";
 
 /** A row or card of the Business tab, drawn as that tab draws it: its props are its own, handed on as the JSX handed them. */
-export type BusinessPart = ComponentType<Record<string, unknown>>;
+type BusinessPart = ComponentType<Record<string, unknown>>;
 
-/** The Business tab's parts the first run draws, under the names Settings' JSX publishes them by. */
-type BusinessPartName =
-  | "BtHoursRow"
-  | "BtZoneRow"
-  | "BtAddressRow"
-  | "BtWebsiteRow"
-  | "BtBookingLinkRow"
-  | "BtRulesRow"
-  | "BtServicesRow"
-  | "BtLanguagesRow"
-  | "BtServicesSheet"
-  | "BtCanCard";
+/** A part of the tab, under the first run's looser props (the module's comment says why). */
+const loose = (part: ComponentType<never>): BusinessPart => part as BusinessPart;
 
-/** The part Settings' JSX published under this name, or nothing where it has not (a page drawn alone). */
-export function businessPart(name: BusinessPartName): BusinessPart | undefined {
-  const found = windowValue(name);
-  return typeof found === "function" ? (found as BusinessPart) : undefined;
-}
+export const BtHoursRow = loose(HoursRow);
+export const BtZoneRow = loose(ZoneRow);
+export const BtAddressRow = loose(AddressRow);
+export const BtWebsiteRow = loose(WebsiteRow);
+export const BtBookingLinkRow = loose(BookingLinkRow);
+export const BtRulesRow = loose(RulesRow);
+export const BtServicesRow = loose(ServicesRow);
+export const BtLanguagesRow = loose(LanguagesRow);
+export const BtServicesSheet = loose(ServicesSheet);
+export const BtCanCard = loose(CanCard);
 
-/** The config the next save goes on, as the saver holds it. */
-export type SaverBase = WorkspaceSettings | null;
-
-/** The tab's one saver: a job at a time, on the config it last read, heard by whoever draws its rows. */
-export interface BusinessSaver {
-  save(job: unknown): void;
-  base(): SaverBase;
-  subscribe(fn: () => void): () => void;
-}
-
-/** One of the workspace's own doors the tab saves through (the timezone, the word for a booking). */
-export interface WorkspaceDoor {
-  save(o: Record<string, unknown>): void;
-  pending(): boolean;
-  subscribe(fn: () => void): () => void;
-}
-
-/** What the first run takes of the tab's saver and its doors (`window.__businessTabSave`, business-tab-save.jsx). */
-export interface BusinessTabSave {
-  saver: BusinessSaver;
-  zone: WorkspaceDoor;
-  word: WorkspaceDoor;
-  draftOf(list: string, base: SaverBase): unknown[];
-  foldJob(
-    list: string,
-    rows: unknown[],
-    o: { opened: unknown[]; said: null; done: (() => void) | null; flash: (f: unknown) => void },
-  ): unknown;
-  /** The patch a row's change is: the first run writes only where a caller asking for a person goes. */
-  PATCH_OF: { handoff_number(value: string): unknown };
-}
-
-export function businessTabSave(): BusinessTabSave | undefined {
-  return (window as Window & { __businessTabSave?: BusinessTabSave }).__businessTabSave;
-}
+/** The tab's saver and doors, as the first run takes them: their own types, which every call the first run makes fits. */
+export { businessTabSave } from "../settings/business/saver";
+export type { BusinessTabSave } from "../settings/business/saver";

@@ -128,13 +128,5 @@ export function bell(): BellApi | undefined {
   return object<BellApi>("__notifs");
 }
 
-/** The lists this member pinned to Today (`window.__lists`, people-lists.ts). */
-export function pinnedLists(): Array<{ token: string; label: string; count: number | null; to: string }> | null {
-  const lists = object<{ pinned?: () => Array<{ token: string; label: string; count: number | null; to: string }> }>(
-    "__lists",
-  );
-  return lists && lists.pinned ? lists.pinned() : null;
-}
-
 /* A run's verbs (`window.__broadcasts`) and the playbooks' re-read are the runs' rows' (surfaces/waits/run-acts.tsx), which
    Today's queue and Going today draw through, as the Inbox's Needs you does. */

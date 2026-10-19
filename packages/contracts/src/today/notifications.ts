@@ -2,7 +2,7 @@ import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
 import { replyWaitsOnYou } from "../conversations/standing";
 import { missedCallIsNews, type LiveCallVM } from "../voice/live";
-import { FINISH_SETTING_UP } from "../setup/first-run";
+import { FINISH_SETTING_UP } from "../setup/first-run-door";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
