@@ -39,6 +39,11 @@
 .sq-reading {
   min-height: var(--space-20);
 }
+/* The shell's quiet "Reading…" while a list or a record is read (after its beat): at the pane's own edge, under its title,
+   where the rows it waits for will stand, not at the page's gutter. */
+.route-reading.sq-reading {
+  padding-inline: 0;
+}
 .sq-none,
 .sq-more {
   margin: var(--space-3) var(--space-2);

@@ -9,12 +9,10 @@
  * Its kicker says where it was opened from: "The call's text" for the booking link's message, the Library's name for any
  * other. A name the workspace no longer holds says so, with the Library one press away.
  */
-import type { ReactNode } from "react";
 import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS, bookingTemplate } from "@chanlytics/contracts";
 import type { useLegacyToast } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
-import { MessageInPlace } from "../parts/message-in-place";
-import { messagePaneContext } from "../parts/message-pane";
+import { MessageInPlaceWhenRead } from "./campaigns-code";
 import { PaneSheet, useKept } from "./pane-sheet";
 
 interface MessageDrawerProps {
@@ -36,17 +34,8 @@ export function MessageDrawer(p: MessageDrawerProps) {
   const kicker = booking === name ? LIFECYCLE_WORDS.callText.name : CAMPAIGN_ROOMS.library;
   return (
     <PaneSheet open={p.name !== null} title={kicker} onClose={p.onClose} testid="cmh-message">
-      <MessageInPlace name={name} flash={p.flash} onClose={p.onClose} />
+      {/* The Library's pane is a chunk of its own (campaigns-code.tsx), fetched as a door to a message is reached for. */}
+      <MessageInPlaceWhenRead name={name} flash={p.flash} onClose={p.onClose} />
     </PaneSheet>
   );
-}
-
-/**
- * The same pane handed down to a view of Campaigns that draws it inside itself (the Sequences view's step editor;
- * parts/message-pane.ts), from here, where the home already holds it: the route reaching for the pane itself regrouped the
- * chunks the Campaigns page loads, and it carried the kit's icons a second time (+7 KB gzipped, #1644).
- */
-export function MessagePaneProvider({ children }: { children: ReactNode }) {
-  const Pane = messagePaneContext();
-  return <Pane.Provider value={MessageInPlace}>{children}</Pane.Provider>;
 }

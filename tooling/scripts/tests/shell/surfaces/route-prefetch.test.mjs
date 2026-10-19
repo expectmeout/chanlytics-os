@@ -156,9 +156,8 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["campaigns/new:leads", "campaigns/new"],
     ["campaigns/new:to:list-1", "campaigns/new"],
     ["campaigns/message:hello", "campaigns/message"],
-    // Sequences, its list, a record and a new one: its own read (decision 0060).
+    // Sequences, its list and a new one: its own read (decision 0060). A record reads itself beside them (below).
     ["campaigns/sequences", "campaigns/sequences"],
-    ["campaigns/sequences/3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/history", "campaigns/sequences"],
     ["campaigns/sequences/new", "campaigns/sequences"],
     ["broadcasts", "broadcasts"],
     ["playbooks", "outbound"],
@@ -192,6 +191,38 @@ test("every page opens on its own reads, named by the path's word or the hash's;
       PEOPLE_LIST("acme"),
       hash,
     );
+});
+
+test("a sequence's record reads itself beside Sequences' list, and the tab its address opens on where that tab reads its own; New and a word that is no id read none", () => {
+  const SEQ = "3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d";
+  const record = `/api/v1/sequences/${SEQ}?workspace=acme`;
+  const reads = (path) => headRuns({ pathname: `/w/acme/${path}`, hash: "" }).calls.map(([u]) => u);
+  const list = opensOn("acme", "campaigns/sequences");
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}`), [...list, record], "Steps reads the record alone");
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/people`), [
+    ...list,
+    record,
+    `/api/v1/sequences/${SEQ}/people?workspace=acme`,
+  ]);
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/history`), [
+    ...list,
+    record,
+    `/api/v1/sequences/${SEQ}/history?workspace=acme`,
+  ]);
+  // A day of History open is still its History; a way back to Leads is no tab.
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/history/${ID}`), [
+    ...list,
+    record,
+    `/api/v1/sequences/${SEQ}/history?workspace=acme`,
+  ]);
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/back:s-1`), [...list, record]);
+  // An address the frame has not moved yet says it in the hash, and reads the same.
+  assert.deepEqual(
+    headRuns({ pathname: "/w/acme", hash: `#/campaigns/sequences/${SEQ}` }).calls.map(([u]) => u),
+    [...list, record],
+  );
+  assert.deepEqual(reads("campaigns/sequences/new"), list);
+  assert.deepEqual(reads("campaigns/sequences/not-an-id"), list);
 });
 
 test("on an address that says days Reports is read over them, by their first and last day, whatever period the device keeps; anything else after a lens is the period's", () => {
@@ -500,6 +531,29 @@ test("a read takes what the head started for its URL, once; the next identical r
   const r2 = await api("GET contacts/[id]", { params: { id: ID } });
   assert.equal(r2.data.person.id, "fetched", "handed over once: the next read is the server's");
   assert.deepEqual(fetched, [`/api/v1/contacts/${ID}?workspace=acme`]);
+});
+
+test("a sequence's record takes what the head started for it: the head spells its read as the client does", async () => {
+  const SEQ = "3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d";
+  const { win } = headRuns({ pathname: `/w/acme/campaigns/sequences/${SEQ}/people`, hash: "" });
+  const parked = Object.keys(win[PREFETCH_SLOT]);
+  const fetched = [];
+  const taken = [];
+  const api = client({
+    fetched,
+    prefetched: (url) => {
+      if (!parked.includes(url)) return null;
+      taken.push(url);
+      return Promise.resolve(json({ ok: true, data: { early: true } }));
+    },
+  });
+  assert.equal((await api("GET sequences/[id]", { params: { id: SEQ } })).data.early, true);
+  assert.equal((await api("GET sequences/[id]/people", { params: { id: SEQ } })).data.early, true);
+  assert.deepEqual(fetched, [], "neither read asked the server itself");
+  assert.deepEqual(taken, [
+    `/api/v1/sequences/${SEQ}?workspace=acme`,
+    `/api/v1/sequences/${SEQ}/people?workspace=acme`,
+  ]);
 });
 
 test("the page's own read, seconds after the head's landed, shares its answer; long after, it asks the server", async () => {

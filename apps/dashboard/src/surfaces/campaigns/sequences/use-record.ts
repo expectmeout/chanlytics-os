@@ -1,10 +1,11 @@
 /**
  * One sequence's reads as its record draws them (verbs.ts): painted at once from the last answer this tab holds and read
- * again behind, and read again each time the list's surface is (surface.ts), which hears every change of a sequence, its
- * batches, its sends and its replies, so a record on screen never says less than the list beside it. What is shown is
- * always the id asked for: a read is kept with the id it answers, so a record opened from another's never paints the
- * other while its own is read. One of its batches is read through the batch's own door, as its run's sheet reads it
- * (useBatchRead), and follows the list while it can still move.
+ * again behind, and read again each time its row in the list's surface moves (surface.ts), which hears every change of a
+ * sequence, its batches, its sends and its replies, so a record on screen never says less than the list beside it. The
+ * list keeps a row that did not change as the object it was (shareUnchanged), so a send in another sequence, or a list read
+ * that found nothing new, reads nothing here. What is shown is always the id asked for: a read is kept with the id it
+ * answers, so a record opened from another's never paints the other while its own is read. One of its batches is read
+ * through the batch's own door, as its run's sheet reads it (useBatchRead), and follows the list while it can still move.
  */
 import { useEffect, useRef, useState } from "react";
 import { runStillMoving, type BroadcastDetailDto } from "@chanlytics/contracts";
@@ -41,6 +42,9 @@ export function useSequenceRead<T>(
   { again = 0, moves }: ReadAgain<T> = {},
 ): Read<T> {
   const list = useSurface("sequences");
+  // What it follows: its sequence's own row, where the list has one by the id asked for, else the whole list (an id that
+  // names a part of one, a batch's or a step's, or a sequence the list has not read yet).
+  const follows = (id && list?.sequences.find((s) => s.id === id)) || list;
   const [now, setNow] = useState<{ id: string | null; read: Read<T> }>(() => ({
     id,
     read: id ? asRead(peek(id)) : READING,
@@ -64,8 +68,8 @@ export function useSequenceRead<T>(
     return () => {
       live = false;
     };
-    // The list's value is a new object at each read of it: the record follows it.
-  }, [id, list, again, read, peek, moves]);
+    // Its row is a new object only when it changed (the list's shareUnchanged): the record follows it.
+  }, [id, follows, again, read, peek, moves]);
   if (!id) return READING;
   // Between a new id and its read, what is held is the last id's: the new one paints from the tab's own answer, or reads.
   return now.id === id ? now.read : asRead(peek(id));

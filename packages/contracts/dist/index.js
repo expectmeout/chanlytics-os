@@ -17058,6 +17058,7 @@ function runApprovedTail(people, when) {
 var RUN_WAITING_WORDS = "Waiting for your approval";
 var RUN_WAITING_SHORT = "Waits for you";
 var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var runStopDoorWords = (waits) => waits ? "Cancel it" : "Stop it";
 var RUN_OPEN_WORDS = "Open the run";
 var RUN_UNNAMED_WORDS = "Run";
 function runsWaitingSentence(n) {
@@ -54914,6 +54915,10 @@ function routePrefetchScript() {
     // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
     `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}`,
+    // A sequence's record the address opens (`campaigns/sequences/<id>`, a tab after it) is read beside the list it opens over,
+    // as a person's page reads the person, and so is the tab's own read where it has one (People, History): it waited for the
+    // page's code and its mount (the load review of 18 Oct 2026). New (`campaigns/sequences/new`) names no id and reads none.
+    `if(s==="campaigns/sequences"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[2]||"")){var q="/api/v1/sequences/"+h[2];u.push(q+"?workspace="+w);if(h[3]==="people"||h[3]==="history")u.push(q+"/"+h[3]+"?workspace="+w)}`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",
     "var g=function(x){",
@@ -55024,7 +55029,9 @@ var PRIMARY_PART = {
   leads: "table",
   pipeline: "board",
   person: "hero",
-  calendar: "board"
+  calendar: "board",
+  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
+  campaigns: "list"
 };
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -57447,7 +57454,9 @@ var NOTICE_ENDS = {
   handoff: { ends: "hold", server: "hold_resolved" },
   deadman: { ends: "hold", server: "hold_resolved" },
   call: { ends: "hold", server: "hold_resolved" },
-  playbook: { ends: "run" },
+  // A run approved, skipped or skipped by the night's sweep, or ended, closes its rows on the server (00461
+  // batch_closes_its_notices): a browser that held the run among Sent's alone closed them, and the phone's icon never.
+  playbook: { ends: "run", server: "run_decided" },
   booking_notice: { ends: "email" },
   review: { ends: "review" },
   leads_question: { ends: "search", server: "question_settled" },
@@ -63118,6 +63127,7 @@ export {
   runReadingOf,
   runSheetRoute,
   runStillMoving,
+  runStopDoorWords,
   runStopWords,
   runStoppedWords,
   runTitleOf,

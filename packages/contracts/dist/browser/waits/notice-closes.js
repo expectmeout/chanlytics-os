@@ -20,7 +20,9 @@ export const NOTICE_ENDS = {
   handoff: { ends: "hold", server: "hold_resolved" },
   deadman: { ends: "hold", server: "hold_resolved" },
   call: { ends: "hold", server: "hold_resolved" },
-  playbook: { ends: "run" },
+  // A run approved, skipped or skipped by the night's sweep, or ended, closes its rows on the server (00461
+  // batch_closes_its_notices): a browser that held the run among Sent's alone closed them, and the phone's icon never.
+  playbook: { ends: "run", server: "run_decided" },
   booking_notice: { ends: "email" },
   review: { ends: "review" },
   leads_question: { ends: "search", server: "question_settled" },

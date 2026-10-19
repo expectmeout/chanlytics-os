@@ -793,6 +793,33 @@ $$;
 
 
 --
+-- Name: batch_closes_its_notices(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.batch_closes_its_notices() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if (OLD.state = 'pending_approval' and NEW.state <> 'pending_approval')
+     or (NEW.state in ('sent', 'canceled', 'failed') and OLD.state not in ('sent', 'canceled', 'failed')) then
+    perform public.notifications_close_about(NEW.tenant_id, array['playbook'], 'broadcast', NEW.id::text);
+  end if;
+  return null;
+exception when others then
+  raise warning 'batch_closes_its_notices: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION batch_closes_its_notices(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.batch_closes_its_notices() IS 'Closes the open playbook rows about a run when it leaves pending_approval (approved, skipped, or skipped by the sweep, whoever does it) or ends (sent, canceled, failed), through notifications_close_about (00461). Never fails the change: a failure is a warning.';
+
+
+--
 -- Name: billing_apply(uuid, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -36581,6 +36608,13 @@ CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments 
 
 
 --
+-- Name: sequence_batches batch_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER batch_closes_its_notices AFTER UPDATE OF state ON public.sequence_batches FOR EACH ROW WHEN ((old.state IS DISTINCT FROM new.state)) EXECUTE FUNCTION public.batch_closes_its_notices();
+
+
+--
 -- Name: billing_accounts billing_accounts_moddatetime; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -41286,6 +41320,14 @@ GRANT ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_re
 REVOKE ALL ON FUNCTION public.automated_send(p_meta jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION batch_closes_its_notices(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.batch_closes_its_notices() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.batch_closes_its_notices() TO service_role;
 
 
 --

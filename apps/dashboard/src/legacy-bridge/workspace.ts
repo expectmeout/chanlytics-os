@@ -276,9 +276,10 @@ interface Link {
  * Whether a route may be warmed with nobody reaching for it: not where a person has asked to save data, or on 2g. A warm
  * is the build's own files, about 3 KB a page since the frame is prerendered (decision 0053, step 5), and on a slow line
  * the round trip it saves at the press is the longest, so 3g warms: it was refused while a warm was a render of the page.
- * Chrome's own reading of the line says 3g on a desk whose round trips run long for a moment.
+ * Chrome's own reading of the line says 3g on a desk whose round trips run long for a moment. A page's code fetched ahead
+ * (Campaigns' Sequences, home/campaigns-code.tsx) takes the same rule.
  */
-function warmsOnItsOwn(): boolean {
+export function warmsOnItsOwn(): boolean {
   const link =
     (typeof navigator === "undefined" ? undefined : (navigator as Navigator & { connection?: Link }).connection) ??
     null;

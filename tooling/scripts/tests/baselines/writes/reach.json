@@ -135,8 +135,8 @@
       }
     },
     "DELETE reach-outs/[id]": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequence_sends DELETE · sequence_steps DELETE UPDATE · sequences DELETE UPDATE · templates UPDATE",
-      "tells": "templates",
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequence_sends DELETE · sequence_steps DELETE UPDATE · sequences DELETE UPDATE · templates UPDATE",
+      "tells": "notifications · templates",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/message, campaigns/new, campaigns/sequences, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -144,6 +144,7 @@
         "audiences": "broadcasts, campaigns/new",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "calendar_runs": "calendar",
+        "notifications": "every page",
         "people": "clients, clients/person, segments, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
@@ -373,13 +374,15 @@
       }
     },
     "POST broadcasts/[id]/approve": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
+      "tells": "notifications",
       "extra": {
         "reports_campaigns": "reports"
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
+        "notifications": "every page",
         "people": "clients, segments",
         "person": "clients/person",
         "sequences": "every page",
@@ -388,13 +391,15 @@
       }
     },
     "POST broadcasts/[id]/cancel": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
+      "tells": "notifications",
       "extra": {
         "reports_campaigns": "reports"
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
+        "notifications": "every page",
         "people": "clients, segments",
         "person": "clients/person",
         "sequences": "every page",

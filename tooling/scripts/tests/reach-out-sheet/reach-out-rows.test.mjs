@@ -40,6 +40,13 @@ W.usePPToast = () => [null, (t) => toasts.push(t)];
 // The pages and their panes are TSX (decision 0015): Campaigns' sheets and New message's Write to leads.
 const S = "../../../../apps/dashboard/src/surfaces";
 const { CampaignsSheets } = await import(`${S}/campaigns/home/sheets.tsx`);
+// The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
+// door fetches them, so every draw below finds them in, as a press after that reach does.
+const { warmCampaignsCode } = await import(`${S}/campaigns/home/campaigns-code.tsx`);
+warmCampaignsCode("campaigns/message:any");
+await import(`${S}/campaigns/home/open-sheets.tsx`);
+await import(`${S}/campaigns/parts/message-in-place.tsx`);
+await new Promise((r) => setTimeout(r, 0));
 const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
