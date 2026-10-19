@@ -945,10 +945,13 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u00b7 2 people"),
       textOf(byTestId(sheet, "bc-sheet-approve")),
     );
-    // Who gets it, on asking.
+    // Who gets it, on asking, brought into view as it opens: on a phone it opened under the message, off the screen.
     press(byTestId(sheet, "bc-sheet-see"));
     tree = again(props);
     assert.equal(all(byTestId(tree, "bc-sheet-people"), (n) => n.props?.["data-testid"] === "bc-person").length, 2);
+    let brought = null;
+    byTestId(tree, "bc-sheet-people").props.ref({ scrollIntoView: (how) => (brought = how) });
+    assert.deepEqual(brought, { block: "nearest" }, "the list, as it mounts, scrolled to where it is seen whole");
     // Approved, the next run waiting opens.
     await press(byTestId(tree, "bc-sheet-approve"));
     assert.deepEqual(approved, ["b-wait"]);
@@ -987,6 +990,49 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     assert.equal(byTestId(tree, "bc-sheet-approve"), null, "REGRESSION-IN-WAITING: a button the server refuses");
     assert.ok(textOf(byTestId(tree, "bc-sheet-expired")).includes("that day has passed"));
     assert.equal(textOf(byTestId(tree, "bc-sheet-pos")), "Waiting for your approval", "the only one waiting");
+
+    // On a phone the acts dock at the pane's foot, as a sequence's do: Approve and who gets it an equal pair, when it goes
+    // a line over them, and Skip in the head's menu, asked in the dock (the Inbox's run review, 18 Oct 2026). They stood
+    // after the words, a solid slab halfway down the screen.
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({ templates: [offer], rows: [first, second].map((b) => toBroadcastVM(b, ZONE)) }),
+    );
+    answers.set("b-wait", [{ ok: true, data: detailOf(first, people) }]);
+    const media = globalThis.matchMedia;
+    globalThis.matchMedia = (q) => ({
+      matches: q === "(max-width: 900px)",
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    try {
+      page(props);
+      await settle();
+      tree = again(props);
+      const docks = all(tree, (n) => n.props?.["data-testid"] === "bc-sheet-acts");
+      assert.equal(docks.length, 1, "the acts once, at the foot, not again in the sheet's body");
+      assert.equal(docks[0].props["data-foot-pair"], "", "the pane's docked pair");
+      assert.match(
+        textOf(byTestId(docks[0], "bc-sheet-goes")),
+        /^Goes /,
+        "when it goes, beside the Approve it speaks of",
+      );
+      assert.ok(byTestId(docks[0], "bc-sheet-approve") && byTestId(docks[0], "bc-sheet-see"));
+      assert.equal(byTestId(docks[0], "bc-sheet-skip"), null, "Skip is in the head's menu, never beside Approve");
+      const more = find(tree, (n) => Array.isArray(n.props?.groups) && /^More for /.test(n.props.label ?? ""));
+      assert.equal(more.props.label, "More for The month's offer", "the head's menu, named for the run");
+      const skip = more.props.groups[0].items[0];
+      assert.equal(skip.label, `${contracts.LIFECYCLE_WORDS.ledger.skip}…`);
+      skip.onSelect();
+      tree = again(props);
+      const asked = byTestId(tree, "bc-sheet-acts");
+      assert.equal(byTestId(asked, "bc-sheet-approve"), null, "the question stands alone in the dock");
+      assert.ok(textOf(byTestId(asked, "bc-sheet-skip-confirm")).includes("Nothing sends, and the run closes."));
+      await press(byTestId(asked, "bc-sheet-skip-yes"));
+      assert.deepEqual(skipped, ["b-wait", "b-wait"], "skipped from the dock");
+    } finally {
+      globalThis.matchMedia = media;
+    }
   } finally {
     Object.assign(broadcasts, keep);
   }

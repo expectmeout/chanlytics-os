@@ -352,7 +352,8 @@ const people = () => ({
 const iso = (ms) => new Date(Date.now() + ms).toISOString();
 const run = (id, state, over = {}) => ({
   id,
-  name: `${id} · run`,
+  // Called as core run-playbook calls a run: its campaign's name, the label its audience carries (contracts runTitleOf).
+  name: over.audience?.label ?? "Win-back",
   state,
   playbook_id: "pb-1",
   audience: { label: "Win-back" },

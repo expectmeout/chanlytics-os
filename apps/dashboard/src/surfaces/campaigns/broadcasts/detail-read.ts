@@ -20,7 +20,7 @@ const readDetail = (id: string) => () =>
   });
 
 /** Who hears each run's answers as they land: the landing of a link to the run (broadcasts/route.tsx). */
-const hearers = new Map<string, Set<(answer: DetailAnswer) => void>>();
+const runHearers = new Map<string, Set<(answer: DetailAnswer) => void>>();
 
 /**
  * One run and every person on it. A read: nothing refreshes. Kept for the run, so its next open is at once; each answer
@@ -28,7 +28,7 @@ const hearers = new Map<string, Set<(answer: DetailAnswer) => void>>();
  */
 export async function runDetail(id: string): Promise<DetailAnswer> {
   const answer = await details.through(id, readDetail(id));
-  for (const hear of hearers.get(id) ?? []) hear(answer);
+  for (const hear of runHearers.get(id) ?? []) hear(answer);
   return answer;
 }
 
@@ -37,12 +37,12 @@ export async function runDetail(id: string): Promise<DetailAnswer> {
  * a link to the run lands by, once it knows what the run is. Answers the stop.
  */
 export function hearRunDetail(id: string, hear: (answer: DetailAnswer) => void): () => void {
-  const own = hearers.get(id) ?? new Set();
+  const own = runHearers.get(id) ?? new Set();
   own.add(hear);
-  hearers.set(id, own);
+  runHearers.set(id, own);
   return () => {
     own.delete(hear);
-    if (own.size === 0) hearers.delete(id);
+    if (own.size === 0) runHearers.delete(id);
   };
 }
 

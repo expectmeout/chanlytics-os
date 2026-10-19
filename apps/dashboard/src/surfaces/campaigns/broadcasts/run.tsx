@@ -316,6 +316,49 @@ function bcAside(vm: RunReportVM) {
   );
 }
 
+/** What a run decided on its page is drawn with: the run, the page's acts and its pane, and whether it is a phone's. */
+interface BcDecidedAsk {
+  d: BroadcastDetailDto;
+  sheet: BcSheetAsk | null;
+  acts: ReactNode;
+  phone: boolean;
+  seeAll: boolean;
+  onSeeAll: () => void;
+  onDecided: () => void;
+  pane: (head: BcPaneHead, body: ReactNode, foot?: ReactNode) => ReactNode;
+}
+
+/**
+ * A run decided on its page, as it is decided there: a live reach-out's run as its block, a campaign run waiting for
+ * approval as its sheet. On a phone each docks its acts at the pane's foot and keeps Skip in its head's menu, as a
+ * sequence's record does. Null for any other run, which is its report.
+ */
+function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pane }: BcDecidedAsk): ReactNode {
+  // A reach-out's run waiting on its owner docks its acts on a phone, as a campaign run's sheet does (below).
+  const roDock = phone && sheet && roRunWaits(d, sheet) ? sheet : null;
+  const ro = bcReachOutBlock(d, { sheet, acts, onDecided, docked: roDock ? { seeAll, onSeeAll } : null });
+  if (ro)
+    return pane(
+      { ...(roRunHead(d, sheet) || {}), ...(roDock ? { tools: <RoRunMore d={d} sheet={roDock} /> } : {}) },
+      ro,
+      roDock ? <RoRunDock d={d} sheet={roDock} seeAll={seeAll} onSeeAll={onSeeAll} /> : undefined,
+    );
+  const b = d.broadcast;
+  const avm =
+    sheet && b.state === "pending_approval"
+      ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
+      : null;
+  if (!sheet || !avm) return null;
+  const people = broadcasts.report(d).people;
+  return pane(
+    { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
+    <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
+      <BcSheet d={d} people={people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
+    </div>,
+    phone ? bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }) : undefined,
+  );
+}
+
 interface BroadcastDetailProps {
   id: string;
   /** The name the list's row has for it, which the pane's head says while the report is read (else "Run"). */
@@ -439,31 +482,10 @@ export function BroadcastDetail({
     );
   }
   const b = d.broadcast;
-  // A reach-out's run waiting on its owner docks its acts on a phone, as a campaign run's sheet does (below).
-  const roDock = phone && sheet && roRunWaits(d, sheet) ? sheet : null;
   const onSeeAll = () => setSeeAll((v) => !v);
-  const ro = bcReachOutBlock(d, { sheet, acts, onDecided: ask, docked: roDock ? { seeAll, onSeeAll } : null });
-  if (ro)
-    return pane(
-      { ...(roRunHead(d, sheet) || {}), ...(roDock ? { tools: <RoRunMore d={d} sheet={roDock} /> } : {}) },
-      ro,
-      roDock ? <RoRunDock d={d} sheet={roDock} seeAll={seeAll} onSeeAll={onSeeAll} /> : undefined,
-    );
+  const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, pane });
+  if (decided) return decided;
   const vm = broadcasts.report(d);
-  const avm =
-    sheet && b.state === "pending_approval"
-      ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
-      : null;
-  if (sheet && avm) {
-    const asks = { b, avm, sheet, seeAll, onSeeAll };
-    return pane(
-      { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
-      <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
-        <BcSheet d={d} people={vm.people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
-      </div>,
-      phone ? bcSheetDock(asks) : undefined,
-    );
-  }
   return pane(
     bcRunHead({ d, acts, again }),
     <div className="bc-report" data-testid="bc-detail">

@@ -54403,14 +54403,15 @@ var PREFETCH_READS = {
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
-  // reaches (People's book, its lists and the runs' touches), the channels read and the settings read, which holds the messages
-  // it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its searches as it is chosen. Each
-  // surface's first reads.
+  // reaches (People's book, its lists and the week's touches, their own read), the channels read and the settings read,
+  // which holds the messages it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its
+  // searches as it is chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
     "settings",
     "broadcasts",
+    "broadcasts/touches",
     "contacts",
     "segments",
     "reach-outs",
