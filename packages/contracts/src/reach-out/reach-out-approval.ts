@@ -9,7 +9,7 @@ import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
-import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
+import { RUN_OPEN_WORDS, RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
@@ -298,7 +298,7 @@ export const TO_SEND_ALL_WORDS = {
    */
   runHead: (name: string, step: number | null, n: number) =>
     step === null ? `${name} · ${n}` : `${name} · ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} · ${n}`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
   everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
   reading: "Reading its emails…",

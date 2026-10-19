@@ -11,7 +11,14 @@
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { LIFECYCLE_WORDS, runStillMoving, runStopWords, runTitleOf, sequenceRoute } from "@chanlytics/contracts";
+import {
+  LIFECYCLE_WORDS,
+  RUN_UNNAMED_WORDS,
+  runStillMoving,
+  runStopWords,
+  runTitleOf,
+  sequenceRoute,
+} from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -26,7 +33,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { gate, gatedProps, navigate, touchSwipe } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane, useCmPhone } from "../parts/split";
-import { ReachOutRun, roRunHead } from "../reach-out/approval";
+import { ReachOutRun, RoRunDock, RoRunMore, roRunHead, roRunWaits } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
 import { starters } from "../templates/verbs";
 import { BcSheet, BcSheetMore, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
@@ -92,7 +99,12 @@ function useBcRunWatch(id: string, d: BroadcastDetailDto | null, setAnswer: Disp
 // A live reach-out run is its own block (Reach out Part 4 PR 7, reach-out/approval.tsx), waiting on you or not (R20).
 const bcReachOutBlock = (
   d: BroadcastDetailDto,
-  p: { sheet: BcSheetAsk | null; acts: ReactNode; onDecided: () => void },
+  p: {
+    sheet: BcSheetAsk | null;
+    acts: ReactNode;
+    onDecided: () => void;
+    docked: { seeAll: boolean; onSeeAll: () => void } | null;
+  },
 ) =>
   d.reach_out && BC_LIVE.has(d.broadcast.state) ? (
     <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
@@ -304,9 +316,52 @@ function bcAside(vm: RunReportVM) {
   );
 }
 
+/** What a run decided on its page is drawn with: the run, the page's acts and its pane, and whether it is a phone's. */
+interface BcDecidedAsk {
+  d: BroadcastDetailDto;
+  sheet: BcSheetAsk | null;
+  acts: ReactNode;
+  phone: boolean;
+  seeAll: boolean;
+  onSeeAll: () => void;
+  onDecided: () => void;
+  pane: (head: BcPaneHead, body: ReactNode, foot?: ReactNode) => ReactNode;
+}
+
+/**
+ * A run decided on its page, as it is decided there: a live reach-out's run as its block, a campaign run waiting for
+ * approval as its sheet. On a phone each docks its acts at the pane's foot and keeps Skip in its head's menu, as a
+ * sequence's record does. Null for any other run, which is its report.
+ */
+function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pane }: BcDecidedAsk): ReactNode {
+  // A reach-out's run waiting on its owner docks its acts on a phone, as a campaign run's sheet does (below).
+  const roDock = phone && sheet && roRunWaits(d, sheet) ? sheet : null;
+  const ro = bcReachOutBlock(d, { sheet, acts, onDecided, docked: roDock ? { seeAll, onSeeAll } : null });
+  if (ro)
+    return pane(
+      { ...(roRunHead(d, sheet) || {}), ...(roDock ? { tools: <RoRunMore d={d} sheet={roDock} /> } : {}) },
+      ro,
+      roDock ? <RoRunDock d={d} sheet={roDock} seeAll={seeAll} onSeeAll={onSeeAll} /> : undefined,
+    );
+  const b = d.broadcast;
+  const avm =
+    sheet && b.state === "pending_approval"
+      ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
+      : null;
+  if (!sheet || !avm) return null;
+  const people = broadcasts.report(d).people;
+  return pane(
+    { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
+    <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
+      <BcSheet d={d} people={people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
+    </div>,
+    phone ? bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }) : undefined,
+  );
+}
+
 interface BroadcastDetailProps {
   id: string;
-  /** The name the list's row has for it, which the pane's head says while the report is read (else "Broadcast"). */
+  /** The name the list's row has for it, which the pane's head says while the report is read (else "Run"). */
   name?: string | null;
   onClose: () => void;
   acts?: ReactNode;
@@ -375,7 +430,7 @@ export function BroadcastDetail({
       testid="bc-run-solo"
       closeTestid="bc-detail-close"
       className="bc-pane"
-      title={head.title ?? name ?? "Broadcast"}
+      title={head.title ?? name ?? RUN_UNNAMED_WORDS}
       badge={head.badge}
       sub={head.sub}
       tools={head.tools}
@@ -427,24 +482,10 @@ export function BroadcastDetail({
     );
   }
   const b = d.broadcast;
-  const ro = bcReachOutBlock(d, { sheet, acts, onDecided: ask });
-  if (ro) return pane(roRunHead(d, sheet) || {}, ro);
+  const onSeeAll = () => setSeeAll((v) => !v);
+  const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, pane });
+  if (decided) return decided;
   const vm = broadcasts.report(d);
-  const avm =
-    sheet && b.state === "pending_approval"
-      ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
-      : null;
-  if (sheet && avm) {
-    const onSeeAll = () => setSeeAll((v) => !v);
-    const acts = { b, avm, sheet, seeAll, onSeeAll };
-    return pane(
-      { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
-      <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
-        <BcSheet d={d} people={vm.people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
-      </div>,
-      phone ? bcSheetDock(acts) : undefined,
-    );
-  }
   return pane(
     bcRunHead({ d, acts, again }),
     <div className="bc-report" data-testid="bc-detail">

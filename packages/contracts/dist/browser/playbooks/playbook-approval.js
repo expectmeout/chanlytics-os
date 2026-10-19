@@ -7,6 +7,7 @@ import { GET_YES_ROUTE } from "../people/people-lists.js";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing.js";
 import { runApproveWords } from "../shell/campaign-rooms.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";
+import { capitalize } from "../shared/words.js";
 import { messageAboutOfTrigger } from "./playbook-purpose.js";
 import { triggerOf } from "./playbook-triggers.js";
 import { localDate, nextOpenMoment } from "./playbook-schedule.js";
@@ -197,6 +198,7 @@ export function toApprovalVM(d, opts) {
   const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
   const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
   const runFor = b.run_for ?? "";
+  const goes = late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it";
   return {
     will,
     byChannel: by ? {
@@ -214,7 +216,8 @@ export function toApprovalVM(d, opts) {
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
     approve: refusal ? null : runApproveWords(will),
     expired: refusal,
-    goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    goes,
+    goesLine: capitalize(goes),
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
 }

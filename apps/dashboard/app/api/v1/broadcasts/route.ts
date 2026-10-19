@@ -39,10 +39,9 @@ import { broadcasts } from "@/server/readers/broadcasts";
  */
 export const GET = read({
   scope: workspace,
-  // { broadcasts, more, touched_at }: the recent fifty, whether older ones exist beyond them, and who a run of any kind
-  // reached from a week ago on, or is due to, and when -- the composer says how many of an audience hear from one within
-  // a week of the time it picks, either side. Touches that cannot be read are null, and the composer says nothing,
-  // rather than a list of nobody. The body is its reader's (readers/broadcasts.ts).
+  // { broadcasts, more, ready, month_sent, month_sent_next, open_to_customers }: the recent fifty, whether older ones exist
+  // beyond them, and what the composer and Get their yes say of the workspace. Who a run reached this week is
+  // GET broadcasts/touches. The body is its reader's (readers/broadcasts.ts).
   handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), broadcasts, undefined)).data,
 });
 

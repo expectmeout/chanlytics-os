@@ -477,6 +477,8 @@ const wire = ({
         ok: true,
         data: { broadcasts: [], more, ...(open === undefined ? {} : { open_to_customers: open }) },
       });
+    // Who heard from a run this week: its own read (GET broadcasts/touches), nobody here.
+    if (u.pathname === "/api/v1/broadcasts/touches") return json(200, { ok: true, data: { touched_at: {} } });
     if (u.pathname === "/api/v1/contacts") {
       const offset = Number(u.searchParams.get("offset") || 0);
       offsets.push(offset);

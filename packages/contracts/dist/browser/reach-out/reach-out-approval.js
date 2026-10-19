@@ -2,7 +2,7 @@ import { clockNear, clockWhen } from "../shared/clock.js";
 import { HELD_REASONS } from "../broadcasts/run-words.js";
 import { plural } from "../shared/words.js";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits.js";
-import { RUN_WAITING_WORDS } from "../shell/campaign-rooms.js";
+import { RUN_OPEN_WORDS, RUN_WAITING_WORDS } from "../shell/campaign-rooms.js";
 import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
@@ -183,7 +183,7 @@ export const TO_SEND_ALL_WORDS = {
    * reach-out), and how many wait. The step is null until the run's detail is read.
    */
   runHead: (name, step, n) => step === null ? `${name} \xB7 ${n}` : `${name} \xB7 ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} \xB7 ${n}`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
   everyRun: (n, from) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
   reading: "Reading its emails\u2026",

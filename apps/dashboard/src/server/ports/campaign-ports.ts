@@ -163,7 +163,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
       return { ready, health };
     },
     // Who heard from a campaign or a broadcast from a week ago on, or is due to, and the time of each: the composer's own
-    // read (GET broadcasts' `touched_at`, db recentTouches), over the same window (contracts PLAYBOOK_BREATH_MS), so the
+    // read (GET broadcasts/touches' `touched_at`, db recentTouches), over the same window (contracts PLAYBOOK_BREATH_MS), so the
     // people the page says a send leaves out and the people the send skips are one number for one moment. A read that
     // fails throws, and the send is refused.
     touches: (now) => recentTouches(ctx.supabase, tenantId, now),

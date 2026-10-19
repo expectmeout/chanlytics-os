@@ -21,6 +21,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const broadcasts = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
+const touches = await import(at("apps/dashboard/app/api/v1/broadcasts/touches/route.ts"));
 const approve = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/approve/route.ts"));
 const cancel = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/cancel/route.ts"));
 const templates = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
@@ -246,7 +247,7 @@ test("the broadcasts list is the workspace the tab named, newest first, with wha
   );
 });
 
-test("the broadcasts list carries who a run of any kind reached this week, for the send screen's note -- never a run canceled, never last month", async () => {
+test("who a run of any kind reached this week is its own read, for the send screen's note -- never a run canceled, never last month -- and not the broadcasts list's, which the Inbox waits for", async () => {
   const hour = 3_600_000;
   const ago = (ms) => new Date(Date.now() - ms).toISOString();
   const tables = {
@@ -295,8 +296,10 @@ test("the broadcasts list carries who a run of any kind reached this week, for t
       },
     ],
   };
-  const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
+  const out = await touches.GET.run(get(inA), ctxFor(tables));
   assert.deepEqual(Object.keys(out.touched_at), ["k1"], "sent this week; not held back, not canceled, not last month");
+  const list = await broadcasts.GET.run(get(inA), ctxFor(tables));
+  assert.equal("touched_at" in list, false, "Sent's runs read no touch of the week");
   // And when last, so the composer judges a send set for later by the week before it goes (contracts heardFor).
   assert.equal(out.touched_at.k1.length, 1, "the one message");
   const at = Date.parse(out.touched_at.k1[0]);

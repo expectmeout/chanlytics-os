@@ -142,7 +142,7 @@ export function vetoRunNotice(name, people, when, trialUntil) {
   const trial = trialUntil ? ` \u201C${name}\u201D is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.` : "";
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Open the run to stop it before then if it should not go.${trial}`
   };
 }
 export const PLAYBOOK_NAME_MAX = 80;

@@ -328,19 +328,10 @@ export interface BroadcastVM extends BroadcastDto {
 }
 
 /**
- * What a run is called where a sentence names it: its audience's label (a playbook's, a list's), else its own name. A
- * reach-out's run carries no label (core run-reach-out.ts writes its ids alone), so its name says it ("Early gyms ·
- * 2026-10-14"): read as the label alone, a line named nobody ("ran at 7:44 AM").
- */
-export function runLabelOf(run: { audience?: unknown; name: string }): string {
-  const label = (run.audience as { label?: unknown } | null | undefined)?.label;
-  return typeof label === "string" && label.trim() ? label : run.name;
-}
-
-/**
- * What a run is called at the head of its own page and its row in the Inbox: its own name, less the day a sequence's run
- * carries after it (core run-playbook writes "VIP color clients · 2026-10-18"), which read as a code in a phone's head. A
- * one-off keeps its name: runLabelOf would call one sent to a list by the list's.
+ * What a run is called wherever it is named (its page's head, its row in the Inbox, Today and Ask, a toast): its own name,
+ * less the day a sequence's run carries after it (core run-playbook writes "VIP color clients · 2026-10-18"), which read
+ * as a code in a phone's head. A one-off keeps its name, never its list's; a reach-out's run, whose audience carries its
+ * ids alone, its own ("Early gyms").
  */
 export function runTitleOf(run: { name: string; run_for?: string | null }): string {
   const tail = run.run_for ? ` · ${run.run_for}` : null;

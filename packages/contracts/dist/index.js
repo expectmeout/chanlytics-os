@@ -8322,7 +8322,7 @@ function vetoRunNotice(name, people, when, trialUntil) {
   const trial = trialUntil ? ` \u201C${name}\u201D is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.` : "";
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Open the run to stop it before then if it should not go.${trial}`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -17066,6 +17066,7 @@ var RUN_WAITING_WORDS = "Waiting for your approval";
 var RUN_WAITING_SHORT = "Waits for you";
 var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
 var RUN_OPEN_WORDS = "Open the run";
+var RUN_UNNAMED_WORDS = "Run";
 function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
 }
@@ -20678,6 +20679,7 @@ function toApprovalVM(d, opts) {
   const late = runApprovalRefusal(b, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
   const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
   const runFor = b.run_for ?? "";
+  const goes = late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it";
   return {
     will,
     byChannel: by ? {
@@ -20695,7 +20697,8 @@ function toApprovalVM(d, opts) {
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
     approve: refusal ? null : runApproveWords(will),
     expired: refusal,
-    goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
+    goes,
+    goesLine: capitalize(goes),
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
 }
@@ -21298,10 +21301,6 @@ function runCountsOf(answer) {
     out[id] = { ...counts, sent_by: { whatsapp, sms, email } };
   }
   return out;
-}
-function runLabelOf(run) {
-  const label = run.audience?.label;
-  return typeof label === "string" && label.trim() ? label : run.name;
 }
 function runTitleOf(run) {
   const tail = run.run_for ? ` \xB7 ${run.run_for}` : null;
@@ -22446,7 +22445,7 @@ var TO_SEND_ALL_WORDS = {
    * reach-out), and how many wait. The step is null until the run's detail is read.
    */
   runHead: (name, step2, n) => step2 === null ? `${name} \xB7 ${n}` : `${name} \xB7 ${step2 === 0 ? "first email" : stepLabel(step2).toLowerCase()} \xB7 ${n}`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
   everyRun: (n, from) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
   reading: "Reading its emails\u2026",
@@ -47604,7 +47603,7 @@ function reachOutEditedWords(rechecked) {
 function reachOutSavedWords(saved) {
   const said = saved.start ? startWords(saved.start) : { tone: "good", text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
-  return run ? { ...said, to: `broadcasts/run:${run}`, label: "Open the run" } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+  return run ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
 }
 var REACH_OUT_SHEET_PARTS = {
   who: "Who gets it",
@@ -54135,6 +54134,7 @@ var ROUTE_KEYS = [
   "GET billing/invoices",
   "GET broadcasts",
   "GET broadcasts/[id]",
+  "GET broadcasts/touches",
   "GET business-record",
   "GET calendar",
   "GET calendar/runs",
@@ -54435,14 +54435,15 @@ var PREFETCH_READS = {
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
-  // reaches (People's book, its lists and the runs' touches), the channels read and the settings read, which holds the messages
-  // it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its searches as it is chosen. Each
-  // surface's first reads.
+  // reaches (People's book, its lists and the week's touches, their own read), the channels read and the settings read,
+  // which holds the messages it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its
+  // searches as it is chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
     "settings",
     "broadcasts",
+    "broadcasts/touches",
     "contacts",
     "segments",
     "reach-outs",
@@ -56361,7 +56362,7 @@ var ROUTE_VERBS = [
   [/^campaigns\/message:/, "Open the message"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
-  [/^broadcasts\/run:/, "Open the run"],
+  [/^broadcasts\/run:/, RUN_OPEN_WORDS],
   // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
   [/^broadcasts\/get-yes/, "Open Get their yes"],
@@ -60905,6 +60906,7 @@ export {
   RUN_NOW_WITHOUT_VERSION_WORDS,
   RUN_OPEN_WORDS,
   RUN_REPORT_STEPS,
+  RUN_UNNAMED_WORDS,
   RUN_VERBS,
   RUN_WAITING_SHORT,
   RUN_WAITING_WORDS,
@@ -62697,7 +62699,6 @@ export {
   runDraftedEmails,
   runDueNow,
   runHeldEmails,
-  runLabelOf,
   runLandingOf,
   runMarkShown,
   runReadingOf,

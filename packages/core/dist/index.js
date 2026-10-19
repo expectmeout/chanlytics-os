@@ -2857,7 +2857,7 @@ async function sayTheRun(run, made) {
       // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
       // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
       `Campaign \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do; it waits until tonight.`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run from your Inbox or Today. Nothing is sent until you do; it waits until tonight.`,
       made.madeId
     );
     return;
