@@ -959,24 +959,33 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   /* A pull past the page's end: the page gives way under the thumb and the frame holds, as the Calendar's board does
      inside its own box (Ruben, 19 Oct 2026: on the Inbox and People the date, the name and the strip came down with
      the rows). The screen's own band dragged the frame's top, the tab bar and Ask's circle with the page, fixed as they
-     are, so the screen holds (here, the document's root and its body, as Settings' were), and the route view moves
-     alone, by kit motion/page-give.ts: on the band's curve while the thumb is down (data-give="held"), and back on
-     the house's settle once it lets go ("back"), at once where motion is reduced. Where the view holds a scroller of its
-     own (the Calendar, an open thread, Live) that box gives as it always did. */
+     are, so the screen holds (here, the document's root and its body, as Settings' were), and the page moves alone, by
+     kit motion/page-give.ts: on the band's curve while the thumb is down (data-give="held"), and back on the house's
+     settle once it lets go ("back"), at once where motion is reduced. Where the view holds a scroller of its own (the
+     Calendar, an open thread, Live) that box gives as it always did. */
   html.legacy-on,
   html.legacy-on body {
     overscroll-behavior-y: none;
   }
-  .main-scroll[data-give] {
+  [data-give] {
     will-change: translate;
   }
-  .main-scroll[data-give="back"] {
+  [data-give="back"] {
     transition: translate var(--duration-slow) var(--ease-out);
   }
   @media (prefers-reduced-motion: reduce) {
-    .main-scroll[data-give="back"] {
+    [data-give="back"] {
       transition: none;
     }
+  }
+  /* And on a page of rows only the rows give: what stands over them on the page (the buckets, the search, the list's name
+     and its count) holds, as the Calendar's bar holds over its board (Ruben, 19 Oct 2026: "only the table rows should be
+     draggable down"). The box of rows says so; page-give.ts moves the first one drawn, and the route view where none is.
+     People's is the table with its foot, so the count under the last row goes with them. */
+  .main-scroll.pane > .inbox:not([data-takeover]) .ix-threads,
+  .main-scroll.pane > .conversations:not([data-takeover]) .cv-rows,
+  .main-scroll.pane > .clients .cl-table-wrap {
+    --page-gives: rows;
   }
   /* A page of panes whose list is what you scroll: the Inbox's threads, Conversations' rows, People's (Leads', the
      Pipeline's, a person's page). Its root, its column and its list are as tall as what they hold, clipped across only,
