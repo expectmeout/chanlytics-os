@@ -464,17 +464,20 @@ interface BcSheetProps {
 export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll, docked }: BcSheetProps) {
   const b = d.broadcast;
   const pb = sheet.playbook;
-  // What made its list, as its sequence says it ("Last visit 30+ days ago"), else the list it goes to. It said "Campaign ·"
-  // before it and when it goes after it, which wrapped onto a line of its own on a phone: when it goes is said beside the
-  // Approve it speaks of (the dock, the band's note).
-  const hint = pb && pb.triggerHint ? pb.triggerHint : b.audience.label;
+  // What made its list, as its sequence says it ("Last visit 30+ days ago"), else the list it goes to; nothing where that
+  // is only the run's own name again, as a campaign's list is called by its campaign. It said "Campaign ·" before it and
+  // when it goes after it, which wrapped onto a line of its own on a phone: when it goes is said beside the Approve it
+  // speaks of (the dock, the band's note).
+  const hint = pb && pb.triggerHint ? pb.triggerHint : b.audience.label !== runTitleOf(b) ? b.audience.label : null;
   const says = sheet.template && sheet.template.body_preview ? bcSheetSays(sheet.template, avm, sheet) : null;
   return (
     <div className="bc-sheet bc-approval" data-testid="bc-sheet">
       <div className="bc-sheet-body bc-approval-body">
-        <div className="bc-sheet-sub" data-testid="bc-sheet-hint">
-          {hint}
-        </div>
+        {hint ? (
+          <div className="bc-sheet-sub" data-testid="bc-sheet-hint">
+            {hint}
+          </div>
+        ) : null}
         {bcSheetReach(avm)}
         {says && bcSheetWords(says, avm)}
       </div>

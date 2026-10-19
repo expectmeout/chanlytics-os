@@ -917,7 +917,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     // "Campaign ·" before it or when it goes after it, which wrapped onto a line of its own on a phone. When it goes is
     // said beside the Approve it speaks of, as a line of its own.
     const hint = textOf(byTestId(sheet, "bc-sheet-hint"));
-    assert.ok(hint && !/Campaign · |Playbook · |goes /.test(hint), hint);
+    assert.equal(hint, "Everyone who said yes, on a cadence", "its campaign's own words for who it is for");
     assert.doesNotMatch(textOf(sheet), /Playbook · /);
     assert.match(
       textOf(byTestId(sheet, "bc-sheet-goes")),
