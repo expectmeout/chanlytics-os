@@ -678,8 +678,10 @@ export function peopleScreen(s: PeopleState) {
             onClose={() => setAddOpen(false)}
             onAdded={onOpenProfile}
             canImport={canExport}
-            // A list a rule keeps takes nobody by hand: the ones kept by hand are offered.
-            lists={saved.filter((l) => !l.rule).map((l) => ({ id: l.id, name: l.name }))}
+            // A list a rule keeps takes nobody by hand: the ones kept by hand are offered, the one open picked already.
+            lists={saved.filter((l) => l.byHand).map((l) => ({ id: l.id, name: l.name, count: l.count }))}
+            openList={activeSaved && activeSaved.byHand ? activeSaved.id : null}
+            known={people.rows}
             flash={plFlash}
           />
         )}

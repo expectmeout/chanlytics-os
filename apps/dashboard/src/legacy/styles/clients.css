@@ -2049,30 +2049,84 @@
 .cl-bulk-naming input { font: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 8px; width: 180px; outline: none; }
 .cl-bulk-naming input:focus { border-color: var(--accent); }
 
-/* ---- Import people (surfaces/people/import/import-sheet.tsx): the record kit's sheet. Its body is a file or pasted rows, the counts
-   before anything is written, five rows as a taste, then the summary; the kit's own field, label and input rules
-   (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
+/* ---- The import frame (surfaces/people/import/frame.tsx): People's Add people and Leads' Import leads, on the record
+   kit's sheet. Its body is a file or pasted rows, the counts before anything is written, five rows as a taste, then the
+   summary; the kit's own field, label and input rules dress the fields, and the body carries the vertical room the kit's
+   body leaves to its page. ---- */
 .pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
-/* The file is chosen from the kit's button, across the sheet with its glyph and words at its start, over the browser's
-   own picker, which is hidden: its "Choose File · No file chosen" was the one control the kit did not draw (the fitted
-   sheets, 14 Oct 2026). */
-.pl-import-file { align-self: stretch; justify-content: flex-start; }
-.pl-import-read { align-self: flex-start; }
-/* Add people, one person: the line that says either box is enough, and the quiet words that ask for a note and a list. */
-.pl-add-hint { margin: -8px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-.pl-add-more { display: flex; flex-wrap: wrap; gap: 16px; }
+/* The file is chosen from the kit's button, a row of the inset's ground with its glyph and its words, over the
+   browser's own picker, which is hidden: its "Choose File · No file chosen" was the one control the kit did not draw (the
+   fitted sheets, 14 Oct 2026). Read, for rows typed by hand, stands in the paste box's corner (a paste is read as it
+   lands). Once read, the file is its name, its rows and its Change. */
+.pl-import .pl-import-pick { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; height: auto; min-height: 68px; padding: 12px 14px; border-radius: var(--radius-xl); text-align: left; white-space: normal; }
+.pl-import-glyph { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-lg); background: var(--surface-inset-fill); color: var(--ink); }
+.pl-import-words { display: flex; flex-direction: column; min-width: 0; }
+.pl-import-words b { overflow: hidden; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.pl-import-words small { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--ink-dim); }
+.pl-import-paste { position: relative; }
+.pl-import-paste textarea { padding-bottom: 44px; resize: none; }
+.pl-import .pl-import-read { position: absolute; right: 8px; bottom: 8px; }
+.pl-import-chosen { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 56px; padding: 0 8px 0 10px; border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-xl); background: var(--surface-inset-fill); }
+.pl-import-chosen .pl-import-glyph { width: 34px; height: 34px; }
 .pl-import-preview, .pl-import-summary { display: flex; flex-direction: column; gap: 8px; }
 .pl-import-counts { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .pl-import-hint { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 /* A taste of the rows, not People's list (.cl-table, whose phone rules turn every row into a person's card): its own
-   quiet table, the head in the list's small caps, a hairline between rows, a number never broken. */
-.pl-import-table { width: 100%; border-collapse: collapse; }
-.pl-import-table th { padding: 6px 10px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
-.pl-import-table td { padding: 6px 10px; vertical-align: top; font-size: var(--text-xs); color: var(--ink); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+   quiet table, the head in the list's small caps over the file's own word for each column, a hairline between rows, a
+   number never broken. */
+.pl-import-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pl-import-table th { padding: 6px 8px; text-align: left; vertical-align: top; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
+.pl-import-table td { overflow: hidden; padding: 8px; vertical-align: top; font-size: var(--text-xs); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line); }
 .pl-import-table tbody tr:last-child td { border-bottom: none; }
-.pl-import-table td.tabular { white-space: nowrap; }
+.pl-import-from { display: block; overflow: hidden; margin-top: 1px; font-size: var(--text-2xs); font-weight: var(--weight-regular); letter-spacing: 0; text-transform: none; color: var(--ink-dim); text-overflow: ellipsis; white-space: nowrap; }
+.pl-import-from[data-missing="true"] { color: var(--warn-ink); }
 .pl-import-lines { margin: 0; padding-left: 18px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .pl-import-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+
+/* ---- Add people (surfaces/people/import/import-sheet.tsx): the frame's steady sheet (Ruben, 20 Oct 2026, the canvas
+   "Add people, redesigned"). Every field is drawn from the start in two groups of rows (the kit's .rec-rows); one line
+   under the details says what the moment needs, in place; the lists are one row whose picker opens in the sheet's own
+   room. Nothing here grows under the thumb. ---- */
+.pl-add .pl-import { gap: 0; padding: 4px 0 16px; }
+.pl-add .pl-import-paste { margin-top: 14px; }
+.pl-add .pl-import-table { border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-lg); border-collapse: separate; border-spacing: 0; overflow: hidden; }
+/* The one line: that either box is enough, what is missing or refused, who is already here, what a list read holds, or
+   how far it has gone in. One line's height whatever it says; a refusal alone may run to a second line to be read whole. */
+.pl-add-line { display: flex; align-items: center; gap: 7px; min-height: 28px; margin: 5px 4px 12px; overflow: hidden; font-size: var(--text-sm); line-height: 20px; color: var(--ink-dim); white-space: nowrap; }
+.pl-add-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pl-add-line b { font-weight: var(--weight-semibold); color: var(--ink); }
+.pl-add-line > .icon { flex: none; }
+.pl-add-line[data-tone="bad"] { align-items: flex-start; padding-top: 4px; font-weight: var(--weight-medium); color: var(--danger-ink); white-space: normal; }
+.pl-add-line[data-tone="bad"] > .icon { margin-top: 3px; }
+.pl-add-line[data-tone="warn"] { font-weight: var(--weight-medium); color: var(--warn-ink); }
+.pl-add-line[data-tone="ok"], .pl-add-line[data-tone="going"] { color: var(--ink-muted); }
+.pl-add-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--ok); }
+.pl-add-progress { flex: 1 1 auto; min-width: 60px; height: 4px; overflow: hidden; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); appearance: none; }
+.pl-add-progress::-webkit-progress-bar { background: var(--surface-inset-fill); }
+.pl-add-progress::-webkit-progress-value { border-radius: var(--radius-full); background: var(--accent); }
+.pl-add-progress::-moz-progress-bar { border-radius: var(--radius-full); background: var(--accent); }
+/* The lists, in the sheet's room: a heading over each group, each list a row of its name, how many are on it and its
+   switch, the whole row a press (a label holds the switch); the title while picking holds the way back. */
+.pl-add-picker { display: flex; flex-direction: column; }
+.pl-add-pick-cap { display: flex; justify-content: space-between; margin: 16px 4px 8px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--ink-dim); }
+.pl-add-pick-cap span { font-weight: var(--weight-medium); }
+.pl-add-pick-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 12px; min-height: 48px; padding: 0 14px; cursor: pointer; }
+.pl-add-pick-row > span:first-child { overflow: hidden; font-size: var(--text-base); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.pl-add-pick-count { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.pl-add .pl-add-make { justify-content: flex-start; gap: 8px; margin-top: 12px; }
+.pl-add-pick-title { display: inline-flex; align-items: center; gap: 10px; }
+.pl-add-back { rotate: 180deg; }
+/* What a list came to: how many went in, said once, and the three numbers beside it; the lines that did not, by line. */
+.pl-add .pl-import-summary { gap: 12px; padding: 16px; border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-xl); background: var(--surface-inset-fill); }
+.pl-import-total { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); }
+.pl-import-tick { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-full); background: var(--ok-soft); color: var(--ok-ink); }
+.pl-import-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pl-import-nums p { margin: 0; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--surface-inset-fill); font-size: var(--text-xs); color: var(--ink-dim); }
+.pl-import-nums b { display: block; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); font-variant-numeric: tabular-nums; }
+.pl-import-lines-head { margin: 16px 4px 8px; font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--ink-muted); }
+.pl-add .pl-import-lines { padding: 0; list-style: none; border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-lg); }
+.pl-add .pl-import-lines li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; padding: 9px 12px; }
+.pl-add .pl-import-lines li + li { border-top: 1px solid var(--line); }
 
 /* ---- The table: who, at a glance; actions on hover; a keyboard row; cards when narrow ---- */
 .tabular { font-variant-numeric: tabular-nums; }

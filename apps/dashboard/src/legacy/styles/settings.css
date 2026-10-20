@@ -556,16 +556,29 @@
 /* What a row opens under itself (the locations to choose among, the business
    record) starts where the row's words do. */
 .set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
+/* A row's Settings (row.tsx rowSettings), opened in place on a line of its own under its name: what it is attached to,
+   what it says, and its acts. Ruben, 20 Oct 2026: the number is said here, never on the row. */
+.set-int-open { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 2px 0 6px; }
+.set-int-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 16px; row-gap: 2px; margin: 0; font-size: var(--set-hint); line-height: 1.5; }
+.set-int-facts dt { color: var(--ink-dim); }
+.set-int-facts dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.set-int-open > .set-acts { flex: none; margin-top: 0; }
+/* What Fix opens leads with what is wrong, in the ink, and the act that mends it, over a hairline before the rest. */
+.set-int-fix { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.set-int-problem { font-size: var(--set-hint); line-height: 1.5; color: var(--ink); text-wrap: pretty; }
+/* An open row is one piece: the pointer's ground would wash its Settings with it. */
+.set-conn > .set-int-row[data-open="true"]::before { background: none; }
 /* A note about the group, after its rows. */
 .set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
-/* A row's phone pieces (integrations-real.jsx ConnectionRow): a desktop keeps its acts in the group's column. A row
-   with one act is that act's press at every width, as a record row is. */
+/* A row's phone pieces (row.tsx ConnectionRow): a desktop keeps its button in the group's column. A row whose button
+   is Settings is that button's press at every width, as a record row is. The ⋯ and the detail beside a name are the
+   Ad accounts card's (ad-accounts.tsx, a demo's), whose rows still carry two acts. */
 .set-int-chev, .set-int-more { display: none; }
 .set-conn > .set-int-row[data-offers="one"] { cursor: pointer; }
-/* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name over what it
-   is attached to, its state, and its acts behind the row -- a row with one act is that act's press with a chevron, a
-   row with two keeps them in its ⋯ -- never a line of boxed buttons under the words. A row that wants something
-   (Connect Google) keeps its one button, in the state's place; a Later row is its name. */
+/* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name, its state,
+   and its button behind the row -- a Settings row is its press with a chevron, which turns as it opens -- never a
+   line of boxed buttons under the words. A Connect row keeps its button, in the state's place; a Later row is its
+   name. */
 @media (max-width: 640px) {
   .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
   .set-conn > .set-int-row > .set-int-tile { align-self: start; }
@@ -601,7 +614,8 @@
      name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
   .set-int-head > :nth-child(2) { margin-inline: -8px; }
   .set-conn > .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
-  .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
+  .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+  .set-conn > .set-int-row[data-open="true"] > .set-int-chev { rotate: 90deg; }
   .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
   .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
   .set-conn > .set-row-stack { padding-left: 0; }
