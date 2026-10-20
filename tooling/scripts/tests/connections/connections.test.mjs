@@ -429,11 +429,12 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   );
   const [pane, row, form] = parts;
   const page = parts.join("\n");
+  // Its Disconnect (Remove until 20 Oct 2026) is in the listing's Settings, and asked only of a listing there is.
   assert.ok(
     row.includes(
-      'r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (',
+      'const removable = r.kind === "google_listing" && owner && (r.state === "connected" || r.state === "attention");',
     ),
-    "Remove is offered only when there is a listing to remove",
+    "Disconnect is offered only when there is a listing to disconnect",
   );
   assert.ok(
     !page.includes("It is an operator action for now"),

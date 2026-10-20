@@ -568,15 +568,16 @@ const seam = (held) => {
   if ("setup" in held) setSurfaceValue("setup", held.setup);
   if ("google" in held) setSurfaceValue("google", held.google);
 };
-test("a connection on a phone offers its acts behind the row: one act is the row's press, two are its menu, Later offers nothing, and a desktop keeps the buttons", async () => {
-  // 25 Sep: rows were 77 to 145px on a phone, each over a line of boxed buttons, Remove a thumb from Check now.
+test("every connection says one word: Connect where it is not joined, Settings where it is, which opens what it is attached to and its acts in place, and Later offers nothing", async () => {
+  // Ruben, 20 Oct 2026: "each connection should either say connect or disconnect and or settings as different terminology
+  // for each connection makes it confusing. do not even expose the numbers on texting etc unless user expands settings".
   asRole("owner");
   seam({
     channels: [],
     setup: null,
     google: {
       dto: {
-        ready: { places: true, profile: false },
+        ready: { places: true, profile: true },
         listing: {
           place_id: "p1",
           name: "Northside Studio",
@@ -596,34 +597,40 @@ test("a connection on a phone offers its acts behind the row: one act is the row
   Object.assign(googleVerbs, { unlink: async () => ({ ok: true, message: "" }) });
   render(Connections);
   await flush();
-  const tree = settle(Connections);
-  const listing = byTestId(tree, "connection-google_listing");
-  assert.equal(listing.props["data-offers"], "menu", "Check now and Remove: two acts, a menu");
-  // The kit's own MoreMenu, drawn: its node in the tree carries the items the row handed it.
-  const menu = find(listing, (n) => n.type === MoreMenu);
-  assert.ok(menu, "the row draws the kit's menu");
-  assert.deepEqual(
-    menu.props.items.map((i) => [i.label, !!i.danger]),
-    [
-      ["Remove", true],
-      ["Check now", false],
-    ],
+  let tree = settle(Connections);
+  let listing = byTestId(tree, "connection-google_listing");
+  // One act on the row, its Settings, and the row is its press on a phone (settings.css): no ⋯, no address beside the name.
+  assert.equal(listing.props["data-offers"], "one");
+  assert.equal(
+    find(listing, (n) => n.type === MoreMenu),
+    null,
+    "no menu",
   );
-  assert.equal(menu.props.testid, "connection-google_listing-more");
-  // The desktop's buttons are still the row's, with their names: the phone hides them (settings.css).
-  assert.ok(byTestId(listing, "google-remove") && byTestId(listing, "google-check"));
-  // The detail is its own line on a phone: the " · " is a desktop's, in a span of its own.
-  const detail = find(listing, (n) => String(n.props?.className || "").includes("set-int-detail"));
-  assert.match(textOf(detail), /1 Main St, Springfield/);
-  for (const k of ["google_profile", "instagram", "deposits"]) {
+  assert.equal(textOf(byTestId(listing, "connection-google_listing-settings")), "Settings");
+  assert.ok(!textOf(listing).includes("1 Main St"), "what it is attached to waits in its Settings");
+  assert.equal(byTestId(listing, "google-check"), null);
+  assert.equal(byTestId(listing, "google-remove"), null);
+  // A connection on offer says Connect, and its press is the row's own verb.
+  const profile = byTestId(tree, "connection-google_profile");
+  assert.equal(profile.props["data-offers"], "primary");
+  assert.equal(textOf(byTestId(profile, "google-connect")), "Connect");
+  for (const k of ["instagram", "deposits"]) {
     const later = byTestId(tree, `connection-${k}`);
     assert.equal(later.props["data-offers"], "none", `${k}: a Later row offers a thumb nothing`);
     assert.equal(later.props.onClick, undefined, `${k}: and is no press`);
   }
-  // Pressing the menu's Remove asks first, as the row's own Remove does.
-  menu.props.items[0].onClick();
+  // Settings opens in place: the address, what it says, its own act by its own name, and Disconnect last.
+  press(byTestId(listing, "connection-google_listing-settings"));
+  tree = settle(Connections);
+  listing = byTestId(tree, "connection-google_listing");
+  assert.equal(listing.props["data-open"], "true");
+  assert.equal(textOf(byTestId(listing, "connection-google_listing-detail")), "1 Main St, Springfield");
+  assert.equal(textOf(byTestId(listing, "google-check")), "Check now");
+  assert.equal(textOf(byTestId(listing, "google-remove")), "Disconnect");
+  // Disconnect asks first.
+  press(byTestId(listing, "google-remove"));
   await flush();
-  assert.match(textOf(settle(Connections)), /Remove the listing\?/);
+  assert.match(textOf(settle(Connections)), /Disconnect the listing\?/);
 });
 
 test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Disconnect does -- it disconnected Google at once", async () => {
@@ -805,7 +812,12 @@ const setupWithLine = () => ({
  * opens in place under its name. What happened or waits is on the row without it.
  */
 const openAbout = (kind) => {
-  press(byTestId(settle(Connections), `connection-${kind}-why`));
+  const tree = settle(Connections);
+  press(
+    byTestId(tree, `connection-${kind}-why`) ??
+      byTestId(tree, `connection-${kind}-settings`) ??
+      byTestId(tree, `connection-${kind}-fix`),
+  );
   return settle(Connections);
 };
 const noteTexts = (tree, kind) =>
@@ -926,7 +938,7 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
     await flush();
     let tree = settle(Connections);
     assert.deepEqual(prepared, [door], "the door is ready and the row offers Connect: the SDK is fetched, once");
-    assert.equal(said(tree), "Connect WhatsApp");
+    assert.equal(said(tree), "Connect");
     press(byTestId(tree, "connect-whatsapp-btn"));
     tree = settle(Connections);
     assert.equal(said(tree), "Waiting for Meta…", "a sign-up under way says so on the button it dims");
@@ -935,7 +947,7 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
     finish({ ok: false, reason: "blocked", message: blocked });
     await flush();
     tree = settle(Connections);
-    assert.equal(said(tree), "Connect WhatsApp", "and the button is the row's act again once it has ended");
+    assert.equal(said(tree), "Connect", "and the button is the row's act again once it has ended");
     assert.equal(byTestId(tree, "connect-whatsapp-btn").props.disabled, false);
     assert.equal(prepared.length, 1, "drawing again fetches nothing again");
     // What it came to stays on the row, first and in full: the toast that says it is one line on a phone, and gone in seconds.
@@ -1210,11 +1222,31 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
   const tree = settle(Connections);
   const row = byTestId(tree, "connection-whatsapp");
   assert.equal(row.props["data-state"], "attention");
+  // The row is its name, its state and Fix, in coral (Ruben, 20 Oct 2026): what is wrong and the act that mends it are
+  // what Fix opens.
   assert.equal(
-    textOf(find(row, (n) => n.props?.className === "set-team-mail")),
+    find(row, (n) => n.props?.className === "set-team-mail"),
+    null,
+    "no sentence on the row",
+  );
+  assert.equal(byTestId(row, "connection-whatsapp-verb"), null, "and no act of its own beside Fix");
+  const fix = byTestId(row, "connection-whatsapp-fix");
+  assert.deepEqual([textOf(fix), fix.props.variant], ["Fix", "primary"]);
+  // What Meta holds, to act on "when you need more", is in what Fix opens too: the row says the one word.
+  assert.deepEqual(noteTexts(tree, "whatsapp"), []);
+  const opened = openAbout("whatsapp");
+  const open = byTestId(opened, "connection-whatsapp");
+  assert.equal(
+    textOf(byTestId(open, "connection-whatsapp-says")),
     "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.",
   );
-  const verb = byTestId(row, "connection-whatsapp-verb");
+  assert.equal(
+    byTestId(open, "connection-whatsapp-fix").props.variant,
+    "secondary",
+    "open, the coral is the act inside",
+  );
+  const verb = byTestId(byTestId(open, "connection-whatsapp-problem"), "connection-whatsapp-verb");
+  assert.equal(verb.props.variant, "primary");
   assert.deepEqual(
     [textOf(verb), verb.props.href, verb.props.target, verb.props.rel],
     [
@@ -1223,11 +1255,8 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
       "_blank",
       "noopener noreferrer",
     ],
-    "the row's one act: Meta's own page for this business and this account, in a new tab",
+    "its act: Meta's own page for this business and this account, in a new tab",
   );
-  // What Meta holds, to act on "when you need more", is behind the row's quiet press: the row says the one thing to do.
-  assert.deepEqual(noteTexts(tree, "whatsapp"), []);
-  const opened = openAbout("whatsapp");
   assert.deepEqual(noteTexts(opened, "whatsapp"), [
     "Not verified with Meta: customers see your number instead of your name, and you can start conversations with up to 250 people a day. Verify when you need more.",
   ]);

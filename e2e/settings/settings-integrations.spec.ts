@@ -28,13 +28,20 @@ const KINDS = [
 
 /**
  * Where a channel's row states its health. A row that waits on the owner says it in a line of its own; any other says
- * it when asked, in place, under the press beside its name (#1493, 8 Oct 2026: "all extra info should be on a need to
- * know"). Until then every row drew it, and these specs read the row's whole text.
+ * it when asked, in place: a connected row in its Settings (Ruben, 20 Oct 2026: every row says Connect or Settings, and
+ * nothing it is attached to until it is opened), one on offer under the press beside its name (#1493, 8 Oct 2026: "all
+ * extra info should be on a need to know"). Until then every row drew it, and these specs read the row's whole text.
  */
+async function openRow(row: Locator, kind: string): Promise<void> {
+  for (const press of ["settings", "fix", "why"]) {
+    const button = row.getByTestId(`connection-${kind}-${press}`);
+    if (await button.count()) return button.click();
+  }
+}
 async function healthOf(row: Locator, kind: string): Promise<Locator> {
   const line = row.getByTestId(`connection-${kind}-line`);
   if (await line.count()) return line;
-  await row.getByTestId(`connection-${kind}-why`).click();
+  await openRow(row, kind);
   return row.getByTestId(`connection-${kind}-says`);
 }
 
@@ -93,7 +100,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
       );
       return;
     }
-    await expect(row).toContainText(/Connect WhatsApp|isn't set up to connect|Checking|Sign in to Meta/);
+    await expect(row).toContainText(/Connect|isn't set up to connect|Checking|Sign in to Meta/);
   });
 
   test("Integrations lists no template: the WhatsApp row points at Campaigns › Messages", async ({ page }) => {
@@ -101,6 +108,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("connections-connected")).toBeVisible();
     await expect(page.getByTestId("templates")).toHaveCount(0);
+    // The WhatsApp row's own act is in its Settings.
+    const settings = page.getByTestId("connection-whatsapp-settings");
+    if (await settings.count()) await settings.click();
     const link = page.getByTestId("channel-messages");
     if (await link.count()) {
       await link.click();
