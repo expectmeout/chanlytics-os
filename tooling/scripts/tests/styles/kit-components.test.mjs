@@ -515,6 +515,7 @@ test("Panel draws the gallery's Panel family, on the element its content is: a d
 const FACES = {
   face: () => [h(Face, { initials: "AR" }), h(Face, { initials: "SO" })],
   "face-glyph": () => h(Face, { glyph: glyph() }),
+  "face-tile": () => ["a", "b", "c", "d"].map((t) => h(Face, { initials: "LA", tile: t })),
   "face-photo": () => h(Face, { initials: "AR", photo: PHOTO }),
   "face-sm": () => [h(Face, { initials: "AR", size: "sm" }), h(Face, { initials: "AR", size: "sm", photo: PHOTO })],
   "face-lg": () => [h(Face, { initials: "AR", size: "lg" }), h(Face, { initials: "AR", size: "lg", photo: PHOTO })],
@@ -645,8 +646,8 @@ test("ListRow draws the gallery's List row family, and the page's own elements w
   const kind = drawn(h(ListRow, { mark: glyph(), name: "Win-back", facts: ["Quiet or lapsed"] }));
   assert.equal(
     spell(settle(drawnSkeleton(kind))),
-    "div.list-row(span.list-row-mark.mark[aria-hidden=true](svg.icon) div.list-row-name div.list-row-facts(span))",
-    "a row's kind stands in the face's column as the kit's mark, neutral, hidden from a screen reader",
+    "div.list-row(span.list-row-mark.mark.mark-row[aria-hidden=true](svg.icon) div.list-row-name div.list-row-facts(span))",
+    "a row's kind stands in the face's column as the kit's mark at a face's size, neutral, hidden from a screen reader",
   );
 });
 
@@ -684,6 +685,7 @@ const METERS = {
     }),
   "meter-open": () =>
     h(Meter, {
+      apart: true,
       parts: [
         { share: 2, tone: "ok" },
         { share: 7, tone: "warn" },
@@ -810,6 +812,8 @@ const FIGURES = {
     h(Figure, { label: "Customer messages", value: "Today", meta: "on 6 of 7 days", washed: true }),
   // A phone's figure (canvas A, P1): a tile of its own, two to a line.
   "figure-tile": () => h(Figure, { label: "Last contact", value: "Sep 24", meta: "You replied", look: "tile" }),
+  // The one number a view is for (a sequence's History): at the decision's size, its label beside it.
+  "figure-hero": () => h(Figure, { label: "sent", value: "19", look: "hero" }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {

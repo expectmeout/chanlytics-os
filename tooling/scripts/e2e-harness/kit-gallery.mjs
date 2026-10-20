@@ -276,7 +276,7 @@ const listRow = ({ said = true, note = false, door = false, mark = false, bare =
   (bare
     ? ""
     : mark
-      ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
+      ? `<span class="mark mark-row list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
       : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
@@ -342,6 +342,15 @@ const kickerToolsSheet = () =>
   `<footer class="rec-sheet-foot"><div data-foot-pair=""><span>3 people picked</span><span aria-live="polite"></span>` +
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
   `<button type="button" class="btn btn-sm btn-primary">Add 3</button></div></footer></section>`;
+/** A sheet whose title is a kicker, its tools on the kicker's line beside the Close (Sheet's `toolsInLine`). */
+const kickerLineSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" aria-modal="true" aria-label="A run" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">A run</h2></div>` +
+  `<div class="rec-sheet-line"><button type="button" class="btn btn-sm">Open in Campaigns</button></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div></section>`;
 /** A sheet whose foot holds a page's line over the kit's own Save and Cancel (RecordSheet's `foot` beside its save). */
 const footLineSheet = () =>
   `<div class="sheet-backdrop" aria-hidden="true"></div>` +
@@ -353,6 +362,18 @@ const footLineSheet = () =>
   `<footer class="rec-sheet-foot"><span>The receptionist reads them from the next call.</span><div class="rec-foot">` +
   `<button type="button" class="btn btn-sm btn-primary">Save</button>` +
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button></div></footer></section>`;
+/** A foot of acts alone (`data-foot-acts`: a step's Take away, Send me a test and Edit): one inset all round. */
+const footActsSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" aria-modal="true" aria-label="Appointment reminder" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Appointment reminder</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-acts="">` +
+  `<button type="button" class="btn btn-sm btn-ghost danger">Take away</button>` +
+  `<button type="button" class="btn btn-sm">Send me a test</button>` +
+  `<button type="button" class="btn btn-sm btn-primary">Edit</button></div></footer></section>`;
 /** A desk's MoreMenu open inside a sheet (the Hours sheet's times): on the pop's solid, its wash past the sheet's edges. */
 const menuInSheet = () =>
   `<div class="sheet-backdrop" aria-hidden="true"></div>` +
@@ -738,6 +759,7 @@ const figure = ({
   tone = null,
   washed = false,
   tile = false,
+  hero = false,
 } = {}) => {
   const said = washed ? `<span class="wash" data-wash="true">${value}</span>` : value;
   const number =
@@ -747,7 +769,7 @@ const figure = ({
         ? `<button type="button" class="figure-door">${said}</button>`
         : said;
   return (
-    `<dl class="gx-figs"><div class="figure${tile ? " figure-tile" : ""}${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${tile ? " figure-tile" : ""}${hero ? " figure-hero" : ""}${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
     `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
     `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
@@ -1212,6 +1234,7 @@ export const FAMILIES = [
         id: "mark",
         html: `<span class="mark">${icon("phone", 13)}</span> <span class="mark">${icon("calendar", 13)}</span>`,
       },
+      { id: "mark-row", html: `<span class="mark mark-row">${icon("bell", 14)}</span>` },
     ],
   },
   {
@@ -2176,6 +2199,15 @@ export const FAMILIES = [
       },
       { id: "face-glyph", html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>` },
       {
+        id: "face-tile",
+        html:
+          `<div class="gx-row">` +
+          ["a", "b", "c", "d"]
+            .map((t) => `<span class="face face-tile face-tile-${t}" aria-hidden="true"><span>LA</span></span>`)
+            .join("") +
+          `</div>`,
+      },
+      {
         id: "face-photo",
         html: `<span class="face" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span>`,
       },
@@ -2262,7 +2294,7 @@ export const FAMILIES = [
       {
         id: "meter-open",
         html:
-          `<div class="meter" role="img" aria-label="2 ready, 7 held, 3 being checked">` +
+          `<div class="meter meter-apart" role="img" aria-label="2 ready, 7 held, 3 being checked">` +
           `<span class="meter-part meter-ok" style="flex-grow: 2"></span>` +
           `<span class="meter-part meter-warn" style="flex-grow: 7"></span>` +
           `<span class="meter-part meter-open" style="flex-grow: 3"></span></div>`,
@@ -2289,6 +2321,7 @@ export const FAMILIES = [
       { id: "figure-warn", html: figure({ tone: "warn" }) },
       { id: "figure-fail", html: figure({ tone: "fail" }) },
       { id: "figure-tile", html: figure({ term: "Last contact", value: "Sep 24", meta: "You replied", tile: true }) },
+      { id: "figure-hero", html: figure({ term: "sent", value: "19", meta: null, hero: true }) },
     ],
   },
   {
@@ -2331,7 +2364,9 @@ export const FAMILIES = [
       { id: "sheet-job", stage: "sheet", width: "phone", html: jobSheet() },
       { id: "sheet-job-leaving", stage: "sheet", width: "phone", html: jobSheet(true) },
       { id: "sheet-kicker-tools", stage: "sheet", html: kickerToolsSheet() },
+      { id: "sheet-kicker-line", stage: "sheet", html: kickerLineSheet() },
       { id: "sheet-foot-line", stage: "sheet", html: footLineSheet() },
+      { id: "sheet-foot-acts", stage: "sheet", html: footActsSheet() },
       { id: "sheet-menu", stage: "sheet", width: "desk", html: menuInSheet() },
     ],
   },

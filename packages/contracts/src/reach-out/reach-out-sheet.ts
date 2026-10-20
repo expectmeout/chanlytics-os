@@ -20,7 +20,6 @@ import { REACH_OUT_DRAFTS_PER_DAY } from "./reach-out-rules";
 import { SEND_DAY_FRAME } from "./reach-out-timetable";
 import type { HandKind } from "./reach-out-hand";
 import { pct } from "../shared/numbers";
-import { runApproveWords } from "../shell/campaign-rooms";
 import { heldAnswersOf, heldWhyOf } from "../sequences/sequence-held";
 import { dateFormat } from "../shared/time";
 
@@ -290,10 +289,14 @@ function firstSendWhen(firstAt: string | null, tz: string, now: number): string 
 /** A live run's state, as the words of its decision read it: waiting on its owner, approved and to come, or going. */
 type RunState = "pending_approval" | "scheduled" | "sending";
 
-/** One part of a run, as its bar and the legend under it say it: ready, the coming days, held, still being checked. */
+/**
+ * One part of a run, as its bar and the legend under it say it: ready, the coming days, held, still being checked. The
+ * legend sets the number heavy and the rest plain (`rest`); `words` is the whole, for a screen reader.
+ */
 export interface RunPartVM {
   key: "go" | "later" | "held" | "checking";
   n: number;
+  rest: string;
   words: string;
 }
 
@@ -324,16 +327,15 @@ function runPartsOf(r: ReachOutRunDto, ready: number, state: RunState): RunPartV
   const owner = r.owner_sends === true;
   const held = r.held.length;
   const goWords = owner && state !== "pending_approval" ? "handed to you" : state === "sending" ? "going" : "ready";
+  const part = (key: RunPartVM["key"], n: number, rest: string): RunPartVM => ({ key, n, rest, words: `${n} ${rest}` });
   const parts: RunPartVM[] = [
-    { key: "go", n: ready, words: `${ready} ${goWords}` },
-    { key: "later", n: r.later, words: `${r.later} in the coming days` },
-    { key: "held", n: held, words: `${held} held` },
-    { key: "checking", n: r.checking, words: `${r.checking} being checked` },
+    part("go", ready, goWords),
+    part("later", r.later, "in the coming days"),
+    part("held", held, "held"),
+    part("checking", r.checking, "being checked"),
   ];
   const shown = parts.filter((x) => x.n > 0);
-  return shown.length > 2
-    ? shown
-    : shown.map((x) => (x.key === "held" ? { ...x, words: `${held} held by the check` } : x));
+  return shown.length > 2 ? shown : shown.map((x) => (x.key === "held" ? part("held", held, "held by the check") : x));
 }
 
 /** What the foot says beside its act: what goes and from when, then what else waits (a phone's dock, a desk's foot). */
@@ -390,6 +392,13 @@ function runWordsOf(r: ReachOutRunDto): Array<{ text: string; opening: boolean }
   return words;
 }
 
+/** What the held card says under its head: whose say it waits for, and what the run does without them. */
+function heldNoteWords(held: number, each: boolean, ready: number, owner: boolean, waiting: boolean): string {
+  const lead = `${held === 1 ? "It waits" : each ? "Each waits" : "They wait"} for your say`;
+  if (!waiting) return owner ? `${lead}.` : `${lead}; the run goes on without them.`;
+  return ready > 0 && !owner ? `${lead}. Approve sends only the ${ready} ready.` : `${lead}.`;
+}
+
 /**
  * A run to leads, as its screen decides it (F13; R21, R22; the run-to-leads canvas of 19 Oct 2026): the decision first, how
  * many go and of how many, in one bar by count, and when and from where; the held as one card with its rows; the first
@@ -420,7 +429,6 @@ export function approvalWordsOf(
   const unrun = r.held.filter((h) => h.reason === "check_unavailable" && h.detail === null).length;
   // Its step, from 1: a held email's no at step 1 is Take out, since skipping it would end their place (00459).
   const place = r.step_n === null ? null : r.step_n + 1;
-  const each = held === 1 ? "It waits" : "Each waits";
   return {
     title: r.chain_name,
     step: r.step_n === null ? "A step since removed" : `Step ${r.step_n + 1}`,
@@ -463,11 +471,13 @@ export function approvalWordsOf(
         }
       : null,
     heldHead: `${held} held by the check`,
-    heldNote: !waiting
-      ? `${each} for your say; the run goes on without them.`
-      : ready > 0 && !owner
-        ? `${each} for your say. Approve sends only the ${ready} ready.`
-        : `${each} for your say.`,
+    // Closed it says "They wait", opened "Each waits" (the canvas's boards 1 and 2); a member who may not answer is
+    // told whose say it is.
+    heldNote: {
+      closed: heldNoteWords(held, false, ready, owner, waiting),
+      open: heldNoteWords(held, true, ready, owner, waiting),
+      gated: `${held === 1 ? "It waits" : "Each waits"} for an owner's or operator's say.`,
+    },
     recheck: unrun > 0 ? { said: `The check couldn't run for ${unrun}`, act: REACH_OUT_SHEET_WORDS.recheck } : null,
     held: r.held.map((h) => ({
       id: h.send_id,
@@ -481,10 +491,10 @@ export function approvalWordsOf(
       ),
     })),
     dock: runDockOf(r, { ready, from, state }),
-    // Approving said once (runApproveWords): the count it releases, when it goes beside it in the dock, never in it.
-    approve: waiting ? runApproveWords(n, ["email", "emails"]) : null,
+    // The count it releases (the canvas's Approve 2); when it goes is the foot's line beside it, never in it.
+    approve: waiting ? `Approve ${n}` : null,
     // What a member who may not approve is told it waits for, in the foot where Approve would be.
-    waits: `${n} go once it's approved`,
+    waits: { lead: `${n} go once it's approved`, said: "An owner or operator approves" },
     note: "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.",
   };
 }

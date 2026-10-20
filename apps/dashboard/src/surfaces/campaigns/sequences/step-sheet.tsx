@@ -142,11 +142,22 @@ function StepFoot(p: {
       />
     );
   if (!ownsWords(step)) return null;
+  // Its acts alone in the foot (kit.css data-foot-acts: one inset all round): Take away, the quiet one, at its start, then
+  // Send me a test and Edit, the filled one, at its end (Ruben, 20 Oct 2026: the spacing of the three).
   return (
-    <div className="sq-stepfoot">
-      <Button variant="primary" onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>
-        <Icon name="pencil" size={13} /> {SEQUENCE_WORDS.edit}
-      </Button>
+    <div className="sq-stepfoot" data-foot-acts="">
+      {step.place > 1 ? (
+        <Button
+          variant="quiet"
+          tone="danger"
+          onClick={() => setSure(true)}
+          data-testid={`sq-step-remove-ask-${step.place}`}
+          {...gate("approve")}
+        >
+          {F.takeAway}
+        </Button>
+      ) : null}
+      <span className="sq-stepfoot-sp" />
       {step.template_id ? (
         <Button
           onClick={() => void test()}
@@ -159,18 +170,9 @@ function StepFoot(p: {
           <Icon name="send" size={13} /> {testing ? T.sending : T.press}
         </Button>
       ) : null}
-      {step.place > 1 ? (
-        <Button
-          variant="quiet"
-          tone="danger"
-          className="sq-stepfoot-end"
-          onClick={() => setSure(true)}
-          data-testid={`sq-step-remove-ask-${step.place}`}
-          {...gate("approve")}
-        >
-          {F.takeAway}
-        </Button>
-      ) : null}
+      <Button variant="primary" onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>
+        <Icon name="pencil" size={13} /> {SEQUENCE_WORDS.edit}
+      </Button>
     </div>
   );
 }
@@ -216,7 +218,8 @@ export function StepSheet(p: StepSheetProps) {
       testid="sq-step-sheet"
       foot={
         editing ? (
-          <div className="sq-stepfoot" ref={setFootEl} />
+          // The editor's Cancel and Save: the kit's pair (kit.css data-foot-pair), an equal pair on a phone, Save first.
+          <div className="sq-stepfoot" data-foot-pair="" ref={setFootEl} />
         ) : step ? (
           <StepFoot rec={rec} step={step} flash={flash} moved={moved} onEdit={p.onEdit} onGone={p.onClose} />
         ) : null

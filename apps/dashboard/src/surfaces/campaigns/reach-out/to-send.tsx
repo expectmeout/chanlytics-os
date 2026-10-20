@@ -25,7 +25,7 @@ import {
   type ToSendRowVM,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { canDo, gateTitle, navigate } from "../../legacy-verbs";
+import { canDo, gateTitle, navigate, onAPhone } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
 import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
@@ -47,6 +47,40 @@ interface RowProps {
   onSay: (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => void;
   /** They wrote back…, on a step after the first: what the business said, read as a reply is. */
   onTell: (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => void;
+}
+
+/** The owner's word on an email: Sent (the act, once its mail app was opened) and Skip, a quiet word beside it. */
+function SentOrSkip(p: {
+  row: ToSendRowVM;
+  L: Labels;
+  busy: boolean;
+  asked: boolean;
+  onSay: (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => void;
+  onCheck: () => void;
+}) {
+  const { row, L, busy, asked, onSay, onCheck } = p;
+  return (
+    <>
+      <Button
+        variant={asked ? "primary" : "secondary"}
+        className={asked ? "ro-ans ro-ans-go" : "ro-ans"}
+        disabled={busy}
+        onClick={() => (row.followUp ? onCheck() : onSay(row, "sent"))}
+        data-testid="ro-to-send-sent"
+      >
+        {busy ? L.saying : L.sent}
+      </Button>
+      <Button
+        variant="quiet"
+        className="ro-ans ro-ans-word"
+        disabled={busy}
+        onClick={() => onSay(row, "not_sent")}
+        data-testid="ro-to-send-skip"
+      >
+        {L.skip}
+      </Button>
+    </>
+  );
 }
 
 /** One email handed over: who, what, its mail app with the rest under More, and the owner's word on it at the end. */
@@ -86,51 +120,57 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   ];
   return (
     <div className="ro-send" data-testid="ro-to-send-row">
-      <div className="ro-send-line">
+      <div className="ro-send-who">
         <LinkButton
-          className="bc-person-name"
+          size="inherit"
+          className="ro-name"
           title={REACH_OUT_SHEET_WORDS.openLead}
           {...leadOverDoor(row.leadId)}
           data-testid="ro-to-send-lead"
         >
           {row.name}
         </LinkButton>
-        <span className="bc-person-words" data-testid="ro-to-send-what">
-          {row.subject} · {row.address} · {row.since}
-        </span>
+        <small>{row.since}</small>
       </div>
+      <p className="ro-send-subj" data-testid="ro-to-send-what">
+        {row.subject} · {row.address}
+      </p>
       <div className="ro-send-acts">
-        <Button size="sm" href={row.links.mailto} onClick={opening} data-testid="ro-to-send-app">
-          <Icon name="mail" size={12} /> {L.app}
-        </Button>
-        <Menu
-          label={L.more(row.name)}
-          trigger={
-            <Button variant="quiet" size="sm" iconOnly aria-label={L.more(row.name)} data-testid="ro-to-send-more">
-              <Icon name="more" size={14} />
-            </Button>
-          }
-          groups={[{ items: more }]}
-        />
+        {/* Its mail app and the other ways to open it, one pill: the mail app at once, the caret for Gmail, Outlook, Copy
+            and the words themselves (Ruben, 20 Oct 2026: a door of their own, not three dots beside it). */}
+        <span className="ro-send-open">
+          <Button className="ro-ans ro-send-app" href={row.links.mailto} onClick={opening} data-testid="ro-to-send-app">
+            <Icon name="mail" size={14} /> {L.app}
+          </Button>
+          <Menu
+            label={L.more(row.name)}
+            trigger={
+              <Button
+                className="ro-ans ro-send-caret"
+                iconOnly
+                aria-label={L.more(row.name)}
+                data-testid="ro-to-send-more"
+              >
+                <Icon name="chevron-down" size={14} />
+              </Button>
+            }
+            // A phone draws the menu as a sheet, headed by whose email it is (as a sequence's menu is).
+            groups={[{ header: onAPhone() ? row.name : undefined, items: more }]}
+          />
+        </span>
         {copied ? <CopiedWords said={L.copied} /> : null}
-        {may && !checking && !telling ? (
-          <span className="ro-send-word">
-            {asked && <span className="bc-person-words">{L.asked}</span>}
-            <Button
-              size="sm"
-              variant={asked ? "primary" : "secondary"}
-              disabled={busy}
-              onClick={() => (row.followUp ? setChecking(true) : onSay(row, "sent"))}
-              data-testid="ro-to-send-sent"
-            >
-              {busy ? L.saying : L.sent}
-            </Button>
-            <LinkButton disabled={busy} onClick={() => onSay(row, "not_sent")} data-testid="ro-to-send-skip">
-              {L.skip}
-            </LinkButton>
-          </span>
+        <span className="ro-send-sp" />
+        {/* Its word at the line's end; once the mail app was opened, asked on a line of its own (the canvas's board 6). */}
+        {may && !checking && !telling && !asked ? (
+          <SentOrSkip row={row} L={L} busy={busy} asked={false} onSay={onSay} onCheck={() => setChecking(true)} />
         ) : null}
       </div>
+      {may && !checking && !telling && asked ? (
+        <div className="ro-send-acts ro-send-ask">
+          <span className="ro-send-asked">{L.asked}</span>
+          <SentOrSkip row={row} L={L} busy={busy} asked onSay={onSay} onCheck={() => setChecking(true)} />
+        </div>
+      ) : null}
       {!row.links.bodyInLinks && (
         <span className="pb-note" data-testid="ro-to-send-paste">
           {L.pasteNote}
@@ -278,23 +318,30 @@ export function RoToSend({
   if (bare) return rows;
   // Other runs hand emails over too: the door to all of them, the one list (To send, in Needs you).
   const every = toSendEveryOf(surfaceValue("broadcasts")?.rows ?? []);
+  // The canvas's board 6: a caption with the count at its right, then one pane, its how on top and a row for each email.
   return (
-    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send">
-      <div className="bc-touched-head">
-        <span className="bc-card-title">{vm.head}</span>
-        {every && (
-          <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
-            {TO_SEND_ALL_WORDS.everyRun(every.count, every.from)}
-          </LinkButton>
-        )}
-      </div>
-      <p className="pb-note ro-send-note">{may ? vm.note : gateTitle("approve", vm.labels.gated)}</p>
-      {done && (
-        <p className="pb-note ro-send-note" role="status" data-testid="ro-to-send-done">
-          {done}
+    <section className="ro-sends" aria-label={vm.head} data-testid="ro-to-send">
+      <p className="ro-cap">
+        <span>{vm.title}</span>
+        <span>{vm.count}</span>
+      </p>
+      <div className="ro-pane">
+        <p className="ro-send-note">
+          {may ? vm.note : gateTitle("approve", vm.labels.gated)}
+          {every && " "}
+          {every && (
+            <LinkButton onClick={() => navigate(TO_SEND_ROUTE)} data-testid="ro-to-send-every">
+              {TO_SEND_ALL_WORDS.everyRun(every.count, every.from)}
+            </LinkButton>
+          )}
         </p>
-      )}
-      {rows}
+        {done && (
+          <p className="ro-send-note" role="status" data-testid="ro-to-send-done">
+            {done}
+          </p>
+        )}
+        {rows}
+      </div>
     </section>
   );
 }

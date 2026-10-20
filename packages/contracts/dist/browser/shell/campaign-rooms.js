@@ -101,7 +101,7 @@ export function runApprovedTail(people, when) {
 }
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 export const RUN_WAITING_SHORT = "Waits for you";
-export const runApproveWords = (n, noun = ["person", "people"]) => `Approve \xB7 ${n} ${n === 1 ? noun[0] : noun[1]}`;
+export const runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
 export const runStopDoorWords = (waits) => waits ? "Cancel it" : "Stop it";
 export const RUN_OPEN_WORDS = "Open the run";
 export const WHO_GETS_IT_WORDS = {

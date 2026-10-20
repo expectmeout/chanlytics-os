@@ -15,7 +15,7 @@ import { SEE_WORDS, seeHomeOf, seeRefOfRoute, type SeeRef } from "@chanlytics/co
 import { closeSeeOver, openSeeOver } from "./see-over";
 import { goToRoute } from "@/legacy-bridge/workspace";
 import { Icon } from "../kit/icon/icon";
-import { LinkButton } from "../kit/link-button/link-button";
+import { Button } from "../kit/button/button";
 import type { useLegacyToast } from "../legacy-verbs";
 import type { SurfaceKey } from "../surface-values";
 import { useReadsHere } from "../use-surface";
@@ -43,9 +43,14 @@ const openRunOverToSend = (to: string) => {
 /** The door to the thing's home, which goes there whatever page the sheet is over. */
 function HomeDoor({ seeRef }: { seeRef: SeeRef }) {
   return (
-    <LinkButton onClick={() => goToRoute(seeHomeOf(seeRef), { home: true })} data-testid="see-home">
+    <Button
+      size="sm"
+      className="see-home"
+      onClick={() => goToRoute(seeHomeOf(seeRef), { home: true })}
+      data-testid="see-home"
+    >
       {SEE_WORDS.home} <Icon name="chevron" size={11} />
-    </LinkButton>
+    </Button>
   );
 }
 
@@ -54,7 +59,13 @@ export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolea
   useReadsHere(READS[seeRef.kind]);
   if (seeRef.kind === "to-send")
     return (
-      <PaneSheet open={open} title={SEE_WORDS.toSend} onClose={closeSeeOver} over testid="see-to-send">
+      <PaneSheet
+        open={open}
+        title={<span className="see-kicker">{SEE_WORDS.toSend}</span>}
+        onClose={closeSeeOver}
+        over
+        testid="see-to-send"
+      >
         {/* The sheet's body bleeds to its edges for a pane, which keeps its own gutter and scroll: the list keeps them here. */}
         <div className="see-to-send">
           <ToSendPart onOpenRun={openRunOverToSend} />
@@ -64,12 +75,29 @@ export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolea
   const tools = <HomeDoor seeRef={seeRef} />;
   if (seeRef.kind === "message")
     return (
-      <PaneSheet open={open} title={SEE_WORDS.message} tools={tools} onClose={closeSeeOver} over testid="see-message">
+      <PaneSheet
+        open={open}
+        title={<span className="see-kicker">{SEE_WORDS.message}</span>}
+        tools={tools}
+        toolsInLine
+        onClose={closeSeeOver}
+        over
+        testid="see-message"
+      >
         <MessageInPlaceWhenRead name={seeRef.name} flash={flash} onClose={closeSeeOver} />
       </PaneSheet>
     );
   return (
-    <PaneSheet open={open} title={SEE_WORDS.run} tools={tools} onClose={closeSeeOver} wide over testid="see-run">
+    <PaneSheet
+      open={open}
+      title={<span className="see-kicker">{SEE_WORDS.run}</span>}
+      tools={tools}
+      toolsInLine
+      onClose={closeSeeOver}
+      wide
+      over
+      testid="see-run"
+    >
       <BroadcastRun
         id={seeRef.id}
         flash={flash}

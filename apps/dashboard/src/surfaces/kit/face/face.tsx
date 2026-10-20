@@ -29,8 +29,27 @@ import { cx, variants } from "../variants";
 
 const faceClasses = variants({
   base: "face",
-  variants: { holds: { initials: "", glyph: "face-glyph" }, size: { sm: "face-sm", lg: "face-lg", xl: "face-xl" } },
+  variants: {
+    holds: { initials: "", glyph: "face-glyph" },
+    size: { sm: "face-sm", lg: "face-lg", xl: "face-xl" },
+    tile: {
+      a: "face-tile face-tile-a",
+      b: "face-tile face-tile-b",
+      c: "face-tile face-tile-c",
+      d: "face-tile face-tile-d",
+    },
+  },
 });
+
+/** The four hues a tile is drawn in. */
+export type FaceTile = "a" | "b" | "c" | "d";
+
+/** The hue a name's tile is drawn in: the same name, the same hue, on every row that draws it. */
+export function tileOf(name: string): FaceTile {
+  let n = 0;
+  for (const ch of name) n = (n + ch.charCodeAt(0)) % 4;
+  return (["a", "b", "c", "d"] as const)[n] ?? "a";
+}
 
 /**
  * A person, by what the page knows of them: their name as it says it (the number or the address itself when nobody has
@@ -65,6 +84,8 @@ export type FaceProps = FaceHolds & {
   size?: "sm" | "lg" | "xl";
   priority?: string | null;
   pick?: "choose" | "chosen";
+  /** Drawn as a tile, a rounded square in one of four hues (a business on a run's screen), where it is a circle. */
+  tile?: FaceTile;
 } & FaceSpan;
 
 /** A picture that does not load stands aside, and the initials under it show again, as People's row does. */
@@ -90,9 +111,21 @@ function heldOf(who: { initials?: string; glyph?: ReactElement; person?: FacePer
 }
 
 /** A face, its picture keyed by its address: a row that comes to hold someone else draws their picture afresh. */
-export function Face({ initials, glyph, person, photo, mark, size, priority, pick, className, ...span }: FaceProps) {
+export function Face({
+  initials,
+  glyph,
+  person,
+  photo,
+  mark,
+  size,
+  priority,
+  pick,
+  tile,
+  className,
+  ...span
+}: FaceProps) {
   const held = heldOf({ initials, glyph, person });
-  const classes = cx(faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size }), className);
+  const classes = cx(faceClasses({ holds: held.glyph === undefined ? "initials" : "glyph", size, tile }), className);
   return (
     <span
       {...(held.nameless ? { title: NO_NAME_YET } : {})}

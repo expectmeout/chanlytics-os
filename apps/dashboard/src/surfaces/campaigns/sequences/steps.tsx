@@ -98,7 +98,9 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
       sub={start.sub}
       acts={
         changes ? (
-          <LinkButton
+          <Button
+            size="sm"
+            className="sq-rail-pill"
             onClick={() => {
               setOpened((n) => n + 1);
               setOpen(true);
@@ -106,8 +108,8 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
             data-testid="sq-starts-change"
             {...gate("approve")}
           >
-            {SW.settings.title}
-          </LinkButton>
+            {SW.settings.title} <Icon name="chevron" size={11} />
+          </Button>
         ) : null
       }
     >
@@ -161,7 +163,7 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const title = customer ? (message?.title ?? step.template_name ?? F.noMessage) : step.name;
   const said = step.hand ? step.hand.words : gone ? SW.gone : null;
   return (
-    <RailRow day={SW.day(day)} need={state?.tone === "need"} testid={`sq-step-${step.place}`}>
+    <RailRow day={SW.day(day)} tone={state?.tone} testid={`sq-step-${step.place}`}>
       <RailBox
         place={step.place}
         title={title}
@@ -194,7 +196,11 @@ function DateRow({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<Sequ
   const last = rec.sequence.last?.id === date.batch_id ? rec.sequence.last : null;
   const channels = rec.one_off?.channels ?? [];
   return (
-    <RailRow day={clockDate(Date.parse(date.at), rec.timezone, Date.now())} testid="sq-step-1">
+    <RailRow
+      day={clockDate(Date.parse(date.at), rec.timezone, Date.now())}
+      tone={went ? "done" : null}
+      testid="sq-step-1"
+    >
       <div className="sq-stepbox">
         <span className="sq-stepbox-top">
           <span className={cx("sq-stepnum", went && "is-done")} aria-hidden="true">

@@ -109,7 +109,7 @@ export interface RowCtx {
 export function tplMark(offer: boolean) {
   return (
     <span
-      className="mark msg-row-mark"
+      className="mark mark-row msg-row-mark"
       data-kind={offer ? "offer" : "note"}
       data-tip={
         offer
@@ -117,7 +117,7 @@ export function tplMark(offer: boolean) {
           : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."
       }
     >
-      <Icon name={offer ? "gift" : "bell"} size={13} />
+      <Icon name={offer ? "gift" : "bell"} size={14} />
     </span>
   );
 }

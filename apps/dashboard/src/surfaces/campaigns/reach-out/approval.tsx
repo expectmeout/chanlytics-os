@@ -1,35 +1,33 @@
 /**
  * Broadcasts: a reach-out run's block (moved from legacy/pages/reach-out/reach-out-approval.jsx, decision 0015; Reach out,
- * Part 4 PR 7; F13, R20-R22; redrawn on the run-to-leads canvas of 19 Oct 2026). A live reach-out run -- waiting on its
+ * Part 4 PR 7; F13, R20-R22; drawn as the run-to-leads canvas of 19 Oct 2026). A live reach-out run -- waiting on its
  * owner, scheduled or sending -- opens to this, never to a WhatsApp run's sheet: its sends are reach_out_sends, not
- * recipients. The decision first: how many go and of how many, one bar by count (ready, the coming days, held, still being
- * checked), when and from which mailbox. Then the held, one amber card whose rows open in place, each with why and its
- * answers (contracts heldAnswersOf: the `sequence_send_decide` verb's doors, and Take out at step 1, the leave verb), and
- * "Check the held again" for every email the check could not answer. Then the first ready business's email as an email,
- * its opening marked, what was checked before it goes, and who gets it, folded. Its acts are the pane's foot (RoRunDock):
- * Approve, which counts the checked, ready sends only (R21), and Skip, which asks first, for a run waiting on its owner;
- * the run's own verbs (Cancel, Stop) for one that is not. Every sentence is contracts' (`reachOuts.run`:
- * reachOutRunWordsOf over approvalWordsOf); never a fetch here. A reach-out its owner sends (00429) adds its To send list
- * (to-send.tsx): the emails handed to them, with their doors.
+ * recipients. The decision first: how many go and of how many, one bar by count (ready, the coming days, held, still
+ * being checked), when and from which mailbox. Then the held, one amber card whose rows open in place, each with why and
+ * its answers as pills (contracts heldAnswersOf: the `sequence_send_decide` verb's doors, and Take out at step 1, the leave
+ * verb), and "Check the held again" for every email the check could not answer. A run waiting then shows its first ready
+ * business's email as an email, what was checked before it goes and who gets it, folded; a run going shows who gets it,
+ * open, before the email. Its acts are the pane's foot (RoRunDock), one row: what goes and from when, then Approve, which
+ * counts the checked, ready sends only (R21); Skip beside it on a desk and on Approve's caret on a phone, asking first in a
+ * card of its own over the dimmed page; the run's own verbs (Cancel, Stop) for one not waiting. Every sentence is
+ * contracts' (`reachOuts.run`: reachOutRunWordsOf over approvalWordsOf); never a fetch here. A reach-out its owner sends
+ * (00429) adds its To send list (to-send.tsx): the emails handed to them, with their doors.
  */
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { REACH_OUT_SHEET_WORDS } from "@chanlytics/contracts";
+import { REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, HeldChoice, RunPartVM } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { canDo, gateTitle, type LegacyFlash } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
-import { Confirm } from "../../kit/confirm/confirm";
-import { Face } from "../../kit/face/face";
+import { Face, tileOf } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Meter } from "../../kit/meter/meter";
-import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
-import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { leadOverDoor } from "../../leads/sheet/lead-over";
-import { SheetSkipMore, WhoGetsIt } from "../broadcasts/run-sheet";
+import { SkipCaret } from "../broadcasts/run-sheet";
 import { pressed } from "../sequences/verbs";
 import { HeldEmailRow, RUN_HELD_IDS } from "./held-row";
 import { reachOuts } from "./surface";
@@ -56,23 +54,20 @@ const PART_TONES: Record<RunPartVM["key"], "ok" | "rest" | "warn" | "open"> = {
 };
 
 /**
- * The decision: how many go and of how many, the run in one bar by count with its legend, the skipped by reason, when it
- * goes and from which mailbox.
+ * The decision: how many go and of how many, the run in one bar by count with its legend (the number heavy), the skipped
+ * by reason, and, for a member who may act on it, when it goes and from which mailbox.
  */
-function RoDecision({ vm }: { vm: RunWords }) {
+function RoDecision({ vm, may }: { vm: RunWords; may: boolean }) {
   return (
-    <Panel as="section" className="ro-dec" aria-label={`${vm.count.n} ${vm.count.words}`} data-testid="ro-run-reach">
+    <section className="ro-dec" aria-label={`${vm.count.n} ${vm.count.words}`} data-testid="ro-run-reach">
       <p className="ro-dec-n">
-        <b className="tabular" data-testid="ro-run-will">
-          {vm.count.n}
-        </b>
+        <b data-testid="ro-run-will">{vm.count.n}</b>
         <span>{vm.count.words}</span>
-        <small className="tabular" data-testid="ro-run-of">
-          {vm.count.of}
-        </small>
+        <small data-testid="ro-run-of">{vm.count.of}</small>
       </p>
       {vm.parts.length > 0 ? (
         <Meter
+          apart
           className="ro-dec-bar"
           parts={vm.parts.map((p) => ({ share: p.n, tone: PART_TONES[p.key] }))}
           aria-label={vm.parts.map((p) => p.words).join(", ")}
@@ -81,8 +76,7 @@ function RoDecision({ vm }: { vm: RunWords }) {
       <p className="ro-leg" data-testid="ro-run-why">
         {vm.parts.map((p) => (
           <span key={p.key} className="ro-leg-part" data-part={p.key}>
-            <span className="ro-leg-dot" aria-hidden="true" />
-            {p.words}
+            <b>{p.n}</b> {p.rest}
           </span>
         ))}
       </p>
@@ -91,19 +85,24 @@ function RoDecision({ vm }: { vm: RunWords }) {
           {t}
         </p>
       ))}
-      <p className="ro-when" data-testid="ro-run-sub">
-        <Icon name="clock" size={15} />
-        <span>
-          <b>{vm.when.lead}</b>, {vm.when.rest}
-        </span>
-      </p>
-      {vm.from ? (
-        <p className="ro-when" data-testid="ro-run-from">
-          <Icon name="mail" size={15} />
-          <span>{vm.from}</span>
-        </p>
+      {may ? (
+        <>
+          <p className="ro-when" data-testid="ro-run-sub">
+            {/* An owner's run goes from their own inbox, a mail's glyph; any other's from a time. */}
+            <Icon name={vm.who ? "mail" : "clock"} size={15} />
+            <span>
+              <b>{vm.when.lead}</b>, {vm.when.rest}
+            </span>
+          </p>
+          {vm.from ? (
+            <p className="ro-from" data-testid="ro-run-from">
+              <Icon name="mail" size={15} />
+              <span>{vm.from}</span>
+            </p>
+          ) : null}
+        </>
       ) : null}
-    </Panel>
+    </section>
   );
 }
 
@@ -119,29 +118,30 @@ interface HeldProps {
 }
 
 /**
- * The held, one amber card before the email (R20): how many and what Approve does with them, See them opening the rows in
- * place, each the one row a sequence's Needs you draws too (held-row.tsx), with why and its answers; and at its foot, Check
- * the held again for every email the check could not answer. A refusal is said at its row. A role that may not answer
- * sees the rows without their answers, and is told why once, above.
+ * The held, one amber card (R20): how many and what Approve does with them, See them opening the rows in place, each the
+ * run's card row of the one held row (held-row.tsx) with why and its answers as pills; and at its foot, Check the held
+ * again for every email the check could not answer. A refusal is said at its row. A role that may not answer sees the
+ * rows without their answers, told whose say they wait for.
  */
 function RoRunHeld({ vm, may, open, onToggle, busy, said, onAnswer, onRecheck }: HeldProps) {
   const L = vm.labels;
+  const note = !may ? vm.heldNote.gated : open ? vm.heldNote.open : vm.heldNote.closed;
   return (
-    <Panel as="section" className="ro-held" aria-label={vm.heldHead} data-testid="ro-run-held">
+    <section className="ro-held" aria-label={vm.heldHead} data-open={open ? "true" : "false"} data-testid="ro-run-held">
       <div className="ro-held-head">
         <span className="ro-held-t">
           <b>{vm.heldHead}</b>
-          {may ? <small>{vm.heldNote}</small> : null}
+          <small>{note}</small>
         </span>
-        <Button size="sm" aria-expanded={open} onClick={onToggle} data-testid="ro-run-see-held">
+        <Button className="ro-held-go" aria-expanded={open} onClick={onToggle} data-testid="ro-run-see-held">
           {open ? L.hideHeld : L.seeHeld}
         </Button>
       </div>
-      {open ? (
-        <div className="ro-held-rows">
-          {vm.held.map((h) => (
+      {open
+        ? vm.held.map((h) => (
             <HeldEmailRow
               key={h.id}
+              look="card"
               h={h}
               may={may}
               busy={busy === h.id}
@@ -149,23 +149,22 @@ function RoRunHeld({ vm, may, open, onToggle, busy, said, onAnswer, onRecheck }:
               onAnswer={(door) => void onAnswer(h.id, door, h.name, h.leadId)}
               ids={RUN_HELD_IDS}
             />
-          ))}
-        </div>
-      ) : null}
+          ))
+        : null}
       {open && vm.recheck && may ? (
         <div className="ro-held-foot">
           <span>{vm.recheck.said}</span>
-          <Button size="sm" disabled={busy === "recheck"} onClick={onRecheck} data-testid="ro-run-recheck">
+          <Button className="ro-ans" disabled={busy === "recheck"} onClick={onRecheck} data-testid="ro-run-recheck">
             {busy === "recheck" ? L.rechecking : vm.recheck.act}
           </Button>
         </div>
       ) : null}
       {said && said.id === "recheck" ? (
-        <p className="pb-warn ro-held-said" role="alert" data-testid="ro-run-recheck-said">
+        <p className="ro-hrow-said ro-held-said" role="alert" data-testid="ro-run-recheck-said">
           {said.text}
         </p>
       ) : null}
-    </Panel>
+    </section>
   );
 }
 
@@ -175,10 +174,12 @@ function RoRunMail({ vm }: { vm: RunWords }) {
   if (!mail || vm.words.length === 0) return null;
   return (
     <>
-      <p className="ro-cap">{vm.labels.email}</p>
-      <Panel as="article" className="ro-mail" data-testid="ro-run-words">
+      <p className="ro-cap">
+        <span>{vm.labels.email}</span>
+      </p>
+      <article className="ro-mail" data-testid="ro-run-words">
         <div className="ro-mail-head">
-          <Face person={{ name: mail.name }} size="sm" />
+          <Face person={{ name: mail.name }} tile={tileOf(mail.name)} className="ro-tile" />
           <span className="ro-mail-who">
             <b>{mail.name}</b>
             <small data-testid="ro-run-reader">{mail.as}</small>
@@ -186,13 +187,13 @@ function RoRunMail({ vm }: { vm: RunWords }) {
         </div>
         {mail.subject ? (
           <p className="ro-mail-subject" data-testid="ro-run-subject">
-            {mail.subject}
+            <b>{mail.subject}</b>
           </p>
         ) : null}
         <p className="ro-mail-body">
           {vm.words.map((w, i) =>
             w.opening ? (
-              <span key={i} className="bc-sheet-slot" data-testid="ro-run-opening">
+              <span key={i} className="ro-slot" data-testid="ro-run-opening">
                 {w.text}
               </span>
             ) : (
@@ -205,28 +206,32 @@ function RoRunMail({ vm }: { vm: RunWords }) {
         </p>
         {mail.opening || mail.same ? (
           <p className="ro-mail-foot">
-            {mail.opening ? <span className="ro-mail-own">{mail.opening}</span> : null}
-            {mail.same ? <span>{mail.same}</span> : null}
+            {mail.opening ? <span className="ro-mail-note ro-mail-own">{mail.opening}</span> : null}
+            {mail.same ? <span className="ro-mail-note">{mail.same}</span> : null}
           </p>
         ) : null}
-      </Panel>
+      </article>
     </>
   );
 }
 
-/** What was checked before it goes, each a tick: the run's rules, its mailbox said above. */
+/** What was checked before it goes, each its tick in a green ring: the run's rules, its mailbox said above. */
 function RoRunChecked({ vm }: { vm: RunWords }) {
   return (
     <>
-      <p className="ro-cap">{vm.labels.checked}</p>
-      <Panel size="flush" className="ro-checks" data-testid="ro-run-rules">
+      <p className="ro-cap">
+        <span>{vm.labels.checked}</span>
+      </p>
+      <div className="ro-pane" data-testid="ro-run-rules">
         {vm.rules.map((r) => (
           <p key={r} className="ro-check">
-            <Icon name="check" size={14} />
+            <span className="ro-tick" aria-hidden="true">
+              <Icon name="check" size={10} />
+            </span>
             <span>{r}</span>
           </p>
         ))}
-      </Panel>
+      </div>
     </>
   );
 }
@@ -239,7 +244,8 @@ function RoRunChecked({ vm }: { vm: RunWords }) {
 function RoName({ name, leadId, testid }: { name: string; leadId: string | null; testid: string }) {
   return leadId ? (
     <LinkButton
-      className="bc-person-name"
+      size="inherit"
+      className="ro-name"
       title={REACH_OUT_SHEET_WORDS.openLead}
       {...leadOverDoor(leadId)}
       data-testid={testid}
@@ -247,34 +253,61 @@ function RoName({ name, leadId, testid }: { name: string; leadId: string | null;
       {name}
     </LinkButton>
   ) : (
-    <span className="bc-person-name">{name}</span>
+    <span className="ro-name">{name}</span>
   );
 }
 
 /**
- * Who gets it: the checked, ready sends by name and time, a clock time in figures; those still being checked said under
- * them (R21). Folded under its head, its press at the head's right, as a campaign run's (run-sheet.tsx WhoGetsIt).
+ * Who gets it: the checked, ready sends, each its tile, its name and when, a clock time in figures; those still being
+ * checked said under them (R21). A pane folded under its head (the name, how many, the chevron), open from the start on a
+ * run that is going; opened by a press, it is brought into view.
  */
-function RoRunList({ vm, runId }: { vm: RunWords; runId: string }) {
-  const [open, setOpen] = useState(false);
+function RoRunList({ vm, runId, startOpen }: { vm: RunWords; runId: string; startOpen: boolean }) {
+  const [open, setOpen] = useState(startOpen);
+  const pressedOpen = useRef(false);
   if (vm.list.length === 0) return null;
+  const id = `ro-who-${runId}`;
   return (
-    <WhoGetsIt
-      id={`ro-who-${runId}`}
-      head={vm.listHead}
-      open={open}
-      onToggle={() => setOpen((v) => !v)}
-      testid="ro-run-list"
-    >
-      {vm.list.map((x) => (
-        <div key={x.id} className="bc-person" data-testid="ro-run-person">
-          <Face person={{ name: x.name }} size="sm" className="bc-person-who" />
-          <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
-          <span className={x.clock ? "bc-person-at mono" : "bc-person-at"}>{x.at}</span>
-        </div>
-      ))}
-      {vm.listNote ? <p className="ro-dec-said ro-who-note">{vm.listNote}</p> : null}
-    </WhoGetsIt>
+    <section className="ro-pane ro-fold" data-open={open ? "true" : "false"} data-testid="ro-run-list">
+      <Button
+        variant="quiet"
+        className="ro-fold-h"
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={open ? WHO_GETS_IT_WORDS.hide : WHO_GETS_IT_WORDS.show}
+        onClick={() => {
+          pressedOpen.current = !open;
+          setOpen((v) => !v);
+        }}
+        data-testid="ro-run-list-press"
+      >
+        <b>{vm.listHead}</b>
+        <span className="ro-fold-n">{vm.listCount}</span>
+        <span className="ro-fold-sp" />
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={16} />
+      </Button>
+      <div
+        id={id}
+        hidden={!open}
+        ref={(el) => {
+          if (el && open && pressedOpen.current) {
+            pressedOpen.current = false;
+            el.scrollIntoView({ block: "nearest" });
+          }
+        }}
+      >
+        {open
+          ? vm.list.map((x) => (
+              <div key={x.id} className="ro-whor" data-testid="ro-run-person">
+                <Face person={{ name: x.name }} tile={tileOf(x.name)} className="ro-tile" />
+                <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
+                <small className={x.clock ? "mono" : undefined}>{x.at}</small>
+              </div>
+            ))
+          : null}
+        {open && vm.listNote ? <p className="ro-info">{vm.listNote}</p> : null}
+      </div>
+    </section>
   );
 }
 
@@ -342,17 +375,19 @@ interface RunProps {
   onDecided?: () => void;
   /** The page's toast, for Take out's receipt and its Put back. */
   flash?: Flash;
+  /** Skip's question asked in the foot: on a phone the page dims under it. */
+  armed?: boolean;
 }
 
-/** Whether a reach-out run's sheet waits on its owner, an Approve to give: where the head's menu holds Skip on a phone. */
+/** Whether a reach-out run's sheet waits on its owner, an Approve to give: where Skip's question dims a phone's page. */
 export const roRunWaits = (d: BroadcastDetailDto, sheet: RunSheet | null): boolean =>
   !!(sheet && reachOuts.run(d)?.approve);
 
 /**
- * A live reach-out run's acts, docked at the pane's foot on a phone and a desk alike (run-sheet.tsx bcSheetDock): what goes
- * and from when, what else waits, then Approve; Skip beside it on a desk and in the head's menu on a phone, its question in
- * their place once asked. A run not waiting keeps its own verbs (Cancel, Stop) there; a role that may not approve is told
- * what it waits for, with no Approve.
+ * A live reach-out run's acts, docked at the pane's foot on a phone and a desk alike, one row: what goes and from when,
+ * and under it what else waits, then Approve; Skip beside it on a desk and on Approve's caret on a phone. Skip asks first
+ * in the foot's place, a card of its own (the canvas's board 4): the question, what skipping costs, Keep it and Yes, skip
+ * it. A run not waiting keeps its own verbs (Cancel, Stop) there; a role that may not approve is told what it waits for.
  */
 export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet | null; acts?: ReactNode; phone: boolean }) {
   const { d, sheet, acts = null, phone } = p;
@@ -362,88 +397,122 @@ export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet | null; ac
   const waiting = !!(sheet && vm.approve);
   if (waiting && sheet && sheet.armed && sheet.canSend)
     return (
-      <div className="bc-approval-foot" data-foot-pair="" data-testid="ro-run-acts">
-        <Confirm
-          question={vm.skipAsk}
-          detail={vm.note}
-          yes={L.skipYes}
-          danger
-          busy={sheet.stopping}
-          onYes={sheet.skip}
-          onNo={() => sheet.onArm(false)}
-          testid="ro-run-skip"
-        />
+      <div className="ro-ask" role="alertdialog" aria-label={vm.skipAsk} data-testid="ro-run-acts">
+        <div className="ro-ask-t" data-testid="ro-run-skip">
+          <b>{vm.skipAsk}</b>
+          <p>{vm.note}</p>
+        </div>
+        <Button
+          className="ro-ask-no"
+          disabled={sheet.stopping}
+          onClick={() => sheet.onArm(false)}
+          data-testid="ro-run-skip-no"
+        >
+          {L.keep}
+        </Button>
+        <Button
+          className="ro-ask-yes"
+          disabled={sheet.stopping}
+          aria-busy={sheet.stopping || undefined}
+          onClick={() => void sheet.skip()}
+          data-testid="ro-run-skip-yes"
+        >
+          {L.skipYes}
+        </Button>
       </div>
     );
   const may = !!(sheet && sheet.canSend);
+  const line = waiting && !may ? vm.waits : vm.dock;
   return (
-    <div className="bc-approval-foot ro-dock" data-foot-pair="" data-testid="ro-run-acts">
+    <div className="ro-dock" data-testid="ro-run-acts">
       <span className="ro-dock-t">
-        <b data-testid="ro-run-dock">{waiting && !may ? vm.waits : vm.dock.lead}</b>
-        {vm.dock.said ? <small data-testid="ro-run-approve-note">{vm.dock.said}</small> : null}
+        <b data-testid="ro-run-dock">{line.lead}</b>
+        {line.said ? <small data-testid="ro-run-approve-note">{line.said}</small> : null}
       </span>
       {waiting && sheet && may && !phone ? (
-        <Button variant="quiet" onClick={() => sheet.onArm(true)} data-testid="ro-run-skip">
+        <Button variant="quiet" className="ro-dock-skip" onClick={() => sheet.onArm(true)} data-testid="ro-run-skip">
           {L.skip}
         </Button>
       ) : null}
       {waiting && sheet && may ? (
-        <Button
-          variant="primary"
-          disabled={sheet.approving}
-          onClick={() => sheet.approve(vm.approved)}
-          data-testid="ro-run-approve"
-        >
-          <Icon name="check" size={16} /> {sheet.approving ? L.approving : vm.approve}
-        </Button>
+        // On a phone Skip rides Approve as its caret (SkipCaret): one split pill, no three dots in the head.
+        <span className="bc-dock-split">
+          <Button
+            variant="primary"
+            className="ro-dock-go"
+            disabled={sheet.approving}
+            onClick={() => sheet.approve(vm.approved)}
+            data-testid="ro-run-approve"
+          >
+            <Icon name="check" size={16} /> {sheet.approving ? L.approving : vm.approve}
+          </Button>
+          {phone ? <SkipCaret name={vm.title} sheet={sheet} /> : null}
+        </span>
       ) : null}
-      {waiting ? null : acts}
+      {waiting || !acts ? null : <span className="ro-dock-acts">{acts}</span>}
     </div>
   );
 }
 
-/** The head's menu for a waiting reach-out run on a phone: Skip, as a campaign run's (run-sheet.tsx SheetSkipMore). */
-export function RoRunMore({ d, sheet }: { d: BroadcastDetailDto; sheet: RunSheet }) {
-  const vm = reachOuts.run(d);
-  return vm?.approve ? <SheetSkipMore name={vm.title} sheet={sheet} /> : null;
-}
-
 /**
  * What the pane's head says of a live reach-out run (run.tsx draws the pane, as it does a run's report and a WhatsApp
- * run's sheet): its name whole, what it is in a pill -- waiting on you, scheduled, sending -- and under it whose sending
- * it is, its step and its place among those waiting. On a desk it says it is to leads and keeps the policy it runs under;
- * a phone's head has room for the name and the pill. Null where the run is not a reach-out's.
+ * run's sheet): its name whole, and under it one line of where it stands, the parts a dot apart (the canvas's head): what it
+ * is -- waiting for your OK, scheduled, sending -- in its colour, whose sending it is, its step and its place among those
+ * waiting; a desk says it is to leads too. Null where the run is not a reach-out's.
  */
 export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null, phone = false) {
   const vm = reachOuts.run(d);
   if (!vm) return null;
   const pos = sheet && sheet.position;
   const place = pos && pos[1] > 1 ? `${pos[0]} of ${pos[1]}` : null;
+  const parts = (
+    phone ? [place, vm.who, vm.step] : [vm.labels.toLeads, vm.who, vm.step, place ? `${place} waiting` : null]
+  ).filter((x): x is string => !!x);
   return {
     title: vm.title,
-    badge: (
-      <>
-        <StatePill kind="broadcast" value={d.broadcast.state} label={vm.k} testid="ro-run-k" />
-        {phone ? null : <PolicyChip cls="outreach" />}
-      </>
+    sub: (
+      <span className="ro-meta">
+        <StatePill kind="tone" value={vm.kTone} label={vm.k} testid="ro-run-k" />
+        {parts.map((x) => (
+          <Fragment key={x}>
+            <i className="ro-meta-dot" aria-hidden="true" />
+            <span>{x}</span>
+          </Fragment>
+        ))}
+      </span>
     ),
-    sub: [phone ? null : vm.labels.toLeads, vm.who, vm.step, place].filter(Boolean).join(" · "),
   };
 }
 
-export function ReachOutRun({ d, onDecided = () => undefined, flash = null }: RunProps) {
+export function ReachOutRun({ d, onDecided = () => undefined, flash = null, armed = false }: RunProps) {
   const vm = reachOuts.run(d);
   const b = d.broadcast;
-  // A run not waiting is opened by its held (R20: the notice, Playbooks' "N wait for your say"), so they show at once.
-  const [seeHeld, setSeeHeld] = useState(b.state !== "pending_approval");
+  const waiting = b.state === "pending_approval";
+  // The held folded under their head in every state, See them opening them in place (the canvas's boards 1, 6 and 7).
+  const [seeHeld, setSeeHeld] = useState(false);
   const doors = useRoRunDoors({ runId: b.id, sequenceId: b.sequence_id, flash, onDecided });
   if (!vm) return null;
   const may = canDo("approve");
+  const held =
+    vm.held.length > 0 ? (
+      <RoRunHeld
+        vm={vm}
+        may={may}
+        open={seeHeld}
+        onToggle={() => setSeeHeld((v) => !v)}
+        busy={doors.busy}
+        said={doors.said}
+        onAnswer={doors.answer}
+        onRecheck={() => void doors.recheck()}
+      />
+    ) : null;
+  const list = <RoRunList key="list" vm={vm} runId={b.id} startOpen={!waiting} />;
   return (
     <div className="bc-sheet ro-run bc-approval" data-testid="ro-run" data-state={b.state}>
+      {armed ? <div className="ro-scrim" aria-hidden="true" /> : null}
       <div className="ro-cols">
         <div className="ro-col">
-          <RoDecision vm={vm} />
+          <RoDecision vm={vm} may={may} />
           {!may && vm.held.length > 0 ? (
             <p className="ro-gate" data-testid="ro-run-role">
               <Icon name="lock" size={14} />
@@ -452,23 +521,22 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null }: Ru
           ) : null}
           {/* A reach-out its owner sends (00429): the emails handed to them, each to send from their own inbox. */}
           <RoToSend d={d} onSaid={onDecided} />
-          {vm.held.length > 0 ? (
-            <RoRunHeld
-              vm={vm}
-              may={may}
-              open={seeHeld}
-              onToggle={() => setSeeHeld((v) => !v)}
-              busy={doors.busy}
-              said={doors.said}
-              onAnswer={doors.answer}
-              onRecheck={() => void doors.recheck()}
-            />
-          ) : null}
+          {held}
         </div>
         <div className="ro-col">
-          <RoRunMail vm={vm} />
-          <RoRunChecked vm={vm} />
-          <RoRunList vm={vm} runId={b.id} />
+          {/* Waiting, the email is the decision's evidence; going, who it goes to comes first (the canvas's boards 1 and 7). */}
+          {waiting ? (
+            <>
+              <RoRunMail vm={vm} />
+              <RoRunChecked vm={vm} />
+              {list}
+            </>
+          ) : (
+            <>
+              {list}
+              <RoRunMail vm={vm} />
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -185,10 +185,9 @@ export const RUN_WAITING_SHORT = "Waits for you";
 /**
  * Approving a run, said once (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", on the run's sheet, a sequence's
  * dock and Today's row alike; when it goes is said beside it, never in it. Here, a leaf, so a view model that says it carries
- * no page's words with it. A run to leads counts its emails ("Approve · 2 emails"): one goes to each business.
+ * no page's words with it.
  */
-export const runApproveWords = (n: number, noun: readonly [string, string] = ["person", "people"]): string =>
-  `Approve · ${n} ${n === 1 ? noun[0] : noun[1]}`;
+export const runApproveWords = (n: number): string => `Approve · ${n} ${n === 1 ? "person" : "people"}`;
 
 /**
  * The way back a toast offers once a run is set to go, said once: "Cancel it" while it waits for its moment, "Stop it" once

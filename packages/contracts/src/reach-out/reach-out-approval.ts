@@ -9,7 +9,7 @@ import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
-import { RUN_OPEN_WORDS, RUN_WAITING_SHORT, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
+import { RUN_OPEN_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
@@ -68,11 +68,24 @@ function skippedWordsOf(skipped: Record<string, number>): string[] {
     .map(([reason, n]) => `${n} skipped · ${skippedReasonWords(reason)}`);
 }
 
-/** A live run's state as the pill in its head says it: one that waits on you says so as a phone's pill does. */
+/** What a run to leads waiting on you says in its head (the run-to-leads canvas): its OK is what it waits for. */
+const RUN_WAITING_WORDS_OK = "Waits for your OK";
+
+/** A live run's state as its head says it. */
 const STATE_WORDS: Record<string, string> = {
-  pending_approval: RUN_WAITING_SHORT,
+  pending_approval: RUN_WAITING_WORDS_OK,
   scheduled: "Scheduled",
   sending: "Sending",
+};
+
+/**
+ * Each state's colour in the head (the run-to-leads canvas: one colour, one meaning): amber waits for you, blue is to come,
+ * green goes.
+ */
+const STATE_TONES: Record<string, "warn" | "info" | "ok"> = {
+  pending_approval: "warn",
+  scheduled: "info",
+  sending: "ok",
 };
 
 /** The states a live run's words are said in: waiting on its owner, approved and to come, or going. */
@@ -98,6 +111,7 @@ export function reachOutRunWordsOf(
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "To leads",
+    kTone: STATE_TONES[p.state] ?? "warn",
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r.skipped),
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
@@ -127,6 +141,7 @@ export function reachOutRunWordsOf(
     // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; what is still being checked said
     // inside it, under the names; none while nothing is checked.
     listHead: WHO_GETS_IT_WORDS.head,
+    listCount: checked.length,
     listNote:
       r.checking > 0
         ? `${plural(r.checking, "more is", "more are")} being checked; ${r.checking === 1 ? "it goes once it passes" : "they go once they pass"}`
@@ -135,7 +150,7 @@ export function reachOutRunWordsOf(
 }
 
 /** A send whose time has passed, or whose run is from an earlier day: it goes in their hours once it may. */
-const RETIMED = "re-timed in their hours";
+const RETIMED = "from now";
 /** An owner's email (00429): handed to them once checked, whatever the hour. */
 const HANDED = "handed to you once checked";
 
@@ -169,6 +184,9 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
   if (drafted.length === 0) return null;
   return {
     head: `To send · ${drafted.length}`,
+    /** The caption over the list, its count at its right (the run-to-leads canvas). */
+    title: REACH_OUT_RUN_LABELS.toSend,
+    count: drafted.length,
     note: REACH_OUT_TO_SEND_LABELS.note,
     rows: drafted.map((d) => toSendRowOf(d, p)),
     labels: REACH_OUT_TO_SEND_LABELS,
@@ -214,7 +232,7 @@ export const REACH_OUT_TO_SEND_LABELS = {
    * How a run's list is worked, in a line (the run-to-leads canvas); what Skip does is the run's foot's (approvalWordsOf),
    * and the whole To send's note says both (TO_SEND_ALL_WORDS).
    */
-  note: "Send each from your mail app, then say Sent.",
+  note: "Open each in your mail app, send it there, then say Sent.",
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",
@@ -366,8 +384,12 @@ const REACH_OUT_RUN_LABELS = {
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
+  /** Skip's question's No: the run stays, waiting. */
+  keep: "Keep it",
   seeHeld: "See them",
   hideHeld: "Hide them",
+  /** The caption over a run its owner sends' emails: the count goes at its right. */
+  toSend: "To send",
   /** The heads over the email card and what was checked, and what a desk's head says the run is. */
   email: "The email",
   checked: "Checked before it goes",

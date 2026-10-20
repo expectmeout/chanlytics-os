@@ -383,13 +383,14 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-/* What fills per person, so the eye can see what varies: its words in the link's tint, not boxed (Ruben, 11 Oct 2026:
-   a box round every name and time made the message a form). Not the accent: the accent means a live agent here. */
+/* What fills per person, so the eye can see what varies: its words in what varies' coral (tokens.css --slot; Ruben, 20 Oct
+   2026), not boxed (Ruben, 11 Oct 2026: a box round every name and time made the message a form). A link in the message
+   and its buttons wear it too, so a preview carries one colour, Chanlytics'. */
 .mp-slot {
-  color: var(--info-ink);
+  color: var(--slot);
 }
 .mp-link {
-  color: var(--info-ink);
+  color: var(--slot);
   text-decoration: none;
   word-break: break-all;
 }
@@ -437,7 +438,8 @@
   gap: 6px;
   padding: 8px 10px;
   font-size: var(--text-sm);
-  color: var(--info-ink);
+  font-weight: var(--weight-medium);
+  color: var(--slot);
   border-top: 1px solid var(--line);
 }
 .mp-button:first-child {
@@ -642,15 +644,6 @@
 /* Campaigns has no strip of tabs any more: its home is one page, and Sent and the Library are rooms reached from it
    (surfaces/campaigns/home; the shell's SurfaceTabs draws nothing for it). */
 @media (max-width: 720px) {
-  /* The act says "New" on a phone, and its whole name to a screen reader: the tab above says what it makes. */
-  .cm-act-noun {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
   /* A notice is its sentence and its act: what it costs is the desk's (it was five lines of a phone). */
   .cm-banner {
     flex-wrap: wrap;
@@ -1318,47 +1311,75 @@ html.legacy-on .tpl-fresh {
   font-style: normal;
   color: inherit;
 }
-/* The five figures: a label, the number with its share, when it came, and one line. */
+/* The five figures as one card (the run-to-leads canvas's decision; Ruben, 20 Oct 2026): what it sent, the one large
+   number, of how many at the line's end and when it went under it; what came of it four to a line under a hairline (two
+   on a phone), each with when it came. The bars are in the blue Reports draws its data in (charts.css --chart-1, on its
+   track), and the numbers in plain ink as Reports' are: a figure is never green (the reports lenses spec, D10). */
 .bc-figs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3xl);
+  background: var(--surface-pane-fill);
 }
 .bc-fig {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 13px 15px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--bg-raised);
 }
-.bc-fig[data-tone="warn"] {
-  border-color: var(--warn-soft);
+.bc-fig-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+.bc-fig-one .bc-fig-v {
+  font-size: var(--text-decision);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.bc-fig-one .bc-fig-k {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.bc-fig-one .bc-fig-sub {
+  flex: none;
+  margin: 0 0 0 auto;
+  font-size: var(--text-base);
+  white-space: nowrap;
+}
+.bc-fig-one .bc-fig-bars {
+  height: 28px;
+  margin-top: 16px;
+}
+.bc-figs-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 .bc-fig-k {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
 }
 .bc-fig-n {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-top: 7px;
+  gap: 6px;
+  margin-top: 2px;
 }
+/* Its numbers in the font's own figures, as Reports' are: its tabular ones draw a slashed zero. */
 .bc-fig-v {
-  font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: var(--text-2xl);
   font-weight: var(--weight-medium);
-  line-height: 1.15;
-  letter-spacing: var(--tracking-tight);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
   color: var(--ink);
-}
-.bc-fig[data-tone="ok"] .bc-fig-v {
-  color: var(--ok-ink);
 }
 .bc-fig[data-tone="warn"] .bc-fig-v {
   color: var(--warn-ink);
@@ -1370,24 +1391,22 @@ html.legacy-on .tpl-fresh {
 .bc-fig-bars {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
-  height: 20px;
-  margin-top: 9px;
+  gap: 3px;
+  height: 16px;
+  margin-top: 10px;
 }
 .bc-fig-bars > span {
   flex: 1 1 0;
-  border-radius: 1px;
-  background: var(--line-strong);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--chart-track);
 }
-.bc-fig[data-tone="ok"] .bc-fig-bars > span {
-  background: var(--ok);
-}
-.bc-fig[data-tone="warn"] .bc-fig-bars > span {
-  background: var(--warn);
+.bc-fig-bars > span[data-on] {
+  background: var(--chart-1);
 }
 .bc-fig-sub {
-  margin-top: 7px;
+  margin-top: 8px;
   font-size: var(--text-xs);
+  line-height: 1.4;
   color: var(--ink-dim);
 }
 /* Everyone it touched, beside what came back. */
@@ -1397,11 +1416,13 @@ html.legacy-on .tpl-fresh {
   gap: 18px;
   align-items: start;
 }
+/* Everyone it touched and what came back: panes as a run's are (the run-to-leads canvas), on the pane's fill with its
+   hairline and a 16px corner. */
 .bc-touched {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--bg-raised);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
   overflow: hidden;
 }
 .bc-touched-head {
@@ -1431,7 +1452,7 @@ html.legacy-on .tpl-fresh {
   box-sizing: border-box;
   padding: 0 15px;
   border-bottom: 1px solid var(--line);
-  background: var(--bg-raised);
+  background: transparent;
 }
 .bc-person:last-child {
   border-bottom: 0;
@@ -1502,39 +1523,6 @@ html.legacy-on .tpl-fresh {
   flex-wrap: wrap;
   gap: 6px 14px;
 }
-/* An email handed to its owner (00429, reach-out/to-send.tsx): who and what on a line, then its mail app, its More and the
-   owner's word on it on the line under. A block, never the fixed line a person's is: its acts wrap on a phone. */
-.ro-send {
-  display: grid;
-  gap: 6px;
-  padding: 10px 15px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-raised);
-}
-.ro-send:last-child {
-  border-bottom: 0;
-}
-.ro-send-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 12px;
-  min-width: 0;
-}
-.ro-send-acts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-/* The owner's word, Sent or Skip, at the line's end: under the mail app once the line wraps. */
-.ro-send-word {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  margin-left: auto;
-}
 .bc-person-at {
   width: 52px;
   flex: none;
@@ -1562,10 +1550,10 @@ html.legacy-on .tpl-fresh {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 15px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--bg-raised);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
 }
 .bc-card-lede {
   margin: 6px 0 12px;
@@ -1964,11 +1952,9 @@ html.legacy-on .bc-nobody-door {
   }
 }
 @container (max-width: 760px) {
-  .bc-figs {
+  .bc-figs-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .bc-fig:first-child {
-    grid-column: 1 / -1;
+    row-gap: 18px;
   }
 }
 /* A phone: a person's line is two -- who and how it went, then the words and the door. */
@@ -2031,7 +2017,7 @@ html.legacy-on .bc-nobody-door {
 .msg-list-head,
 .msg-row-line {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 220px 92px;
+  grid-template-columns: var(--row-face) minmax(0, 1fr) 220px 92px;
   column-gap: 12px;
   align-items: center;
 }
@@ -2071,7 +2057,7 @@ html.legacy-on .bc-nobody-door {
 .msg-row-what {
   grid-column: span 2;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: var(--row-face) minmax(0, 1fr);
   column-gap: 12px;
   align-items: center;
   min-width: 0;
@@ -3089,6 +3075,18 @@ section:has(> .tpl-composer:not(.is-translate)) {
     align-self: start;
     max-height: 100%;
   }
+  /* On a phone the list is the page's own, as People's and the Inbox's are under their strips (Ruben, 20 Oct 2026): no
+     pane round it, its search and its rows on the page at the strip's edges. Its pull pixel stays (mobile.css). */
+  .cm-split:not([data-open]) > .cm-list {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .cm-split:not([data-open]) > .cm-list::after {
+    background: none;
+  }
   .cm-split[data-open] {
     grid-template-columns: minmax(0, 1fr);
     padding: 0;
@@ -3168,9 +3166,9 @@ section:has(> .tpl-composer:not(.is-translate)) {
   padding: 0 3px;
   border: 0;
   border-radius: var(--radius-xs);
-  background: var(--line);
+  background: var(--slot-soft);
   font: inherit;
-  color: var(--info-ink);
+  color: var(--slot);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -3369,305 +3367,697 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 .bc-approval-people {
   margin: 0 0 var(--space-1);
 }
-/* A run to leads, as its screen decides it (reach-out/approval.tsx; the run-to-leads canvas of 19 Oct 2026): the decision,
-   the held, then the email and what was checked, one column on a phone and two side by side once the run's pane is wide
-   enough to hold both, its acts in the pane's foot. Each card is the kit's panel; this places them and words them. */
+/* A run to leads, as its screen decides it (reach-out/approval.tsx; the run-to-leads canvas of 19 Oct 2026, its run.css):
+   the decision, the held, then the email, what was checked and who gets it, one column on a phone and two side by side
+   once the run's pane is wide enough to hold both, its acts in the pane's foot. One colour, one meaning: coral is the act,
+   amber needs you, green goes or passed, blue is what is written for each business. The cards stand 12px from the
+   screen's edge on a phone and 14px from the pane's on a desk, as the canvas sets them. */
+.cm-pane-body:has(.ro-run) {
+  --cm-pane-gutter: 14px;
+}
 .ro-run {
   container: ro-run / inline-size;
   padding-bottom: var(--space-4);
 }
 .ro-cols {
   display: grid;
-  gap: var(--space-3);
+  gap: 12px;
 }
 .ro-col {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 12px;
   min-width: 0;
 }
 @container ro-run (width > 720px) {
   .ro-cols {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
     align-items: start;
-    gap: var(--space-4);
+    gap: 0 10px;
+  }
+  /* A run with nothing for the second column (its owner's, every email handed over) keeps one. */
+  .ro-cols:has(> .ro-col:empty) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
-/* The decision: how many go, large, and of how many at the line's end; the run's bar by count, its legend, and when and
-   from where under a hairline. */
-.ro-dec {
+.ro-col:empty {
+  display: none;
+}
+/* Skip's question asked on a phone: the screen dims under the card it asks in (the canvas's board 4), the foot over it. */
+.ro-scrim {
+  display: none;
+}
+@media (max-width: 900px) {
+  .cm-pane-body:has(.ro-run) {
+    --cm-pane-gutter: 12px;
+  }
+  .ro-run {
+    padding-top: 4px;
+  }
+  /* The held opened on a phone: the decision keeps its count and its bar, and the rows rise under it (the canvas's board
+     2); when and from where come back as they fold. */
+  .ro-cols:has(.ro-held[data-open="true"]) .ro-dec :is(.ro-when, .ro-from) {
+    display: none;
+  }
+  .cm-pane:has(.ro-scrim) {
+    position: relative;
+  }
+  .cm-pane:has(.ro-scrim)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    background: var(--surface-scrim);
+  }
+}
+
+/* The head: the run's name whole, then one line of where it stands, its state in its colour and the rest a dot apart. */
+.ro-meta {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: 6px;
   min-width: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.ro-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ro-meta-dot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-circle);
+  background: var(--ink-faint);
+}
+@media (width > 900px) {
+  .bc-pane:has(.ro-run) > .cm-pane-head {
+    padding: 18px 14px 6px 26px;
+  }
+  .bc-pane:has(.ro-run) .cm-pane-title {
+    font-size: var(--text-2xl);
+    letter-spacing: -0.02em;
+  }
+  .bc-pane:has(.ro-run) .cm-pane-sub {
+    margin-top: 3px;
+  }
+}
+.cmh-host-body > .bc-pane:has(.ro-run) > .cm-pane-head .cm-pane-title {
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
+
+/* The decision: how many go, the one large number, and of how many at the line's end; the run as a bar by count, its
+   legend with each number in ink; when it goes and from where under a hairline. */
+.ro-dec {
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3xl);
+  background: var(--surface-pane-fill);
 }
 .ro-dec-n {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: 10px;
   margin: 0;
-  color: var(--ink);
 }
 .ro-dec-n > b {
-  font-size: var(--text-3xl);
+  font-size: var(--text-decision);
   font-weight: var(--weight-semibold);
   line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--ink);
 }
 .ro-dec-n > span {
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 .ro-dec-n > small {
   margin-left: auto;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   color: var(--ink-dim);
 }
 .ro-dec-bar {
-  margin-top: var(--space-1);
+  margin-top: 16px;
 }
 .ro-leg {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
 }
 .ro-leg-part {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
-/* Each part's dot in its tone in the bar: ready green, the coming days at rest, held amber, being checked its outline. */
-.ro-leg-dot {
+.ro-leg-part::before {
+  content: "";
   flex: none;
-  width: 7px;
-  height: 7px;
   box-sizing: border-box;
-  border-radius: var(--radius-circle);
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-xs);
   background: var(--line-strong);
 }
-.ro-leg-part[data-part="go"] > .ro-leg-dot {
+.ro-leg-part[data-part="go"]::before {
   background: var(--ok);
 }
-.ro-leg-part[data-part="held"] > .ro-leg-dot {
+.ro-leg-part[data-part="held"]::before {
   background: var(--warn);
 }
-.ro-leg-part[data-part="checking"] > .ro-leg-dot {
+.ro-leg-part[data-part="checking"]::before {
   border: 1px solid var(--line-strong);
   background: none;
 }
+.ro-leg-part > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
 .ro-dec-said {
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-snug);
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
   color: var(--ink-dim);
 }
-.ro-when {
+.ro-when,
+.ro-from {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
+  gap: 9px;
+  margin: 8px 0 0;
+  font-size: var(--text-base);
+  line-height: 1.45;
   color: var(--ink-muted);
-  overflow-wrap: anywhere;
 }
-.ro-when > svg {
+.ro-when {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+:is(.ro-when, .ro-from) > svg {
   flex: none;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--ink-dim);
 }
 .ro-when b {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-.ro-leg + .ro-when,
-.ro-dec-said + .ro-when {
-  margin-top: var(--space-1);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-/* Why a member may not answer, said once, above what they may not answer. */
+
+/* The gate a member who may not act meets, said once over the held. */
 .ro-gate {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: 9px;
   margin: 0;
-  padding: 0 var(--space-1);
+  padding: 12px 14px;
+  border-radius: var(--surface-row-radius);
+  background: var(--surface-inset-fill);
   font-size: var(--text-sm);
-  line-height: var(--leading-snug);
+  line-height: 1.45;
   color: var(--ink-muted);
 }
 .ro-gate > svg {
   flex: none;
   margin-top: 1px;
+  color: var(--ink-dim);
 }
-/* The held: how many in the amber of what waits for you, what Approve does with them, See them at the head's right; the
-   rows open under a hairline, and Check the held again at the foot. A panel has no tone: what it holds says it. */
+
+/* The held: the work the run leaves you, one amber card, its rows opening in place under its head. */
 .ro-held {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-sheet);
+  background: var(--warn-soft);
 }
 .ro-held-head {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 12px 12px 16px;
 }
 .ro-held-t {
-  display: flex;
   flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
   min-width: 0;
 }
 .ro-held-t > b {
-  font-size: var(--text-base);
+  display: block;
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   color: var(--warn-ink);
 }
 .ro-held-t > small {
-  font-size: var(--text-xs);
-  line-height: var(--leading-snug);
-  color: var(--ink-dim);
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-muted);
 }
-.ro-held-rows {
+.ro-held-head > .ro-held-go {
+  flex: none;
+  height: 44px;
+  padding: 0 16px;
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  background: var(--warn-soft);
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--warn-ink);
+}
+.ro-hrow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--warn-line);
+}
+.ro-hrow-main {
+  min-width: 0;
+}
+.ro-hrow-who {
   display: flex;
-  flex-direction: column;
-  margin: var(--space-3) calc(-1 * var(--space-4)) 0;
-  border-top: 1px solid var(--line);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ro-hrow-why {
+  margin: 3px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.ro-hrow-why > q {
+  color: var(--ink);
+  quotes: "\201C" "\201D";
+}
+.ro-hrow-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ro-hrow-said {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--danger-ink);
+}
+.ro-held-said {
+  margin: 0;
+  padding: 0 16px 12px;
 }
 .ro-held-foot {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  margin: 0 calc(-1 * var(--space-4)) -14px;
-  padding: var(--space-2) var(--space-4);
-  border-top: 1px solid var(--line);
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--warn-line);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+/* An answer, a pill: the one the hold points to on an inset's fill, the rest in the strong hairline's outline. Its
+   padding a pixel under the canvas's 14, since the kit's button carries a 1px edge the canvas's ring draws inside. */
+:is(.ro-hrow-acts, .ro-held-foot, .ro-send-acts) > .ro-ans {
+  flex: none;
+  height: 40px;
+  padding: 0 13px;
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+:is(.ro-hrow-acts, .ro-held-foot) > .ro-ans-q {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-muted);
+}
+.ro-held-foot > .ro-ans {
+  background: var(--secondary-fill);
+}
+
+/* A business: its tile, and its name, an underlined door to its lead over the page. */
+:is(.ro-hrow, .ro-mail-head, .ro-whor) > .ro-tile {
+  width: 34px;
+  height: 34px;
   font-size: var(--text-xs);
-  color: var(--ink-dim);
 }
-.ro-held-foot > span {
-  flex: 1 1 auto;
+:is(.ro-hrow-who, .ro-send-who, .ro-whor) > .ro-name {
   min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-overflow: ellipsis;
+  text-underline-offset: 3px;
+  white-space: nowrap;
 }
-.ro-held-said {
-  margin: var(--space-2) 0 0;
-}
-/* The heads over the email and what was checked. */
+
+/* A small head over each pane, what it counts at its right. */
 .ro-cap {
-  margin: var(--space-1) 0 calc(-1 * var(--space-1));
-  padding: 0 var(--space-1);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 4px -4px;
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
+  letter-spacing: 0.01em;
   color: var(--ink-dim);
 }
-/* The email, as an email: who reads it on top, its subject, its words with the opening marked, then what is each's own. */
+.ro-cap > span + span {
+  font-weight: var(--weight-regular);
+}
+
+/* The email as an email: who it is written to, its subject, the words with the opening marked, what is each's own. */
 .ro-mail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--shadow-sm);
 }
 .ro-mail-head {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
+  gap: 10px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
 }
 .ro-mail-who {
-  display: flex;
-  flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
 }
+.ro-mail-who > b,
+.ro-mail-who > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ro-mail-who > b {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
 .ro-mail-who > small {
   font-size: var(--text-xs);
+  line-height: 1.4;
   color: var(--ink-dim);
 }
 .ro-mail-subject {
   margin: 0;
-  font-size: var(--text-sm);
+  padding: 12px 16px 0;
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.ro-mail-subject > b {
   font-weight: var(--weight-semibold);
-  line-height: var(--leading-snug);
   color: var(--ink);
-  overflow-wrap: anywhere;
 }
 .ro-mail-body {
   margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--ink-muted);
-  overflow-wrap: anywhere;
-  /* An email's paragraphs, as it is sent: its sign-off stood on the line of its ask. */
-  white-space: pre-line;
+  padding: 10px 16px 4px;
+  font-size: var(--text-mail);
+  line-height: 1.62;
+  color: var(--ink);
+}
+.ro-slot {
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--slot-soft);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .ro-mail-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
+  gap: 6px;
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
+  padding: 12px 14px 14px;
 }
-/* What is each business's own is marked as its words are (.bc-sheet-slot): a dot of that light before it. */
-.ro-mail-own {
+.ro-mail-note {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.ro-mail-own {
+  background: var(--slot-soft);
+  color: var(--slot);
 }
 .ro-mail-own::before {
   content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-circle);
-  box-sizing: border-box;
-  border: 1px solid var(--line-strong);
-  background: var(--bg-active);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-xs);
+  background: currentColor;
 }
-/* What was checked before it goes: one line each, its tick in the green of what passed. */
-.ro-checks {
-  display: flex;
-  flex-direction: column;
+
+/* A pane of rows (what was checked, who gets it, To send): a hairline between each. */
+.ro-pane {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
+}
+.ro-pane > * + *,
+.ro-fold > div > * + * {
+  border-top: 1px solid var(--line);
+}
+.ro-fold > div {
+  border-top: 1px solid var(--line);
 }
 .ro-check {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
-  gap: var(--space-2);
   min-height: 40px;
   margin: 0;
-  padding: 0 var(--space-4);
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
+  padding: 6px 12px;
+  font-size: var(--text-base);
   color: var(--ink);
 }
-.ro-check:first-child {
-  border-top: 0;
+.ro-tick {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-circle);
+  background: var(--ok-soft);
+  color: var(--ok-ink);
 }
-.ro-check > svg {
+/* Who gets it, folded under its head: the name, how many, the chevron at the head's right. */
+.ro-fold > .ro-fold-h {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-height: 50px;
+  padding: 6px 20px 6px 14px;
+  border: 0;
+  border-radius: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ro-fold-n {
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.ro-fold-sp {
+  flex: 1 1 auto;
+}
+.ro-fold-h > svg {
+  color: var(--ink-dim);
+}
+.ro-whor {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 8px 12px;
+}
+.ro-whor > small {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.ro-whor > small.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.ro-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ro-info::before {
+  content: "";
   flex: none;
-  color: var(--ok);
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--slot);
+  border-radius: var(--radius-circle);
 }
-.ro-who-note {
-  padding: var(--space-2) 15px;
+
+/* The emails handed to their owner (00429, reach-out/to-send.tsx; the canvas's board 6): one row each, who and when, the
+   subject and address, then its mail app and the owner's word on it; once the mail app was opened, Did it go? on a line
+   of its own. */
+.ro-sends {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-/* The run's To send: how it is worked, inset as its head and its rows are (.bc-person's 15px). */
+.ro-sends > .ro-cap {
+  margin-bottom: 8px;
+}
+.ro-send {
+  padding: 12px 14px;
+}
+.ro-send-who {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.ro-send-who > small {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ro-send-subj {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ro-send-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ro-send-sp {
+  flex: 1 1 auto;
+}
+.ro-send-ask {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.ro-send-asked {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.ro-send-acts > .ro-ans {
+  height: 36px;
+}
+/* Its mail app and the other ways to open it, one pill split by a hairline: the mail app at its left, a caret at its
+   right that opens Gmail, Outlook, Copy and the words. */
+.ro-send-open {
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+}
+.ro-send-open > .ro-ans {
+  height: 36px;
+  border-color: transparent;
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.ro-send-open > .ro-send-app {
+  padding: 0 12px 0 13px;
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.ro-send-open > .ro-send-caret {
+  justify-content: center;
+  width: 32px;
+  padding: 0 2px 0 0;
+  border-left-color: var(--line-strong);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+.ro-send-acts > .ro-ans-word {
+  background: transparent;
+  color: var(--ink-muted);
+}
 .ro-send-note {
   margin: 0;
-  padding: var(--space-2) 15px 0;
+  padding: 10px 14px 4px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
-/* The foot: what goes and from when, what else waits under it, then Skip on a desk and Approve. */
+.ro-send-note + .ro-send-note {
+  border-top: 0;
+}
+.ro-send-lede {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+/* To send's head in its sheet, as a run's is there: what waits at the run's title's size, the how under it. */
+.ro-send-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ro-send-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* The foot, one row: what goes and from when, what else waits under it, then Skip on a desk and Approve, coral. */
+.cm-pane-foot:has(> .ro-dock) {
+  padding: 8px 8px 8px 22px;
+}
 .ro-dock {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
   min-width: 0;
 }
 .ro-dock-t {
@@ -3676,15 +4066,124 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   flex-direction: column;
   min-width: 0;
 }
+.ro-dock-t > b,
+.ro-dock-t > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ro-dock-t > b {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
+  line-height: 1.35;
   color: var(--ink);
 }
 .ro-dock-t > small {
   font-size: var(--text-xs);
-  line-height: var(--leading-snug);
+  line-height: 1.4;
   color: var(--ink-dim);
+}
+.ro-dock :is(.ro-dock-go, .ro-dock-skip) {
+  flex: none;
+  height: 44px;
+  padding: 0 18px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.ro-dock > .ro-dock-skip {
+  padding: 0 14px;
+}
+/* Approve and, on a phone, Skip on its caret: one split pill (run-sheet.tsx SkipCaret; Ruben, 20 Oct 2026: no three dots
+   where a pill can carry them), a hairline between its halves, as a To send row's mail app and its ways. */
+.bc-dock-split {
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+}
+.bc-dock-split > :first-child:not(:last-child) {
+  padding-right: 14px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.bc-dock-split > .bc-dock-caret {
+  justify-content: center;
+  width: 38px;
+  height: auto;
+  margin-left: -1px;
+  padding: 0 3px 0 0;
+  border-left-color: var(--line-strong);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.ro-dock-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.ro-dock-acts > button {
+  height: 44px;
+  padding: 0 18px;
+  border-color: var(--line-strong);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+/* Skip asks first, in the foot's place: a card of its own over the dimmed page, the question, what skipping costs, then
+   Keep it and Yes, skip it, an equal pair across it. */
+.cm-pane-foot:has(> .ro-ask) {
+  z-index: 4;
+  padding: 16px 16px 12px;
+  border-radius: var(--radius-3xl);
+}
+.ro-ask {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.ro-ask-t {
+  flex: 1 1 100%;
+  margin-bottom: 6px;
+}
+.ro-ask-t > b {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.ro-ask-t > p {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.ro-ask > :is(.ro-ask-no, .ro-ask-yes) {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+  border-color: transparent;
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.ro-ask > .ro-ask-yes {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+@media (max-width: 900px) {
+  .cm-pane-foot:has(> .ro-dock) {
+    padding: 6px;
+  }
+  .ro-dock {
+    gap: 4px;
+  }
+  .ro-dock-t {
+    padding: 0 6px;
+  }
 }
 /* A waiting run's dock on a phone, one row (run-sheet.tsx bcSheetDock): when it goes at the left, Approve at the right,
    so the capsule stays one row and its round ends hold the pill's. */
@@ -3808,6 +4307,16 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 }
 .tpl-wrap > * {
   flex-shrink: 0;
+}
+/* On a phone the list is the page's (no pane round it): its search at the strip's 12px edge, as People's is. */
+@media (max-width: 900px) {
+  .cm-split:not([data-open]) .tpl-wrap {
+    padding: 0 0 var(--space-6);
+  }
+  /* Its rows at the edge Sequences' stand at: the lozenge's 8px inset was the pane's. */
+  .cm-split:not([data-open]) .tpl-wrap .msg-row-line {
+    margin-inline: 0;
+  }
 }
 /* The top bar, as the Inbox's list opens on its search: the box takes the list's width and what WhatsApp's sync state
    leaves, which is as wide as its words. The kit's search capsule is the box (by position: it is a kit class). */
@@ -4828,6 +5337,47 @@ div.tpl-slotbox:not([data-lines="1"]) {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+/* The list's edges as a run's in this sheet: on a desk its cards 14px in and its head on the kicker's 22px, on a phone
+   both on the kicker's 16px. */
+@media (width > 900px) {
+  .see-to-send {
+    padding-inline: 14px;
+  }
+  .see-to-send .ro-send-head {
+    margin-inline: 8px;
+    padding-top: 2px;
+  }
+}
+@media (max-width: 900px) {
+  .see-to-send {
+    padding-inline: 16px;
+  }
+  .see-to-send .ro-send-head {
+    gap: 1px;
+  }
+}
+/* The sheet's kicker (see-sheet.tsx; the run-to-leads canvas's board 5): what it is, small and mono, and on its line the
+   way to its home, an inset pill the Close's own height (kit.css, "One Close for every sheet"), before the Close. */
+.see-kicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.see-home.see-home {
+  gap: 3px;
+  height: 34px;
+  padding: 0 12px;
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
 }
 /* A composer in the sheet: its rows start under its name, a little closer than a page's. */
 .cmh-host-body .pb-compose {

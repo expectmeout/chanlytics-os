@@ -56,7 +56,7 @@ function SequenceRow(p: {
   const state = sequenceRowState(row);
   return (
     <ListRow
-      mark={<Icon name={GLYPH[row.starts]} size={13} />}
+      mark={<Icon name={GLYPH[row.starts]} size={14} />}
       name={row.name}
       end={(place) =>
         state ? <StatePill kind="tone" value={state.tone} label={state.label} className={place} /> : null

@@ -72,20 +72,23 @@ function ToSendRunPart({
   // The detail's own count once read (it leaves out a draft the send door would refuse now), the list's before.
   const n = d?.reach_out?.drafted?.length ?? runDraftedEmails(run);
   return (
-    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send-run">
-      <div className="bc-touched-head">
-        <span className="bc-card-title">{TO_SEND_ALL_WORDS.runHead(name, step, n)}</span>
+    <section className="ro-sends" data-testid="ro-to-send-run">
+      {/* Each run's part as a run's own To send is drawn (the run-to-leads canvas's board 6): its caption, then its pane. */}
+      <p className="ro-cap">
+        <span>{TO_SEND_ALL_WORDS.runHead(name, step, n)}</span>
         <LinkButton onClick={() => onOpenRun(runRoute(run.id, run.sequence_id))} data-testid="ro-to-send-open-run">
           {TO_SEND_ALL_WORDS.openRun}
         </LinkButton>
+      </p>
+      <div className="ro-pane">
+        {d ? (
+          <RoToSend d={d} onSaid={onSaid} bare />
+        ) : (
+          <p className="ro-send-note" role={answer ? "alert" : "status"} data-testid="ro-to-send-run-wait">
+            {answer ? TO_SEND_ALL_WORDS.unread : TO_SEND_ALL_WORDS.reading}
+          </p>
+        )}
       </div>
-      {d ? (
-        <RoToSend d={d} onSaid={onSaid} bare />
-      ) : (
-        <p className="pb-note" role={answer ? "alert" : "status"} data-testid="ro-to-send-run-wait">
-          {answer ? TO_SEND_ALL_WORDS.unread : TO_SEND_ALL_WORDS.reading}
-        </p>
-      )}
     </section>
   );
 }
@@ -100,9 +103,18 @@ export function ToSendPart({ onOpenRun }: { onOpenRun: (to: string) => void }) {
   const may = canDo("approve");
   return (
     <div className="bc-report wait-to-send" data-testid="bc-to-send-body">
-      <p className="pb-note">{may ? TO_SEND_ALL_WORDS.note : gateTitle("approve", TO_SEND_ALL_WORDS.gated)}</p>
+      {/* Its head as a run's in the sheet is (the kicker over it, kit.css "One Close for every sheet"): what waits, then how
+          it is worked in the quiet line under it. */}
+      <header className="ro-send-head">
+        {all ? (
+          <h2 className="ro-send-title" data-testid="bc-to-send-title">
+            {TO_SEND_ALL_WORDS.sub(all.count, all.from)}
+          </h2>
+        ) : null}
+        <p className="ro-send-lede">{may ? TO_SEND_ALL_WORDS.note : gateTitle("approve", TO_SEND_ALL_WORDS.gated)}</p>
+      </header>
       {said && (
-        <p className="pb-note" role="status" data-testid="ro-to-send-done">
+        <p className="ro-send-lede" role="status" data-testid="ro-to-send-done">
           {said}
         </p>
       )}

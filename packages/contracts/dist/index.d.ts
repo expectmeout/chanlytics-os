@@ -38719,9 +38719,9 @@ declare const RUN_WAITING_SHORT = "Waits for you";
 /**
  * Approving a run, said once (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", on the run's sheet, a sequence's
  * dock and Today's row alike; when it goes is said beside it, never in it. Here, a leaf, so a view model that says it carries
- * no page's words with it. A run to leads counts its emails ("Approve · 2 emails"): one goes to each business.
+ * no page's words with it.
  */
-declare const runApproveWords: (n: number, noun?: readonly [string, string]) => string;
+declare const runApproveWords: (n: number) => string;
 /**
  * The way back a toast offers once a run is set to go, said once: "Cancel it" while it waits for its moment, "Stop it" once
  * it sends (the stop door answers which it did, runStoppedWords). Send once's toast offered it and an approval's did not,
@@ -39040,7 +39040,7 @@ declare const LIFECYCLE_WORDS: {
             readonly hint: (when: string | null) => string;
         };
         /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-        readonly approve: (n: number, noun?: readonly [string, string]) => string;
+        readonly approve: (n: number) => string;
         readonly skip: "Skip";
         readonly resume: {
             readonly label: "Resume";
@@ -40657,10 +40657,14 @@ declare function nextRunWords(c: Pick<ReachOutChainDto, "state" | "next">, tz: s
 };
 /** A live run's state, as the words of its decision read it: waiting on its owner, approved and to come, or going. */
 type RunState = "pending_approval" | "scheduled" | "sending";
-/** One part of a run, as its bar and the legend under it say it: ready, the coming days, held, still being checked. */
+/**
+ * One part of a run, as its bar and the legend under it say it: ready, the coming days, held, still being checked. The
+ * legend sets the number heavy and the rest plain (`rest`); `words` is the whole, for a screen reader.
+ */
 interface RunPartVM {
     key: "go" | "later" | "held" | "checking";
     n: number;
+    rest: string;
     words: string;
 }
 /**
@@ -40703,7 +40707,11 @@ declare function approvalWordsOf(r: ReachOutRunDto, p: {
         same: string | null;
     } | null;
     heldHead: string;
-    heldNote: string;
+    heldNote: {
+        closed: string;
+        open: string;
+        gated: string;
+    };
     recheck: {
         said: string;
         act: "Check the held again";
@@ -40720,7 +40728,10 @@ declare function approvalWordsOf(r: ReachOutRunDto, p: {
         said: string | null;
     };
     approve: string | null;
-    waits: string;
+    waits: {
+        lead: string;
+        said: string;
+    };
     note: string;
 };
 /**
@@ -41065,6 +41076,7 @@ declare function reachOutRunWordsOf(r: ReachOutRunDto, p: {
     now: number;
 }): {
     k: string;
+    kTone: "ok" | "warn" | "info";
     note: string | null;
     skipped: string[];
     list: {
@@ -41081,8 +41093,12 @@ declare function reachOutRunWordsOf(r: ReachOutRunDto, p: {
         readonly approving: "Approving…";
         readonly skip: "Skip this run";
         readonly skipYes: "Yes, skip it";
+        /** Skip's question's No: the run stays, waiting. */
+        readonly keep: "Keep it";
         readonly seeHeld: "See them";
         readonly hideHeld: "Hide them";
+        /** The caption over a run its owner sends' emails: the count goes at its right. */
+        readonly toSend: "To send";
         /** The heads over the email card and what was checked, and what a desk's head says the run is. */
         readonly email: "The email";
         readonly checked: "Checked before it goes";
@@ -41092,6 +41108,7 @@ declare function reachOutRunWordsOf(r: ReachOutRunDto, p: {
         readonly gated: "decide a held email or approve a run";
     };
     listHead: "Who gets it";
+    listCount: number;
     listNote: string | null;
     title: string;
     step: string;
@@ -41120,7 +41137,11 @@ declare function reachOutRunWordsOf(r: ReachOutRunDto, p: {
         same: string | null;
     } | null;
     heldHead: string;
-    heldNote: string;
+    heldNote: {
+        closed: string;
+        open: string;
+        gated: string;
+    };
     recheck: {
         said: string;
         act: "Check the held again";
@@ -41137,7 +41158,10 @@ declare function reachOutRunWordsOf(r: ReachOutRunDto, p: {
         said: string | null;
     };
     approve: string | null;
-    waits: string;
+    waits: {
+        lead: string;
+        said: string;
+    };
 };
 /** One email handed to its owner, as the run's To send list draws it. */
 interface ToSendRowVM {
@@ -41168,14 +41192,17 @@ declare function toSendWordsOf(r: ReachOutRunDto, p: {
     now: number;
 }): {
     head: string;
-    note: "Send each from your mail app, then say Sent.";
+    /** The caption over the list, its count at its right (the run-to-leads canvas). */
+    title: "To send";
+    count: number;
+    note: "Open each in your mail app, send it there, then say Sent.";
     rows: ToSendRowVM[];
     labels: {
         /**
          * How a run's list is worked, in a line (the run-to-leads canvas); what Skip does is the run's foot's (approvalWordsOf),
          * and the whole To send's note says both (TO_SEND_ALL_WORDS).
          */
-        readonly note: "Send each from your mail app, then say Sent.";
+        readonly note: "Open each in your mail app, send it there, then say Sent.";
         readonly gmail: "Open in Gmail";
         readonly outlook: "Open in Outlook";
         readonly app: "Your mail app";
@@ -41221,7 +41248,7 @@ declare const REACH_OUT_TO_SEND_LABELS: {
      * How a run's list is worked, in a line (the run-to-leads canvas); what Skip does is the run's foot's (approvalWordsOf),
      * and the whole To send's note says both (TO_SEND_ALL_WORDS).
      */
-    readonly note: "Send each from your mail app, then say Sent.";
+    readonly note: "Open each in your mail app, send it there, then say Sent.";
     readonly gmail: "Open in Gmail";
     readonly outlook: "Open in Outlook";
     readonly app: "Your mail app";
@@ -41294,7 +41321,7 @@ declare const TO_SEND_ALL_WORDS: {
      * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
      * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
      */
-    readonly note: "Send each from your mail app, then say Sent. Skip leaves that business out.";
+    readonly note: "Open each in your mail app, send it there, then say Sent. Skip leaves that business out.";
     /**
      * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
      * reach-out), and how many wait. The step is null until the run's detail is read.
@@ -42235,6 +42262,8 @@ declare const SEQUENCE_HISTORY_WORDS: {
     /** The batch to come, over the days that went: "Next · goes on its own", or waiting for an OK. */
     readonly upcoming: (waits: boolean) => "Next · waits for your OK" | "Next · goes on its own";
     readonly dayByDay: "Day by day";
+    /** Sent, as the card's one large number says it: "19 sent" (its definition is the figure's, on its tip). */
+    readonly sent: "sent";
     readonly nothing: "Nothing has gone out yet.";
     readonly nothingIn: "Nothing went out in these days.";
     readonly older: "Older";
@@ -42317,6 +42346,8 @@ declare function historyDayWords(b: SequenceBatchDto, place: string | null): {
 /** The head's words past its one act. */
 declare const SEQUENCE_ACT_WORDS: {
     readonly more: (name: string) => string;
+    /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
+    readonly moreWord: "More";
     readonly askAbout: "Ask about it";
     readonly runNow: "Run now";
     readonly runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open";
@@ -42923,6 +42954,8 @@ interface SequenceDraftDto {
 declare const SEQUENCE_NEW_WORDS: {
     /** The one New (the Campaigns wiring review's rule F): every sequence, a message sent once among them, starts here. */
     readonly title: "New";
+    /** The head's act, its noun said where the row has room for it (kit/head/act-words.tsx: "New" where it has not). */
+    readonly act: "New sequence";
     readonly ask: "What should it do?";
     readonly example: "After someone comes in, thank them the next day, and if they haven’t booked again in 4 weeks, invite them back";
     readonly draft: "Draft it";

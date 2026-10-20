@@ -28,6 +28,7 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
     Holds<Exactly<FigureProps["n"], number | null | undefined>>,
     Holds<Exactly<FigureProps["minN"], number | undefined>>,
     Holds<Exactly<FigureProps["tone"], "warn" | "fail" | undefined>>,
+    Holds<Exactly<FigureProps["look"], "tile" | "hero" | undefined>>,
   ];
   Figure({ label: "Customer messages", value: "17" });
   Figure({
@@ -53,6 +54,8 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
   // A tone is for what needs you (warn) or what failed (fail), on the number alone.
   Figure({ label: "Steps overdue", value: "6", tone: "warn" });
   Figure({ label: "Email that stopped working", value: "2", tone: "fail" });
+  // The one number a view is for: a sequence's History, what it sent.
+  Figure({ label: "sent", value: "19", look: "hero" });
 
   // @ts-expect-error a figure says what it counts: its label
   Figure({ value: "17" });

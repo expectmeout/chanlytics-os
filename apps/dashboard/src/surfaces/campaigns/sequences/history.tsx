@@ -1,15 +1,18 @@
 /**
- * A sequence's History (D3: Sent becomes History; the canvas's History board): what it sent over a period, then day by
- * day. Four figures over the period picked (the last 30 days, 90, or all of it), each with what it counts on its label,
+ * A sequence's History (D3: Sent becomes History; the canvas's History board; redrawn in the run-to-leads canvas's vein, 20
+ * Oct 2026): what it sent over a period, then day by day. One card over the period picked (the last 30 days, 90, or all of
+ * it): what it sent, the one large number, and what came of it on a line under a hairline, each with what it counts on its label,
  * counted from the same batches Reports counts (contracts historyFigures over 00442 sequence_batch_counts), with the door
  * to Reports over the same days, and Replied a door to the Inbox over them (contracts sequenceRepliesRoute: the threads that
  * answered it, and nothing else), as is "All N replies in the Inbox" beside Day by day. Then a row a batch, newest first:
  * when, what it went to and what came of it, each a door to its run's one screen at its home (contracts runRoute, the
- * Campaigns wiring review's lane 2): its decision while it waits, its report once it went, where the replies it drew,
+ * Campaigns wiring review's lane 2), in one pane under its caption, each marked by what it is (went, waits, to come,
+ * canceled): its decision while it waits, its report once it went, where the replies it drew,
  * everyone it went to and its figures are. A day opened in place said the report a second time, and went. Older batches are
  * read a page at a time, and as far back as the period asks.
  */
 import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
 import {
   batchModeOf,
   SEQUENCE_HISTORY_PERIODS,
@@ -47,6 +50,19 @@ import { sequenceVerbs as verbs } from "./verbs";
 
 const isPeriod = (v: string): v is SequenceHistoryPeriod => SEQUENCE_HISTORY_PERIODS.some((p) => p.id === v);
 
+/** A day's mark, by what its batch is: went (or is going), failed, waits for an OK, is to come, or was canceled. */
+const DAY_GLYPHS: Record<string, string> = {
+  sent: "send",
+  sending: "send",
+  failed: "alert",
+  pending_approval: "clock",
+  scheduled: "calendar",
+  canceled: "ban",
+};
+const dayMark = (state: SequenceBatchDto["state"]): ReactElement => (
+  <Icon name={DAY_GLYPHS[state] ?? "dot"} size={14} />
+);
+
 /**
  * One batch's row: when, and what came of it; pressed, it opens its run's one screen at its home, whatever the run is: a
  * day that went says what came back there, and one that has not (waiting for your OK, or still to go) is decided there.
@@ -63,7 +79,7 @@ function DayRow(p: { b: SequenceBatchDto; rec: SequenceRecordDto; nowMs: number 
     );
   return (
     <ListRow
-      bare
+      mark={dayMark(b.state)}
       name={historyStamp(Date.parse(b.at), rec.timezone, nowMs)}
       end={end}
       said={said.said}
@@ -92,9 +108,9 @@ function UpcomingRow(p: { rec: SequenceRecordDto; nowMs: number; batches: readon
   );
   return (
     <ListRow
-      bare
+      mark={dayMark("scheduled")}
       name={historyStamp(next.at, rec.timezone, nowMs)}
-      end={(cls) => (said.end ? <span className={cls}>{said.end}</span> : null)}
+      end={(cls) => (said.end ? <span className={`${cls} sq-day-soon`}>{said.end}</span> : null)}
       said={said.said}
       className="sq-day sq-day-next"
       data-testid="sq-history-next"
@@ -172,6 +188,23 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
   // The replies over the same days, in the Inbox: a door only where somebody wrote back.
   const replied = Number(figures.find((f) => f.id === "replied")?.value ?? 0);
   const inbox = replied > 0 ? routeDoor(sequenceRepliesRoute(rec.sequence.id, period)) : null;
+  const [sent, ...came] = figures;
+  const figure = (f: (typeof figures)[number], hero: boolean) => (
+    <Figure
+      key={f.id}
+      id={f.id}
+      label={hero ? H.sent : f.label}
+      value={f.value}
+      meta={f.meta}
+      definition={f.definition}
+      n={f.n}
+      {...(f.minN === null ? {} : { minN: f.minN })}
+      {...(f.id === "replied" && inbox ? { door: inbox } : {})}
+      {...(hero ? { look: "hero" as const } : {})}
+      className={hero ? "sq-hist-hero" : "sq-cell"}
+      data-testid={`sq-figure-${f.id}`}
+    />
+  );
   return (
     <div className="sq-history" data-testid="sq-history">
       <section className="sq-hist-sum" aria-label={H.period}>
@@ -186,9 +219,6 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
               testid: `sq-period-${p.id}`,
             }))}
           />
-          <span className="sq-fl-span" aria-live="polite">
-            {covered ? H.days(historyDays(inPeriod, tz)) : H.counting}
-          </span>
           <LinkButton className="sq-hist-door" {...routeDoor(reports)} data-testid="sq-history-reports">
             {H.inReports} <Icon name="chevron" size={11} />
           </LinkButton>
@@ -199,38 +229,34 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
             {H.nothingIn}
           </p>
         ) : (
-          <dl className="sq-figures" aria-busy={!covered || undefined}>
-            {figures.map((f) => (
-              <Figure
-                key={f.id}
-                id={f.id}
-                label={f.label}
-                value={f.value}
-                meta={f.meta}
-                definition={f.definition}
-                n={f.n}
-                {...(f.minN === null ? {} : { minN: f.minN })}
-                {...(f.id === "replied" && inbox ? { door: inbox } : {})}
-                className="sq-cell"
-                data-testid={`sq-figure-${f.id}`}
-              />
-            ))}
-          </dl>
+          // One card, as a run's decision is (the run-to-leads canvas): what it sent, large, and over how many days at the
+          // line's end; what came of it under a hairline. It dims while the pages behind it are still being counted.
+          <div className="sq-hist-card" aria-busy={!covered || undefined}>
+            <div className="sq-hist-top">
+              {sent ? <dl className="sq-hist-one">{figure(sent, true)}</dl> : null}
+              <span className="sq-hist-days" aria-live="polite">
+                {covered ? H.days(historyDays(inPeriod, tz)) : H.counting}
+              </span>
+            </div>
+            <dl className="sq-figures">{came.map((f) => figure(f, false))}</dl>
+          </div>
         )}
       </section>
       <section className="sq-days" aria-label={H.dayByDay}>
-        <h3 className="sq-group-name">
-          {H.dayByDay}
+        <h3 className="sq-days-cap">
+          <span>{H.dayByDay}</span>
           {inbox ? (
             <LinkButton className="sq-group-act" {...inbox} data-testid="sq-history-inbox">
               {H.inInbox(replied)} <Icon name="chevron" size={11} />
             </LinkButton>
           ) : null}
         </h3>
-        <UpcomingRow rec={rec} nowMs={nowMs} batches={batches} />
-        {batches.map((b) => (
-          <DayRow key={b.id} b={b} rec={rec} nowMs={nowMs} />
-        ))}
+        <div className="sq-days-pane">
+          <UpcomingRow rec={rec} nowMs={nowMs} batches={batches} />
+          {batches.map((b) => (
+            <DayRow key={b.id} b={b} rec={rec} nowMs={nowMs} />
+          ))}
+        </div>
         {more && covered ? (
           <Button size="sm" variant="quiet" onClick={() => void older()} disabled={busy} data-testid="sq-history-more">
             {H.older}

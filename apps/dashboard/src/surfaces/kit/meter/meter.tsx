@@ -14,8 +14,8 @@ import { cx, variants } from "../variants";
 
 const meterClasses = variants({
   base: "meter",
-  variants: { size: { md: "", sm: "meter-sm", lg: "meter-lg" } },
-  defaults: { size: "md" },
+  variants: { size: { md: "", sm: "meter-sm", lg: "meter-lg" }, apart: { no: "", yes: "meter-apart" } },
+  defaults: { size: "md", apart: "no" },
 });
 
 const meterPartClasses = variants({
@@ -43,14 +43,16 @@ export type MeterProps = Omit<ComponentPropsWithRef<"div">, "children" | "role" 
   /** The rest of the whole, after the parts, in the strong hairline's colour. */
   rest?: boolean;
   size?: "sm" | "md" | "lg";
+  /** Its parts apart, 4px between them and each rounded: a run's bar by count. */
+  apart?: boolean;
   /** What it says to a screen reader, since it draws no words: each part, in words. */
   "aria-label": string;
 };
 
 /** A meter: an image of its parts, named by its label. */
-export function Meter({ parts, rest = false, size, className, ...div }: MeterProps) {
+export function Meter({ parts, rest = false, size, apart = false, className, ...div }: MeterProps) {
   return (
-    <div {...div} className={cx(meterClasses({ size }), className)} role="img">
+    <div {...div} className={cx(meterClasses({ size, apart: apart ? "yes" : "no" }), className)} role="img">
       {parts
         .filter((part) => part.share > 0)
         .map((part, at) => (

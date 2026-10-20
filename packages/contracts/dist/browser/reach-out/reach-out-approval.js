@@ -2,7 +2,7 @@ import { clockNear, clockWhen } from "../shared/clock.js";
 import { HELD_REASONS } from "../broadcasts/run-words.js";
 import { plural } from "../shared/words.js";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits.js";
-import { RUN_OPEN_WORDS, RUN_WAITING_SHORT, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms.js";
+import { RUN_OPEN_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms.js";
 import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
@@ -49,10 +49,16 @@ export function skippedReasonWords(reason) {
 function skippedWordsOf(skipped) {
   return Object.entries(skipped).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, n]) => `${n} skipped \xB7 ${skippedReasonWords(reason)}`);
 }
+const RUN_WAITING_WORDS_OK = "Waits for your OK";
 const STATE_WORDS = {
-  pending_approval: RUN_WAITING_SHORT,
+  pending_approval: RUN_WAITING_WORDS_OK,
   scheduled: "Scheduled",
   sending: "Sending"
+};
+const STATE_TONES = {
+  pending_approval: "warn",
+  scheduled: "info",
+  sending: "ok"
 };
 const runStateOf = (state) => state === "scheduled" || state === "sending" ? state : "pending_approval";
 export function reachOutRunWordsOf(r, p) {
@@ -64,6 +70,7 @@ export function reachOutRunWordsOf(r, p) {
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "To leads",
+    kTone: STATE_TONES[p.state] ?? "warn",
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r.skipped),
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
@@ -89,16 +96,20 @@ export function reachOutRunWordsOf(r, p) {
     // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; what is still being checked said
     // inside it, under the names; none while nothing is checked.
     listHead: WHO_GETS_IT_WORDS.head,
+    listCount: checked.length,
     listNote: r.checking > 0 ? `${plural(r.checking, "more is", "more are")} being checked; ${r.checking === 1 ? "it goes once it passes" : "they go once they pass"}` : null
   };
 }
-const RETIMED = "re-timed in their hours";
+const RETIMED = "from now";
 const HANDED = "handed to you once checked";
 export function toSendWordsOf(r, p) {
   const drafted = r.drafted ?? [];
   if (drafted.length === 0) return null;
   return {
     head: `To send \xB7 ${drafted.length}`,
+    /** The caption over the list, its count at its right (the run-to-leads canvas). */
+    title: REACH_OUT_RUN_LABELS.toSend,
+    count: drafted.length,
     note: REACH_OUT_TO_SEND_LABELS.note,
     rows: drafted.map((d) => toSendRowOf(d, p)),
     labels: REACH_OUT_TO_SEND_LABELS
@@ -132,7 +143,7 @@ export const REACH_OUT_TO_SEND_LABELS = {
    * How a run's list is worked, in a line (the run-to-leads canvas); what Skip does is the run's foot's (approvalWordsOf),
    * and the whole To send's note says both (TO_SEND_ALL_WORDS).
    */
-  note: "Send each from your mail app, then say Sent.",
+  note: "Open each in your mail app, send it there, then say Sent.",
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",
@@ -228,8 +239,12 @@ const REACH_OUT_RUN_LABELS = {
   approving: "Approving\u2026",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
+  /** Skip's question's No: the run stays, waiting. */
+  keep: "Keep it",
   seeHeld: "See them",
   hideHeld: "Hide them",
+  /** The caption over a run its owner sends' emails: the count goes at its right. */
+  toSend: "To send",
   /** The heads over the email card and what was checked, and what a desk's head says the run is. */
   email: "The email",
   checked: "Checked before it goes",

@@ -6,7 +6,6 @@ import { plural } from "../shared/words.js";
 import { REACH_OUT_DRAFTS_PER_DAY } from "./reach-out-rules.js";
 import { SEND_DAY_FRAME } from "./reach-out-timetable.js";
 import { pct } from "../shared/numbers.js";
-import { runApproveWords } from "../shell/campaign-rooms.js";
 import { heldAnswersOf, heldWhyOf } from "../sequences/sequence-held.js";
 import { dateFormat } from "../shared/time.js";
 export const REACH_OUT_SHEET_WORDS = {
@@ -222,14 +221,15 @@ function runPartsOf(r, ready, state) {
   const owner = r.owner_sends === true;
   const held = r.held.length;
   const goWords = owner && state !== "pending_approval" ? "handed to you" : state === "sending" ? "going" : "ready";
+  const part = (key, n, rest) => ({ key, n, rest, words: `${n} ${rest}` });
   const parts = [
-    { key: "go", n: ready, words: `${ready} ${goWords}` },
-    { key: "later", n: r.later, words: `${r.later} in the coming days` },
-    { key: "held", n: held, words: `${held} held` },
-    { key: "checking", n: r.checking, words: `${r.checking} being checked` }
+    part("go", ready, goWords),
+    part("later", r.later, "in the coming days"),
+    part("held", held, "held"),
+    part("checking", r.checking, "being checked")
   ];
   const shown = parts.filter((x) => x.n > 0);
-  return shown.length > 2 ? shown : shown.map((x) => x.key === "held" ? { ...x, words: `${held} held by the check` } : x);
+  return shown.length > 2 ? shown : shown.map((x) => x.key === "held" ? part("held", held, "held by the check") : x);
 }
 function runDockOf(r, p) {
   const { ready, from, state } = p;
@@ -257,6 +257,11 @@ function runWordsOf(r) {
   if (rest.trim()) words.push({ text: leads ? rest.replace(/^[ \t]+/, "") : rest.trim(), opening: false });
   return words;
 }
+function heldNoteWords(held, each, ready, owner, waiting) {
+  const lead = `${held === 1 ? "It waits" : each ? "Each waits" : "They wait"} for your say`;
+  if (!waiting) return owner ? `${lead}.` : `${lead}; the run goes on without them.`;
+  return ready > 0 && !owner ? `${lead}. Approve sends only the ${ready} ready.` : `${lead}.`;
+}
 export function approvalWordsOf(r, p) {
   const state = p.state ?? "pending_approval";
   const waiting = state === "pending_approval";
@@ -272,7 +277,6 @@ export function approvalWordsOf(r, p) {
   const pace = `one every ${r.gap_minutes} minutes as each business opens`;
   const unrun = r.held.filter((h) => h.reason === "check_unavailable" && h.detail === null).length;
   const place = r.step_n === null ? null : r.step_n + 1;
-  const each = held === 1 ? "It waits" : "Each waits";
   return {
     title: r.chain_name,
     step: r.step_n === null ? "A step since removed" : `Step ${r.step_n + 1}`,
@@ -303,7 +307,13 @@ export function approvalWordsOf(r, p) {
       same: total > 1 ? `Offer and ask: the same for all ${total}` : null
     } : null,
     heldHead: `${held} held by the check`,
-    heldNote: !waiting ? `${each} for your say; the run goes on without them.` : ready > 0 && !owner ? `${each} for your say. Approve sends only the ${ready} ready.` : `${each} for your say.`,
+    // Closed it says "They wait", opened "Each waits" (the canvas's boards 1 and 2); a member who may not answer is
+    // told whose say it is.
+    heldNote: {
+      closed: heldNoteWords(held, false, ready, owner, waiting),
+      open: heldNoteWords(held, true, ready, owner, waiting),
+      gated: `${held === 1 ? "It waits" : "Each waits"} for an owner's or operator's say.`
+    },
     recheck: unrun > 0 ? { said: `The check couldn't run for ${unrun}`, act: REACH_OUT_SHEET_WORDS.recheck } : null,
     held: r.held.map((h) => ({
       id: h.send_id,
@@ -317,10 +327,10 @@ export function approvalWordsOf(r, p) {
       )
     })),
     dock: runDockOf(r, { ready, from, state }),
-    // Approving said once (runApproveWords): the count it releases, when it goes beside it in the dock, never in it.
-    approve: waiting ? runApproveWords(n, ["email", "emails"]) : null,
+    // The count it releases (the canvas's Approve 2); when it goes is the foot's line beside it, never in it.
+    approve: waiting ? `Approve ${n}` : null,
     // What a member who may not approve is told it waits for, in the foot where Approve would be.
-    waits: `${n} go once it's approved`,
+    waits: { lead: `${n} go once it's approved`, said: "An owner or operator approves" },
     note: "Skipping loses this run only. The sequence keeps its place and asks again tomorrow."
   };
 }

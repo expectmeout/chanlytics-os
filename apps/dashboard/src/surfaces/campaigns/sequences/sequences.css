@@ -12,6 +12,16 @@
   gap: var(--space-4);
   padding: 0 var(--space-2) var(--space-4);
 }
+/* On a phone the list is the page's (campaigns.css, no pane round it): its search at the strip's 12px edge and its rows
+   under it, as People's are. */
+@media (max-width: 900px) {
+  .cm-split:not([data-open]) .sq-list-head {
+    padding: 0 0 var(--space-2);
+  }
+  .cm-split:not([data-open]) .sq-list-rows {
+    padding: 0 0 var(--space-4);
+  }
+}
 .sq-group {
   display: flex;
   flex-direction: column;
@@ -55,28 +65,36 @@
    days, read top to bottom. A day's label stands in the rail's column and the rail runs between the labels; a wait between
    two steps is its dashed stretch. One colour, one meaning: amber is what needs you (a day, a box, a line), the rest ink,
    muted or dim. A new sequence's draft (new.tsx) keeps the flow below. */
-/* Add a step: dashed, a thumb tall, the press filling it. A reminder says once why it takes none. */
+/* Add a step: dashed, a thumb tall, the press filling it, rounded as a step's box is. A reminder says once why it takes
+   none, as the run's gate is said: one line on an inset (the run-to-leads canvas's .gate). */
 .sq-addstep {
   border: 1px dashed var(--line-strong);
-  border-radius: var(--surface-inset-radius);
+  border-radius: var(--radius-xl);
 }
 .sq-addstep-press {
   width: 100%;
   min-height: var(--control-h-touch);
   justify-content: flex-start;
+  padding-inline: 14px;
+  border-radius: var(--radius-xl);
+  font-weight: var(--weight-semibold);
 }
 .sq-rail-note {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: 9px;
   margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--surface-row-radius);
+  background: var(--surface-inset-fill);
   font-size: var(--text-sm);
   line-height: 1.45;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
 }
 .sq-rail-note > svg {
   flex: none;
   margin-top: 2px;
+  color: var(--ink-dim);
 }
 .sq-rail-out {
   display: flex;
@@ -107,11 +125,13 @@
 .sq-sendsfrom > :last-child {
   flex: none;
 }
-/* A step opened (step-sheet.tsx): its door to Messages, its words, what it is row by row; its acts in the sheet's foot. */
+/* A step opened (step-sheet.tsx): its door to Messages, its words, what it is row by row; its acts in the sheet's foot.
+   It stands clear of the head's rule, as the editor does. */
 .sq-stepview {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding-top: 14px;
 }
 .sq-stepview-from {
   display: flex;
@@ -120,18 +140,21 @@
   gap: var(--space-2);
   margin: 0;
 }
+/* What a step is, row by row: one pane, a hairline between its rows, as the run's panes are (the run-to-leads canvas). */
 .sq-facts {
   display: flex;
   flex-direction: column;
   margin: 0;
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
 }
 .sq-fact {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: 11px 14px;
   font-size: var(--text-sm);
   line-height: 1.45;
 }
@@ -167,6 +190,11 @@
   gap: var(--space-2);
   width: 100%;
 }
+/* What parts a step's quiet act from its others: the room between them. */
+.sq-stepfoot-sp {
+  flex: 1 1 auto;
+}
+/* How it runs' Save, at its foot's end on a desk (settings-sheet.tsx). */
 .sq-stepfoot-end {
   margin-left: auto;
 }
@@ -316,12 +344,15 @@
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-/* A step whose message is gone: said in a dashed box where its words stood, with the act that picks another. */
+/* A step whose message is gone: said where its words stood, amber as what needs you is (the run's held card), with the
+   act that picks another. */
 .sq-msg-gone {
   align-items: flex-start;
-  padding: var(--space-3);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--surface-inset-radius);
+  padding: 14px 14px 12px 16px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-xl);
+  background: var(--warn-soft);
+  color: var(--ink);
 }
 .sq-msg-meta {
   display: flex;
@@ -360,6 +391,7 @@
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
+  padding-top: 14px;
 }
 .sq-ed-split {
   display: grid;
@@ -546,11 +578,13 @@
   border-radius: var(--surface-inset-radius);
 }
 
-/* History: the period's four figures over the width, then a row a day, opened in place. */
+/* History, in the run-to-leads canvas's vein (20 Oct 2026): the period and Reports, then one card, as a run's decision is:
+   what it sent the one large number, over how many days at the line's end, and what came of it on a line under a
+   hairline. Then Day by day, a caption over one pane, a row a batch, each marked by what it is. */
 .sq-hist-sum {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 12px;
 }
 .sq-hist-head {
   display: flex;
@@ -561,27 +595,71 @@
 .sq-hist-door {
   margin-left: auto;
 }
-/* The cells share hairlines: the strip's line shows through the gaps between them, however they wrap. */
+.sq-hist-card {
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-3xl);
+  background: var(--surface-pane-fill);
+}
+.sq-hist-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.sq-hist-one {
+  min-width: 0;
+  margin: 0;
+}
+.sq-hist-days {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
 .sq-figures {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 1px;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--line);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 .sq-cell {
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-raised);
+  min-width: 0;
 }
 .sq-days {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
-.sq-day {
+.sq-days-cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 4px 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+}
+.sq-days-pane {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
+}
+.sq-days-pane > .sq-day {
+  border-radius: 0;
   cursor: pointer;
+}
+.sq-days-pane > .sq-day + .sq-day {
+  border-top: 1px solid var(--line);
+}
+.sq-days-pane > .sq-day::after {
+  content: none;
 }
 .sq-day[aria-expanded="true"] {
   border-radius: var(--surface-inset-radius);
@@ -633,10 +711,10 @@
 .sq-day {
   transition: background-color var(--duration-fast) var(--ease-out);
 }
-.sq-cell {
+.sq-hist-card {
   transition: opacity var(--duration-base) var(--ease-out);
 }
-.sq-figures[aria-busy="true"] .sq-cell,
+.sq-hist-card[aria-busy="true"],
 .sq-new .sq-steps-body[aria-busy="true"] {
   opacity: 0.55;
 }
@@ -654,10 +732,30 @@
     animation: none;
   }
   .sq-day,
-  .sq-cell,
+  .sq-hist-card,
   .sq-new .sq-steps-body {
     transition: none;
   }
+}
+
+/* The head's act and its More, one split pill (Ruben, 20 Oct 2026: no three dots where a pill can carry them): the act at
+   its left, a caret at its right that opens the rest, a hairline between, as a To send row's mail app and its ways. */
+.sq-head-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+.sq-head-split > :first-child {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.sq-head-split > .sq-head-caret {
+  justify-content: center;
+  width: 28px;
+  margin-left: -1px;
+  padding: 0;
+  border-left-color: var(--line-strong);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
 }
 
 /* The record's body: what needs you, the tabs, and the tab's view (record.tsx); a step's Cancel and Save, and a phone's
@@ -713,19 +811,10 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-/* History's batch to come, over the days that went: dashed, as what has not happened yet. */
-.sq-day-next {
-  margin: var(--space-1) 0 var(--space-2);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--surface-inset-radius);
-}
-/* On a phone a hairline parts two rows (kit.css, the list row). Two days take none: the one under the batch to come,
-   whose dashed box already ends it, and a day open, a lozenge of the selected fill that no line touches. */
-@media (max-width: 900px) {
-  .sq-days > .sq-day-next + .sq-day::after,
-  .sq-days > .sq-day[aria-expanded="true"]::after {
-    content: none;
-  }
+/* History's batch to come, over the days that went: its row first in the pane, its count in the dim ink, as what has not
+   happened yet. */
+.sq-day-next .sq-day-soon {
+  color: var(--ink-dim);
 }
 
 /* A phone (the kit's one breakpoint): a line's key stands over its words, so the words take the width. The flow's column
@@ -764,18 +853,9 @@
   .sq-rec {
     --view-travel: 100%;
   }
-  /* History's head is its period and its door to Reports; its four figures stand on one line. */
-  .sq-hist-head > .sq-fl-span {
-    display: none;
-  }
-  .sq-hist-door {
-    margin-left: auto;
-  }
-  .sq-figures {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .sq-cell {
-    padding: var(--space-2) var(--space-3);
+  /* History's card keeps its gutter a step in on a phone; what came of it still stands three to the line. */
+  .sq-hist-card {
+    padding: 16px 16px 14px;
   }
   .sq-strip-stand {
     position: sticky;
@@ -786,6 +866,10 @@
   .sq-foot-act {
     flex: 1 1 0;
     justify-content: center;
+  }
+  /* A step's fields one over another on a phone: two to a line, "If they haven't booked" broke in two inside its pill. */
+  .sq-editor-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

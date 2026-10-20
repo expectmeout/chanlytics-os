@@ -152,8 +152,9 @@ function StepWait({ lc, place, step }: { lc: LeadChain; place: number; step: Rea
 
 /** The foot while writing: Take this step out (after the first), where the save stands, Done. */
 function WriteFoot(p: { lc: LeadChain; place: number; onDone: () => void; onRemove: () => void }) {
+  // Its acts alone in the foot (kit.css data-foot-acts): one inset all round, the quiet one at its start, Done at its end.
   return (
-    <div className="ld-foot">
+    <div className="ld-foot" data-foot-acts="">
       {p.place > 1 ? (
         <Button variant="quiet" tone="danger" onClick={p.onRemove} data-testid="ld-step-remove" {...gate("approve")}>
           {W.removeStep}

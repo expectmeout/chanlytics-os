@@ -20,11 +20,22 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { cx } from "../../../kit/variants";
 import "./place.css";
 
+/** What a step's day says by its colour (the run-to-leads canvas): amber needs you, green it went; none is at rest. */
+type RailTone = "need" | "next" | "done" | null | undefined;
+
 /** One row of the rail: its day (Start, Day 1, End; none for a wait), and what stands on that day. */
-export function RailRow(p: { day?: string; need?: boolean; gap?: boolean; children: ReactNode; testid?: string }) {
+export function RailRow(p: {
+  day?: string;
+  /** The day's colour by what its step is doing: amber where it needs you, green once it went. */
+  tone?: RailTone;
+  gap?: boolean;
+  children: ReactNode;
+  testid?: string;
+}) {
+  const tone = p.tone === "need" || p.tone === "done" ? p.tone : null;
   return (
     <li className={cx("sq-rail-row", !p.day && "is-bare", p.gap && "is-gap")} data-testid={p.testid}>
-      <span className={cx("sq-rail-day", p.need && "is-need")} aria-hidden={p.day ? undefined : "true"}>
+      <span className={cx("sq-rail-day", tone && `is-${tone}`)} aria-hidden={p.day ? undefined : "true"}>
         {p.day ?? null}
       </span>
       <div className="sq-rail-cell">{p.children}</div>
@@ -91,7 +102,7 @@ export function RailBox(p: RailBoxProps) {
   return (
     <div className={cx("sq-stepbox", need && "is-need")}>
       <span className="sq-stepbox-top">
-        <span className={cx("sq-stepnum", p.done && "is-done")} aria-hidden="true">
+        <span className={cx("sq-stepnum", p.done && "is-done", need && "is-need")} aria-hidden="true">
           {p.done ? <Icon name="check" size={11} /> : p.place}
         </span>
         {p.onOpen ? (
@@ -257,7 +268,7 @@ export function PlaceRail({ vm, words, onOpen, foot, testid = "lead-sheet-rail" 
               testid={`lead-sheet-rail-wait-${s.place}`}
             />
           ) : null,
-          <RailRow key={s.id} day={SW.day(s.day)} need={s.state?.tone === "need"} testid={`lead-sheet-rail-${s.place}`}>
+          <RailRow key={s.id} day={SW.day(s.day)} tone={s.state?.tone} testid={`lead-sheet-rail-${s.place}`}>
             <RailBox
               place={s.place}
               title={s.title}

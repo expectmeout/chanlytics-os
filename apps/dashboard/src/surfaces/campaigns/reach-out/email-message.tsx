@@ -52,8 +52,8 @@ const titleOf = (t: EmailMessage): string => (t.subject && inOneLine(t.subject))
 
 /** The mark an email wears, on its row and at the head of its pane. */
 const emailMark = () => (
-  <span className="mark msg-row-mark" data-kind="email" aria-hidden="true">
-    <Icon name="mail" size={13} />
+  <span className="mark mark-row msg-row-mark" data-kind="email" aria-hidden="true">
+    <Icon name="mail" size={14} />
   </span>
 );
 

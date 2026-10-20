@@ -381,7 +381,7 @@ function runApprovedTail(people, when) {
   return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
-var runApproveWords = (n, noun = ["person", "people"]) => `Approve \xB7 ${n} ${n === 1 ? noun[0] : noun[1]}`;
+var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
 var RUN_OPEN_WORDS = "Open the run";
 function heldEmailsWords(n) {
   return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;

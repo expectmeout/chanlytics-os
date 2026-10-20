@@ -21,6 +21,15 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
     Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
     Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "read" | "warn" | "rest" | "open" | undefined>>,
   ];
+  // Its parts apart, each rounded: a run's bar by count.
+  Meter({
+    parts: [
+      { share: 2, tone: "ok" },
+      { share: 7, tone: "warn" },
+    ],
+    apart: true,
+    "aria-label": "2 ready · 7 held",
+  });
   // A share still to come: its outline alone (a run's emails the check is still reading).
   Meter({
     parts: [

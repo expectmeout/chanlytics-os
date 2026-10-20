@@ -242,6 +242,8 @@ export const SEQUENCE_HISTORY_WORDS = {
   /** The batch to come, over the days that went: "Next · goes on its own", or waiting for an OK. */
   upcoming: (waits: boolean) => (waits ? "Next · waits for your OK" : "Next · goes on its own"),
   dayByDay: "Day by day",
+  /** Sent, as the card's one large number says it: "19 sent" (its definition is the figure's, on its tip). */
+  sent: "sent",
   nothing: "Nothing has gone out yet.",
   nothingIn: "Nothing went out in these days.",
   older: "Older",

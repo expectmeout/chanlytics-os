@@ -29,6 +29,8 @@ import {
   type SequenceRecordDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
+import { Button } from "../../../kit/button/button";
+import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { gate, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
 import { addLeadsTo } from "../../reach-out/people";
@@ -110,18 +112,21 @@ function LeadStartRow({
       sub={start.sub}
       acts={
         <>
-          <LinkButton onClick={onRuns} data-testid="ld-how-it-runs">
-            {W.howItRuns}
-          </LinkButton>
-          <LinkButton
+          {/* Its doors as the run's are (the run-to-leads canvas's Open in Campaigns): inset pills, a thumb's reach. */}
+          <Button size="sm" className="sq-rail-pill" onClick={onRuns} data-testid="ld-how-it-runs">
+            {W.howItRuns} <Icon name="chevron" size={11} />
+          </Button>
+          <Button
+            size="sm"
+            className="sq-rail-pill"
             onClick={() =>
               addLeadsTo(row.id, row.name, row.first?.source_search_id ?? row.first?.source_could?.id ?? null)
             }
             data-testid="sq-add-leads"
             {...gate("approve", "add leads to this sequence")}
           >
-            {F.addLeads}
-          </LinkButton>
+            <Icon name="plus" size={12} /> {F.addLeads}
+          </Button>
         </>
       }
     />
@@ -198,7 +203,7 @@ export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing, howAsked
         place,
         wait: place > 1 ? { wait: `${W.waits} ${W.afterDays(s.after_days ?? 0)}`, only: W.onlyIfQuiet } : null,
         row: (
-          <RailRow day={SW.day(days.get(place) ?? 1)} need={box.unwritten} testid={`sq-step-${place}`}>
+          <RailRow day={SW.day(days.get(place) ?? 1)} tone={state?.tone} testid={`sq-step-${place}`}>
             <RailBox
               place={place}
               title={<Parts parts={box.title} />}
