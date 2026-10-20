@@ -1223,22 +1223,12 @@
   }
 }
 
-/* A person opened over the list (people-route.tsx: the list is held under the page) comes in over it, as an open thread
-   comes in over the Inbox's (mobile.css thread-in), and on a desk as a page arriving fades in (components.css route-in):
-   no page of the frame's arrives any more to fade it in. Not a person stepped to from another: that page turns (data-slide). */
-@keyframes person-over {
-  from {
-    opacity: 0;
-    translate: 28px 0;
-  }
-}
-.cl-profile[data-over] {
+/* A person opened over the list (people-route.tsx: the list is held under the page) comes in over it: pushed in from the
+   side on a phone, as iOS pushes a page (kit/motion/held-list.ts, which marks it data-pushed), and on a desk as a page
+   arriving fades in (components.css route-in): no page of the frame's arrives any more to fade it in. Not a person stepped
+   to from another: that page turns (data-slide). */
+.cl-profile[data-over]:not([data-pushed]) {
   animation: route-in 240ms var(--ease-out);
-}
-@media (max-width: 720px) {
-  .cl-profile[data-over] {
-    animation: person-over 260ms var(--ease-out);
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .cl-profile[data-over] {

@@ -9,6 +9,8 @@
  * - in the draw that opens the row, while the page still shows the list as it was left (React changes the page only once
  *   that draw is done), the list's place is taken: the row at the top of what shows and where it stood on the screen,
  *   and the box that scrolls the list and how far, and what the frame's head said over it;
+ * - on a phone the row's page is pushed in over the list as iOS pushes a page (`Arrival`, kit/motion/swipe.ts `pushIn`):
+ *   the swipe back played forward, over the same screen a thumb would uncover;
  * - while the row's page stands the list is held: drawn where it stood and out of sight (`data-held`, components.css:
  *   fixed in place, hidden, taking no room and no touch), or, where its page keeps it out of the document (People's tabs,
  *   under React's Activity), stood in for by a still picture of it, made when the phone is idle. The row it was opened
@@ -37,6 +39,7 @@ import { frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-t
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
 import { inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
+import { motionReduced, pushIn } from "./swipe";
 
 /** What a row of a list is, to the place: a table's row, a list's item, a listbox's option. */
 const ROW = 'tr, li, [role="option"], [role="row"]';
@@ -46,8 +49,11 @@ const COPY_WAIT_MS = 1000;
 const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "transition"];
 /** The frame's own chrome over every page (its top, the tab bar, Ask's circle), which comes in with the list held under it. */
 const CHROME = "[data-chrome]";
-/** Over the frame's chrome, as the page carried is (components.css, data-going). */
-const ALONG_LAYER = "202";
+/**
+ * Over the page carried (202, components.css data-going) and the band it takes over the frame's top (203, .held-band):
+ * a page scrolled down passes under the top, and drew over what went with it as it moved.
+ */
+const ALONG_LAYER = "204";
 /** How long a list put back keeps its row where it stood against what is drawn again above it (keepRow). */
 const KEEP_MS = 1000;
 /** What ends that sooner: the screen touched, a key, a wheel. A scroll is not one: the keeping's own scrolls are scrolls. */
@@ -71,12 +77,22 @@ interface Place {
   head: HeadAt;
 }
 
-/** The list held now, the page that holds it (its useHeldList), and its still picture once made. */
+/** The list held now, the page that holds it (its useHeldList), its still picture once made, and the page pushed in. */
 interface Held {
   place: Place;
   owner: object;
   copy: HTMLElement | null;
   idle: number;
+  pushed: HTMLElement | null;
+}
+
+/**
+ * How the row's page comes in over the list it was opened from (useHeldList): the element a thumb carries back, and its
+ * swipe's mark while it moves (its `onGrab`: `carriedOver`, a thread's ixGoing).
+ */
+export interface Arrival {
+  page: () => HTMLElement | null;
+  going: (el: Element, on: boolean) => void;
 }
 
 let holding: Held | null = null;
@@ -170,21 +186,39 @@ function pictureOf(was: Held): void {
 }
 
 /** The list is held, from the place taken before the row's page was drawn. */
-function holdList(place: Place, owner: object): void {
+function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   keeping?.();
   if (holding) letListGo(holding);
   pressRow(place.opened);
   const { list } = place;
-  const now: Held = { place, owner, copy: null, idle: 0 };
+  const now: Held = { place, owner, copy: null, idle: 0, pushed: null };
   holding = now;
   putBack.delete(list);
   list.dataset.held = "";
+  // Where the window scrolls the list (a phone), the row's page is pushed in over it, and what it comes in over is drawn now.
+  const page = arrival && isDocumentScroller(place.scroller) && !motionReduced() ? arrival.page() : null;
   // Still laid out once marked (the page hides only a list nobody holds): it stands where it was, out of sight. A list its
   // page keeps out of the document is stood in for by a picture, only where a thumb may carry the row's page away.
   if (list.getClientRects().length > 0) standAt(list, place.box);
+  else if (page) pictureOf(now);
   else if (touchScreen()) now.idle = whenIdle(() => pictureOf(now));
   // The row's page starts at its top where the window scrolls it, as a page arriving does (view-deck.ts toTop).
   if (isDocumentScroller(place.scroller) && window.scrollY > 0) window.scrollTo(0, 0);
+  if (page && arrival) pushOver(now, page, arrival);
+}
+
+/**
+ * The row's page pushed in over the list it was opened from (swipe.ts pushIn), marked so that no entrance of its own plays
+ * as well (`data-pushed`: a thread's thread-in, a person's route-in), and moved once React is done with this draw and the
+ * frame's head over the page (the page's own way back, which comes in with it), before the paint.
+ */
+function pushOver(was: Held, page: HTMLElement, arrival: Arrival): void {
+  page.setAttribute("data-pushed", "");
+  was.pushed = page;
+  queueMicrotask(() => {
+    if (holding === was && page.isConnected)
+      pushIn(page, { onGrab: arrival.going, under: heldUnder, along: heldAlong });
+  });
 }
 
 /** Let go of a held list as it is, putting nothing back. */
@@ -195,6 +229,7 @@ function letListGo(was: Held): void {
   }
   cancelIdle(was.idle);
   was.copy?.remove();
+  was.pushed?.removeAttribute("data-pushed");
   const { list } = was.place;
   delete list.dataset.held;
   for (const name of HELD_STYLES) list.style.removeProperty(name);
@@ -307,6 +342,20 @@ export function heldAlong(): HTMLElement[] {
   return carrying ? carrying.along : [];
 }
 
+/**
+ * The page's own band over the frame's top while it is carried (components.css .held-band): the ground the page stands on,
+ * as tall as the top it stands under, moved with the page, so the head drawn again under it is uncovered as the page goes,
+ * as the list is, and what the page drew in the top goes on it, as an iOS bar crosses with its page. People's date and
+ * bell stood across the top beside a person's ‹ People as the person came in and went.
+ */
+function bandOver(): HTMLElement {
+  const band = document.createElement("div");
+  band.className = "held-band";
+  band.setAttribute("aria-hidden", "true");
+  document.body.append(band);
+  return band;
+}
+
 /** A still copy of what the page drew in the frame's top, laid where it stands, over the head the frame draws again. */
 function goesWith(part: HTMLElement): HTMLElement {
   const r = part.getBoundingClientRect();
@@ -326,6 +375,15 @@ function goesWith(part: HTMLElement): HTMLElement {
 }
 
 /**
+ * A page carried over the list held under it, by a thumb or as it is pushed in (its swipe's `onGrab`): it wears
+ * `data-going` (its ground and its edge, clients.css) and the screen it goes back to shows under it.
+ */
+export function carriedOver(el: Element, on: boolean): void {
+  el.toggleAttribute("data-going", on);
+  showHeld(on);
+}
+
+/**
  * A thumb is carrying the row's page away (on), or has let it go or settle back (off): the screen it goes back to shows
  * under it (`data-held="shown"`, components.css; `data-carrying`, mobile.css), drawn as the list had it.
  */
@@ -337,7 +395,7 @@ export function showHeld(on: boolean): void {
   const standIn = heldStandIn();
   if (!standIn || carrying || !holding) return;
   // Taken before the frame draws its head again, as the page has it now.
-  carrying = { standIn, along: pagesOwnTop().map(goesWith) };
+  carrying = { standIn, along: [bandOver(), ...pagesOwnTop().map(goesWith)] };
   standIn.dataset.held = "shown";
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);
@@ -382,23 +440,30 @@ export function heldPutBack(el: Element | null): boolean {
 
 /**
  * A list held under the row's page it opens, while `held`, and put back in the draw that ends it: called by the page that
- * draws both, with the list as it stands on the screen. The place is read as the draw that opens the row's page is made,
- * since React gives a function no moment between that draw and its change to the page (a class's snapshot); a draw it
- * throws away only reads again.
+ * draws both, with the list as it stands on the screen, and how the row's page comes in over it (`arrival`). The place is
+ * read as the draw that opens the row's page is made, since React gives a function no moment between that draw and its
+ * change to the page (a class's snapshot); a draw it throws away only reads again. Answers whether this draw opens the
+ * row's page over the list on the screen (a person's page fades in over it on a desk): the same for every draw React makes
+ * of it, since nothing it reads changes before the draw is done.
  */
-export function useHeldList(held: boolean, list: () => HTMLElement | null): void {
+export function useHeldList(held: boolean, list: () => HTMLElement | null, arrival?: Arrival): boolean {
   const owner = useRef<object>({});
   const was = useRef(held);
   const place = useRef<Place | null>(null);
-  if (held && !was.current) {
+  const comes = useRef<Arrival | null>(null);
+  const opening = held && !was.current;
+  if (opening) {
     const el = list();
     place.current = el ? listPlace(el) : null;
   }
   useLayoutEffect(() => {
+    comes.current = arrival ?? null;
+  });
+  useLayoutEffect(() => {
     if (held === was.current) return;
     was.current = held;
     if (!held) putListBack(owner.current);
-    else if (place.current) holdList(place.current, owner.current);
+    else if (place.current) holdList(place.current, owner.current, comes.current);
     place.current = null;
   }, [held]);
   useLayoutEffect(
@@ -409,4 +474,5 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null): void
     },
     [],
   );
+  return opening && place.current !== null;
 }

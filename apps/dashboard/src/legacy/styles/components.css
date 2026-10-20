@@ -827,7 +827,9 @@
 :is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
 
 /* --- Pane entrances --- */
-.ix-thread-pane { animation: route-in 0.24s var(--ease-out); }
+/* A thread pushed in over its list on a phone has no entrance of its own (kit/motion/held-list.ts, data-pushed): route-in
+   moves `transform`, which an animation holds over the push's own, so the thread faded in place under it. */
+.ix-thread-pane:not([data-pushed]) { animation: route-in 0.24s var(--ease-out); }
 .lm-banner, .ix-exp-panel { animation: route-in 0.2s var(--ease-out); }
 
 /* --- Press feedback everywhere --- */
@@ -1859,6 +1861,25 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 [data-held="shown"] {
   visibility: visible !important;
+}
+/* The band a carried page takes over the frame's top with it (kit motion/held-list.ts bandOver): the page's ground, as tall
+   as the top it stands under, over the page (whose content passes under the top when it is scrolled down) and the head
+   drawn again under it, and under what the page drew in the top (its still copies, over it). Its shadow is the page's,
+   on its leading edge alone. */
+.held-band {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: calc(var(--frame-top-at, 0px) + var(--frame-top, 0px));
+  z-index: 203;
+  pointer-events: none;
+  background-color: var(--surface-page-fill);
+  background-image: var(--surface-page-top), var(--surface-page-light);
+  background-repeat: no-repeat;
+  background-size: 100vw 100vh;
+  box-shadow: var(--shadow-lg);
+  clip-path: inset(0 0 0 -64px);
 }
 
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */

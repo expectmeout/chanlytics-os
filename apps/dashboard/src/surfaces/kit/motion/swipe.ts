@@ -43,6 +43,7 @@
  * `under` is what lies under a page carried back: a list held under the row's page it opened, with the frame's chrome over
  * it (held-list.ts), which comes in from a little to its left and brightens as the page goes, and goes back as the page
  * settles; `along` is what goes with the page (what it drew in the frame's top for itself), moved as the page is.
+ * A page opened over the list it was opened from comes in as that swipe back played forward (`pushIn`, iOS's push).
  */
 import type { TouchEvent } from "react";
 import type { ViewPage } from "../view-tabs/pager";
@@ -199,6 +200,13 @@ const GRAB_AT = 8;
 const LEAVE_MS = 180;
 const LEAVE_MIN_MS = 120;
 const SETTLE_MS = 240;
+/** Back where it was: the settle's own length and curve, gathering no pace. */
+const SETTLE = { ms: SETTLE_MS, easing: "var(--ease-out)" };
+/**
+ * A page opened over what it was opened from comes in on iOS's push: quick off the edge and long to land, never past its
+ * place (UIKit's navigation curve, near enough; its spring takes about as long).
+ */
+const PUSH = { ms: 420, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 // Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
 // and settled back into view for a frame before it went.
 const KEPT_AFTER_MS = 60;
@@ -283,9 +291,11 @@ const clearAlong = (along: readonly HTMLElement[]) => {
     el.style.transform = "";
   }
 };
-// Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
+/** What a settle moves: the element, the wash behind it, what lies under it and goes with it, and whom it tells. */
+type Settling = Pick<Held, "el" | "wash" | "below" | "along" | "onGrab">;
+// Back where it was, on `curve` (the settle's own); its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again. What lay under it goes back with it, and out of sight once it is covered.
-const swipeSettle = (g: Held) => {
+const swipeSettle = (g: Settling, curve: { ms: number; easing: string } = SETTLE) => {
   const { el, wash, below, along } = g;
   const covered = () => {
     clearUnder(below);
@@ -299,7 +309,7 @@ const swipeSettle = (g: Held) => {
     return;
   }
   const now = motionReduced();
-  const move = `${SETTLE_MS}ms var(--ease-out)`;
+  const move = `${curve.ms}ms ${curve.easing}`;
   el.style.transition = now ? "none" : `transform ${move}`;
   el.style.transform = "translate3d(0, 0, 0)";
   if (wash && wash.style) {
@@ -316,8 +326,42 @@ const swipeSettle = (g: Held) => {
       if (wash && wash.style) wash.style.transition = "";
       covered();
     },
-    now ? 0 : SETTLE_MS + 20,
+    now ? 0 : curve.ms + 20,
   );
+};
+
+/**
+ * A page opened over the list it was opened from comes in as a thumb carrying it back would leave, played forward (iOS's
+ * push; Ruben, 20 Oct 2026: "make it motion transition to the page cleanly like iphone imessage"): from the screen's
+ * right edge, what lies under it going a little to its left and dimming as it is covered, what goes with it arriving with
+ * it. Its options are its own swipe back's (`onGrab`, `under`, `along`), so what it comes in over is what a thumb would
+ * uncover, and every moment of the push is one the swipe back passes through. It takes no touch until it has landed.
+ * Nothing moves under reduced motion.
+ */
+export const pushIn = (el: HTMLElement, o: Pick<SwipeOptions, "onGrab" | "under" | "along">): void => {
+  if (!el.style || motionReduced()) return;
+  // Told first, as a grab is: what lies under it and goes with it is drawn as it is told (held-list.ts showHeld).
+  if (o.onGrab) o.onGrab(el, true, "back");
+  const g: Settling = {
+    el,
+    wash: null,
+    below: o.under ? o.under() : [],
+    along: o.along ? o.along() : [],
+    onGrab: (page, on, way) => {
+      if (!on) el.style.pointerEvents = "";
+      if (o.onGrab) o.onGrab(page, on, way);
+    },
+  };
+  const width = el.offsetWidth || DEFAULT_SIZE;
+  el.style.pointerEvents = "none";
+  el.style.transition = "none";
+  el.style.transform = `translate3d(${width}px, 0, 0)`;
+  for (const b of g.below) b.style.transition = "none";
+  placeUnder(g.below, width, 1);
+  moveAlong(g.along, width, "none");
+  // Drawn at the far side first, so the move has somewhere to start from.
+  void el.offsetWidth;
+  swipeSettle(g, PUSH);
 };
 // A page that stays turns in place: in from the side it is going to, on the settle's curve.
 const swipeArrive = (g: Held) => {

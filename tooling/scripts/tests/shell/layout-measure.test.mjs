@@ -182,12 +182,19 @@ test("the focus ring is a default, not a list of names", () => {
 
 test("on a phone a thread opens by coming in from the right, over where the list stood -- transform and opacity only, and none under reduced motion", () => {
   // The list cut to a pane fading up in place read as a jolt (Ruben, 22 Sep 2026). A page on a phone comes in from
-  // the side, on both pages that open the one thread.
+  // the side, on both pages that open the one thread. One opened from its list is pushed in over it (kit/motion/held-list.ts,
+  // data-pushed; Ruben, 20 Oct 2026, "like iphone imessage"), and plays no entrance of its own: route-in and thread-in
+  // move `transform`, which an animation holds over the push's own, so the thread faded in place under it.
   const mobile = MOBILE;
   assert.match(
     mobile,
-    /\.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
-    "both pages' threads, the one motion",
+    /\.inbox\[data-takeover\] \.ix-thread-pane:not\(\[data-pushed\]\), \.conversations\[data-takeover\] \.ix-thread-pane:not\(\[data-pushed\]\) \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
+    "both pages' threads opened from elsewhere, the one motion",
+  );
+  assert.match(
+    COMPONENTS,
+    /^\.ix-thread-pane:not\(\[data-pushed\]\) \{ animation: route-in /m,
+    "a thread pushed in has no entrance of its own on any width",
   );
   const frames = mobile.match(/@keyframes thread-in \{([^}]*)\}/);
   assert.ok(

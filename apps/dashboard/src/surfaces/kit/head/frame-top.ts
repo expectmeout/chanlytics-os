@@ -59,6 +59,7 @@ export function frameTopsWatched(): HTMLElement[] {
  */
 export function holdFrameTop(on: boolean): void {
   if (heightHeld === on) return;
+  // Held at the height it is drawn at now: a page pushed in drew its own head in the draw that held it.
+  measureFrameTop();
   heightHeld = on;
-  if (!on) measureFrameTop();
 }

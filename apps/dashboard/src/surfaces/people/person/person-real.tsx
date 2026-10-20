@@ -26,7 +26,7 @@ import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/con
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { tabMemory } from "../../kit/record/shell-verbs";
-import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
+import { carriedOver, heldAlong, heldUnder } from "../../kit/motion/held-list";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { mayAtLeast, navigate, touchSwipe } from "../../legacy-verbs";
 import { addressReplace } from "../shell-verbs";
@@ -507,11 +507,7 @@ function pageSwipe(c: PageCtx) {
     onBack: c.onBack,
     pages: tabPages,
     when: () => c.phone,
-    onGrab: (el, on) => {
-      if (on) el.setAttribute("data-going", "");
-      else el.removeAttribute("data-going");
-      showHeld(on);
-    },
+    onGrab: carriedOver,
     under: heldUnder,
     along: heldAlong,
     backNavigates: true,
