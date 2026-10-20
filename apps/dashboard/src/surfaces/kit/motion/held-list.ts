@@ -76,7 +76,7 @@ function rowAtTop(list: HTMLElement, scroller: HTMLElement): Element | null {
 }
 
 /** The list's place as it stands now, or null where it is not on the screen. */
-function placeOf(list: HTMLElement): Place | null {
+function listPlace(list: HTMLElement): Place | null {
   if (!list.isConnected || list.getClientRects().length === 0) return null;
   const roughly = movingScrollerOf(list.firstElementChild ?? list);
   const row = rowAtTop(list, roughly);
@@ -123,8 +123,8 @@ function pictureOf(was: Held): void {
 }
 
 /** The list is held, from the place taken before the row's page was drawn. */
-function hold(place: Place, owner: object): void {
-  if (holding) letGo(holding);
+function holdList(place: Place, owner: object): void {
+  if (holding) letListGo(holding);
   const { list } = place;
   const now: Held = { place, owner, copy: null, idle: 0 };
   holding = now;
@@ -139,7 +139,7 @@ function hold(place: Place, owner: object): void {
 }
 
 /** Let go of a held list as it is, putting nothing back. */
-function letGo(was: Held): void {
+function letListGo(was: Held): void {
   if (holding === was) holding = null;
   cancelIdle(was.idle);
   was.copy?.remove();
@@ -149,10 +149,10 @@ function letGo(was: Held): void {
 }
 
 /** The row's page has gone: the list is put back where it stood, before the first paint. */
-function release(owner: object): void {
+function putListBack(owner: object): void {
   const was = holding;
   if (!was || was.owner !== owner) return;
-  letGo(was);
+  letListGo(was);
   const { list, scroller, row, rowAt, scrolled } = was.place;
   if (!list.isConnected || list.getClientRects().length === 0) return;
   // Placed against the frame's top as it will be painted, not as its observer last measured it.
@@ -214,18 +214,18 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null): void
   const place = useRef<Place | null>(null);
   if (held && !was.current) {
     const el = list();
-    place.current = el ? placeOf(el) : null;
+    place.current = el ? listPlace(el) : null;
   }
   useLayoutEffect(() => {
     if (held === was.current) return;
     was.current = held;
-    if (!held) release(owner.current);
-    else if (place.current) hold(place.current, owner.current);
+    if (!held) putListBack(owner.current);
+    else if (place.current) holdList(place.current, owner.current);
     place.current = null;
   }, [held]);
   useLayoutEffect(
     () => () => {
-      if (holding?.owner === owner.current) letGo(holding);
+      if (holding?.owner === owner.current) letListGo(holding);
     },
     [],
   );
