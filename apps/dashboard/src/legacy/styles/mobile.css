@@ -441,10 +441,11 @@
   .inbox[data-takeover] .ix-sending-strip { display: none; }
   /* Opening a thread: it comes in from the right, over where the list stood, as a page opens on a phone. The list's
      hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
-  /* A thread opened from its list is pushed in over it, as iOS pushes a page (kit/motion/held-list.ts, data-pushed); one
-     opened from elsewhere (the bell, a link) comes in by itself. */
-  .inbox[data-takeover] .ix-thread-pane:not([data-pushed]), .conversations[data-takeover] .ix-thread-pane:not([data-pushed]) { animation: thread-in 260ms var(--ease-out); }
+  .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
   @keyframes thread-in { from { opacity: 0; transform: translateX(28px); } }
+  /* A thread opened from its list is pushed in over it instead, as iOS pushes a page (kit/motion/held-list.ts,
+     data-pushed): an entrance that moves `transform` is held over the push's own, and the thread faded in place. */
+  .inbox[data-takeover] .ix-thread-pane[data-pushed], .conversations[data-takeover] .ix-thread-pane[data-pushed] { animation: none; }
   @media (prefers-reduced-motion: reduce) { .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: none; } }
   /* Back is the arrow alone, a thumb wide: the top bar says Inbox over it, and "← Inbox" said it again. */
   .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: var(--text-lg); }

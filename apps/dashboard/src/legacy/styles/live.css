@@ -152,10 +152,11 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+  animation: route-in 240ms var(--ease-out);
 }
-/* A call pushed in over the calls on a phone has no entrance of its own (kit/motion/held-list.ts, data-pushed): route-in
-   moves `transform`, which an animation holds over the push's own. */
-.lm-panel:not([data-pushed]) { animation: route-in 240ms var(--ease-out); }
+/* A call pushed in over the calls on a phone plays none (kit/motion/held-list.ts, data-pushed): route-in moves `transform`,
+   which an animation holds over the push's own. */
+.lm-call[data-pushed] { animation: none; }
 @media (prefers-reduced-motion: reduce) { .lm-panel { animation: none; } }
 
 /* The head wraps before it squeezes. The titles were `flex: 1` -- a zero basis -- beside controls that

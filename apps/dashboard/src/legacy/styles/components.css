@@ -827,9 +827,7 @@
 :is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
 
 /* --- Pane entrances --- */
-/* A thread pushed in over its list on a phone has no entrance of its own (kit/motion/held-list.ts, data-pushed): route-in
-   moves `transform`, which an animation holds over the push's own, so the thread faded in place under it. */
-.ix-thread-pane:not([data-pushed]) { animation: route-in 0.24s var(--ease-out); }
+.ix-thread-pane { animation: route-in 0.24s var(--ease-out); }
 .lm-banner, .ix-exp-panel { animation: route-in 0.2s var(--ease-out); }
 
 /* --- Press feedback everywhere --- */
