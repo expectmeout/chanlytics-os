@@ -1642,7 +1642,7 @@ test("the peek is in the address: opening pushes it, the cursor walking it repla
 });
 
 test("New proposal: pick someone, and the one deal sheet opens to propose", async () => {
-  const seen = await fresh();
+  await fresh();
   const asked = [];
   globalThis.window.openDealSheet = (a) => {
     asked.push(a);
