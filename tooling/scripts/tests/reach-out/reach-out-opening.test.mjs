@@ -10,6 +10,8 @@ import {
   siteHost,
   customerDomainOf,
   holdWords,
+  heldAnswersOf,
+  heldWhyOf,
   holdDoors,
   REACH_OUT_HOLDS,
   REACH_OUT_MODEL,
@@ -100,9 +102,50 @@ test("each hold says why in a line, and offers only the doors that can answer it
   assert.equal(holdWords("chain", "site:3"), "reads like a chain: 3 listings share their website");
   assert.equal(holdWords("language", "es"), "their listing reads in Spanish; the email is in English");
   assert.equal(holdWords("customer_domain", "hydepark.example"), "a person in People writes from hydepark.example");
-  assert.deepEqual(holdDoors("chain"), ["include", "not_a_fit"]);
+  // A chain's no keeps the lead, as every other hold's does; Not a fit closes it.
+  assert.deepEqual(holdDoors("chain"), ["include", "not_a_fit", "skip"]);
   assert.deepEqual(holdDoors("unbacked_fact"), ["rewrite", "include", "skip"]);
   assert.deepEqual(holdDoors("check_unavailable"), ["rewrite", "skip"]);
+  // A held email's row, where it stands alone (contracts heldAnswersOf): Take out where Skip would end their place at
+  // step 1 (00459), no rewrite where the check never ran and faulted nothing (the clock and the run retry it), and only
+  // the reason's own fix leads.
+  const answers = (reason, detail, place) => heldAnswersOf({ reason, detail }, place).map((a) => [a.door, a.lead]);
+  assert.deepEqual(answers("unbacked_fact", "award-winning", 1), [
+    ["rewrite", true],
+    ["include", false],
+    ["take_out", false],
+  ]);
+  assert.deepEqual(answers("unbacked_fact", "award-winning", 2), [
+    ["rewrite", true],
+    ["include", false],
+    ["skip", false],
+  ]);
+  assert.deepEqual(answers("check_unavailable", null, 1), [["take_out", false]]);
+  assert.deepEqual(answers("check_unavailable", "too_long", 2), [
+    ["rewrite", true],
+    ["skip", false],
+  ]);
+  assert.deepEqual(answers("chain", "site:3", 1), [
+    ["include", false],
+    ["not_a_fit", false],
+    ["take_out", false],
+  ]);
+  assert.deepEqual(answers("language", "es", 2), [
+    ["include", false],
+    ["skip", false],
+  ]);
+  assert.deepEqual(
+    heldAnswersOf({ reason: "customer_domain", detail: "x.example" }, 1).map((a) => [a.words, a.lead]),
+    [
+      ["Take out", true],
+      ["Send as written", false],
+    ],
+  );
+  assert.equal(heldWhyOf("chain", "site:3"), "Reads like a chain: 3 listings share their website");
+  assert.equal(
+    heldWhyOf("check_unavailable", null),
+    "The check couldn't run; it tries again on its own within the hour",
+  );
 });
 
 const WORKSPACE = { name: "Harbor Moving Co", what_we_do: "We answer a mover's phone.", tone: "plain, warm" };

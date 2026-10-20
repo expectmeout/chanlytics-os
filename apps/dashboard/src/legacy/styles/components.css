@@ -2562,8 +2562,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit)),
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit)) {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit)),
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit)) {
     width: 44px;
     height: 44px;
     min-height: 44px;
@@ -2575,7 +2575,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     box-shadow: var(--primary-depth);
     color: var(--primary-ink);
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :first-child:not(:has(> .pg-act-fit)) > span {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > :first-child:not(:has(> .pg-act-fit)) > span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -2587,19 +2587,19 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      is no bare circle: it keeps its mark and its first word, "+ New", in the capsule People's scopes draw theirs in on a
      phone, 36px and 44 to a finger by a margin no one sees (Ruben, 8 Oct 2026: a plus alone said nothing). The rest of
      its name is kept for a screen reader, as the circle keeps the whole of one. */
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit) {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit) {
     position: relative;
     height: var(--control-h-lg);
     min-height: var(--control-h-lg);
     padding: 0 14px 0 12px;
     font-size: var(--text-base);
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after {
     content: "";
     position: absolute;
     inset: -4px 0;
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -2613,7 +2613,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
   /* Beside a capsule that says a word the strip has 76px less, not 44: its tabs give up 2px more each side, so the
      Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). */
-  .pg-slot:has(> nav):not([data-strip="people"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
     padding-inline: 8px;
   }
   /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,
@@ -2651,26 +2651,27 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     }
   }
   /* People's scopes (People, Leads, the Pipeline) keep their act on a phone with its words, on the strip's row at its
-     right, as a desk draws it (Ruben, 7 Oct 2026). It was hidden, each scope's act left to its own bar or menu, and a
+     right, as a desk draws it (Ruben, 7 Oct 2026); and so do Campaigns' Sequences and Messages, whose two tabs leave the
+     row room for "New sequence" (Ruben, 20 Oct 2026: the + should say New, or New something where the space allows). It was hidden, each scope's act left to its own bar or menu, and a
      phone showed no way to add a person; then it stood beside the name, which stood People's strip 16px under where
      the Inbox's stands. Here the strip keeps the width of its tabs and the act takes what is left of the row. Where that
      is less than its words (three scopes beside "New proposal" on a phone 360 wide), the capsule says the first of them
      beside its mark, "New", "Add", "Find": the rest wraps onto a second line, which the words' box, one line tall, does
      not show (kit/head/act-words.tsx). Nothing is measured, and no width is named. The slot says whose strip it holds
      (surfaces/frame/shell-chrome.tsx `data-strip`), so these stand after the rules for every other strip and outweigh them by that name. */
-  .pg-slot[data-strip="people"] {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) {
     grid-template-columns: auto minmax(0, 1fr);
   }
   /* The strip stands 4px out of its column (above), so its measure is the column's and those 4: held to the column
      alone it scrolled its last 4px away. */
-  .pg-slot[data-strip="people"] > nav {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > nav {
     max-width: calc(100% + 4px);
   }
-  .pg-slot[data-strip="people"] > .pg-act-slot {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot {
     min-width: 0;
   }
-  .pg-slot[data-strip="people"] > .pg-act-slot > span > button,
-  .pg-slot[data-strip="people"] > .pg-act-slot > span > a {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button,
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a {
     position: relative;
     flex: 0 1 auto;
     min-width: 0;
@@ -2679,20 +2680,20 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     padding: 0 14px 0 12px;
     font-size: var(--text-base);
   }
-  .pg-slot[data-strip="people"] > .pg-act-slot > span > button::after,
-  .pg-slot[data-strip="people"] > .pg-act-slot > span > a::after {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button::after,
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a::after {
     content: "";
     position: absolute;
     inset: -4px 0;
   }
-  .pg-slot[data-strip="people"] .pg-act-fit {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) .pg-act-fit {
     flex: 0 1 auto;
     flex-wrap: wrap;
     justify-content: center;
     height: calc(var(--control-h-lg) - 2px);
     overflow: hidden;
   }
-  .pg-slot[data-strip="people"] :is(.pg-act-keep, .pg-act-rest) {
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) :is(.pg-act-keep, .pg-act-rest) {
     height: calc(var(--control-h-lg) - 2px);
     display: inline-flex;
     align-items: center;

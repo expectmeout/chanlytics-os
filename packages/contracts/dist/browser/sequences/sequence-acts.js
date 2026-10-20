@@ -3,6 +3,8 @@ import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words.js";
 import { campaignRunsOn } from "../playbooks/playbook-schedule.js";
 export const SEQUENCE_ACT_WORDS = {
   more: (name) => `More for ${name}`,
+  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
+  moreWord: "More",
   askAbout: "Ask about it",
   runNow: "Run now",
   runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",

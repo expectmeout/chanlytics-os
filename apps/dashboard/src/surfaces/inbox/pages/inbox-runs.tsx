@@ -6,42 +6,26 @@
  * opens and walks the rest. They used to be rows of the Inbox's own, which only opened. A run opens over the Inbox (rule
  * C), so Back comes back here.
  *
- * To send is a part of Needs you (Ruben's call 3): its row opens it under itself, and its address says so
- * (`inbox/to-send`, replaced as it opens and closes), which Sent's old page of it lands on. Each run's read is begun as
- * its row is drawn, so its screen paints at once. Outside the threads' list, whose keys walk threads alone.
+ * To send's row is one of them (Ruben's call 3): it opens the list as a sheet over the Inbox, as a run's row opens its
+ * run (Ruben, 20 Oct 2026: it unfolded under its row). Each run's read is begun as its row is drawn, so its screen paints
+ * at once. Outside the threads' list, whose keys walk threads alone.
  */
-import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { TO_SEND_ROUTE } from "@chanlytics/contracts";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import type { Flash } from "../../shell-doors";
 import { warmRunDetail } from "../../campaigns/broadcasts/detail-read";
 import { useNeedsYouParts } from "../../needs-you";
 import { runsPending, useRunsActing } from "../../waits/run-acts";
 import { waitRows } from "../../waits/wait-rows";
-import { appNavigate, currentRoute } from "../shell";
+import { appNavigate } from "../shell";
 
 // Drawn again when Sent's runs move (a run approved and another made keeps the count, and changes the rows).
 const useMoved = surfaceHook({ useCallback, useSyncExternalStore });
 
-// To send's part, its own chunk: most Inboxes never open it.
-const ToSendPart = lazy(() => import("../../waits/to-send-part").then((m) => ({ default: m.ToSendPart })));
-
-export function InboxRunsWaiting({ toSendOpen, flash }: { toSendOpen: boolean; flash: (flash: Flash) => void }) {
+export function InboxRunsWaiting({ flash }: { flash: (flash: Flash) => void }) {
   useMoved(["broadcasts"]);
   const parts = useNeedsYouParts();
   const acting = useRunsActing();
-  // To send open, as it was last asked: a door to it opens it (`inbox/to-send`), and its row opens and closes it. It stays
-  // open while a thread is read beside it, whose address the Inbox writes in its place.
-  const [open, setOpen] = useState(toSendOpen);
-  useEffect(() => {
-    if (toSendOpen) setOpen(true);
-  }, [toSendOpen]);
-  // Its address follows it, replaced, where the address is the list's: a reload opens it again, and Back leaves the Inbox.
-  const toggle = () => {
-    setOpen(!open);
-    const here = currentRoute();
-    if (here === "inbox" || here === TO_SEND_ROUTE) appNavigate(open ? "inbox" : TO_SEND_ROUTE, { replace: true });
-  };
   // The runs the badge counts (contracts runWaitsOnYou), once the Inbox is read: the rows' own list.
   const ids = parts?.runs
     ? runsPending()
@@ -62,15 +46,6 @@ export function InboxRunsWaiting({ toSendOpen, flash }: { toSendOpen: boolean; f
     verbKind: () => "ghost",
     acting,
     late: false,
-    toSend: {
-      open,
-      toggle,
-      part: (
-        <Suspense fallback={null}>
-          <ToSendPart onOpenRun={(to) => appNavigate(to)} />
-        </Suspense>
-      ),
-    },
   });
   return (
     <div className="ix-runs" data-testid="inbox-runs-waiting">

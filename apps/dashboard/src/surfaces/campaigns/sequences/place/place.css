@@ -84,6 +84,10 @@
 .sq-rail-day.is-need {
   color: var(--warn-ink);
 }
+/* A day whose step went is green, as the run-to-leads canvas marks what went or passed. */
+.sq-rail-day.is-done {
+  color: var(--ok-ink);
+}
 .sq-rail-cell {
   min-width: 0;
   padding: var(--space-1) 0 var(--space-3);
@@ -100,12 +104,25 @@
 .sq-rail-line b {
   font-weight: var(--weight-semibold);
 }
-/* The Start row's acts: How it runs, and Add leads for a sequence to leads (StepsRail's RailStart). */
+/* The Start row's acts: How it runs, and Add leads for a sequence to leads (StepsRail's RailStart), each an inset pill as
+   the run-to-leads canvas draws a door (its Open in Campaigns). */
 .sq-rail-acts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-1);
+  gap: 6px;
+  margin-top: 8px;
+}
+.sq-rail-acts > .sq-rail-go {
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
 }
 .sq-rail-sub {
   display: flex;
@@ -122,20 +139,21 @@
   text-decoration-color: var(--line-strong);
   text-underline-offset: 3px;
 }
-/* A step: one box, the whole of it the press that opens it (its title's ::after covers it). */
+/* A step: one box, the whole of it the press that opens it (its title's ::after covers it); on the pane's fill with its
+   hairline, as the run-to-leads canvas's step is, and an amber edge where it needs you. */
 .sq-stepbox {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: 6px;
+  padding: 12px 14px 13px;
   border: 1px solid var(--line);
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 .sq-stepbox.is-need {
-  border-color: var(--warn-soft);
+  border-color: var(--warn-line);
 }
 @media (hover: hover) {
   .sq-stepbox:hover {
@@ -167,7 +185,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: var(--surface-inset-radius);
+  border-radius: var(--radius-xl);
 }
 .sq-stepbox-open:focus-visible {
   outline: none;
@@ -180,20 +198,22 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-circle);
-  background: var(--surface-pop-fill);
-  box-shadow: var(--surface-inset-ring);
-  font-size: var(--text-2xs);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }
 .sq-stepnum.is-done {
   background: var(--ok-soft);
-  box-shadow: none;
   color: var(--ok-ink);
+}
+.sq-stepnum.is-need {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
 }
 .sq-stepbox-meta {
   display: flex;
@@ -226,14 +246,15 @@
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
-/* Two lines of its words as one person reads them (what varies by person in the bubble's tint); its sheet holds them whole. */
+/* Two lines of its words as one person reads them (what varies by person in the bubble's tint); its sheet holds them whole.
+   In the ink a little under the email's own, so they read as the message. */
 .sq-stepbox-pre {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   line-height: 1.5;
   color: var(--ink-muted);
 }
@@ -268,7 +289,8 @@
 .sq-stepbox-now.is-done {
   color: var(--ink-dim);
 }
-/* The wait between two steps, and who it keeps going: on the rail, where it happens. */
+/* The wait between two steps, and who it keeps going: on the rail, where it happens, the wait in ink and who it keeps
+   going quieter under it (the run-to-leads canvas's .wt). */
 .sq-rail-wait {
   display: flex;
   flex-direction: column;
@@ -276,7 +298,11 @@
   margin: 0;
   padding: 2px 0 var(--space-2);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   color: var(--ink-muted);
+}
+.sq-rail-wait > .sq-rail-only {
+  font-weight: var(--weight-regular);
 }
 .sq-rail-only {
   display: flex;

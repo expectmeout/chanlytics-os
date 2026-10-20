@@ -16,11 +16,11 @@ import type {
   ReachOutRunDto,
   ReachOutStartDto,
 } from "./reach-out-dtos";
-import { HOLD_DOOR_WORDS, holdDoors, holdWords, type HoldDoor } from "./reach-out-words";
 import { REACH_OUT_DRAFTS_PER_DAY } from "./reach-out-rules";
 import { SEND_DAY_FRAME } from "./reach-out-timetable";
 import type { HandKind } from "./reach-out-hand";
 import { pct } from "../shared/numbers";
+import { heldAnswersOf, heldWhyOf } from "../sequences/sequence-held";
 import { dateFormat } from "../shared/time";
 
 // Each sentence says what an owner acts on, once, and stops (Ruben, 10 Oct 2026: the sheet said each thing at length,
@@ -286,113 +286,216 @@ function firstSendWhen(firstAt: string | null, tz: string, now: number): string 
   return zoneDayKey(ms, tz) === zoneDayKey(now, tz) ? clock(firstAt, tz) : clockWhen(ms, tz, now);
 }
 
+/** A live run's state, as the words of its decision read it: waiting on its owner, approved and to come, or going. */
+type RunState = "pending_approval" | "scheduled" | "sending";
+
 /**
- * Approve's words: today's count and from when. Nothing today with a time to go from is no count: "Approve — 0 from
- * tomorrow 9:40 AM" would say none go then.
+ * One part of a run, as its bar and the legend under it say it: ready, the coming days, held, still being checked. The
+ * legend sets the number heavy and the rest plain (`rest`); `words` is the whole, for a screen reader.
  */
-function approveWords(today: number, from: string | null): string {
-  if (!from) return `Approve — ${today}`;
-  return today > 0 ? `Approve — ${today} from ${from}` : `Approve — from ${from}`;
+export interface RunPartVM {
+  key: "go" | "later" | "held" | "checking";
+  n: number;
+  rest: string;
+  words: string;
 }
 
 /**
- * Who sends a run's emails, as its approval sheet says it: its owner, each handed to them from their own inbox (00429),
- * counting the ones already handed over; or its mailboxes, at their pace.
+ * When a run's first email goes, as its decision says it: "now" for a run from an earlier day or one whose first time has
+ * passed (each is re-timed in their hours as it goes), its first time otherwise, with its day where that is not today;
+ * null with no checked email to go.
  */
-function runSenderWords(r: ReachOutRunDto, share: number) {
-  if (r.owner_sends === true) {
-    const drafted = r.drafted?.length ?? 0;
-    return {
-      drafted,
-      later: `${r.later} wait for the coming days — ${share} a day handed to you`,
-      from: "you send each from your own inbox",
-      pace: "each handed to you to send from your inbox",
-      will: `${r.today + drafted} for you to send`,
-    };
-  }
-  const addresses = r.mailboxes.map((m) => m.address);
-  const [only, ...others] = r.mailboxes;
-  return {
-    drafted: 0,
-    later: `${r.later} wait for the coming days — ${share} a day from ${r.mailboxes.length === 1 ? "this mailbox" : "these mailboxes"}`,
-    from:
-      only && others.length === 0
-        ? `all from ${only.address}, ${plural(only.sent_days, "day of sending", "days of sending")}`
-        : r.mailboxes.length > 1
-          ? `from ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}`
-          : null,
-    pace: `one every ${r.gap_minutes} minutes as each business opens`,
-    will: `${r.today} will get it today`,
-  };
-}
-
-/**
- * The approval sheet for a reach-out run (F13; canvas board 05; R21, R22). `today` is the workspace's date and `now`
- * the moment it is said: a run from an earlier day goes from now, re-timed in their hours, and one whose first time has
- * passed today goes from now; never a time already past.
- */
-export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share: number; today: string; now: number }) {
+function runFromOf(r: ReachOutRunDto, p: { timezone: string; today: string; now: number }) {
   const earlier = !!r.run_for && r.run_for < p.today;
   const passed = !earlier && !!r.first_at && Date.parse(r.first_at) <= p.now;
-  const at = earlier || passed ? null : firstSendWhen(r.first_at, p.timezone, p.now);
+  return { earlier, from: earlier || passed ? "now" : firstSendWhen(r.first_at, p.timezone, p.now) };
+}
+
+/** The mailboxes a run writes from, said once under when it goes (R22); none for a run its owner sends (00429). */
+function runFromLine(r: ReachOutRunDto): string | null {
+  if (r.owner_sends === true) return null;
+  const [only, ...others] = r.mailboxes;
+  if (!only) return null;
+  if (others.length === 0)
+    return `From ${only.address} · ${plural(only.sent_days, "day of sending", "days of sending")}`;
+  const addresses = r.mailboxes.map((m) => m.address);
+  return `From ${addresses.slice(0, -1).join(", ")} and ${addresses[addresses.length - 1]}`;
+}
+
+/** The parts of a run, the ones with something in them; with two or fewer the held say what held them. */
+function runPartsOf(r: ReachOutRunDto, ready: number, state: RunState): RunPartVM[] {
+  const owner = r.owner_sends === true;
+  const held = r.held.length;
+  const goWords = owner && state !== "pending_approval" ? "handed to you" : state === "sending" ? "going" : "ready";
+  const part = (key: RunPartVM["key"], n: number, rest: string): RunPartVM => ({ key, n, rest, words: `${n} ${rest}` });
+  const parts: RunPartVM[] = [
+    part("go", ready, goWords),
+    part("later", r.later, "in the coming days"),
+    part("held", held, "held"),
+    part("checking", r.checking, "being checked"),
+  ];
+  const shown = parts.filter((x) => x.n > 0);
+  return shown.length > 2 ? shown : shown.map((x) => (x.key === "held" ? part("held", held, "held by the check") : x));
+}
+
+/** What the foot says beside its act: what goes and from when, then what else waits (a phone's dock, a desk's foot). */
+function runDockOf(r: ReachOutRunDto, p: { ready: number; from: string | null; state: RunState }) {
+  const { ready, from, state } = p;
+  const held = r.held.length;
+  // An owner's run going: what a row's Skip does while one is handed to them (the canvas's foot), else what Stop does.
+  if (r.owner_sends === true)
+    return {
+      lead: `${ready} to send from your inbox`,
+      said:
+        state === "pending_approval"
+          ? null
+          : (r.drafted?.length ?? 0) > 0
+            ? "Skip leaves that business out"
+            : "Stop keeps the rest from being handed to you",
+    };
+  if (state === "sending") return { lead: "Going now", said: "Stop keeps the rest from going" };
+  if (state === "scheduled")
+    return { lead: from ? `Goes from ${from}` : "Goes in their hours", said: "Cancel keeps it from going" };
+  // Nothing today: the coming days' go first, from their first time where it is known.
+  const n = ready > 0 ? ready : r.later;
+  const lead =
+    n === 0
+      ? "Nothing goes yet"
+      : from
+        ? `${n} go from ${from}`
+        : ready > 0
+          ? `${n} go from now`
+          : `${n} go in the coming days`;
+  const said =
+    r.checking > 0
+      ? `${r.checking} more go once checked`
+      : held > 0
+        ? `${held} held ${held === 1 ? "waits" : "wait"} for you`
+        : r.later > 0 && ready > 0
+          ? `${r.later} more in the coming days`
+          : null;
+  return { lead, said };
+}
+
+/**
+ * The first ready business's email, in its parts: the opening (its own for each) marked, then the rest, the same for all,
+ * its paragraphs kept, as the email card draws them (an email reads as one: the opening is its own paragraph).
+ */
+function runWordsOf(r: ReachOutRunDto): Array<{ text: string; opening: boolean }> {
+  const words: Array<{ text: string; opening: boolean }> = [];
+  if (!r.first) return words;
+  const open = r.first.opening;
+  const leads = !!open && r.first.body.startsWith(open);
+  const rest = leads ? r.first.body.slice(open.length) : r.first.body;
+  if (leads) words.push({ text: open, opening: true });
+  if (rest.trim()) words.push({ text: leads ? rest.replace(/^[ \t]+/, "") : rest.trim(), opening: false });
+  return words;
+}
+
+/** What the held card says under its head: whose say it waits for, and what the run does without them. */
+function heldNoteWords(held: number, each: boolean, ready: number, owner: boolean, waiting: boolean): string {
+  const lead = `${held === 1 ? "It waits" : each ? "Each waits" : "They wait"} for your say`;
+  if (!waiting) return owner ? `${lead}.` : `${lead}; the run goes on without them.`;
+  return ready > 0 && !owner ? `${lead}. Approve sends only the ${ready} ready.` : `${lead}.`;
+}
+
+/**
+ * A run to leads, as its screen decides it (F13; R21, R22; the run-to-leads canvas of 19 Oct 2026): the decision first, how
+ * many go and of how many, in one bar by count, and when and from where; the held as one card with its rows; the first
+ * ready business's email as an email; what was checked; and the foot's line and Approve. `today` is the workspace's date
+ * and `now` the moment it is said: a run from an earlier day goes from now, re-timed in their hours, and one whose first
+ * time has passed today goes from now; never a time already past. `state` is the run's own, waiting unless said.
+ */
+export function approvalWordsOf(
+  r: ReachOutRunDto,
+  p: { timezone: string; today: string; now: number; state?: RunState },
+) {
+  const state: RunState = p.state ?? "pending_approval";
+  const waiting = state === "pending_approval";
+  const owner = r.owner_sends === true;
+  const { earlier, from } = runFromOf(r, p);
   const total = r.today + r.later;
   // An owner's emails already handed to them are this run's too (00429): counted with what is still to come.
-  const sender = runSenderWords(r, p.share);
-  const why: Array<{ tone: "warn" | "plain" | "info"; text: string; door: string | null }> = [];
-  if (r.later > 0) why.push({ tone: "plain", text: sender.later, door: null });
-  if (r.held.length > 0) why.push({ tone: "warn", text: `${r.held.length} held by the check`, door: "See them" });
-  if (r.checking > 0) why.push({ tone: "info", text: `The receptionist is checking ${r.checking} more`, door: null });
-  const words: Array<{ text: string; opening: boolean }> = [];
-  if (r.first) {
-    const open = r.first.opening;
-    const leads = !!open && r.first.body.startsWith(open);
-    const rest = leads ? r.first.body.slice(open.length) : r.first.body;
-    if (leads) words.push({ text: open, opening: true });
-    if (rest.trim()) words.push({ text: rest.replace(/^\s+/, ""), opening: false });
-  }
-  // An owner's run is handed to them as each is checked, at any hour (00429): their hours are theirs to keep.
-  const goes = r.owner_sends
-    ? " · handed to you as each is checked, once you approve it"
-    : earlier
-      ? " · goes from now, re-timed in their hours, once you approve it"
-      : passed
-        ? " · goes from now, in their hours, once you approve it"
-        : at
-          ? ` · goes from ${at} once you approve it`
-          : "";
+  const ready = r.today + (owner ? (r.drafted?.length ?? 0) : 0);
+  const held = r.held.length;
+  // Nothing today, and some in the coming days: the decision says those, as Approve releases them.
+  const soon = ready === 0 && r.later > 0;
+  const n = soon ? r.later : ready;
+  const words = runWordsOf(r);
   // A run whose step was dropped from its chain since (R17) says so, never another step's name.
   const step =
     r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}`;
+  const pace = `one every ${r.gap_minutes} minutes as each business opens`;
+  const unrun = r.held.filter((h) => h.reason === "check_unavailable" && h.detail === null).length;
+  // Its step, from 1: a held email's no at step 1 is Take out, since skipping it would end their place (00459).
+  const place = r.step_n === null ? null : r.step_n + 1;
   return {
     title: r.chain_name,
-    sub: `To leads · ${step}${goes}, ${sender.pace}`,
-    will: sender.will,
-    of: `of ${total + sender.drafted + r.held.length + r.checking}`,
-    why,
+    step: r.step_n === null ? "A step since removed" : `Step ${r.step_n + 1}`,
+    who: owner ? "You send them" : null,
+    count: {
+      n,
+      words: owner
+        ? "for you to send"
+        : soon
+          ? "go in the coming days"
+          : state === "sending"
+            ? "going today"
+            : "go today",
+      of: `of ${ready + r.later + held + r.checking}`,
+    },
+    parts: runPartsOf(r, ready, state),
+    // An owner's run is handed to them as each is checked, at any hour (00429): their hours are theirs to keep.
+    when: owner
+      ? { lead: "From your own inbox", rest: "each handed to you once it is checked" }
+      : state === "sending"
+        ? { lead: "Going now", rest: pace }
+        : {
+            lead: from ? `From ${from}` : "In their hours",
+            rest: earlier ? `re-timed in their hours · ${pace}` : from ? `in their hours · ${pace}` : pace,
+          },
+    from: runFromLine(r),
     rules: [
-      ...(r.include_unconfirmed ? [] : ["each has a checked address"]),
-      "none is on a person in People",
-      "none heard from you before",
-      ...(sender.from ? [sender.from] : []),
+      ...(r.include_unconfirmed ? [] : ["Each has a checked address"]),
+      "None is on a person in People",
+      "None heard from you before",
     ],
     words,
-    reader: r.first
-      ? `as ${r.first.business_name} reads it · every opening is its own; your offer and ask are the same for all ${total}`
+    mail: r.first
+      ? {
+          name: r.first.business_name,
+          as: `As they read it · ${step}`,
+          subject: r.first.subject,
+          opening: words.some((w) => w.opening) ? "Opening: its own for each" : null,
+          same: total > 1 ? `Offer and ask: the same for all ${total}` : null,
+        }
       : null,
-    approve: approveWords(r.today, earlier || passed ? "now" : at),
-    approveNote: r.checking > 0 ? `${r.checking} more are being checked; they go once they pass.` : null,
-    note: "Skipping loses this run only — the sequence keeps its place and asks again tomorrow.",
-    recheck: r.held.some((h) => h.reason === "check_unavailable" && h.detail === null)
-      ? REACH_OUT_SHEET_WORDS.recheck
-      : null,
+    heldHead: `${held} held by the check`,
+    // Closed it says "They wait", opened "Each waits" (the canvas's boards 1 and 2); a member who may not answer is
+    // told whose say it is.
+    heldNote: {
+      closed: heldNoteWords(held, false, ready, owner, waiting),
+      open: heldNoteWords(held, true, ready, owner, waiting),
+      gated: `${held === 1 ? "It waits" : "Each waits"} for an owner's or operator's say.`,
+    },
+    recheck: unrun > 0 ? { said: `The check couldn't run for ${unrun}`, act: REACH_OUT_SHEET_WORDS.recheck } : null,
     held: r.held.map((h) => ({
       id: h.send_id,
       name: h.business_name,
       // Its lead's id, which the sheet's name opens over the page; none from a read before the lead was carried.
       leadId: h.lead_id || null,
-      why: holdWords(h.reason, h.detail),
-      doors: holdDoors(h.reason).map((d): [HoldDoor, string] => [d, HOLD_DOOR_WORDS[d]]),
+      why: heldWhyOf(h.reason, h.detail),
+      // Take out is the leave verb, which names the lead: a read from before the lead was carried has none to take out.
+      answers: heldAnswersOf({ reason: h.reason, detail: h.detail }, place).filter(
+        (a) => a.door !== "take_out" || !!h.lead_id,
+      ),
     })),
+    dock: runDockOf(r, { ready, from, state }),
+    // The count it releases (the canvas's Approve 2); when it goes is the foot's line beside it, never in it.
+    approve: waiting ? `Approve ${n}` : null,
+    // What a member who may not approve is told it waits for, in the foot where Approve would be.
+    waits: { lead: `${n} go once it's approved`, said: "An owner or operator approves" },
+    note: "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.",
   };
 }
 

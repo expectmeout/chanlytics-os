@@ -91,7 +91,7 @@ function firstOf(first: ListRowFirst) {
   if (first.bare) return null;
   if (first.mark !== undefined) {
     return (
-      <span className="mark list-row-mark" aria-hidden="true">
+      <span className="mark mark-row list-row-mark" aria-hidden="true">
         {first.mark}
       </span>
     );

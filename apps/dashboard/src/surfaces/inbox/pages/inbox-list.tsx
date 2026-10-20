@@ -267,7 +267,7 @@ export function InboxList(props: InboxListProps) {
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
         {L.fromLine}
-        {!L.fromLine && runRows && <InboxRunsWaiting toSendOpen={L.toSendOpen} flash={L.flash} />}
+        {!L.fromLine && runRows && <InboxRunsWaiting flash={L.flash} />}
         {!L.fromLine && unreadEscalated()}
         {visible.length === 0 && !L.fromLine && !(runRows && runsWaiting > 0) && emptyThreads(L)}
         {visible.length > 0 && (

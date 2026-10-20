@@ -15,6 +15,7 @@ import type { useLegacyToast } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Search } from "../../kit/search/search";
+import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { CmBanner, CmDot } from "../parts/head";
@@ -85,11 +86,10 @@ interface HeadRightProps {
  */
 export function headRight({ onNew }: HeadRightProps) {
   return (
-    <Button onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
-      <Icon name="plus" size={12} />{" "}
-      <span>
-        New<span className="cm-act-noun"> template</span>
-      </span>
+    // Said as the kit's act says it (act-words.tsx): "+ New template" where the row holds it, "+ New" where not. A template,
+    // never "a message": a message is what a customer gets (broadcasts-honest's word rule).
+    <Button variant="primary" onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
+      <ActWords icon={<Icon name="plus" size={14} />} words="New template" />
     </Button>
   );
 }

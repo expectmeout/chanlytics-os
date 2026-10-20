@@ -1073,7 +1073,14 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       assert.ok(docks[0].props.className.split(" ").includes("bc-dock-row"), docks[0].props.className);
       const [said, act] = docks[0].props.children.filter(Boolean);
       assert.equal(said.props["data-testid"], "bc-sheet-goes", "when it goes, first");
-      assert.equal(act.props["data-testid"], "bc-sheet-approve", "then the Approve it speaks of");
+      // Then Approve, with Skip on its caret: one split pill (no three dots in the head, 20 Oct 2026).
+      assert.ok(act.props.className.split(" ").includes("bc-dock-split"), act.props.className);
+      assert.ok(byTestId(act, "bc-sheet-approve"), "then the Approve it speaks of");
+      // The caret is the kit Menu's trigger (Base UI draws it; the stub holds it as the Menu's `trigger`).
+      assert.ok(
+        find(act, (n) => Array.isArray(n.props?.groups) && n.props.trigger?.props?.["data-testid"] === "bc-sheet-more"),
+        "and its caret, which holds Skip",
+      );
       assert.match(textOf(said), /^Goes /, "when it goes, beside the Approve it speaks of");
       assert.ok(byTestId(docks[0], "bc-sheet-approve"), "Approve across the foot");
       assert.equal(
@@ -1081,9 +1088,13 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
         null,
         "who gets it is the sheet's own fold, not a half of the foot",
       );
-      assert.equal(byTestId(docks[0], "bc-sheet-skip"), null, "Skip is in the head's menu, never beside Approve");
+      assert.equal(
+        byTestId(docks[0], "bc-sheet-skip"),
+        null,
+        "Skip is on Approve's caret, never a press of its own beside it",
+      );
       const more = find(tree, (n) => Array.isArray(n.props?.groups) && /^More for /.test(n.props.label ?? ""));
-      assert.equal(more.props.label, "More for The month's offer", "the head's menu, named for the run");
+      assert.equal(more.props.label, "More for The month's offer", "Approve's caret's menu, named for the run");
       const skip = more.props.groups[0].items[0];
       assert.equal(skip.label, `${contracts.LIFECYCLE_WORDS.ledger.skip}…`);
       skip.onSelect();

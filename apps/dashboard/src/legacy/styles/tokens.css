@@ -321,6 +321,19 @@
   --text-hero: 26px;
   /* The day's figures (E3): a step under the page's name, which keeps the scale's 36. Read by Today's card alone. */
   --text-figure: 34px;
+  /* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in one of four hues, its initials
+     white over it, a hairline of light inside its edge. The same in both themes: a tile is its own ground. */
+  --tile-a: linear-gradient(140deg, lab(52% 30 40), lab(34% 24 26));
+  --tile-b: linear-gradient(140deg, lab(48% -10 -28), lab(30% 4 -30));
+  --tile-c: linear-gradient(140deg, lab(55% -26 18), lab(32% -12 10));
+  --tile-d: linear-gradient(140deg, lab(56% 34 -18), lab(34% 26 -20));
+  --tile-ink: lab(98% 0 0 / 0.92);
+  --tile-ring: inset 0 0 0 1px lab(100% 0 0 / 0.12);
+  --radius-tile: 10px;
+  /* A run to leads' decision (the run-to-leads canvas): how many go, the one number the screen is for. */
+  --text-decision: 44px;
+  /* An email as it is read on a run's screen, a step over the sheet's 13.5 so it reads as the email. */
+  --text-mail: 14.5px;
   /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
   --tracking-normal: -0.003em;
   /* A person's face on a row: a well of the ground's lilac grey, as an inset is, on a white card. */
@@ -372,6 +385,12 @@
   --warn: oklch(0.72 0.147 74);
   --warn-soft: oklch(0.72 0.147 74 / 0.14);
   --warn-ink: oklch(0.45 0.09 72);
+  /* The edge of what needs you, drawn on an amber card and its rows' hairlines. */
+  --warn-line: oklch(0.72 0.147 74 / 0.32);
+  /* What is written for each person or business (a message's value, an opening): Chanlytics' coral, in its ink and its
+     soft ground (Ruben, 20 Oct 2026: the variables in the coral, where they were the link's blue). */
+  --slot: var(--accent-ink);
+  --slot-soft: var(--accent-soft);
   --ok: oklch(0.571 0.12 155);
   --ok-soft: oklch(0.571 0.12 155 / 0.12);
   --danger-ink: oklch(0.45 0.17 27);
@@ -554,6 +573,9 @@
   --warn: oklch(0.801 0.138 77);
   --warn-soft: oklch(0.801 0.138 77 / 0.15);
   --warn-ink: oklch(0.842 0.12 81);
+  --warn-line: oklch(0.801 0.138 77 / 0.32);
+  --slot: var(--accent-ink);
+  --slot-soft: var(--accent-soft);
   --ok: oklch(0.77 0.135 155);
   --ok-soft: oklch(0.77 0.135 155 / 0.13);
   /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read

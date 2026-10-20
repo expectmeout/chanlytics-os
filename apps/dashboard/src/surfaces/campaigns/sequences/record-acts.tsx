@@ -242,9 +242,11 @@ function phoneItems(a: RecordActs): MenuItem[] {
 
 /**
  * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Run now, Rename, Who approves
- * (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it.
+ * (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it. On a desk it rides
+ * the head's act as its caret (Ruben, 20 Oct 2026: no three dots where a pill can carry it), or is its own pill, its word
+ * and a caret, where no act stands; a phone's head is the caret alone, its acts in the dock.
  */
-function More({ a, phone }: { a: RecordActs; phone: boolean }) {
+function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph" | "caret" | "word" }) {
   const row = a.row;
   const allowed = gate("approve");
   const items: MenuItem[] = phone ? phoneItems(a) : [];
@@ -293,15 +295,33 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
     <Menu
       label={A.more(row.name)}
       trigger={
-        <Button
-          variant="quiet"
-          size={phone ? "touch" : "sm"}
-          iconOnly
-          aria-label={A.more(row.name)}
-          data-testid="sq-more"
-        >
-          <Icon name="more" size={phone ? 18 : 14} />
-        </Button>
+        look === "caret" ? (
+          <Button
+            variant={stateActIsPrimary(a) ? "primary" : "secondary"}
+            size="sm"
+            iconOnly
+            className="sq-head-caret"
+            aria-label={A.more(row.name)}
+            data-testid="sq-more"
+          >
+            <Icon name="chevron-down" size={12} />
+          </Button>
+        ) : look === "word" ? (
+          <Button size="sm" aria-label={A.more(row.name)} data-testid="sq-more">
+            {A.moreWord} <Icon name="chevron-down" size={12} />
+          </Button>
+        ) : (
+          <Button
+            variant="quiet"
+            size={phone ? "touch" : "sm"}
+            iconOnly
+            aria-label={A.more(row.name)}
+            data-testid="sq-more"
+          >
+            {/* No three dots (Ruben, 20 Oct 2026): the caret every menu of the record opens from. */}
+            <Icon name="chevron-down" size={phone ? 18 : 14} />
+          </Button>
+        )
       }
       groups={[
         // A phone draws the menu as a sheet, headed by what it is about.
@@ -320,13 +340,23 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
   );
 }
 
-/** The head's acts: a desk's one act beside More; a phone's More alone, its acts in the dock. */
+/** Whether a desk's head has its one act (StateAct): Write step N, Start, Pause or Turn on. */
+const hasStateAct = (a: RecordActs) => !!a.unwritten || a.row.state === "draft" || turns(a);
+/** Whether that act is the filled one (Write step N, Start), which its caret matches. */
+const stateActIsPrimary = (a: RecordActs) => !!a.unwritten || a.row.state === "draft";
+
+/**
+ * The head's acts: a desk's one act with More as its caret, one split pill (the To send row's `Your mail app ⌄`), or More
+ * as a pill of its own where no act stands; a phone's More alone, its acts in the dock.
+ */
 export function HeadActs({ a, phone }: { a: RecordActs; phone: boolean }) {
+  if (phone) return <More a={a} phone look="glyph" />;
+  if (!hasStateAct(a)) return <More a={a} phone={false} look="word" />;
   return (
-    <>
-      {phone ? null : <StateAct a={a} />}
-      <More a={a} phone={phone} />
-    </>
+    <span className="sq-head-split">
+      <StateAct a={a} />
+      <More a={a} phone={false} look="caret" />
+    </span>
   );
 }
 

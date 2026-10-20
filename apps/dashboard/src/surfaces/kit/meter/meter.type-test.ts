@@ -19,8 +19,25 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Meter>, MeterProps>>,
     Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
-    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "read" | "warn" | "rest" | undefined>>,
+    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "read" | "warn" | "rest" | "open" | undefined>>,
   ];
+  // Its parts apart, each rounded: a run's bar by count.
+  Meter({
+    parts: [
+      { share: 2, tone: "ok" },
+      { share: 7, tone: "warn" },
+    ],
+    apart: true,
+    "aria-label": "2 ready · 7 held",
+  });
+  // A share still to come: its outline alone (a run's emails the check is still reading).
+  Meter({
+    parts: [
+      { share: 2, tone: "ok" },
+      { share: 3, tone: "open" },
+    ],
+    "aria-label": "2 ready · 3 being checked",
+  });
   // A check read rather than seen: ok's green, softer (the lead sheet's fit).
   Meter({
     parts: [

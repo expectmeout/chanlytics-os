@@ -22,6 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
@@ -65,10 +66,14 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
   );
 }
 
-/** New, the head's act (the one New: who and when), its mark and its word. */
+/**
+ * New, the head's act (the one New: who and when), its mark and its words as the kit's act says them (act-words.tsx): "+ New
+ * sequence" where the row holds it, "+ New" where it does not, as People's Add people and the Inbox's New (Ruben, 20 Oct
+ * 2026: a plus alone said nothing).
+ */
 const newAct = () => (
-  <Button {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
-    <Icon name="plus" size={12} /> <span>{SEQUENCE_NEW_WORDS.title}</span>
+  <Button variant="primary" {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
+    <ActWords icon={<Icon name="plus" size={14} />} words={SEQUENCE_NEW_WORDS.act} />
   </Button>
 );
 

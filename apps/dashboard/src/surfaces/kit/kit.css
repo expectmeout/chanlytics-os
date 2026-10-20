@@ -505,6 +505,14 @@ a.chip:focus-visible {
   border: 0;
   border-radius: var(--radius-sm);
 }
+/* A row's kind on a list of rows (`mark-row`: Campaigns' sequences and messages, a sequence's days): at a face's size and
+   in its shape, so a list of things stands as People's list of people does, the same column and the same rhythm
+   (Ruben, 20 Oct 2026). Still a mark: neutral always. */
+.mark-row {
+  width: var(--row-face);
+  height: var(--row-face);
+  border-radius: var(--radius-circle);
+}
 
 /* ---------- Live indicator (the signature accent moment) ---------- */
 .live-dot {
@@ -3944,6 +3952,20 @@ a.list-row {
   flex: 1 1 auto;
   background: var(--line-strong);
 }
+/* Parts apart: 4px of ground between them and each part rounded, as a run's bar by count is drawn (the run-to-leads
+   canvas), where a segment bar's parts touch. */
+.meter-apart {
+  gap: 4px;
+}
+.meter-apart > .meter-part {
+  border-radius: var(--radius-xs);
+}
+/* A share still to come (a run's emails the check is still reading): its outline in the strong hairline's colour, and
+   no fill, so it reads as not there yet beside the parts that are. */
+.meter-open {
+  border: 1px solid var(--line-strong);
+  background: none;
+}
 
 /* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
    Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,
@@ -4854,6 +4876,27 @@ a.list-row {
   letter-spacing: 0.01em;
   color: var(--ink);
 }
+/* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in its hue, its initials white, after
+   the canvases' avatar so its hue and its ring hold over the avatar's fill. */
+.face-tile {
+  border: 0;
+  border-radius: var(--radius-tile);
+  box-shadow: var(--tile-ring);
+  font-weight: var(--weight-semibold);
+  color: var(--tile-ink);
+}
+.face-tile-a {
+  background: var(--tile-a);
+}
+.face-tile-b {
+  background: var(--tile-b);
+}
+.face-tile-c {
+  background: var(--tile-c);
+}
+.face-tile-d {
+  background: var(--tile-d);
+}
 
 /* ---- What pops over the page (every canvas's popover) ----
    One glass for everything that pops, written once: an action menu (Menu, MoreMenu), a panel that pops from a
@@ -5027,6 +5070,20 @@ footer.rec-sheet-foot .btn {
   height: var(--control-h-lg);
   padding: 0 16px;
 }
+/* A foot of acts alone, no line of words beside them (`data-foot-acts`: a step's Take away, Send me a test and Edit; a
+   lead's step's Take this step out and Done): one inset all round, so its acts stand as far from the rim at either end.
+   The foot's 16px for its line set them off centre (Ruben, 20 Oct 2026: "weird spacing"). Its row is the foot's width:
+   the quiet act at its start, the filled one at its end, a spacer of the page's between. */
+.rec-sheet-foot:where(:has(> [data-foot-acts])) {
+  padding: 6px;
+}
+[data-foot-acts][data-foot-acts] {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 /* While it asks, the foot is the question: its words keep the foot's own inset from the rim, and its two answers
    stand where Save and Cancel stood, 6px in, their capsules following the foot's corner. */
 .rec-sheet-foot[data-asking="true"] {
@@ -5184,7 +5241,7 @@ footer.rec-sheet-foot .btn {
 }
 
 /* A sheet whose title is a kicker (Sheet's `kicker`: Campaigns' drawers, whose pane carries the name, its state and its
-   acts under it): the title a quiet line, the Close a small circle at its end, no rule under them, so the sheet has one
+   acts under it): the title a quiet line, the Close at its end, no rule under them, so the sheet has one
    head and not two stacked (Ruben, 11 Oct 2026: the drawers too cluttered). The words still name the dialog. Its tools
    (a choice of kind) stand under the line with no rules round them. */
 .sheet-kicker .rec-sheet-head {
@@ -5199,13 +5256,17 @@ footer.rec-sheet-foot .btn {
   letter-spacing: 0;
   color: var(--ink-dim);
 }
-.sheet-kicker .rec-sheet-close {
-  width: 28px;
-  height: 28px;
-}
 .sheet-kicker .rec-sheet-tools {
   padding: 10px 22px 2px;
   border-bottom: 0;
+}
+/* A kicker's tools on its line (Sheet's `toolsInLine`): a door out of what the sheet is over, between the title and the
+   Close, where a strip of them stood under it. */
+.sheet-kicker .rec-sheet-line {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
 }
 /* What it holds, where that is one pane with a head, a body and a foot of its own (a Campaigns drawer): the sheet's body
    is a column the pane fills, so on a phone, where the sheet is as tall as what it holds, the pane gives way under the
@@ -5235,6 +5296,61 @@ footer.rec-sheet-foot .btn {
     min-height: 0;
     overflow: hidden;
     clip-path: inset(50%);
+  }
+}
+
+/* ---- One Close for every sheet ----
+   Ruben, 20 Oct 2026: "a standard universally shared for the placement across the sheet to keep it clean throughout the
+   site". Every sheet's Close is the one circle of the control layer's glass (34px, 44 under a finger), and it stands in
+   the same place in each: 14px from the sheet's top and right edges on a desk, and under the handle, 8px in from the
+   right, on a phone. It keeps to the head's top whatever stands beside it, so a kicker's tools (Open in Campaigns), a
+   mark or a title on two lines never push it down: a run's sheet over the Inbox put it 4px lower than To send's, and a
+   record's sheet 20px down and 22px in. The head's first line is centred on it: a title's first line by its own line
+   height (1lh), and a kicker's tools in a row the Close's height. */
+.rec-sheet-head {
+  --sheet-close: 34px;
+}
+.rec-sheet-head,
+.rec-sheet-head[data-marked],
+.sheet-kicker .rec-sheet-head {
+  padding-top: 14px;
+  padding-right: 14px;
+  padding-left: 22px;
+}
+.rec-sheet-head .rec-sheet-close {
+  align-self: flex-start;
+  width: var(--sheet-close);
+  height: var(--sheet-close);
+}
+.rec-sheet-head:not([data-marked]) > .rec-sheet-heading,
+.rec-sheet-head > .rec-sheet-line {
+  align-self: flex-start;
+}
+.rec-sheet-head:not([data-marked]) .rec-sheet-title {
+  margin-top: max(0px, calc((var(--sheet-close) - 1lh) / 2));
+}
+.rec-sheet-head > .rec-sheet-line {
+  min-height: var(--sheet-close);
+}
+@media (pointer: coarse) {
+  .rec-sheet-head {
+    --sheet-close: 44px;
+  }
+}
+@media (max-width: 900px) {
+  .rec-sheet-head,
+  .rec-sheet-head[data-marked],
+  .sheet-kicker .rec-sheet-head {
+    padding-right: 8px;
+    padding-left: 16px;
+  }
+  /* The kit's sheet draws its handle above its head (16px of it): the head starts under it. A record sheet of the shell's
+     draws its handle over its head, so its head clears the same 16px; one with no handle keeps the desk's 14px. */
+  .sheet > .rec-sheet-head {
+    padding-top: 0;
+  }
+  .rec-sheet[data-phone="true"] .rec-sheet-head {
+    padding-top: 16px;
   }
 }
 
@@ -5761,6 +5877,31 @@ textarea.rec-input,
   display: block;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+/* The one number a view is for (`look="hero"`: a sequence's History, the run-to-leads canvas's decision): the number at the
+   decision's size, its label beside it on its baseline at the title's step, what it counts on the label's tip as ever. */
+.figure-hero {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+}
+.figure-hero .figure-value {
+  order: -1;
+  font-size: var(--text-decision);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.figure-hero .figure-label {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.figure-hero .figure-meta,
+.figure-hero .figure-n {
+  flex-basis: 100%;
 }
 /* A tone is on the number alone (the reports lenses spec, D10): amber for what needs you (steps overdue), red for what
    failed (email that stopped working), never green. The period before beside it keeps its own plain ink (.figure-change

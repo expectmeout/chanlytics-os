@@ -1,12 +1,13 @@
 /**
- * To send, open: every email handed to its owner, from each reach-out they send themselves (00429), as a part of Needs you
- * under its row (the Campaigns wiring review's rule D and Ruben's call 3, 19 Oct 2026; `inbox/to-send`). It was a pane of
- * its own in Sent's mount (`broadcasts/to-send`, reach-out/to-send-all.tsx), which lands here. An owner with a reach-out a
+ * To send, open: every email handed to its owner, from each reach-out they send themselves (00429), in its sheet over the
+ * page its door was pressed on (see/see-sheet.tsx, `?see=to-send`; Ruben, 20 Oct 2026), its row in Needs you (the Campaigns
+ * wiring review's rule D and his call 3). It was a pane of its own in Sent's mount (`broadcasts/to-send`,
+ * reach-out/to-send-all.tsx), then a part unfolded under its row. An owner with a reach-out a
  * day, and its follow-ups, has a run for each; this is the one list they work down, the oldest run first. The runs are
  * Sent's (contracts toSendAllOf: the going runs with emails handed over); each run's part is its detail, read as the run's
  * own screen reads it (its read cache, detail-read.ts) and again whenever Sent is, and drawn by the run's own To send list
  * (RoToSend, bare), so Sent, Skip and They wrote back… here are the very words the run's screen takes. Its door opens the
- * run over the Inbox (rule C), so Back comes back here. Every sentence is contracts'.
+ * run over the list (rule C), so Back comes back here. Every sentence is contracts'.
  */
 import { useEffect, useReducer, useState } from "react";
 import {
@@ -71,27 +72,30 @@ function ToSendRunPart({
   // The detail's own count once read (it leaves out a draft the send door would refuse now), the list's before.
   const n = d?.reach_out?.drafted?.length ?? runDraftedEmails(run);
   return (
-    <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send-run">
-      <div className="bc-touched-head">
-        <span className="bc-card-title">{TO_SEND_ALL_WORDS.runHead(name, step, n)}</span>
+    <section className="ro-sends" data-testid="ro-to-send-run">
+      {/* Each run's part as a run's own To send is drawn (the run-to-leads canvas's board 6): its caption, then its pane. */}
+      <p className="ro-cap">
+        <span>{TO_SEND_ALL_WORDS.runHead(name, step, n)}</span>
         <LinkButton onClick={() => onOpenRun(runRoute(run.id, run.sequence_id))} data-testid="ro-to-send-open-run">
           {TO_SEND_ALL_WORDS.openRun}
         </LinkButton>
+      </p>
+      <div className="ro-pane">
+        {d ? (
+          <RoToSend d={d} onSaid={onSaid} bare />
+        ) : (
+          <p className="ro-send-note" role={answer ? "alert" : "status"} data-testid="ro-to-send-run-wait">
+            {answer ? TO_SEND_ALL_WORDS.unread : TO_SEND_ALL_WORDS.reading}
+          </p>
+        )}
       </div>
-      {d ? (
-        <RoToSend d={d} onSaid={onSaid} bare />
-      ) : (
-        <p className="pb-note" role={answer ? "alert" : "status"} data-testid="ro-to-send-run-wait">
-          {answer ? TO_SEND_ALL_WORDS.unread : TO_SEND_ALL_WORDS.reading}
-        </p>
-      )}
     </section>
   );
 }
 
 /**
- * The part: the note, the last word said, then each run's part. Once every email is said it says so, and stays open on
- * that until its row closes it.
+ * The list: the note, the last word said, then each run's part. Once every email is said it says so, and stays open on
+ * that until its sheet is put away.
  */
 export function ToSendPart({ onOpenRun }: { onOpenRun: (to: string) => void }) {
   const all = toSendAllOf(broadcastsRead()?.rows ?? []);
@@ -99,9 +103,18 @@ export function ToSendPart({ onOpenRun }: { onOpenRun: (to: string) => void }) {
   const may = canDo("approve");
   return (
     <div className="bc-report wait-to-send" data-testid="bc-to-send-body">
-      <p className="pb-note">{may ? TO_SEND_ALL_WORDS.note : gateTitle("approve", TO_SEND_ALL_WORDS.gated)}</p>
+      {/* Its head as a run's in the sheet is (the kicker over it, kit.css "One Close for every sheet"): what waits, then how
+          it is worked in the quiet line under it. */}
+      <header className="ro-send-head">
+        {all ? (
+          <h2 className="ro-send-title" data-testid="bc-to-send-title">
+            {TO_SEND_ALL_WORDS.sub(all.count, all.from)}
+          </h2>
+        ) : null}
+        <p className="ro-send-lede">{may ? TO_SEND_ALL_WORDS.note : gateTitle("approve", TO_SEND_ALL_WORDS.gated)}</p>
+      </header>
       {said && (
-        <p className="pb-note" role="status" data-testid="ro-to-send-done">
+        <p className="ro-send-lede" role="status" data-testid="ro-to-send-done">
           {said}
         </p>
       )}
