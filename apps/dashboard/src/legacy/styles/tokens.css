@@ -273,6 +273,10 @@
      for a capsule with no border of its own. A button, a row, a tab and a door keep --focus-ring. */
   --focus-field: 0 0 0 3px var(--accent-soft);
   --focus-field-edged: 0 0 0 1px var(--accent), var(--focus-field);
+  /* A row of a group of rows that holds the keys (Field's look="row", .rec-rows): ringed inside its group in the line's
+     strong ink, never the accent, so a row in use is never taken for the red a problem rings its group in (Add people,
+     20 Oct 2026). */
+  --focus-row: inset 0 0 0 1.5px var(--line-strong);
 
   /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
      the page (a menu, a toast, a tip); the wash behind a sheet. */

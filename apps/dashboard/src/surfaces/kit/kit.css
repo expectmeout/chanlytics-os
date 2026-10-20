@@ -5354,6 +5354,119 @@ footer.rec-sheet-foot .btn {
   }
 }
 
+/* ---- A steady sheet (RecordSheet `steady`: Add people) ----
+   On a phone a record sheet is as tall as what it holds, so a part that came or went in it moved its head, and all
+   above the thumb with it (Ruben, 20 Oct 2026: + Note lifted every field 46px; One person to A list dropped the switch
+   202px from under the finger). A steady sheet keeps the height it opened at (--sheet-steady, read as it opens), under
+   the keyboard's cap; what it holds past that scrolls in its body. Its body keeps the head's 16px edge. */
+.rec-sheet[data-phone="true"][data-steady="true"] {
+  /* As tall as what it holds until that is read (auto), then that, under record.css's cap, which the keyboard lowers. */
+  height: var(--sheet-steady, auto);
+}
+.rec-sheet[data-phone="true"][data-steady="true"] .rec-sheet-body {
+  --rec-gutter: 16px;
+}
+/* A choice on the title's line (`toolsInLine`: One person | A list) is the Close's height, as a kicker's tools are. */
+.rec-sheet-line .rec-seg {
+  padding: 2px;
+}
+.rec-sheet-line .rec-seg-btn {
+  height: calc(var(--sheet-close) - 6px);
+  min-height: 0;
+}
+
+/* ---- A group of rows (.rec-rows, of Field's `look="row"`) ----
+   Details asked together, as a phone's settings group draws them (Add people, 20 Oct 2026): one inset, the box's own fill,
+   edge and depth, a hairline between its rows, each row its label beside a box that draws nothing of its own, so five
+   labelled capsules stand as two quiet groups. A row in use is ringed in the line's strong ink, never the accent, so it
+   is never taken for the red of a problem; a problem said for the group rings the group. */
+.rec-rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.rec-rows > * + * {
+  border-top: 1px solid var(--line);
+}
+.rec-rows[data-invalid="true"] {
+  border-color: var(--danger);
+}
+.rec-field-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  padding: 0 14px;
+}
+.rec-rows > .rec-field-row:first-child {
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.rec-rows > .rec-field-row:last-child {
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+.rec-field-row:focus-within {
+  box-shadow: var(--focus-row);
+}
+.rec-field-row .rec-field-label {
+  display: block;
+  padding-top: 15px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.rec-field-row .rec-input {
+  height: 48px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+/* The row is ringed while it holds the keys (above); the box draws no ring or wash of its own. */
+.rec-field-row .rec-input:focus-visible {
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.rec-field-row textarea.rec-input {
+  height: 70px;
+  min-height: 70px;
+  max-height: 70px;
+  padding: 14px 0 0;
+  resize: none;
+}
+/* A row whose box is a press (a choice made elsewhere: the lists a person goes on) is the row's whole width, its value
+   in the ink and its chevron at its end. */
+.rec-field-row > .btn {
+  justify-content: space-between;
+  gap: 8px;
+  height: 48px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--ink);
+}
+.rec-field-row > .btn > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rec-field-row > .btn[data-none="true"] > span {
+  color: var(--ink-dim);
+}
+.rec-field-row > .btn .icon {
+  color: var(--ink-dim);
+}
+
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----
    A composer's rows are a pane's: the key in the third ink, the rule between them the edge (the roles'), and the
    fields in them insets, a plain fill with its hairline and its specular top edge, rounding as a capsule where the

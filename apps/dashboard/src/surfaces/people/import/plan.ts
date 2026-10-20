@@ -4,6 +4,7 @@
  * contracts' (csv.ts): parseCsv, matchColumns, importRowsOf, importCounts.
  */
 import { importCounts, importRowsOf, matchColumns, parseCsv } from "@chanlytics/contracts";
+import type { ImportHead } from "./frame";
 
 export const plImportPlan = (text: string) => {
   const rows = parseCsv(text || "");
@@ -13,9 +14,26 @@ export const plImportPlan = (text: string) => {
 };
 export type ImportPlan = ReturnType<typeof plImportPlan>;
 
-export const plImportCountWords = (c: ImportPlan["counts"]): string => {
-  const n = (k: number, one: string, many: string) => `${k.toLocaleString()} ${k === 1 ? one : many}`;
-  return `${n(c.rows, "row", "rows")} · ${c.withPhone.toLocaleString()} with a number · ${c.withEmail.toLocaleString()} with an email · ${c.unreadable.toLocaleString()} with neither`;
+/** What was read, said on the sheet's one line: how many can go in, and how many cannot, having neither a number nor an address. */
+export const plImportReadWords = (c: ImportPlan["counts"]): string => {
+  const ready = (c.rows - c.unreadable).toLocaleString();
+  return c.unreadable
+    ? `${ready} to add · ${c.unreadable.toLocaleString()} with no number or email`
+    : `${ready} to add`;
+};
+
+/**
+ * The taste's heads, each with the header's own word for the column taken for it, or null where none was found; a file
+ * with no header row has its columns told apart by what is in them, and its heads say nothing more.
+ */
+export const plImportHeads = (plan: ImportPlan): ImportHead[] => {
+  if (!plan.header) return ["Name", "Mobile", "Email"];
+  const from = (i: number | null) => (i === null ? null : String(plan.headers?.[i] || "").trim() || null);
+  return [
+    { label: "Name", from: from(plan.columns.name) },
+    { label: "Mobile", from: from(plan.columns.phone) },
+    { label: "Email", from: from(plan.columns.email) },
+  ];
 };
 
 /** Which column was taken for what: the header's own word for it, or that none was found. */
