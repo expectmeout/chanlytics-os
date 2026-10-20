@@ -11,7 +11,7 @@
  * `sharedPage` is the shared viewer's report. `routeNow` is the route of the router's pathname, the same the pages read:
  * the frame and the page move in one render, the router's. Without it (the mockup, a test) the frame hears the address.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { fillDoors as FillDoors } from "../frame-doors";
 import type { SurfaceRoute } from "../routes";
@@ -55,12 +55,14 @@ const useSurfaceStill = (): number => 0;
 /**
  * The crumbs, told to the head Glass draws in the frame's places. Leads is a scope of People, picked in the page's own
  * strip, so its head is People's; Conversations and Live are tabs of the Inbox's family, so each keeps its own name and no
- * way back above it, as a tab has none.
+ * way back above it, as a tab has none. Told in the draw that changes them, before the paint: told after it, the head drew
+ * the page that had gone for a frame (a person's name and ‹ People over People's list as Back landed), at that head's
+ * height, and the page under the top moved as the right head came (Ruben, 20 Oct 2026, on an iPhone).
  */
 function useCrumbsShown(crumbs: readonly unknown[], look: string, { page, param }: ShellRoute) {
   const leadsScope = page === "clients" && !!param && /^leads(:|$)/.test(param);
   const familyTab = page === "conversations" || page === "live";
-  useEffect(() => {
+  useLayoutEffect(() => {
     const chrome = frameChrome();
     if (look === "glass" && chrome && chrome.crumbsShown)
       chrome.crumbsShown(
