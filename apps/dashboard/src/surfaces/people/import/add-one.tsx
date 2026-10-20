@@ -15,6 +15,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { samePhone } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { Face } from "../../kit/face/face";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSwitch } from "../../kit/record/field";
@@ -51,7 +52,7 @@ export function hereOf(known: readonly KnownPerson[], phone: string, email: stri
 }
 
 /** The one line under the details: what is missing or refused, who is already here, or that either box is enough. */
-function oneLine(error: string | null, here: Here | null): ReactNode {
+function addPersonLine(error: string | null, here: Here | null): ReactNode {
   if (error)
     return (
       <p className="pl-add-line" data-tone="bad" id="add-person-error" role="alert" data-testid="add-person-error">
@@ -62,9 +63,7 @@ function oneLine(error: string | null, here: Here | null): ReactNode {
   if (here)
     return (
       <p className="pl-add-line" data-tone="here" aria-live="polite" data-testid="add-person-here">
-        <span className="pl-add-initials" aria-hidden="true">
-          {here.person.initials}
-        </span>
+        <Face person={{ name: here.person.name, initials: here.person.initials }} size="sm" />
         <b>{here.person.name}</b>
         <span>has this {here.by === "number" ? "number" : "email"}</span>
       </p>
@@ -138,7 +137,7 @@ export function oneFields(one: AddOne, lists: readonly HandList[], here: Here | 
           data-testid="add-person-email"
         />
       </div>
-      {oneLine(one.error, here)}
+      {addPersonLine(one.error, here)}
       <div className="rec-rows">
         <Field
           look="row"

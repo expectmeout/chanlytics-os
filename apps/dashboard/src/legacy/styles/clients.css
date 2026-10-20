@@ -2092,15 +2092,14 @@
 .pl-add .pl-import-table { border: 1px solid var(--surface-inset-edge); border-radius: var(--radius-lg); border-collapse: separate; border-spacing: 0; overflow: hidden; }
 /* The one line: that either box is enough, what is missing or refused, who is already here, what a list read holds, or
    how far it has gone in. One line's height whatever it says; a refusal alone may run to a second line to be read whole. */
-.pl-add-line { display: flex; align-items: center; gap: 7px; min-height: 20px; margin: 9px 4px 16px; overflow: hidden; font-size: var(--text-sm); line-height: 20px; color: var(--ink-dim); white-space: nowrap; }
+.pl-add-line { display: flex; align-items: center; gap: 7px; min-height: 28px; margin: 5px 4px 12px; overflow: hidden; font-size: var(--text-sm); line-height: 20px; color: var(--ink-dim); white-space: nowrap; }
 .pl-add-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pl-add-line b { font-weight: var(--weight-semibold); color: var(--ink); }
 .pl-add-line > .icon { flex: none; }
-.pl-add-line[data-tone="bad"] { align-items: flex-start; font-weight: var(--weight-medium); color: var(--danger-ink); white-space: normal; }
+.pl-add-line[data-tone="bad"] { align-items: flex-start; padding-top: 4px; font-weight: var(--weight-medium); color: var(--danger-ink); white-space: normal; }
 .pl-add-line[data-tone="bad"] > .icon { margin-top: 3px; }
 .pl-add-line[data-tone="warn"] { font-weight: var(--weight-medium); color: var(--warn-ink); }
 .pl-add-line[data-tone="ok"], .pl-add-line[data-tone="going"] { color: var(--ink-muted); }
-.pl-add-initials { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--radius-full); background: var(--surface-inset-fill); font-size: var(--text-2xs); font-weight: var(--weight-semibold); color: var(--ink-muted); }
 .pl-add-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--ok); }
 .pl-add-progress { flex: 1 1 auto; min-width: 60px; height: 4px; overflow: hidden; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); appearance: none; }
 .pl-add-progress::-webkit-progress-bar { background: var(--surface-inset-fill); }
