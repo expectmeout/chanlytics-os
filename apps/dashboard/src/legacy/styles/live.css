@@ -48,8 +48,9 @@
   cursor: pointer;
   transition: background 100ms;
 }
-/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026). */
-.lm-row:hover { background: var(--bg-hover); }
+/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026), and so does the one a call was
+   opened from while the call stands over the calls and once they are back (kit/motion/held-list.ts pressRow, data-hover). */
+.lm-row:is(:hover, [data-hover]) { background: var(--bg-hover); }
 .lm-row.active { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--ink); }
 .lm-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lm-row-dot { display: flex; align-items: center; justify-content: center; height: 32px; }
@@ -153,6 +154,9 @@
   overflow: hidden;
   animation: route-in 240ms var(--ease-out);
 }
+/* A call pushed in over the calls on a phone plays none (kit/motion/held-list.ts, data-pushed): route-in moves `transform`,
+   which an animation holds over the push's own. */
+.lm-call[data-pushed] { animation: none; }
 @media (prefers-reduced-motion: reduce) { .lm-panel { animation: none; } }
 
 /* The head wraps before it squeezes. The titles were `flex: 1` -- a zero basis -- beside controls that
@@ -698,8 +702,20 @@ a.lm-head-door:active { opacity: 0.72; }
     grid-template-rows: minmax(0, 1fr);
     gap: 0;
   }
-  .live-monitor[data-takeover] > .lm-body > .lm-list {
+  .live-monitor[data-takeover] > .lm-body > .lm-list:not([data-held]) {
     display: none;
+  }
+  /* A call carried back to the calls by a thumb, or pushed in over them (panel.tsx, kit/motion/held-list.ts carriedOver):
+     it wears the page's own ground and stands over the calls drawn under it and the frame's chrome drawn again over them,
+     as an open thread and a person's page do (components.css, clients.css). */
+  .live-monitor[data-takeover] > .lm-body > .lm-call[data-going] {
+    position: relative;
+    z-index: 202;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    box-shadow: var(--shadow-lg);
   }
   .live-monitor[data-takeover] > .lm-body > .lm-call {
     align-self: stretch;

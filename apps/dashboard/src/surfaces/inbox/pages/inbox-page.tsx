@@ -41,6 +41,7 @@ import type { InboxSurface, Thread } from "../types";
 import { cancelSend } from "../verbs";
 import { Button } from "../../kit/button/button";
 import { useHeldList } from "../../kit/motion/held-list";
+import { ixGoing } from "../thread/thread";
 
 /** The record once the bulk bar's acts are in: what is on screen is read from it. */
 type AfterBulk = InboxSoFar & InboxActs & InboxRealBulk & ReturnType<typeof inboxBulkActs>;
@@ -540,7 +541,11 @@ export const Inbox = ({
     withBucketMoves,
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
   );
-  // On a phone the list stays where it was under an open thread, and is put back there as the thread goes, by any Back.
-  useHeldList(full.phoneThreadOpen, () => root.current?.querySelector<HTMLElement>(":scope > .ix-list") ?? null);
+  // On a phone the list stays where it was under an open thread, and is put back there as the thread goes, by any Back;
+  // the thread is pushed in over it as it opens.
+  useHeldList(full.phoneThreadOpen, () => root.current?.querySelector<HTMLElement>(":scope > .ix-list") ?? null, {
+    page: () => root.current?.querySelector<HTMLElement>(":scope > .ix-thread-pane") ?? null,
+    going: ixGoing,
+  });
   return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen, root });
 };

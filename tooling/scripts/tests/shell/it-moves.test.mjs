@@ -408,6 +408,92 @@ test("let go short, what went with the page comes back with it", async () => {
   assert.equal(band.style.transform, "");
 });
 
+/** An element whose every style it is given is kept, in order: what each frame was told, the first one too. */
+const logged = () => {
+  const log = [];
+  const el = element();
+  el.style = new Proxy(
+    {},
+    {
+      set(style, name, value) {
+        style[name] = value;
+        log.push(`${String(name)}: ${value}`);
+        return true;
+      },
+    },
+  );
+  return { el, of: (...names) => log.filter((l) => names.some((n) => l.startsWith(`${n}:`))) };
+};
+
+test("a page opened over its list is pushed in as the swipe back played forward, from the far side on iOS's push", async () => {
+  // Ruben, 20 Oct 2026: "make it motion transition to the page cleanly like iphone imessage". The page comes in from the
+  // screen's right edge over the list it was opened from (kit/motion/held-list.ts), the list and the frame's chrome over it
+  // going a little to the left and dimming as they are covered, what the page drew in the frame's top arriving with it.
+  const { pushIn } = await importSrc("apps/dashboard/src/surfaces/kit/motion/swipe.ts");
+  const page = logged();
+  const list = logged();
+  const band = logged();
+  const grabs = [];
+  pushIn(page.el, {
+    onGrab: (el, on) => grabs.push([el === page.el, on]),
+    under: () => [list.el],
+    along: () => [band.el],
+  });
+  const push = "420ms cubic-bezier(0.32, 0.72, 0, 1)";
+  assert.deepEqual(
+    page.of("transition", "transform"),
+    [
+      "transition: none",
+      "transform: translate3d(375px, 0, 0)",
+      `transition: transform ${push}`,
+      "transform: translate3d(0, 0, 0)",
+    ],
+    "drawn at the far side first, then moved to its place",
+  );
+  assert.deepEqual(
+    list.of("translate", "opacity"),
+    ["translate: 0px 0", "opacity: 1", "translate: -112px 0", "opacity: 0.6"],
+    "what it comes in over starts where it stood, lit, and goes 30% of the width to the left, dimming",
+  );
+  assert.equal(list.el.style.transition, `translate ${push}, opacity ${push}`, "on the page's curve");
+  assert.deepEqual(
+    band.of("transform"),
+    ["transform: translate3d(375px, 0, 0)", "transform: translate3d(0px, 0, 0)"],
+    "what goes with it arrives with it",
+  );
+  assert.equal(page.el.style.pointerEvents, "none", "no touch until it has landed");
+  assert.deepEqual(grabs, [[true, true]], "the page is told it is carried over its list");
+  await wait(500);
+  assert.deepEqual(
+    grabs,
+    [
+      [true, true],
+      [true, false],
+    ],
+    "and that it has landed",
+  );
+  assert.deepEqual(
+    [page.el.style.transform, page.el.style.transition, page.el.style.pointerEvents],
+    ["", "", ""],
+    "landed, the page's own rules have it",
+  );
+  assert.deepEqual([list.el.style.translate, list.el.style.opacity, band.el.style.transform], ["", "", ""]);
+});
+
+test("under reduced motion a page opened over its list is simply there", async () => {
+  const { pushIn } = await importSrc("apps/dashboard/src/surfaces/kit/motion/swipe.ts");
+  reduced = true;
+  try {
+    const page = logged();
+    const list = logged();
+    const grabs = [];
+    pushIn(page.el, { onGrab: (_, on) => grabs.push(on), under: () => [list.el] });
+    assert.deepEqual([page.of("transform"), list.of("translate", "opacity"), grabs], [[], [], []]);
+  } finally {
+    reduced = false;
+  }
+});
+
 /** An element whose every transform is kept, in order and when: what was on the screen, whenever the timers ran. */
 const watched = () => {
   const el = element();

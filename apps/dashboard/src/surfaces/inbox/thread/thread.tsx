@@ -61,8 +61,9 @@ const goingHosts = new WeakMap<Element, Element>();
 // thread let go past a third is let go of after it has left (kit/motion/swipe.ts swipeLeave closes it first), when it has no
 // parent: the page it was grabbed in is kept from the grab, so the mark always comes off. It stayed on, and the next
 // thread opened with its list drawn under it, the two showing through each other (Ruben, 17 Oct 2026), as the
-// campaigns' split keeps its own (cmGoing).
-const ixGoing = (el: Element | null, on: boolean) => {
+// campaigns' split keeps its own (cmGoing). The same mark as a thread is pushed in over its list (the Inbox's and
+// Conversations' arrival, kit/motion/held-list.ts).
+export const ixGoing = (el: Element | null, on: boolean) => {
   if (!el) return;
   const host = el.parentElement ?? goingHosts.get(el) ?? null;
   if (!host) return;

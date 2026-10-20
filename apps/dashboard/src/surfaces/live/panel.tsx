@@ -5,8 +5,9 @@
  */
 import { useEffect, useRef } from "react";
 import { callNoteLines, type LiveCallVM } from "@chanlytics/contracts";
-import { navigate, routeDoor } from "../legacy-verbs";
+import { navigate, routeDoor, touchSwipe } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
+import { carriedOver, heldAlong, heldUnder } from "../kit/motion/held-list";
 import { Icon } from "../kit/icon/icon";
 import { Face } from "../kit/face/face";
 import { StoppedMark } from "../kit/pill/stopped-mark";
@@ -287,6 +288,26 @@ function panelFoot({ c, open }: SummaryProps) {
   );
 }
 
+/** A phone, where a live call picked is a thread of its own (live.css, the phone block). */
+export const lmPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+
+/**
+ * A live call on a phone goes back to the calls under the thumb, as a thread goes back to its list (inbox thread.tsx
+ * ixSwipeBack): swiped right it follows the finger, and the calls come in under it where they were left, with the frame's
+ * chrome over them (kit/motion/held-list.ts). Nothing without a Back.
+ */
+const lmSwipeBack = (onBack: (() => void) | null) =>
+  onBack
+    ? touchSwipe({
+        onBack,
+        when: lmPhone,
+        onGrab: carriedOver,
+        under: heldUnder,
+        along: heldAlong,
+        backNavigates: true,
+      })
+    : {};
+
 interface LrPanelProps {
   c: LiveCallVM | null;
   elapsed: number;
@@ -322,7 +343,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
   // A call gone quiet says when it was last heard from; the checking banner below comes minutes later.
   const quietS = c.live && c.heartbeatAtMs ? Math.floor((nowMs - c.heartbeatAtMs) / 1000) : 0;
   return (
-    <div className="lm-panel lm-call" key={c.callId}>
+    <div className="lm-panel lm-call" key={c.callId} {...lmSwipeBack(onBack)}>
       {notice && <LrMissing notice={notice} />}
       {panelHead({ c, elapsed, quietS, onBack })}
 

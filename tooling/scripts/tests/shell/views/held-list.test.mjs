@@ -78,6 +78,10 @@ const element = (name, { at = 0, height = 60, left = 0, width = 375, css = {} } 
     hasAttribute(name) {
       return this.attrs.has(name);
     },
+    toggleAttribute(name, on) {
+      if (on) this.attrs.add(name);
+      else this.attrs.delete(name);
+    },
     contains(other) {
       for (let n = other; n; n = n.parentElement) if (n === this) return true;
       return false;
@@ -141,11 +145,13 @@ html.style.setProperty = (name, value) => (html.style[name] = value);
 /** The frame's chrome over every page (data-chrome), and its places by id (frame-head.tsx), where a case draws them. */
 const frame = { chrome: [], ids: {} };
 const body = put(html, element("body", { height: 4000 }));
+body.append = (node) => put(body, node);
 const win = {
   innerHeight: 800,
   scrollY: 0,
   coarse: true,
-  matchMedia: (q) => ({ matches: q.includes("coarse") ? win.coarse : false }),
+  reduced: false,
+  matchMedia: (q) => ({ matches: q.includes("coarse") ? win.coarse : q.includes("reduce") ? win.reduced : false }),
   getComputedStyle: (el) => el.css,
   scrollTo(x, y) {
     calls.push(["to", y]);
@@ -168,6 +174,7 @@ globalThis.window = win;
 globalThis.getComputedStyle = win.getComputedStyle;
 globalThis.document = {
   body,
+  createElement: (tag) => element(tag),
   documentElement: html,
   scrollingElement: html,
   at: null,
@@ -185,7 +192,7 @@ Object.defineProperty(html, "scrollTop", {
 /* ------------------------------ the hook, drawn by hand ------------------------------ */
 
 const react = fromDashboard("react");
-const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack } = fromDashboard(
+const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack, carriedOver } = fromDashboard(
   "../surfaces/kit/motion/held-list.ts",
 );
 const { crumbsShown, stripShown, useCrumbsShown, useHeadUnder } = fromDashboard("../surfaces/kit/head/standing.ts");
@@ -197,9 +204,10 @@ react.useSyncExternalStore = (subscribe, now) => now();
 /**
  * One page drawing the hook: its refs kept between draws, in the order it asks for them, and its layout effects run after
  * each draw whose inputs changed, as React runs them before the paint; `changes` is what React does to the page in
- * between (it hides a scope under Activity); `leave` runs their clean-ups.
+ * between (it hides a scope under Activity); `leave` runs their clean-ups. A draw answers what the hook answered, and
+ * `arrival` is how the row's page comes in over the list, where the page says.
  */
-const page = (list) => {
+const page = (list, arrival) => {
   const refs = [];
   const effects = [];
   const draw = (held, changes = () => {}) => {
@@ -212,7 +220,7 @@ const page = (list) => {
       if (was && deps && was.deps && deps.every((d, i) => Object.is(d, was.deps[i]))) return;
       effects[at] = { fn, deps, cleanup: was?.cleanup, due: true };
     };
-    useHeldList(held, () => list);
+    const opens = useHeldList(held, () => list, arrival);
     changes();
     for (const ef of effects) {
       if (!ef.due) continue;
@@ -220,6 +228,7 @@ const page = (list) => {
       if (typeof ef.cleanup === "function") ef.cleanup();
       ef.cleanup = ef.fn();
     }
+    return opens;
   };
   const leave = () => effects.forEach((ef) => typeof ef.cleanup === "function" && ef.cleanup());
   return { draw, leave };
@@ -242,6 +251,35 @@ const inbox = ({ scrolled = 1500 } = {}) => {
   idle.length = 0;
   return { main, list, rows };
 };
+
+/** A desk's People: the table scrolls in a box of its own, 700px tall from 100px down, 960px through 30 rows of 80px. */
+const desk = () => {
+  html.css.scrollPaddingTop = "0px";
+  const main = put(body, element("main", { height: 900 }));
+  const list = put(main, element("list", { at: 0, height: 900 }));
+  const box = put(list, element("table-box", { at: 100, height: 700, css: { overflowY: "auto" } }));
+  box.scrollHeight = 2400;
+  box.box = () => ({ top: 100 });
+  const rows = Array.from({ length: 30 }, (_, i) => {
+    const r = put(box, element("tr", { at: 100 + 80 * i, height: 80 }));
+    r.box = () => ({ top: r.at - box.scrollTop });
+    return r;
+  });
+  win.scrollY = 0;
+  box.scrollTop = 960;
+  globalThis.document.at = rows.find((r) => r.getBoundingClientRect().bottom > 101);
+  calls.length = 0;
+  return { list, box };
+};
+
+/** The row's page as it is drawn over the list, as wide as the phone: what a push moves. */
+const rowPage = () => {
+  const el = put(body, element("page"));
+  el.offsetWidth = 375;
+  return el;
+};
+/** As long as a push takes to land (kit/motion/swipe.ts PUSH), and a little more. */
+const landed = () => new Promise((resolve) => setTimeout(resolve, 480));
 
 /* ------------------------------------------ cases ------------------------------------------ */
 
@@ -382,23 +420,9 @@ test("no picture where no thumb can carry the row's page away (a desk)", () => {
 });
 
 test("on a desk the box that scrolls the list is put back, never the window", () => {
-  html.css.scrollPaddingTop = "0px";
-  const main = put(body, element("main", { height: 900 }));
-  const list = put(main, element("list", { at: 0, height: 900 }));
-  const box = put(list, element("table-box", { at: 100, height: 700, css: { overflowY: "auto" } }));
-  box.scrollHeight = 2400;
-  box.box = () => ({ top: 100 });
-  const rows = Array.from({ length: 30 }, (_, i) => {
-    const r = put(box, element("tr", { at: 100 + 80 * i, height: 80 }));
-    r.box = () => ({ top: r.at - box.scrollTop });
-    return r;
-  });
-  win.scrollY = 0;
-  box.scrollTop = 960;
-  globalThis.document.at = rows.find((r) => r.getBoundingClientRect().bottom > 101);
+  const { list, box } = desk();
   const row = globalThis.document.at;
   const was = row.getBoundingClientRect().top;
-  calls.length = 0;
   const p = page(list);
   p.draw(false);
   p.draw(true);
@@ -455,8 +479,13 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   p.draw(false);
   p.draw(true);
   showHeld(true);
-  const [copy] = heldAlong();
-  assert.ok(copy && copy !== date, "a copy of it");
+  const [band, copy] = heldAlong();
+  assert.equal(band.className, "held-band", "the page's own band over the frame's top goes first (components.css)");
+  assert.ok(
+    band.parentElement === body && band.hasAttribute("aria-hidden"),
+    "on the body, hidden from a screen reader",
+  );
+  assert.ok(copy && copy !== date, "then a copy of what it drew there");
   assert.equal(copy["@inert"], "", "inert, and hidden from a screen reader");
   assert.ok(copy.parentElement === body, "out of the frame's top, beside it");
   assert.deepEqual(
@@ -466,6 +495,7 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   );
   showHeld(false);
   assert.equal(copy.isConnected, false, "gone once the page is let go or settles back, when the frame draws it again");
+  assert.equal(band.isConnected, false, "the band too");
   assert.deepEqual(heldAlong(), []);
   delete frame.ids["pg-dateline"];
   p.leave();
@@ -631,4 +661,85 @@ test("a list coming back from under the row it opened is where it was left: its 
   arrives(tableIn(list));
   assert.equal(rose.length, 1, "a table that arrives after, rises");
   p.leave();
+});
+
+test("on a phone the row's page is pushed in over the list it was opened from, once React is done with the draw", async () => {
+  // Ruben, 20 Oct 2026: "make it motion transition to the page cleanly like iphone imessage". The page is marked as it is
+  // drawn, so no entrance of its own plays (a thread's, a person's), and moved in from the screen's right edge after the
+  // draw (kit/motion/swipe.ts pushIn), over the screen a thumb carrying it back would uncover.
+  const { list } = inbox();
+  const el = rowPage();
+  const p = page(list, { page: () => el, going: carriedOver });
+  assert.equal(p.draw(false), false);
+  assert.equal(p.draw(true), true, "this draw opens the row's page over the list");
+  assert.ok(el.hasAttribute("data-pushed"), "marked before the paint");
+  assert.equal(el.style.transform, undefined, "not moved inside React's draw");
+  await Promise.resolve();
+  assert.equal(el.style.transform, "translate3d(0, 0, 0)", "on its way in from the far side");
+  assert.match(el.style.transition, /^transform 420ms /);
+  assert.ok(el.hasAttribute("data-going"), "carried over the list, as a thumb carries it");
+  assert.equal(list.dataset.held, "shown", "the list shows under it");
+  assert.ok(html.attrs.has("data-carrying"), "with the frame's chrome over it");
+  assert.equal(list.style.translate, "-112px 0", "going under, to the left");
+  assert.equal(heldAlong()[0].className, "held-band", "the page's band over the frame's top comes in with it");
+  assert.equal(p.draw(true), false, "a draw after it opens nothing");
+  await landed();
+  assert.equal(el.hasAttribute("data-going"), false, "landed");
+  assert.equal(list.dataset.held, "", "the list out of sight again");
+  assert.ok(!html.attrs.has("data-carrying"));
+  assert.deepEqual(heldAlong(), [], "the band gone");
+  assert.deepEqual([el.style.transform, list.style.translate], ["", ""], "nothing left on either");
+  assert.ok(el.hasAttribute("data-pushed"), "still marked while it stands over the list");
+  p.draw(false);
+  assert.equal(el.hasAttribute("data-pushed"), false, "let go of with the list");
+  p.leave();
+});
+
+test("a list its page keeps out of the document is pictured at once when the row's page is pushed in over it", async () => {
+  const { list } = inbox();
+  const el = rowPage();
+  const p = page(list, { page: () => el, going: carriedOver });
+  p.draw(false);
+  p.draw(true, () => (list.shown = false));
+  assert.equal(idle.length, 0, "not left until the phone is idle: the push uncovers it now");
+  const [copy] = heldUnder();
+  assert.ok(copy && copy !== list, "the picture, to come in over");
+  await Promise.resolve();
+  assert.equal(copy.dataset.held, "shown");
+  await landed();
+  assert.equal(copy.dataset.held, "");
+  list.shown = true;
+  p.draw(false);
+  assert.equal(copy.isConnected, false);
+  p.leave();
+});
+
+test("no push where the list has a box of its own (a desk), under reduced motion, or for a row's page opened elsewhere", async () => {
+  const el = rowPage();
+  const arrival = { page: () => el, going: carriedOver };
+  const untouched = () => !el.hasAttribute("data-pushed") && el.style.transform === undefined;
+  // A desk: the table scrolls in its own box, and a person's page fades in over it (clients.css, data-over).
+  const atDesk = page(desk().list, arrival);
+  atDesk.draw(false);
+  assert.equal(atDesk.draw(true), true, "opened over the list all the same");
+  assert.ok(untouched(), "nothing pushed on a desk");
+  atDesk.draw(false);
+  atDesk.leave();
+  const { list } = inbox();
+  win.reduced = true;
+  try {
+    const still = page(list, arrival);
+    still.draw(false);
+    still.draw(true);
+    assert.ok(untouched(), "under reduced motion the page is simply there");
+    still.draw(false);
+    still.leave();
+  } finally {
+    win.reduced = false;
+  }
+  const elsewhere = page(list, arrival);
+  assert.equal(elsewhere.draw(true), false, "opened from the bell or a link: over no list");
+  elsewhere.leave();
+  await Promise.resolve();
+  assert.ok(untouched(), "and nothing moves it after");
 });

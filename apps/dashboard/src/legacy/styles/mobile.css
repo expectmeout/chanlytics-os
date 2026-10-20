@@ -443,6 +443,9 @@
      hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
   .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
   @keyframes thread-in { from { opacity: 0; transform: translateX(28px); } }
+  /* A thread opened from its list is pushed in over it instead, as iOS pushes a page (kit/motion/held-list.ts,
+     data-pushed): an entrance that moves `transform` is held over the push's own, and the thread faded in place. */
+  .inbox[data-takeover] .ix-thread-pane[data-pushed], .conversations[data-takeover] .ix-thread-pane[data-pushed] { animation: none; }
   @media (prefers-reduced-motion: reduce) { .inbox[data-takeover] .ix-thread-pane, .conversations[data-takeover] .ix-thread-pane { animation: none; } }
   /* Back is the arrow alone, a thumb wide: the top bar says Inbox over it, and "← Inbox" said it again. */
   .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: var(--text-lg); }
@@ -603,15 +606,26 @@
     pointer-events: none;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
-  .ix-thread + .ix-thread:is(:hover, .selected)::after,
-  .ix-thread:is(:hover, .selected) + .ix-thread::after,
-  .cv-row + .cv-row:is(:hover, .selected, .is-live:not(.active))::after,
-  .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
-  .lm-row + .lm-row:hover::after,
-  .lm-row:hover + .lm-row::after,
+  .ix-thread + .ix-thread:is(:hover, [data-hover], .selected)::after,
+  .ix-thread:is(:hover, [data-hover], .selected) + .ix-thread::after,
+  .cv-row + .cv-row:is(:hover, [data-hover], .selected, .is-live:not(.active))::after,
+  .cv-row:is(:hover, [data-hover], .selected, .is-live:not(.active)) + .cv-row::after,
+  .lm-row + .lm-row:is(:hover, [data-hover])::after,
+  .lm-row:is(:hover, [data-hover]) + .lm-row::after,
   .pl-table tbody > tr[data-index] + tr[data-index]:is(:hover, [data-hover], .selected)::after,
   .pl-table tbody > tr[data-index]:is(:hover, [data-hover], .selected) + tr[data-index]::after {
     opacity: 0;
+  }
+}
+
+/* A row a finger presses is lit by its own fill (the list's selection, above), never by the browser's flash laid over it:
+   the flash stood over the row a person or a thread was opened from as the page was pushed in over the list (20 Oct 2026). */
+@media (max-width: 900px) {
+  .ix-threads,
+  .cv-rows,
+  .lm-list,
+  .pl-table {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

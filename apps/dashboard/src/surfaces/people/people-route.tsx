@@ -39,7 +39,7 @@ import { peekCode } from "./peek/peek-code";
 import { profileCode } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
-import { useHeldList } from "../kit/motion/held-list";
+import { carriedOver, useHeldList, type Arrival } from "../kit/motion/held-list";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -175,6 +175,15 @@ function useProfileAhead(ready: boolean): void {
 }
 
 /**
+ * How a person's page comes in over the scope it was opened from (kit/motion/held-list.ts): the page a thumb carries back
+ * (one person is on the screen at a time), worn as a thumb carrying it wears it (its swipe's `onGrab`, person-real.tsx).
+ */
+const PERSON_ARRIVES: Arrival = {
+  page: () => document.querySelector<HTMLElement>(".cl-profile"),
+  going: carriedOver,
+};
+
+/**
  * A person's page, once its chunk is in: the shell's quiet words while it comes (the page's own read is out beside it,
  * people-detail.ts), and the failed read with its Retry where the chunk could not be fetched. `over`: opened over the list
  * it was opened from, which it comes in over.
@@ -277,10 +286,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // A person's page over the scope it was opened from: that scope is held where it was under it, and put back there as
   // they go (kit motion/held-list.ts). A person opened over a list comes in over it; one stepped to from a person, or
   // opened by a link, is drawn where they stand.
-  useHeldList(person, kept.shown);
-  const listBefore = useRef(false);
-  const over = person && listBefore.current;
-  listBefore.current = !person;
+  const over = useHeldList(person, kept.shown, PERSON_ARRIVES);
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
   // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
   const at = person ? personRouteOf(param) : null;

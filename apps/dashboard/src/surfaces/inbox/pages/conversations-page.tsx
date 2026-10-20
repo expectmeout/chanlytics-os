@@ -52,7 +52,7 @@ import {
 import { warmDemo } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
-import { ixSwipeBack } from "../thread/thread";
+import { ixGoing, ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
 import { businessTrailFor } from "../../people/business-trail";
 import { ThreadPane } from "../thread/thread-pane";
@@ -682,9 +682,13 @@ export const ConversationsPage = ({
   // A demo's seeded calls and chats, fetched as the page mounts (demo.ts); their landing redraws it as a read's does.
   useEffect(warmDemo, []);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
-  // On a phone the list stays where it was under an open row, and is put back there as the row goes, by any Back.
+  // On a phone the list stays where it was under an open row, and is put back there as the row goes, by any Back; the row
+  // is pushed in over it as it opens.
   const root = useRef<HTMLDivElement | null>(null);
-  useHeldList(phoneOpen && cvOnPhone(), () => root.current?.querySelector<HTMLElement>(":scope > .cv-list") ?? null);
+  useHeldList(phoneOpen && cvOnPhone(), () => root.current?.querySelector<HTMLElement>(":scope > .cv-list") ?? null, {
+    page: () => root.current?.querySelector<HTMLElement>(":scope > .ix-thread-pane") ?? null,
+    going: ixGoing,
+  });
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
   // row on a phone lands here, and the viewer closes.
