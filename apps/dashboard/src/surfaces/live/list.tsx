@@ -53,6 +53,7 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
       onClick={() => onSelect(c.callId)}
       onKeyDown={onKey}
       aria-current={active ? "true" : undefined}
+      data-row=""
       data-call-id={c.callId}
       data-testid="live-row"
     >

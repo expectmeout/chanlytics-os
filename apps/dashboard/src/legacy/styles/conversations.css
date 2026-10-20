@@ -77,8 +77,9 @@
 /* Under a pointer and open, the row is the Inbox's (inbox.css .ix-thread, tokens.css --hover-fill): the glass a step up,
    then the lozenge of the selected fill. The open row wore an ink bar down its edge and a ground of its own, which the
    row beside it in Needs you never did (Ruben, 6 Oct 2026). A call going on keeps its faint coral wash until opened. */
-/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026). */
-.cv-row:hover { background: var(--hover-fill); }
+/* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026), and so does the one a
+   conversation was opened from, while it stands over the list and once it is back (kit/motion/held-list.ts, data-hover). */
+.cv-row:is(:hover, [data-hover]) { background: var(--hover-fill); }
 /* Picked for an act over several, as the Inbox's row is (inbox.css .ix-thread.selected). */
 .cv-row.selected { background: var(--accent-soft); }
 .cv-row.is-live { background: oklch(from var(--accent) l c h / 0.03); }

@@ -605,12 +605,12 @@
     pointer-events: none;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
-  .ix-thread + .ix-thread:is(:hover, .selected)::after,
-  .ix-thread:is(:hover, .selected) + .ix-thread::after,
-  .cv-row + .cv-row:is(:hover, .selected, .is-live:not(.active))::after,
-  .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
-  .lm-row + .lm-row:hover::after,
-  .lm-row:hover + .lm-row::after,
+  .ix-thread + .ix-thread:is(:hover, [data-hover], .selected)::after,
+  .ix-thread:is(:hover, [data-hover], .selected) + .ix-thread::after,
+  .cv-row + .cv-row:is(:hover, [data-hover], .selected, .is-live:not(.active))::after,
+  .cv-row:is(:hover, [data-hover], .selected, .is-live:not(.active)) + .cv-row::after,
+  .lm-row + .lm-row:is(:hover, [data-hover])::after,
+  .lm-row:is(:hover, [data-hover]) + .lm-row::after,
   .pl-table tbody > tr[data-index] + tr[data-index]:is(:hover, [data-hover], .selected)::after,
   .pl-table tbody > tr[data-index]:is(:hover, [data-hover], .selected) + tr[data-index]::after {
     opacity: 0;

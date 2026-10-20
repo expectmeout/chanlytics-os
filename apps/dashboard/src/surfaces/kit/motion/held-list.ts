@@ -41,8 +41,8 @@ import { stillCopyOf } from "./leaving";
 import { inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
 import { motionReduced, pushIn } from "./swipe";
 
-/** What a row of a list is, to the place: a table's row, a list's item, a listbox's option. */
-const ROW = 'tr, li, [role="option"], [role="row"]';
+/** What a row of a list is, to the place: a table's row, a list's item, a listbox's option, one marked so (Live's calls). */
+const ROW = 'tr, li, [role="option"], [role="row"], [data-row]';
 /** How long a still picture of a list kept out of the document waits for the phone to be idle. */
 const COPY_WAIT_MS = 1000;
 /** The inline styles a held list is given, by the hold and by a thumb's carrying (kit/motion/swipe.ts `under`). */

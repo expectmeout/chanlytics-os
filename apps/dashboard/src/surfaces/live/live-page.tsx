@@ -12,14 +12,15 @@
  * sentence only the receptionist hears -- an end, and a hand-over, which is the transfer a caller gets when they ask
  * for a person, asked for by the owner.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { liveStillUp } from "@chanlytics/contracts";
 import type { LiveCallVM } from "@chanlytics/contracts";
 import { refreshLive } from "@/legacy-bridge/inbox-verbs";
 import { navigate, replaceRoute } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
-import { LrPanel } from "./panel";
+import { lmPhone, LrPanel } from "./panel";
+import { carriedOver, useHeldList } from "../kit/motion/held-list";
 import { useLiveDemo } from "./demo";
 import type { LiveSurface } from "./surface";
 
@@ -73,14 +74,10 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps -- as the JSX had it
   }, [L && L.fetchedAtMs]);
 
-  // Each call opened, timed from the press that opened it: a move inside the page (client/page-speed.ts).
-  usePartShown("live", "call", !!L, activeId ?? L?.now[0]?.callId ?? null);
-  if (!L) return null;
-
   // The heartbeat rule, re-applied between refreshes: a call nobody has heard
   // from for heartbeatMs stops being live here even before the next fetch.
-  const live = L.now.filter((c) => liveStillUp(c, L.heartbeatMs, nowMs));
-  const recent = L.recent;
+  const live = L ? L.now.filter((c) => liveStillUp(c, L.heartbeatMs, nowMs)) : [];
+  const recent = L ? L.recent : [];
   const elapsedOf = (c: LiveCallVM) => Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
   const all = [...live, ...recent];
   // The call chosen -- by a click or a link -- or, when none was, the one on the line, else none: a call that has ended
@@ -89,11 +86,26 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   // said the call on screen was not the one chosen.
   const chosen = activeId ? all.find((c) => c.callId === activeId) || null : null;
   const active = activeId ? chosen : live[0] || null;
-  const line = L.line;
   // A call in progress that was picked (a row pressed, or a door that names it) is a thread of its own on a phone, as the
   // Inbox's is: it takes the screen over the tab bar, and the arrow goes back to the calls. Nothing picked, the phone
   // draws the calls; a desk draws both panes whatever is open (CSS, live.css).
   const detail = !!activeId && !!active && active.live;
+  // On a phone the calls stay where they were under a call opened from them, and are put back there as it goes, by any
+  // Back; the call is pushed in over them as it opens, as the Inbox's threads are (kit/motion/held-list.ts).
+  const root = useRef<HTMLDivElement | null>(null);
+  useHeldList(
+    detail && lmPhone(),
+    () => root.current?.querySelector<HTMLElement>(":scope > .lm-body > .lm-list") ?? null,
+    {
+      page: () => root.current?.querySelector<HTMLElement>(":scope > .lm-body > .lm-call") ?? null,
+      going: carriedOver,
+    },
+  );
+
+  // Each call opened, timed from the press that opened it: a move inside the page (client/page-speed.ts).
+  usePartShown("live", "call", !!L, activeId ?? L?.now[0]?.callId ?? null);
+  if (!L) return null;
+  const line = L.line;
   const goBack = () => {
     setPicked(null);
     replaceRoute("live");
@@ -111,7 +123,7 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
   // are on the line (the list's head), whether the line is on (the list, when nobody is), and the last
   // call (the panel, which opens on it when nobody is on the line).
   return (
-    <div className="live-monitor" data-testid="live-real" data-takeover={detail || undefined}>
+    <div className="live-monitor" data-testid="live-real" data-takeover={detail || undefined} ref={root}>
       <div
         className="lm-body lm-body-rows"
         data-live={live.length ? "true" : undefined}
