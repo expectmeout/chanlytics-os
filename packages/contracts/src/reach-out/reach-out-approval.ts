@@ -269,9 +269,8 @@ export const TO_SEND_ALL_WORDS = {
   title: "To send",
   /** Today's row and the door to it: what it opens. */
   door: "Open To send",
-  /** Its row's act: To send opens under it, in Needs you, and closes again (the Campaigns wiring review's lane 4). */
+  /** Its row's act: To send opens as a sheet over the page, as a run's row opens its run (Ruben, 20 Oct 2026). */
   open: "Open",
-  hide: "Hide",
   meta: "Cold email · to send",
   status: "Handed to you",
   /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */

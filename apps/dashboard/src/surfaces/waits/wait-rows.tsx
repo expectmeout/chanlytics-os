@@ -10,7 +10,7 @@
  * A row opens its run through the frame's move, so a run opens over the page it was pressed on (rule C): Today and the
  * Inbox stay under it, and Back closes it.
  */
-import { Fragment, type ReactElement, type ReactNode } from "react";
+import { Fragment, type ReactElement } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   TO_SEND_ALL_WORDS,
@@ -38,21 +38,12 @@ export type Nav = (to: string) => void;
 /** The kind the next verb is drawn as: a page's one primary verb is its first row's, every other is quiet. */
 export type VerbKind = () => "primary" | "ghost";
 
-/** To send's part where the page draws it open under its row (the Inbox's Needs you); its row goes there elsewhere. */
-interface ToSendHere {
-  open: boolean;
-  toggle: () => void;
-  /** The part, drawn under the row while it is open. */
-  part: ReactNode;
-}
-
 /** What a page hands the rows: its move, its toast, its verbs' kinds, its runs on their way, and To send's place. */
 interface WaitRowsPorts {
   nav: Nav;
   flash: Say;
   verbKind: VerbKind;
   acting: RunsActing;
-  toSend?: ToSendHere | null;
   /**
    * Whether the runs too late to approve are rows: Today's queue draws them, to be skipped; Needs you, whose count is of
    * what waits on you, leaves them out, since nothing of theirs does (the hourly sweep skips them).
@@ -70,10 +61,12 @@ interface WaitRowsDrawn {
 /** The run's home, where its row opens it: over the page it was pressed on, where that page is no home of Campaigns'. */
 const homeOf = (r: BroadcastVM) => runRoute(r.id, r.sequence_id);
 
-/** To send's one row: how many emails wait for you to send them, from how many reach-outs; open here, or its door. */
+/**
+ * To send's one row: how many emails wait for you to send them, from how many reach-outs. Its press opens the list as a
+ * sheet over the page (the frame's move, see-over.ts `inPlace`), as a run's row opens its run: never unfolded under it.
+ */
 function toSendRow(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: WaitRowsPorts): ReactElement {
-  const here = p.toSend ?? null;
-  const press = () => (here ? here.toggle() : p.nav(TO_SEND_ROUTE));
+  const press = () => p.nav(TO_SEND_ROUTE);
   return (
     <Fragment key="run-to-send">
       <AttnRow
@@ -84,16 +77,11 @@ function toSendRow(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: W
         sentence={TO_SEND_ALL_WORDS.sentence(t.count, t.from)}
         status={[TO_SEND_ALL_WORDS.status]}
         tone="escalated"
-        cta={{
-          label: here?.open ? TO_SEND_ALL_WORDS.hide : TO_SEND_ALL_WORDS.open,
-          kind: p.verbKind(),
-          onClick: press,
-        }}
+        cta={{ label: TO_SEND_ALL_WORDS.open, kind: p.verbKind(), onClick: press }}
         also={null}
         onOpen={press}
         testid="brief-to-send"
       />
-      {here?.open ? here.part : null}
     </Fragment>
   );
 }

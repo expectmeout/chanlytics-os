@@ -1,12 +1,13 @@
 /**
- * To send, open: every email handed to its owner, from each reach-out they send themselves (00429), as a part of Needs you
- * under its row (the Campaigns wiring review's rule D and Ruben's call 3, 19 Oct 2026; `inbox/to-send`). It was a pane of
- * its own in Sent's mount (`broadcasts/to-send`, reach-out/to-send-all.tsx), which lands here. An owner with a reach-out a
+ * To send, open: every email handed to its owner, from each reach-out they send themselves (00429), in its sheet over the
+ * page its door was pressed on (see/see-sheet.tsx, `?see=to-send`; Ruben, 20 Oct 2026), its row in Needs you (the Campaigns
+ * wiring review's rule D and his call 3). It was a pane of its own in Sent's mount (`broadcasts/to-send`,
+ * reach-out/to-send-all.tsx), then a part unfolded under its row. An owner with a reach-out a
  * day, and its follow-ups, has a run for each; this is the one list they work down, the oldest run first. The runs are
  * Sent's (contracts toSendAllOf: the going runs with emails handed over); each run's part is its detail, read as the run's
  * own screen reads it (its read cache, detail-read.ts) and again whenever Sent is, and drawn by the run's own To send list
  * (RoToSend, bare), so Sent, Skip and They wrote back… here are the very words the run's screen takes. Its door opens the
- * run over the Inbox (rule C), so Back comes back here. Every sentence is contracts'.
+ * run over the list (rule C), so Back comes back here. Every sentence is contracts'.
  */
 import { useEffect, useReducer, useState } from "react";
 import {
@@ -90,8 +91,8 @@ function ToSendRunPart({
 }
 
 /**
- * The part: the note, the last word said, then each run's part. Once every email is said it says so, and stays open on
- * that until its row closes it.
+ * The list: the note, the last word said, then each run's part. Once every email is said it says so, and stays open on
+ * that until its sheet is put away.
  */
 export function ToSendPart({ onOpenRun }: { onOpenRun: (to: string) => void }) {
   const all = toSendAllOf(broadcastsRead()?.rows ?? []);

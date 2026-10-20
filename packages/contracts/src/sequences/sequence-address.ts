@@ -150,9 +150,10 @@ export const sequenceRepliesRoute = (id: string, period: "30" | "90" | "all" = "
   `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
 
 /**
- * The emails handed to their owner to send from their own inbox (00429), every reach-out's: a part of the Inbox's Needs
- * you, open (the Campaigns wiring review's rule D and Ruben's call 3, 19 Oct 2026). It had a page of its own in Sent's
- * mount, `broadcasts/to-send`, which lands here (shell/address.ts). A word of the Inbox's path, as `from:<id>` is.
+ * The emails handed to their owner to send from their own inbox (00429), every reach-out's: a sheet over the page its door
+ * was pressed on (shell/see-over.ts, `?see=to-send`; Ruben, 20 Oct 2026), its row in Needs you (the Campaigns wiring
+ * review's rule D and his call 3). This address opens it over the Inbox. It had a page of its own in Sent's mount,
+ * `broadcasts/to-send`, which lands here (shell/address.ts). A word of the Inbox's path, as `from:<id>` is.
  */
 export const TO_SEND_PARAM = "to-send";
 export const TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;

@@ -27644,9 +27644,8 @@ var TO_SEND_ALL_WORDS = {
   title: "To send",
   /** Today's row and the door to it: what it opens. */
   door: "Open To send",
-  /** Its row's act: To send opens under it, in Needs you, and closes again (the Campaigns wiring review's lane 4). */
+  /** Its row's act: To send opens as a sheet over the page, as a run's row opens its run (Ruben, 20 Oct 2026). */
   open: "Open",
-  hide: "Hide",
   meta: "Cold email \xB7 to send",
   status: "Handed to you",
   /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
@@ -55240,13 +55239,16 @@ function routePrefetchScript() {
 
 // src/shell/see-over.ts
 var SEE_PARAM = "see";
+var TO_SEND_SEE = "to-send";
 var WORD = /^[A-Za-z0-9_-]+$/;
 function seeValueOf(ref) {
+  if (ref.kind === "to-send") return TO_SEND_SEE;
   if (ref.kind === "message") return `message:${ref.name}`;
   return ref.sequenceId && ref.sequenceId !== ref.id ? `run:${ref.id}:${ref.sequenceId}` : `run:${ref.id}`;
 }
 function seeRefOf(value) {
   if (!value) return null;
+  if (value === TO_SEND_SEE) return { kind: "to-send" };
   const [kind, id, sequenceId, ...rest] = value.split(":");
   if (rest.length > 0 || !id || !WORD.test(id)) return null;
   if (kind === "message") return sequenceId === void 0 ? { kind: "message", name: id } : null;
@@ -55256,6 +55258,7 @@ function seeRefOf(value) {
 }
 function seeRefOfRoute(route) {
   const [path = ""] = route.split("?");
+  if (path === TO_SEND_ROUTE) return { kind: "to-send" };
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
@@ -55263,6 +55266,7 @@ function seeRefOfRoute(route) {
   return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 function seeHomeOf(ref) {
+  if (ref.kind === "to-send") return TO_SEND_ROUTE;
   return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
 }
 var SEE_WORDS = {
@@ -55270,7 +55274,8 @@ var SEE_WORDS = {
   home: "Open in Campaigns",
   /** Its kicker, where it was opened over. */
   run: "A run",
-  message: "A message"
+  message: "A message",
+  toSend: "To send"
 };
 
 // src/shell/vitals.ts

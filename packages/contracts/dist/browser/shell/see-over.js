@@ -1,12 +1,21 @@
-import { messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address.js";
+import {
+  TO_SEND_ROUTE,
+  messageOfRoute,
+  messageRoute,
+  parseSequencesRoute,
+  runRoute
+} from "../sequences/sequence-address.js";
 export const SEE_PARAM = "see";
+const TO_SEND_SEE = "to-send";
 const WORD = /^[A-Za-z0-9_-]+$/;
 export function seeValueOf(ref) {
+  if (ref.kind === "to-send") return TO_SEND_SEE;
   if (ref.kind === "message") return `message:${ref.name}`;
   return ref.sequenceId && ref.sequenceId !== ref.id ? `run:${ref.id}:${ref.sequenceId}` : `run:${ref.id}`;
 }
 export function seeRefOf(value) {
   if (!value) return null;
+  if (value === TO_SEND_SEE) return { kind: "to-send" };
   const [kind, id, sequenceId, ...rest] = value.split(":");
   if (rest.length > 0 || !id || !WORD.test(id)) return null;
   if (kind === "message") return sequenceId === void 0 ? { kind: "message", name: id } : null;
@@ -16,6 +25,7 @@ export function seeRefOf(value) {
 }
 export function seeRefOfRoute(route) {
   const [path = ""] = route.split("?");
+  if (path === TO_SEND_ROUTE) return { kind: "to-send" };
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
@@ -23,6 +33,7 @@ export function seeRefOfRoute(route) {
   return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 export function seeHomeOf(ref) {
+  if (ref.kind === "to-send") return TO_SEND_ROUTE;
   return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
 }
 export const SEE_WORDS = {
@@ -30,5 +41,6 @@ export const SEE_WORDS = {
   home: "Open in Campaigns",
   /** Its kicker, where it was opened over. */
   run: "A run",
-  message: "A message"
+  message: "A message",
+  toSend: "To send"
 };

@@ -4815,6 +4815,20 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-host-body :is(.cm-pane-close, .cm-pane-back) {
   display: none;
 }
+/* To send in the sheet (see-sheet.tsx): the gutter and the scroll a pane would bring, its note and each run's part a step
+   apart. */
+.see-to-send {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 var(--rec-gutter, 22px) var(--space-6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.see-to-send > .wait-to-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 /* A composer in the sheet: its rows start under its name, a little closer than a page's. */
 .cmh-host-body .pb-compose {
   padding: 0 0 var(--space-2);

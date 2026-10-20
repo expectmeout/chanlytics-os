@@ -41272,9 +41272,8 @@ declare const TO_SEND_ALL_WORDS: {
     readonly title: "To send";
     /** Today's row and the door to it: what it opens. */
     readonly door: "Open To send";
-    /** Its row's act: To send opens under it, in Needs you, and closes again (the Campaigns wiring review's lane 4). */
+    /** Its row's act: To send opens as a sheet over the page, as a run's row opens its run (Ruben, 20 Oct 2026). */
     readonly open: "Open";
-    readonly hide: "Hide";
     readonly meta: "Cold email · to send";
     readonly status: "Handed to you";
     /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
@@ -42774,9 +42773,10 @@ declare function messageOfRoute(route: string): string | null;
  */
 declare const sequenceRepliesRoute: (id: string, period?: "30" | "90" | "all") => string;
 /**
- * The emails handed to their owner to send from their own inbox (00429), every reach-out's: a part of the Inbox's Needs
- * you, open (the Campaigns wiring review's rule D and Ruben's call 3, 19 Oct 2026). It had a page of its own in Sent's
- * mount, `broadcasts/to-send`, which lands here (shell/address.ts). A word of the Inbox's path, as `from:<id>` is.
+ * The emails handed to their owner to send from their own inbox (00429), every reach-out's: a sheet over the page its door
+ * was pressed on (shell/see-over.ts, `?see=to-send`; Ruben, 20 Oct 2026), its row in Needs you (the Campaigns wiring
+ * review's rule D and his call 3). This address opens it over the Inbox. It had a page of its own in Sent's mount,
+ * `broadcasts/to-send`, which lands here (shell/address.ts). A word of the Inbox's path, as `from:<id>` is.
  */
 declare const TO_SEND_PARAM = "to-send";
 declare const TO_SEND_ROUTE = "inbox/to-send";
@@ -46740,7 +46740,10 @@ declare function appLink(slug: string | null | undefined, route?: string, query?
 
 /** The query param a thing open over the page rides on. */
 declare const SEE_PARAM = "see";
-/** A thing that opens over the page: a run (with the sequence it is a day of, where the writer knew it), or a message. */
+/**
+ * A thing that opens over the page: a run (with the sequence it is a day of, where the writer knew it), a message, or To
+ * send, the one list of every email handed to its owner.
+ */
 type SeeRef = {
     kind: "run";
     id: string;
@@ -46748,8 +46751,10 @@ type SeeRef = {
 } | {
     kind: "message";
     name: string;
+} | {
+    kind: "to-send";
 };
-/** The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`. */
+/** The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`, `to-send`. */
 declare function seeValueOf(ref: SeeRef): string;
 /** The thing a param's value names, or null for a value that names none (a word out of shape, a kind not opened so). */
 declare function seeRefOf(value: string | null | undefined): SeeRef | null;
@@ -46760,7 +46765,10 @@ declare function seeRefOf(value: string | null | undefined): SeeRef | null;
  * `campaigns/message:<name>` the message.
  */
 declare function seeRefOfRoute(route: string): SeeRef | null;
-/** The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. */
+/**
+ * The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. To send has no
+ * page of its own: its address opens it over the Inbox, and its sheet has no door home.
+ */
 declare function seeHomeOf(ref: SeeRef): string;
 /** The words of the sheet a thing opens in over the page. */
 declare const SEE_WORDS: {
@@ -46769,6 +46777,7 @@ declare const SEE_WORDS: {
     /** Its kicker, where it was opened over. */
     readonly run: "A run";
     readonly message: "A message";
+    readonly toSend: "To send";
 };
 
 /**

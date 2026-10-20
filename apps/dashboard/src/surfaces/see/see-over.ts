@@ -21,9 +21,12 @@ export function seeOverNow(): SeeRef | null {
   return seeRefOf(SEE.now());
 }
 
-/** Open a thing over the page: one entry in the history, so Back closes it; one already open is moved to it in place. */
-export function openSeeOver(ref: SeeRef): void {
-  SEE.open(seeValueOf(ref), true);
+/**
+ * Open a thing over the page: one entry in the history, so Back closes it; one already open is moved to it in place, or,
+ * with `stack`, opened over it as an entry of its own, so Back comes back to it (a run opened from To send's sheet).
+ */
+export function openSeeOver(ref: SeeRef, stack = false): void {
+  SEE.open(seeValueOf(ref), !stack);
 }
 
 /** Close it: Back where opening it made the entry, else the address without it. */
@@ -52,7 +55,8 @@ export function inPlace(route: string): boolean {
   if (!ref) return false;
   const path = window.location.pathname;
   const head = /^\/w\/[^/?#]+\/([^/?#]*)/.exec(path)?.[1] ?? "";
-  if (ref.kind === "run" ? RUN_HOMES.has(head) : MESSAGE_HOME.test(path)) return false;
+  // To send has no page of its own: it opens over whatever page it was pressed on.
+  if (ref.kind === "run" ? RUN_HOMES.has(head) : ref.kind === "message" && MESSAGE_HOME.test(path)) return false;
   openSeeOver(ref);
   return true;
 }
