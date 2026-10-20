@@ -24,7 +24,14 @@ import { noteWhose, type SeenReading } from "@chanlytics/contracts";
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "@/legacy-bridge/api";
 import type { BellApi } from "@/legacy-bridge/notifications";
+import { resnapshotSurface } from "@/legacy-bridge/surface-cache";
+import { carryMark, keepsCarried } from "./seen-carry";
 import { object } from "./shell-doors";
+
+// A surface a mark changed is kept in the tab's cache as a saved view is (surface-cache.ts resnapshotSurface), under the
+// workspace the server resolved, which the cache keys its rows by (surface-runner.ts viewedWorkspace). Installed here, not
+// in seen-carry.ts, which imports nothing that could reach a surface (its header says why).
+keepsCarried((of) => resnapshotSurface(of.key, of.globals ?? [], window.__ACTIVE_WORKSPACE ?? null, of.value));
 
 /** Whose row it is: the person, and their conversation where the row knows it. */
 interface RowOf {
@@ -102,8 +109,17 @@ function send(personId: string, did: { seen: boolean; upTo: number }): void {
     if (mine.get(personId) !== entry) return undefined;
     const at = Date.parse(res.data.marked_at ?? "");
     // No stamp to hold a read against: the server's word from here.
-    if (Number.isFinite(at)) entry.at = at;
-    else mine.delete(personId);
+    if (!Number.isFinite(at)) {
+      mine.delete(personId);
+      return undefined;
+    }
+    entry.at = at;
+    // The door's own word on this person, into the rows that draw them, and the tab's cache with them (seen-carry.ts).
+    carryMark(personId, {
+      seen_at: res.data.seen_at,
+      marked_unread: res.data.marked_unread,
+      marked_at: res.data.marked_at,
+    });
     return undefined;
   }, lost);
 }
