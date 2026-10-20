@@ -13,7 +13,7 @@ import { checkedWords, connectionWords, listingLine } from "../google/google.js"
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { bookingToolName } from "../calendar/booking-notice.js";
 import { calendarSourceFacts, calendarSourceOf } from "./calendar-source.js";
-import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox.js";
+import { emailRow, mailboxRow } from "./connection-email.js";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 export const CONNECTION_KINDS = [
   "whatsapp",
@@ -24,6 +24,7 @@ export const CONNECTION_KINDS = [
   "calendar",
   "instagram",
   "email",
+  "mailbox",
   "deposits"
 ];
 const TONE = {
@@ -54,7 +55,8 @@ const ORDER = {
   calendar: 5,
   instagram: 6,
   email: 7,
-  deposits: 8
+  mailbox: 8,
+  deposits: 9
 };
 function row(d) {
   return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
@@ -433,45 +435,6 @@ function instagramRow() {
     verb: null
   };
 }
-function emailRow(i, { nowMs }) {
-  const base = { kind: "email", icon: "mail", title: "Email" };
-  const mailbox = i.email?.mailbox ?? null;
-  if (mailbox) {
-    const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
-    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
-    const needs = (i.email?.sending?.mailboxes ?? []).filter(
-      (m) => m.state === "held" || m.state === "reconnect"
-    ).length;
-    return {
-      ...base,
-      detail: mailbox.address,
-      state: mailbox.last_error || needs ? "attention" : "connected",
-      stateWords: mailbox.last_error ? SETUP_STATE_WORDS.waiting_them : needs ? `On \xB7 ${needs} mailbox${needs === 1 ? "" : "es"} to look at` : "On",
-      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-      body: "email_setup"
-    };
-  }
-  if (i.email?.ready) {
-    return {
-      ...base,
-      detail: null,
-      state: "none",
-      stateWords: "Not set up",
-      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-      body: "email_setup"
-    };
-  }
-  return {
-    ...base,
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "An address customers write to, answered from your Inbox.",
-    verb: null
-  };
-}
 function depositsRow() {
   return {
     kind: "deposits",
@@ -493,6 +456,7 @@ const ROW_BUILDERS = [
   calendarRow,
   instagramRow,
   emailRow,
+  mailboxRow,
   depositsRow
 ];
 export function connectionRows(i, nowMs = Date.now()) {

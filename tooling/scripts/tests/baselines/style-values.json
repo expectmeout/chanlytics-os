@@ -126,7 +126,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/settings.css": {
-    "font": 20,
+    "font": 18,
     "radius": 7,
     "shadow": 4,
     "colour": 0,
