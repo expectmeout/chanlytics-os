@@ -1841,6 +1841,23 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 
+/* A list held under what it opened (kit motion/held-list.ts), or the still picture that stands in for one its page keeps
+   out of the document: where it stood on the screen, out of sight, taking no room and no touch, so the row's page has the
+   window. A thumb carrying that page away shows it under it (`data-held="shown"`), at the rows it was left on; the page
+   it goes back to paints over it (z-index 1 while it moves: the thread above, a person's page in clients.css). Whatever
+   a page's own rules say of its list's place (a desk's pane is relative), a held one stands out of the page. */
+[data-held] {
+  position: fixed !important;
+  z-index: 0;
+  box-sizing: border-box;
+  margin: 0;
+  visibility: hidden !important;
+  pointer-events: none;
+}
+[data-held="shown"] {
+  visibility: visible !important;
+}
+
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
 .tl-arrived { animation: nudge-in 260ms var(--ease-out); }
 
@@ -2288,8 +2305,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
      D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
      over the hidden name. Leads names two (an open search's Reach out, then Find leads), and both are the strip's height. */
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > button,
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > a {
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > button,
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > a {
     height: var(--control-h-lg);
     padding: 0 16px;
     font-size: var(--text-base);
@@ -2305,16 +2322,16 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    window with the sidebar open). The name's place keeps a line of its own, so the views stand where they stand on every page,
    fourteen under it. */
 @media (width > 900px) {
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-slot {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 14px var(--space-4);
   }
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-head-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-head-slot {
     flex: 1 0 100%;
   }
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-act-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot {
     margin-left: auto;
   }
 }

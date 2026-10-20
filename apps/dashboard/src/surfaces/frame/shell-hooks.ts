@@ -350,22 +350,20 @@ const PLACE_CUT_MS = 3000;
 type Place = ReturnType<typeof stripPlace>;
 interface ViewState {
   key: string | null;
-  family: string | null;
+  page: string | null;
   reading: boolean;
   stay: boolean;
   place: Place;
   slide: "next" | "prev" | null;
 }
 
-/** A person's page is somewhere else, though its route starts with the list's word. */
-const familyOf = ({ page, param }: ShellRoute) =>
-  page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
-
 /**
  * How the route view comes in. A move between two views of one strip arrives from the side its tab stands on, by the deck
  * every change of view moves by (kit/motion/view-deck.ts): the view says which side (`data-slide`). A view that follows
- * another of the same family and is no strip's move draws at once; a page landing where the reading pane stood, or
+ * another of the same page and is no strip's move draws at once; a page landing where the reading pane stood, or
  * arriving from somewhere else, fades in (components.css route-in). A place the phone's tab bar moved to is cut in.
+ * Every address of People is one view (its chrome's one mount): a person's page is drawn over the list by People's page,
+ * which brings it in (people-route.tsx).
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life. `mountKey` is the route table's.
  */
 export function useViewFade(
@@ -375,9 +373,8 @@ export function useViewFade(
   placed: RefObject<number | null>,
 ) {
   const { page, param } = route;
-  const family = familyOf(route);
   const place = fromWindow("stripPlace", stripPlace)(page, param);
-  const viewRef = useRef<ViewState>({ key: null, family: null, reading: false, stay: false, place: null, slide: null });
+  const viewRef = useRef<ViewState>({ key: null, page: null, reading: false, stay: false, place: null, slide: null });
   const onStrip = !!place && !!viewRef.current.place && viewRef.current.place.strip === place.strip;
   const viewKey = routeLoading && !onStrip ? `${mountKey}/reading` : mountKey;
   if (viewRef.current.key !== viewKey) {
@@ -388,10 +385,10 @@ export function useViewFade(
     placed.current = null;
     viewRef.current = {
       key: viewKey,
-      family,
+      page,
       reading: routeLoading && !onStrip,
       place,
-      stay: !routeLoading && prev.key !== null && ((prev.family === family && !prev.reading) || cut) && !slide,
+      stay: !routeLoading && prev.key !== null && ((prev.page === page && !prev.reading) || cut) && !slide,
       slide,
     };
   }

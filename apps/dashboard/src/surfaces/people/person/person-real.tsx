@@ -26,6 +26,7 @@ import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/con
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { tabMemory } from "../../kit/record/shell-verbs";
+import { heldUnder, showHeld } from "../../kit/motion/held-list";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { mayAtLeast, navigate, touchSwipe } from "../../legacy-verbs";
 import { addressReplace } from "../shell-verbs";
@@ -233,7 +234,7 @@ function personPage(
   c: PageCtx,
   toastNode: ReactNode,
   refs: { scroller: (el: HTMLDivElement | null) => void; record: (el: HTMLDivElement | null) => void },
-  arrive: "next" | "prev" | undefined,
+  enter: { arrive: "next" | "prev" | undefined; over: boolean },
 ) {
   const { p, who } = c;
   // Their visits ahead are Coming up, above what has happened.
@@ -250,7 +251,8 @@ function personPage(
       ref={refs.scroller}
       data-takeover
       data-tab={c.tab}
-      data-slide={arrive}
+      data-slide={enter.arrive}
+      data-over={enter.over || undefined}
       data-testid="person-page"
       {...pageSwipe(c)}
     >
@@ -288,10 +290,14 @@ function personPage(
   );
 }
 
-/** One person: read, drawn whole, and read again when what they are made of moves. */
-function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
+/**
+ * One person: read, drawn whole, and read again when what they are made of moves. `over`: opened over the list it was
+ * opened from, held under it (people-route.tsx), which the page comes in over, as an open thread does (clients.css).
+ */
+function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTab; over: boolean }) {
   const [st, setSt] = useHeld(id);
   const arrive = useArrive(id, !!st.vm);
+  const [cameOver] = useState(over);
   const [toastNode, flash] = usePersonToast();
   useArrivalToast(id, flash);
   // "Delete this person" is a typed-name confirmation, not a click: it erases messages, media and recordings and cannot be
@@ -434,7 +440,7 @@ function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   };
   // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
   c.compose = openWith(c);
-  return personPage(c, toastNode, { scroller, record }, arrive);
+  return personPage(c, toastNode, { scroller, record }, { arrive, over: cameOver });
 }
 
 /** The width from which the record takes a third column (clients.css's container query on the record; canvas A, D7). */
@@ -491,8 +497,9 @@ function useRailHeld(held: RefObject<HTMLDivElement | null>): (scroller: HTMLDiv
 /**
  * A phone's thumb on the page (kit/motion/swipe.ts touchSwipe): across the tab's panes it walks the strip (work.tsx tabPages), and
  * right of the first tab, or from the head at any tab, it carries the page back to People, the page following the finger
- * and People drawn as it lets go; the foot's dock steps aside while it moves. Never from 24px of either edge, the phone's
- * own back, nor from a field or a row that scrolls across. None on a desk.
+ * and the list it was opened from coming in under it, at the rows it was left on (kit/motion/held-list.ts); the foot's
+ * dock steps aside while it moves. Never from 24px of either edge, the phone's own back, nor from a field or a row that
+ * scrolls across. None on a desk.
  */
 function pageSwipe(c: PageCtx) {
   if (!c.phone) return {};
@@ -503,7 +510,10 @@ function pageSwipe(c: PageCtx) {
     onGrab: (el, on) => {
       if (on) el.setAttribute("data-going", "");
       else el.removeAttribute("data-going");
+      showHeld(on);
     },
+    under: heldUnder,
+    backNavigates: true,
   });
 }
 
@@ -629,7 +639,10 @@ function mayMergeWith(p: PersonVM, r: PersonRowVM): boolean {
   return true;
 }
 
-/** The page a route draws for `clients/<id>[/<tab>]`: a real workspace's person, in full, on the tab the address names. */
-export function ClientProfile({ id, tab = "overview" }: { id: string; tab?: PersonTab }) {
-  return <ClientProfileReal id={id} tab={tab} />;
+/**
+ * The page a route draws for `clients/<id>[/<tab>]`: a real workspace's person, in full, on the tab the address names;
+ * `over` the list it was opened from.
+ */
+export function ClientProfile({ id, tab = "overview", over = false }: { id: string; tab?: PersonTab; over?: boolean }) {
+  return <ClientProfileReal id={id} tab={tab} over={over} />;
 }

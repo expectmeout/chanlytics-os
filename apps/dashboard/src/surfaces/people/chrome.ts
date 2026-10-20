@@ -4,7 +4,6 @@
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
 import {
-  addressOf,
   GET_YES_PARAM,
   GET_YES_WORDS,
   PERSON_ABOUT_WORDS,
@@ -163,12 +162,14 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
     };
   }
   // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none). A person is
-  // a mount of their own, and their tabs (`<id>/history`, 0052) are their page too: one mount across them, keyed by the person.
+  // People's mount too: their page is drawn over the list it was opened from, which stays where it was under it and is there
+  // again, as it was left, when they go (people-route.tsx; Ruben, 20 Oct 2026). Each person is a page of their own inside it,
+  // and their tabs (`<id>/history`, 0052) are their page too.
   if (isPersonParam(param)) {
     const { id } = personRouteOf(param);
     return {
       crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, personName(id)],
-      mount: addressOf({ kind: "person", id }),
+      mount: "clients",
       ask: personAsk(id),
     };
   }

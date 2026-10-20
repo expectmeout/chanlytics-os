@@ -26,6 +26,8 @@
  *
  * Answers how to stop.
  */
+import { inHeldList } from "./page-scroll";
+
 export function watchPageGive(win: Window): () => void {
   if (typeof win.addEventListener !== "function") return () => undefined;
   const doc = win.document;
@@ -242,10 +244,12 @@ function mayGive(page: HTMLElement, from: Element | null, doc: Document, style: 
 
 /**
  * The box of rows the page shows that says it gives (`--page-gives`), the first drawn; null where none does. The
- * property is inherited, so the first in the page's order is the box itself, never a row in it.
+ * property is inherited, so the first in the page's order is the box itself, never a row in it. A list held under what
+ * it opened, and its picture (held-list.ts), are not the page on the screen: passed over.
  */
 function declaredRows(el: Element, style: (el: Element) => CSSStyleDeclaration): HTMLElement | null {
   for (const child of Array.from(el.children)) {
+    if (inHeldList(child)) continue;
     const s = style(child);
     if (s.display === "none") continue;
     if (s.getPropertyValue("--page-gives").trim()) return child as HTMLElement;

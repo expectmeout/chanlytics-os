@@ -434,7 +434,7 @@
   .inbox > .ix-zero { padding-top: 0; padding-bottom: var(--page-foot, 0px); }
   .inbox .ix-list { border-bottom: none; }
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
-  .inbox[data-takeover] .ix-list { display: none; }
+  .inbox[data-takeover] .ix-list:not([data-held]) { display: none; }
   .inbox[data-takeover] .ix-thread-pane { display: flex; }
   /* The drafts-about-to-send pill floats at the top of the screen, which on a phone is the open thread's header: it
      covered Back, the name and Actions. The thread's own bar says its countdown; the pill is the list's. */
@@ -451,7 +451,7 @@
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
   .conversations .ix-thread-pane, .conversations > .empty-page { display: none; }
-  .conversations[data-takeover] .cv-list { display: none; }
+  .conversations[data-takeover] .cv-list:not([data-held]) { display: none; }
   /* A row opens the one thread (thread-pane.jsx) -- a call at its card, or alone in the thread's frame -- and it takes
      the screen. So does a link's notice, which the rule above would otherwise keep off a phone. */
   .conversations[data-takeover] .ix-thread-pane, .conversations[data-takeover] > .empty-page { display: flex; }

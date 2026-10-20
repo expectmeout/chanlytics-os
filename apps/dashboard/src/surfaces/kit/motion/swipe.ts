@@ -34,6 +34,14 @@
  * A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went further
  * on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is read the
  * same way, down included.
+ *
+ * A let-go is read at the finger's speed as it lifts, never its average since it landed: a quick flick at the end of a
+ * slow drag goes, and a page past the line but flicked back stays (as a phone's own back is read). What goes carries on
+ * from that speed (`carryOn`): it slowed as the finger lifted and sped up again, on a fixed curve that started at rest
+ * (Ruben, 20 Oct 2026, "Back to your place"). Whether the page let it go is judged once it has had the time to (a Back
+ * that moves the address, `backNavigates`, lands later than a close in place): one still on the page by then was kept.
+ * `under` is what lies under a page carried back: a list held under the row's page it opened (held-list.ts), which
+ * comes in from a little to its left and brightens as the page goes, and goes back as the page settles.
  */
 import type { TouchEvent } from "react";
 import type { ViewPage } from "../view-tabs/pager";
@@ -67,6 +75,14 @@ export interface SwipeOptions {
   when?: (() => boolean) | null;
   /** Grabbed (`on`, with the way it moves) or let go: what is under it can show while it moves. */
   onGrab?: ((el: Element, on: boolean, way?: "down" | "back" | "away") => void) | null;
+  /** What lies under a page carried back, asked as it is grabbed: it comes in under the page as the page goes. */
+  under?: (() => HTMLElement | null) | null;
+  /**
+   * Whether `onBack` moves the address (a page carried back to its list), which takes the page away later than a close in
+   * place: it is waited for before the page is judged kept. A card swiped back and kept (the bell's read, a lead's keep)
+   * says nothing, and settles back as soon as it is seen to stay.
+   */
+  backNavigates?: boolean;
 }
 
 /** The handlers a swipe spreads onto the element it is on. */
@@ -123,9 +139,14 @@ interface Held {
   from: EventTarget | null;
   pages: Walked | null;
   step: number;
+  /** Where the finger was at its last move, when, and how fast it was going then (pixels a millisecond). */
   mx: number;
+  my: number;
   mt: number;
   vx: number;
+  vy: number;
+  /** What lies under a page carried back (`under`), while it is carried. */
+  below: HTMLElement | null;
 }
 
 const elementOf = (e: SwipeEvent | null | undefined): HTMLElement | null =>
@@ -170,11 +191,21 @@ export const washBehind = (el: Element | null | undefined): HTMLElement | null =
 };
 
 const GRAB_AT = 8;
+/** The longest a let-go takes to leave, and the shortest: a fast finger's is shorter, never shorter than this. */
 const LEAVE_MS = 180;
+const LEAVE_MIN_MS = 120;
 const SETTLE_MS = 240;
 // Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
 // and settled back into view for a frame before it went.
 const KEPT_AFTER_MS = 60;
+// A Back that moves the address (`backNavigates`) is drawn a commit or more later than a close in place: a page carried
+// back and still on the page is looked at again this often, for this long, before it is judged kept. A thread let go
+// settled back into view for a frame and then went.
+const KEPT_STEP_MS = 40;
+const KEPT_WAIT_MS = 360;
+/** Where what lies under a page carried back starts, as a share of the page's width to its left, and how dim. */
+const UNDER_SHARE = 0.3;
+const UNDER_DIM = 0.6;
 // A finger that has not moved for this long before it lifts lets go at rest.
 const STILL_MS = 80;
 const EDGE = 24;
@@ -191,31 +222,78 @@ const pageStep = (dx: number): 1 | -1 => (dx < 0 ? 1 : -1);
 const pageOpen = (p: { prev: boolean; next: boolean } | null, step: number) => !!(p && (step > 0 ? p.next : p.prev));
 const swipePageOf = (pages: SwipeOptions["pages"], el: HTMLElement, g: Held): SwipePage | null =>
   pages && g.x > EDGE && g.x < screenWide(el) - EDGE ? pages(el, g.from) : null;
-// How fast the finger is going across, in pixels a millisecond, from its last two places: what a page is let go at.
-const swipePace = (g: Held, x: number) => {
+// How fast the finger is going, in pixels a millisecond, from its last two places: what a let-go is read and let go at.
+const swipePace = (g: Held, x: number, y: number) => {
   const now = Date.now();
-  if (now > g.mt) g.vx = (x - g.mx) / (now - g.mt);
+  if (now > g.mt) {
+    g.vx = (x - g.mx) / (now - g.mt);
+    g.vy = (y - g.my) / (now - g.mt);
+  }
   g.mx = x;
+  g.my = y;
   g.mt = now;
 };
+// How fast the finger was going the way it pulls as it lifted (down, back or away): none where it stood still first.
+const liftSpeed = (g: Held): number => {
+  if (Date.now() - g.mt > STILL_MS) return 0;
+  return g.way === "down" ? g.vy : g.way === "away" ? -g.vx : g.vx;
+};
+/**
+ * The curve a let-go leaves on, from `d` of `size` at `speed`: as fast as the finger as it begins, then over what is left
+ * in as long as that takes to slow to rest (LEAVE_MIN_MS to LEAVE_MS). A curve's first slope is its speed against the
+ * straight line's, so it is the finger's speed times the time over the distance (a third of the way along, slowed at its
+ * end): a finger at rest starts it at rest, and a flick never makes it pass its place and come back.
+ */
+const carryOn = (d: number, size: number, speed: number): { ms: number; easing: string } => {
+  const left = Math.max(1, size - d);
+  const pace = Math.max(0, speed);
+  const ms = Math.round(Math.min(LEAVE_MS, Math.max(LEAVE_MIN_MS, pace > 0 ? (2 * left) / pace : LEAVE_MS)));
+  const slope = Math.min(3, (pace * ms) / left);
+  return { ms, easing: `cubic-bezier(0.33, ${(slope / 3).toFixed(3)}, 0.67, 1)` };
+};
+// Where what lies under a page carried back stands, with the page `share` of its way gone.
+const placeUnder = (below: HTMLElement, width: number, share: number) => {
+  const s = Math.min(1, Math.max(0, share));
+  below.style.translate = `${Math.round(-UNDER_SHARE * width * (1 - s))}px 0`;
+  below.style.opacity = String(UNDER_DIM + (1 - UNDER_DIM) * s);
+};
+const clearUnder = (below: HTMLElement | null) => {
+  if (!below) return;
+  below.style.transition = "";
+  below.style.translate = "";
+  below.style.opacity = "";
+};
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
-// (an entrance, a sheet's frame) own it again.
+// (an entrance, a sheet's frame) own it again. What lay under it goes back with it, and out of sight once it is covered.
 const swipeSettle = (g: Held) => {
-  const { el, wash } = g;
-  if (g.onGrab) g.onGrab(el, false);
-  if (!el.style) return;
+  const { el, wash, below } = g;
+  const covered = () => {
+    clearUnder(below);
+    g.below = null;
+    if (g.onGrab) g.onGrab(el, false);
+  };
+  if (!el.style) {
+    covered();
+    return;
+  }
   const now = motionReduced();
-  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+  const move = `${SETTLE_MS}ms var(--ease-out)`;
+  el.style.transition = now ? "none" : `transform ${move}`;
   el.style.transform = "translate3d(0, 0, 0)";
   if (wash && wash.style) {
-    wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
+    wash.style.transition = now ? "none" : `opacity ${move}`;
     wash.style.opacity = "";
+  }
+  if (below) {
+    below.style.transition = now ? "none" : `translate ${move}, opacity ${move}`;
+    placeUnder(below, el.offsetWidth || DEFAULT_SIZE, 0);
   }
   setTimeout(
     () => {
       el.style.transition = "";
       el.style.transform = "";
       if (wash && wash.style) wash.style.transition = "";
+      covered();
     },
     now ? 0 : SETTLE_MS + 20,
   );
@@ -239,6 +317,8 @@ const swipeArrive = (g: Held) => {
 };
 // Let go of for good: its inline styles go, and its own rules have it again.
 const swipeClear = (g: Held) => {
+  clearUnder(g.below);
+  g.below = null;
   if (g.onGrab) g.onGrab(g.el, false);
   if (!g.el.style) return;
   g.el.style.transition = "";
@@ -257,10 +337,31 @@ const leaveTo = (g: Held, w: number) =>
       : g.way === "page"
         ? `translate3d(${-g.step * w}px, 0, 0)`
         : "translate3d(100%, 0, 0)";
-// Away the way it was pulled, then the close; still on screen after it, it settles back. A page that stays is asked for
-// the next once it has left, and comes back in when that has landed.
-const swipeLeave = (g: Held, close: () => unknown) => {
-  const { el, wash, way } = g;
+// Whether the page let it go, judged once it has had the time to: gone, it is let go of; still on the page when the
+// longest its close takes has passed (a Back's, where the Back moves the address), it was kept (a page that asks first),
+// and it settles back. One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays
+// where it went.
+const swipeJudge = (g: Held, waited = 0) => {
+  setTimeout(
+    () => {
+      const { el } = g;
+      if (el.dataset && el.dataset.leaving === "true") return;
+      const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
+      const now = waited === 0 ? KEPT_AFTER_MS : waited + KEPT_STEP_MS;
+      if (!shown) swipeClear(g);
+      else if (now >= (g.way === "back" && g.o.backNavigates ? KEPT_WAIT_MS : KEPT_AFTER_MS)) swipeSettle(g);
+      else swipeJudge(g, now);
+    },
+    waited === 0 ? KEPT_AFTER_MS : KEPT_STEP_MS,
+  );
+};
+/** The leave a page that stays takes (the Calendar's days): the settle's length, gathering pace. */
+const TURN = { ms: LEAVE_MS, easing: "var(--ease-in)" };
+// Away the way it was pulled, on `curve`, then the close; still on screen after it, it settles back. What lay under a page
+// carried back comes in as it goes. A page that stays is asked for the next once it has left, and comes back in when that
+// has landed.
+const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: string } = TURN) => {
+  const { el, wash, way, below } = g;
   const done = () => {
     if (way === "page") {
       void Promise.resolve(close()).then(() => swipeArrive(g));
@@ -271,25 +372,26 @@ const swipeLeave = (g: Held, close: () => unknown) => {
       setTimeout(() => swipeClear(g), KEPT_AFTER_MS);
       return;
     }
-    setTimeout(() => {
-      // One still on the page while it plays its leaving (the kit's Sheet: Base UI lets it go after) stays where it went.
-      if (el.dataset && el.dataset.leaving === "true") return;
-      const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
-      if (shown) swipeSettle(g);
-      else swipeClear(g);
-    }, KEPT_AFTER_MS);
+    swipeJudge(g);
   };
+  const width = el.offsetWidth || DEFAULT_SIZE;
   if (!el.style || motionReduced()) {
+    if (below) placeUnder(below, width, 1);
     done();
     return;
   }
-  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
-  el.style.transform = leaveTo(g, el.offsetWidth || DEFAULT_SIZE);
+  const move = `${curve.ms}ms ${curve.easing}`;
+  el.style.transition = `transform ${move}`;
+  el.style.transform = leaveTo(g, width);
   if (wash && wash.style) {
-    wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
+    wash.style.transition = `opacity ${move}`;
     wash.style.opacity = "0";
   }
-  setTimeout(done, LEAVE_MS);
+  if (below) {
+    below.style.transition = `translate ${move}, opacity ${move}`;
+    placeUnder(below, width, 1);
+  }
+  setTimeout(done, curve.ms);
 };
 // A page that stays (the Calendar's days) says only what is each side and how to turn: it is given a strip page's three
 // words here, over the element itself. It follows the finger, leaves, turns, and comes back in.
@@ -342,6 +444,12 @@ const swipeTake = (g: Held, dx: number, dy: number) => {
   if (g.way !== "page" && el.style) el.style.transition = "none";
   if (g.wash && g.wash.style) g.wash.style.transition = "none";
   if (o.onGrab && g.way !== "page") o.onGrab(el, true, g.way);
+  // What lies under a page carried back, shown by the grab, starts a little to its left, and dim.
+  g.below = g.way === "back" && o.under ? o.under() : null;
+  if (g.below) {
+    g.below.style.transition = "none";
+    placeUnder(g.below, el.offsetWidth || DEFAULT_SIZE, 0);
+  }
 };
 // What follows the finger, as far as it has gone.
 const swipeFollow = (g: Held, dx: number, dy: number) => {
@@ -352,6 +460,10 @@ const swipeFollow = (g: Held, dx: number, dy: number) => {
     if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || DEFAULT_SIZE)));
   } else if (g.way === "back") {
     el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+    if (g.below) {
+      const width = el.offsetWidth || DEFAULT_SIZE;
+      placeUnder(g.below, width, Math.max(0, dx) / width);
+    }
   } else if (g.way === "away") {
     const d = Math.min(0, dx);
     el.style.transform = `translate3d(${d}px, 0, 0)`;
@@ -362,14 +474,17 @@ const swipeFollow = (g: Held, dx: number, dy: number) => {
     g.pages.drag(open ? dx : Math.sign(dx) * Math.min(RESIST_MAX, Math.abs(dx) * RESIST), step, open);
   }
 };
-// A let-go that followed the finger: past the line or flicked it leaves, else it settles back.
+// A let-go that followed the finger, read at its speed as it lifted: flicked, or past the line and not flicked back, it
+// leaves, carrying on from that speed; else it settles back.
 const swipeLetGo = (g: Held, dx: number, dy: number) => {
   const { o, el } = g;
   const d = g.way === "down" ? dy : g.way === "away" ? -dx : dx;
   const size = (g.way === "down" ? el.offsetHeight : el.offsetWidth) || DEFAULT_SIZE;
-  const flick = d > FLICK_PX && d / Math.max(1, Date.now() - g.at) > FLICK_PACE;
+  const speed = liftSpeed(g);
+  const flick = d > FLICK_PX && speed > FLICK_PACE;
+  const past = d > Math.min(size / 3, LEAVE_LINE_MAX) && speed > -FLICK_PACE;
   const close = g.way === "down" ? o.onDown : g.way === "away" ? o.onAway : o.onBack;
-  if ((d > Math.min(size / 3, LEAVE_LINE_MAX) || flick) && close) swipeLeave(g, close);
+  if ((past || flick) && close) swipeLeave(g, close, carryOn(d, size, speed));
   else swipeSettle(g);
 };
 // A page walked and let go: past the line or flicked, the page beside at the finger's speed; else back.
@@ -447,8 +562,11 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       pages: null,
       step: 0,
       mx: t.clientX,
+      my: t.clientY,
       mt: Date.now(),
       vx: 0,
+      vy: 0,
+      below: null,
     });
   };
   const onTouchMove: Handler = (e) => {
@@ -458,7 +576,7 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
     if (!t || !el || !g) return;
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
-    swipePace(g, t.clientX);
+    swipePace(g, t.clientX, t.clientY);
     if (g.way === null) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
       swipeTake(g, dx, dy);
