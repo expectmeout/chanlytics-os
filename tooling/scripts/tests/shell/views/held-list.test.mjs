@@ -61,12 +61,23 @@ const element = (name, { at = 0, height = 60, left = 0, width = 375, css = {} } 
     closest(sel) {
       const is = (n, s) => {
         const data = /^\[data-([a-z-]+)\]$/.exec(s);
-        return data ? n.dataset[data[1].replace(/-(.)/g, (_, c) => c.toUpperCase())] !== undefined : n.name === s;
+        if (data) return n.dataset[data[1].replace(/-(.)/g, (_, c) => c.toUpperCase())] !== undefined;
+        return n.name === s || s === `[role="${n.name}"]`;
       };
       for (let n = this; n; n = n.parentElement) if (sel.split(",").some((s) => is(n, s.trim()))) return n;
       return null;
     },
     querySelector: () => null,
+    attrs: new Set(),
+    setAttribute(name) {
+      this.attrs.add(name);
+    },
+    removeAttribute(name) {
+      this.attrs.delete(name);
+    },
+    hasAttribute(name) {
+      return this.attrs.has(name);
+    },
     contains(other) {
       for (let n = other; n; n = n.parentElement) if (n === this) return true;
       return false;
@@ -552,6 +563,40 @@ test("the row is kept only for a moment, and no longer than until another row op
   assert.equal(win.scrollY, scrolled, "a list held again is not scrolled by the keeping before it");
   second.leave();
   p.leave();
+});
+
+test("the row a page is opened from is lit as it opens, before a picture is made of the list, and after, until a touch", () => {
+  // Under a person carried back to People lay a picture of the list, which has no :hover of its own: the row the finger
+  // had opened lit only as the person went (Ruben, 20 Oct 2026, "highlight the selected row before swiping back").
+  const { list, rows } = inbox();
+  const opened = rows[18];
+  const name = put(opened, element("name"));
+  // What a tap leaves under :hover: the row and the words in it, the deepest last.
+  list.querySelectorAll = (sel) => (sel === ":hover" ? [opened, name] : []);
+  const p = page(list);
+  p.draw(false);
+  p.draw(true);
+  assert.ok(opened.hasAttribute("data-hover"), "lit as its page opens, so a picture made after carries it");
+  assert.equal(rows[17].hasAttribute("data-hover"), false, "and no other row");
+  p.draw(false);
+  assert.ok(opened.hasAttribute("data-hover"), "still lit once the list is back, as the finger's last tap leaves it");
+  fire("pointerdown");
+  assert.equal(opened.hasAttribute("data-hover"), false, "the next touch lets it go");
+  // A page left with its row open lets go of the row too; one opened from elsewhere lights nothing.
+  p.draw(true);
+  assert.ok(opened.hasAttribute("data-hover"));
+  p.leave();
+  assert.equal(opened.hasAttribute("data-hover"), false, "a page left lets go of its row");
+  list.querySelectorAll = () => [];
+  const elsewhere = page(list);
+  elsewhere.draw(false);
+  elsewhere.draw(true);
+  assert.equal(
+    rows.some((r) => r.hasAttribute("data-hover")),
+    false,
+    "nothing under the finger in the list: nothing lit",
+  );
+  elsewhere.leave();
 });
 
 test("a list coming back from under the row it opened is where it was left: its rows do not rise in again", async () => {

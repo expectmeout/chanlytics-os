@@ -290,6 +290,47 @@ test("a list's row keeps its hover fill under a finger: the row last opened is t
 });
 
 /*
+ * A list under a person carried back to it is a still picture of it (kit/motion/held-list.ts, People's kept scopes), which
+ * has no :hover and keeps no id (leaving.ts stillCopyOf). People's rows were styled by their id, so the picture's stood
+ * edge to edge with a line across each and jumped in as the person went, and the row the finger opened lit only then
+ * (Ruben, 20 Oct 2026, from his iPhone). A table's row is one by its data-index, and the opened row is marked data-hover:
+ * every fill or line a finger's :hover moves on a table's row moves for the mark too.
+ */
+test("a table's rows look the same in a still picture of the list: never styled by id, and the opened row lit as hovered", () => {
+  const byId = [];
+  const unmarked = [];
+  const hides = (r) => (r.value.declarations.declarations ?? []).every((d) => propertyOf(d) === "opacity");
+  const marked = (compound) => /"name":"data-hover"/.test(JSON.stringify(compound));
+  let lit = 0;
+  for (const sheet of allSheets())
+    eachRule(sheet, (r, guarded) => {
+      for (const x of r.value.selectors) {
+        const compounds = compoundsOf(x);
+        const tableOf = (i) =>
+          compounds
+            .slice(0, i)
+            .flat()
+            .find((c) => c.type === "class" && ROW_TABLES.has(c.name));
+        const rowAt = compounds.findIndex(
+          (parts, i) => parts.some((c) => c.type === "type" && c.name === "tr") && !!tableOf(i),
+        );
+        if (rowAt < 0) continue;
+        const rows = compounds.slice(rowAt).filter((parts) => parts.some((c) => c.type === "type" && c.name === "tr"));
+        if (rows.some((parts) => /"name":"id"/.test(JSON.stringify(parts))))
+          byId.push(`${sheet}: ${JSON.stringify(x)}`);
+        // A phone's table (People's, Leads', the Pipeline's) is the one pictured; a desk's hover reveals are its own.
+        if (tableOf(rowAt).name !== "pl-table" || guarded || !hoverOnly(x) || !(paints(r) || hides(r))) continue;
+        lit += 1;
+        const hovered = compounds.filter((parts) => /"kind":"hover"/.test(JSON.stringify(parts)));
+        if (!hovered.every(marked)) unmarked.push(`${sheet}: ${JSON.stringify(x).slice(0, 160)}`);
+      }
+    });
+  assert.ok(lit >= 3, "a table's row is still lit under a finger: this test would otherwise prove nothing");
+  assert.deepEqual(byId, [], "a table's row is chosen by what a still picture keeps, never its id");
+  assert.deepEqual(unmarked, [], "what lights a table's row under a finger lights the row a page was opened from");
+});
+
+/*
  * A press keeps a variant's own colour. The plain button's press is the grey (`.btn:active`); under a finger, where no
  * hover is drawn, a variant with no press of its own fell to it, and a pressed Save stood grey under its near-black words
  * (Ruben, 19 Oct 2026: "this ugly color"). Each filled or tinted variant presses in the colour its hover lights, outside

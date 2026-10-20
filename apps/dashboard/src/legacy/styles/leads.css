@@ -1080,7 +1080,7 @@ button.ld-slot-btn { cursor: pointer; }
   .lf-strip.has-band:not(.ask) .lf-strip-said { order: 1; }
   .lf-strip.has-band:not(.ask) .lf-acts { order: 2; margin-left: auto; gap: 14px; }
   .lf-strip.has-band:not(.ask) .lf-acts::before { content: none; }
-  .lf-strip.has-band:not(.ask) [data-testid="strip-sort_fit"] { display: none; }
+  .lf-strip.has-band:not(.ask) [data-act="sort_fit"] { display: none; }
   .lf-strip .ld-band .ld-band-shape { display: none; }
   /* The counts on the line's left edge, each as wide as its words, so the first sits over the line under it. */
   .lf-strip .ld-band .ld-classes { justify-content: flex-start; gap: 18px; }

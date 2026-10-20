@@ -11,7 +11,9 @@
  *   and the box that scrolls the list and how far, and what the frame's head said over it;
  * - while the row's page stands the list is held: drawn where it stood and out of sight (`data-held`, components.css:
  *   fixed in place, hidden, taking no room and no touch), or, where its page keeps it out of the document (People's tabs,
- *   under React's Activity), stood in for by a still picture of it, made when the phone is idle;
+ *   under React's Activity), stood in for by a still picture of it, made when the phone is idle. The row it was opened
+ *   from is drawn as under the finger (`data-hover`) from then until the screen is touched once the list is back, so the
+ *   picture shows it as the list will (`pressRow`);
  * - while a thumb carries the row's page away, what lies under it is the whole screen it goes back to, as it will stand
  *   (`showHeld`, `heldUnder`): the list, or its picture, at the rows it was left on, and the frame's chrome over it as the
  *   list had it (Ruben, 20 Oct 2026: the head, the strip of views and the tab bar came in at once as the Back landed).
@@ -63,6 +65,8 @@ interface Place {
   rowAt: number;
   /** The list's own box on the screen. */
   box: { top: number; left: number; width: number; height: number };
+  /** The row under the finger or the pointer: the one whose page is opening. */
+  opened: Element | null;
   /** What the frame's head said over it: drawn again under the row's page while a thumb carries that page away. */
   head: HeadAt;
 }
@@ -90,6 +94,8 @@ interface Carry {
 let carrying: Carry | null = null;
 /** The keeping of a row put back, to end (keepRow); null with none. */
 let keeping: (() => void) | null = null;
+/** The row a page was opened from, drawn as under the finger (pressRow); null with none. */
+let pressed: Element | null = null;
 
 /** Where a box's view of what it scrolls begins on the screen: under what stands over it (its scroll padding). */
 function viewTop(scroller: HTMLElement): number {
@@ -108,6 +114,12 @@ function rowAtTop(list: HTMLElement, scroller: HTMLElement): Element | null {
   return row && list.contains(row) ? row : hit;
 }
 
+/** The row under the finger or the pointer in the list: on a touch screen, the one a tap last landed on (its :hover stays). */
+function rowUnderPointer(list: HTMLElement): Element | null {
+  const row = Array.from(list.querySelectorAll(":hover")).at(-1)?.closest(ROW) ?? null;
+  return row && list.contains(row) ? row : null;
+}
+
 /** The list's place as it stands now, or null where it is not on the screen. */
 function listPlace(list: HTMLElement): Place | null {
   if (!list.isConnected || list.getClientRects().length === 0) return null;
@@ -122,6 +134,7 @@ function listPlace(list: HTMLElement): Place | null {
     row,
     rowAt: row ? row.getBoundingClientRect().top : 0,
     box: { top: r.top, left: r.left, width: r.width, height: r.height },
+    opened: rowUnderPointer(list),
     head: headNow(),
   };
 }
@@ -160,6 +173,7 @@ function pictureOf(was: Held): void {
 function holdList(place: Place, owner: object): void {
   keeping?.();
   if (holding) letListGo(holding);
+  pressRow(place.opened);
   const { list } = place;
   const now: Held = { place, owner, copy: null, idle: 0 };
   holding = now;
@@ -200,6 +214,30 @@ function putListBack(owner: object): void {
     if (backNow === list) backNow = null;
   });
   keepRow(was.place);
+  pressedUntilTouched();
+}
+
+/**
+ * The row a page is opened from, drawn as under the finger (`data-hover`, clients.css) while the page stands and after it,
+ * where a finger's last tap leaves it lit: a still picture of the list keeps it, where it has no :hover of its own, so the
+ * row the thumb uncovers is the row it lands on, lit (Ruben, 20 Oct 2026: it lit only once the person had gone). Null lets
+ * go of the one drawn so.
+ */
+function pressRow(row: Element | null): void {
+  pressed?.removeAttribute("data-hover");
+  pressed = row;
+  row?.setAttribute("data-hover", "");
+}
+
+/** The row a page was opened from, lit until the screen is touched, a key pressed or a wheel turned, as its :hover is. */
+function pressedUntilTouched(): void {
+  const row = pressed;
+  if (!row) return;
+  const off = (): void => {
+    if (pressed === row) pressRow(null);
+    for (const kind of KEEP_ENDS) window.removeEventListener(kind, off, true);
+  };
+  for (const kind of KEEP_ENDS) window.addEventListener(kind, off, { capture: true, passive: true });
 }
 
 /**
@@ -365,7 +403,9 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null): void
   }, [held]);
   useLayoutEffect(
     () => () => {
-      if (holding?.owner === owner.current) letListGo(holding);
+      if (holding?.owner !== owner.current) return;
+      letListGo(holding);
+      pressRow(null);
     },
     [],
   );

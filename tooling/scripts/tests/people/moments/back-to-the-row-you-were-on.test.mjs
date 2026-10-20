@@ -74,6 +74,7 @@ const element = (name, { at = 0, height = 60 } = {}) => {
       return false;
     },
     querySelector: () => null,
+    querySelectorAll: () => [],
     addEventListener() {},
     removeEventListener() {},
   };

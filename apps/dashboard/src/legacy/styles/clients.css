@@ -2150,7 +2150,7 @@
   .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; --pl-head: 39px; scroll-padding-top: var(--pl-head); }
   .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; }
   .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
-  .pl-table tbody tr:hover { --pl-row: var(--bg-hover); }
+  .pl-table tbody tr:is(:hover, [data-hover]) { --pl-row: var(--bg-hover); }
   .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
   .pl-table tbody tr.focused { --pl-row: var(--bg-hover); }
   .pl-table tbody td { border-bottom: 1px solid var(--line); }
@@ -2537,8 +2537,8 @@
   .pl-card-rated { flex: none; display: inline-flex; align-items: center; gap: 3px; color: var(--ink-muted); }
   /* A table with nobody in it is one row of one cell across the card's whole width. It was placed in the grid's first
      track -- the checkbox's, 28px -- and its sentence stood in a column a word wide. */
-  .cl-table tbody tr:not([id]):has(> td[colspan]) { display: block; padding: 0; }
-  .cl-table tbody tr:not([id]) > td[colspan] { display: block; padding: 20px 16px; }
+  .cl-table tbody tr:not([data-index]):has(> td[colspan]) { display: block; padding: 0; }
+  .cl-table tbody tr:not([data-index]) > td[colspan] { display: block; padding: 20px 16px; }
 }
 
 @media (max-width: 900px) {
@@ -3043,7 +3043,7 @@
     background: transparent;
     box-shadow: none;
   }
-  .main-scroll .pl-table tbody tr:hover {
+  .main-scroll .pl-table tbody tr:is(:hover, [data-hover]) {
     --pl-row: var(--pl-hover);
     background: transparent;
     box-shadow: none;
@@ -3081,7 +3081,7 @@
   }
   /* The row under the pointer and the cursor's row (the person last opened), at both widths: #1718 held this to a
      pointer whole, and the cursor's row lost its lozenge on a phone with the hover (19 Oct 2026). */
-  .main-scroll .pl-table tbody tr:is(:hover, .focused) > td {
+  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused) > td {
     background: var(--pl-hover);
   }
   /* The cursor's row is the lozenge, not the accent's edge Classic draws down its first cell. */
@@ -3091,11 +3091,11 @@
   .main-scroll .pl-table tbody tr.selected > td {
     background: var(--bubble-us-bg);
   }
-  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:first-child {
+  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused, .selected) > td:first-child {
     border-top-left-radius: var(--surface-inset-radius);
     border-bottom-left-radius: var(--surface-inset-radius);
   }
-  .main-scroll .pl-table tbody tr:is(:hover, .focused, .selected) > td:last-child {
+  .main-scroll .pl-table tbody tr:is(:hover, [data-hover], .focused, .selected) > td:last-child {
     border-top-right-radius: var(--surface-inset-radius);
     border-bottom-right-radius: var(--surface-inset-radius);
   }
@@ -3354,18 +3354,22 @@
     color: var(--ink-muted);
   }
   /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, its own border clear (the
-     hairline between two is mobile.css's, from under the name), and the pressed one the selected fill. */
+     hairline between two is mobile.css's, from under the name), and the pressed one the selected fill. A row is one the
+     table drew for someone (data-index; not its empty line nor a gap), never by its id: a still picture of the list drops
+     ids, and under a person carried back to it its rows stood edge to edge with a line across each, then jumped in as
+     the person went (Ruben, 20 Oct 2026). The row a person was opened from wears the fill under the picture and after
+     it (data-hover, kit/motion/held-list.ts) until the screen is touched again, as a finger's last tap does. */
   .clients .pl-table-wrap {
     padding: 2px 4px;
     border-top: 0;
   }
-  .pl-table tbody > tr[id] {
+  .pl-table tbody > tr[data-index] {
     width: calc(100% - 16px);
     margin: 0 8px 2px;
     border-bottom-color: transparent;
     border-radius: var(--surface-row-radius);
   }
-  .pl-table tbody > tr[id]:hover {
+  .pl-table tbody > tr[data-index]:is(:hover, [data-hover]) {
     background: var(--hover-fill);
   }
   /* Under the search the line is a caption: what the rows are, said once, small and dim, so the first person stays on

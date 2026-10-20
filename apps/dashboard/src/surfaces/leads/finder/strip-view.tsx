@@ -83,6 +83,7 @@ export const LeadStrip = ({
                   : `btn btn-sm ${a.primary ? "btn-primary" : QUIET.indexOf(a.id) >= 0 ? "btn-ghost" : ""}`
               }
               data-testid={`strip-${a.id}`}
+              data-act={a.id}
               title={a.where || undefined}
               onClick={() => onAction(a.id, a.arg)}
             >
