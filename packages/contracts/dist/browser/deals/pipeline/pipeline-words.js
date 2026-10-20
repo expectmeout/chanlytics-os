@@ -95,12 +95,6 @@ export const PIPELINE_WORDS = {
     title: "New proposal",
     sub: "Who is it for?",
     search: "Search people",
-    none: "No one matches.",
-    add: "Add someone new",
-    name: "Name",
-    optional: "optional",
-    number: "Mobile number",
-    go: "Continue",
-    adding: "Adding\u2026"
+    none: "No one matches."
   }
 };

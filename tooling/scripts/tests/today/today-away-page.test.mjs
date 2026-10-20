@@ -190,8 +190,8 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     globalThis.__lists = (await import("../../../../apps/dashboard/src/surfaces/people/people-lists.ts")).lists;
     const tree = globalThis.React.createElement(TodayPins, {});
     const row = byTestId(tree, "today-pins");
-    // The row holds ready-made lists as well as the member's own (decision 0009: any list pins), so it is not headed Your lists.
-    assert.equal(row.props["aria-label"], "Pinned lists");
+    // The pane holds ready-made lists as well as the member's own (decision 0009: any list pins), so it is not headed Your lists.
+    assert.equal(textOf(find(row, (n) => n.props?.id === "today-pins-title")), "Pinned lists");
     const pins = [];
     (function walk(n) {
       if (!n || typeof n !== "object") return;
@@ -201,11 +201,11 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     })(row);
     assert.deepEqual(
       pins.map((p) => textOf(p)),
-      ["Quiet 30+ days4", "VIPs12", "Booked soon"],
+      ["4Quiet 30+ days", "12VIPs", "—Booked soon"],
       "a count where People has one; none where it can't be counted; a list that isn't here, left out",
     );
-    // A list's name is the chip with its button inside, its count the tally.
-    assert.ok(find(pins[0], (n) => String(n.props?.className || "").includes("tally")));
+    // Each list is a figure of the day's card's shape: its count over its name, the figure the press.
+    assert.ok(find(pins[0], (n) => String(n.props?.className || "").includes("tc-fig-n")));
     find(pins[1], (n) => n.type === "button").props.onClick();
     assert.deepEqual(went, [`clients/list:${S2}`]);
     // Nothing pinned: no row at all.

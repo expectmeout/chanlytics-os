@@ -115,11 +115,5 @@ export const PIPELINE_WORDS = {
     sub: "Who is it for?",
     search: "Search people",
     none: "No one matches.",
-    add: "Add someone new",
-    name: "Name",
-    optional: "optional",
-    number: "Mobile number",
-    go: "Continue",
-    adding: "Adding…",
   },
 } as const;

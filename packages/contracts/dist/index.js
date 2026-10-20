@@ -12914,13 +12914,7 @@ var PIPELINE_WORDS = {
     title: "New proposal",
     sub: "Who is it for?",
     search: "Search people",
-    none: "No one matches.",
-    add: "Add someone new",
-    name: "Name",
-    optional: "optional",
-    number: "Mobile number",
-    go: "Continue",
-    adding: "Adding\u2026"
+    none: "No one matches."
   }
 };
 
@@ -42959,14 +42953,7 @@ var NEW_CONVERSATION_WORDS = {
   who: {
     sub: "Who is it for?",
     search: "Search people",
-    none: "No one matches.",
-    add: "Add someone new",
-    name: "Name",
-    optional: "optional",
-    number: "Mobile number",
-    go: "Continue",
-    adding: "Adding\u2026",
-    notAdded: "Could not add them."
+    none: "No one matches."
   },
   thread: "Open their thread",
   page: "Open their page",

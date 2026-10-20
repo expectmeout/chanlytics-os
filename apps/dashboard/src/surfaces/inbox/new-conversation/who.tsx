@@ -1,6 +1,6 @@
 /**
- * A new conversation's first step: who it is for (the design's 4.2). A search, who it finds, and Add someone new, by
- * name and number. Hookless: the sheet's state is handed in (state.ts), and who matches is the server's answer (People's
+ * A new conversation's first step: who it is for (the design's 4.2). A search and who it finds; someone new is added
+ * on People, by its own New (Ruben, 20 Oct 2026: the sheet's Add someone new went). Hookless: the sheet's state is handed in (state.ts), and who matches is the server's answer (People's
  * own search), so the pick finds anyone the workspace holds, not only who the tab has read.
  *
  * Drawn with the kit's Field and Button, and with nothing of People's page: the Pipeline's own pick stays the
@@ -12,8 +12,6 @@ import { NEW_CONVERSATION_WORDS as W } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { focusAsDrawn } from "../../legacy-verbs";
 import type { SheetState } from "./state";
 
@@ -41,59 +39,6 @@ function found(s: SheetState) {
   );
 }
 
-/** Someone new, by name and number: the fields, or the way to open them. */
-function adding(s: SheetState) {
-  const { add, setAdd } = s.pick;
-  if (!add.open)
-    return (
-      <div className="ix-new-acts">
-        <LinkButton onClick={s.openAdd} data-testid="ix-new-who-add-open">
-          <Icon name="plus" size={12} /> {W.who.add}
-        </LinkButton>
-      </div>
-    );
-  const wrong = add.error ? { problem: add.error, problemGlyph: <Icon name="notice" size={12} /> } : {};
-  return (
-    <section className="ix-new-part" data-testid="ix-new-who-add">
-      <Field
-        label={`${W.who.name} (${W.who.optional})`}
-        value={add.name}
-        onValueChange={(name) => setAdd((x) => ({ ...x, name }))}
-        maxLength={80}
-        readOnly={add.busy}
-        // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the fields open on a press that asked for them
-        autoFocus={focusAsDrawn()}
-        data-testid="ix-new-who-name"
-      />
-      <Field
-        label={W.who.number}
-        type="tel"
-        inputMode="tel"
-        value={add.phone}
-        onValueChange={(phone) => setAdd((x) => ({ ...x, phone, error: null }))}
-        maxLength={24}
-        readOnly={add.busy}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void s.addSomeone();
-        }}
-        {...wrong}
-        data-testid="ix-new-who-phone"
-      />
-      <div className="ix-new-acts">
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={add.busy || !add.phone.trim()}
-          onClick={() => void s.addSomeone()}
-          data-testid="ix-new-who-go"
-        >
-          {add.busy ? W.who.adding : W.who.go}
-        </Button>
-      </div>
-    </section>
-  );
-}
-
 export function NewWho({ s }: { s: SheetState }) {
   return (
     <div className="ix-new" data-testid="ix-new-who">
@@ -115,7 +60,6 @@ export function NewWho({ s }: { s: SheetState }) {
         data-testid="ix-new-who-search"
       />
       {found(s)}
-      {adding(s)}
     </div>
   );
 }

@@ -30,7 +30,7 @@ import { useSurface } from "../../use-surface";
 import { clockZone, navigate, tabMemory } from "../shell";
 import type { Flash } from "../shell";
 import type { ApprovedTemplate } from "../types";
-import { addByNumber, askDraft, findPeople, keepNote, readReach, sendFirst, undoFirst } from "./verbs";
+import { askDraft, findPeople, keepNote, readReach, sendFirst, undoFirst } from "./verbs";
 import { openNewConversation } from "./store";
 import type { FirstMessage } from "./verbs";
 
@@ -179,16 +179,6 @@ export function sayQueued(
   flash({ msg: W.sent(person.name, Math.round(left / SECOND_MS)), ms: left, undo, stays: true });
 }
 
-/**
- * What was typed into the pick's search, as the start of someone new: a number where it reads as one, else a name.
- * So "Add someone new" does not ask again for what was just typed.
- */
-export function typedAs(q: string): { name?: string; phone?: string } {
-  const t = q.trim();
-  if (!t) return {};
-  return /^[+(]?\d[\d\s().-]{5,}$/.test(t) ? { phone: t } : { name: t };
-}
-
 /** A key event as a field hands one: what the sheet's own key reads of it. */
 interface SendKey {
   key: string;
@@ -272,18 +262,8 @@ function useApproved(wanted: boolean): Approved {
   }, [settings, wanted]);
 }
 
-/** Someone being added from the pick: whether the fields are open, what was typed, and how the door answered. */
-interface Adding {
-  open: boolean;
-  name: string;
-  phone: string;
-  busy: boolean;
-  error: string | null;
-}
-const NOT_ADDING: Adding = { open: false, name: "", phone: "", busy: false, error: null };
-
 /**
- * The pick: what was typed, someone being added, and who is offered. With nothing typed it is who the tab already
+ * The pick: what was typed, and who is offered. With nothing typed it is who the tab already
  * holds (People's rows, heard from last first), or the server's first page where the tab holds nobody yet. With words
  * it is who the server says matches (People's own search: a name, a WhatsApp name, three digits of a number), asked
  * once the typing rests; until that answers, the last answer stays, so the list does not blink.
@@ -291,7 +271,6 @@ const NOT_ADDING: Adding = { open: false, name: "", phone: "", busy: false, erro
 function usePick(open: boolean) {
   const held = useSurface("people")?.rows ?? NO_ROWS;
   const [q, setQ] = useState("");
-  const [add, setAdd] = useState<Adding>(NOT_ADDING);
   const [found, setFound] = useState<{ q: string; rows: PersonRowVM[] } | null>(null);
   const words = q.trim();
   const have = held.length > 0;
@@ -319,7 +298,7 @@ function usePick(open: boolean) {
   }, [open, words, have]);
   const answered = found && found.q === words ? found.rows : null;
   const offered = words ? (answered ?? found?.rows ?? NO_ROWS) : have ? held : (answered ?? NO_ROWS);
-  return { q, setQ, add, setAdd, rows: offered.slice(0, PICK_MAX), reading: answered === null && (!!words || !have) };
+  return { q, setQ, rows: offered.slice(0, PICK_MAX), reading: answered === null && (!!words || !have) };
 }
 
 /** Ask's part: what it needs answered first, then the words or the brief. What it writes goes into what is written. */
@@ -479,15 +458,6 @@ export function useNewConversationSheet(opened: Opened) {
     ask.forget();
     patch({ how: next });
   };
-  const addSomeone = async () => {
-    const d = pick.add;
-    if (d.busy || !d.phone.trim()) return;
-    pick.setAdd({ ...d, busy: true, error: null });
-    const r = await addByNumber(d);
-    if (!r.ok) return pick.setAdd((x) => ({ ...x, busy: false, error: r.error }));
-    pick.setAdd(NOT_ADDING);
-    choose(r.id);
-  };
   /** Somewhere else in the app, from a link in the sheet: what is written stays in the tab. */
   const goTo = (route: string) => {
     opened.onClose();
@@ -557,8 +527,6 @@ export function useNewConversationSheet(opened: Opened) {
     choose,
     changeWho,
     setHow,
-    addSomeone,
-    openAdd: () => pick.setAdd({ ...NOT_ADDING, open: true, ...typedAs(pick.q) }),
     why,
     toggleWhy: () => setWhy((shown) => !shown),
     // The address an email will go to once the server asked about it: the act names it, and pressing it is the yes.

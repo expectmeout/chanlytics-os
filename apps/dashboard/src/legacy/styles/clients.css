@@ -2735,7 +2735,7 @@
    The rail is People's rail kit with the Pipeline's own rows. New proposal is the page's one filled button, at the
    controls row's right; its picker is a record sheet on a desk and a phone sheet: the kit's search field (New
    conversation's, the same question in the same words), the first eight people as quiet rows (face, name, where their
-   deal stands), and Add someone new as the kit's quiet link that opens two fields. A row lifts as a menu's item does,
+   deal stands). A row lifts as a menu's item does,
    a lozenge in the accent's soft tint (kit.css), as New conversation's rows do. */
 .pipe-new-btn { white-space: nowrap; }
 .pipe-new { display: flex; flex-direction: column; gap: 12px; padding: 16px 0 20px; }
@@ -2748,14 +2748,9 @@
 .pipe-new-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-new-said { min-width: 0; font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-new-none { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
-.pipe-new-open-add { align-self: flex-start; gap: 6px; }
-.pipe-new-add { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.pipe-new-opt { color: var(--ink-faint); font-weight: 400; }
-.pipe-new-go { align-self: flex-start; }
 @media (max-width: 900px) {
   .pipe-new { padding: 4px 0 12px; }
   .pipe-new-row { padding: 10px 8px; }
-  .pipe-new-go { align-self: stretch; min-height: 44px; justify-content: center; }
 }
 
 /* ---- People › Pipeline, the row carries the deal (surfaces/people/pipeline/: row.tsx, scope.tsx, peek.tsx) -------

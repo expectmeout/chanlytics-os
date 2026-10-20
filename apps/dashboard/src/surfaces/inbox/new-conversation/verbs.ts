@@ -1,6 +1,6 @@
 /**
- * The calls a new conversation makes (a conversation begins from the Inbox): who matches a search, someone added, how
- * a person can be reached, Ask's draft, the send, and the note that follows it. A courier: every rule is the server's, and
+ * The calls a new conversation makes (a conversation begins from the Inbox): who matches a search, how a person
+ * can be reached, Ask's draft, the send, and the note that follows it. A courier: every rule is the server's, and
  * what it refuses is said in its own words. The sheet makes no request of its own. (The approved messages are no call: they
  * are the settings read's, the one read of the templates, state.ts useApproved.)
  *
@@ -8,15 +8,8 @@
  * three tabs, and a module of People's page pulled into it regroups the chunks four other pages load (measured on
  * 7 October 2026: thirteen to twenty kilobytes on each of People, Campaigns, Sent and Templates).
  */
-import {
-  NEW_CONVERSATION_WORDS as W,
-  poolRowOf,
-  type ConsentChannel,
-  type PersonDraftInput,
-  type PersonRowVM,
-} from "@chanlytics/contracts";
+import { poolRowOf, type ConsentChannel, type PersonDraftInput, type PersonRowVM } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { workspaceZone } from "@/legacy-bridge/zone";
 
 /**
@@ -28,23 +21,6 @@ export async function findPeople(q: string): Promise<PersonRowVM[]> {
   if (!r.ok) return [];
   const now = new Date();
   return r.data.people.map((p) => poolRowOf(p, { tz, now, viewer: null, ready: null }));
-}
-
-/**
- * Someone the business meets before they ever write, added by number through People's own verb (person_add, contracts
- * personAddSpec): a number already here answers with that person, never a second one.
- */
-export async function addByNumber(d: {
-  name: string;
-  phone: string;
-}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const name = d.name.trim();
-  const r = await commitVerb("person_add", { phone: d.phone.trim(), ...(name ? { name } : {}) });
-  const id: unknown = r.ok && r.data && typeof r.data === "object" ? Reflect.get(r.data, "contact_id") : null;
-  if (r.ok && typeof id === "string") return { ok: true, id };
-  if (r.ok) return { ok: false, error: W.who.notAdded };
-  // The field's own sentence where the route named one, else the refusal's.
-  return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || W.who.notAdded };
 }
 
 /** How one person can be written to and called now (GET people/[id]/reach). */

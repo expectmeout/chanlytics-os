@@ -195,7 +195,7 @@ function visitRows(vm: VisitSheetVM) {
 }
 
 /**
- * The person's own add (the person_add verb, which People's "Add a person" and New conversation's commit too: contracts
+ * The person's own add (the person_add verb, which People's "Add a person" commits too: contracts
  * personAddSpec), for a visit People cannot match.
  */
 function useAddToPeople(c: VisitCtx) {

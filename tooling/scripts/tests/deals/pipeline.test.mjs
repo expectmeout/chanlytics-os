@@ -1641,7 +1641,7 @@ test("the peek is in the address: opening pushes it, the cursor walking it repla
   assert.equal(byTestId(tree, "pipeline-peek"), null);
 });
 
-test("New proposal: pick someone, or add them by number, and the one deal sheet opens to propose", async () => {
+test("New proposal: pick someone, and the one deal sheet opens to propose", async () => {
   const seen = await fresh();
   const asked = [];
   globalThis.window.openDealSheet = (a) => {
@@ -1684,41 +1684,6 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   tree = draw();
   assert.deepEqual(asked, [{ personId: "wes", mode: "propose" }]);
   assert.equal(byTestId(tree, "pipeline-new"), null, "the picker closes as the sheet opens");
-  // Someone new, by number, through People's own door.
-  click(newOpen(tree));
-  tree = draw();
-  click(byTestId(tree, "pipeline-new-add-open"));
-  tree = draw();
-  assert.deepEqual(sheetOf(tree).props.focusOn, { row: "add" }, "Add someone new: the name takes focus");
-  assert.ok(find(byTestId(tree, "pipeline-new-add"), (n) => n.props?.["data-testid"] === "pipeline-new-name"));
-  byTestId(tree, "pipeline-new-name").props.onChange({ target: { value: "Ana Ruiz" } });
-  tree = draw();
-  byTestId(tree, "pipeline-new-phone").props.onChange({ target: { value: "+1 786 555 0199" } });
-  tree = draw();
-  await byTestId(tree, "pipeline-new-go").props.onClick();
-  tree = draw();
-  assert.deepEqual(seen.added, [{ phone: "+1 786 555 0199", name: "Ana Ruiz" }]);
-  assert.deepEqual(asked.at(-1), { personId: "new-1", mode: "propose" });
-  // A number the door refuses says why under the field, and nothing opens.
-  seen.add = () =>
-    json(422, {
-      ok: false,
-      error: {
-        code: "invalid_input",
-        message: "Check the number.",
-        details: { fields: { phone: "That is not a mobile number." } },
-      },
-    });
-  click(newOpen(tree));
-  tree = draw();
-  click(byTestId(tree, "pipeline-new-add-open"));
-  tree = draw();
-  byTestId(tree, "pipeline-new-phone").props.onChange({ target: { value: "12" } });
-  tree = draw();
-  await byTestId(tree, "pipeline-new-go").props.onClick();
-  tree = draw();
-  assert.match(textOf(byTestId(tree, "pipeline-new-add")), /That is not a mobile number\./);
-  assert.equal(asked.length, 2);
 });
 
 // The phone's sheet is compact (People's RailEmpty): a view with no deal in it is said in its section's one quiet line,
