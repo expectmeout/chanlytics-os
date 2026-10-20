@@ -11,7 +11,7 @@ import type { PeopleSurface } from "../surface";
 
 /**
  * The sample's code, fetched once; a fetch that failed is asked for again by the next draw. As it lands the frame is
- * told, as People's read tells it, so a person's crumb names them (app-shell.jsx useShellRouting, chrome.ts).
+ * told, as People's read tells it, so a person's crumb names them (frame/shell-hooks.ts useShellRouting, chrome.ts).
  */
 export const demoCode = codeOnce(() =>
   import("../sample").then(({ demoPeople, samplePerson }) => {

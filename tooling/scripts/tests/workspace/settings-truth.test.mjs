@@ -217,7 +217,7 @@ test("Settings is ordered you, then the business, then the people", () => {
   // Your name left the Team card entirely and is a row on Profile: drawn in settings-owner-panes.test.mjs ("your name is
   // a row on Profile, never in the Team card"), both panes being TSX.
   assert.ok(
-    readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes('onNavigate("admin/profile")'),
+    readCode("apps/dashboard/src/surfaces/frame/sidebar/sidebar-menus.tsx").includes('go("admin/profile")'),
     "and the account menu points where it says",
   );
 

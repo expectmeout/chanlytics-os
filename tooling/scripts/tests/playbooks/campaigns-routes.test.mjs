@@ -262,7 +262,7 @@ test("Messages' crumbs go back to Campaigns, whose first view is Sequences, and 
   assert.equal(
     SURFACE_ROUTES.messages.activeNav,
     "messages",
-    "the sidebar lights Campaigns for each (sidebar.jsx groupMap)",
+    "the sidebar lights Campaigns for each (frame/sidebar/sidebar.tsx GROUP_MAP)",
   );
 });
 

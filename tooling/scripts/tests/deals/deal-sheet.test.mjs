@@ -1393,7 +1393,7 @@ test("the frame publishes the sheet's doors under the names the Inbox's thread, 
   assert.equal(PEOPLE_GLOBALS.openDealSheet, doors.askDealSheet);
   const R = fixtures(Date.now());
   wire(R.detail());
-  // The frame's host, as app-shell.jsx draws it, asked for the sheet before it has drawn one.
+  // The frame's host, as the frame draws it (surfaces/frame/shell-chrome.tsx), asked for the sheet before it has drawn one.
   unmount();
   recFolds.reset();
   clearReadCaches();

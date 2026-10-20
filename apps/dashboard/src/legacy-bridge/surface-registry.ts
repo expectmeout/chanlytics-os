@@ -243,7 +243,7 @@ export { PAGE_HEARS, type PageCell };
 /**
  * The page a route names, and every word after it: what the registry asks of a route the bridge reads (paneOf feeds each
  * page by its first word, and Sequences' deeper screens by theirs). The shell's own table parses the second word alone
- * (app-shell.jsx parseRoute), which asks the same of every page but Sequences' deeper screens.
+ * (surfaces/frame/shell-routes.ts parseRoute), which asks the same of every page but Sequences' deeper screens.
  */
 export function routePartsOf(route: string): { page: string; param: string | null } {
   const at = route.indexOf("/");
@@ -663,7 +663,7 @@ export function routeGateOpen(page: string, param?: string | null, own = false):
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
  *
- * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
+ * surfaces/frame/shell-hooks.ts computes `routeLoading`'s INITIAL state during its first
  * render, and it is a child of LegacyApp: children render before parent
  * effects run. Installing the gate in a useEffect therefore left it undefined
  * at the only moment it mattered, `routeReady()` fell back to `true`, and a

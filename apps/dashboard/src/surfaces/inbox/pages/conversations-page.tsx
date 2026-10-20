@@ -661,7 +661,7 @@ export const ConversationsPage = ({
   const data = conversationsData();
   const { CONVERSATIONS, CV_CHANNELS } = data;
   // The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs
-  // (its route row's `mount`, app-routes.jsx), so a tab pressed reads its own words at once, with no draw in between.
+  // (its route row's `mount`, frame/route-table.tsx), so a tab pressed reads its own words at once, with no draw in between.
   const [typed, setTyped] = useState<Record<string, string>>({});
   const query = typed[channel] !== undefined ? typed[channel] : cvKept(channel);
   const setQuery = (v: string) => {

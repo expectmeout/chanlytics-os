@@ -943,7 +943,7 @@ const kitSubtabsCapsule = (name, labels, on = 0) =>
     .join("") +
   "</div></div>";
 
-/** The phone's places, as the frame hands them to TabBar (app-shell.jsx PHONE_TABS): each word with its glyph. */
+/** The phone's places, as the frame hands them to TabBar (surfaces/frame/phone-tabs.tsx PHONE_TABS): each word with its glyph. */
 const TAB_BAR_PLACES = [
   ["Today", "home"],
   ["Inbox", "inbox"],

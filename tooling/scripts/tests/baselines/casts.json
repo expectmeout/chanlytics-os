@@ -21,7 +21,7 @@
     "nonNull": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": {
-    "unknownAs": 7
+    "unknownAs": 6
   },
   "apps/dashboard/src/legacy-bridge/api.ts": {
     "unknownAs": 1

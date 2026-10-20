@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { importSrc } from "../../_source.mjs";
 
 /* -------------------------------- a browser -------------------------------- */
 
@@ -91,12 +92,20 @@ globalThis.window = {
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: { appendChild() {} } };
 
 const win = globalThis.window;
-await import("../../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+win.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
 // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
 globalThis.ViewTabs = (await import("../../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+Object.assign(win, {
+  SurfaceTabs: surfaceTabs.SurfaceTabs,
+  stripPlace: surfaceTabs.stripPlace,
+  stripSlide: surfaceTabs.stripSlide,
+  stripSwipe: surfaceTabs.stripSwipe,
+});
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -248,7 +257,7 @@ test("the strip is not drawn on a surface that has no second view", () => {
   }
 });
 
-// A phone's page swipes across its strip, and a tap slides the same way (surface-tabs.jsx stripPlace and stripSlide,
+// A phone's page swipes across its strip, and a tap slides the same way (frame/surface-tabs.tsx stripPlace and stripSlide,
 // docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md): a view from the tab beside comes in from its side.
 test("a view from the tab beside comes in from that side: the strip's own order, and nowhere off a strip", () => {
   const at = (page) => win.stripPlace(page, null);

@@ -308,12 +308,13 @@ test("the unread rows the bell does not list are said once, after its own, with 
 /* ------------------------------ the popover ------------------------------ */
 
 installLegacyReact();
+// The frame's helpers, as the app publishes them, and the bell's popover (surfaces/frame/topbar/notif-popover.tsx), imported.
 (await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-await import("../../../../apps/dashboard/src/legacy/components/topbar.jsx");
+const { NotifPopover } = await import("../../../../apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx");
 const W = globalThis.window;
 
 const popover = (items, acts = {}) =>
-  W.NotifPopover({
+  NotifPopover({
     items,
     onAction: (id, to) => (acts.acted = [id, to]),
     onReadAll: () => (acts.readAll = true),
@@ -326,7 +327,7 @@ test("Escape closes the bell while it is drawn: once, not a key something inside
   fresh();
   const closed = [];
   const draw = () =>
-    W.NotifPopover({
+    NotifPopover({
       items: [],
       onAction() {},
       onReadAll() {},
@@ -447,7 +448,7 @@ const onPhone = async (fn) => {
   }
 };
 const thumbed = (items, h) =>
-  W.NotifPopover({
+  NotifPopover({
     items,
     onAction: (id, to) => h.acts.push([id, to]),
     onReadAll() {},

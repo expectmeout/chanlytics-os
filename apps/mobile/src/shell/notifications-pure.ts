@@ -15,7 +15,7 @@ export function tabOf(route: string): Tab {
 }
 
 /**
- * The route each tab's page opens on, in the web's own names: People is the web's `clients` (app-shell.jsx PHONE_TABS).
+ * The route each tab's page opens on, in the web's own names: People is the web's `clients` (surfaces/frame/phone-tabs.tsx PHONE_TABS).
  * More opens Today, with its drawer over it. Each tab's route belongs to that tab by tabOf, the rule a link and a tap
  * follow; the People tab asked for `people`, a route the web does not have, and drew "No surface" where People was.
  */

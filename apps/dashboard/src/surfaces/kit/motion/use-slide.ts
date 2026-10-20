@@ -1,7 +1,7 @@
 /**
  * Which side a view arrives from, for a page that holds its own views (Reports' lenses, Settings' sections): the view
  * is an element the page keys by `id`, and it wears the answer as `data-slide`, which is how the deck knows to bring
- * it in (view-deck.ts). The frame says the same of its own strips (legacy/pages/app-shell.jsx useViewFade).
+ * it in (view-deck.ts). The frame says the same of its own strips (frame/shell-hooks.ts useViewFade).
  *
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: the page draws again while
  * the view stands (a save, a read landing), and an answer that changed then would be read as a second arrival.

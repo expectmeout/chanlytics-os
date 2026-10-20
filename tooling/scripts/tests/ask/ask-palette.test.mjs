@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { importSrc } from "../_source.mjs";
 import { legacyAddress } from "../shell/address/_address.mjs";
 import { kitPages, unrefIntervals, useStubHooks } from "../_legacy-react.mjs";
 import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
@@ -813,7 +814,18 @@ test("the tab holds the follow-ups that came due: read once the boot is in, said
 });
 
 test("a follow-up of Ask's come due lights Ask's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
-  await import("../../../../apps/dashboard/src/legacy/components/topbar.jsx");
+  // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
+  const topbarParts = {
+    ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
+    ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
+    ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx")),
+  };
+  Object.assign(globalThis.window, {
+    Topbar: topbarParts.Topbar,
+    LiveCallBar: topbarParts.LiveCallBar,
+    ShellStatusBar: topbarParts.ShellStatusBar,
+    NotifPopover: topbarParts.NotifPopover,
+  });
   const Topbar = (props) => globalThis.window.Topbar(props);
   const was = globalThis.window.__ask;
   let due = [DUE("plumbers")];
@@ -1943,7 +1955,7 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
     back: () => log.push(["back"]),
   };
   globalThis.window.appNavigate = (to, o) => went.push([to, o]);
-  // As constants.jsx has it: CHANLY.nav is the shell's navigate, which pushes.
+  // As constants.ts has it: CHANLY.nav is the shell's navigate, which pushes.
   globalThis.window.CHANLY.nav = (to) => globalThis.window.appNavigate(to);
   try {
     ask([]);

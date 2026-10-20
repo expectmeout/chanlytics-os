@@ -64,7 +64,7 @@ export function plRowCard({
       : { initials: face.initials ?? "" };
   const who = numeric ? <span className="tabular">{name}</span> : name;
   return (
-    // A row that slides takes its own touch: the strip of views over the page is not walked by it (surface-tabs.jsx).
+    // A row that slides takes its own touch: the strip of views over the page is not walked by it (frame/surface-tabs.tsx).
     <td
       key="card"
       className="pl-card-cell"

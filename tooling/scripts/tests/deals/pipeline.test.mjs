@@ -1576,7 +1576,7 @@ test("a view in the address holds its rows alone; the line's press opens it, and
   let tree = draw();
   click(byTestId(tree, "pipeline-line-waiting"));
   assert.equal(went.at(-1), "clients/pipeline:v-waiting");
-  // The shell follows the address (app-shell.jsx), handing the page its param.
+  // The shell follows the address (surfaces/frame/app-shell.tsx), handing the page its param.
   tree = draw({ pipelineRoute: "pipeline:v-waiting" });
   assert.equal(byTestId(tree, "pipeline-line-waiting").props["aria-pressed"], true);
   assert.equal(

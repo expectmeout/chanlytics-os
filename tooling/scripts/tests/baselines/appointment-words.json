@@ -1,8 +1,8 @@
 {
   "apps/dashboard/app/api/v1/templates/versions/route.ts": 1,
-  "apps/dashboard/src/legacy/components/topbar.jsx": 1,
   "apps/dashboard/src/server/leads/lead-draft.ts": 1,
   "apps/dashboard/src/server/new-conversation/person-draft.ts": 1,
+  "apps/dashboard/src/surfaces/frame/topbar/bell-demo.ts": 1,
   "packages/contracts/src/calendar/calendar-people.ts": 1,
   "packages/contracts/src/google/review-reply.ts": 1,
   "packages/contracts/src/notes/note-suggest.ts": 1,

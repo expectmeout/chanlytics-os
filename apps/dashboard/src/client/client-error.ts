@@ -1,7 +1,7 @@
 /**
  * The error beacon: what a page's error boundary caught, told to the server (POST /api/v1/client-errors).
  *
- * Three boundaries catch an error in the browser: the shell's pane (app-shell.jsx ShellErrorBoundary), the app's pane
+ * Three boundaries catch an error in the browser: the shell's pane (surfaces/frame/shell-chrome.tsx ShellErrorBoundary), the app's pane
  * (`app/(os)/error.tsx`) and the root (`app/global-error.tsx`, which the sign-in pages fall through to). Each sends
  * what it caught, once per error per page load and at most MOST_PER_LOAD in all, so a render loop is one report. The
  * beacon is the browser's, queued to outlive a page that is about to reload, same-origin with the session's cookie; a

@@ -1,0 +1,150 @@
+/**
+ * The two lines under the top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): a call going
+ * on, and the shell's one status. The frame's JSX draws them by their old names (`LiveCallBar`, `ShellStatusBar`,
+ * frame-globals.ts) until the frame itself is TypeScript (step 7e).
+ */
+import { useEffect, useReducer, useState } from "react";
+import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
+
+const CLOCK_SECOND_MS = 1000;
+
+/** The live surface's hook, where the frame has one: drawn again when the calls are read again. */
+/** No redraw hook where the frame has none (the standalone mockup's): nothing is read again, so nothing moves. */
+const useNoSurface = (): number => 0;
+const useLiveRead = () => {
+  const useSurface = frameSurfaceHook() ?? useNoSurface;
+  useSurface("live");
+};
+
+/**
+ * The live-call bar: who is on the phone right now, and how long. A call in progress is the most time-critical thing this
+ * product knows, and it is true for minutes a week, so it is a bar across the top while it is happening, on a phone and
+ * on a desk, and a press opens Live, where handing over and ending ask before they act. The rule for "still up" is
+ * contracts' (liveStillUp), the same one the Live page and the strip's pulse apply between refreshes.
+ */
+export function LiveCallBar() {
+  const Glyph = frameGlyph();
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  // Drawn again when the calls are read again (the live surface's own signal): a call ended on Live, or by the caller, is
+  // a row that changed on the live feed, and nothing else announces it.
+  useLiveRead();
+  const chrome = frameChrome();
+  const bar = chrome && chrome.liveBar ? chrome.liveBar(window.__LIVE, Date.now()) : null;
+  // A second, so the clock reads like a clock, and only while a call is up.
+  const up = !!bar;
+  useEffect(() => {
+    if (!up) return undefined;
+    const t = window.setInterval(tick, CLOCK_SECOND_MS);
+    return () => window.clearInterval(t);
+  }, [up]);
+  if (!bar) return null;
+  const open = () => window.CHANLY?.nav?.(bar.callId ? `live/${bar.callId}` : "live");
+  return (
+    <button type="button" className="live-bar" onClick={open} data-testid="live-bar">
+      <span className="live-dot" aria-hidden="true" />
+      <span className="live-bar-text">{bar.text}</span>
+      {bar.sinceMs !== null && (
+        <span className="live-bar-clock tabular">
+          {chrome && chrome.fmtClock ? chrome.fmtClock(Math.floor(bar.sinceMs / CLOCK_SECOND_MS)) : ""}
+        </span>
+      )}
+      {bar.checking && <span className="live-bar-checking">still marked live · checking</span>}
+      <span className="live-bar-go">
+        <Glyph name="arrow-right" size={12} />
+      </span>
+    </button>
+  );
+}
+
+// The shell's one line, under the top bar: this device offline, the receptionist paused, a newer build, surfaces that
+// stopped refreshing, the live feed not coming through -- one at a time, with the one press that helps. Which one, its
+// words and its press are contracts' (chrome.ts shellStatusLine); the status is the bridge's (legacy-bridge/shell.ts). The
+// live region stays mounted while all is well, so the next change is announced.
+const SHELL_STATUS_ICON: Record<string, string> = {
+  offline: "alert",
+  paused: "pause",
+  preview: "eye",
+  stale: "sparkle",
+  degraded: "clock",
+  disconnected: "bolt",
+};
+
+/** What redraws the line: the shell's status, the billing surface (the pause rides with it), and a preview of a role. */
+function useStatusRedraws() {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    const evs = ["shell:status", "surface:billing", "team:changed"];
+    evs.forEach((e) => window.addEventListener(e, bump));
+    return () => evs.forEach((e) => window.removeEventListener(e, bump));
+  }, []);
+}
+
+/** The line as contracts word it, from the bridge's status, the workspace's pause and an owner's preview of a role. */
+const statusLineNow = () => {
+  // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
+  const B = window.__BILLING_ACCOUNT;
+  const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
+  const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+  const chrome = frameChrome();
+  return chrome
+    ? chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused, previewing })
+    : null;
+};
+
+type StatusLine = NonNullable<ReturnType<typeof statusLineNow>>;
+
+/** The line's one press: Billing, out of the preview, a reload, or every surface read again (busy, not disabled). */
+const pressOf = (line: StatusLine | null, busy: boolean, setBusy: (b: boolean) => void) => () => {
+  if (!line) return;
+  if (line.action === "billing") {
+    window.CHANLY?.nav?.("admin/billing");
+    return;
+  }
+  if (line.action === "exit-preview") {
+    if (window.ST_STORE && window.ST_STORE.setViewAs) window.ST_STORE.setViewAs(null);
+    return;
+  }
+  if (line.action === "reload") {
+    window.location.reload();
+    return;
+  }
+  // Busy, not disabled: the focus stays on the button, and a second press waits for the first read.
+  if (line.action === "retry" && window.__shell && !busy) {
+    setBusy(true);
+    void Promise.resolve(window.__shell.retry())
+      .catch(() => {})
+      .then(() => setBusy(false));
+  }
+};
+
+export function ShellStatusBar() {
+  const Glyph = frameGlyph();
+  useStatusRedraws();
+  const [busy, setBusy] = useState(false);
+  const line = statusLineNow();
+  const press = pressOf(line, busy, setBusy);
+  return (
+    <div className="shell-status-slot" role="status" aria-live="polite">
+      {line && (
+        <div className={`shell-status tone-${line.tone}`} data-kind={line.kind} data-testid="shell-status">
+          <Glyph name={SHELL_STATUS_ICON[line.kind] || "alert"} size={13} />
+          <span className="shell-status-words">
+            <span className="shell-status-text">{line.text}</span>
+            {line.detail && <span className="shell-status-detail">{line.detail}</span>}
+          </span>
+          {line.cta && (
+            <button
+              type="button"
+              className="btn btn-sm shell-status-cta"
+              onClick={press}
+              aria-busy={busy || undefined}
+              data-testid="shell-status-cta"
+            >
+              {busy && line.busy ? line.busy : line.cta}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

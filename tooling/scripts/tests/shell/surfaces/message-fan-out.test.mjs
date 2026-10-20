@@ -7,7 +7,7 @@
  *
  * Run on the real overrides' routing through the real runner, with each read recorded instead of made: a message
  * re-reads the Inbox, Conversations and Today, and the page on screen; a surface that let one pass is read once as its
- * page comes on screen. And the shell (app-shell.jsx on a stub React, over the real signal): the reads of a message
+ * page comes on screen. And the shell (surfaces/frame/app-shell.tsx on a stub React, over the real signal): the reads of a message
  * move nothing for a page that draws none of them, and one redraw for Today.
  *
  * A message's UPDATE (00327: a send's ticks, a failure written late) is told for each receipt, so it is heard by
@@ -934,7 +934,7 @@ test("the page that owns what it draws is an explicit one: the surface registry 
 
 /* ------------------------------- the shell's draws ------------------------------- */
 
-// app-shell.jsx on a stub React that counts what would make React draw it again: a setter that changed its value, or
+// The frame (surfaces/frame/app-shell.tsx) on a stub React that counts what would make React draw it again: a setter that changed its value, or
 // a store the component reads that said it moved.
 let cells = {};
 let redraws = 0;
@@ -1007,7 +1007,10 @@ win.drawRoute = (r) => ({
   content: null,
   mountKey: r.routeKey,
 });
-await import("../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
+// The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by; TypeScript, so its hooks are this
+// file's stub's (the "react" module's, set from it).
+(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+win.ChanlyticsApp = (await importSrc("apps/dashboard/src/surfaces/frame/app-shell.tsx")).ChanlyticsApp;
 
 /** The shell at `hash`, drawn: the redraws it would ask for from here on are counted. */
 function shellAt(hash) {
@@ -1181,7 +1184,10 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const ts = (await import("typescript")).default;
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
-  for (const file of repoFiles(["apps/dashboard/src/legacy"], { keep: /.jsx$/ })) {
+  // The shell's pages, and the frame's parts that left them for TypeScript and call the shell's hook by name (surfaces/frame).
+  for (const file of repoFiles(["apps/dashboard/src/legacy", "apps/dashboard/src/surfaces/frame"], {
+    keep: /\.(jsx|tsx)$/,
+  })) {
     const sf = parse(file);
     const visit = (n) => {
       if (

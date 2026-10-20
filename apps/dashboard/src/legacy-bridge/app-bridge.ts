@@ -429,7 +429,7 @@ interface ShellEvents {
 }
 
 /**
- * The shell's own events (`shell:menu`, `shell:top`), heard by app-shell.jsx once it has mounted. The bridge is
+ * The shell's own events (`shell:menu`, `shell:top`), heard by surfaces/frame/shell-hooks.ts once it has mounted. The bridge is
  * installed as the page's script loads, seconds before the shell compiles and mounts, so the app's More tab asked for
  * the drawer before anything listened and the drawer never opened. An ask that arrives before the shell says
  * `shell:ready` waits: the last menu ask is replayed then; a scroll to the top of a page not yet drawn is dropped.

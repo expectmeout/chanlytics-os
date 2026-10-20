@@ -145,7 +145,7 @@ const pageRouteOf = (pathname: string): string => {
 /**
  * The frame, drawn once and again for each route: `page` is the children while the address is a route with a page of
  * its own, and nothing otherwise; `route` is the route of the router's pathname, the one the pages read, so the frame
- * and the page move in the same render (app-shell.jsx `routeNow`). Null on the home, which has no route.
+ * and the page move in the same render (surfaces/frame/app-shell.tsx `routeNow`). Null on the home, which has no route.
  */
 const Frame = memo(function Frame({ page, route }: { page: ReactNode; route: string | null }) {
   return <LegacyApp routePage={page} route={route} />;

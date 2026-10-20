@@ -1,6 +1,6 @@
 /**
  * What a drawn tree shows of a keyboard key, for the tests that hold the app to one list of keys: the ? sheet
- * (components/shortcuts.jsx, over contracts' SHORTCUTS). Ruben, 23 Sep 2026: "remove all display of these keyboard
+ * (surfaces/frame/shortcuts.tsx, over contracts' SHORTCUTS). Ruben, 23 Sep 2026: "remove all display of these keyboard
  * symbols throughout the site while keeping functionality we built ... we already have the keyboard shortcuts on the
  * user nav sidebar that is enough." Every key still works; only the sheet says so.
  *

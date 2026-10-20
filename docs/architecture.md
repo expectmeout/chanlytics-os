@@ -409,7 +409,7 @@ honest:
 
 The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
 deal board) are parked by decision: each address draws the "Not in this release"
-card (`src/legacy/pages/app-routes.jsx`). Their mockups, the seeded Lists and Ask
+card (`src/surfaces/frame/route-table.tsx`). Their mockups, the seeded Lists and Ask
 palette and the seed data only they read lived under `src/legacy/demo/` until
 17 October 2026 (the closed-loop audit's S2): git keeps them. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.

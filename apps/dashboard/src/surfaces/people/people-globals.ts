@@ -1,8 +1,8 @@
 /**
  * People's parts that the shell still draws or calls by name (decision 0015, step 5: "what is shared moves once"). The
  * pages written against `people.jsx`, `people-table.jsx` and `clients-bits.jsx` have all moved (Leads last, step 9): what
- * is left are the shell's own readers -- the strip's scopes (components/surface-tabs.jsx), the two sheets the frame draws
- * once and the verbs that ask for them (pages/app-shell.jsx). (The demo's seeded Lists page read some too, until it went on
+ * is left are the shell's own readers -- the strip's scopes (surfaces/frame/surface-tabs.tsx), the two sheets the frame draws
+ * once and the verbs that ask for them (frame/app-shell.tsx). (The demo's seeded Lists page read some too, until it went on
  * 17 Oct 2026.)
  * Each is published under the name it always had, from this one object, which seed-globals publishes before any page
  * loads. It is deleted, name by name, as the last reader of each moves. Nothing else goes in here: a part a page imports

@@ -1,6 +1,6 @@
 /**
  * People's two sheets as the frame publishes them (people-globals.ts): the deal sheet (0008) and the step sheet (0007,
- * amended), each drawn once by the frame (app-shell.jsx) and asked for from anywhere by name (`window.openDealSheet`,
+ * amended), each drawn once by the frame (frame/app-shell.tsx) and asked for from anywhere by name (`window.openDealSheet`,
  * `window.openStepSheet`: the person's card, a thread, the Calendar's visit, the Pipeline). Their code is a chunk of its own
  * (code.ts), fetched once the frame is idle, or at once when a sheet is asked for before that: in the frame it was
  * about 17 KB, compressed, that every first load parsed before any page could draw (the loadability review, 19 Oct 2026).

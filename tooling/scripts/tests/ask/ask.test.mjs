@@ -1375,9 +1375,9 @@ test("the store never scopes by hand: RLS is the door", () => {
 });
 
 test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, and the Line is the only palette", () => {
-  const tb = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
+  const tb = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = readCode("apps/dashboard/src/surfaces/frame/app-shell.tsx");
   assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
   assert.ok(!shell.includes("Ask stubbed outside demo"));
   // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (ask-real.jsx) everywhere, and
@@ -1587,13 +1587,16 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     cfg.includes("frame-ancestors 'none'"),
     "and the page can never be framed, so (self) is only ever this app",
   );
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-chrome.tsx");
   assert.ok(
     shell.includes('className="phone-ask"') &&
-      shell.includes("onClick={openAsk}") &&
+      shell.includes("onClick={s.openAsk}") &&
       shell.includes('data-testid="phone-ask"'),
   );
-  assert.ok(shell.includes("{!askOpen && !navOpen && ("), "hidden while the palette or the drawer is open");
+  assert.ok(
+    shell.includes("if (s.askOpen || s.navOpen) return false;"),
+    "hidden while the palette or the drawer is open",
+  );
   const askCss = readRaw("apps/dashboard/src/legacy/styles/ask.css");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),

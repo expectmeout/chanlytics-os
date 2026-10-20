@@ -1539,9 +1539,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
       reg.includes("w.__surfaceRetired = surfaceRetiredTo;"),
     "retired, and where to",
   );
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
   assert.ok(
-    shell.includes("if (retiredTo) window.CHANLY.address.go(retiredTo, { replace: true });"),
+    shell.includes("if (retiredTo) shellAddress().go(retiredTo, { replace: true });"),
     "a real workspace lands on People",
   );
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.

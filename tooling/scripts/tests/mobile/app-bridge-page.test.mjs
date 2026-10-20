@@ -306,7 +306,7 @@ test("REGRESSION: a push that arrives before the workspaces read lands leaves th
 });
 
 test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {
-  // The bridge is installed as the page's script loads, seconds before app-shell.jsx mounts and listens: the More
+  // The bridge is installed as the page's script loads, seconds before the frame (surfaces/frame/app-shell.tsx) mounts and listens: the More
   // tab's one ask used to arrive with nobody listening, and the drawer never opened.
   const { win, fire } = windowOf();
   const off = installAppBridge(win);

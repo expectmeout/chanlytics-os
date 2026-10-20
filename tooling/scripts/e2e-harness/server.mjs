@@ -30,6 +30,7 @@ import { templatesRead } from "./templates-read.mjs";
 import {
   inboxGlobalsBundle,
   frameGlobalsBundle,
+  frameAppBundle,
   kitGlobalsBundle,
   askLineGlobalsBundle,
   legacyDocument,
@@ -252,6 +253,10 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/data/frame-globals.js") {
         send(res, 200, TYPES[".js"], await frameGlobalsBundle());
+        return;
+      }
+      if (p === "/data/frame-app.js") {
+        send(res, 200, TYPES[".js"], await frameAppBundle());
         return;
       }
       if (p === "/data/inbox-globals.js") {

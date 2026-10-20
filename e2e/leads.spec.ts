@@ -263,7 +263,7 @@ test.describe("Leads on a real workspace", () => {
     await row.getByTestId("lead-keep").click();
     await expect.poll(() => kept.length).toBe(1);
     // The toast, by its own class: the shell keeps a role="status" slot of its
-    // own (topbar.jsx), so asking for the role alone finds two.
+    // own (frame/topbar/topbar.tsx), so asking for the role alone finds two.
     await expect(page.locator(".pp-toast").first()).toContainText("It counts as a lead this month.");
     await page.getByRole("button", { name: "Undo" }).click();
     await expect.poll(() => undone.length).toBe(1);

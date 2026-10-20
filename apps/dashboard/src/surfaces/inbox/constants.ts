@@ -1,5 +1,5 @@
 /**
- * The values the Inbox reads off the shell's `CHANLY` (data/constants.jsx): the confidence thresholds, the seed clock, the
+ * The values the Inbox reads off the shell's `CHANLY` (frame/constants.ts): the confidence thresholds, the seed clock, the
  * routes it links to, and how a dollar change is said. The shell's copy stays for the pages that have not moved and goes
  * with the frame; these are the same words, so a page drawn from either says the same thing.
  */

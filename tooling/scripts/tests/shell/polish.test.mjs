@@ -117,10 +117,10 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
-  const topbar = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
+  const topbar = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(
-    topbar.includes("{window.__DEMO_MODE && (") &&
-      topbar.indexOf("{window.__DEMO_MODE && (") < topbar.indexOf('btnClass="btn btn-ghost btn-sm tb-presence"'),
+    topbar.includes("{isDemoFrame() && tbPresence()}") &&
+      topbar.includes('btnClass="btn btn-ghost btn-sm tb-presence"'),
     "presence is the mockup's",
   );
 });

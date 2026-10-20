@@ -93,7 +93,7 @@ export const EDGE_TOLERANCE = 1 / 8;
 
 /**
  * The simulated seconds each route is given, one at a time, letting the requests each second started finish in real
- * time before the next: ten, past the longest wait a route has (app-shell.jsx: a surface that never lands is said to
+ * time before the next: ten, past the longest wait a route has (surfaces/frame/shell-hooks.ts: a surface that never lands is said to
  * be unavailable after 8s), so the Inbox's strip that a 1s interval brings in, and Leads' unavailable pane, are there
  * in every recording.
  */

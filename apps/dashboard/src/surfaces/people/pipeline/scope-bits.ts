@@ -48,6 +48,6 @@ export const pipeComposeIn = (
   nav(person.openThread);
 };
 
-// Where a thread is, as the shell's route builders say it (data/constants.jsx CHANLY.R.thread): a row's menu and the peek
+// Where a thread is, as the shell's route builders say it (frame/constants.ts CHANLY.R.thread): a row's menu and the peek
 // open their conversation by it.
 export const pipeThreadRoute = (id: string | null): string => `inbox/${String(id)}`;
