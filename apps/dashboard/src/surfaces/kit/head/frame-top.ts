@@ -1,5 +1,5 @@
-/** The tops watched now, each by the measure that sets its height. */
-const measures = new Set<() => void>();
+/** The tops watched now, each with the measure that sets its height. */
+const watched = new Map<HTMLElement, () => void>();
 /** Whether the top's height is held where it is (holdFrameTop). */
 let heightHeld = false;
 
@@ -29,11 +29,11 @@ export function watchFrameTop(top: HTMLElement): () => void {
   sized.observe(top);
   under();
   size();
-  measures.add(size);
+  watched.set(top, size);
   return () => {
     window.removeEventListener("scroll", under);
     sized.disconnect();
-    measures.delete(size);
+    watched.delete(top);
   };
 }
 
@@ -43,7 +43,12 @@ export function watchFrameTop(top: HTMLElement): () => void {
  * the observer's answer came after, a frame late, with the page a strip's height out.
  */
 export function measureFrameTop(): void {
-  for (const size of measures) size();
+  for (const size of watched.values()) size();
+}
+
+/** The tops watched now: what a list put back where it stood keeps its row under (kit/motion/held-list.ts). */
+export function frameTopsWatched(): HTMLElement[] {
+  return [...watched.keys()];
 }
 
 /**

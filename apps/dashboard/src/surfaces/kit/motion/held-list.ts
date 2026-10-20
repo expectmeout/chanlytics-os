@@ -21,16 +21,17 @@
  *   the list. What the row's page drew in the frame's top for itself (a person's ‹ People and ‹ ›) goes with the page, as a
  *   still copy (`heldAlong`);
  * - in the draw that takes the row's page away, by whatever Back (a thumb, its arrow, Safari's edge, Android's) and before
- *   the first paint, the list is put back with that row where it stood, and again once the frame's head is drawn over it,
- *   which can be a draw later (a page says its standing as it is drawn). A row added above it while away is passed over;
- *   with the row gone, the scroll is put back as it was.
+ *   the first paint, the list is put back with that row where it stood, and kept there for a moment after: whatever is
+ *   drawn again above it once the Back has landed (the frame's head naming the page, a strip, a count, a row) is answered
+ *   before the paint, as Chromium's scroll anchoring does and Safari's lacks, until the screen is touched (`keepRow`). A
+ *   row added above it while away is passed over; with the row gone, the scroll is put back as it was.
  * A list's rows (kit/rows/shown-rows.ts) and its page's place in the tab (People's use-place.ts) hear nothing of the window
  * while it is held, and the page's place is not put back a second time over this one (`heldPutBack`).
  * One list is held at a time: one row's page is on the screen at a time.
  */
 import { useLayoutEffect, useRef } from "react";
 import { pagesOwnTop } from "../head/frame-head";
-import { holdFrameTop, measureFrameTop } from "../head/frame-top";
+import { frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
 import { inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
@@ -45,6 +46,10 @@ const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "
 const CHROME = "[data-chrome]";
 /** Over the frame's chrome, as the page carried is (components.css, data-going). */
 const ALONG_LAYER = "202";
+/** How long a list put back keeps its row where it stood against what is drawn again above it (keepRow). */
+const KEEP_MS = 1000;
+/** What ends that sooner: the screen touched, a key, a wheel. A scroll is not one: the keeping's own scrolls are scrolls. */
+const KEEP_ENDS = ["pointerdown", "keydown", "wheel"] as const;
 
 /** Where a list stood as its row opened. */
 interface Place {
@@ -83,6 +88,8 @@ interface Carry {
 }
 
 let carrying: Carry | null = null;
+/** The keeping of a row put back, to end (keepRow); null with none. */
+let keeping: (() => void) | null = null;
 
 /** Where a box's view of what it scrolls begins on the screen: under what stands over it (its scroll padding). */
 function viewTop(scroller: HTMLElement): number {
@@ -151,6 +158,7 @@ function pictureOf(was: Held): void {
 
 /** The list is held, from the place taken before the row's page was drawn. */
 function holdList(place: Place, owner: object): void {
+  keeping?.();
   if (holding) letListGo(holding);
   const { list } = place;
   const now: Held = { place, owner, copy: null, idle: 0 };
@@ -188,13 +196,36 @@ function putListBack(owner: object): void {
   placeList(was.place);
   putBack.add(list);
   backNow = list;
-  // A page says its standing as it is drawn, so the frame's head over the list can be drawn a draw after this one (People's
-  // name over its list, where the person's page had none), once React is done and before the paint: the list stood a head's
-  // height out until the top's observer caught up, then jumped (Ruben, 20 Oct 2026). Placed again under the head as drawn.
   queueMicrotask(() => {
     if (backNow === list) backNow = null;
-    placeList(was.place);
   });
+  keepRow(was.place);
+}
+
+/**
+ * The row kept where it stood for a moment after the list is put back. What stands over and above it can be drawn again
+ * after the draw that put it back (the frame's head naming the page as the page says so, a strip, a count read again), and
+ * the column starts under the frame's top (mobile.css, --frame-top): Chromium keeps the row in view by itself (scroll
+ * anchoring), Safari keeps nothing, and on an iPhone the list moved by each change (Ruben, 20 Oct 2026, "a layout shift
+ * on the table page when swiping back"). Watched as the list and the top are sized, which is after each is laid out and
+ * before the paint, from the first frame on. Ends at the first touch, key or wheel, or once the moment has passed.
+ */
+function keepRow(place: Place): void {
+  keeping?.();
+  if (typeof ResizeObserver !== "function") return;
+  const watch = new ResizeObserver(() => placeList(place));
+  watch.observe(place.list);
+  for (const top of frameTopsWatched()) watch.observe(top);
+  const end = (): void => {
+    if (keeping !== end) return;
+    keeping = null;
+    watch.disconnect();
+    window.clearTimeout(timer);
+    for (const kind of KEEP_ENDS) window.removeEventListener(kind, end, true);
+  };
+  const timer = window.setTimeout(end, KEEP_MS);
+  for (const kind of KEEP_ENDS) window.addEventListener(kind, end, { capture: true, passive: true });
+  keeping = end;
 }
 
 /** The list put where it stood, against the frame's top as it will be painted, not as its observer last measured it. */

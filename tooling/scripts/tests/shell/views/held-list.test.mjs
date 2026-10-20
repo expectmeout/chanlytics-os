@@ -99,6 +99,28 @@ const put = (parent, child) => {
 
 const calls = [];
 const idle = [];
+/** What the window was asked to run later, and what it hears, by kind. */
+const timers = [];
+const heard = new Map();
+/** The window hears `kind` (a touch, a key), as a browser tells every listener. */
+const fire = (kind) => [...(heard.get(kind) ?? [])].forEach((fn) => fn({ type: kind }));
+/** Each ResizeObserver made, with the boxes it watches; `sized(box)` is the browser telling them that box was laid out. */
+const observers = new Set();
+globalThis.ResizeObserver = class {
+  constructor(fn) {
+    this.fn = fn;
+    this.boxes = new Set();
+    observers.add(this);
+  }
+  observe(box) {
+    this.boxes.add(box);
+  }
+  disconnect() {
+    this.boxes.clear();
+    observers.delete(this);
+  }
+};
+const sized = (box) => [...observers].filter((o) => o.boxes.has(box)).forEach((o) => o.fn([]));
 const html = element("html", { height: 4000 });
 // The document's own marks (data-carrying) and the frame's top's height (--frame-top), as the hold writes them.
 html.attrs = new Set();
@@ -124,10 +146,12 @@ const win = {
   },
   requestIdleCallback: (fn) => idle.push(fn),
   cancelIdleCallback() {},
-  setTimeout: (fn) => idle.push(fn),
-  clearTimeout() {},
-  addEventListener() {},
-  removeEventListener() {},
+  setTimeout: (fn) => timers.push(fn),
+  clearTimeout(id) {
+    timers[id - 1] = null;
+  },
+  addEventListener: (kind, fn) => (heard.get(kind) ?? heard.set(kind, new Set()).get(kind)).add(fn),
+  removeEventListener: (kind, fn) => heard.get(kind)?.delete(fn),
 };
 globalThis.window = win;
 globalThis.getComputedStyle = win.getComputedStyle;
@@ -199,6 +223,7 @@ const inbox = ({ scrolled = 1500 } = {}) => {
   const main = put(body, element("main", { height: 3000 }));
   const list = put(main, element("list", { at: 220, height: 2400 }));
   const rows = Array.from({ length: 30 }, (_, i) => put(list, element("option", { at: 220 + 80 * i, height: 80 })));
+  fire("pointerdown");
   win.scrollY = scrolled;
   // The row under the frame's top, as the screen shows it now.
   globalThis.document.at = rows.find((r) => r.getBoundingClientRect().bottom > 141) ?? null;
@@ -438,14 +463,6 @@ test("what the row's page drew in the frame's top for itself goes with the page,
 test("while a thumb carries the row's page, the frame's top keeps its height, so the page under the finger never moves", () => {
   // The top draws its chrome again under the page, and the page starts under the top (--frame-top): measured as it grew,
   // the page went down by all of it under the finger. Held, it is measured again once the carry is over.
-  const sizes = [];
-  globalThis.ResizeObserver = class {
-    constructor(fn) {
-      sizes.push(fn);
-    }
-    observe() {}
-    disconnect() {}
-  };
   const top = element("frame-top", { height: 0 });
   top.offsetHeight = 0;
   top.hasAttribute = () => false;
@@ -458,7 +475,7 @@ test("while a thumb carries the row's page, the frame's top keeps its height, so
   p.draw(true);
   showHeld(true);
   top.offsetHeight = 134;
-  sizes.forEach((fn) => fn());
+  sized(top);
   assert.equal(html.style["--frame-top"], "0px", "the chrome drawn again under the page moves nothing");
   showHeld(false);
   assert.equal(html.style["--frame-top"], "134px", "measured once the carry is over");
@@ -466,9 +483,16 @@ test("while a thumb carries the row's page, the frame's top keeps its height, so
   p.leave();
 });
 
-test("the list is placed again once the frame's head is drawn over it, a draw after it came back, before the paint", async () => {
-  // People says its name to the frame's head as it is drawn, so the head over its list came in a draw after the list
-  // was put back: placed under the top as it was then, the list stood 33px up the screen and jumped down a frame later.
+test("what is drawn again over the list once the Back has landed moves nothing: the row is kept where it stood, before the paint", async () => {
+  // People's name and its strip are drawn over its list after the draw that puts it back (the page says its standing as it
+  // is drawn, the frame its crumbs), the column starts under the frame's top, and a count is read again: each moved the list
+  // on an iPhone, which keeps no row in view as Chromium does (Ruben, 20 Oct 2026, "a layout shift on the table page when
+  // swiping back"). Watched as the list and the top are sized, which is after each is laid out and before the paint.
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = 100;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stopTop = watchFrameTop(top);
   const { list, rows } = inbox();
   const p = page(list);
   p.draw(false);
@@ -480,10 +504,53 @@ test("the list is placed again once the frame's head is drawn over it, a draw af
   assert.equal(row.getBoundingClientRect().top, was);
   assert.ok(cameBack(rows[3]), "what is drawn again as it comes back is told it came back, as often as it asks");
   assert.ok(cameBack(rows[3]));
-  for (const r of rows) r.at += 33; // the head over it, drawn a draw later
+  // The head grows by People's name: the top is sized, and the column under it starts 33px further down.
+  top.offsetHeight = 133;
+  for (const r of rows) r.at += 33;
+  sized(top);
+  assert.equal(html.style["--frame-top"], "133px");
+  assert.equal(row.getBoundingClientRect().top, was, "under the head as drawn, where it stood");
+  // A count above the rows read again: the list is sized.
+  for (const r of rows) r.at += 4;
+  sized(list);
+  assert.equal(row.getBoundingClientRect().top, was, "and again");
   await Promise.resolve();
-  assert.equal(row.getBoundingClientRect().top, was, "where it stood, under the head as drawn");
   assert.equal(cameBack(rows[3]), false, "the draw done, it is a list like any other");
+  // Touched, the list is the reader's: what moves it after that is theirs to see.
+  fire("pointerdown");
+  for (const r of rows) r.at += 10;
+  sized(list);
+  assert.equal(row.getBoundingClientRect().top, was + 10, "nothing kept once the screen is touched");
+  stopTop();
+  p.leave();
+});
+
+test("the row is kept only for a moment, and no longer than until another row opens", () => {
+  const { list, rows } = inbox();
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  p.draw(false);
+  assert.equal(timers.length > 0, true, "the moment is timed");
+  timers.splice(0).forEach((fn) => fn && fn());
+  for (const r of rows) r.at += 20;
+  sized(list);
+  assert.equal(row.getBoundingClientRect().top, was + 20, "the moment over, nothing is kept");
+  // Put back again, then another row opened at once: the keeping of the first ends as the second is held.
+  for (const r of rows) r.at -= 20;
+  p.draw(true);
+  p.draw(false);
+  const second = page(list);
+  second.draw(false);
+  globalThis.document.at = rows[5];
+  second.draw(true);
+  const scrolled = win.scrollY;
+  for (const r of rows) r.at += 50;
+  sized(list);
+  assert.equal(win.scrollY, scrolled, "a list held again is not scrolled by the keeping before it");
+  second.leave();
   p.leave();
 });
 
