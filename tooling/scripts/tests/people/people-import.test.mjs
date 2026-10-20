@@ -1,7 +1,8 @@
 /**
- * Import people, drawn on the stub React and run: the pasted rows read, the columns matched, the counts said before
- * anything is written, the door called in parts of fifty under one import id, a refusal said by the Save, a stop said
- * at the file's own line, and the summary in the owner's words.
+ * Import people, drawn on the stub React and run: the pasted rows read, the columns matched (the file's own word under
+ * each head), the counts said on the sheet's one line before anything is written, the door called in parts of fifty
+ * under one import id, a refusal said on that line, a stop said at the file's own line with the rest one press away, and
+ * the summary in the owner's words.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +14,7 @@ const W = globalThis.window;
 // The sheet, its plan and the kit's own RecordSheet and FieldError it draws: the TSX over the stub React
 // (installLegacyReact has put the stub's hooks on the react module), the door the real verb over a recorded fake wire.
 const { PeopleAddSheet } = await importSrc("apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
-const { plImportPlan, plImportCountWords, plImportColumnWords } = await importSrc(
+const { plImportPlan, plImportReadWords, plImportColumnWords, plImportHeads } = await importSrc(
   "apps/dashboard/src/surfaces/people/import/plan.ts",
 );
 assert.equal(typeof PeopleAddSheet, "function");
@@ -83,21 +84,25 @@ test("pasted rows are read and counted before anything is written; the door is c
   fresh();
   const draw = () => Sheet(props);
   let tree = again(draw);
-  assert.equal(byTestId(tree, SAVE), null, "nothing to save before a file is read");
+  // The foot holds its shape before a file is read: Import stands, and pressing it writes nothing.
+  assert.equal(textOf(byTestId(tree, SAVE)), "Import");
+  press(byTestId(tree, SAVE));
+  assert.equal(parts.length, 0, "an Import with nothing read sends nothing");
   assert.equal(byTestId(tree, "import-preview"), null, "and nothing to preview");
   byTestId(tree, "import-paste").props.onChange({ target: { value: csv(60) } });
   tree = again(draw);
   press(byTestId(tree, "import-read"));
   tree = again(draw);
   assert.equal(parts.length, 0, "reading the rows writes nothing");
-  const counts = textOf(byTestId(tree, "import-counts"));
-  for (const words of ["61 rows", "60 with a number", "60 with an email", "1 with neither"]) {
-    assert.ok(counts.includes(words), `"${counts}" says ${words}`);
+  assert.equal(textOf(byTestId(tree, "import-counts")), "60 to add · 1 with no number or email");
+  const chosen = textOf(byTestId(tree, "import-chosen"));
+  for (const words of ["Pasted rows", "61 rows", "Change"])
+    assert.ok(chosen.includes(words), `"${chosen}" says ${words}`);
+  const preview = textOf(byTestId(tree, "import-preview"));
+  for (const words of ["Name", "Mobile", "Email", "and 55 more"]) {
+    assert.ok(preview.includes(words), `"${preview}" says ${words}`);
   }
-  const columns = textOf(byTestId(tree, "import-columns"));
-  for (const words of ["name “Name”", "mobile “Mobile”", "email “Email”", "1 row has neither"]) {
-    assert.ok(columns.includes(words), `"${columns}" says ${words}`);
-  }
+  assert.equal(byTestId(tree, "import-columns"), null, "a file with a header says its columns under the heads");
   assert.equal(textOf(byTestId(tree, SAVE)), "Import 60 people");
 
   press(byTestId(tree, SAVE));
@@ -114,10 +119,10 @@ test("pasted rows are read and counted before anything is written; the door is c
   assert.ok(!parts.some((p) => p.rows.some((r) => r.name === "Nobody")), "the row with neither never goes");
 
   const summary = textOf(byTestId(tree, "import-summary"));
-  for (const words of ["58 new", "2 already here", "60 emails added", "1 skipped"]) {
+  for (const words of ["58 people added", "2 already here", "60 emails added", "1 skipped"]) {
     assert.ok(summary.includes(words), `"${summary}" says ${words}`);
   }
-  assert.ok(!summary.includes("could not be added"), summary);
+  assert.equal(byTestId(tree, "import-failed"), null, "nothing failed");
   assert.ok(
     textOf(byTestId(tree, "import-skipped")).includes("Line 62: No number and no address."),
     "the file's own line",
@@ -132,7 +137,7 @@ test("pasted rows are read and counted before anything is written; the door is c
   assert.ok(textOf(toasts[0].msg).includes("58 new people, 2 already here"), textOf(toasts[0].msg));
 });
 
-test("a part the door refuses stops the import and says so by the Save; nothing after it is sent", async () => {
+test("a part the door refuses stops the import and says so on the sheet's line; nothing after it is sent", async () => {
   const asked = importWire(() =>
     json(403, { ok: false, error: { code: "forbidden", message: "Only the owner can import people." } }),
   );
@@ -149,21 +154,23 @@ test("a part the door refuses stops the import and says so by the Save; nothing 
   assert.ok(byTestId(tree, "import-preview"));
 });
 
-test("a part the door stops mid-way ends the import at the file's own line, and the summary says what went through", async () => {
+test("a part the door stops mid-way ends the import at the file's own line; the rest is one press away and goes on from there", async () => {
   const parts = importWire((_body, n) =>
     n === 1
       ? json(200, { ok: true, data: went({ added: 49, existed: 1, emails_set: 50 }) })
-      : // The door's lines are counted within the part: its first row is the file's line 52, its third line 54.
-        json(200, {
-          ok: true,
-          data: went({
-            added: 2,
-            emails_set: 2,
-            skipped: [{ line: 1, reason: "Not a number we can text." }],
-            failed: [{ line: 3, message: "The people table is not taking writes right now." }],
-            stopped: true,
-          }),
-        }),
+      : n === 2
+        ? // The door's lines are counted within the part: its first row is the file's line 52, its third line 54.
+          json(200, {
+            ok: true,
+            data: went({
+              added: 2,
+              emails_set: 2,
+              skipped: [{ line: 1, reason: "Not a number we can text." }],
+              failed: [{ line: 3, message: "The people table is not taking writes right now." }],
+              stopped: true,
+            }),
+          })
+        : json(200, { ok: true, data: went({ added: 8, emails_set: 8 }) }),
   );
   let { draw, tree } = readSixty({ onClose() {}, flash() {} });
   press(byTestId(tree, SAVE));
@@ -174,7 +181,7 @@ test("a part the door stops mid-way ends the import at the file's own line, and 
     "Stopped at line 54: The people table is not taking writes right now.",
   );
   const summary = textOf(byTestId(tree, "import-summary"));
-  for (const words of ["51 new", "1 already here", "52 emails added", "2 skipped", "1 could not be added"]) {
+  for (const words of ["51 people added", "1 already here", "52 emails added", "8 not tried yet"]) {
     assert.ok(summary.includes(words), `"${summary}" says ${words}`);
   }
   const skipped = textOf(byTestId(tree, "import-skipped"));
@@ -185,7 +192,23 @@ test("a part the door stops mid-way ends the import at the file's own line, and 
   assert.ok(
     textOf(byTestId(tree, "import-failed")).includes("Line 54: The people table is not taking writes right now."),
   );
-  assert.equal(byTestId(tree, SAVE), null, "a stopped import is not tried again from the summary");
+  // The rest, from the row it stopped at (P52, the file's line 54), under the same import id.
+  assert.equal(textOf(byTestId(tree, SAVE)), "Try the other 8");
+  press(byTestId(tree, SAVE));
+  tree = await drawnWhen(
+    draw,
+    (t) => !!byTestId(t, "import-summary") && textOf(byTestId(t, "import-summary")).includes("59 people added"),
+    "the import finished",
+  );
+  assert.equal(parts.length, 3);
+  assert.equal(parts[2].import_id, parts[0].import_id, "one import id for the whole file");
+  assert.equal(parts[2].rows[0].name, "P52");
+  assert.equal(parts[2].rows.length, 8);
+  const all = textOf(byTestId(tree, "import-summary"));
+  for (const words of ["59 people added", "1 already here", "60 emails added", "2 skipped"]) {
+    assert.ok(all.includes(words), `"${all}" says ${words}`);
+  }
+  assert.equal(byTestId(tree, SAVE), null, "done: nothing left to try");
 });
 
 test("a part refused after others went through ends the import at the line it began; the summary says what went through", async () => {
@@ -205,27 +228,31 @@ test("a part refused after others went through ends the import at the line it be
     "Stopped at line 52: Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.",
   );
   const summary = textOf(byTestId(tree, "import-summary"));
-  for (const words of ["49 new", "1 already here", "50 emails added", "1 skipped"]) {
+  for (const words of ["49 people added", "1 already here", "50 emails added", "10 not tried yet"]) {
     assert.ok(summary.includes(words), `"${summary}" says ${words}`);
   }
-  assert.ok(!summary.includes("could not be added"), summary);
-  assert.equal(byTestId(tree, SAVE), null, "what went through is not tried again from the summary");
+  assert.equal(byTestId(tree, "import-failed"), null, summary);
+  assert.equal(textOf(byTestId(tree, SAVE)), "Try the other 10", "the rest from the line it stopped at");
   assert.equal(byTestId(tree, "import-preview"), null);
 });
 
-test("rows with no header are told apart by what is in them, and one row is said in the singular", () => {
+test("rows with no header are told apart by what is in them; a header's own words stand under each head", () => {
   const plan = plImportPlan("Ana Ruiz,(646) 555-0101\n");
   assert.equal(plan.header, false);
   assert.deepEqual(
     plan.people.map((p) => [p.line, p.name, p.phone, p.email]),
     [[1, "Ana Ruiz", "+16465550101", null]],
   );
-  assert.equal(plImportCountWords(plan.counts), "1 row · 1 with a number · 0 with an email · 0 with neither");
+  assert.equal(plImportReadWords(plan.counts), "1 to add");
   assert.equal(plImportColumnWords(plan), "No header row: the columns were told apart by what is in them.");
-  const headed = plImportPlan("Client,Correo\nAna,ana@example.com\n");
+  assert.deepEqual(plImportHeads(plan), ["Name", "Mobile", "Email"]);
+  const headed = plImportPlan("Client,Correo\nAna,ana@example.com\nNobody\n");
   assert.equal(plImportColumnWords(headed), "Columns: name “Client”, mobile not found, email “Correo”.");
-  assert.equal(
-    plImportCountWords(plImportPlan("").counts),
-    "0 rows · 0 with a number · 0 with an email · 0 with neither",
-  );
+  assert.deepEqual(plImportHeads(headed), [
+    { label: "Name", from: "Client" },
+    { label: "Mobile", from: null },
+    { label: "Email", from: "Correo" },
+  ]);
+  assert.equal(plImportReadWords(headed.counts), "1 to add · 1 with no number or email");
+  assert.equal(plImportReadWords(plImportPlan("").counts), "0 to add");
 });

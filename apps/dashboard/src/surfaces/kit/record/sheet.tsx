@@ -68,6 +68,8 @@ interface RecordSheetProps {
   sub?: ReactNode;
   onClose: (e?: MouseEvent<HTMLButtonElement>) => void;
   tools?: ReactNode;
+  /** The tools on the title's line, between it and the Close, where a strip under the head would stand (the kit's Sheet's). */
+  toolsInLine?: boolean;
   foot?: ReactNode;
   closeLabel?: string;
   className?: string;
@@ -84,6 +86,12 @@ interface RecordSheetProps {
   children?: ReactNode;
   /** Back closes it, as the kit's Sheet's does (sheet/back.ts): named in the address where it is a name. */
   backCloses?: boolean | string;
+  /**
+   * On a phone it keeps the height it opened at, whatever comes and goes in it (Add people: a way switched, a note
+   * written, a list read): its head never moves under the thumb, and what it holds past that height scrolls in its body.
+   * The keyboard still takes from it (kit.css, "A steady sheet").
+   */
+  steady?: boolean;
 }
 
 // The sheet rises from the bottom at the kit's one phone width (record.css, focus.ts recPhoneQuery): there a pull down
@@ -110,6 +118,7 @@ function sheetHead(props: RecordSheetProps) {
           </p>
         ) : null}
       </div>
+      {props.toolsInLine && props.tools ? <div className="rec-sheet-line">{props.tools}</div> : null}
       <button
         type="button"
         className="rec-sheet-close"
@@ -192,6 +201,7 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
         // From the bottom, on a phone: kit.css draws its grabber and steps its ✕ out of sight beside a foot that closes,
         // and record.css lets it be as tall as what it holds, its height gliding as that changes (place, below).
         data-phone={h.phone ? "true" : undefined}
+        data-steady={props.steady ? "true" : undefined}
         role="dialog"
         aria-modal={true}
         aria-labelledby={titleId}
@@ -220,7 +230,7 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
         data-testid={testid || (id ? `rec-sheet-${id}` : undefined)}
       >
         {sheetHead(props)}
-        {tools ? <div className="rec-sheet-tools">{tools}</div> : null}
+        {tools && !props.toolsInLine ? <div className="rec-sheet-tools">{tools}</div> : null}
         <div className="rec-sheet-body">{children}</div>
         {sheetFoot(props)}
       </section>
@@ -271,6 +281,8 @@ export function RecordSheet(props: RecordSheetProps) {
       const was = box.current;
       box.current = el;
       glide(el);
+      // A steady sheet's height is what it held as it opened, read once, here (kit.css reads it on a phone only).
+      if (el && el.dataset.steady) el.style.setProperty("--sheet-steady", `${el.offsetHeight}px`);
       if (el) {
         wash.current = el.previousElementSibling || null;
         since.current = Date.now();

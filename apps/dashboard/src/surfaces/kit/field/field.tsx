@@ -53,6 +53,12 @@ type FieldWords = {
   autoFocus?: boolean;
   /** Whether the browser checks the spelling of what is typed: off for a name, a code. */
   spellCheck?: boolean;
+  /** What the browser may fill it with: a person's name, their number, their address. */
+  autoComplete?: string;
+  /** What a phone's return key says: the next box, or the act it does. */
+  enterKeyHint?: "next" | "go" | "done" | "enter";
+  /** The id of the words said for it outside the field (a group's one line, `look="row"`), which describe its box. */
+  "aria-describedby"?: string;
   control?: undefined;
 } & FieldName;
 
@@ -90,6 +96,13 @@ type FieldControl = {
 export type FieldProps = {
   hint?: ReactNode;
   className?: string;
+  /**
+   * How it stands: a label over its box, or a row of a group (`.rec-rows`), its label beside a box the group's inset
+   * draws, as a phone's settings rows do (Add people's details, 20 Oct 2026).
+   */
+  look?: "box" | "row";
+  /** Marked wrong where the words for it are said once for its group (a row's), not under it. */
+  invalid?: boolean;
   /** Pressing the label: for a control no label can be `for`, which the page hands the focus. */
   onLabelPress?: () => void;
   /** The id the hint is drawn with, for a control that is not Base UI's to point its `aria-describedby` at. */
@@ -113,6 +126,9 @@ function Box({ box, invalid }: { box: FieldBox; invalid: boolean }) {
     onKeyDown: box.onKeyDown,
     autoFocus: box.autoFocus,
     spellCheck: box.spellCheck,
+    autoComplete: box.autoComplete,
+    enterKeyHint: box.enterKeyHint,
+    "aria-describedby": box["aria-describedby"],
   };
   const control =
     box.rows === undefined ? (
@@ -132,16 +148,16 @@ function Box({ box, invalid }: { box: FieldBox; invalid: boolean }) {
 /** A field: a label, a box or a control, and a hint or what is wrong. */
 export function Field(props: FieldProps) {
   const { label, hint, problem, problemGlyph, className } = props;
-  const invalid = problem !== undefined;
+  const invalid = problem !== undefined || !!props.invalid;
   return (
-    <BaseField.Root className={cx("rec-field", className)} invalid={invalid}>
+    <BaseField.Root className={cx("rec-field", props.look === "row" && "rec-field-row", className)} invalid={invalid}>
       {label === undefined ? null : (
         <BaseField.Label onClick={props.onLabelPress}>
           <span className="rec-field-label">{label}</span>
         </BaseField.Label>
       )}
       {props.control ?? <Box box={props} invalid={invalid} />}
-      {invalid ? (
+      {problem !== undefined ? (
         <BaseField.Error match className="field-error" render={<span role="alert" />}>
           {problemGlyph}
           <span className="field-error-words">{problem}</span>

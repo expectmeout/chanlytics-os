@@ -557,7 +557,8 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
     frames.begin();
     return PeopleAddSheet({ onClose() {}, onAdded() {}, canImport: false, flash() {} });
   };
-  byTestId(add(), "add-person-phone").props.onChange({ target: { value: "646 555" } });
+  // The number's box is the kit's Field, a row of its group: typed through what the field says as it changes.
+  byTestId(add(), "add-person-phone").props.onValueChange("646 555");
   // The record sheet's Save hands back nothing to wait on: the refusal settles, then the sheet is drawn again.
   byTestId(add(), "rec-sheet-save-people-add").props.onClick();
   for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0));

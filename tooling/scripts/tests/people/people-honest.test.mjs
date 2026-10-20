@@ -1388,7 +1388,8 @@ test("on a phone Sort sorts as a desktop's headings do, Add people adds one pers
     tree = draw();
     assert.ok(find(tree, (n) => n.type === PeopleAddSheet));
     assert.equal(byTestId(tree, "add-person-phone").props.type, "tel", "a phone's number pad");
-    byTestId(tree, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
+    // The box is the kit's Field, a row of the sheet's group: typed through what the field says as it changes.
+    byTestId(tree, "add-person-phone").props.onValueChange("+1 786 555 0100");
     tree = draw();
     // The record sheet's Save hands back nothing to wait on: the add settles, then the page is drawn again.
     byTestId(tree, "rec-sheet-save-people-add").props.onClick();

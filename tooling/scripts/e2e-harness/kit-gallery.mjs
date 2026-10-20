@@ -1163,6 +1163,19 @@ export const FAMILIES = [
           `<div class="input">${icon("search", 14)}` +
           `<input placeholder="Search people" aria-label="Search people"><span class="kbd">/</span></div>`,
       },
+      {
+        // Field's `look="row"` in its group (.rec-rows): Add people's details, each label beside its box.
+        id: "field-rows",
+        html:
+          `<div class="rec-rows">` +
+          `<div class="rec-field rec-field-row"><label><span class="rec-field-label">Name</span></label>` +
+          `<input class="rec-input" type="text" value="Ana Ruiz"></div>` +
+          `<div class="rec-field rec-field-row"><label><span class="rec-field-label">Mobile</span></label>` +
+          `<input class="rec-input" type="tel" value="(646) 555-0101"></div>` +
+          `<div class="rec-field rec-field-row"><label><span class="rec-field-label">Note</span></label>` +
+          `<textarea class="rec-input" rows="2" placeholder="Optional"></textarea></div>` +
+          `</div>`,
+      },
     ],
   },
   {
