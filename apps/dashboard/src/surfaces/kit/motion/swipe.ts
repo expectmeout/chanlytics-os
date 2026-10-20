@@ -271,12 +271,18 @@ const placeUnder = (below: readonly HTMLElement[], width: number, share: number)
     el.style.opacity = String(UNDER_DIM + (1 - UNDER_DIM) * s);
   }
 };
+// Put back as it stands, never animated: given back with the carry's own transition gone, the tab bar's (mobile.css, on
+// translate and opacity) played from where the carry left it to the same place, and on an iPhone its glass drew again.
 const clearUnder = (below: readonly HTMLElement[]) => {
+  if (!below.length) return;
   for (const el of below) {
-    el.style.transition = "";
+    el.style.transition = "none";
     el.style.translate = "";
     el.style.opacity = "";
   }
+  // Drawn so before the page's own transitions are theirs again.
+  void below[0].offsetWidth;
+  for (const el of below) el.style.transition = "";
 };
 // What goes with a page carried back, `dx` across, on `move` (a transition, or none while the finger holds it).
 const moveAlong = (along: readonly HTMLElement[], dx: number, move: string) => {

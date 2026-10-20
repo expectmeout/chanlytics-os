@@ -1013,8 +1013,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow: visible;
     overflow-x: clip;
   }
+  /* A list held under the thread it opened (kit/motion/held-list.ts, data-held) keeps the shape it had on the page, which
+     the thread's takeover would take from it: its rows in a box of their own stood 4px off where they landed. */
   .main-scroll.pane > .inbox:not([data-takeover]) .ix-threads,
   .main-scroll.pane > .conversations:not([data-takeover]) .cv-rows,
+  .main-scroll.pane > .inbox > [data-held] .ix-threads,
+  .main-scroll.pane > .conversations > [data-held] .cv-rows,
   .main-scroll.pane > .clients .cl-main-scroll {
     flex: none;
     overflow: visible;

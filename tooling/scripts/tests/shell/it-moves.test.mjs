@@ -463,7 +463,7 @@ test("a page opened over its list is pushed in as the swipe back played forward,
   );
   assert.equal(page.el.style.pointerEvents, "none", "no touch until it has landed");
   assert.deepEqual(grabs, [[true, true]], "the page is told it is carried over its list");
-  await wait(500);
+  await wait(700);
   assert.deepEqual(
     grabs,
     [
@@ -478,6 +478,11 @@ test("a page opened over its list is pushed in as the swipe back played forward,
     "landed, the page's own rules have it",
   );
   assert.deepEqual([list.el.style.translate, list.el.style.opacity, band.el.style.transform], ["", "", ""]);
+  assert.deepEqual(
+    list.of("transition", "translate", "opacity").slice(-4),
+    ["transition: none", "translate: ", "opacity: ", "transition: "],
+    "given back as it stands, never animated: its own transition (the tab bar's) is given back after, with nothing to play",
+  );
 });
 
 test("under reduced motion a page opened over its list is simply there", async () => {

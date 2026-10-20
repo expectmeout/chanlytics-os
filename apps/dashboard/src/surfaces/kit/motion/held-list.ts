@@ -54,6 +54,8 @@ const CHROME = "[data-chrome]";
  * a page scrolled down passes under the top, and drew over what went with it as it moved.
  */
 const ALONG_LAYER = "204";
+/** The frames the screen draws of a list put back, hidden under its picture, before the two change places (coverLanding). */
+const COVER_FRAMES = 2;
 /** How long a list put back keeps its row where it stood against what is drawn again above it (keepRow). */
 const KEEP_MS = 1000;
 /** What ends that sooner: the screen touched, a key, a wheel. A scroll is not one: the keeping's own scrolls are scrolls. */
@@ -185,16 +187,21 @@ export function pushesOver(list: HTMLElement | null): boolean {
   return !!place && pushesOverBox(place.scroller);
 }
 
-/** A still picture of a list kept out of the document, laid where the list stood, for a thumb to uncover. */
-function pictureOf(was: Held): void {
-  const { list, box } = was.place;
-  if (holding !== was || !list.isConnected) return;
+/** A still picture of `list` as it stands, laid at `box` beside it and out of sight (`data-held`) until shown. */
+function pictureAt(list: HTMLElement, box: Place["box"]): HTMLElement {
   const copy = stillCopyOf(list) as HTMLElement;
   copy.style.removeProperty("display");
   copy.dataset.held = "";
   standAt(copy, box);
   list.after(copy);
-  was.copy = copy;
+  return copy;
+}
+
+/** A still picture of a list kept out of the document, laid where the list stood, for a thumb to uncover. */
+function pictureOf(was: Held): void {
+  const { list, box } = was.place;
+  if (holding !== was || !list.isConnected) return;
+  was.copy = pictureAt(list, box);
 }
 
 /** The list is held, from the place taken before the row's page was drawn. */
@@ -251,9 +258,14 @@ function letListGo(was: Held): void {
 function putListBack(owner: object): void {
   const was = holding;
   if (!was || was.owner !== owner) return;
+  const cover = isDocumentScroller(was.place.scroller) ? coverOf(was) : null;
   letListGo(was);
   const { list } = was.place;
-  if (!list.isConnected || list.getClientRects().length === 0) return;
+  if (!list.isConnected || list.getClientRects().length === 0) {
+    cover?.remove();
+    return;
+  }
+  if (cover) coverLanding(cover, list);
   placeList(was.place);
   putBack.add(list);
   backNow = list;
@@ -262,6 +274,46 @@ function putListBack(owner: object): void {
   });
   keepRow(was.place);
   pressedUntilTouched();
+}
+
+/**
+ * The picture a list put back where the window scrolls it comes back under (coverLanding): the one that stood in for it,
+ * kept from being let go, or one taken of it now, as it stands where it was left; with nothing of a thumb's carrying on it.
+ */
+function coverOf(was: Held): HTMLElement | null {
+  const { list, box } = was.place;
+  const laidOut = list.isConnected && list.getClientRects().length > 0;
+  const cover = was.copy ?? (laidOut ? pictureAt(list, box) : null);
+  was.copy = null;
+  for (const name of ["translate", "opacity", "transition"]) cover?.style.removeProperty(name);
+  return cover;
+}
+
+/**
+ * A list put back where the window scrolls it comes back hidden under a picture of it, standing where it was left, until
+ * the screen has drawn it there; then the two change places in one frame. The window jumps as the list comes back (an open
+ * thread held the page to one screen, a person's page was its own length), and an iPhone draws the window's new place a
+ * frame after the jump, where it had not drawn it before: the list stood blank for that frame under the frame's head, strip
+ * and tab bar, or the foot of it did (Ruben, 20 Oct 2026). The picture is fixed to the screen, drawn wherever the window is.
+ */
+function coverLanding(cover: HTMLElement, list: HTMLElement): void {
+  cover.dataset.held = "shown";
+  list.style.visibility = "hidden";
+  const uncover = (): void => {
+    list.style.removeProperty("visibility");
+    cover.remove();
+  };
+  if (typeof window.requestAnimationFrame !== "function") {
+    uncover();
+    return;
+  }
+  let frames = COVER_FRAMES;
+  const next = (): void => {
+    frames -= 1;
+    if (frames > 0) window.requestAnimationFrame(next);
+    else uncover();
+  };
+  window.requestAnimationFrame(next);
 }
 
 /**
