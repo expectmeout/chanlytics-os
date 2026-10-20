@@ -11,7 +11,7 @@
 import { REACH_OUT_SHEET_WORDS, type HeldAnswer, type HeldChoice } from "@chanlytics/contracts";
 import { Fragment } from "react";
 import { Button } from "../../kit/button/button";
-import { Face, tileOf } from "../../kit/face/face";
+import { Face, faceTileOf } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { leadOverDoor } from "../../leads/sheet/lead-over";
@@ -61,7 +61,7 @@ interface HeldRowProps {
 }
 
 /** Why, as the card says it: the claim the check could not back, in its quotes, set in ink. */
-function whyOf(why: string) {
+function heldWhyParts(why: string) {
   return why
     .split(/(“[^”]+”)/)
     .map((part, at) =>
@@ -73,7 +73,7 @@ function whyOf(why: string) {
 function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps) {
   return (
     <div className="ro-hrow" data-testid={ids.row}>
-      <Face person={{ name: h.name }} tile={tileOf(h.name)} className="ro-tile" />
+      <Face person={{ name: h.name }} tile={faceTileOf(h.name)} />
       <div className="ro-hrow-main">
         <div className="ro-hrow-who">
           {h.leadId ? (
@@ -90,7 +90,7 @@ function HeldCardRow({ h, may, busy, said = null, onAnswer, ids }: HeldRowProps)
             <span className="ro-name">{h.name}</span>
           )}
         </div>
-        <p className="ro-hrow-why">{whyOf(h.why)}</p>
+        <p className="ro-hrow-why">{heldWhyParts(h.why)}</p>
         {may && h.answers.length > 0 ? (
           <div className="ro-hrow-acts">
             {h.answers.map((a) => (

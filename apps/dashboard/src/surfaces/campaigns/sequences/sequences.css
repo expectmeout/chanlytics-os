@@ -595,7 +595,7 @@
 .sq-hist-door {
   margin-left: auto;
 }
-.sq-hist-card {
+.sq-hist-totals {
   padding: 18px 18px 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius-3xl);
@@ -711,10 +711,10 @@
 .sq-day {
   transition: background-color var(--duration-fast) var(--ease-out);
 }
-.sq-hist-card {
+.sq-hist-totals {
   transition: opacity var(--duration-base) var(--ease-out);
 }
-.sq-hist-card[aria-busy="true"],
+.sq-hist-totals[aria-busy="true"],
 .sq-new .sq-steps-body[aria-busy="true"] {
   opacity: 0.55;
 }
@@ -732,7 +732,7 @@
     animation: none;
   }
   .sq-day,
-  .sq-hist-card,
+  .sq-hist-totals,
   .sq-new .sq-steps-body {
     transition: none;
   }
@@ -854,7 +854,7 @@
     --view-travel: 100%;
   }
   /* History's card keeps its gutter a step in on a phone; what came of it still stands three to the line. */
-  .sq-hist-card {
+  .sq-hist-totals {
     padding: 16px 16px 14px;
   }
   .sq-strip-stand {

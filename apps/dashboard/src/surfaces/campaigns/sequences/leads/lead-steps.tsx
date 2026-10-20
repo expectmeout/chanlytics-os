@@ -113,12 +113,12 @@ function LeadStartRow({
       acts={
         <>
           {/* Its doors as the run's are (the run-to-leads canvas's Open in Campaigns): inset pills, a thumb's reach. */}
-          <Button size="sm" className="sq-rail-pill" onClick={onRuns} data-testid="ld-how-it-runs">
+          <Button size="sm" className="sq-rail-go" onClick={onRuns} data-testid="ld-how-it-runs">
             {W.howItRuns} <Icon name="chevron" size={11} />
           </Button>
           <Button
             size="sm"
-            className="sq-rail-pill"
+            className="sq-rail-go"
             onClick={() =>
               addLeadsTo(row.id, row.name, row.first?.source_search_id ?? row.first?.source_could?.id ?? null)
             }

@@ -351,7 +351,7 @@ interface WhoGetsItProps {
  * press that opens and closes the list at the head's right (Ruben, 19 Oct 2026: "See the 4" and "Hide the list" stood in
  * the foot beside Approve, as wide as it), and its rows under the head once open, brought into view as they open.
  */
-export function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
+function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
   return (
     <section
       className="bc-touched bc-sheet-people bc-approval-people"

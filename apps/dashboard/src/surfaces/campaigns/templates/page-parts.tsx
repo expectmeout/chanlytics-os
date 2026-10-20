@@ -86,9 +86,10 @@ interface HeadRightProps {
  */
 export function headRight({ onNew }: HeadRightProps) {
   return (
-    // The tab's word, said as the kit's act says it (act-words.tsx): "+ New message" where the row holds it, "+ New" not.
+    // Said as the kit's act says it (act-words.tsx): "+ New template" where the row holds it, "+ New" where not. A template,
+    // never "a message": a message is what a customer gets (broadcasts-honest's word rule).
     <Button variant="primary" onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
-      <ActWords icon={<Icon name="plus" size={14} />} words="New message" />
+      <ActWords icon={<Icon name="plus" size={14} />} words="New template" />
     </Button>
   );
 }

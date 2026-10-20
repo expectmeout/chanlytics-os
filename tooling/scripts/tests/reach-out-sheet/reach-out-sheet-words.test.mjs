@@ -243,13 +243,17 @@ test("a run waiting on its owner says the decision first: how many go and of how
     opening: "Opening: its own for each",
     same: "Offer and ask: the same for all 41",
   });
-  // Approve is said once (runApproveWords): the count it releases; when it goes is the foot's, beside it.
-  assert.equal(w.approve, "Approve · 30 emails");
+  // Approve says the count it releases (the run-to-leads canvas's "Approve 2"); when it goes is the foot's, beside it.
+  assert.equal(w.approve, "Approve 30");
   assert.deepEqual([flat(w.dock.lead), w.dock.said], ["30 go from 9:40 AM", "1 held waits for you"]);
   assert.equal(w.note, "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.");
   assert.deepEqual(
-    [w.heldHead, w.heldNote],
-    ["1 held by the check", "It waits for your say. Approve sends only the 30 ready."],
+    [w.heldHead, w.heldNote.closed, w.heldNote.gated],
+    [
+      "1 held by the check",
+      "It waits for your say. Approve sends only the 30 ready.",
+      "It waits for an owner's or operator's say.",
+    ],
   );
   assert.deepEqual(w.held[0], {
     id: "s",
@@ -268,7 +272,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
 
   // Still being checked: Approve counts only the checked, the foot says the rest; an earlier day's run goes from now.
   const later = at({ checking: 5, run_for: "2026-09-26" });
-  assert.equal(later.approve, "Approve · 30 emails");
+  assert.equal(later.approve, "Approve 30");
   assert.deepEqual([later.dock.lead, later.dock.said], ["30 go from now", "5 more go once checked"]);
   assert.deepEqual(later.when, {
     lead: "From now",
@@ -312,7 +316,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
     { today: "2026-09-27", now: Date.parse("2026-09-27T17:00:00Z") },
   );
   assert.deepEqual(sunday.count, { n: 41, words: "go in the coming days", of: "of 42" });
-  assert.equal(sunday.approve, "Approve · 41 emails");
+  assert.equal(sunday.approve, "Approve 41");
   assert.deepEqual(
     [flat(sunday.when.lead), flat(sunday.dock.lead)],
     ["From tomorrow 9:40 AM", "41 go from tomorrow 9:40 AM"],
@@ -335,7 +339,7 @@ test("a run waiting on its owner says the decision first: how many go and of how
   assert.equal(flat(friday.dock.lead), "41 go from Sep 28 · 9:40 AM");
   // Nothing today and nothing to come: the count stays, and the foot says nothing goes.
   const none = at({ today: 0, later: 0, first_at: null });
-  assert.deepEqual([none.approve, none.dock.lead], ["Approve · 0 emails", "Nothing goes yet"]);
+  assert.deepEqual([none.approve, none.dock.lead], ["Approve 0", "Nothing goes yet"]);
 });
 
 test("a run approved or going says the same facts in its state: going today, the run going on without the held, its own verb in the foot", () => {
@@ -344,7 +348,8 @@ test("a run approved or going says the same facts in its state: going today, the
   const sending = live("sending");
   assert.deepEqual([sending.k, sending.count.words, sending.approve], ["Sending", "going today", null]);
   assert.deepEqual(sending.when, { lead: "Going now", rest: "one every 12 minutes as each business opens" });
-  assert.equal(sending.heldNote, "It waits for your say; the run goes on without them.");
+  assert.equal(sending.heldNote.closed, "It waits for your say; the run goes on without them.");
+  assert.equal(sending.heldNote.open, "It waits for your say; the run goes on without them.");
   assert.deepEqual([sending.dock.lead, sending.dock.said], ["Going now", "Stop keeps the rest from going"]);
   assert.equal(sending.parts[0].words, "30 going");
   const scheduled = live("scheduled");
@@ -352,7 +357,8 @@ test("a run approved or going says the same facts in its state: going today, the
     [scheduled.k, flat(scheduled.dock.lead), scheduled.dock.said],
     ["Scheduled", "Goes from 9:40 AM", "Cancel keeps it from going"],
   );
-  assert.equal(live("pending_approval").k, contracts.RUN_WAITING_SHORT);
+  // Its head says what it waits for (the run-to-leads canvas): your OK.
+  assert.equal(live("pending_approval").k, "Waits for your OK");
   // A run its owner sends (00429): what is handed to them counts, from their own inbox, and its head says whose it is.
   const owner = live("sending", { owner_sends: true, mailboxes: [] });
   assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "for you to send", null]);

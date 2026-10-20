@@ -100,7 +100,7 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
         changes ? (
           <Button
             size="sm"
-            className="sq-rail-pill"
+            className="sq-rail-go"
             onClick={() => {
               setOpened((n) => n + 1);
               setOpen(true);

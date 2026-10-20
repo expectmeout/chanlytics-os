@@ -231,7 +231,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
         ) : (
           // One card, as a run's decision is (the run-to-leads canvas): what it sent, large, and over how many days at the
           // line's end; what came of it under a hairline. It dims while the pages behind it are still being counted.
-          <div className="sq-hist-card" aria-busy={!covered || undefined}>
+          <div className="sq-hist-totals" aria-busy={!covered || undefined}>
             <div className="sq-hist-top">
               {sent ? <dl className="sq-hist-one">{figure(sent, true)}</dl> : null}
               <span className="sq-hist-days" aria-live="polite">

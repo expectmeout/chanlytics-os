@@ -162,7 +162,8 @@ const runsIn = (row: WaitRowOf<BroadcastVM>): number => (row.kind === "run" ? 1 
  */
 export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDrawn {
   const { waiting, late } = runsPending();
-  const rows = waitRowsOf(waiting, p.late === false ? [] : late, p.toSend?.open === true);
+  // To send opens as a sheet over the page (see-sheet.tsx), never under its row, so the rows never hold it open.
+  const rows = waitRowsOf(waiting, p.late === false ? [] : late);
   const acts = runActsOf(p.flash, p.acting);
   const shown = rows.slice(0, Math.max(0, room));
   const drawn = shown.flatMap((row) => {

@@ -45,7 +45,7 @@ const faceClasses = variants({
 export type FaceTile = "a" | "b" | "c" | "d";
 
 /** The hue a name's tile is drawn in: the same name, the same hue, on every row that draws it. */
-export function tileOf(name: string): FaceTile {
+export function faceTileOf(name: string): FaceTile {
   let n = 0;
   for (const ch of name) n = (n + ch.charCodeAt(0)) % 4;
   return (["a", "b", "c", "d"] as const)[n] ?? "a";

@@ -3416,7 +3416,8 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   }
   /* The held opened on a phone: the decision keeps its count and its bar, and the rows rise under it (the canvas's board
      2); when and from where come back as they fold. */
-  .ro-cols:has(.ro-held[data-open="true"]) .ro-dec :is(.ro-when, .ro-from) {
+  .ro-cols:has(.ro-held[data-open="true"]) .ro-dec .ro-when,
+  .ro-cols:has(.ro-held[data-open="true"]) .ro-dec .ro-from {
     display: none;
   }
   .cm-pane:has(.ro-scrim) {
@@ -3637,7 +3638,7 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 }
 .ro-hrow {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: var(--row-face) minmax(0, 1fr);
   gap: 12px;
   padding: 14px;
   border-top: 1px solid var(--warn-line);
@@ -3709,12 +3710,7 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   background: var(--secondary-fill);
 }
 
-/* A business: its tile, and its name, an underlined door to its lead over the page. */
-:is(.ro-hrow, .ro-mail-head, .ro-whor) > .ro-tile {
-  width: 34px;
-  height: 34px;
-  font-size: var(--text-xs);
-}
+/* A business: its tile (the kit's Face, People's 32px), and its name, an underlined door to its lead over the page. */
 :is(.ro-hrow-who, .ro-send-who, .ro-whor) > .ro-name {
   min-width: 0;
   overflow: hidden;
@@ -3898,7 +3894,7 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 }
 .ro-whor {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: var(--row-face) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   min-height: 54px;
