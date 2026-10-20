@@ -506,9 +506,10 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
      and Send sits a thumb from here. Ask comes back with the list, and is there under the page as a thumb carries it back
      (data-carrying, mobile.css). A bar docked at the foot (data-dock, mobile.css) takes the same room. */
   :root:not([data-carrying]) body:has([data-takeover]) .phone-ask { display: none; }
-  /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css). */
+  /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css); not under a page
+     a thumb carries back to its list, where the circle stands as on the list (data-carrying). */
   .phone-ask { transition: opacity var(--duration-fast) var(--ease-out), visibility 0s linear 0s; }
-  body:has([data-dock]:not([data-leaving])) .phone-ask {
+  :root:not([data-carrying]) body:has([data-dock]:not([data-leaving])) .phone-ask {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

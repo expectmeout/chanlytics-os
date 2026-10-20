@@ -685,6 +685,15 @@ export function hero(c: PageCtx) {
 const BAR_PX = 44;
 
 /**
+ * Whether what a watcher watches has gone up past the top of what shows (its root's, under the bar where a margin says so),
+ * as the page's scroll takes it: not where it went out at a side. A thumb carrying the person's page back to People takes
+ * the head off the screen across, and the dock came up as the page went, taking the tab bar and Ask's circle down under it
+ * until People landed (Ruben, 20 Oct 2026: "on swipe back it flickers").
+ */
+const scrolledAway = (seen: IntersectionObserverEntry | undefined): boolean =>
+  !!seen && !seen.isIntersecting && seen.boundingClientRect.bottom <= (seen.rootBounds?.top ?? 0) + 1;
+
+/**
  * Whether the head's name has scrolled away under a phone's top bar (canvas A's hand-off: the bar then says it, the kit
  * head's `bar`). Watched once the head is drawn; never on a desk.
  */
@@ -696,7 +705,7 @@ export function useNameAway(phone: boolean, drawn: boolean): boolean {
     const name = document.querySelector(".cl-prof-hero .cl-prof-name-line");
     if (!name) return undefined;
     // Away once it is under the bar, not only once it has left the screen.
-    const watch = new IntersectionObserver(([seen]) => setAway(!!seen && !seen.isIntersecting), {
+    const watch = new IntersectionObserver(([seen]) => setAway(scrolledAway(seen)), {
       rootMargin: `-${BAR_PX}px 0px 0px 0px`,
     });
     watch.observe(name);
@@ -717,7 +726,7 @@ export function PhoneDock({ c }: { c: PageCtx }) {
     if (!c.phone || typeof IntersectionObserver === "undefined") return undefined;
     const acts = document.querySelector('[data-testid="person-acts"]');
     if (!acts) return undefined;
-    const watch = new IntersectionObserver(([seen]) => setAway(!!seen && !seen.isIntersecting));
+    const watch = new IntersectionObserver(([seen]) => setAway(scrolledAway(seen)));
     watch.observe(acts);
     return () => watch.disconnect();
   }, [c.phone]);
