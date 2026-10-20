@@ -158,3 +158,65 @@ export function backToPeople(): void {
  * by name. Every one goes through the registry.
  */
 export const DOOR_NAMES = { askAbout, appAsk: openAsk, appNavigate: moveByName } as const;
+
+/* ------------------------------------------------- a door is a link ------------------------------------------------- */
+
+/*
+ * Moved from legacy/components/data-bits.jsx (the one-system plan's step 2). A name, a face or a chip with a page of its
+ * own is a link to that page: `<a {...routeDoor(to, go)}>`. Its address is in the href, so a long press, a middle click or
+ * a new tab opens it too, and a plain press takes the app's own way there (`go`, else CHANLY.nav), which keeps Back the
+ * app's. As a pointer reaches a door or it takes focus, its page is warmed as the sidebar's rows are (workspace.ts
+ * warmRoute: a name on a thread asked for People's page on the press), and a door to a person reads them, as People's rows
+ * do: their page is drawn only once it is whole, on any tab. The address and the person's read are the window's, read when
+ * a door is drawn, as the JSX read them: a test stands in for either there.
+ */
+const RD_PERSON = /^clients\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/[a-z]+)?$/i;
+
+/** What a link to a route spreads: the address in its href, the app's own way there on a plain press. */
+interface RouteDoorProps {
+  href: string;
+  onClick: (e?: {
+    defaultPrevented?: boolean;
+    button?: number;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+    preventDefault?: () => void;
+  }) => void;
+  onPointerEnter: (e?: { pointerType?: string }) => void;
+  onFocus: () => void;
+}
+
+type DoorWindow = Window & {
+  CHANLY?: {
+    nav?: (route: string) => void;
+    address?: { href?: (route: string) => string; warm?: (route: string) => void };
+  };
+  __warmPerson?: (id: string) => void;
+};
+
+/** The props of a link to `to` (see above). */
+export const routeDoor = (to: string, go: ((to: string) => void) | null = null): RouteDoorProps => {
+  const win = window as DoorWindow;
+  const person = RD_PERSON.exec(to);
+  const a = win.CHANLY && win.CHANLY.address;
+  const warm = () => {
+    if (person && win.__warmPerson) win.__warmPerson(person[1] ?? "");
+    if (a && a.warm) a.warm(to);
+  };
+  return {
+    href: a && a.href ? a.href(to) : `#/${to}`,
+    onClick: (e) => {
+      if (e && (e.defaultPrevented || (e.button ?? 0) > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+      if (e && e.preventDefault) e.preventDefault();
+      if (go) go(to);
+      else if (win.CHANLY && win.CHANLY.nav) win.CHANLY.nav(to);
+    },
+    // A finger is a scroll or a swipe first (legacy-verbs warmsOnReach).
+    onPointerEnter: (e) => {
+      if (!e || e.pointerType !== "touch") warm();
+    },
+    onFocus: warm,
+  };
+};

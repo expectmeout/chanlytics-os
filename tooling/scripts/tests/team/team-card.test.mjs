@@ -34,7 +34,7 @@ globalThis.window.fetch = async (url, init = {}) => {
   });
 };
 const S = "../../../../apps/dashboard/src";
-await import(`${S}/legacy/components/data-bits.jsx`);
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { MoreMenu } = globalThis;
 const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
 const { teamVerbs } = await import(`${S}/legacy-bridge/inbox-verbs.ts`);

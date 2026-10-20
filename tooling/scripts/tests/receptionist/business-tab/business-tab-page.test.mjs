@@ -28,6 +28,7 @@ import {
   atWidth,
 } from "../../_legacy-react.mjs";
 import {
+  BUSINESS_TAB,
   KNOWN,
   W,
   boxOf,
@@ -821,8 +822,7 @@ test("a save that crosses the resolver's line says so beside the lines it change
   const says = byTestId(tree, "rec-inline-says-address");
   assert.equal(textOf(byTestId(says, "rec-inline-says-address-note")), PROFILE_CROSSING_WORDS.starts);
   const next = { ...W.__SETTINGS.config.brain, profile: sparse };
-  const identity = W.__businessTab
-    .consequenceOf("address", next, "whatsapp")
+  const identity = BUSINESS_TAB.consequenceOf("address", next, "whatsapp")
     .text.split("\n")
     .filter((l) => l.trim());
   assert.equal(
@@ -1857,7 +1857,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
 });
 
 test("a viewer reads everything, is offered no act, and is told why once", () => {
-  // data-bits' real gate, over contracts' role table (roleGate): the role is the store's.
+  // the frame's real gate, over contracts' role table (roleGate): the role is the store's.
   W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
   try {
     const sent = saving();

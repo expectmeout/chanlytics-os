@@ -38,7 +38,7 @@ globalThis.window = {
   __ACTIVE_WORKSPACE: "t-salon",
   // A real workspace's session (seed-globals.ts sets it so wherever nothing set it first).
   __DEMO_MODE: false,
-  // The mockup's seeded store (data-bits.jsx), which the manifest installs before the bridge replaces it.
+  // The mockup's seeded store (surfaces/frame), which the manifest installs before the bridge replaces it.
   POLICY: {
     MODES: ["Auto", "Veto", "Ask", "Never"],
     ROWS: [{ id: "reply", def: "Veto" }],

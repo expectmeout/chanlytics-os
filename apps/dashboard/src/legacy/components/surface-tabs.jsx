@@ -71,7 +71,7 @@ const ST_GROUPS = {
 // or a finger reaches a tab, so the move that follows asks the server for nothing (workspace.ts warmRoute).
 const stAddress = () => (window.CHANLY && window.CHANLY.address) || null;
 const stWarm = (route) => { const a = stAddress(); if (a && a.warm) a.warm(route); };
-// A tab is a link, as every door is (data-bits routeDoor): its address the route's, so a middle click, a long press or a
+// A tab is a link, as every door is (frame-doors.ts routeDoor): its address the route's, so a middle click, a long press or a
 // new tab opens that view; a plain press is the app's own move (the kit's ViewTabs decides which a press is).
 const stHref = (route) => { const a = stAddress(); return a && a.href ? a.href(route) : `#/${route}`; };
 
@@ -156,7 +156,7 @@ const stripPlace = (page, param) => {
 const stripSlide = (from, to) => (from && to && from.strip === to.strip && from.at !== to.at ? (to.at > from.at ? "next" : "prev") : null);
 
 // ---- The strip under a thumb (docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md) ----------------------
-// A swipe across the page walks the strip drawn over it: data-bits' touchSwipe reads the touch and the kit's viewPager
+// A swipe across the page walks the strip drawn over it: kit/motion's touchSwipe reads the touch and the kit's viewPager
 // says what a page is (the tab beside the lit one, pressed at the lift, so a swipe is exactly a tap). A strip is walked
 // where the shell is narrow enough for a page of one column (900px), and there only where the page says it travels its
 // own width (`--view-travel`: the pager asks the deck), which is every page on a phone and People's to 900px.

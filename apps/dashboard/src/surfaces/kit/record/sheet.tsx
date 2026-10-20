@@ -6,7 +6,7 @@
  * under it and a Close; an optional strip of tools (a search, an Add); the rows, which scroll; and a foot that holds
  * still, with the page's act in it. The page behind stays readable under a wash, and takes no presses while the sheet is
  * open; a press on the wash is the sheet's Close (Cancel, where the page asks first about what was typed), as the fold's
- * is, and on a phone a pull down on the sheet from its top is the same (data-bits touchSwipe): a full screen with one
+ * is, and on a phone a pull down on the sheet from its top is the same (kit/motion/swipe.ts touchSwipe): a full screen with one
  * small X in its corner was the only way out. The kit knows nothing about what the sheet lists.
  *
  *   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
@@ -25,7 +25,7 @@
  * It is a dialog, and modal: role="dialog" with aria-modal, named by its heading and described by the line under it
  * (with an `id`; without one, named by its title). As it opens, focus moves to the sheet itself, so a screen reader
  * names it; as it closes, focus goes back to whatever opened it. Tab and Shift+Tab walk its own controls and wrap round
- * (data-bits trapTab, which counts only what Tab stops at): aria-modal tells a screen reader that nothing outside the
+ * (kit/focus/trap.ts trapTab, which counts only what Tab stops at): aria-modal tells a screen reader that nothing outside the
  * sheet is there, so focus that left it would be lost. Escape closes it, once, unless something in it took the key first
  * (a combobox's list closing): from inside the sheet its own handler hears the key first and takes it, so a fold around
  * it does not cancel as well; with focus somewhere outside it, the window hears it.
@@ -262,7 +262,7 @@ export function RecordSheet(props: RecordSheetProps) {
   // A callback ref, not an effect: React calls it with the sheet as the sheet opens and with null as it goes, which
   // is exactly when focus moves in and when it goes back.
   // What stood behind the sheet as it opened, and when: as React lets go of it, a still copy of both plays out the way
-  // it came (data-bits leaveOverlay, components.css [data-leaving]). React takes the wash first, so it is held here.
+  // it came (kit/motion/leaving.ts leaveOverlay, components.css [data-leaving]). React takes the wash first, so it is held here.
   const wash = useRef<Element | null>(null);
   const since = useRef(0);
   const glide = useHeightGlide();

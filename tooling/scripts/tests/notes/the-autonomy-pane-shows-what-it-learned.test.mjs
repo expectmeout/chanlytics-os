@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact();
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { PolicyTable, PolPhoneRows } =
   await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
 const { LearnedFromYou } = await import("../../../../apps/dashboard/src/surfaces/settings/autonomy/learned.tsx");

@@ -2,8 +2,8 @@
  * What the Inbox and Conversations still publish for the pages that have not moved (decision 0015, step 3), under the
  * names they read: the session's decisions (`IX_STORE`, which the bell, Today and the demo's pages read), the one rule of
  * what waits on you (`ixWaitsOnYou`, which only the standalone mockup's stub counts its seeded badge by: the app's badge is
- * the selector in needs-you.ts, `useNeedsYou`), and the two rules Ask reads a tab and a row by (`CV_ROUTE`,
- * `CV_IN_CHANNEL`).
+ * the selector in needs-you.ts, `useNeedsYou`). Conversations' two rules (`cvRoute`, `inChannel`) are imported from
+ * cv-rules.ts by whoever reads them.
  *
  * What is shared moves once: these were the mockup's globals, written by `data/inbox-data.jsx`,
  * `data/conversations-data.jsx`, `pages/inbox.jsx` and `pages/conversations.jsx`, and this is the one line that says them
@@ -17,15 +17,12 @@
  *
  * Nothing here is behaviour: it is the surface's own modules, said under the old names.
  */
-import { cvRoute, inChannel } from "./cv-rules";
 import { ixWaitsOnYou } from "./rules";
 import { hearPresence, IX_STORE } from "./store";
 
 export const INBOX_GLOBALS = {
   IX_STORE,
   ixWaitsOnYou,
-  CV_ROUTE: cvRoute,
-  CV_IN_CHANNEL: inChannel,
 };
 
 /** The countdowns freeze while the member is Away and thaw when they come back, from the day the surfaces start. */

@@ -193,7 +193,7 @@ function foldSheetNode(props: RecordFoldProps, d: FoldDraw) {
     <>
       {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
           reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
-          on the page. On a phone a pull down on the sheet from its top is the same Cancel (data-bits touchSwipe):
+          on the page. On a phone a pull down on the sheet from its top is the same Cancel (kit/motion/swipe.ts touchSwipe):
           the sheet rose from the bottom, and goes back the way it came. */}
       <div
         className="rec-sheet-backdrop"

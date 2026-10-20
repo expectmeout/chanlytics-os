@@ -523,7 +523,7 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   .ask-overlay { padding: 0; align-items: flex-end; background: var(--surface-veil); }
   .ask-overlay.ask-line-scrim { padding: 0; }
   /* The screen: the head, the middle that scrolls, the foot above the keys (--ask-keys) and the home bar. The keys are
-     what the document says (data-bits watchKeyboard): what a keyboard covers once it is up (--kb), and, from the moment
+     what the document says (kit/motion/keyboard.ts watchKeyboard): what a keyboard covers once it is up (--kb), and, from the moment
      a field is focused until it is up, the height the last one had (kb-expected, --kb-last), so the room is there at
      once and the browser finds the field above the keys and has nothing to move the view for. Making the room as the
      browser reported the keys, then following its word on how far it had moved the view, jumped the screen one way or

@@ -10,7 +10,6 @@ import type { PoliciesSurface } from "@/legacy-bridge/policy-store";
 import type { SettingsRecord, SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import type { CalendarSurface } from "../../calendar/surface";
 import type { calendar } from "../../calendar/verbs";
-import type { CALENDAR_PAGE } from "../../calendar/words";
 import type { SetupSurface } from "../../setup/surface";
 
 declare global {
@@ -25,9 +24,8 @@ declare global {
     __CALENDAR?: CalendarSurface | null;
     /** Setup's read (the seam's mirror, setup/surface.ts). */
     __SETUP?: SetupSurface | null;
-    /** The calendar's verbs and its page's words, as calendar/verbs.ts installCalendar publishes them. */
+    /** The calendar's verbs, as calendar/verbs.ts installCalendar publishes them. */
     __calendar?: typeof calendar;
-    __calendarPage?: typeof CALENDAR_PAGE;
   }
 }
 
@@ -38,8 +36,6 @@ export const factsNow = () => window.__FACTS;
 export const policiesNow = () => window.__POLICIES;
 export const templatesAllNow = () => window.__TEMPLATES_ALL;
 export const setupNow = () => window.__SETUP;
-/** A broken configuration in Setup's words (seed-globals.ts publishes contracts' BROKEN_CONFIG_WORDS). */
-export const brokenConfigWords = () => window.__brokenConfigWords;
 
 /* --------------------------------------------------------------- the workspace --------------------------------------------------------------- */
 
@@ -53,31 +49,15 @@ export const defaultTimezone = () => window.DEFAULT_TIMEZONE;
 
 export const calendarNow = () => window.__CALENDAR;
 export const calendarApi = () => window.__calendar;
-export const calendarPage = () => window.__calendarPage;
 
 /* -------------------------------------------------------- the frame's status and words -------------------------------------------------------- */
 
 export const surfaceFailedFn = () => window.__surfaceFailed;
 export const chromeWords = () => window.__chrome;
 
-/* ------------------------------------------- the receptionist's defaults and helpers the bridge publishes ------------------------------------------- */
+/* ------------------------------------------- the save the bridge publishes ------------------------------------------- */
 
-export const fallbackMessages = () => window.__fallbackMessages;
-export const fallbackDefaults = () => window.__fallbackDefaults;
-export const instructionsDraft = () => window.__instructionsDraft;
-export const receptionistDefaults = () => window.__receptionistDefaults;
-export const unknownDetails = () => window.__unknownDetails;
-export const composedPrompt = () => window.__composedPrompt;
 export const saveSettingsFn = () => window.__saveSettings;
-
-/* ------------------------------------------------------- a number, a link and a handoff ------------------------------------------------------- */
-
-export const samePhone = () => window.__samePhone;
-export const whyNotAPhone = () => window.__whyNotAPhone;
-export const whyNotAHandoff = () => window.__whyNotAHandoff;
-export const phoneDisplay = () => window.__phoneDisplay;
-export const normalizeLink = () => window.__normalizeLink;
-export const handoffE164 = () => window.__handoffE164;
 
 /* ------------------------------------------------------------------ the log ------------------------------------------------------------------ */
 

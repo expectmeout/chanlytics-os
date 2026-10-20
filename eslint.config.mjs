@@ -290,6 +290,8 @@ export const KIT_PENDING = [
   "apps/dashboard/src/surfaces/leads",
   "apps/dashboard/src/surfaces/setup",
   "apps/dashboard/src/surfaces/settings",
+  // The frame's flash, moved from data-bits.jsx as the JSX drew it (the one-system plan, step 2).
+  "apps/dashboard/src/surfaces/frame",
 ];
 
 /** The rule on raw elements, over src/surfaces but the kit and the folders `pending` lists. Its test lists one. */

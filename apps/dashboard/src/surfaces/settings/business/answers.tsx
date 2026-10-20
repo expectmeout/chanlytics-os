@@ -25,7 +25,14 @@
 // (the file-length ratchet's 800 lines); the notes, the owner's own words, the three messages and the two rows the first
 // run draws too are here; the cards that compose them, tab.tsx.
 
-import { FALLBACK_ROWS, type BrainConfig, type BusinessProfile, type GuardrailsInForce } from "@chanlytics/contracts";
+import {
+  FALLBACK_DEFAULTS,
+  FALLBACK_ROWS,
+  fallbackMessages,
+  type BrainConfig,
+  type BusinessProfile,
+  type GuardrailsInForce,
+} from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate } from "../../legacy-verbs";
@@ -41,7 +48,7 @@ import { btoStoredZone } from "./open";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
-import { factsNow, fallbackDefaults, fallbackMessages, instructionsDraft, policiesNow } from "./shell";
+import { factsNow, policiesNow } from "./shell";
 
 type FoldProps = ComponentProps<typeof BtFold>;
 
@@ -305,11 +312,9 @@ type FallbacksDraft = Partial<Record<FallbackKey, unknown>>;
 
 /** What a customer would read with the messages as typed and the details as the brain holds them, by message. */
 const btaReads = (d: FallbacksDraft, brain: PreviewBrain, link: string) => {
-  const make = fallbackMessages();
-  if (typeof make !== "function") return {};
   if (!BTA_FALLBACK_ROWS.some(({ key }) => /\{/.test(typeof d[key] === "string" ? d[key] : ""))) return {};
   const voiceLine = factsNow()?.facts?.voice_line?.value || null;
-  return make(
+  return fallbackMessages(
     {
       business_name: String(brain.business_name || "").trim() || "your business",
       booking_link: link,
@@ -378,7 +383,7 @@ const BtaFallback = ({
   readOnly: boolean;
 }) => {
   const { key, label, when } = row;
-  const defaults: Partial<Record<FallbackKey, string>> = fallbackDefaults() || {};
+  const defaults: Partial<Record<FallbackKey, string>> = FALLBACK_DEFAULTS;
   const text = typeof d[key] === "string" ? d[key] : "";
   const shown = /\{/.test(text) ? reads[key] : null;
   // A link or a number written out stays as written when the details change; a name follows them. The rule is
@@ -598,12 +603,9 @@ const btaTransfer = (profile: Profile): string | null | undefined => {
   return transferFact.value ? phoneShown(transferFact.value) : null;
 };
 
-/** The words of the owner's own opening, which needs the bridge's instructionsDraft (S4): without it the row says nothing it cannot back. */
+/** The words of the owner's own opening (S4), as the instructions fold opens with them. */
 const btaOwnOpening = (stored: Config): string | null => {
-  const own =
-    typeof instructionsDraft() === "function"
-      ? (businessTabSave.draftOf("extra_instructions", stored) as OwnDraft)
-      : null;
+  const own = businessTabSave.draftOf("extra_instructions", stored) as OwnDraft;
   return own ? BUSINESS_TAB.instructionsWords(own.text as string).opening : null;
 };
 

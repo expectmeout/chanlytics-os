@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { kitHooks } from "../_legacy-react.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -190,7 +191,9 @@ globalThis.window = {
     if (timers[h - 1]) timers[h - 1].cleared = true;
   },
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// The toast is TSX (surfaces/frame/flash.tsx), and takes its hooks from "react": this file's stub, set there.
+kitHooks();
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The file ends with its tip: the last listener of each type it added as it loaded is the tip's.
 const tipHeard = Object.fromEntries(Object.entries(allHeard).map(([type, fns]) => [type, fns[fns.length - 1]]));
 const usePPToast = globalThis.window.usePPToast;

@@ -209,9 +209,9 @@ installLegacyReact({
 const SRC = "../../../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
-// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work
 // rule (record-fold) and the record sheet. The pages themselves are TSX (decision 0015) and imported below.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, {
   useHotkey: () => {},
@@ -5138,7 +5138,7 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
   const verbs = () =>
     BcRunVerbs({ row: toBroadcastVM(stale, ZONE), ...acts, approve: (row) => void broadcasts.approve(row.id) });
   try {
-    // Where the shell gates a control (data-bits gatedProps), the button carries the verb's own sentence.
+    // Where the shell gates a control (frame-globals gatedProps), the button carries the verb's own sentence.
     globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
     let approve = byTestId(verbs(), "bc-approve");
     assert.equal(approve.props["aria-disabled"], true);

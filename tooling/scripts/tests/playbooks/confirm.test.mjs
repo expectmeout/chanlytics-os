@@ -41,8 +41,8 @@ installLegacyReact({
   gate: () => ({}),
 });
 const S = "../../../../apps/dashboard/src";
-// The one Confirm is the shell's (data-bits.jsx), and so are the Team card's menu and state pill: JSX the frame loads.
-await import(`${S}/legacy/components/data-bits.jsx`);
+// The one Confirm is the shell's (surfaces/frame), and so are the Team card's menu and state pill: JSX the frame loads.
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { Confirm, MoreMenu } = globalThis;
 // The Broadcasts and Playbooks pages are TSX (decision 0015): their verbs are imported, and their surfaces are the seam's.
 const { BcRunVerbs } = await import(`${S}/surfaces/campaigns/broadcasts/run.tsx`);

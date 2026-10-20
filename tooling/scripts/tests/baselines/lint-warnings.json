@@ -81,10 +81,6 @@
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
-  "apps/dashboard/src/legacy/components/data-bits.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1
-  },
   "apps/dashboard/src/legacy/components/sidebar.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 4,
     "jsx-a11y-x/interactive-supports-focus": 1,

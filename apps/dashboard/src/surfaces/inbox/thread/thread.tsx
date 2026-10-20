@@ -56,7 +56,7 @@ const ixPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720
 /** The page each thread a thumb is carrying was grabbed in (ixGoing). */
 const goingHosts = new WeakMap<Element, Element>();
 // While a thumb carries a thread away, its list is drawn under it (components.css, data-going on the page's grid). A
-// thread let go past a third is let go of after it has left (data-bits swipeLeave closes it first), when it has no
+// thread let go past a third is let go of after it has left (kit/motion/swipe.ts swipeLeave closes it first), when it has no
 // parent: the page it was grabbed in is kept from the grab, so the mark always comes off. It stayed on, and the next
 // thread opened with its list drawn under it, the two showing through each other (Ruben, 17 Oct 2026), as the
 // campaigns' split keeps its own (cmGoing).
@@ -69,7 +69,7 @@ const ixGoing = (el: Element | null, on: boolean) => {
   host.toggleAttribute("data-going", on);
 };
 // A thread on a phone goes back to its list under the thumb, as Back does: swiped right, it follows the finger and the
-// list shows under it (data-bits touchSwipe). Nothing without a Back, and nothing wider than a phone.
+// list shows under it (kit/motion/swipe.ts touchSwipe). Nothing without a Back, and nothing wider than a phone.
 export const ixSwipeBack = (onBack: (() => void) | null | undefined): HTMLAttributes<HTMLDivElement> =>
   (onBack ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing }) : null) ?? {};
 

@@ -355,7 +355,7 @@ const useShellNavigate = (setRoute) => {
  */
 const useShellRouting = ({ route, setRoute, setReadyTick, follows }) => {
   useShellEffect(() => (follows ? window.CHANLY.address.hear(() => setRoute(parseRoute())) : undefined), [follows]);
-  // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (data-bits watchKeyboard).
+  // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (kit/motion/keyboard.ts watchKeyboard).
   useShellEffect(() => (window.watchKeyboard ? window.watchKeyboard() : undefined), []);
   // A list's own route (`segments/<id>`) is People with that list picked on a real workspace: its App Router page replaces
   // the address once People says which list an id names (surfaces/people/lists-route.tsx), and a demo keeps the seeded page.
@@ -629,7 +629,7 @@ const appChrome = (s) => {
       {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
           cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
       <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined} onPointerOver={sideWarm}>
-        {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (data-bits
+        {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade (kit/motion/swipe.ts
             touchSwipe). */}
         {navOpen && <div className="nav-backdrop" role="presentation" onClick={() => setNavOpen(false)} />}
         <Sidebar

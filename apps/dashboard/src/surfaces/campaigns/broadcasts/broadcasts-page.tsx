@@ -24,7 +24,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { SEQUENCES_ROUTE, type ConsentChannel } from "@chanlytics/contracts";
-import { backFrom, canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
+import { backFrom, canDo, useLegacyToast } from "../../legacy-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
@@ -47,7 +47,7 @@ import {
 import type { BcApproving, BcBase, BcData, BcV, BcWhole, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE, BroadcastDetail } from "./run";
-import { broadcastsSample } from "./sample";
+import { useBroadcastsDemo } from "./demo";
 
 /** What the page's state opens on: the audience a send is for, or the run open (a run's own screen, BroadcastRun). */
 interface BroadcastsPageProps {
@@ -268,7 +268,8 @@ function useBroadcastsData(): BcData | null {
   const live = useSurface("broadcasts");
   const audiences = useSurface("audiences");
   const real = useMemo(() => (live ? { ...audiences, ...live } : null), [live, audiences]);
-  return real || (demoSession() ? broadcastsSample() : null);
+  const demo = useBroadcastsDemo();
+  return real || (demo ? demo.broadcastsSample() : null);
 }
 
 /** What a run's screen is told of where it stands: its id, and, over another page, the host's toast and the sheet. */

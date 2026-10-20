@@ -159,7 +159,7 @@ test("the strip draws the page's views as the Inbox's: the picked one active and
       ["scope-pipeline", false, undefined],
     ],
   );
-  // A tab is a link (a door is a link, data-bits routeDoor): its address is the route's, so a middle click, a long press
+  // A tab is a link (a door is a link, frame-globals routeDoor): its address is the route's, so a middle click, a long press
   // or a new tab opens that view, and a plain press is the app's own move, which the browser is kept from making.
   assert.deepEqual(
     tabs.map((b) => b.props.href),

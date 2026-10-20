@@ -1,5 +1,5 @@
 /**
- * What the on-screen keyboard covers, said once for every page as --kb (data-bits watchKeyboard, 25 Sep).
+ * What the on-screen keyboard covers, said once for every page as --kb (frame-globals watchKeyboard, 25 Sep).
  *
  * A phone lays its keyboard over the page and keeps the layout's height, so a sheet fixed to the bottom kept its fields
  * and its Save under the keys; Ask's screen measured it for itself (--ask-kb). One measure now, which the shell starts
@@ -7,7 +7,7 @@
  * shown, never the focus, since a blur that dropped a sheet at once moved Save from under the finger between the press
  * and the click. A pinch zoom shrinks what is shown too, and is no keyboard.
  *
- * Run against data-bits itself, on a window and a document that answer what the helper asks of them; e2e/shell/phone.spec.ts
+ * Run against frame-globals itself, on a window and a document that answer what the helper asks of them; e2e/shell/phone.spec.ts
  * stands a sheet on it.
  */
 import { test } from "node:test";
@@ -60,7 +60,7 @@ globalThis.React = {
   useEffect() {},
   useRef: (v) => ({ current: v }),
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { watchKeyboard } = globalThis.window;
 
 const fire = (type) => (heard[type] || []).forEach((fn) => fn());

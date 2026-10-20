@@ -506,7 +506,7 @@ globalThis.window.React = globalThis.React;
 // The tab's one store for what pages keep (the place in a view: the words in the box, the cursor), which People's hooks read
 // through the bridge's own module, on this window's sessionStorage.
 const { clearTabMemory, tabMemoryFor } = await import("../../../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 installRoleStore();
 // The Leads page (its JSX compiles to the stub React above), and People › Pipeline, the third view over the same table, in the
@@ -3490,7 +3490,7 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   door.props.onClick({ type: "click" });
   assert.deepEqual(opened, ["find"], "Find leads opens Ask");
   assert.equal(byTestId(t, "leads-phone-find"), null, "the old coral square is gone");
-  // The gate reads the role, as every gate does (data-bits gate): an operator meets it at the door.
+  // The gate reads the role, as every gate does (frame-globals gate): an operator meets it at the door.
   await fresh({ role: "operator" });
   const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");
   assert.deepEqual(

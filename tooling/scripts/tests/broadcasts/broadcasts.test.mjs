@@ -74,6 +74,9 @@ const person = (over = {}) => ({
   ...over,
 });
 
+// A demo's sample is fetched only in a demo session (surfaces/campaigns/broadcasts/demo.ts): fetched once here, so a demo draws it at once.
+await (await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/demo.ts")).broadcastsDemo();
+
 test("the tables: the workspace's, members read, acting members enrol, only the state moves by session, nobody deletes; the ledger knows the verbs", () => {
   const m = readRaw("supabase/migrations/00046_broadcasts.sql");
   assert.ok(m.includes("create table public.broadcasts (") && m.includes("create table public.broadcast_recipients ("));
@@ -695,7 +698,7 @@ installLegacyReact({
 });
 const SRC = "../../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: Confirm, StatePill.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { BroadcastSend, BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
 const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);

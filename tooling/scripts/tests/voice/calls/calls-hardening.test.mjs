@@ -148,7 +148,7 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   // is drawn: the words are the ones it says, not the ones its source holds.
   installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
   const S = "../../../../../apps/dashboard/src";
-  await import(`${S}/legacy/components/data-bits.jsx`);
+  (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
   globalThis.usePPToast = () => [null, () => {}];
   const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
   const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

@@ -18,8 +18,8 @@ const reactOfDashboard = createRequire(new URL("../../../../apps/dashboard/src/l
   "react",
 );
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
-// The shell's link to a route (data-bits routeDoor), which a day's door spreads.
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// The shell's link to a route (frame-globals routeDoor), which a day's door spreads.
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const S = "../../../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);

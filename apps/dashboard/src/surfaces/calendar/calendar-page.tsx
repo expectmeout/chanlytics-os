@@ -30,7 +30,7 @@ import {
 import { useStanding } from "../kit/head/standing";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
-import { canDo, demoSession, navigate, onAPhone } from "../legacy-verbs";
+import { canDo, navigate, onAPhone } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";
@@ -40,7 +40,7 @@ import { calendarAct, calendarHead, noticeSlot, rulesSheet } from "./board-parts
 import { crPhone } from "./board-dom";
 import { RunSheet } from "./marks";
 import { wantRuns } from "./runs-surface";
-import { calendarSample, sampleRuns } from "./sample";
+import { useCalendarDemo } from "./demo";
 import { touchSwipeStaying } from "./shell-verbs";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
@@ -99,7 +99,8 @@ function ColdFrame() {
 /** The Calendar: what a real workspace's read gives, else a demo's sample, else its frame while the read is out. */
 export function CalendarPage(props: CalendarAddress) {
   const live = useSurface("calendar");
-  const C = live ?? (demoSession() ? calendarSample() : undefined);
+  const demo = useCalendarDemo();
+  const C = live ?? (demo ? demo.calendarSample() : undefined);
   // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in.
   usePartShown("calendar", "board", !!C);
   if (!C) return <ColdFrame />;
@@ -154,7 +155,8 @@ function useCalendarRuns(show: CalendarShow, nowMs: number) {
     return () => wantRuns(false);
   }, [wanted]);
   const live = useSurface("calendar_runs");
-  const dto: CalendarRunsDto | null = live?.dto ?? (demoSession() ? sampleRuns() : null);
+  const demo = useCalendarDemo();
+  const dto: CalendarRunsDto | null = live?.dto ?? (demo ? demo.sampleRuns() : null);
   usePartShown("calendar", "campaigns", !!dto, wanted ? "" : null);
   const minute = Math.floor(nowMs / MIN_MS);
   const marks = useMemo(() => (dto ? calendarRunMarksOf(dto, new Date(minute * MIN_MS)) : null), [dto, minute]);

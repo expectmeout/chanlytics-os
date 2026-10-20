@@ -315,7 +315,7 @@ export const PipelinePeek = ({
   flash?: Flash | null;
 }) => {
   if (!vm) return null;
-  // On a phone, where the peek is the whole screen, a pull down from the top of what it shows is its Close (data-bits
+  // On a phone, where the peek is the whole screen, a pull down from the top of what it shows is its Close (kit/motion
   // touchSwipe, the lead peek's rule).
   const swipe = phone ? touchSwipe({ onDown: onClose }) : {};
   // What the peek says once the person is read; worked out tried, as the card is: a person it cannot say is not a throw.

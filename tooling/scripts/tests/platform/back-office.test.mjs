@@ -1073,7 +1073,7 @@ globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
   __ME: { email: "ruben@rjcapital.io", platform_admin: true },
   canDo: () => true,
-  // The shared toast, as data-bits provides it: [node, flash].
+  // The shared toast, as frame-globals provides it: [node, flash].
   usePPToast: () => [null, () => {}],
   // The shell registers listeners on the window it is given.
   addEventListener() {},
@@ -1085,7 +1085,7 @@ globalThis.Icon = () => null;
 // expand it.
 const { AttnRow: ATTN } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 globalThis.window.AttnRow = ATTN;
-// A line's act is confirmed through the shared Confirm (data-bits.jsx): pure,
+// A line's act is confirmed through the shared Confirm (surfaces/frame): pure,
 // so the walker below expands it like any other nested component.
 globalThis.document ??= {
   body: {},
@@ -1093,13 +1093,13 @@ globalThis.document ??= {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 globalThis.Confirm = kitPages.Confirm;
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 // the kit's attention row is in kitPages now: this harness reads the props each row was handed, from its stub
 globalThis.window.AttnRow = ATTN;
-// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, () => {}];
 // The back office is TSX (surfaces/settings/platform): its hooks come from "react", which under this runner has none,
 // so each one is the stub's of the moment -- mount() below gives the stub new hooks for every mount.

@@ -135,7 +135,7 @@ export const TodayAway = () => {
       <div className="tsec-head">
         <span className="tsec-title">While you were away</span>
         <span className={`tq-count ${total ? "" : "calm"}`}>{total}</span>
-        {/* The page's last section: as its rows go, the page holds still under the thumb (data-bits holdStill). */}
+        {/* The page's last section: as its rows go, the page holds still under the thumb (kit/motion/hold-still.ts holdStill). */}
         {total > 0 && (
           <Button
             variant="quiet"

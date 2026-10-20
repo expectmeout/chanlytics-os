@@ -117,8 +117,8 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 // The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (legacy-verbs.ts).
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// data-bits publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+// frame-globals publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 const flashes = [];
 globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
 

@@ -38,7 +38,7 @@ import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { paneOfRow, settingsRowRoute } from "../frame/tabs";
-import { composedPrompt } from "./shell";
+import { composedPrompt } from "@/legacy-bridge/inbox-verbs";
 
 type PromptChannel = "whatsapp" | "voice";
 type PromptBlock = ReturnType<typeof BUSINESS_TAB.promptBlocks>[number];
@@ -96,10 +96,7 @@ export const useBtPromptSheet = (): BtPromptHold => {
 };
 
 /** The text of what the receptionist is told on a channel, as the settings read composed it; null with none. */
-const btpComposed = (channel: PromptChannel) => {
-  const compose = composedPrompt();
-  return compose ? compose(channel) : null;
-};
+const btpComposed = (channel: PromptChannel) => composedPrompt(channel);
 
 /**
  * The told section at rest: its title, who reads it on the channel last chosen, and the door. Nothing else: no count,

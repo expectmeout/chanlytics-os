@@ -9,7 +9,7 @@
  * - Activity (the wiring audit's S21): its filters had no names, the kind filter read the log on every keystroke and
  *   ate typed spaces, a slow answer could land over a newer one, and the first load showed nothing at all.
  * Run against the Settings page (surfaces/settings/frame/page.tsx), which imports the panes it draws (every one TSX:
- * surfaces/settings), on a stub React, over data-bits' real gate and contracts' role table.
+ * surfaces/settings), on a stub React, over the frame's real gate and contracts' role table.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -178,8 +178,8 @@ globalThis.React = {
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+// frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
 Object.assign(globalThis.window, kitPages);
 useStubHooks();

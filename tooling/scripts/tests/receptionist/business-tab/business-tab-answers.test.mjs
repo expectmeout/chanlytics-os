@@ -39,6 +39,7 @@ import {
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
 import {
+  BUSINESS_TAB,
   KNOWN,
   W,
   brainOf,
@@ -586,7 +587,7 @@ test("the rules fold says the rules block it will be told, with the Autonomy tab
   openFold(tree, "guardrails");
   tree = redrawTab();
   const says = byTestId(tree, "rec-fold-says-guardrails");
-  const block = W.__businessTab.consequenceOf("guardrails", W.__SETTINGS.config.brain, "whatsapp");
+  const block = BUSINESS_TAB.consequenceOf("guardrails", W.__SETTINGS.config.brain, "whatsapp");
   assert.deepEqual(partsOf(says), [["Preview what it's told", block.text]]);
   assert.match(
     block.text,
@@ -857,7 +858,7 @@ test("the hand-off fold says what each channel does in contracts' words, and the
   tree = redrawTab();
   const next = structuredClone(W.__SETTINGS.config.brain);
   next.profile.escalate_when = ["Refunds", "A price they want held"];
-  const block = W.__businessTab.consequenceOf("escalate_when", next, "whatsapp");
+  const block = BUSINESS_TAB.consequenceOf("escalate_when", next, "whatsapp");
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-escalate_when"))[0], ["Preview what it's told", block.text]);
   assert.match(block.text, /\[\[HUMAN\]\][\s\S]*- Refunds\n- A price they want held/);
   const says = byTestId(tree, "rec-fold-says-escalate_when");
@@ -998,7 +999,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
   const next = structuredClone(W.__SETTINGS.config.brain);
   next.profile.notes = [...notesOf(3), { title: "Parking", text: "Behind the building." }];
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-notes")), [
-    ["Preview what it's told", W.__businessTab.consequenceOf("notes", next, "whatsapp").text],
+    ["Preview what it's told", BUSINESS_TAB.consequenceOf("notes", next, "whatsapp").text],
   ]);
   saveFoldOf(tree, "notes");
   const expected = structuredClone(stored);

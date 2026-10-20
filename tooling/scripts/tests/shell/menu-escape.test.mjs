@@ -284,7 +284,7 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
   const portal = reactDom.createPortal;
   reactDom.createPortal = (node) => node;
   globalThis.window.matchMedia = () => ({ matches: true });
-  // data-bits' reader of a thumb, as the page has it: what the menu asks of it.
+  // the frame's reader of a thumb, as the page has it: what the menu asks of it.
   globalThis.window.touchSwipe = (o) => {
     swipe = o;
     return { onTouchStart() {}, onTouchEnd() {} };

@@ -74,7 +74,7 @@ const tbnSections = (items) => {
 
 // A dismissed note folds shut over this long (components.css .tbn-slot), so the notes under it glide up, then it goes.
 const TBN_FOLD_MS = 200;
-// While a thumb carries a note, its slot says which way (data-bits touchSwipe onGrab): the ground for that way shows
+// While a thumb carries a note, its slot says which way (kit/motion/swipe.ts touchSwipe onGrab): the ground for that way shows
 // under it, Mark read to the right and Dismiss to the left; at rest the note stands on the sheet's glass with neither.
 const tbnMoving = (el, on, way) => {
   const slot = el && el.parentElement;
@@ -130,7 +130,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   const note = (n0, inGroup) => {
     const n = asIs.get(n0.id) || n0;
     const verb = tbnVerb(n);
-    // On a phone a thumb slides the note (data-bits touchSwipe): left over Dismiss, right over Mark read while it is
+    // On a phone a thumb slides the note (kit/motion/swipe.ts touchSwipe): left over Dismiss, right over Mark read while it is
     // unread. The read note comes back read; the dismissed one stays aside while its slot folds.
     const swipe = window.touchSwipe
       ? window.touchSwipe({ onAway: () => fold(n.id), onBack: n.unread && onRead ? () => read(n.id) : null, when: tbnPhone, onGrab: tbnMoving })
@@ -205,7 +205,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   return (
     <>
       <div className="tbn-backdrop" role="presentation" onClick={onClose} />
-      {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
+      {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (kit/motion/swipe.ts touchSwipe,
           leaving). A popover under the bell on a wider screen, where neither moves it: the kit's pop panel, the glass. */}
       <div
         className="tbn-pop panel panel-pop panel-flush"

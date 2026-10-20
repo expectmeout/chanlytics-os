@@ -344,7 +344,7 @@ globalThis.React = {
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
@@ -369,16 +369,6 @@ Object.assign(globalThis.window, {
     accepted();
     return Promise.resolve({ ok: true });
   },
-  __receptionistDefaults: () => ({
-    system_prompt: "You answer for Northside Studio.",
-    fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" },
-  }),
-  __instructionsDraft: contracts.instructionsDraft,
-  __instructionsMax: contracts.INSTRUCTIONS_MAX,
-  __fallbackMessages: contracts.fallbackMessages,
-  __fallbackDefaults: contracts.FALLBACK_DEFAULTS,
-  __unknownDetails: contracts.unknownDetails,
-  __hoursLines: contracts.hoursLines,
 });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
@@ -483,18 +473,8 @@ const workspace = (over = {}, rules = {}) => {
   });
 };
 
-test("REGRESSION (S8): the Business pane's broken card says the words Setup's row says, from the bridge", () => {
-  const W = globalThis.window.__brokenConfigWords;
-  assert.ok(W && W.title && W.body, "REGRESSION: the bridge published no shared words");
-  // The words by value; the once-asked sentence by what it says, since the bridge and this file may hold contracts apart.
-  const { requested, ...words } = W;
-  const { requested: ownRequested, ...ownWords } = contracts.BROKEN_CONFIG_WORDS;
-  assert.deepEqual(words, ownWords, "contracts' own");
-  assert.equal(
-    requested("2026-09-07T13:00:00Z", NOW),
-    ownRequested("2026-09-07T13:00:00Z", NOW),
-    "and the same sentence once a repair is asked for",
-  );
+test("REGRESSION (S8): the Business pane's broken card says the words Setup's row says, contracts' own", () => {
+  const W = contracts.BROKEN_CONFIG_WORDS;
   workspace({
     __SETTINGS: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } },
   });
@@ -505,7 +485,7 @@ test("REGRESSION (S8): the Business pane's broken card says the words Setup's ro
 });
 
 test("REGRESSION (S8): the broken card asks for the repair from the card, then says when it was asked -- it said Chanlytics repairs it, with no way to ask", async () => {
-  const W = globalThis.window.__brokenConfigWords;
+  const W = contracts.BROKEN_CONFIG_WORDS;
   const asks = [];
   const broken = { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } };
   workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null } } } });

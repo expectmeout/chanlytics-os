@@ -74,9 +74,6 @@ import {
   isProductFallback,
   rulesWithoutFieldsWords,
   guardrailsInForce,
-  hoursLines,
-  MAX_INTERVALS_PER_DAY,
-  MAX_CLOSURES,
   PROFILE_LIMITS,
   profileRefusal,
   writtenOutDetail,
@@ -429,36 +426,3 @@ export const BUSINESS_TAB = {
   sameListed,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
-
-/**
- * The two the page reads beside `__businessTab`, under the names the old card read them by: the week's summary, which
- * is the composer's own run-collapsing in the Calendar's words (C3; never a second copy of "which days share their
- * hours", which is how a card and the receptionist start disagreeing), and the caps the write schema keeps, so a fold
- * offers no shift or closed day the save would refuse.
- *
- * Here, with the tab's helpers, rather than in inbox-verbs.ts, where they were the old form's: this module is also what
- * the standalone mockup is handed (serve-legacy.mjs builds it as data/business-tab.js), and the page mounted there drew
- * "Not set" over a week that had hours, and the literal caps, while they were published only to the app.
- */
-const CONFIG_LIMITS = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
-
-declare global {
-  interface Window {
-    /** The Business tab's view models, and the block of the prompt each fold writes. */
-    __businessTab?: BusinessTabHelpers;
-    __hoursLines?: typeof hoursLines;
-    __configLimits?: typeof CONFIG_LIMITS;
-  }
-}
-
-/**
- * The helpers on the window, for the standalone mockup's Business tab (serve-legacy.mjs builds this module as
- * data/business-tab.js) and the tests that draw it as the mockup does. The app installs none of them: Settings imports
- * what it draws (BUSINESS_TAB, contracts hoursLines), and the frame stopped carrying the tab's 27 KB, compressed, for a
- * window name no page of the app read but the hours line (the loadability review, 19 Oct 2026).
- */
-export function installBusinessTab(): void {
-  window.__businessTab = BUSINESS_TAB;
-  window.__hoursLines = hoursLines;
-  window.__configLimits = CONFIG_LIMITS;
-}

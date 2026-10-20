@@ -1,6 +1,6 @@
 /**
  * The strip under a thumb (docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md, and one motion for every
- * strip, 2026-10-08): what data-bits `touchSwipe` is handed for a page to walk. A swipe across the page walks the
+ * strip, 2026-10-08): what kit/motion/swipe.ts `touchSwipe` is handed for a page to walk. A swipe across the page walks the
  * strip drawn over it. The finger carries the page (the deck's view, kit/motion/view-deck.ts) and the strip's
  * highlight together; let go past the line, the tab beside the lit one is pressed, so a swipe is exactly a tap; short
  * of it, both settle back. `touchSwipe` stays the one reader of a touch: this only says what a page is.

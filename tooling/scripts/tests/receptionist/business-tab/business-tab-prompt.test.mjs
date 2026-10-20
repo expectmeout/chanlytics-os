@@ -15,6 +15,7 @@ import {
   W,
   KNOWN,
   composePromptPreview,
+  composedPrompt,
   drawTab,
   marisa,
   redrawTab,
@@ -111,7 +112,7 @@ test("what is sent beside the prompt is drawn apart, and says when it is rebuilt
   const now = byTestId(tree, "rec-prompt-now");
   assert.ok(textOf(now).includes(PROMPT_NOW.label.whatsapp), "what it is");
   assert.ok(textOf(now).includes(PROMPT_NOW.why.whatsapp), "and when it is rebuilt");
-  assert.ok(textOf(now).includes(W.__composedPrompt("whatsapp").now), "the clock the server composed, as it is");
+  assert.ok(textOf(now).includes(composedPrompt("whatsapp").now), "the clock the server composed, as it is");
   assert.doesNotMatch(textOf(now), /prompt cache/i, "the machinery is the code's to know (Ruben, 10 Oct 2026)");
   // Apart: no block of the prompt holds it.
   for (const b of cut("whatsapp")) {
@@ -451,25 +452,25 @@ test("what the receptionist is told says who reads it at rest, with one door, an
 });
 
 test("the sheet draws what the server composed, word for word, and nothing when it composed nothing", () => {
-  // Run, not read: prompt-preview.test.mjs held this by finding `window.__composedPrompt` in settings.jsx's source.
-  const was = W.__composedPrompt;
-  try {
-    const text = "A prompt the server composed.\n\nRules you must follow:\n- One rule.";
-    W.__composedPrompt = (channel) => ({ text: `${text} (${channel})`, now: "It is 7:23 PM.", tz: "America/New_York" });
-    let tree = drawPrompt();
-    const sheet = sheetOf(tree);
-    const blocks = blocksOf(tree);
-    assert.equal(
-      blocks.map((b) => textOf(find(b, (n) => classes(n).includes("bt-prompt-block-text")))).join("\n\n"),
-      `${text} (whatsapp)`,
-    );
-    assert.ok(textOf(byTestId(sheet, "rec-prompt-now")).includes("It is 7:23 PM."));
-    // Nothing composed: no section, no door, no sheet -- an empty box would say "your receptionist is told nothing".
-    W.__composedPrompt = () => null;
-    tree = drawTab({ profile: marisa });
-    assert.equal(byTestId(tree, "rec-card-told"), null);
-    assert.equal(byTestId(tree, "rec-prompt-open"), null);
-  } finally {
-    W.__composedPrompt = was;
-  }
+  // Run, not read: the sheet reads the settings read's `prompt` through composedPrompt (inbox-verbs.ts), so what the
+  // server composed is written where the read puts it.
+  const text = "A prompt the server composed.\n\nRules you must follow:\n- One rule.";
+  drawTab({ profile: marisa });
+  const composed = { whatsapp: `${text} (whatsapp)`, voice: `${text} (voice)`, now: "It is 7:23 PM." };
+  W.__SETTINGS = { ...W.__SETTINGS, prompt: { ...W.__SETTINGS.prompt, ...composed, tz: "America/New_York" } };
+  press(byTestId(redrawTab(), "rec-prompt-open"));
+  let tree = redrawTab();
+  const sheet = sheetOf(tree);
+  const blocks = blocksOf(tree);
+  assert.equal(
+    blocks.map((b) => textOf(find(b, (n) => classes(n).includes("bt-prompt-block-text")))).join("\n\n"),
+    `${text} (whatsapp)`,
+  );
+  assert.ok(textOf(byTestId(sheet, "rec-prompt-now")).includes("It is 7:23 PM."));
+  // Nothing composed: no section, no door, no sheet -- an empty box would say "your receptionist is told nothing".
+  drawTab({ profile: marisa });
+  W.__SETTINGS = { ...W.__SETTINGS, prompt: null };
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-card-told"), null);
+  assert.equal(byTestId(tree, "rec-prompt-open"), null);
 });

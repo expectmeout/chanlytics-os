@@ -21,7 +21,7 @@
  *
  * The strip of views and what moves a view are the frame's to draw and to ask until the frame itself moves (decision 0015,
  * step 13): the strip (`ViewTabs`, which the shell's SurfaceTabs draws), the page a swipe walks (`viewPager`, which it
- * hands data-bits `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
+ * hands kit/motion/swipe.ts `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
  * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (app-shell.jsx PhoneTabs).
  */
 import { Confirm } from "./confirm/confirm";

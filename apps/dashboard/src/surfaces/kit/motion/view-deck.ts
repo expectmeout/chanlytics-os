@@ -18,7 +18,7 @@
  *
  * A view is an element that is replaced when the view changes: the frame's `main`, a lens's body, a section's pane. It
  * registers with `view(owner)`, a callback ref, and says which side it arrives from with `data-slide`. `leave` is the
- * press (the strip's, kit/view-tabs), `drag` and `settle` the finger's (data-bits `touchSwipe`, through the strip's
+ * press (the strip's, kit/view-tabs), `drag` and `settle` the finger's (kit/motion/swipe.ts `touchSwipe`, through the strip's
  * pager). How far a page travels is the token `--view-travel`: its own width where the page is one column, a short
  * length on a desk, where the page leaving dims and waits and the two cross-fade. Nothing here knows which page it moves.
  * Where the window scrolls the page (a phone, motion/page-scroll.ts), the copy is pinned to the screen where it stood,

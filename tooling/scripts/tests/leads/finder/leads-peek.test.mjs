@@ -137,7 +137,7 @@ globalThis.window = {
 };
 // The shell's helpers the sheet still asks of the window by way of legacy-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet draws by way of legacy-parts off
 // the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu, found by its type and
 // read by what the sheet hands it (kitItem); the tabs are the kit's capsule (SubTabs, look "capsule"), chosen as its

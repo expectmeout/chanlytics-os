@@ -145,7 +145,7 @@ const { OWN_VERBS } = await import(`${S}/surfaces/inbox/store.ts`);
 const { AFTER } = await quiet(() => import(`${S}/legacy-bridge/refresh-map.ts`));
 const { installTabMemory } = await import(`${S}/legacy-bridge/tab-memory.ts`);
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
 const click = { stopPropagation() {}, preventDefault() {} };

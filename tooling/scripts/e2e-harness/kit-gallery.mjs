@@ -52,7 +52,7 @@ export const UNLISTED = {
   "confirm-discard":
     "Confirm's mark on a question about what was typed and not saved, which no stylesheet names (kit/confirm)",
   "pp-toast-ok":
-    "usePPToast's tone class on a confirmation, which no stylesheet names (data-bits.jsx, pp-toast-<tone>)",
+    "usePPToast's tone class on a confirmation, which no stylesheet names (frame/flash.tsx, pp-toast-<tone>)",
   "stabs-inbox": "the Inbox's strip as ViewTabs marks each strip's (stabs-<name>), which no stylesheet names",
   "stabs-campaigns": "a second strip's own mark (ViewTabs, stabs-<name>), which no stylesheet names",
   "stabs-person": "a person's tabs' own mark (ViewTabs, stabs-<name>), which no stylesheet names",
@@ -72,7 +72,7 @@ const icon = (name, size) => {
   );
 };
 
-/** What a role's gate puts on a control it refuses (data-bits gatedProps). */
+/** What a role's gate puts on a control it refuses (frame/gate.ts gatedProps). */
 const gated = (why) => `data-gated="" aria-disabled="true" aria-description="${why}" data-tip="${why}"`;
 
 /* ---- the record kit's parts, as the kit (surfaces/kit/record: row, field, fold) renders them ---- */
@@ -202,7 +202,7 @@ const dangerAsk = () =>
   `<button type="button" class="btn btn-sm btn-ghost">No</button></span></span>`;
 
 /**
- * A record sheet over its wash; `leaving` draws the still copies that play its leaving (data-bits leaving), and
+ * A record sheet over its wash; `leaving` draws the still copies that play its leaving (kit/motion/leaving.ts leaving), and
  * `asking` a question that destroys in its foot.
  */
 const recSheet = (leaving = false, asking = false, phone = false) =>
@@ -314,7 +314,7 @@ const SHEET_PARTS =
   recSheetHead("Services", "What you offer, and how long each takes.") +
   `<div class="rec-sheet-body">${SERVICE_ROWS}</div>` +
   `<footer class="rec-sheet-foot">${recFoot({ note: "Saved for every line." })}</footer>`;
-/** The one attribute the still copies that play a leaving carry (data-bits leaving). */
+/** The one attribute the still copies that play a leaving carry (kit/motion/leaving.ts leaving). */
 const going = (leaving) => (leaving ? ' data-leaving="true"' : "");
 /**
  * The kit's sheet over its wash, the composer inside; `handle` draws the handle a phone shows (a desk hides it, and the

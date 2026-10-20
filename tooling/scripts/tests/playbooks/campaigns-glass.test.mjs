@@ -35,7 +35,7 @@ const SRC = "../../../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
 // The shell's own components the pages draw by name (PolicyChip, Confirm, the record kit's sheet): the frame's JSX.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },

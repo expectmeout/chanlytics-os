@@ -19,7 +19,7 @@
  * opens over a log's coloured lines needs nothing of its own (its `solid` ground went on 10 Oct 2026).
  * On a phone (the kit's 900px) it is the kit Menu's bottom action sheet (kit.css), drawn on the document's body
  * (`data-sheet`), since a card that isolates its layers (.rec-card) held it under the tab bar. There a pull down from its
- * top lets it go, following the finger, as the kit Menu's does (data-bits touchSwipe): it drew the handle and did not
+ * top lets it go, following the finger, as the kit Menu's does (kit/motion/swipe.ts touchSwipe): it drew the handle and did not
  * answer a pull. The touch stays its own (keepTouch), so a pull on a menu opened in a sheet does not pull the sheet too.
  * There a sentence beside an item's words (a `meta` or a `hint` longer than a few words) goes under them: at the line's
  * end it broke both onto two lines, or was cut (Ruben, 14 Oct 2026, the fitted sheets: a choice reads with what it does).

@@ -633,7 +633,7 @@
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-/* Its leaving, the way it came (a still copy plays it: data-bits leaveOverlay). A copy that kept route-in as its own
+/* Its leaving, the way it came (a still copy plays it: kit/motion/leaving.ts leaveOverlay). A copy that kept route-in as its own
    animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
 @keyframes route-out {
   from { opacity: 1; transform: translateY(0); }
@@ -662,7 +662,7 @@
    width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
 @media (max-width: 900px) {
   .route-view[data-strip="people"] { --view-travel: 100%; }
-  /* A touch under a strip keeps the axis it began on. The reader (data-bits touchSwipe) picks one at 8px: mostly down,
+  /* A touch under a strip keeps the axis it began on. The reader (kit/motion/swipe.ts touchSwipe) picks one at 8px: mostly down,
      a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
      ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
      2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
@@ -1080,7 +1080,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   .tbn-dot { left: 8px; top: 20px; }
   .tbn-item.in-group .tbn-open { padding-left: 54px; }
   .tbn-item.in-group .tbn-dot { left: 42px; }
-  /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (data-bits
+  /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (kit/motion/swipe.ts
      touchSwipe onBack, onAway). Only the way the note is going shows, and only while it moves (topbar.jsx tbnMoving,
      `data-moving`), fading as it settles back: at rest the notes stand on the sheet's glass, with no ground under them.
      Both stood under every note, so a slide to the right showed the red of Dismiss. A dismissed note stays slid aside
@@ -1098,7 +1098,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 }
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
-   standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, data-bits touchSwipe), rising and leaving
+   standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, kit/motion/swipe.ts touchSwipe), rising and leaving
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
 .tbn-handle { display: none; }
 @media (max-width: 720px) {
@@ -1541,7 +1541,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash). */
 .sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: var(--surface-wash); }
 .sb-sheet {
-  /* Centred in what the phone shows over its keyboard (--kb, data-bits watchKeyboard). */
+  /* Centred in what the phone shows over its keyboard (--kb, kit/motion/keyboard.ts watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
   /* The glass every sheet and menu wears (kit.css, "What pops over the page"): the pop's glass ground under the control
@@ -1761,8 +1761,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    A dialog, a sheet or a palette appeared and went in a single frame: a hard cut on the calm page around it. Each
    now comes in the way it sits -- a centred dialog rises a few pixels as it fades up, a side sheet slides in from its
    edge, a sheet from the bottom of a phone rises from there -- and the wash behind it fades. It leaves the same way,
-   faster and speeding up as it goes (--ease-in), by a still copy of itself React no longer holds (data-bits
-   leaving, [data-leaving]). A thumb that pulls one away moves it with the finger first (data-bits touchSwipe).
+   faster and speeding up as it goes (--ease-in), by a still copy of itself React no longer holds (kit/motion/leaving.ts
+   leaving, [data-leaving]). A thumb that pulls one away moves it with the finger first (kit/motion/swipe.ts touchSwipe).
    Only `translate`, `scale` and `opacity` move, never `transform` itself, so a sheet centred by its own transform, or
    dragged by the finger's, keeps it. Menus, toasts, the lead's peek, the fold's sheet and a route already move; this
    is the rest, on the same tokens. Nothing here moves under reduced motion.
@@ -1782,7 +1782,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* What answers a press in place: a figure's receipt, and Confirm's panel (the line's own is the kit's, kit.css). */
 .confirm-block, .tc-receipt { animation: nudge-in var(--duration-base) var(--ease-out); }
 
-/* Going out: a still copy, played once and removed (data-bits leaveOverlay). Nothing in it takes a press. */
+/* Going out: a still copy, played once and removed (kit/motion/leaving.ts leaveOverlay). Nothing in it takes a press. */
 [data-leaving="true"] { pointer-events: none; }
 .ask-overlay[data-leaving="true"], .sb-sheet-backdrop[data-leaving="true"],
 .rec-sheet-backdrop[data-leaving="true"]:not([data-fold]), .ld-lightbox-backdrop[data-leaving="true"] {

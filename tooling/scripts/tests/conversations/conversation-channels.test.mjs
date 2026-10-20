@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { conversationTabs } from "../../../../apps/dashboard/src/surfaces/inbox/conversations-surface.ts";
-import { INBOX_GLOBALS } from "../../../../apps/dashboard/src/surfaces/inbox/legacy-globals.ts";
+import { cvRoute as route, inChannel } from "../../../../apps/dashboard/src/surfaces/inbox/cv-rules.ts";
 
 /* ------------------------------------------------------------- the strip */
 
@@ -64,8 +64,7 @@ test("the words are the ones the rest of the product uses for those wires", () =
 
 /* -------------------------------------------------------------- the rows */
 
-// The two rules as the app publishes them for the pages that read them by name (Ask, the frame's crumbs): the page's own.
-const { CV_IN_CHANNEL: inChannel, CV_ROUTE: route } = INBOX_GLOBALS;
+// The two rules as the page, the frame's crumbs and Ask import them (cv-rules.ts).
 
 const row = (channel) => ({ channel });
 

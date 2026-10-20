@@ -78,7 +78,7 @@ installLegacyReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
 Object.assign(globalThis.window, kitPages);
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
