@@ -27,6 +27,7 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
+import { carriesMark } from "../seen";
 import type { PeopleLoaded } from "./surface-map";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
@@ -475,3 +476,21 @@ export const peopleOverride: SurfaceOverride = {
     publishPeople();
   },
 };
+
+// The reader's mark on a person, carried into their record as the door answers it (surfaces/seen.ts carriesMark), and the
+// row made from it again (publishPeople): what People says of them -- new to the reader, how far they had seen, the mark's
+// stamp -- is derived the one way (contracts personRowOf), agrees with the Inbox's row, and outlives the reload. A record
+// that carries the mark, or a later one made elsewhere, keeps its row.
+carriesMark(peopleOverride, (personId, mark) => {
+  if (!peopleLoaded) return false;
+  const i = peopleLoaded.people.findIndex((r) => r.id === personId);
+  const row = i < 0 ? undefined : peopleLoaded.people[i];
+  if (!row || (Date.parse(row.marked_at ?? "") || 0) >= (Date.parse(mark.marked_at ?? "") || 0)) return false;
+  peopleLoaded.people[i] = {
+    ...row,
+    seen_at: mark.seen_at ?? null,
+    marked_unread: !!mark.marked_unread,
+    marked_at: mark.marked_at ?? null,
+  };
+  return publishPeople();
+});

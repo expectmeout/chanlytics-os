@@ -130,7 +130,7 @@ export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAutho
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email.js";
 export { mediaKind, mediaVM } from "./conversations/message-media.js";
 export { messageStatusLabel, sendFailureWords, failureWordsOf, providerCodeOf, reachedCustomer, isHeldDraft, heldDraftOf, draftSendsAtMs, messageWords, messageText } from "./conversations/message-words.js";
-export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen } from "./conversations/standing.js";
+export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen, readingOf } from "./conversations/standing.js";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel.js";
 export { shortTime, formatWaited } from "./conversations/thread-clock.js";
 export { contactName, isIdentifierName, shortName, contactMeta, initialsOf, personFaceOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact.js";

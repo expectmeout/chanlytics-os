@@ -14,6 +14,7 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
+import { carriedReading, carriesMark } from "../seen";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
@@ -153,3 +154,29 @@ export const conversationsOverride: SurfaceOverride = {
     });
   },
 };
+
+// The reader's mark on a person, carried into their rows as the door answers it (surfaces/seen.ts carriesMark), and into
+// every row a person's row stands for (cv-rules.ts cvOnePerPerson), since the page judges the row by any of them (cvSeenOf).
+// A row that carries no reading (a call with no thread behind it) is nobody's to mark, and one that carries the mark, or a
+// later one, is the object it was.
+carriesMark(conversationsOverride, (personId, mark) => {
+  const held = surfaceValue("conversations");
+  if (!held) return false;
+  let moved = false;
+  const one = (c: ConversationRow): ConversationRow => {
+    if (c.clientId !== personId || c.unseen === undefined) return c;
+    const reading = carriedReading(c, mark);
+    if (!reading) return c;
+    moved = true;
+    return { ...c, unseen: reading.unseen, markAtMs: reading.markAtMs };
+  };
+  const rows = held.CONVERSATIONS.map((c) => {
+    const row = one(c);
+    if (!c.parts) return row;
+    const parts = c.parts.map(one);
+    return parts.some((p, i) => p !== c.parts?.[i]) ? { ...row, parts } : row;
+  });
+  if (!moved) return false;
+  setSurfaceValue("conversations", { ...held, CONVERSATIONS: rows });
+  return true;
+});

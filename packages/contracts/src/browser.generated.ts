@@ -139,7 +139,7 @@ export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAutho
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { messageStatusLabel, sendFailureWords, failureWordsOf, providerCodeOf, reachedCustomer, isHeldDraft, heldDraftOf, draftSendsAtMs, messageWords, messageText } from "./conversations/message-words";
-export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen } from "./conversations/standing";
+export { standingOf, standingOfThread, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, INBOX_BUCKET_WORDS, inboxBucketWord, heldPill, seenBy, isUnseen, readingOf } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
 export { contactName, isIdentifierName, shortName, contactMeta, initialsOf, personFaceOf, isEmailStopped, emailStoppedWords } from "./conversations/thread-contact";

@@ -20,6 +20,7 @@ import {
   type EscalationDto,
 } from "@chanlytics/contracts";
 import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-templates";
+import { carriedReading, carriesMark } from "../seen";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { readHeldThreads } from "./held-threads";
@@ -155,3 +156,22 @@ export const inboxOverride: SurfaceOverride = {
     });
   },
 };
+
+// The reader's mark on a person, carried into their threads' rows as the door answers it (surfaces/seen.ts carriesMark): the
+// rows the next load paints say they are read, or put back, as this tab shows them. A thread that carries the mark, or a
+// later one, is the object it was.
+carriesMark(inboxOverride, (personId, mark) => {
+  const held = surfaceValue("inbox");
+  if (!held) return false;
+  let moved = false;
+  const threads = held.THREADS.map((t) => {
+    if (!t.real || t.clientId !== personId) return t;
+    const reading = carriedReading(t, mark);
+    if (!reading) return t;
+    moved = true;
+    return { ...t, unread: reading.unseen, markAtMs: reading.markAtMs };
+  });
+  if (!moved) return false;
+  setSurfaceValue("inbox", { ...held, THREADS: threads });
+  return true;
+});
