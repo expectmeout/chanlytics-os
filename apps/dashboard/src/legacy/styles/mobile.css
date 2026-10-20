@@ -592,7 +592,7 @@
   .ix-thread + .ix-thread::after,
   .cv-row + .cv-row::after,
   .lm-row + .lm-row::after,
-  .pl-table tbody > tr[id] + tr[id]::after {
+  .pl-table tbody > tr[data-index] + tr[data-index]::after {
     content: "";
     position: absolute;
     top: 0;
@@ -609,8 +609,8 @@
   .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
   .lm-row + .lm-row:hover::after,
   .lm-row:hover + .lm-row::after,
-  .pl-table tbody > tr[id] + tr[id]:is(:hover, .selected)::after,
-  .pl-table tbody > tr[id]:is(:hover, .selected) + tr[id]::after {
+  .pl-table tbody > tr[data-index] + tr[data-index]:is(:hover, [data-hover], .selected)::after,
+  .pl-table tbody > tr[data-index]:is(:hover, [data-hover], .selected) + tr[data-index]::after {
     opacity: 0;
   }
 }
