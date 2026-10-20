@@ -27,7 +27,6 @@ import { P } from "./pipe";
 import { PipelineRailRows } from "./rail";
 import { PipelinePassDock, PipelinePassMany } from "./row";
 import { PIPE_BULK_ACTS, PIPE_LAYOUTS, pipeComposeIn, pipeThreadRoute } from "./scope-bits";
-import { EMPTY_ADD } from "./scope-state";
 import type { PipelineState } from "./scope-hook";
 
 type LinePart = PipelineState["line"][number];
@@ -355,7 +354,7 @@ function sheetsBlock(s: PipelineState) {
   ) : null;
 }
 
-/** New proposal: pick or add a person, then the sheet. */
+/** New proposal: pick a person, then the sheet. */
 function newBlock(s: PipelineState) {
   const { f, ui, r, newActs } = s;
   return (
@@ -364,20 +363,10 @@ function newBlock(s: PipelineState) {
       phone={f.controls.phone}
       rows={r.rows}
       q={ui.newQ}
-      add={ui.newAdd}
       onQ={ui.setNewQ}
       onPick={newActs.pickForNew}
-      onAddOpen={() => {
-        ui.setNewAdd({ ...EMPTY_ADD, open: true });
-        ui.setNewFocus({ row: "add" });
-      }}
       focusOn={ui.newFocus}
-      onAddDraft={(patch) => ui.setNewAdd((x) => ({ ...x, ...patch }))}
-      onAdd={newActs.addForNew}
-      onClose={() => {
-        ui.setNewOpen(false);
-        ui.setNewAdd(EMPTY_ADD);
-      }}
+      onClose={() => ui.setNewOpen(false)}
     />
   );
 }

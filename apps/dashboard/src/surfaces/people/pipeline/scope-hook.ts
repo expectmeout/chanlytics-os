@@ -66,7 +66,7 @@ export function usePipelineState(props: PipelineScopeProps) {
   const pickView = pipelinePickView({ f, ui, r, closeSheets });
   const boardColumns = pipelineBoardColumns(r);
   const boardActs = pipelineBoardActs({ ui });
-  const newActs = pipelineNewActs({ ui, f });
+  const newActs = pipelineNewActs({ ui });
   const newGate = gate("approve", "start a proposal");
   const emptyWords = r.all.empty
     ? { title: P.words.empty.title, body: P.words.empty.body }

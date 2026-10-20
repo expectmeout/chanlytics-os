@@ -1,12 +1,10 @@
 /**
  * What a member does on the Pipeline's page, beside the hooks (moved from legacy/pages/pipeline-scope.jsx PipelineScope,
- * decision 0015): a view picked, a card dropped or moved to another column, New proposal opened, picked from and added
- * to. Plain functions over the page's state, drawn again with it; none keeps state of its own.
+ * decision 0015): a view picked, a card dropped or moved to another column, New proposal opened and picked
+ * from. Plain functions over the page's state, drawn again with it; none keeps state of its own.
  */
 import type { PipelineGroupKey, PipelineRowVM, PipelineView } from "@chanlytics/contracts";
 import { openDealSheet } from "../../legacy-verbs";
-import { plAddPerson, plAddedWords } from "../lists/doors";
-import { EMPTY_ADD } from "./scope-state";
 import type { PipelineFrame, PipelineRows, PipelineUi } from "./scope-state";
 import { P, dealSheetOffered } from "./pipe";
 import type { PipelineSection } from "./pipe";
@@ -71,31 +69,17 @@ export function pipelineBoardActs({ ui }: Pick<ActsIn, "ui">) {
   return { moveOf, dragEnd, drop, moveTo };
 }
 
-/** New proposal: who it is for, then the one deal sheet in its propose mode. Someone added is People's own add. */
-export function pipelineNewActs({ ui, f }: Pick<ActsIn, "ui" | "f">) {
-  const { newAdd, setNewOpen, setNewQ, setNewAdd, setNewFocus } = ui;
+/** New proposal: who it is for, then the one deal sheet in its propose mode. */
+export function pipelineNewActs({ ui }: Pick<ActsIn, "ui">) {
+  const { setNewOpen, setNewQ, setNewFocus } = ui;
   const openNew = () => {
     setNewQ("");
-    setNewAdd(EMPTY_ADD);
     setNewFocus({ row: "search" });
     setNewOpen(true);
   };
   const pickForNew = (id: string) => {
     setNewOpen(false);
-    setNewAdd(EMPTY_ADD);
     if (dealSheetOffered()) openDealSheet({ personId: id, mode: "propose" });
   };
-  const addForNew = async () => {
-    const d = newAdd;
-    if (d.busy || !d.phone.trim()) return;
-    setNewAdd({ ...d, busy: true, error: null });
-    const r = await plAddPerson(d);
-    if (!r.ok) {
-      setNewAdd((x) => ({ ...x, busy: false, error: r.error }));
-      return;
-    }
-    f.controls.plFlash({ msg: plAddedWords(d, r.existed) });
-    pickForNew(r.id);
-  };
-  return { openNew, pickForNew, addForNew };
+  return { openNew, pickForNew };
 }

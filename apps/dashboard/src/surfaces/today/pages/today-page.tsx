@@ -13,7 +13,7 @@
  *   among its rows                |
  *   (TodaySetup, only while something is left, in the queue's column: canvas R10)
  *   the day's card                | Worth a look
- *   the lists this member pinned (one row, only when something is)
+ *   the lists this member pinned (a pane of figures, only when something is)
  *
  * There is no day pane. E3 folds the day into the strip and the brief's sentence (the one derivation both read is
  * pages/day.tsx `useDayVm`), and the steps due that stood at the pane's head are rows of the queue (queue-steps.tsx;

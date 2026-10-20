@@ -30410,12 +30410,6 @@ declare const PIPELINE_WORDS: {
         readonly sub: "Who is it for?";
         readonly search: "Search people";
         readonly none: "No one matches.";
-        readonly add: "Add someone new";
-        readonly name: "Name";
-        readonly optional: "optional";
-        readonly number: "Mobile number";
-        readonly go: "Continue";
-        readonly adding: "Adding…";
     };
 };
 
@@ -34901,13 +34895,6 @@ declare const NEW_CONVERSATION_WORDS: {
         readonly sub: "Who is it for?";
         readonly search: "Search people";
         readonly none: "No one matches.";
-        readonly add: "Add someone new";
-        readonly name: "Name";
-        readonly optional: "optional";
-        readonly number: "Mobile number";
-        readonly go: "Continue";
-        readonly adding: "Adding…";
-        readonly notAdded: "Could not add them.";
     };
     readonly thread: "Open their thread";
     readonly page: "Open their page";

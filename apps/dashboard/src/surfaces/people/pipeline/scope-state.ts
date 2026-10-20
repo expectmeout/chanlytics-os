@@ -17,7 +17,6 @@ import { usePlPlace } from "../hooks/use-place";
 import { peekPerson, personDeletedHere, personDetail, warmPeople, warmPerson } from "../people-detail";
 import { plLoadedWords, plMatcher } from "../words";
 import { pipeGlassColumns, pipePhoneColumns } from "./columns";
-import type { NewAdd } from "./new";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
 import {
@@ -48,8 +47,6 @@ interface PeekState {
   person: PersonVM | null;
   failed: string | null;
 }
-
-export const EMPTY_ADD: NewAdd = { open: false, name: "", phone: "", busy: false, error: null };
 
 /** The people People holds, the address's view and person, the workspace's clock, and the list page's controls. */
 export function usePipelineFrame({ onNavigate = null, pipelineRoute = null }: PipelineScopeProps) {
@@ -96,11 +93,10 @@ export function usePipelineUi() {
   // The board's drag: the card in hand (its row and the group it left) and the column under it.
   const [drag, setDrag] = useState<{ id: string; from: PipelineGroupKey; row: PipelineRowVM } | null>(null);
   const [over, setOver] = useState<PipelineGroupKey | null>(null);
-  // A phone's lists sheet (the rail's rows), and New proposal: open, the words in its box, and someone being added.
+  // A phone's lists sheet (the rail's rows), and New proposal: open, and the words in its box.
   const [listsOpen, setListsOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [newQ, setNewQ] = useState("");
-  const [newAdd, setNewAdd] = useState<NewAdd>(EMPTY_ADD);
   const [newFocus, setNewFocus] = useState<FocusOn | null>(null);
   // The board's columns past their first twenty that a member asked to see whole, by key.
   const [every, setEvery] = useState<Record<string, boolean>>({});
@@ -123,8 +119,6 @@ export function usePipelineUi() {
     setNewOpen,
     newQ,
     setNewQ,
-    newAdd,
-    setNewAdd,
     newFocus,
     setNewFocus,
     every,

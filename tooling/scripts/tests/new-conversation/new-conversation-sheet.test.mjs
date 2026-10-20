@@ -20,7 +20,7 @@ import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "
 installLegacyReact({ __DEMO_MODE: false });
 const { NewMessage } = await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/message.tsx");
 const { NewCall } = await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/call.tsx");
-const { approvedKey, firstMessageOf, noteDay, noteShown, onSendKey, sayQueued, typedAs, whoAnswers, writtenFor } =
+const { approvedKey, firstMessageOf, noteDay, noteShown, onSendKey, sayQueued, whoAnswers, writtenFor } =
   await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/state.ts");
 const { NewWho } = await import("../../../../apps/dashboard/src/surfaces/inbox/new-conversation/who.tsx");
 const { NewConversationSheet } =
@@ -374,23 +374,18 @@ test("what the send carries: the wire, the words or the approved message, a subj
   assert.equal("email_to" in firstMessageOf({ ...agreed, way: wayOf("sms"), who }, written, "x"), false);
 });
 
-test("the pick: who is found, each a press; nobody; never 'no one' while nobody has been read; and someone added by number", () => {
+test("the pick: who is found, each a press; nobody; never 'no one' while nobody has been read", () => {
   const person = { id: "k1", name: "Robin Example", deal: null, lastContact: { label: "Phoned · 1d ago" } };
-  const NOT_ADDING = { open: false, name: "", phone: "", busy: false, error: null };
-  const seen = { picked: [], asked: [], opened: 0, added: 0, drafts: [] };
+  const seen = { picked: [], asked: [] };
   const stateOfPick = (pick) => ({
     pick: {
       q: "",
       setQ: (q) => seen.asked.push(q),
-      add: NOT_ADDING,
-      setAdd: (next) => seen.drafts.push(next),
       rows: [],
       reading: false,
       ...pick,
     },
     choose: (id) => seen.picked.push(id),
-    openAdd: () => (seen.opened += 1),
-    addSomeone: async () => (seen.added += 1),
   });
   const tree = draw(NewWho, { s: stateOfPick({ rows: [person] }) });
   assert.match(said(tree, "ix-new-who-pick"), /Robin Example/);
@@ -408,20 +403,6 @@ test("the pick: who is found, each a press; nobody; never 'no one' while nobody 
   assert.deepEqual(seen.picked, ["k1", "k1"], "what is shown is not yet the answer to what was typed");
   assert.equal(said(draw(NewWho, { s: stateOfPick({}) }), "ix-new-who-none"), W.who.none);
   assert.equal(said(draw(NewWho, { s: stateOfPick({ reading: true }) }), "ix-new-who-none"), W.reading);
-  // Add someone new: a press opens the fields; a number the door refuses says why under it.
-  press(all(tree, (n) => n.props?.["data-testid"] === "ix-new-who-add-open").find((n) => n.type === "button"));
-  assert.equal(seen.opened, 1);
-  const adding = draw(NewWho, {
-    s: stateOfPick({ add: { ...NOT_ADDING, open: true, phone: "12", error: "That is not a mobile number." } }),
-  });
-  assert.equal(byTestId(adding, "ix-new-who-phone").props.value, "12");
-  assert.equal(
-    byTestId(adding, "ix-new-who-phone").props.problem,
-    "That is not a mobile number.",
-    "said under the field",
-  );
-  press(all(adding, (n) => n.props?.["data-testid"] === "ix-new-who-go").find((n) => n.type === "button"));
-  assert.equal(seen.added, 1);
 });
 
 test("the corner's ✕ steps aside where the foot holds Cancel, as a record sheet's does on a phone, and stays where nothing else closes it", () => {
@@ -443,33 +424,16 @@ test("the corner's ✕ steps aside where the foot holds Cancel, as a record shee
 test("on a touch screen no field of the pick takes focus as it is drawn; a mouse and keys keep it ready", () => {
   // Ruben, 8 October 2026: the sheet opened with its search in focus, so a phone raised its keyboard over a sheet
   // nobody had read yet and moved the page to the field. A touch screen is the pointer (legacy-verbs.ts), never a width.
-  const adding = (open) => ({ open, name: "", phone: "", busy: false, error: null });
-  const stateOf = (open) => ({
-    pick: { q: "", setQ() {}, add: adding(open), setAdd() {}, rows: [], reading: false },
-    choose() {},
-    openAdd() {},
-    addSomeone: async () => undefined,
-  });
-  const ready = () => [
-    byTestId(draw(NewWho, { s: stateOf(false) }), "ix-new-who-search").props.autoFocus,
-    byTestId(draw(NewWho, { s: stateOf(true) }), "ix-new-who-name").props.autoFocus,
-  ];
-  assert.deepEqual(ready(), [true, true], "with keys: N, then type; and Add someone new opens on the name");
+  const s = { pick: { q: "", setQ() {}, rows: [], reading: false }, choose() {} };
+  const ready = () => byTestId(draw(NewWho, { s }), "ix-new-who-search").props.autoFocus;
+  assert.equal(ready(), true, "with keys: N, then type");
   const media = globalThis.matchMedia;
   globalThis.matchMedia = (q) => ({ matches: q === "(pointer: coarse)" });
   try {
-    assert.deepEqual(ready(), [false, false], "REGRESSION: on a phone the keyboard rose as the sheet did");
+    assert.equal(ready(), false, "REGRESSION: on a phone the keyboard rose as the sheet did");
   } finally {
     globalThis.matchMedia = media;
   }
-});
-
-test("what was typed into the search starts someone new: a number where it reads as one, else a name", () => {
-  assert.deepEqual(typedAs("+1 (212) 555-0147"), { phone: "+1 (212) 555-0147" });
-  assert.deepEqual(typedAs(" 2125550147 "), { phone: "2125550147" });
-  assert.deepEqual(typedAs("Robin Example"), { name: "Robin Example" });
-  assert.deepEqual(typedAs("rob 2"), { name: "rob 2" }, "a name with a figure in it is a name");
-  assert.deepEqual(typedAs("   "), {});
 });
 
 test("Ctrl or Cmd with Enter is the sheet's own key, and nothing else is", () => {
