@@ -9,16 +9,6 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
-    "lines": 43,
-    "branches": 48,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchMove#1": {
-    "lines": 43,
-    "branches": 49,
-    "depth": 2
-  },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
     "lines": 194,
     "branches": 28,
@@ -38,11 +28,6 @@
     "lines": 344,
     "branches": 40,
     "depth": 0
-  },
-  "apps/dashboard/src/legacy/data/bridge-stubs.jsx::bridgeStubs#1": {
-    "lines": 189,
-    "branches": 12,
-    "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 409,

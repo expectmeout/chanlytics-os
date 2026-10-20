@@ -124,7 +124,7 @@ Object.assign(globalThis, {
   clearInterval() {},
 });
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const hasClass = (cls) => (n) => typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls);
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;

@@ -192,7 +192,7 @@ globalThis.React = {
   cloneElement: (n, p) => ({ ...n, props: { ...n.props, ...p } }),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, over this file's own React.
 useStubHooks(globalThis.React);
 globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;

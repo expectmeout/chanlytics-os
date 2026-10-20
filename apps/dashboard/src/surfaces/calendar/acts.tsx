@@ -52,7 +52,7 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
 }
 
 /**
- * A swipe across the days walks them on a phone (data-bits touchSwipe, a page that stays): the step ‹ and › take, drawn at
+ * A swipe across the days walks them on a phone (kit/motion/swipe.ts touchSwipe, a page that stays): the step ‹ and › take, drawn at
  * once so the next days are what comes in. Never from what keeps its own touch: the strips' one list (the kit's
  * OWN_TOUCH: a dialog, a sheet, a menu, a toast), but for the pane itself (`el`), which says it keeps its own touch so the
  * frame's strip of views does not walk under the same finger.

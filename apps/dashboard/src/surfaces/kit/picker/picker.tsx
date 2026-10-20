@@ -16,7 +16,7 @@
  *
  * Under the kit's 900px the list is the phone's action sheet, as the kit's Menu is (kit.css; Ruben, 10 Oct 2026: a
  * phone's menu is a bottom action sheet, always): from the bottom edge over the phone's veil (its Backdrop), a thumb's
- * rows, and a pull down from its top lets it go, following the finger (data-bits touchSwipe), its touch kept its own. It
+ * rows, and a pull down from its top lets it go, following the finger (kit/motion/swipe.ts touchSwipe), its touch kept its own. It
  * hung from its token as a desktop's list, mid-sentence, a column over the words it covered (census, 13 Oct 2026): the
  * phone sheet CmPicker had was lost with it.
  *

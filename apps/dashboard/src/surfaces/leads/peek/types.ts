@@ -50,7 +50,7 @@ export interface Deck {
 /** The page's setter for the armed question: a value, or a function of the last one (a state setter's two shapes). */
 export type ArmedSetter = (v: Armed | null | ((a: Armed | null) => Armed | null)) => void;
 
-/** The toast the shell raises (data-bits `usePPToast`). */
+/** The toast the shell raises (frame/flash.tsx `usePPToast`). */
 export type Flash = ReturnType<typeof useLegacyToast>[1];
 
 /** The one act the ⋯ menu offers (contracts' `leadPeekMenu`). */

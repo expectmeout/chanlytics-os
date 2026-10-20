@@ -1,6 +1,6 @@
 /**
  * The bell leaves the way it came, at every width. A popover React lets go of is put back as a still copy and played
- * out (data-bits leaveOverlay, `[data-leaving]`); the bell's popover had a leaving rule only under a phone's width, so
+ * out (frame-globals leaveOverlay, `[data-leaving]`); the bell's popover had a leaving rule only under a phone's width, so
  * on any wider screen the copy kept the popover's own entrance, `route-in`, and came in again from nothing as the
  * popover went: the bell closed, came back for 180ms, and went (Ruben, 9 Oct 2026, seen frame by frame). Its leaving
  * is one rule outside every media query, which plays what the popover says it leaves by (`--tbn-out`): route-out, the

@@ -641,7 +641,7 @@ declare global {
       done: typeof markStepDone;
       dueDay: typeof dueStepDay;
     };
-    /** Read someone before their row is clicked (the shell's `routeDoor` asks, data-bits.jsx). */
+    /** Read someone before their row is clicked (the shell's `routeDoor` asks, frame-doors.ts). */
     __warmPerson?: (id: string) => void;
     /** A deal's acts as the thread's Deal group offers them (0008: deal-sheet.ts dealMenuActs), and their words. */
     __deal?: {

@@ -24,7 +24,7 @@ Object.assign(W, {
   __clock: { zone: () => "America/New_York" },
 });
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { ReplyStrip, ReplyChip, useReplyDraftDoor } =
   await import("../../../../apps/dashboard/src/surfaces/inbox/thread/reply-strip.tsx");
 const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-out/replies.ts");

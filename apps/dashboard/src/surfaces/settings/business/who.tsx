@@ -10,7 +10,14 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
-import { ASK_GOAL_WORDS, RENAME_WORDS, applySettingsChange, askGoalRefusal, askGoalSaved } from "@chanlytics/contracts";
+import {
+  ASK_GOAL_WORDS,
+  RENAME_WORDS,
+  applySettingsChange,
+  askGoalRefusal,
+  askGoalSaved,
+  samePhone,
+} from "@chanlytics/contracts";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
@@ -26,7 +33,7 @@ import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { setupVerbs } from "../../setup/surface";
-import { factsNow, samePhone } from "./shell";
+import { factsNow } from "./shell";
 
 /** What a row's box is handed to draw: the draft, its setter, what stops it, the field's own props, the row's gate. */
 interface BoxProps<D> {
@@ -83,7 +90,6 @@ interface PublishedNumbers {
 /** The sentence under the number's box: what the choice in force costs. Hookless. */
 function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { draft: PublishedDraft }): ReactNode {
   const lineShown = phoneShown(line);
-  const same = samePhone();
   if (draft.own && line)
     return (
       <>
@@ -91,20 +97,20 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
         your number changes nothing to keep in step.
       </>
     );
-  if (same?.(draft.typed, line))
+  if (samePhone(draft.typed, line))
     return (
       <>
         That is your line. Choose <b>Your line</b> and it stays right when the number changes.
       </>
     );
-  if (kept && same?.(draft.typed, kept))
+  if (kept && samePhone(draft.typed, kept))
     return (
       <>
         Your own number. The calls nobody picks up there go to your receptionist on{" "}
         <b className="tabular">{lineShown}</b>.
       </>
     );
-  if (handoff && same?.(draft.typed, handoff))
+  if (handoff && samePhone(draft.typed, handoff))
     return (
       <>
         This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and

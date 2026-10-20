@@ -1,5 +1,5 @@
 /**
- * A modal dialog holds focus while it is open, with one helper (data-bits trapFocus and dialogRef): focus goes in, Tab
+ * A modal dialog holds focus while it is open, with one helper (frame-globals trapFocus and dialogRef): focus goes in, Tab
  * and Shift+Tab stay inside and count only what Tab stops at, and focus goes back to what opened it. Run on the real
  * helper over a document that keeps focus the way a browser does; the pages that use it (the notifications panel, the
  * shortcuts sheet, People's phone sheet, the Calendar's appointment and the Ask Line) name it. The record kit's sheet and
@@ -21,14 +21,14 @@ const doc = {
   removeEventListener() {},
 };
 globalThis.document = doc;
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { trapFocus, dialogRef, trapTab, keyPress } = globalThis.window;
 /** Focus moved to an element, as a browser says it: the document's focusin heard, its target the element. */
 const focusTo = (el) => {
   el.focus();
   for (const fn of heard.focusin ?? []) fn({ target: el });
 };
-// The way out a dialog carries (data-bits leaving), as a record of when an element arrives and leaves.
+// The way out a dialog carries (frame-globals leaving), as a record of when an element arrives and leaves.
 const leavings = [];
 globalThis.window.leaving = (key) => (el) => leavings.push([key, el ? "in" : "out"]);
 

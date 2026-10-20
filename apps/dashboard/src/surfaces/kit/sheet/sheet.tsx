@@ -15,7 +15,7 @@
  * focuses the element `initialFocus` names. It stays drawn while it leaves: Base UI's closing state is the kit's
  * `data-leaving`, which plays the sheet's and its wash's leaving (kit.css), and Base UI lets it go when that ends.
  * It leaves as it was: what it held as it closed, not what the page holds after (a step gone, a draft cleared).
- * On a phone a pull down from its top asks to close it as its Close does (data-bits touchSwipe, the house's one
+ * On a phone a pull down from its top asks to close it as its Close does (kit/motion/swipe.ts touchSwipe, the house's one
  * reader of a thumb), following the finger, and its handle says so; it is as tall as what it holds, up to its cap, and
  * its height glides as what it holds changes (motion/use-height-glide). A record's sheet may instead have two rests on a
  * phone (`rest`, rests.ts: the lead workbench's pile): one height, standing down at half and whole at full, its handle a

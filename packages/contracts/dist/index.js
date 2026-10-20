@@ -10549,6 +10549,12 @@ function holdDoors(h) {
       return ["include", "skip"];
   }
 }
+var HOLDS_INCLUDED_FOR_CHAIN = /* @__PURE__ */ new Set([
+  "customer_domain",
+  "chain",
+  "language",
+  "abroad"
+]);
 var HOLD_DOOR_WORDS = {
   include: "Send as written",
   rewrite: "Rewrite the opening",
@@ -61135,6 +61141,7 @@ export {
   HELD_TAKE_OUT,
   HELD_WHEN_COUNTED,
   HELD_WORDS,
+  HOLDS_INCLUDED_FOR_CHAIN,
   HOLD_ACT_WORDS,
   HOLD_DOOR_WORDS,
   HOUR_MS,

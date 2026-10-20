@@ -117,7 +117,7 @@ export const LeadLightbox = ({ vm, onClose }: LightboxProps) => (
       data-photo={vm.tile.band ? undefined : "none"}
       ref={leaving("lead-lightbox")}
       // On a phone the photos take the whole screen, and a pull down from the top lets them go, as the peek under them
-      // does (data-bits touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.
+      // does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: only Close did). The touch stays the photos' own.
       {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
     >
       {lightboxHead({ vm, onClose })}

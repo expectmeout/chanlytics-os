@@ -16,9 +16,7 @@ import {
   NO_WAY_TO_SEND_LINK,
   GREETING_TEMPLATE,
   newReceptionistDefaults,
-  instructionsDraft,
   FALLBACK_DEFAULTS,
-  unknownDetails,
   INSTRUCTIONS_MAX,
   resolveSystemPrompt,
   hasProfile,
@@ -31,31 +29,22 @@ import {
   ALWAYS_ON,
   PROFILE_LIMITS,
   profileRefusal,
-  normalizeLink,
 } from "@chanlytics/contracts";
 import { installLegacyReact } from "../../_legacy-react.mjs";
 import { withStanding } from "../_prompt-rules.mjs";
 
-// As the bridge publishes them (inbox-verbs.ts): what a new receptionist starts with, what the instructions box opens
-// with and holds, the product's wording for the three messages, and the names in a message nothing fills in.
-installLegacyReact({
-  __receptionistDefaults: newReceptionistDefaults,
-  __instructionsDraft: instructionsDraft,
-  __fallbackDefaults: FALLBACK_DEFAULTS,
-  __unknownDetails: unknownDetails,
-  __instructionsMax: INSTRUCTIONS_MAX,
-  // THE web-address normalizer, as seed-globals.ts publishes it: a link is stored and checked by it.
-  __normalizeLink: normalizeLink,
-});
+// The folds import what a new receptionist starts with, what the instructions box opens with, the product's wording for
+// the three messages, the names in a message nothing fills in and the web-address normalizer (contracts'), so a test
+// runs them as the tab does.
+installLegacyReact();
 await import("./_business-parts.mjs");
 const W = globalThis.window;
 const S = W.__businessTabSave;
 // What each fold's "It will say" is asked of: every fold here must be one consequenceOf knows by name.
-const { FOLD_BLOCK, installBusinessTab, loadSaveRules } =
+const { BUSINESS_TAB, FOLD_BLOCK, loadSaveRules } =
   await import("../../../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 // And what the save's own schema refuses, which schemaProblems puts under the fold's fields: its rules here, as the tab
 // has them by the time a fold is open.
-installBusinessTab();
 await loadSaveRules();
 
 /* ------------------------------------ the record ------------------------------------ */
@@ -495,9 +484,9 @@ test("each fold opens with its stored values, as the form it replaces opened the
     else c.brain.profile.guardrails = g;
     assert.deepEqual(S.draftOf("guardrails", c), guardrailsInForce(g), JSON.stringify(g));
   }
-  const was = W.__businessTab.guardrailsInForce;
+  const was = BUSINESS_TAB.guardrailsInForce;
   try {
-    W.__businessTab.guardrailsInForce = () => ({
+    BUSINESS_TAB.guardrailsInForce = () => ({
       never_quote_prices: false,
       never_confirm_booking: false,
       disclose_ai: false,
@@ -514,7 +503,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
       "the switches open as the predicate says",
     );
   } finally {
-    W.__businessTab.guardrailsInForce = was;
+    BUSINESS_TAB.guardrailsInForce = was;
   }
   // A record with none of it opens every fold empty, and the messages on the product's wording.
   const none = {
@@ -1665,7 +1654,7 @@ test("the sentence for a shift typed half-way is the save's own, held to it", ()
   half.tue = { isOpen: true, shifts: [{ open: "09:00", close: "" }] };
   const brain = taken().brain;
   brain.profile.hours = { ...brain.profile.hours, tue: { open: "09:00" } };
-  const schemas = W.__businessTab.saveIssues({ brain }).map((i) => i.message);
+  const schemas = BUSINESS_TAB.saveIssues({ brain }).map((i) => i.message);
   assert.deepEqual(
     schemas,
     [S.problemsOf("hours", half)["hours-tue"]],
@@ -1730,7 +1719,7 @@ const linesOf = (text) => (text ? text.split("\n").filter((l) => l.trim() !== ""
 test("one helper says what a row's or a fold's save will tell the receptionist: what comes, what goes, the whole block, and the crossing", () => {
   try {
     const base = previewed(taken());
-    const tab = W.__businessTab;
+    const tab = BUSINESS_TAB;
     const blockOf = (brain) => tab.consequenceOf("hours", brain, "whatsapp");
 
     // A fold's draft, written as its save writes it: Monday closes an hour earlier.
@@ -1892,7 +1881,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
 });
 
 test("each block of the brain a save goes on is resolved once for that brain, by channel and block, and again for a new base", () => {
-  const tab = W.__businessTab;
+  const tab = BUSINESS_TAB;
   const real = tab.consequenceOf;
   const asked = [];
   try {
@@ -1958,40 +1947,26 @@ test("each block of the brain a save goes on is resolved once for that brain, by
 test("the two caps the write schema keeps are in LIMITS, once, and a day with more shifts than it takes is said under its day", () => {
   // The fallback literal was `|| 60` in two files, and a day's cap was the body's to remember in three places. A toast's
   // Undo skipped it: Monday came to five shifts, and Save said only "This can't be saved as it is written."
-  const was = W.__configLimits;
-  try {
-    W.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
-    assert.deepEqual(
-      [S.LIMITS.shifts, S.LIMITS.closures],
-      [MAX_INTERVALS_PER_DAY, MAX_CLOSURES],
-      "the bridge's published limits, read when asked",
-    );
-    delete W.__configLimits;
-    assert.deepEqual(
-      [S.LIMITS.shifts, S.LIMITS.closures],
-      [4, 60],
-      "and the standalone mockup's fallback, in the one place",
-    );
-    W.__configLimits = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
-    const week = S.draftOf("hours", taken());
-    const stretch = (n) => ({
-      open: `${String(8 + 2 * n).padStart(2, "0")}:00`,
-      close: `${String(9 + 2 * n).padStart(2, "0")}:00`,
-    });
-    week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY + 1 }, (_, n) => stretch(n)) };
-    assert.deepEqual(S.problemsOf("hours", week), {
-      "hours-tue": profileRefusal("shifts", MAX_INTERVALS_PER_DAY + 1, "Tuesday"),
-    });
-    // A row nobody filled in is not a shift: the save drops it, so it is not counted.
-    week.tue = {
-      isOpen: true,
-      shifts: Array.from({ length: MAX_INTERVALS_PER_DAY }, (_, n) => stretch(n)).concat([{ open: "", close: "" }]),
-    };
-    assert.deepEqual(S.problemsOf("hours", week), {});
-  } finally {
-    if (was) W.__configLimits = was;
-    else delete W.__configLimits;
-  }
+  assert.deepEqual(
+    [S.LIMITS.shifts, S.LIMITS.closures],
+    [MAX_INTERVALS_PER_DAY, MAX_CLOSURES],
+    "contracts' caps, read when asked",
+  );
+  const week = S.draftOf("hours", taken());
+  const stretch = (n) => ({
+    open: `${String(8 + 2 * n).padStart(2, "0")}:00`,
+    close: `${String(9 + 2 * n).padStart(2, "0")}:00`,
+  });
+  week.tue = { isOpen: true, shifts: Array.from({ length: MAX_INTERVALS_PER_DAY + 1 }, (_, n) => stretch(n)) };
+  assert.deepEqual(S.problemsOf("hours", week), {
+    "hours-tue": profileRefusal("shifts", MAX_INTERVALS_PER_DAY + 1, "Tuesday"),
+  });
+  // A row nobody filled in is not a shift: the save drops it, so it is not counted.
+  week.tue = {
+    isOpen: true,
+    shifts: Array.from({ length: MAX_INTERVALS_PER_DAY }, (_, n) => stretch(n)).concat([{ open: "", close: "" }]),
+  };
+  assert.deepEqual(S.problemsOf("hours", week), {});
 });
 
 test("a block whose lines are runs says nothing goes unless the whole block goes: a changed Friday takes no Monday with it", () => {
@@ -2038,10 +2013,7 @@ test("a block whose lines are runs says nothing goes unless the whole block goes
       sections: "hours",
       channel: "whatsapp",
     });
-    assert.deepEqual(
-      linesOf(gone.removed),
-      linesOf(W.__businessTab.consequenceOf("hours", base.brain, "whatsapp").text),
-    );
+    assert.deepEqual(linesOf(gone.removed), linesOf(BUSINESS_TAB.consequenceOf("hours", base.brain, "whatsapp").text));
     // A closure's line is one fact, so the closures say each line that goes, as before.
     const days = S.draftOf("closures", base);
     const fewer = S.willSay({

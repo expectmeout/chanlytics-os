@@ -15,8 +15,8 @@ export function flushChange(change: () => void): void {
 }
 
 /**
- * A thumb's gestures for the Calendar's days, a page that stays (legacy-verbs StayingPage: the same element shows the
- * next days, so data-bits turns it in place after `go`): none where the shell has none.
+ * A thumb's gestures for the Calendar's days, a page that stays (kit/motion/swipe.ts StayingPage: the same element shows
+ * the next days, so the swipe turns it in place after `go`): none where the shell has none.
  */
 export function touchSwipeStaying(options: {
   pages: (el: Element, from: EventTarget | null) => StayingPage | null;

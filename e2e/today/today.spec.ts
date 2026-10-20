@@ -239,7 +239,7 @@ test.describe("Today on a phone", () => {
     expect(box?.height).toBeGreaterThan(800);
     await expect(ask.getByTestId("ask-hero")).toBeVisible();
     await expect(ask.getByTestId("ask-input")).not.toBeFocused();
-    // A pull down past the threshold from the head closes it, following the finger (data-bits touchSwipe): a let-go
+    // A pull down past the threshold from the head closes it, following the finger (kit/motion/swipe.ts touchSwipe): a let-go
     // past a third of the screen, 160px at most, leaves; this one travels 220px.
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y: 40 }] });

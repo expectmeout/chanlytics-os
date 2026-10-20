@@ -1,8 +1,9 @@
 /**
  * The check before each send (Reach out, Part 4; spec §4.4; F2–F6, R1–R7, R12), the work of its own clock
  * (api/cron/reach-out-check.ts). Every planned send not yet checked, in a run that goes ahead or waits for its owner,
- * is checked once before the claim may take it. How one send is checked (the opening written and read, the two code
- * holds, a hold its owner included past never made again, R7) is check-one.ts's.
+ * is checked once before the claim may take it. How one send is checked (the opening written and read, the code holds,
+ * a business hold its owner included past never made again while a word hold's Include covers one email, R7) is
+ * check-one.ts's.
  *
  * What passes is marked checked, with the words it was checked against (checked_words, R5), and stays planned: the claim
  * takes it when it is due. What is held waits for its owner. A model that fails (it throws, runs past its deadline,

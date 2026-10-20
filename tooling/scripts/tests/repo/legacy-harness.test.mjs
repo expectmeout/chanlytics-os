@@ -51,10 +51,6 @@ import {
   DEFAULT_TIMEZONE,
   timezoneCity,
   timezoneWords,
-  samePhone,
-  whyNotAPhone,
-  whyNotAHandoff,
-  handoffE164,
   cleanTimezone,
 } from "@chanlytics/contracts";
 import ts from "typescript";
@@ -147,18 +143,7 @@ const seed = (win) => {
 };
 
 /** What the bridge publishes and the classic pages read without asking first. */
-const BRIDGED = [
-  "__DEMO_MODE",
-  "__identity",
-  "__tz",
-  "DEFAULT_TIMEZONE",
-  "askAbout",
-  "__samePhone",
-  "__whyNotAPhone",
-  "__whyNotAHandoff",
-  "__handoffE164",
-  "__workspace",
-];
+const BRIDGED = ["__DEMO_MODE", "__identity", "__tz", "DEFAULT_TIMEZONE", "askAbout", "__workspace"];
 
 test("the harness seeds the bridge's globals before anything reads them", () => {
   // data/inbox-data.jsx and data/people-data.jsx read __DEMO_MODE at module
@@ -200,27 +185,6 @@ test("the stubs answer the way contracts answers", () => {
   assert.equal(win.__tz.city("America/New_York"), timezoneCity("America/New_York"));
   const at = Date.UTC(2026, 3, 26, 16, 4);
   assert.deepEqual(win.__tz.words("America/New_York", at), timezoneWords("America/New_York", at));
-
-  assert.equal(win.__samePhone("(212) 555-0142", "+12125550142"), samePhone("(212) 555-0142", "+12125550142"));
-  for (const n of ["", "12345", "5550142", "212 555 0142", "nonsense"]) {
-    assert.equal(win.__whyNotAPhone(n), whyNotAPhone(n), `whyNotAPhone(${JSON.stringify(n)})`);
-  }
-  for (const n of ["", "2125550142", "+12125550142"]) {
-    assert.equal(
-      win.__whyNotAHandoff(n, "+12125550142"),
-      whyNotAHandoff(n, "+12125550142"),
-      `whyNotAHandoff(${JSON.stringify(n)})`,
-    );
-    assert.equal(win.__handoffE164(n), handoffE164(n), `handoffE164(${JSON.stringify(n)})`);
-  }
-  // The number the business keeps and forwards to the line (F2), made up in 555-01xx: refused in contracts' words.
-  for (const n of ["+12125550142", "+1 (212) 555-0142", "+19175550100", "+13055550123"]) {
-    assert.equal(
-      win.__whyNotAHandoff(n, "+13055550123", "+12125550142"),
-      whyNotAHandoff(n, "+13055550123", "+12125550142"),
-      `whyNotAHandoff(${JSON.stringify(n)}, line, kept)`,
-    );
-  }
 });
 
 test("the workspace's own write refuses a zone as the route does, and keeps the one it takes where the bridge keeps it", async () => {
@@ -308,6 +272,11 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
     tags[tags.indexOf(STUBS) + 4],
     "data/ask-line-globals.js",
     "Ask's Line draws its charts, its hold to talk and Leads' plan card by name (legacy-bridge/ask/line-globals.ts)",
+  );
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 5],
+    "data/frame-globals.js",
+    "the frame and Ask read its toast, a thumb's gestures, the role gate and the rest by name (surfaces/frame/frame-globals.ts)",
   );
 });
 
@@ -659,12 +628,7 @@ test("the Inbox's bundle publishes the demo's rows and the shell's rules under t
   win.IX_STORE.set("th-aisha-refund", { action: "Approve", at: "12:04", kind: "decided" });
   assert.equal(win.IX_STORE.get("th-aisha-refund").action, "Approve", "the session's decisions are kept");
   assert.equal(win.ixWaitsOnYou(threads.find((t) => t.state === "needs")), true, "what waits on you, one rule");
-  assert.equal(
-    JSON.stringify(win.CV_ROUTE("phone:cv-1")),
-    JSON.stringify({ channel: "phone", id: "cv-1" }),
-    "a tab and a row",
-  );
-  assert.equal(win.CV_IN_CHANNEL({ channel: "sms" }, "chats"), true, "a row on a grouped tab");
+  assert.equal(win.CV_ROUTE, undefined, "Conversations' rules are imported, never published");
   assert.ok(events.includes("presence:changed"), "the countdowns hear the member go Away");
   // Away is the demo's alone (its control is drawn only in a demo session): a real session loads the bundle and hears none.
   const real = [];

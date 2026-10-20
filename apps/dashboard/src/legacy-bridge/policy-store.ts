@@ -174,6 +174,13 @@ export function uiRows(p: PoliciesSurface): UiRow[] {
   });
 }
 
+declare global {
+  interface Window {
+    /** The charter store: the seeded one (seedPolicyStore, published by the frame's installer), then the one installed here. */
+    POLICY?: SeedStore;
+  }
+}
+
 interface SeedStore {
   MODES: readonly string[];
   WORDS?: Record<string, { head: string; sub: string; chip: string; does: string }>;
@@ -182,6 +189,77 @@ interface SeedStore {
   row?: (id: string) => unknown;
   modeOf: (id: string) => string | null;
   set: (id: string, m: string) => void;
+}
+
+/**
+ * The seeded store (moved from legacy/components/data-bits.jsx, the one-system plan's step 2): the charter matrix the
+ * mockup keeps, which `installPolicyStore` wraps and answers from only in a session that declared itself a demo. Auto, Veto,
+ * Ask and Never are how a mode is FILED; what anyone reads is contracts' POLICY_MODE_WORDS (UI_MODE_WORDS, above), which the
+ * installed store speaks in every session. Published as `POLICY` before the store is installed, where none is (a test's
+ * stand-in is kept).
+ */
+export function seedPolicyStore(): SeedStore {
+  type SeedRow = { id: string; label: string; note: string; def: string; chip: string; locked?: boolean };
+  const rows: SeedRow[] = [
+    { id: "faq", label: "Service & pricing FAQs", note: "list prices only", def: "Auto", chip: "FAQs" },
+    {
+      id: "book",
+      label: "Book · reschedule · remind",
+      note: "15-min pre-call reminders",
+      def: "Auto",
+      chip: "Booking",
+    },
+    { id: "reply", label: "Safe replies", note: "in scope · conf ≥ 0.8", def: "Veto", chip: "Replies" },
+    { id: "reengage", label: "Re-engage dormant leads", note: "offer-free", def: "Veto", chip: "Re-engage" },
+    { id: "campaign", label: "Standing offer campaigns", note: "e.g. birthday 20%", def: "Ask", chip: "Campaigns" },
+    {
+      id: "money",
+      label: "Refunds · rates · negotiation",
+      note: "books a call with you",
+      def: "Never",
+      locked: true,
+      chip: "Money",
+    },
+  ];
+  const settings = () => window.ST_STORE;
+  return {
+    MODES: ["Auto", "Veto", "Ask", "Never"],
+    WORDS: {
+      Auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
+      Veto: {
+        head: "Holds it",
+        sub: "you can stop it",
+        chip: "holds it",
+        does: "Writes it, holds it, and sends it unless you stop it.",
+      },
+      Ask: {
+        head: "Asks you",
+        sub: "nothing sent",
+        chip: "asks you",
+        does: "Waits for you. Nothing is sent until you say so.",
+      },
+      Never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." },
+    },
+    ROWS: rows,
+    forPerm: { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
+    row(id: string) {
+      return rows.find((r) => r.id === id) || null;
+    },
+    modeOf(id: string) {
+      const r = rows.find((x) => x.id === id);
+      if (!r) return null;
+      if (r.locked) return "Never";
+      const store = settings();
+      const kept = store && store.get ? store.get("policy." + id, r.def) : r.def;
+      return typeof kept === "string" ? kept : r.def;
+    },
+    set(id: string, m: string) {
+      const r = rows.find((x) => x.id === id);
+      if (!r || r.locked) return;
+      settings()?.set?.("policy." + id, m);
+      window.dispatchEvent(new CustomEvent("policy:changed", { detail: { id, mode: m } }));
+    },
+  };
 }
 
 interface PolicyWindow {

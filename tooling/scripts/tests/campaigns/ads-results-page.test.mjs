@@ -11,7 +11,7 @@ import { installLegacyReact, fresh, all, find, byTestId, textOf, classes } from 
 const opened = [];
 installLegacyReact({ __DEMO_MODE: true, CHANLY: { nav: (to) => opened.push(to) } });
 const S = "../../../../apps/dashboard/src";
-await import(`${S}/legacy/components/data-bits.jsx`);
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const ads = await import("@chanlytics/contracts");
 const page = await import("@chanlytics/contracts/ads-page");
 const { EXAMPLE_READS } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);

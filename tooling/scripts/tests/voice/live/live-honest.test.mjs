@@ -97,6 +97,9 @@ const channels = [
 
 /* -------------------------------- the view model -------------------------------- */
 
+// A demo's sample is fetched only in a demo session (surfaces/live/demo.ts): fetched once here, so a demo draws it at once.
+await (await import("../../../../../apps/dashboard/src/surfaces/live/demo.ts")).liveDemo();
+
 test("REGRESSION (A20, L8): an ended call carries what the caller wanted, how it ended, what to do next, and its length in words", () => {
   const vm = toLiveCallVM(ended(), ZONE, new Date(NOW));
   assert.equal(
@@ -133,11 +136,11 @@ installLegacyReact({
   clearInterval() {},
 });
 const S = "../../../../../apps/dashboard/src";
-// What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (data-bits.jsx).
-await import(`${S}/legacy/components/data-bits.jsx`);
-// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+// What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
-const { StatePill, StatCell, StatStrip } = globalThis;
+const { StatePill } = globalThis;
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { liveOverride } = await import(`${S}/surfaces/live/surface.ts`);
@@ -546,9 +549,9 @@ test("with nobody on the line the list says what the line is doing and opens Con
 test("the work first: no title, no sub-headline, no stat cards above the calls", () => {
   withLive([call(), ended()]);
   const tree = mount();
-  assert.ok(StatCell && StatStrip, "the shell's stat cards are there to be drawn, and this page draws neither");
+  // The shell's stat cards (data-bits' StatStrip and StatCell) went with it, drawn by nothing: none of their classes either.
   assert.equal(
-    find(tree, (n) => n.type === StatCell || n.type === StatStrip),
+    find(tree, (n) => /\bstat-(strip|cell)\b/.test(typeof n.props?.className === "string" ? n.props.className : "")),
     null,
     "REGRESSION: three cards said what the list and the panel already say",
   );

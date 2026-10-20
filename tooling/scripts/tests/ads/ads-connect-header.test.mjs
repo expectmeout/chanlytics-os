@@ -31,7 +31,7 @@ installLegacyReact({
   clearInterval() {},
 });
 after(() => Object.assign(globalThis, timers));
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const S = "../../../../apps/dashboard/src/surfaces";
 const { ThreadHeader } = await import(`${S}/inbox/thread/header.tsx`);
 const { NEEDING_YOU } = await import(`${S}/inbox/sample/threads-needing-you.ts`);

@@ -41,13 +41,12 @@ import {
 } from "@chanlytics/contracts";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { demoSession, navigate } from "../legacy-verbs";
+import { navigate } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { useFollower, useSurface, useSurfaceSettled, type Follower } from "../use-surface";
 import { useRptDesk, useRptPhone } from "./blocks";
-import { campaignsSample } from "./campaigns-sample";
 import type { CampaignsSurface } from "./campaigns-surface";
 import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
@@ -64,7 +63,7 @@ import { PeriodPicker } from "./period-picker";
 import type { PeopleSurface } from "./people-surface";
 import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
-import { peopleSample, receptionistSample, reportsSample, reviewsSample } from "./sample";
+import { useReportsDemo } from "./demo";
 import { shownReportPeriod, type ReportsSurface } from "./surface";
 
 /** The lenses in the order the strip stands them: which side a lens arrives from. */
@@ -115,17 +114,21 @@ interface OwnReads {
  * Each of those reads is its own: a pick lands it after the report or before it, and what it says of that is its state. A demo has no
  * read to follow: the samples answer at once, in a demo alone.
  */
-function useOwnReads(live: ReportsSurface | undefined, R: ReportsSurface | null): OwnReads {
+function useOwnReads(
+  live: ReportsSurface | undefined,
+  R: ReportsSurface | null,
+  demo: ReturnType<typeof useReportsDemo>,
+): OwnReads {
   const reviews = useFollower("reports_reviews");
   const receptionist = useFollower("reports_receptionist");
   const people = useFollower("reports_people");
   const campaigns = useFollower("reports_campaigns");
-  if (live || !R || !demoSession()) return { reviews, receptionist, people, campaigns };
+  if (live || !R || !demo) return { reviews, receptionist, people, campaigns };
   return {
-    reviews: { value: reviewsSample(R.range), state: "current" },
-    receptionist: { value: receptionistSample(R.range), state: "current" },
-    people: { value: peopleSample(R.range), state: "current" },
-    campaigns: { value: campaignsSample(R.range), state: "current" },
+    reviews: { value: demo.reviewsSample(R.range), state: "current" },
+    receptionist: { value: demo.receptionistSample(R.range), state: "current" },
+    people: { value: demo.peopleSample(R.range), state: "current" },
+    campaigns: { value: demo.campaignsSample(R.range), state: "current" },
   };
 }
 
@@ -230,8 +233,9 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   useEffect(() => {
     setPending(null);
   }, [fetchedAt]);
-  const R = live || (demoSession() ? reportsSample(sampleRange) : null);
-  const own = useOwnReads(live, R);
+  const demo = useReportsDemo();
+  const R = live || (demo ? demo.reportsSample(sampleRange) : null);
+  const own = useOwnReads(live, R, demo);
   // The Ads (a demo session's): the lens's head, the Overview's one fact, and what the lens draws, from a chunk fetched on demand.
   const adsHere = useAdsLens(lens, at, R);
   const desk = useRptDesk();

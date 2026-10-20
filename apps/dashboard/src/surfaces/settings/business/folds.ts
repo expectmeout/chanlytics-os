@@ -50,14 +50,14 @@ import {
   type ShiftDraft,
 } from "./fold-shapes";
 import { BT_RUN_BLOCKS, btChangedLines, btWillSay } from "./fold-says";
-import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetails } from "./shell";
+import { FALLBACK_DEFAULTS, instructionsDraft, newReceptionistDefaults, unknownDetails } from "@chanlytics/contracts";
 import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
 
 /* ------------------------------------ what each fold opens with, refuses and writes ------------------------------------ */
 
 /*
- * A fold's three helpers, pure: they read nothing but what they are handed and the bridge's published functions
- * (instructionsDraft, fallbackDefaults, receptionistDefaults, unknownDetails, and BUSINESS_TAB's guardrailsInForce),
+ * A fold's three helpers, pure: they read nothing but what they are handed and contracts' functions
+ * (instructionsDraft, FALLBACK_DEFAULTS, newReceptionistDefaults, unknownDetails, and BUSINESS_TAB's guardrailsInForce),
  * and change nothing they are handed. Ported from the form they replace, BusinessEditor in settings.jsx, section by
  * section: how it opened each part of its state, what its `save` checked, and how it wrote each part back. A fold is
  * named by its id, the same name consequenceOf knows it by (the bridge's FOLD_BLOCK); any other name is a TypeError
@@ -181,10 +181,10 @@ const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config)
   // disappears the moment it fills in a form. Chosen in contracts (S4): the owner's own words, or the prompt from
   // before the form, carried and marked `carried` so the fold can say so -- never the product's opening lines, which
   // no owner wrote.
-  extra_instructions: (p, brain) => instructionsDraft()(brain),
+  extra_instructions: (p, brain) => instructionsDraft(brain),
   // The three messages sent in the business's name when the receptionist cannot answer (S5): the workspace's own, or,
   // for one set up before them, the product's wording, which names the details rather than copying them in.
-  fallbacks: (p, brain) => ({ ...(brain.fallbacks || fallbackDefaults()) }),
+  fallbacks: (p, brain) => ({ ...(brain.fallbacks || FALLBACK_DEFAULTS) }),
   calendar: (p, brain, config) => btCalendarDraft(config),
   // The name, the number it gives out as the Who you are row holds it (the line it answers, `own`, unless a different
   // number is typed), and the booking link: the old form's create path.
@@ -336,7 +336,7 @@ const btWriteReceptionist = (next: Config, draft: unknown) => {
   // row's check has already said it can be.
   const link = trimmed(d.link);
   btPut(b, "booking_link", link ? STORED_AS.booking_link(link) : undefined);
-  const made = receptionistDefaults()(name);
+  const made = newReceptionistDefaults(name);
   if (!b.system_prompt) b.system_prompt = made.system_prompt;
   if (!b.fallbacks) b.fallbacks = made.fallbacks;
 };
@@ -383,7 +383,7 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
     // The product's own opening lines, on every save (S4). The box showed the prompt written before the form, and
     // what the owner kept of it is now their instructions; left in the prompt as well it was stored twice, and an
     // emptied box carried it straight back. Built in contracts, under the name the brain holds when the save goes.
-    next.brain.system_prompt = receptionistDefaults()(next.brain.business_name || "").system_prompt;
+    next.brain.system_prompt = newReceptionistDefaults(next.brain.business_name || "").system_prompt;
   },
   // The three messages as the fold holds them (S5), trimmed, onto what is stored beside them. An existing workspace's
   // open with its own words, never replaced because somebody opened a fold.
@@ -512,7 +512,7 @@ const btFallbacksProblems = (draft: unknown) => {
   const found: Problems = {};
   BT_FALLBACKS.forEach((key) => {
     const t = trimmed(d[key]);
-    const unknown = unknownDetails()(t);
+    const unknown = unknownDetails(t);
     if (!t) found[key] = "Write this message, or use the default wording.";
     else if (t.length > BT_LIMITS.message) found[key] = btRefusalOf("message", t.length);
     else if (unknown.length) {

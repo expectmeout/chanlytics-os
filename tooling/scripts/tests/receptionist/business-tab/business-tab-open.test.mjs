@@ -23,6 +23,7 @@ import {
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
 } from "@chanlytics/contracts";
+import { CALENDAR_PAGE } from "../../../../../apps/dashboard/src/surfaces/calendar/words.ts";
 import {
   unmount,
   settle,
@@ -1352,13 +1353,13 @@ test("a calendar that could not be read says so in the Calendar page's words; wi
     // them: a last good read could not be REFRESHED, which is not the sentence for a calendar that could not be read.
     W.__CALENDAR = calendarRead(readOk({ stale: true, reason: "unreachable", problem: null }));
     row = byTestId(drawTab(), "rec-row-calendar");
-    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), W.__calendarPage.words.stale);
-    assert.equal(W.__calendarPage.words.stale, "The calendar could not be refreshed.");
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), CALENDAR_PAGE.words.stale);
+    assert.equal(CALENDAR_PAGE.words.stale, "The calendar could not be refreshed.");
     W.__CALENDAR = calendarRead(
       readOk({ state: "unavailable", read_at: null, events: 0, reason: null, problem: null }),
     );
     row = byTestId(drawTab(), "rec-row-calendar");
-    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), W.__calendarPage.words.unavailable);
+    assert.equal(textOf(find(row, (n) => classes(n).includes("bt-feed-problem"))), CALENDAR_PAGE.words.unavailable);
 
     // No read in this tab: nothing is invented. The address is still stated.
     delete W.__CALENDAR;
@@ -1922,7 +1923,7 @@ test("an idle page stops stating a read when the Calendar page would have read a
     },
   };
   try {
-    const keeps = W.__calendarPage.refreshMs;
+    const keeps = CALENDAR_PAGE.refreshMs;
     assert.equal(keeps, 5 * 60 * 1000, "the Calendar page's own window, never a second number");
     W.__CALENDAR = calendarRead(readOk(), 60000);
     // A toast's own timer is not the row's, and does not count against ONE.

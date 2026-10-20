@@ -357,7 +357,7 @@ test("a family and a component part where either changes alone, where an entry h
 
 /* ---- the components ---- */
 
-/** What a role's gate puts on a control it refuses (data-bits gatedProps), as the gallery draws it. */
+/** What a role's gate puts on a control it refuses (frame-globals gatedProps), as the gallery draws it. */
 const gated = (why) => ({ "data-gated": "", "aria-disabled": "true", "aria-description": why, "data-tip": why });
 
 /** The gallery's Button family, entry by entry, as a surface draws it with the kit's Button. */

@@ -324,9 +324,9 @@ test("what the narrow path gives up is said before the button, with the real num
  * -------------------------------------------------------------------------- */
 installLegacyReact();
 Object.assign(globalThis.window, { __ME: { email: "ada@example.com" }, __WORKSPACES: [{ slug: "harbor" }] });
-// Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (data-bits.jsx, which also
+// Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (surfaces/frame, which also
 // answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The form talks to the record through the module's one object (record.ts), as the pane does, so the network is
 // stubbed by giving that object the answers of `api()` below: no window door stands between them any more.
 const { businessRecord } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record.ts");

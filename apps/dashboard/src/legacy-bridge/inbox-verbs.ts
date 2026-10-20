@@ -9,13 +9,6 @@ import { settingsOverride } from "./surfaces/settings";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
-import {
-  FALLBACK_DEFAULTS,
-  fallbackMessages,
-  instructionsDraft,
-  newReceptionistDefaults,
-  unknownDetails,
-} from "@chanlytics/contracts";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 
@@ -136,14 +129,6 @@ declare global {
     __setPolicy?: (cls: string, mode: string | undefined, limits?: PolicyDials) => Promise<VerbResult>;
     __href: typeof href;
     __saveSettings: typeof saveSettings;
-    __composedPrompt: typeof composedPrompt;
-    __receptionistDefaults: typeof newReceptionistDefaults;
-    /** What the Business editor's instructions box opens with (S4). */
-    __instructionsDraft: typeof instructionsDraft;
-    /** The messages sent in the business's name as a customer reads them, the product's wording, and the names nothing fills in (S5). */
-    __fallbackMessages: typeof fallbackMessages;
-    __fallbackDefaults: typeof FALLBACK_DEFAULTS;
-    __unknownDetails: typeof unknownDetails;
   }
 }
 
@@ -207,16 +192,6 @@ export function installInboxVerbs(): void {
   // A call's recording is no verb: the thread's <audio> points at the route (window.__href), which redirects to a
   // link signed for each request. (Live's verbs are imported by its page: whisperCall, endCall, handOverCall, refreshLive.)
   window.__saveSettings = saveSettings;
-  window.__composedPrompt = composedPrompt;
-  // The settings form builds a brand-new brain and must satisfy the same
-  // schema the edge parses; the defaults live beside that schema.
-  window.__receptionistDefaults = newReceptionistDefaults;
-  // The instructions box opens with what contracts says it should (S4).
-  window.__instructionsDraft = instructionsDraft;
-  // The messages sent in the business's name, as the form previews and checks them (S5).
-  window.__fallbackMessages = fallbackMessages;
-  window.__fallbackDefaults = FALLBACK_DEFAULTS;
-  window.__unknownDetails = unknownDetails;
 }
 
 /**

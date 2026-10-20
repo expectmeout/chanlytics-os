@@ -59,8 +59,8 @@ const flashed = [];
 const sent = [];
 installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../../../apps/dashboard/src";
-// The role gate the buttons ask (data-bits.jsx), drawn for real; the toast is this harness's own.
-await import(`${S}/legacy/components/data-bits.jsx`);
+// The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 globalThis.usePPToast = () => [null, (m) => flashed.push(m)];
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

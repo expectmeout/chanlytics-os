@@ -11,13 +11,13 @@
  *
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
-import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../legacy-bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
-import type { ViewPage } from "./kit/view-tabs/pager";
+import type { StayingPage, SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 
-/** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
+/** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
 export interface LegacyFlash {
   tone?: string;
   msg: ReactNode;
@@ -53,6 +53,7 @@ declare global {
  * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
  */
 export { askAbout, backFrom, navigate, openAsk };
+export type { StayingPage, SwipeHandlers };
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
@@ -78,7 +79,7 @@ export function shellSignOut(): boolean {
   return true;
 }
 
-/** Whether the person acting may do what a role gate names (data-bits `canDo`): with no role store, they may. */
+/** Whether the person acting may do what a role gate names (frame/gate.ts `canDo`): with no role store, they may. */
 export function canDo(action: string): boolean {
   return window.canDo ? window.canDo(action) : false;
 }
@@ -97,7 +98,7 @@ export const warmsOnReach = (e: { pointerType?: string } | null | undefined): bo
   !e || e.pointerType !== "touch";
 
 /**
- * A change that moves what is drawn beside the control that made it, run so the control stays where it was (data-bits
+ * A change that moves what is drawn beside the control that made it, run so the control stays where it was (kit/motion
  * `holdStill`); where the page has no such verb, just the change.
  */
 export function holdStill(control: Element | null | undefined, change: () => void): void {
@@ -219,7 +220,7 @@ export function windowObject<T extends object>(name: string): T | undefined {
 }
 
 /**
- * The props of a control that refuses, with the sentence that says why (data-bits `gatedProps`): focusable, described,
+ * The props of a control that refuses, with the sentence that says why (frame/gate.ts `gatedProps`): focusable, described,
  * inert, and pressing it shows the reason at the control (`window.__tip`). None where the shell has no role gate.
  */
 export function gatedProps(reason: string): Record<string, unknown> {
@@ -296,10 +297,10 @@ export function showTip(target: Element | null): void {
   if (tip && tip.show && target) tip.show(target);
 }
 
-/* ------------------------- the shell's helpers a surface's controls take (data-bits.jsx) ------------------------- */
+/* ------------------------- the shell's helpers a surface's controls take (surfaces/frame) -------------------------- */
 
 /**
- * What a role gate spreads onto a control, AFTER its handlers (data-bits `gate`): nothing where the role may act; where
+ * What a role gate spreads onto a control, AFTER its handlers (frame/gate.ts `gate`): nothing where the role may act; where
  * it may not, the control stays in the tab order, says why on hover, on focus and when pressed, and does nothing.
  */
 export type GateProps = {
@@ -318,46 +319,7 @@ export type GateProps = {
   onPointerCancel?: undefined;
 };
 
-/**
- * A page that stays as a swipe walks it (the Calendar's days: the same element shows the next): what is each side and
- * how to turn. data-bits turns it in place (`swipeStays`).
- */
-export interface StayingPage {
-  prev: boolean;
-  next: boolean;
-  stays: true;
-  go: (step: number) => void;
-}
-
-/**
- * A page a swipe walks (data-bits `touchSwipe`, `pages`): one under a strip of views, which moves itself by the deck
- * (the kit's `viewPager`), or one that stays.
- */
-type SwipePage = ViewPage | StayingPage;
-
-/** What a swipe answers to (data-bits `touchSwipe`): each is the page's own to do, called once the thumb has let go. */
-interface SwipeOptions {
-  onLeft?: (() => void) | null;
-  onRight?: (() => void) | null;
-  onDown?: (() => void) | null;
-  onBack?: (() => void) | null;
-  onAway?: (() => void) | null;
-  pages?: ((el: Element, from: EventTarget | null) => SwipePage | null) | null;
-  min?: number;
-  when?: (() => boolean) | null;
-  /** Grabbed (`on`, with the way it moves) or let go: what is under it can show while it moves. */
-  onGrab?: ((el: Element, on: boolean, way?: "down" | "back" | "away") => void) | null;
-}
-
-/** The handlers a swipe spreads onto the element it is on. */
-export interface SwipeHandlers {
-  onTouchStart?: (e: TouchEvent<HTMLElement>) => void;
-  onTouchMove?: (e: TouchEvent<HTMLElement>) => void;
-  onTouchEnd?: (e: TouchEvent<HTMLElement>) => void;
-  onTouchCancel?: (e: TouchEvent<HTMLElement>) => void;
-}
-
-/** What a link to a route spreads (data-bits `routeDoor`): the address in its href, the app's own way there on a plain press. */
+/** What a link to a route spreads (frame-doors.ts `routeDoor`): the address in its href, the app's own way there on a plain press. */
 interface RouteDoor {
   href: string;
   onClick: (e?: MouseEvent<HTMLElement>) => void;
@@ -396,27 +358,27 @@ declare global {
   }
 }
 
-/** A role gate's props for a control (data-bits `gate`); where the shell has no role store, the control is not gated. */
+/** A role gate's props for a control (frame/gate.ts `gate`); where the shell has no role store, the control is not gated. */
 export function gate(action: string, doing?: string): GateProps {
   return window.gate ? window.gate(action, doing) : {};
 }
 
-/** The sentence a role's refusal says (data-bits `gateTitle`), for a control that explains itself its own way. */
+/** The sentence a role's refusal says (frame/gate.ts `gateTitle`), for a control that explains itself its own way. */
 export function gateTitle(action: string, doing?: string): string {
   return window.gateTitle ? window.gateTitle(action, doing) : "Your role can't do this.";
 }
 
-/** Whether the member, as they are acting (View-as included), stands on this rung or above (data-bits `mayAtLeast`). */
+/** Whether the member, as they are acting (View-as included), stands on this rung or above (frame/gate.ts `mayAtLeast`). */
 export function mayAtLeast(rung: string): boolean {
   return window.mayAtLeast ? window.mayAtLeast(rung) : false;
 }
 
-/** A thumb's gestures for an element (data-bits `touchSwipe`); none where the shell has none. */
+/** A thumb's gestures for an element (kit/motion/swipe.ts `touchSwipe`); none where the shell has none. */
 export function touchSwipe(options: SwipeOptions): SwipeHandlers {
   return window.touchSwipe ? window.touchSwipe(options) : {};
 }
 
-/** Whether the shell takes a thumb's gestures at all (data-bits `touchSwipe`): a row slides only where it does. */
+/** Whether the shell takes a thumb's gestures at all (kit/motion/swipe.ts `touchSwipe`): a row slides only where it does. */
 export function hasTouchSwipe(): boolean {
   return !!window.touchSwipe;
 }
@@ -498,17 +460,17 @@ export function keepTouch<H extends object>(handlers: H): H {
   return kept as H;
 }
 
-/** The ref that plays an overlay out as React lets go of it (data-bits `leaving`), one per key. */
+/** The ref that plays an overlay out as React lets go of it (kit/motion/leaving.ts `leaving`), one per key. */
 export function leaving(key: string): RefCallback<HTMLElement> | undefined {
   return window.leaving ? window.leaving(key) : undefined;
 }
 
-/** Enter and Space, pressed on the element itself, as a press (data-bits `keyPress`). */
+/** Enter and Space, pressed on the element itself, as a press (kit/focus/keys.ts `keyPress`). */
 export function keyPress(fn: (e: KeyboardEvent<HTMLElement>) => void): (e: KeyboardEvent<HTMLElement>) => void {
   return window.keyPress ? window.keyPress(fn) : () => undefined;
 }
 
-/** A link to a route: its address in the href, and the app's own way there on a plain press (data-bits `routeDoor`). */
+/** A link to a route: its address in the href, and the app's own way there on a plain press (frame-doors.ts `routeDoor`). */
 export function routeDoor(to: string, go?: ((to: string) => void) | null): RouteDoor {
   if (window.routeDoor) return window.routeDoor(to, go);
   // The shell's own is not there: the address a workspace's route has (`/w/<slug>/<route>`, the one workspace.ts
@@ -518,7 +480,7 @@ export function routeDoor(to: string, go?: ((to: string) => void) | null): Route
   return { href: slug ? workspacePath(decodeURIComponent(slug), to) : `#/${to}`, onClick: () => navigate(to) };
 }
 
-/** A refusal as the toast raises it: always the danger tone, the page's words first (data-bits `refusalToast`). */
+/** A refusal as the toast raises it: always the danger tone, the page's words first (frame/flash.tsx `refusalToast`). */
 export function refusalToast(r: Refusal | null | undefined, what?: string | null): LegacyFlash {
   return window.refusalToast
     ? window.refusalToast(r, what)

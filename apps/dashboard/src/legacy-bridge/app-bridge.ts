@@ -361,7 +361,7 @@ interface Overlays {
 const OVERLAY_SELECTOR = '[role="dialog"], [aria-modal="true"], [role="menu"]';
 /**
  * How long a close waits to see its overlay gone. React takes it away within a frame of the key; the still copy that
- * plays it out (data-bits leaving) carries no role, so it is not counted as the overlay standing.
+ * plays it out (kit/motion/leaving.ts leaving) carries no role, so it is not counted as the overlay standing.
  */
 const CLOSE_WAIT_MS = 250;
 

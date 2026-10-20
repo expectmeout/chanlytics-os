@@ -39,7 +39,7 @@ Object.assign(W, {
 });
 // The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../../../apps/dashboard/src/surfaces/campaigns";
 const { BroadcastDetail } = await import(`${S}/broadcasts/run.tsx`);
 const { broadcasts } = await import(`${S}/broadcasts/verbs.ts`);

@@ -377,6 +377,9 @@ const followingMoves = async (run) => {
 
 /* ------------------------------------------ the headline ------------------------------------------ */
 
+// A demo's sample is fetched only in a demo session (surfaces/reports/demo.ts): fetched once here, so a demo draws it at once.
+await (await import("../../../../apps/dashboard/src/surfaces/reports/demo.ts")).reportsDemo();
+
 test("the headline: the receptionist's part of the answered as a meter, the period before as a tick, the view model's sentence under it", () => {
   const hero = card(page(), "reports-hero");
   assert.equal(textOf(cls(hero, "rpt-hero-number")), "76%");

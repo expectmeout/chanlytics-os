@@ -9,21 +9,17 @@
 //
 // The tab's saver (saver.ts) is this file's SAVE with folds.ts's FOLDS added, one object that every consumer imports.
 
-import type { ReactNode } from "react";
-import type { LegacyFlash } from "../../legacy-verbs";
 import {
+  formatPhoneDisplay,
   handoffE164,
+  newReceptionistDefaults,
   normalizeLink,
-  pageConsole,
-  phoneDisplay,
-  receptionistDefaults,
-  saveSettingsFn,
-  settingsNow,
-  tzApi,
   whyNotAHandoff,
   whyNotAPhone,
-  workspaceApi,
-} from "./shell";
+} from "@chanlytics/contracts";
+import type { ReactNode } from "react";
+import type { LegacyFlash } from "../../legacy-verbs";
+import { pageConsole, saveSettingsFn, settingsNow, tzApi, workspaceApi } from "./shell";
 
 /* ------------------------------------ the config, as far as this tab reads it ------------------------------------ */
 
@@ -150,17 +146,15 @@ interface Tried {
 
 /**
  * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
- * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
+ * formatPhoneDisplay). Business showed the line it answers and the transfer number in the
  * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
  * which for the number it gives out is what the receptionist says.
  *
  * Exported as `phoneShown`, since the Business tab shows a number in more than one of its folds: one rule for
  * writing them.
  */
-export const phoneShown = (v: string | null | undefined) => {
-  const show = phoneDisplay();
-  return v && typeof show === "function" && /^\+[1-9][0-9]{6,14}$/.test(v) ? show(v) : v;
-};
+export const phoneShown = (v: string | null | undefined) =>
+  v && /^\+[1-9][0-9]{6,14}$/.test(v) ? formatPhoneDisplay(v) : v;
 
 // Two drafts are the same when saving either would write the same thing.
 const btSame = (a: unknown, b: unknown) =>
@@ -591,13 +585,8 @@ const btWordDoor = btWorkspaceDoor({
 
 // The pattern every web address on this tab is checked by: the old form's, which the save's own URL rule backs up.
 // A web address as it is stored: contracts' one normalizer (normalizeLink, which supplies a missing https://), or null
-// when the draft cannot be one. Without the bridge (the standalone mockup before it loads, a test that never installed
-// it) there is nothing to ask, as for the booking link's own check: it is taken as typed.
-const btWebOf = (v: string | null | undefined): string | null => {
-  if (!v) return null;
-  const normalize = normalizeLink();
-  return normalize ? normalize(v) : v;
-};
+// when the draft cannot be one.
+const btWebOf = (v: string | null | undefined): string | null => (v ? normalizeLink(v) : null);
 
 /** The number it gives out as PublishedNumberRow holds it: the line it answers (`own`), or a different one typed. */
 interface PublishedDraft {
@@ -610,10 +599,7 @@ interface PublishedDraft {
 const btPublishedOf = (d: PublishedDraft, line: string | null | undefined) => (d.own && line ? "" : btTrimmed(d.typed));
 
 // The transfer number is stored as E.164, or not at all (contracts handoffE164).
-const btTransferOf = (d: string | null | undefined) => {
-  const e164 = handoffE164();
-  return e164 ? e164(d) : btTrimmed(d) || null;
-};
+const btTransferOf = (d: string | null | undefined) => handoffE164(d);
 
 /** What a row's draft stores, by the row's id. */
 interface StoredAs {
@@ -660,16 +646,13 @@ const btCheckBookingLink = (d: unknown) => {
 };
 const btCheckPublished = (d: PublishedDraft, line: string | null | undefined) => {
   const v = btPublishedOf(d, line);
-  const why = whyNotAPhone();
-  const bad = v && why ? why(v) : null;
+  const bad = v ? whyNotAPhone(v) : null;
   if (bad) return bad;
   return !v && !line ? "There is no line yet, so the receptionist needs a number to give out." : null;
 };
 // `kept` is the number the business keeps and forwards to the receptionist (contracts kept_line): a transfer there comes straight back.
-const btCheckTransfer = (d: string | null | undefined, line: string | null | undefined, kept?: string | null) => {
-  const why = whyNotAHandoff();
-  return why ? why(d, line, kept) : null;
-};
+const btCheckTransfer = (d: string | null | undefined, line: string | null | undefined, kept?: string | null) =>
+  whyNotAHandoff(d, line, kept);
 
 /** What stops each row's save, by the row's id. */
 interface CheckOf {
@@ -696,7 +679,7 @@ const BT_CHECK_OF: CheckOf = {
 
 /**
  * Whether a brain's stored prompt is exactly the product's opening lines under the business's stored name: what the
- * product writes for it (contracts newReceptionistDefaults, which the bridge publishes), and nothing else.
+ * product writes for it (contracts newReceptionistDefaults), and nothing else.
  *
  * Not isBaselinePrompt, which reads only the opening and the closing and takes anything between them as a name. That
  * is right for saying whose words a prompt is, but a rename overwrites what this matches, and words an owner put
@@ -705,9 +688,8 @@ const BT_CHECK_OF: CheckOf = {
  */
 const btIsBaseline = (brain: Brain | null | undefined) => {
   const text = brain && typeof brain.system_prompt === "string" ? brain.system_prompt.trim() : "";
-  const defaults = receptionistDefaults();
-  if (!text || !defaults) return false;
-  return text === defaults((brain && brain.business_name) || "").system_prompt;
+  if (!text) return false;
+  return text === newReceptionistDefaults((brain && brain.business_name) || "").system_prompt;
 };
 
 /**
@@ -720,7 +702,7 @@ const btIsBaseline = (brain: Brain | null | undefined) => {
  * wrote it.
  */
 const btPatchName = (name: string) => (b: Brain) => {
-  if (name !== b.business_name && btIsBaseline(b)) b.system_prompt = receptionistDefaults()(name).system_prompt;
+  if (name !== b.business_name && btIsBaseline(b)) b.system_prompt = newReceptionistDefaults(name).system_prompt;
   b.business_name = name;
   return b;
 };

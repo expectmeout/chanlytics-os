@@ -289,7 +289,7 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit, published as the app publishes it before any page loads.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();

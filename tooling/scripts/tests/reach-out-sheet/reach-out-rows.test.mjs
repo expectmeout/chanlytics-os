@@ -26,7 +26,7 @@ const toasts = [];
 Object.assign(W, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
-  // The role store's gate is data-bits.jsx's own (window.gate, canDo, gateTitle), over this role and contracts' table.
+  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
   __roleGate: contracts.roleGate,
   __surfaceState: () => "live",
@@ -34,8 +34,8 @@ Object.assign(W, {
 });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
-// The shell's toast is data-bits.jsx's own; the home raises its notices through it, and a test reads them here.
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+// The shell's toast is the frame's own; the home raises its notices through it, and a test reads them here.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 // The pages and their panes are TSX (decision 0015): New's Write to leads.
 const S = "../../../../apps/dashboard/src/surfaces";

@@ -34,7 +34,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
   usePPToast: () => [null, () => {}],
 });
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const W = globalThis.window;
 
 /** A glyph: the kit's Icon, which the record kit draws itself (the shell's pages draw the host element "Icon"). */

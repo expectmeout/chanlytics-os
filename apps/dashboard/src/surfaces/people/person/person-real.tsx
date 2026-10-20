@@ -489,7 +489,7 @@ function useRailHeld(held: RefObject<HTMLDivElement | null>): (scroller: HTMLDiv
 }
 
 /**
- * A phone's thumb on the page (data-bits touchSwipe): across the tab's panes it walks the strip (work.tsx tabPages), and
+ * A phone's thumb on the page (kit/motion/swipe.ts touchSwipe): across the tab's panes it walks the strip (work.tsx tabPages), and
  * right of the first tab, or from the head at any tab, it carries the page back to People, the page following the finger
  * and People drawn as it lets go; the foot's dock steps aside while it moves. Never from 24px of either edge, the phone's
  * own back, nor from a field or a row that scrolls across. None on a desk.

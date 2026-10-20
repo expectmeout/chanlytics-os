@@ -85,7 +85,7 @@
     "shell/chrome.test.mjs": 14,
     "shell/layout-measure.test.mjs": 8,
     "shell/phone-shell.test.mjs": 11,
-    "shell/polish.test.mjs": 12,
+    "shell/polish.test.mjs": 11,
     "shell/surfaces/surface-seam.test.mjs": 7,
     "shell/surfaces/truth-pass.test.mjs": 6,
     "sms/sms.test.mjs": 11,

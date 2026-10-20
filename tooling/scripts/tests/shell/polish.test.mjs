@@ -110,11 +110,6 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     ),
     "a long meta wraps in its own cell, not into the next",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes(
-      'title={typeof meta === "string" ? meta : undefined}',
-    ),
-  );
   // tzClock, and the four places Today says a closing or a last time with it.
   const today = ["clock", "facts", "figures", "rows", "queue"]
     .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))

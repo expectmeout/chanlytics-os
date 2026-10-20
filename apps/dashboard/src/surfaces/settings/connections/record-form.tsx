@@ -415,7 +415,7 @@ function formView(opts: FormOptions) {
         <span className="biz-hint">
           {RECORD.pathWords[path].filed}. {RECORD.pathWords[path].sub}
         </span>
-        {/* The short question takes the long form's place: the page holds still under the press (data-bits holdStill). */}
+        {/* The short question takes the long form's place: the page holds still under the press (kit/motion/hold-still.ts holdStill). */}
         {owner && (
           <LinkButton
             onClick={(e) => holdStill(e && e.currentTarget, onAsk)}
