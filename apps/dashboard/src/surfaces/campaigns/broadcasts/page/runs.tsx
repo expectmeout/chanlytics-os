@@ -142,7 +142,7 @@ export function bcAgainOf({ canSend, templates, audiences, link, review }: Again
 }
 
 /** What the run's own screen reads of the page and of the acts above. */
-type SoloIn = Pick<BcBase, "openRun"> &
+type SoloIn = Pick<BcBase, "openRun" | "flash"> &
   Pick<BcRunsOf, "openRow"> &
   RunActsIn &
   Pick<BcV, "againFor" | "sheetFor"> & { openId: string };
@@ -152,6 +152,7 @@ type SoloIn = Pick<BcBase, "openRun"> &
 export function bcRunSolo({
   openId,
   openRun,
+  flash,
   openRow,
   canSend,
   armId,
@@ -186,6 +187,7 @@ export function bcRunSolo({
       }
       again={againFor}
       sheet={sheetFor(openRow)}
+      flash={flash}
     />
   );
 }

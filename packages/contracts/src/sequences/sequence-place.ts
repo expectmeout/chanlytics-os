@@ -10,7 +10,8 @@
  */
 import { clockDate, clockNear } from "../shared/clock";
 import { capitalize, plural } from "../shared/words";
-import { holdWords, isReachOutHold } from "../reach-out/reach-out-words";
+import { isReachOutHold } from "../reach-out/reach-out-words";
+import { heldWhyOf } from "./sequence-held";
 import type { SequenceState } from "./sequence";
 import type {
   SequencePeopleGroup,
@@ -156,9 +157,9 @@ export function placeWordOf(
 
 /* -------------------------------------------------------------------------------------------- a held email -- */
 
-/** Why a held email was held, said once: "the opening says “award-winning”, which the listing doesn't back". */
-const heldWhyOf = (hold: string | null, detail: string | null): string | null =>
-  isReachOutHold(hold) ? capitalize(holdWords(hold, detail)) : null;
+/** Why a held email was held, said once as every held row says it (contracts heldWhyOf); none for a reason not the check's. */
+const placeHeldWhy = (hold: string | null, detail: string | null): string | null =>
+  isReachOutHold(hold) ? heldWhyOf(hold, detail) : null;
 
 /* -------------------------------------------------------------------------------------------------- the rail -- */
 
@@ -218,7 +219,7 @@ function sendStateOf(
     return { tone: "done", words: Number.isFinite(t) ? `Sent ${clockDate(t, clock.tz, clock.nowMs)}` : "Sent" };
   }
   if (s.state === "held") {
-    const why = heldWhyOf(s.reason, s.hold_detail);
+    const why = placeHeldWhy(s.reason, s.hold_detail);
     return { tone: "need", words: why ? `Held: ${why.charAt(0).toLowerCase()}${why.slice(1)}` : "Held by the check" };
   }
   if (s.state === "drafted") return { tone: "need", words: "Yours to send, from your own inbox" };

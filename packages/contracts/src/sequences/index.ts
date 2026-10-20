@@ -112,7 +112,8 @@ export {
   placeRailOf,
   placeSpanOf,
 } from "./sequence-place";
-export { heldChoicesOf } from "./sequence-held";
+export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf } from "./sequence-held";
+export type { HeldAnswer, HeldChoice } from "./sequence-held";
 export type {
   SequencePlaceDto,
   SequencePlaceRowDto,

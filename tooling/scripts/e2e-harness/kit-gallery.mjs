@@ -2232,7 +2232,8 @@ export const FAMILIES = [
     about:
       "kit.css's meter (step 2.2): a whole in its parts, each part's share its flex-grow and its colour a chart's " +
       "series or a tone: 8px, large and small; one part, rounded at both ends; the tones and a rest part, as the " +
-      "reach bar draws them, and a check read rather than seen, ok's green softer, as the lead sheet's fit draws it. Each size and the one part beside the charts kit's segment bar, which the spec holds it " +
+      "reach bar draws them, a check read rather than seen, ok's green softer, as the lead sheet's fit draws it, and a " +
+      "share still to come, its outline alone, as a run's emails the check is still reading. Each size and the one part beside the charts kit's segment bar, which the spec holds it " +
       "equal to, but for the tag of a part: SegmentBar draws an &lt;i&gt;, which the browser sets in italic, and a " +
       "part has no words.",
     entries: [
@@ -2257,6 +2258,14 @@ export const FAMILIES = [
           `<span class="meter-part meter-ok" style="flex-grow: 3"></span>` +
           `<span class="meter-part meter-read" style="flex-grow: 1"></span>` +
           `<span class="meter-part meter-warn" style="flex-grow: 1"></span></div>`,
+      },
+      {
+        id: "meter-open",
+        html:
+          `<div class="meter" role="img" aria-label="2 ready, 7 held, 3 being checked">` +
+          `<span class="meter-part meter-ok" style="flex-grow: 2"></span>` +
+          `<span class="meter-part meter-warn" style="flex-grow: 7"></span>` +
+          `<span class="meter-part meter-open" style="flex-grow: 3"></span></div>`,
       },
     ],
   },

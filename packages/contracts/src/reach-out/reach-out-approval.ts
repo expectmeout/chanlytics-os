@@ -9,12 +9,12 @@ import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
-import { RUN_OPEN_WORDS, RUN_WAITING_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
+import { RUN_OPEN_WORDS, RUN_WAITING_SHORT, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { reachOutRootOf } from "./reach-out-rules";
-import { approvalWordsOf, chainPaceOf, stepLabel } from "./reach-out-sheet";
+import { approvalWordsOf, stepLabel } from "./reach-out-sheet";
 import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address";
 
 /**
@@ -68,40 +68,36 @@ function skippedWordsOf(skipped: Record<string, number>): string[] {
     .map(([reason, n]) => `${n} skipped · ${skippedReasonWords(reason)}`);
 }
 
-/** A live run's state as the block's head says it; a run waiting is the approval sheet's own. */
+/** A live run's state as the pill in its head says it: one that waits on you says so as a phone's pill does. */
 const STATE_WORDS: Record<string, string> = {
-  pending_approval: RUN_WAITING_WORDS,
+  pending_approval: RUN_WAITING_SHORT,
   scheduled: "Scheduled",
   sending: "Sending",
 };
 
+/** The states a live run's words are said in: waiting on its owner, approved and to come, or going. */
+const runStateOf = (state: string): "pending_approval" | "scheduled" | "sending" =>
+  state === "scheduled" || state === "sending" ? state : "pending_approval";
+
 /**
- * The block a live reach-out run draws (R20): approvalWordsOf for a run waiting on its owner, and for one that is
- * scheduled or sending, the same facts without an Approve (it was approved, or its mode was veto). `today` is the
- * workspace's day, `now` the moment it is said and `timezone` the zone; the share a day is the run's own mailboxes' (R22).
+ * The block a live reach-out run draws (R20): approvalWordsOf in the run's state, waiting on its owner, scheduled or
+ * sending (approved, or its mode was veto), and what a live run says whatever its state: the skipped by reason, who gets it
+ * (the checked only), and Skip's question. `today` is the workspace's day, `now` the moment it is said and `timezone` the
+ * zone.
  */
 export function reachOutRunWordsOf(
   r: ReachOutRunDto,
   p: { state: string; timezone: string; today: string; now: number },
 ) {
-  const share = chainPaceOf(r).share;
-  const a = approvalWordsOf(r, { timezone: p.timezone, share, today: p.today, now: p.now });
+  const a = approvalWordsOf(r, { timezone: p.timezone, today: p.today, now: p.now, state: runStateOf(p.state) });
   const waiting = p.state === "pending_approval";
   const earlier = !!r.run_for && r.run_for < p.today;
   // Who gets it: only the checked, ready sends, by name and time (R21); the rest are being checked.
   const checked = r.planned.filter((x) => x.checked);
-  const step = r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}`;
   const owner = r.owner_sends === true;
   return {
     ...a,
     k: STATE_WORDS[p.state] ?? "To leads",
-    sub: waiting
-      ? a.sub
-      : owner
-        ? `To leads · ${step} · each handed to you to send from your inbox once it is checked`
-        : `To leads · ${step} · ${p.state === "sending" ? "going now" : "goes"}, one every ${r.gap_minutes} minutes as each business opens`,
-    approve: waiting ? a.approve : null,
-    approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r.skipped),
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
@@ -115,6 +111,8 @@ export function reachOutRunWordsOf(
         leadId: x.lead_id ?? null,
         // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
         at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
+        // Whether `at` is a time on the clock, which is set in figures; the words that stand for one are not.
+        clock: !owner && !retimed,
       };
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,
@@ -126,11 +124,13 @@ export function reachOutRunWordsOf(
         ? `${r.chain_name} approved — ${plural(r.later, "email", "emails")} in the coming days, in their hours`
         : `${r.chain_name} approved — ${plural(r.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
-    // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; none while nothing is checked.
-    listHead:
+    // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; what is still being checked said
+    // inside it, under the names; none while nothing is checked.
+    listHead: WHO_GETS_IT_WORDS.head,
+    listNote:
       r.checking > 0
-        ? `${WHO_GETS_IT_WORDS.head} · ${plural(r.checking, "more is", "more are")} being checked`
-        : WHO_GETS_IT_WORDS.head,
+        ? `${plural(r.checking, "more is", "more are")} being checked; ${r.checking === 1 ? "it goes once it passes" : "they go once they pass"}`
+        : null,
   };
 }
 
@@ -363,7 +363,12 @@ const REACH_OUT_RUN_LABELS = {
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
+  seeHeld: "See them",
   hideHeld: "Hide them",
+  /** The heads over the email card and what was checked, and what a desk's head says the run is. */
+  email: "The email",
+  checked: "Checked before it goes",
+  toLeads: "To leads",
   deciding: "Saying so…",
   rechecking: "Checking again…",
   gated: "decide a held email or approve a run",

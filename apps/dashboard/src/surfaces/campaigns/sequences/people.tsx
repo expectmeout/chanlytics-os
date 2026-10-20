@@ -207,7 +207,14 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
     return <p className="sq-none">{P.nobody}</p>;
   return (
     <div className="sq-people" data-testid="sq-people">
-      <SequenceNeeds rows={rows} count={needs} timezone={rec.timezone} flash={flash} onDecided={moved} />
+      <SequenceNeeds
+        sequenceId={rec.sequence.id}
+        rows={rows}
+        count={needs}
+        timezone={rec.timezone}
+        flash={flash}
+        onDecided={moved}
+      />
       {/* Who wrote back, answered where their threads are: each one's thread, and the Inbox's threads of this sequence. */}
       {replied > 0 ? (
         <section className="sq-group" aria-label={N.wroteBack} data-testid="sq-people-replied">

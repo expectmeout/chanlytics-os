@@ -168,6 +168,7 @@ export {
   chainPathWords,
   REACH_OUT_ROW_WORDS,
 } from "./reach-out-sheet";
+export type { RunPartVM } from "./reach-out-sheet";
 export {
   REACH_OUT_FIRST_WORDS,
   REACH_OUT_GAP_FIRST,

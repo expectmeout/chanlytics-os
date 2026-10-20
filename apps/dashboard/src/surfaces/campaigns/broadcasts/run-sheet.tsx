@@ -331,7 +331,7 @@ function bcSheetActs(p: { b: BroadcastDto; avm: ApprovalVM; sheet: BcSheetAsk })
  * it clear of the frame's top and the foot: on a phone it opened under the message, off the screen, and the press seemed
  * to do nothing. A ref of its own, the same one each render, so it runs as the list mounts and not again.
  */
-export function bringListIntoView(el: HTMLElement | null): void {
+function bringListIntoView(el: HTMLElement | null): void {
   if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 }
 

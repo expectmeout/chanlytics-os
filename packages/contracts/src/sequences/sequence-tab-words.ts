@@ -4,8 +4,8 @@
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
-import { heldChoicesOf } from "./sequence-held";
-import { holdWords, isReachOutHold, type HoldDoor, type ReachOutHold } from "../reach-out/reach-out-words";
+import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, type HeldAnswer } from "./sequence-held";
+import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { addressOf } from "../activity/record-address";
@@ -79,18 +79,18 @@ export const SEQUENCE_NEEDS_WORDS = {
   inSent: "Open their run",
 } as const;
 
-/** An email the check held, as People lays it out: whose, why, and its answers in their own words (holdDoors). */
+/** An email the check held, as People lays it out: whose, why, and its answers in their own words (heldAnswersOf). */
 export interface SequenceHeldVM {
   id: string;
   name: string;
   /** Its lead's id, which opens its sheet over the record. */
   leadId: string | null;
-  /** The step it is, from 1: Skip this email from step 2. */
+  /** The step it is, from 1: Skip this email from step 2, Take out at step 1. */
   place: number | null;
   why: string;
   /** Why the check held it (contracts REACH_OUT_HOLDS): what decides whether it may go as written with the rest. */
   reason: ReachOutHold;
-  doors: [HoldDoor, string][];
+  answers: HeldAnswer[];
   /** The batch it waits in: what its answer's Open goes to. */
   batchId: string | null;
 }
@@ -149,10 +149,10 @@ export function peopleNeedsOf(
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         leadId: r.lead_id,
         place: r.place,
-        why: holdWords(reason, r.hold_detail),
+        why: heldWhyOf(reason, r.hold_detail),
         reason,
-        // The choices the lead sheet offers for it, one rule (contracts heldChoicesOf): Skip this email from step 2.
-        doors: heldChoicesOf(reason, r.place),
+        // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
+        answers: heldAnswersOf({ reason, detail: r.hold_detail }, r.place),
         batchId: r.batch_id,
       },
     ];
@@ -182,7 +182,7 @@ export function peopleNeedsOf(
       : [],
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
-  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
+  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.answers.some((a) => a.door === "include"));
   const replied = rows.filter((r) => r.group === "replied");
   const wroteBack =
     replied.length > 0 || rows.some((r) => r.reply !== undefined)
@@ -213,7 +213,7 @@ export const SEQUENCE_PEOPLE_WORDS = {
   failed: "who is in it",
   someone: "Someone",
   step: (place: number) => `step ${place}`,
-  takeOut: "Take out",
+  takeOut: HELD_TAKE_OUT,
   takeOutAll: (n: number) => `Take these ${n} out`,
   more: (n: number) => `and ${n} more`,
   /** A fold of people still to hear from it: when the soonest of them goes. */

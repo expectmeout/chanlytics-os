@@ -288,9 +288,9 @@ export function RoToSend({
           </LinkButton>
         )}
       </div>
-      <p className="pb-note">{may ? vm.note : gateTitle("approve", vm.labels.gated)}</p>
+      <p className="pb-note ro-send-note">{may ? vm.note : gateTitle("approve", vm.labels.gated)}</p>
       {done && (
-        <p className="pb-note" role="status" data-testid="ro-to-send-done">
+        <p className="pb-note ro-send-note" role="status" data-testid="ro-to-send-done">
           {done}
         </p>
       )}

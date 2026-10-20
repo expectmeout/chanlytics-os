@@ -526,6 +526,20 @@
   text-overflow: clip;
   white-space: normal;
 }
+/* A held email's answers, one group that wraps: on a phone three stood in a row past the row's edge. */
+.sq-held-answers {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+/* An answer refused, said on a line of its own under the why it answered. */
+.sq-held-said {
+  display: block;
+  margin-top: var(--space-1);
+}
 /* The emails to send: every To send's rows (reach-out/to-send.tsx), on one inset. */
 .sq-to-send {
   overflow: hidden;

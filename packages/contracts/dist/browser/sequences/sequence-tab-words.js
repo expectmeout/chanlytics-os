@@ -1,6 +1,6 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
-import { heldChoicesOf } from "./sequence-held.js";
-import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
+import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf } from "./sequence-held.js";
+import { isReachOutHold } from "../reach-out/reach-out-words.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
 import { addressOf } from "../activity/record-address.js";
@@ -76,10 +76,10 @@ export function peopleNeedsOf(rows, at) {
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         leadId: r.lead_id,
         place: r.place,
-        why: holdWords(reason, r.hold_detail),
+        why: heldWhyOf(reason, r.hold_detail),
         reason,
-        // The choices the lead sheet offers for it, one rule (contracts heldChoicesOf): Skip this email from step 2.
-        doors: heldChoicesOf(reason, r.place),
+        // Its answers as a run's screen offers them, one rule (contracts heldAnswersOf): Take out at step 1.
+        answers: heldAnswersOf({ reason, detail: r.hold_detail }, r.place),
         batchId: r.batch_id
       }
     ];
@@ -107,7 +107,7 @@ export function peopleNeedsOf(rows, at) {
     ] : []
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
-  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
+  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.answers.some((a) => a.door === "include"));
   const replied = rows.filter((r) => r.group === "replied");
   const wroteBack = replied.length > 0 || rows.some((r) => r.reply !== void 0) ? replied.map((r) => {
     const intent = r.reply?.intent ?? r.why;
@@ -129,7 +129,7 @@ export const SEQUENCE_PEOPLE_WORDS = {
   failed: "who is in it",
   someone: "Someone",
   step: (place) => `step ${place}`,
-  takeOut: "Take out",
+  takeOut: HELD_TAKE_OUT,
   takeOutAll: (n) => `Take these ${n} out`,
   more: (n) => `and ${n} more`,
   /** A fold of people still to hear from it: when the soonest of them goes. */

@@ -123,6 +123,7 @@ const DETAIL = (state, run = RUN()) => ({
     audience: { label: "Personal trainers · Austin" },
     params: [],
     playbook_id: "r1",
+    sequence_id: "r1",
   },
   recipients: [],
   reach_out: run,
@@ -147,6 +148,11 @@ const world = (state, run) => {
       return w.answer.ok
         ? json(200, { ok: true, data: w.answer.data })
         : json(409, { ok: false, error: { code: "conflict", message: w.answer.message } });
+    }
+    const leave = /^\/api\/v1\/sequences\/([^/]+)\/leave$/.exec(u.pathname);
+    if (leave && init.method === "POST") {
+      w.pressed.push(["leave", leave[1], JSON.parse(init.body)]);
+      return json(200, { ok: true, data: { left: 1, sequence_id: leave[1] } });
     }
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
@@ -186,7 +192,7 @@ const open = async (props = {}) => {
 };
 const lines = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id).map(textOf);
 
-test("a run waiting on its owner: today's share and the rest, the held, the skipped, the rules, the email as it reads (F13, R22)", async () => {
+test("a run waiting on its owner: the decision first, the held, the skipped, the email as an email, what was checked, and the foot (F13, R22)", async () => {
   world("pending_approval");
   const sheet = SHEET();
   const redraw = await open({ sheet });
@@ -198,26 +204,42 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   const head = find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2");
   assert.equal(textOf(head.props.children[0]), "Reach out · Personal trainers", "the run's name is the pane's title");
   assert.ok(byTestId(tree, "bc-detail-close"), "the pane's Close, where the block's back button was");
-  assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waiting for your approval");
-  assert.equal(textOf(byTestId(tree, "ro-run-will")), "30 will get it today");
-  assert.match(textOf(byTestId(tree, "ro-run-reach")), /of 44/);
+  // Its state in the pill a phone's head has room for, beside the name.
+  assert.equal(textOf(byTestId(tree, "ro-run-k")), contracts.RUN_WAITING_SHORT);
+  assert.equal(textOf(byTestId(tree, "ro-run-will")), "30");
+  assert.equal(textOf(byTestId(tree, "ro-run-of")), "of 44");
+  // One bar by count, said to a screen reader as its legend says it.
+  const bar = find(byTestId(tree, "ro-run-reach"), (n) => Array.isArray(n.props?.parts));
+  assert.equal(bar.props["aria-label"], "30 ready, 12 in the coming days, 2 held");
+  assert.deepEqual(
+    bar.props.parts.map((p) => [p.share, p.tone]),
+    [
+      [30, "ok"],
+      [12, "rest"],
+      [2, "warn"],
+    ],
+  );
   const why = textOf(byTestId(tree, "ro-run-why"));
-  assert.match(why, /12 wait for the coming days/);
-  assert.match(why, /2 held by the check/);
+  assert.match(why, /12 in the coming days/);
+  assert.match(why, /2 held/);
   assert.deepEqual(lines(tree, "ro-run-skipped"), [
     "3 skipped · keep no open hour all week",
     "1 skipped · missing a value your words name",
   ]);
   const rules = textOf(byTestId(tree, "ro-run-rules"));
-  assert.match(rules, /each has a checked address/, "R22: said while no unconfirmed address is included");
-  assert.match(
-    rules,
-    /all from sam@harbor-mail\.example, 3 days of sending/,
-    "R22: the run's own mailbox, its days sent",
+  assert.match(rules, /Each has a checked address/, "R22: said while no unconfirmed address is included");
+  assert.equal(
+    textOf(byTestId(tree, "ro-run-from")),
+    "From sam@harbor-mail.example · 3 days of sending",
+    "R22: the run's own mailbox, its days sent, under when it goes",
   );
   assert.equal(textOf(byTestId(tree, "ro-run-opening")), "A 4.9 from 16 reviews says people find you.");
-  assert.match(textOf(byTestId(tree, "ro-run-reader")), /^as Studio Two reads it/);
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), `Approve — 30 from ${FIRST_TIME}`);
+  assert.equal(textOf(byTestId(tree, "ro-run-reader")), "As they read it · step 1, your email");
+  assert.equal(textOf(byTestId(tree, "ro-run-subject")), "A quick one for Studio Two");
+  // Approve says the count it releases; when it goes is the foot's line beside it (runApproveWords).
+  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve · 30 emails");
+  assert.equal(textOf(byTestId(tree, "ro-run-dock")), `30 go from ${FIRST_TIME}`);
+  assert.equal(textOf(byTestId(tree, "ro-run-approve-note")), "2 held wait for you");
   press(byTestId(tree, "ro-run-approve"));
   assert.equal(sheet.approved, 1);
   assert.equal(
@@ -280,12 +302,14 @@ test("R21: a run from an earlier day goes from now, re-timed in their hours, nev
   world("pending_approval", RUN({ run_for: YESTERDAY }));
   const redraw = await open({ sheet: SHEET() });
   let tree = redraw();
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve — 30 from now");
-  assert.match(textOf(byTestId(tree, "ro-run-sub")), /goes from now, re-timed in their hours/);
+  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve · 30 emails");
+  assert.equal(textOf(byTestId(tree, "ro-run-dock")), "30 go from now");
+  assert.match(textOf(byTestId(tree, "ro-run-sub")), /From now, re-timed in their hours/);
   assert.doesNotMatch(textOf(byTestId(tree, "ro-run-acts")), new RegExp(FIRST_TIME));
   press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
-  assert.deepEqual(lines(tree, "ro-run-person"), ["Studio Twore-timed in their hours"], "never its old time");
+  // Each row its face, its name and when: the words that stand for a time are not set in figures.
+  assert.deepEqual(lines(tree, "ro-run-person"), ["STStudio Twore-timed in their hours"], "never its old time");
 });
 
 test("R21: today's run whose first time has passed goes from now, and who gets it says re-timed, never a past time", async () => {
@@ -296,10 +320,10 @@ test("R21: today's run whose first time has passed goes from now, and who gets i
   );
   const redraw = await open({ sheet: SHEET() });
   let tree = redraw();
-  assert.equal(textOf(byTestId(tree, "ro-run-approve")).trim(), "Approve — 30 from now");
+  assert.equal(textOf(byTestId(tree, "ro-run-dock")), "30 go from now");
   press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
-  assert.deepEqual(lines(tree, "ro-run-person"), ["Studio Twore-timed in their hours"]);
+  assert.deepEqual(lines(tree, "ro-run-person"), ["STStudio Twore-timed in their hours"]);
 });
 
 test("who gets it: folded under its head, then by day and time, today's and the coming days'", async () => {
@@ -323,25 +347,28 @@ test("who gets it: folded under its head, then by day and time, today's and the 
   press(byTestId(fold, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(lines(tree, "ro-run-person"), [
-    `Studio Two${contracts.clockWhen(FIRST_MS, ZONE, Date.now())}`,
-    `Studio Five${contracts.clockWhen(tomorrow, ZONE, Date.now())}`,
+    `STStudio Two${contracts.clockWhen(FIRST_MS, ZONE, Date.now())}`,
+    `SFStudio Five${contracts.clockWhen(tomorrow, ZONE, Date.now())}`,
   ]);
+  // A time on the clock is set in figures.
+  const at = all(tree, (n) => typeof n.type === "string" && /\bbc-person-at\b/.test(n.props?.className || ""));
+  assert.ok(at.every((n) => /\bmono\b/.test(n.props.className)));
 });
 
 test("R21: while some are being checked, Approve says so, and who gets it names the checked sends only", async () => {
   world("pending_approval", RUN({ checking: 12 }));
   const redraw = await open({ sheet: SHEET() });
   let tree = redraw();
-  assert.equal(textOf(byTestId(tree, "ro-run-approve-note")), "12 more are being checked; they go once they pass.");
-  assert.match(textOf(byTestId(tree, "ro-run-why")), /The receptionist is checking 12 more/);
+  assert.equal(textOf(byTestId(tree, "ro-run-approve-note")), "12 more go once checked");
+  assert.match(textOf(byTestId(tree, "ro-run-why")), /12 being checked/);
   press(byTestId(tree, "ro-run-list-press"));
   tree = redraw();
   assert.deepEqual(
     lines(tree, "ro-run-person"),
-    [`Studio Two${contracts.clockWhen(FIRST_MS, ZONE, Date.now())}`],
+    [`STStudio Two${contracts.clockWhen(FIRST_MS, ZONE, Date.now())}`],
     "Studio Three is not checked yet",
   );
-  assert.match(textOf(byTestId(tree, "ro-run-list")), /Who gets it · 12 more are being checked/);
+  assert.match(textOf(byTestId(tree, "ro-run-list")), /12 more are being checked; they go once they pass/);
 });
 
 test("R20: a scheduled run with held opens to them; each door presses its decision and reads the run again; a refusal is said at its row", async () => {
@@ -360,7 +387,8 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
     all(held[0], (n) => n.type === "button" && /^ro-door-/.test(n.props?.["data-testid"] || "")).map(
       (n) => n.props["data-testid"],
     ),
-    contracts.holdDoors("unbacked_fact").map((d) => `ro-door-${d}`),
+    // Its answers by the one rule (contracts heldAnswersOf): at step 1 the no is Take out.
+    contracts.heldAnswersOf({ reason: "unbacked_fact", detail: "a 4.8 rating" }, 1).map((a) => `ro-door-${a.door}`),
   );
   // One group per row: in the sheet's narrow layout a row's grid has one door cell, and doors laid in it one by one
   // stacked on each other, so a press on Include landed on Skip (seen in the real app, 27 Sep 2026). The held row is the
@@ -383,11 +411,32 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   }
   assert.deepEqual(w.pressed.at(-1), ["decide", "h1", "include"]);
   assert.ok(w.reads > reads, "the run read again once the decision landed");
-  w.answer = { ok: false, message: "This email was planned too long ago to include." };
+  w.answer = { ok: false, message: contracts.REACH_OUT_REFUSALS.gone };
   tree = redraw();
-  press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ro-held")[0], "ro-door-skip"));
+  press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ro-held")[0], "ro-door-rewrite"));
   for (let i = 0; i < 50 && !byTestId(redraw(), "ro-held-said"); i += 1) await settle();
-  assert.equal(textOf(byTestId(redraw(), "ro-held-said")), "This email was planned too long ago to include.");
+  assert.equal(textOf(byTestId(redraw(), "ro-held-said")), contracts.REACH_OUT_REFUSALS.gone);
+});
+
+test("a held email's Take out, at step 1, is the leave verb on the run's sequence by its lead, and the run is read again", async () => {
+  const w = world("scheduled");
+  const redraw = await open();
+  const reads = w.reads;
+  const held = all(redraw(), (n) => typeof n.type === "string" && n.props?.["data-testid"] === "ro-held");
+  // The check could not run for Studio Four and faulted nothing: only its no, the run's Check the held again its retry.
+  assert.deepEqual(
+    all(held[1], (n) => n.type === "button" && /^ro-door-/.test(n.props?.["data-testid"] || "")).map(
+      (n) => n.props["data-testid"],
+    ),
+    ["ro-door-take_out"],
+  );
+  press(byTestId(held[1], "ro-door-take_out"));
+  for (let i = 0; i < 50 && w.reads === reads; i += 1) {
+    await settle();
+    redraw();
+  }
+  assert.deepEqual(w.pressed.at(-1), ["leave", "r1", { enrollment_ids: [], lead_ids: ["l2"] }]);
+  assert.ok(w.reads > reads, "the run read again once they were taken out");
 });
 
 test("Check the held again, for the holds the check could not answer: one press for the run", async () => {

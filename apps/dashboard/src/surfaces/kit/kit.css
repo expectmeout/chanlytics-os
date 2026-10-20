@@ -3944,6 +3944,12 @@ a.list-row {
   flex: 1 1 auto;
   background: var(--line-strong);
 }
+/* A share still to come (a run's emails the check is still reading): its outline in the strong hairline's colour, and
+   no fill, so it reads as not there yet beside the parts that are. */
+.meter-open {
+  border: 1px solid var(--line-strong);
+  background: none;
+}
 
 /* ---------- Sheet: a side pane on a desk, from the bottom edge on a phone ----------
    Step 2.2. On a desk, the record sheet's frame (.rec-sheet-backdrop and .rec-sheet, above; its wash's motion,

@@ -3369,6 +3369,323 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 .bc-approval-people {
   margin: 0 0 var(--space-1);
 }
+/* A run to leads, as its screen decides it (reach-out/approval.tsx; the run-to-leads canvas of 19 Oct 2026): the decision,
+   the held, then the email and what was checked, one column on a phone and two side by side once the run's pane is wide
+   enough to hold both, its acts in the pane's foot. Each card is the kit's panel; this places them and words them. */
+.ro-run {
+  container: ro-run / inline-size;
+  padding-bottom: var(--space-4);
+}
+.ro-cols {
+  display: grid;
+  gap: var(--space-3);
+}
+.ro-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+@container ro-run (width > 720px) {
+  .ro-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-4);
+  }
+}
+/* The decision: how many go, large, and of how many at the line's end; the run's bar by count, its legend, and when and
+   from where under a hairline. */
+.ro-dec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ro-dec-n {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink);
+}
+.ro-dec-n > b {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+.ro-dec-n > span {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+.ro-dec-n > small {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ro-dec-bar {
+  margin-top: var(--space-1);
+}
+.ro-leg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ro-leg-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Each part's dot in its tone in the bar: ready green, the coming days at rest, held amber, being checked its outline. */
+.ro-leg-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: var(--radius-circle);
+  background: var(--line-strong);
+}
+.ro-leg-part[data-part="go"] > .ro-leg-dot {
+  background: var(--ok);
+}
+.ro-leg-part[data-part="held"] > .ro-leg-dot {
+  background: var(--warn);
+}
+.ro-leg-part[data-part="checking"] > .ro-leg-dot {
+  border: 1px solid var(--line-strong);
+  background: none;
+}
+.ro-dec-said {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ro-when {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ro-when > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink-dim);
+}
+.ro-when b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ro-leg + .ro-when,
+.ro-dec-said + .ro-when {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+/* Why a member may not answer, said once, above what they may not answer. */
+.ro-gate {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ro-gate > svg {
+  flex: none;
+  margin-top: 1px;
+}
+/* The held: how many in the amber of what waits for you, what Approve does with them, See them at the head's right; the
+   rows open under a hairline, and Check the held again at the foot. A panel has no tone: what it holds says it. */
+.ro-held {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ro-held-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ro-held-t {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ro-held-t > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--warn-ink);
+}
+.ro-held-t > small {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ro-held-rows {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-3) calc(-1 * var(--space-4)) 0;
+  border-top: 1px solid var(--line);
+}
+.ro-held-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 calc(-1 * var(--space-4)) -14px;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ro-held-foot > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ro-held-said {
+  margin: var(--space-2) 0 0;
+}
+/* The heads over the email and what was checked. */
+.ro-cap {
+  margin: var(--space-1) 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+/* The email, as an email: who reads it on top, its subject, its words with the opening marked, then what is each's own. */
+.ro-mail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ro-mail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.ro-mail-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ro-mail-who > b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ro-mail-who > small {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ro-mail-subject {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ro-mail-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  /* An email's paragraphs, as it is sent: its sign-off stood on the line of its ask. */
+  white-space: pre-line;
+}
+.ro-mail-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* What is each business's own is marked as its words are (.bc-sheet-slot): a dot of that light before it. */
+.ro-mail-own {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ro-mail-own::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-active);
+}
+/* What was checked before it goes: one line each, its tick in the green of what passed. */
+.ro-checks {
+  display: flex;
+  flex-direction: column;
+}
+.ro-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  margin: 0;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.ro-check:first-child {
+  border-top: 0;
+}
+.ro-check > svg {
+  flex: none;
+  color: var(--ok);
+}
+.ro-who-note {
+  padding: var(--space-2) 15px;
+}
+/* The run's To send: how it is worked, inset as its head and its rows are (.bc-person's 15px). */
+.ro-send-note {
+  margin: 0;
+  padding: var(--space-2) 15px 0;
+}
+/* The foot: what goes and from when, what else waits under it, then Skip on a desk and Approve. */
+.ro-dock {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ro-dock-t {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.ro-dock-t > b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ro-dock-t > small {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
 /* A waiting run's dock on a phone, one row (run-sheet.tsx bcSheetDock): when it goes at the left, Approve at the right,
    so the capsule stays one row and its round ends hold the pill's. */
 .bc-dock-row {
