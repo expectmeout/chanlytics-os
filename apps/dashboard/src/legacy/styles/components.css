@@ -368,8 +368,6 @@
 .live-bar-text { font-weight: 500; }
 .live-bar-clock { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .live-bar-checking { color: var(--ink-muted); }
-.live-bar-go { margin-left: auto; display: flex; color: var(--ink-muted); }
-@media (hover: hover) { .live-bar:hover .live-bar-go { color: var(--ink); } }
 
 /* ---------- Ask Chanlytics — unified topbar affordance ---------- */
 .tb-ask {
@@ -2199,26 +2197,35 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 
 /* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own
-   inks and its own coral, which its dot, its clock and its arrow read. On a desk wider than 1280px it stands in the
-   top bar's row, in the middle, clear of the crumbs and the capsules, and takes no room from the page; narrower, it
-   stands under the top bar, in the middle of the page's width, as on a phone: from 901 to about 1250px the bar's row
-   had no room between the crumbs and Ask's capsule, and the island covered Ask (112px of it at 1024) and cut its
-   own words at 901. Still the one door to Live, and a focus draws its ring over its depth. */
+   inks and its own coral, which its dot, its clocks and its bars read. It lives in the header's row, never on the page
+   (Ruben, 20 Oct 2026): on a desk wider than 1280px in the row's middle, clear of the date and the capsules; narrower,
+   and on a phone, in the date's place at the row's left, the date standing down while a call is up (from 901 to about
+   1250px the row had no room between the date and Ask's capsule for it in the middle). Where the date's place holds a way
+   back (a person's ‹ People, a pane's ‹ Settings), or a phone's thread or call has taken the screen with its own head,
+   the island stands under the top bar instead, as it did everywhere before: the way back is never covered. One call says
+   its caller and clock, two their first names and clocks, three or more the count alone (contracts liveBar). Still the
+   one door to Live, and a focus draws its ring over its depth. */
 .live-bar {
   --ink: var(--surface-island-ink);
   --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
   --accent: var(--surface-island-accent);
   --accent-ink: var(--surface-island-accent);
+  position: absolute;
+  top: 30px;
+  left: var(--gutter-page);
+  z-index: 2;
   align-self: center;
+  gap: 8px;
   width: auto;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 2 * var(--gutter-page) - 340px);
   min-height: var(--control-h-lg);
-  margin: 2px 0 6px;
-  padding: 0 14px 0 12px;
+  margin: 0;
+  padding: 0 4px 0 13px;
   border: 0;
   border-radius: var(--radius-full);
   background: var(--surface-island-fill);
   box-shadow: var(--surface-island-depth);
+  white-space: nowrap;
 }
 @media (hover: hover) {
   .live-bar:hover {
@@ -2228,21 +2235,152 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .live-bar:focus-visible {
   box-shadow: var(--focus-ring), var(--surface-island-depth);
 }
+/* The dot with its ring, the caller's name (or the count) in the semibold, what follows it in the muted ink, each clock
+   in the coral, the bars that move while a call lasts, and Open Live as a capsule inside the island. */
+.live-bar-dot {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+}
+.live-bar-dot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-circle);
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+}
+.live-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
+}
+.live-bar-more,
+.live-bar-calls {
+  flex: none;
+  color: var(--ink-muted);
+}
+/* A count reads as one phrase, "12 calls on your line": its second half is the count's, not a muted aside. */
+.live-bar:not([data-count="1"]) .live-bar-more {
+  margin-left: -4px;
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.live-bar-clock {
+  font-family: var(--font-mono);
+}
+.live-bar-wave {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+.live-bar-wave > i {
+  display: block;
+  width: 2px;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  transform: scaleY(0.55);
+}
+.live-bar-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 9px 0 12px;
+  border-radius: var(--radius-full);
+  background: oklch(from var(--surface-island-ink) l c h / 0.1);
+  font-weight: var(--weight-medium);
+}
+@media (hover: hover) {
+  .live-bar:hover .live-bar-act {
+    background: oklch(from var(--surface-island-ink) l c h / 0.16);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-bar-dot::before { animation: live-ring 1.8s var(--ease-out) infinite; }
+  .live-bar-wave > i { animation: live-wave 0.9s var(--ease-in-out) infinite; }
+  .live-bar-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
+  .live-bar-wave > i:nth-child(3n) { animation-duration: 1.34s; }
+  .live-bar-wave > i:nth-child(2) { animation-delay: 0.13s; }
+  .live-bar-wave > i:nth-child(3) { animation-delay: 0.26s; }
+  .live-bar-wave > i:nth-child(4) { animation-delay: 0.39s; }
+  .live-bar-wave > i:nth-child(5) { animation-delay: 0.52s; }
+  .live-bar-wave > i:nth-child(6) { animation-delay: 0.65s; }
+}
+@keyframes live-ring {
+  from { transform: scale(0.7); opacity: 0.6; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+@keyframes live-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+/* In the date's place, the date stands down while the call is up. */
+.main:has(> .frame-top > .live-bar) > .frame-top > .pg-dateline-slot:not(:has(> :is(.pg-back, .pg-back-after))) {
+  visibility: hidden;
+}
 @media (min-width: 1281px) {
   .live-bar {
-    position: absolute;
     top: 14px;
     left: 50%;
-    z-index: 2;
     max-width: 36%;
-    margin: 0;
     translate: -50% 0;
   }
-  .live-bar-text {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .main:has(> .frame-top > .live-bar) > .frame-top > .pg-dateline-slot {
+    visibility: visible;
+  }
+}
+/* Where the date's place holds a way back: under the top bar, in the middle of the page's width, as it stood before. */
+.main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
+  position: static;
+  max-width: calc(100% - 32px);
+  margin: 2px 0 6px;
+  translate: none;
+}
+/* A phone (and a tablet, which wears the phone's head): the date's place is on the bell's line, 10px down, and the island
+   is the bell's height there. It says the least that tells the call: the name or the count, the clock (or each of two),
+   the bars and the arrow; "On the line", "on your line" and Open Live's words are a desk's. A thread or a call that has
+   taken the screen has its own head and stands the header row down, so there the island stands over it, in the flow, as
+   before. Named under .frame-top, for its weight over mobile.css's older padding. */
+@media (max-width: 900px) {
+  .frame-top > .live-bar {
+    top: 10px;
+    min-height: 32px;
+    gap: 7px;
+    padding: 0 10px 0 12px;
+    max-width: calc(100% - 2 * var(--gutter-page) - 44px);
+  }
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking) {
+    display: none;
+  }
+  .frame-top > .live-bar .live-bar-act {
+    height: auto;
+    padding: 0;
+    background: none;
+    color: var(--ink-muted);
+  }
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .live-bar {
+    position: static;
+    max-width: calc(100% - 2 * var(--gutter-page));
+    margin: 2px var(--gutter-page) 6px;
+  }
+  /* Under a way back it stands at the page's gutter, as the way back does: a phone's top is a block, not the desk's column. */
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
+    max-width: calc(100% - 2 * var(--gutter-page));
+    margin: 2px var(--gutter-page) 6px;
+  }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .frame-top > .live-bar {
+    left: calc(var(--gutter-page) + 40px);
+    max-width: calc(100% - 2 * var(--gutter-page) - 124px);
   }
 }
 
@@ -2256,11 +2394,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     left: auto;
     right: 24px;
     transform: none;
-  }
-}
-@media (min-width: 901px) and (max-width: 1280px) {
-  :root .main:has(> .frame-top > .live-bar) .ix-sending-strip {
-    top: 118px;
   }
 }
 /* The Inbox's head holds an act now (New conversation, the kit's large button, at the right end of that row), so the

@@ -16143,25 +16143,42 @@ function liveStillUp(c, heartbeatMs, nowMs) {
 function callsStillUp(read, nowMs) {
   return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
 }
+var barSince = (c, nowMs) => (
+  // A call whose provider has gone quiet gets no running clock: the number would keep climbing for something that may
+  // already have ended.
+  c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs)
+);
+var BAR_NAMES_MAX = 2;
+var BAR_ACT = "Open Live";
 function liveBar(vm, nowMs) {
   const up = callsStillUp(vm, nowMs);
   if (up.length === 0) return null;
-  if (up.length > 1) {
+  const checking = up.some((c) => c.checking);
+  if (up.length === 1) {
+    const c = up[0];
     return {
-      callId: null,
-      text: `${up.length} calls on your line now`,
-      sinceMs: null,
-      checking: up.some((c2) => c2.checking)
+      callId: c.callId,
+      count: 1,
+      calls: [{ who: c.who, sinceMs: barSince(c, nowMs) }],
+      lead: c.who,
+      more: "On the line",
+      act: BAR_ACT,
+      label: `${c.who} is on the line. ${BAR_ACT}`,
+      checking
     };
   }
-  const c = up[0];
+  const named = up.length <= BAR_NAMES_MAX;
+  const lead = `${up.length} calls`;
+  const more2 = "on your line";
   return {
-    callId: c.callId,
-    text: `On the phone now \xB7 ${c.whoShort}`,
-    // A call whose provider has gone quiet gets no running clock: the number
-    // would keep climbing for something that may already have ended.
-    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
-    checking: c.checking
+    callId: null,
+    count: up.length,
+    calls: named ? up.map((c) => ({ who: c.whoShort, sinceMs: barSince(c, nowMs) })) : [],
+    lead,
+    more: more2,
+    act: BAR_ACT,
+    label: `${lead} ${more2}${named ? `: ${up.map((c) => c.who).join(" and ")}` : ""}. ${BAR_ACT}`,
+    checking
   };
 }
 function turnsOf(dto) {

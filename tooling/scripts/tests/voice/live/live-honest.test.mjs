@@ -419,28 +419,59 @@ test("a call gone quiet says when it was last heard from, before the checking ba
 
 const barAt = (calls, atMs = NOW) => liveBar(toLiveVM(calls, channels, ZONE, new Date(NOW)), atMs);
 
-test("the bar says who is on the phone and how long, and draws nothing when nobody is", () => {
+test("the header says who is on the phone and how long, and draws nothing when nobody is", () => {
   assert.equal(barAt([ended()]), null, "REGRESSION: an ended call kept the bar up");
   assert.equal(barAt([]), null);
   const one = barAt([call()]);
-  assert.equal(one.text, "On the phone now · Rosa", "the caller's first name, the Live page's own whoShort");
+  assert.equal(one.count, 1);
+  assert.equal(one.lead, "Rosa Díaz", "the caller in full: the header has room for one name");
+  assert.equal(one.more, "On the line");
   assert.equal(one.callId, "c-live", "and a press opens that call, not the list");
-  assert.ok(one.sinceMs >= 90_000 && one.sinceMs < 92_000, `running since it started — ${one.sinceMs}ms`);
+  assert.equal(one.calls.length, 1);
+  assert.ok(one.calls[0].sinceMs >= 90_000 && one.calls[0].sinceMs < 92_000, `running since it started`);
+  assert.equal(one.act, "Open Live", "REGRESSION: it said Listen in, and there is no audio to listen to");
+  assert.equal(one.label, "Rosa Díaz is on the line. Open Live");
   assert.equal(one.checking, false);
 });
 
-test("two calls are counted, not named, and open the list", () => {
-  const two = barAt([
-    call(),
-    call({
-      id: "c-live-2",
-      conversation_id: "cv2",
-      contact: { display_name: "Ada Byron", wa_profile_name: null, phone_e164: "+16465550999" },
-    }),
-  ]);
-  assert.equal(two.text, "2 calls on your line now");
+// A second caller, as the calls route returns them; the n-th started n*20s after the first.
+const caller = (n) =>
+  call({
+    id: `c-live-${n}`,
+    conversation_id: `cv${n}`,
+    started_at: iso(90_000 - n * 20_000),
+    contact: {
+      display_name: `Ada Byron ${n}`,
+      wa_profile_name: null,
+      phone_e164: `+164655509${String(n).padStart(2, "0")}`,
+    },
+  });
+
+test("two calls are named by their first names, each with its clock, and open the list", () => {
+  const two = barAt([call(), caller(1)]);
+  assert.equal(two.count, 2);
+  assert.equal(`${two.lead} ${two.more}`, "2 calls on your line");
   assert.equal(two.callId, null, "no one call to open");
-  assert.equal(two.sinceMs, null, "and no clock: whose would it be");
+  assert.deepEqual(
+    two.calls.map((c) => c.who),
+    ["Rosa", "Ada"],
+    "first names: two fit the header",
+  );
+  assert.ok(
+    two.calls.every((c) => typeof c.sinceMs === "number"),
+    "a clock each",
+  );
+  assert.equal(two.label, "2 calls on your line: Rosa Díaz and Ada Byron 1. Open Live");
+});
+
+test("three calls or more are the count alone: no names, no clocks, however many", () => {
+  const twelve = barAt([call(), ...Array.from({ length: 11 }, (_, i) => caller(i + 1))]);
+  assert.equal(twelve.count, 12);
+  assert.equal(`${twelve.lead} ${twelve.more}`, "12 calls on your line");
+  assert.deepEqual(twelve.calls, [], "REGRESSION would be a list of twelve in a header");
+  assert.equal(twelve.callId, null);
+  assert.equal(twelve.label, "12 calls on your line. Open Live");
+  assert.equal(barAt([call(), caller(1), caller(2)]).calls.length, 0, "from three on");
 });
 
 test("the heartbeat rule is applied between refreshes, by every reader, from here", () => {
@@ -465,7 +496,7 @@ test("a call the provider has gone quiet about keeps the bar but loses the clock
   const quiet = barAt([call({ updated_at: iso(6 * 60_000) })]);
   assert.ok(quiet, "still on the line as far as anyone knows");
   assert.equal(quiet.checking, true);
-  assert.equal(quiet.sinceMs, null, "REGRESSION: a number climbing for a call that may already have ended");
+  assert.equal(quiet.calls[0].sinceMs, null, "REGRESSION: a number climbing for a call that may already have ended");
 });
 
 /* ----------------------- Live takes the Inbox's look ----------------------- */

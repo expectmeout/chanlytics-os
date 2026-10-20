@@ -1175,7 +1175,8 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
     ["the queue", AgentCommand, ["today", "broadcasts", "live", "people", "calendar", "inbox"]],
     ["Worth a look", TodayLeaks, ["reports_headline", "people", "today"]],
     ["the pins", TodayPins, ["people"]],
-    ["the strip, which reads the day", TodayStrip, ["live", "calendar", "playbooks", "people"]],
+    // A call is the header's, not the strip's (Ruben, 20 Oct 2026): the strip no longer hears Live.
+    ["the strip, which reads the day", TodayStrip, ["calendar", "playbooks", "people"]],
   ];
   for (const [name, Band, drawnFrom] of bands) {
     draw(Band);

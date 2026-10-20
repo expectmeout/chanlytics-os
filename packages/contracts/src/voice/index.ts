@@ -24,7 +24,7 @@ export {
   ANALYSIS_GRACE_MS,
   RECENT_MAX,
 } from "./live";
-export type { LiveTurnVM, LiveCallVM, LiveLineVM, LiveVM, LiveBarVM } from "./live";
+export type { LiveTurnVM, LiveCallVM, LiveLineVM, LiveVM, LiveBarCall, LiveBarVM } from "./live";
 export {
   telHref,
   forwardingDialLabel,
