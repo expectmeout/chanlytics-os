@@ -129,10 +129,10 @@ const SENT_SINCE_WORDS = {
 };
 export const REACH_OUT_TO_SEND_LABELS = {
   /**
-   * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
-   * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
+   * How a run's list is worked, in a line (the run-to-leads canvas); what Skip does is the run's foot's (approvalWordsOf),
+   * and the whole To send's note says both (TO_SEND_ALL_WORDS).
    */
-  note: "Open each in Gmail, Outlook or your mail app and send it there, then say Sent here. Skip leaves that business out: nothing more is written to them.",
+  note: "Send each from your mail app, then say Sent.",
   gmail: "Open in Gmail",
   outlook: "Open in Outlook",
   app: "Your mail app",
@@ -178,7 +178,11 @@ export const TO_SEND_ALL_WORDS = {
   sentence: (n, from) => `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} sequences` : ""}, each written and checked.`,
   /** Today's brief for them, as one run's line: "Your cold emails are waiting for you: …". */
   brief: (from) => from > 1 ? { label: "Your cold emails", verb: "are", waits: "waiting for you" } : { label: "Your cold email", verb: "is", waits: "waiting for you" },
-  note: REACH_OUT_TO_SEND_LABELS.note,
+  /**
+   * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
+   * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
+   */
+  note: `${REACH_OUT_TO_SEND_LABELS.note} Skip leaves that business out.`,
   /**
    * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
    * reach-out), and how many wait. The step is null until the run's detail is read.

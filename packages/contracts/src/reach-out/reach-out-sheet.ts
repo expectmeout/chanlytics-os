@@ -340,10 +340,16 @@ function runPartsOf(r: ReachOutRunDto, ready: number, state: RunState): RunPartV
 function runDockOf(r: ReachOutRunDto, p: { ready: number; from: string | null; state: RunState }) {
   const { ready, from, state } = p;
   const held = r.held.length;
+  // An owner's run going: what a row's Skip does while one is handed to them (the canvas's foot), else what Stop does.
   if (r.owner_sends === true)
     return {
       lead: `${ready} to send from your inbox`,
-      said: state === "pending_approval" ? null : "Stop keeps the rest from being handed to you",
+      said:
+        state === "pending_approval"
+          ? null
+          : (r.drafted?.length ?? 0) > 0
+            ? "Skip leaves that business out"
+            : "Stop keeps the rest from being handed to you",
     };
   if (state === "sending") return { lead: "Going now", said: "Stop keeps the rest from going" };
   if (state === "scheduled")

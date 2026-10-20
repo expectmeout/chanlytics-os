@@ -237,7 +237,7 @@ function runDockOf(r, p) {
   if (r.owner_sends === true)
     return {
       lead: `${ready} to send from your inbox`,
-      said: state === "pending_approval" ? null : "Stop keeps the rest from being handed to you"
+      said: state === "pending_approval" ? null : (r.drafted?.length ?? 0) > 0 ? "Skip leaves that business out" : "Stop keeps the rest from being handed to you"
     };
   if (state === "sending") return { lead: "Going now", said: "Stop keeps the rest from going" };
   if (state === "scheduled")
