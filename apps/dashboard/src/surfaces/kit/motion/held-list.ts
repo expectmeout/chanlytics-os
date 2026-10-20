@@ -173,6 +173,18 @@ const cancelIdle = (id: number): void => {
   else window.clearTimeout(id);
 };
 
+/** Whether a row's page is pushed in over a list `scroller` scrolls: the window, on a phone, with motion not reduced. */
+const pushesOverBox = (scroller: HTMLElement): boolean => isDocumentScroller(scroller) && !motionReduced();
+
+/**
+ * Whether a row's page opened from `list` now would be pushed in over it (holdList): what a press may wait for, so the
+ * page is drawn whole as the push takes it (people-route.tsx openPerson).
+ */
+export function pushesOver(list: HTMLElement | null): boolean {
+  const place = list ? listPlace(list) : null;
+  return !!place && pushesOverBox(place.scroller);
+}
+
 /** A still picture of a list kept out of the document, laid where the list stood, for a thumb to uncover. */
 function pictureOf(was: Held): void {
   const { list, box } = was.place;
@@ -196,7 +208,7 @@ function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   putBack.delete(list);
   list.dataset.held = "";
   // Where the window scrolls the list (a phone), the row's page is pushed in over it, and what it comes in over is drawn now.
-  const page = arrival && isDocumentScroller(place.scroller) && !motionReduced() ? arrival.page() : null;
+  const page = arrival && pushesOverBox(place.scroller) ? arrival.page() : null;
   // Still laid out once marked (the page hides only a list nobody holds): it stands where it was, out of sight. A list its
   // page keeps out of the document is stood in for by a picture, only where a thumb may carry the row's page away.
   if (list.getClientRects().length > 0) standAt(list, place.box);

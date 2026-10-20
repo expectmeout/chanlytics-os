@@ -192,7 +192,7 @@ Object.defineProperty(html, "scrollTop", {
 /* ------------------------------ the hook, drawn by hand ------------------------------ */
 
 const react = fromDashboard("react");
-const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack, carriedOver } = fromDashboard(
+const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack, carriedOver, pushesOver } = fromDashboard(
   "../surfaces/kit/motion/held-list.ts",
 );
 const { crumbsShown, stripShown, useCrumbsShown, useHeadUnder } = fromDashboard("../surfaces/kit/head/standing.ts");
@@ -742,4 +742,21 @@ test("no push where the list has a box of its own (a desk), under reduced motion
   elsewhere.leave();
   await Promise.resolve();
   assert.ok(untouched(), "and nothing moves it after");
+});
+
+test("a press may wait for the row's page only where it would be pushed in: the window scrolls the list, motion not reduced", () => {
+  // People's press waits for a person not read yet, so the page the push takes is theirs (people-route.tsx openPerson): by
+  // the hold's own reading of the list, so it never waits where nothing is pushed.
+  const { list } = inbox();
+  assert.equal(pushesOver(list), true, "a phone: the window scrolls the list");
+  win.reduced = true;
+  try {
+    assert.equal(pushesOver(list), false, "reduced motion: the page is simply there");
+  } finally {
+    win.reduced = false;
+  }
+  list.shown = false;
+  assert.equal(pushesOver(list), false, "a list not on the screen");
+  assert.equal(pushesOver(null), false);
+  assert.equal(pushesOver(desk().list), false, "a desk: the table scrolls in a box of its own");
 });
