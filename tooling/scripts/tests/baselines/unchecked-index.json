@@ -100,7 +100,7 @@
   "packages/contracts/src/today/notifications.ts": 2,
   "packages/contracts/src/today/today-away.ts": 1,
   "packages/contracts/src/today/today-figures.ts": 6,
-  "packages/contracts/src/voice/live.ts": 6,
+  "packages/contracts/src/voice/live.ts": 5,
   "packages/contracts/src/voice/whisper.ts": 2,
   "packages/contracts/src/workspace/activity.ts": 2,
   "packages/contracts/src/workspace/partner-invite.ts": 1,
