@@ -192,7 +192,7 @@ Object.defineProperty(html, "scrollTop", {
 /* ------------------------------ the hook, drawn by hand ------------------------------ */
 
 const react = fromDashboard("react");
-const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack, carriedOver } = fromDashboard(
+const { useHeldList, heldUnder, heldAlong, showHeld, heldPutBack, cameBack, carriedOver, pushesOver } = fromDashboard(
   "../surfaces/kit/motion/held-list.ts",
 );
 const { crumbsShown, stripShown, useCrumbsShown, useHeadUnder } = fromDashboard("../surfaces/kit/head/standing.ts");
@@ -742,4 +742,72 @@ test("no push where the list has a box of its own (a desk), under reduced motion
   elsewhere.leave();
   await Promise.resolve();
   assert.ok(untouched(), "and nothing moves it after");
+});
+
+test("a press may wait for the row's page only where it would be pushed in: the window scrolls the list, motion not reduced", () => {
+  // People's press waits for a person not read yet, so the page the push takes is theirs (people-route.tsx openPerson): by
+  // the hold's own reading of the list, so it never waits where nothing is pushed.
+  const { list } = inbox();
+  assert.equal(pushesOver(list), true, "a phone: the window scrolls the list");
+  win.reduced = true;
+  try {
+    assert.equal(pushesOver(list), false, "reduced motion: the page is simply there");
+  } finally {
+    win.reduced = false;
+  }
+  list.shown = false;
+  assert.equal(pushesOver(list), false, "a list not on the screen");
+  assert.equal(pushesOver(null), false);
+  assert.equal(pushesOver(desk().list), false, "a desk: the table scrolls in a box of its own");
+});
+
+test("a list put back where the window scrolls it comes back hidden under a picture of it, which gives way once drawn", () => {
+  // The window jumps as the list comes back, and an iPhone draws the window's new place a frame after the jump: the list
+  // stood blank for that frame under the frame's head, strip and tab bar (Ruben, 20 Oct 2026). The picture is fixed to the
+  // screen, so it is drawn wherever the window is; the two change places after the screen has drawn the list twice.
+  const frames = [];
+  win.requestAnimationFrame = (fn) => frames.push(fn);
+  try {
+    const { list } = inbox();
+    const p = page(list);
+    p.draw(false);
+    p.draw(true);
+    win.scrollY = 0;
+    p.draw(false);
+    const cover = list.parentElement.children.find((c) => c !== list && c.dataset.held === "shown");
+    assert.ok(cover, "a picture of the list, shown");
+    assert.equal(cover["@inert"], "", "a still copy: inert");
+    assert.equal(cover.style.top, `${220 - 1500}px`, "where the list stood");
+    assert.equal(list.style.visibility, "hidden", "the list back in its place under it, hidden");
+    assert.equal(list.dataset.held, undefined, "and let go");
+    frames.shift()();
+    assert.ok(cover.isConnected, "kept for the frame the jump is drawn in");
+    frames.shift()();
+    assert.equal(cover.isConnected, false, "then gone");
+    assert.equal(list.style.visibility, undefined, "and the list shown");
+    // People's list, kept out of the document under the person: its picture is the one it lands under.
+    p.draw(true, () => (list.shown = false));
+    idle.shift()();
+    const [picture] = heldUnder();
+    list.shown = true;
+    p.draw(false);
+    assert.ok(
+      picture.isConnected && picture.dataset.held === "shown",
+      "the picture that stood in for it stays over it",
+    );
+    frames.splice(0).forEach((fn) => fn());
+    frames.splice(0).forEach((fn) => fn());
+    assert.equal(picture.isConnected, false);
+    p.leave();
+    // A desk's list is put back in its own box, which does not jump: no picture over it.
+    const atDesk = desk();
+    const d = page(atDesk.list);
+    d.draw(false);
+    d.draw(true);
+    d.draw(false);
+    assert.equal(atDesk.list.style.visibility, undefined, "a desk's list is simply back");
+    d.leave();
+  } finally {
+    delete win.requestAnimationFrame;
+  }
 });

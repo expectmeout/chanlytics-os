@@ -77,6 +77,22 @@ const element = (name, { at = 0, height = 60 } = {}) => {
     querySelectorAll: () => [],
     addEventListener() {},
     removeEventListener() {},
+    // What a still picture of it asks (held-list.ts: a list put back comes back under one).
+    setAttribute(k, v) {
+      this[`@${k}`] = v;
+    },
+    removeAttribute(k) {
+      delete this[`@${k}`];
+    },
+    cloneNode() {
+      return element(`${this.name} copy`, { at: this.at, height: this.height });
+    },
+    after(node) {
+      put(this.parentElement, node);
+    },
+    remove() {
+      this.isConnected = false;
+    },
   };
 };
 const put = (parent, child) => {

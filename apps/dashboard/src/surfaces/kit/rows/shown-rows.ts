@@ -20,6 +20,7 @@ import {
   Virtualizer,
   defaultRangeExtractor,
   elementScroll,
+  measureElement as boxOf,
   observeElementOffset,
   observeElementRect,
   observeWindowOffset,
@@ -101,17 +102,38 @@ function unlessHeld<S extends Element | Window>(observe: Observers<S>, held: () 
   };
 }
 
+/**
+ * The room a row takes beyond its own box: its margins, and the gap the list it is drawn in leaves after it, neither of
+ * which the virtualizer measures. The room of the rows not drawn came out short by them (2px a row on a phone's Inbox), so
+ * a list moved under what stood over it as rows came and went from being drawn: the row a thread was opened from, kept
+ * drawn, stood 4px off under the thread and jumped back as the thread went (20 Oct 2026).
+ */
+function roomAround(el: Element, gap: number): number {
+  const s = getComputedStyle(el);
+  return (Number.parseFloat(s.marginTop) || 0) + (Number.parseFloat(s.marginBottom) || 0) + gap;
+}
+
+/** What the list the rows are drawn in says of itself: whether it is held, and the gap it leaves between two rows. */
+interface ListSays {
+  held: () => boolean;
+  gap: number;
+}
+
 /** The virtualizer's options for the window, or for a box that scrolls. */
 function windowOptions(
   w: Window,
   told: Told,
   changed: (sync: boolean) => void,
-  held: () => boolean,
+  list: ListSays,
 ): VirtualizerOptions<Window, Element> {
   return {
     ...told,
+    measureElement: (el, entry, instance) => boxOf(el, entry, instance) + roomAround(el, list.gap),
     getScrollElement: () => w,
-    ...unlessHeld<Window>({ observeElementRect: observeWindowRect, observeElementOffset: observeWindowOffset }, held),
+    ...unlessHeld<Window>(
+      { observeElementRect: observeWindowRect, observeElementOffset: observeWindowOffset },
+      list.held,
+    ),
     scrollToFn: windowScroll,
     onChange: (_, sync) => changed(sync),
   };
@@ -120,30 +142,36 @@ function boxOptions(
   box: Element,
   told: Told,
   changed: (sync: boolean) => void,
-  held: () => boolean,
+  list: ListSays,
 ): VirtualizerOptions<Element, Element> {
   return {
     ...told,
+    measureElement: (el, entry, instance) => boxOf(el, entry, instance) + roomAround(el, list.gap),
     getScrollElement: () => box,
-    ...unlessHeld<Element>({ observeElementRect, observeElementOffset }, held),
+    ...unlessHeld<Element>({ observeElementRect, observeElementOffset }, list.held),
     scrollToFn: elementScroll,
     onChange: (_, sync) => changed(sync),
   };
 }
 
-/** The parts to draw from the virtualizer's rows: each row, and a gap wherever two drawn rows are not neighbours. */
-function partsDrawn(v: Deck): ShownPart[] {
+/**
+ * The parts to draw from the virtualizer's rows: each row, and a gap wherever two drawn rows are not neighbours. A row's
+ * room holds the list's gap after it (roomAround), and the element standing for the rows not drawn is given one by the
+ * list as a row is, so it is that much shorter than their room.
+ */
+function partsDrawn(v: Deck, gap: number): ShownPart[] {
   const margin = v.options.scrollMargin;
   const parts: ShownPart[] = [];
+  const room = (key: string, height: number) => parts.push({ kind: "gap", key, height: Math.max(0, height - gap) });
   let end = 0;
   for (const item of v.getVirtualItems()) {
     const start = item.start - margin;
-    if (start > end) parts.push({ kind: "gap", key: `gap-${item.index}`, height: start - end });
+    if (start > end) room(`gap-${item.index}`, start - end);
     parts.push({ kind: "row", index: item.index });
     end = item.end - margin;
   }
   const total = v.getTotalSize();
-  if (total > end) parts.push({ kind: "gap", key: "gap-end", height: total - end });
+  if (total > end) room("gap-end", total - end);
   return parts;
 }
 
@@ -184,7 +212,7 @@ export function useShownRows({
 }): ShownRows {
   const whole = count < WHOLE_UNDER || typeof window === "undefined" || typeof ResizeObserver !== "function";
   const [, drawAgain] = useReducer((n: number) => n + 1, 0);
-  const [at, setAt] = useState<{ scroller: Scroller; margin: number } | null>(null);
+  const [at, setAt] = useState<{ scroller: Scroller; margin: number; gap: number } | null>(null);
   const atNow = useRef(at);
   atNow.current = at;
   // The element the rows are drawn in, as React puts it in the page: a list drawn only once it has rows is found then.
@@ -214,20 +242,22 @@ export function useShownRows({
   // One virtualizer for the box the list scrolls in, made again only if that box changes (a phone turned past its width).
   const deck = useRef<{ scroller: Scroller; v: Deck } | null>(null);
   const scroller = whole ? null : (at?.scroller ?? null);
+  const gap = at?.gap ?? 0;
+  const says: ListSays = { held, gap };
   if (scroller && deck.current?.scroller !== scroller) {
     deck.current = {
       scroller,
       v:
         scroller instanceof Window
-          ? new Virtualizer(windowOptions(scroller, told, changed, held))
-          : new Virtualizer(boxOptions(scroller, told, changed, held)),
+          ? new Virtualizer(windowOptions(scroller, told, changed, says))
+          : new Virtualizer(boxOptions(scroller, told, changed, says)),
     };
   }
   const v = scroller ? (deck.current?.v ?? null) : null;
   if (v instanceof Virtualizer && scroller) {
     if (scroller instanceof Window)
-      (v as Virtualizer<Window, Element>).setOptions(windowOptions(scroller, told, changed, held));
-    else (v as Virtualizer<Element, Element>).setOptions(boxOptions(scroller, told, changed, held));
+      (v as Virtualizer<Window, Element>).setOptions(windowOptions(scroller, told, changed, says));
+    else (v as Virtualizer<Element, Element>).setOptions(boxOptions(scroller, told, changed, says));
   }
   // Where the list scrolls and where it starts in it, found once it is in the page and again as the page around it moves
   // (a band above the list that comes or goes, the window's width).
@@ -239,8 +269,11 @@ export function useShownRows({
       if (inHeldList(el)) return;
       const box = listScrollerOf(el);
       const margin = marginOf(el, box);
+      const gap = Number.parseFloat(getComputedStyle(el).rowGap) || 0;
       setAt((was) =>
-        was && was.scroller === box && Math.abs(was.margin - margin) < 1 ? was : { scroller: box, margin },
+        was && was.scroller === box && Math.abs(was.margin - margin) < 1 && was.gap === gap
+          ? was
+          : { scroller: box, margin, gap },
       );
     };
     // Found already (a list shown again after it was kept hidden, people-route.tsx): the watcher below looks again once the
@@ -261,5 +294,5 @@ export function useShownRows({
   });
   if (!v)
     return { parts: whole ? allRows(count) : firstParts(count, keep, estimate), listRef: setList, measure: NO_MEASURE };
-  return { parts: partsDrawn(v), listRef: setList, measure: v.measureElement };
+  return { parts: partsDrawn(v, gap), listRef: setList, measure: v.measureElement };
 }

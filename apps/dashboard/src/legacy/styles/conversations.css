@@ -397,4 +397,8 @@
     background: transparent;
     box-shadow: none;
   }
+  /* Except the row a conversation was opened from, the open one: lit as the Inbox's and People's are (inbox.css). */
+  .conversations .cv-row.active:is(:hover, [data-hover]) {
+    background: var(--hover-fill);
+  }
 }

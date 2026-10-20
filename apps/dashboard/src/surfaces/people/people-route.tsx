@@ -36,10 +36,10 @@ import { PipelineScope } from "./pipeline/scope";
 import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
 import { peekCode } from "./peek/peek-code";
-import { profileCode } from "./people-detail";
+import { peekPerson, profileCode, warmPerson } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
-import { carriedOver, useHeldList, type Arrival } from "../kit/motion/held-list";
+import { carriedOver, pushesOver, useHeldList, type Arrival } from "../kit/motion/held-list";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -104,7 +104,15 @@ const ownGo = (to: string, opts?: { replace?: boolean }) =>
  * People › Leads: the same page, its other scope, drawn once the Leads surface has landed. The address carries the view
  * (clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>), and the page follows it as a prop, under one mount.
  */
-function LeadsScopePage({ param, scopeView }: { param: string; scopeView?: ScopeView }) {
+function LeadsScopePage({
+  param,
+  scopeView,
+  onOpenProfile,
+}: {
+  param: string;
+  scopeView?: ScopeView;
+  onOpenProfile: (id: string) => void;
+}) {
   const leads = useSurface("leads");
   // Leads' page is a chunk of its own, asked for as its address opens, while the surface it waits for is read: People's
   // first load carries none of it (the page's ceiling, tooling/scripts/checks/bundle-budget.mjs, 11 Oct 2026).
@@ -114,13 +122,7 @@ function LeadsScopePage({ param, scopeView }: { param: string; scopeView?: Scope
   // Until both are in, it says so where it will stand: the page keeps its scopes, so the frame's reading pane does not stand
   // in for this one (frame/shell-hooks.ts readsInPlace).
   return leads && Page ? (
-    <Page
-      key="leads"
-      leadsRoute={param}
-      scopeView={scopeView}
-      onNavigate={ownGo}
-      onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
-    />
+    <Page key="leads" leadsRoute={param} scopeView={scopeView} onNavigate={ownGo} onOpenProfile={onOpenProfile} />
   ) : (
     <div className="route-reading" role="status">
       {LIFECYCLE_WORDS.reading}
@@ -182,6 +184,38 @@ const PERSON_ARRIVES: Arrival = {
   page: () => document.querySelector<HTMLElement>(".cl-profile"),
   going: carriedOver,
 };
+
+/** How long a press on a phone waits for a person the tab has not read, so the page pushed in over the list is theirs. */
+const PUSH_WAIT_MS = 300;
+/** Presses on a person, counted: the one waiting is the last, and a later one takes its place. */
+let presses = 0;
+
+/**
+ * A person opened from a scope of People. On a phone their page is pushed in over the list it was opened from
+ * (kit/motion/held-list.ts), which takes the page as the address moves: a person the tab had not read, or whose page's
+ * code was not in yet, drew the pane any page on its way draws, and slid in after it. There the press waits, up to
+ * PUSH_WAIT_MS, for both, the row lit under the finger meanwhile (Ruben, 20 Oct 2026); past it the page opens all the same
+ * and slides in as it arrives (clients.css person-over). A person read already opens at once, and so does every press
+ * where nothing is pushed (a desk, reduced motion). A press made while one waits takes its place, and a wait the member
+ * left by moving elsewhere opens nothing.
+ */
+function openPerson(id: string, list: HTMLElement | null): void {
+  const go = () => navigate(addressOf({ kind: "person", id }));
+  if ((profileCode.now() && peekPerson(id)) || !pushesOver(list)) {
+    go();
+    return;
+  }
+  const mine = ++presses;
+  const from = routeOnScreen();
+  let done = false;
+  const open = () => {
+    if (done) return;
+    done = true;
+    if (presses === mine && routeOnScreen() === from) go();
+  };
+  void Promise.all([profileCode(), warmPerson(id)]).then(open, open);
+  window.setTimeout(open, PUSH_WAIT_MS);
+}
 
 /**
  * A person's page, once its chunk is in: the shell's quiet words while it comes (the page's own read is out beside it,
@@ -287,6 +321,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // they go (kit motion/held-list.ts). A person opened over a list comes in over it; one stepped to from a person, or
   // opened by a link, is drawn where they stand.
   const over = useHeldList(person, kept.shown, PERSON_ARRIVES);
+  const onOpenProfile = (id: string) => openPerson(id, kept.shown());
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
   // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
   const at = person ? personRouteOf(param) : null;
@@ -301,14 +336,14 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
               {...viewOf(kept.at.people)}
               scopeView={kept.viewOfScope("people")}
               onNavigate={ownGo}
-              onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
+              onOpenProfile={onOpenProfile}
             />
           ) : null}
         </KeptScope>
       )}
       {kept.asked.has("leads") && (
         <KeptScope shown={scope === "leads"}>
-          <LeadsScopePage param={kept.at.leads} scopeView={kept.viewOfScope("leads")} />
+          <LeadsScopePage param={kept.at.leads} scopeView={kept.viewOfScope("leads")} onOpenProfile={onOpenProfile} />
         </KeptScope>
       )}
       <GetYesOver open={param === GET_YES_PARAM} />
@@ -319,7 +354,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
             pipelineRoute={kept.at.pipeline}
             scopeView={kept.viewOfScope("pipeline")}
             onNavigate={ownGo}
-            onOpenProfile={(id) => navigate(addressOf({ kind: "person", id }))}
+            onOpenProfile={onOpenProfile}
           />
         </KeptScope>
       )}

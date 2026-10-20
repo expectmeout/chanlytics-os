@@ -1860,6 +1860,14 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 [data-held="shown"] {
   visibility: visible !important;
 }
+/* A picture of a list (a still copy: inert) is the list as it stood, drawn whole the frame it is shown: none of its rows
+   plays an entrance, and each is drawn at once. A copy is a new element, so the Inbox's rows rose in again from nothing
+   (rise-in, above), and a row below the fold kept no size it had been drawn at (content-visibility, inbox.css) and stood
+   at its guess: the picture a list lands under (kit motion/held-list.ts coverLanding) came in blank, its rows off. */
+[data-held][inert] * {
+  animation: none !important;
+  content-visibility: visible !important;
+}
 /* The band a carried page takes over the frame's top with it (kit motion/held-list.ts bandOver): the page's ground, as tall
    as the top it stands under, over the page (whose content passes under the top when it is scrolled down) and the head
    drawn again under it, and under what the page drew in the top (its still copies, over it). Its shadow is the page's,

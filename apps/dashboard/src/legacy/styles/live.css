@@ -625,6 +625,11 @@ a.lm-head-door:active { opacity: 0.72; }
     background: transparent;
     box-shadow: none;
   }
+  /* A row under the finger, and the one a call was opened from (the open one), lit in the Inbox's and People's fill
+     (inbox.css): a desk's grey was Live's alone. */
+  .live-monitor .lm-row:is(:hover, [data-hover]) {
+    background: var(--hover-fill);
+  }
 
   /* The call: who and how it stands, with the caller's face at the right (the thread header's avatar, and their door to
      People); a call in progress is a thread of its own, below. */
