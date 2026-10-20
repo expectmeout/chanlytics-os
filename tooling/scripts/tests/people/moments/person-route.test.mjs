@@ -69,10 +69,12 @@ test("a person's crumbs are People (the page's own Back) and their name: from Pe
   assert.equal(named.crumbs.length, 2);
   assert.deepEqual(named.crumbs[0], { label: "People", to: "clients", go: back });
   assert.equal(named.crumbs[1], "Aisha Khan");
-  // A person is a mount of their own, and their tabs are their page too (0052, 13): one mount, so a tab is never a new page.
-  assert.equal(named.mount, "clients/c-aisha");
+  // A person is People's mount: their page is drawn over the list it was opened from, which stays where it was under it
+  // and is there again as they go (people-route.tsx, 20 Oct 2026). Their tabs are their page too (0052, 13): the same
+  // mount, so a tab is never a new page.
+  assert.equal(named.mount, "clients", "the frame keeps People, and the list under the person");
   const onTab = from("c-aisha/history");
-  assert.equal(onTab.mount, "clients/c-aisha", "History is the same mount");
+  assert.equal(onTab.mount, "clients", "History is the same mount");
   assert.equal(onTab.crumbs[1], "Aisha Khan", "and names the person, never the tab");
   assert.equal(from("c-nobody").crumbs[1], "Profile");
   // A real workspace's People, once read, names them by its own rows.

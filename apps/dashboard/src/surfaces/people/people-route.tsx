@@ -12,6 +12,9 @@
  * drawn as it was left, its rows, its search, its selection and its place, with nothing to build or read; a hidden one keeps
  * none of its effects running (its keys, its timers) and is drawn again in the background as its surface moves. Each is a
  * view of the deck (scope-view.ts), so the scope arriving comes in from its tab's side and the one leaving goes by a copy.
+ * A person's page is drawn over them, not in their place: the scope it was opened from is held where it was under it (kit
+ * motion/held-list.ts), and is there again as it was left, the row you were on where it stood, as the person goes by any
+ * Back (Ruben, 20 Oct 2026). It had been taken down with the other two, and built again and put back after a fade.
  */
 import { Activity, useEffect, useRef, type ReactNode } from "react";
 import {
@@ -36,6 +39,7 @@ import { peekCode } from "./peek/peek-code";
 import { profileCode } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
+import { useHeldList } from "../kit/motion/held-list";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -172,11 +176,12 @@ function useProfileAhead(ready: boolean): void {
 
 /**
  * A person's page, once its chunk is in: the shell's quiet words while it comes (the page's own read is out beside it,
- * people-detail.ts), and the failed read with its Retry where the chunk could not be fetched.
+ * people-detail.ts), and the failed read with its Retry where the chunk could not be fetched. `over`: opened over the list
+ * it was opened from, which it comes in over.
  */
-function PersonPage({ id, tab }: ReturnType<typeof personRouteOf>) {
+function PersonPage({ id, tab, over }: ReturnType<typeof personRouteOf> & { over: boolean }) {
   const { loaded, failed, retry } = useCode(profileCode, true);
-  if (loaded) return <loaded.ClientProfile id={id} tab={tab} />;
+  if (loaded) return <loaded.ClientProfile id={id} tab={tab} over={over} />;
   if (failed) return <FailedRead kind="line" what="this person" onRetry={retry} testid="person-code-failed" />;
   return (
     <div className="route-reading" role="status">
@@ -209,12 +214,16 @@ function KeptScope({ shown, children }: { shown: boolean; children: ReactNode })
 
 /**
  * Which scopes have been asked for (each is kept from then), the address each was last at (a hidden scope keeps drawing the
- * view it was left on), and the side the scope shown comes in from: the scope before it, on the draw that changes it.
+ * view it was left on), the side the scope shown comes in from (the scope before it, on the draw that changes it), and the
+ * root of the one on the screen, which a person's page opened from it holds under it.
  */
 function useKeptScopes(scope: Scope | null, param: string) {
   const asked = useRef(new Set<Scope>());
   const at = useRef<Record<Scope, string>>({ people: "", leads: "leads", pipeline: "pipeline" });
   const before = useRef<Scope | null>(null);
+  // Each scope's root as React shows it (null as it hides it), beside the deck's one seat for them all: one ref a scope.
+  const roots = useRef<Partial<Record<Scope, HTMLElement | null>>>({});
+  const refs = useRef<Partial<Record<Scope, (el: HTMLElement | null) => void>>>({});
   if (scope) {
     asked.current.add(scope);
     at.current[scope] = param;
@@ -230,8 +239,15 @@ function useKeptScopes(scope: Scope | null, param: string) {
         : "prev"
       : undefined;
   const seat = viewDeck.view(SCOPE_SEAT);
-  const viewOfScope = (s: Scope): ScopeView => ({ ref: seat, slide: s === scope ? slide : undefined });
-  return { asked: asked.current, at: at.current, viewOfScope };
+  const refOf = (s: Scope) =>
+    (refs.current[s] ??= (el) => {
+      roots.current[s] = el;
+      seat(el);
+    });
+  const viewOfScope = (s: Scope): ScopeView => ({ ref: refOf(s), slide: s === scope ? slide : undefined });
+  const shown = (): HTMLElement | null =>
+    Object.values(roots.current).find((el) => !!el && el.isConnected && el.getClientRects().length > 0) ?? null;
+  return { asked: asked.current, at: at.current, viewOfScope, shown };
 }
 
 export function PeopleRoute({ pathname }: { pathname: string | null }) {
@@ -258,12 +274,16 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // person's page, the list's most common next move.
   useLeadsAhead(!!live && !person && !leads);
   useProfileAhead(!!live && !person);
+  // A person's page over the scope it was opened from: that scope is held where it was under it, and put back there as
+  // they go (kit motion/held-list.ts). A person opened over a list comes in over it; one stepped to from a person, or
+  // opened by a link, is drawn where they stand.
+  useHeldList(person, kept.shown);
+  const listBefore = useRef(false);
+  const over = person && listBefore.current;
+  listBefore.current = !person;
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
   // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
-  if (person) {
-    const at = personRouteOf(param);
-    return <PersonPage key={at.id} id={at.id} tab={at.tab} />;
-  }
+  const at = person ? personRouteOf(param) : null;
   return (
     <>
       {kept.asked.has("people") && (
@@ -297,6 +317,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
           />
         </KeptScope>
       )}
+      {at ? <PersonPage key={at.id} id={at.id} tab={at.tab} over={over} /> : null}
     </>
   );
 }

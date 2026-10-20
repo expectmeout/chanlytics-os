@@ -35,7 +35,8 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
-  assert.ok(css.includes(".inbox[data-takeover] .ix-list { display: none; }"));
+  // A list held under the thread it opened stays laid out, where it stood (kit motion/held-list.ts, components.css).
+  assert.ok(css.includes(".inbox[data-takeover] .ix-list:not([data-held]) { display: none; }"));
   assert.ok(css.includes(".inbox[data-takeover] .ix-thread-pane { display: flex; }"));
   assert.ok(
     css.includes(".lm-whisper .btn { min-height: 44px; }"),

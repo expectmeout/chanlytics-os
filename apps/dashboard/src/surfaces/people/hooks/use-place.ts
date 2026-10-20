@@ -17,6 +17,7 @@ import type { Place } from "../shell-verbs";
 import { onPageKey } from "./keyboard";
 import type { KeyDoors } from "./keyboard";
 import { heardListScroll, ldScroller } from "./scroller";
+import { heldPutBack } from "../../kit/motion/held-list";
 
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
@@ -151,6 +152,8 @@ function usePlaceKeeper(
   // Scrolled on the draw that opens the view -- which still draws every row, the words being put back only on the next --
   // the browser re-anchored the list as the words shrank it: 500 became 122 on production. Words that are no longer the
   // place's are the owner's, typed since: they have moved on, and nothing is put back.
+  // A list a person's page was opened over is put back by its hold, the row you were on where it stood (kit motion/
+  // held-list.ts), before this effect runs: this place, a pixel's count, would put it back again where the rows moved.
   useEffect(() => {
     const due = placeDue.current;
     if (!due || due.view !== view) return;
@@ -162,28 +165,38 @@ function usePlaceKeeper(
     due.fresh = false;
     if (!landed) return;
     placeDue.current = null;
+    if (heldPutBack(scrollRef.current)) return;
     const sc = ldScroller(scrollRef.current);
     if (sc) sc.scrollTop = due.top;
   }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // How far the list is scrolled, heard where its box scrolls (heardListScroll: the table's own on a desktop, the
-  // window on a phone). Saved once it settles, with the place as last drawn.
+  // window on a phone), as it is scrolled. Saved once it settles, with the place as last drawn; and at once where the list
+  // goes before then (a row opened mid-scroll, a scope pressed): the save waiting was let go of, and Back found the place
+  // the list had before the last scroll.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t: ReturnType<typeof setTimeout> | null = null;
+    let top: number | null = null;
+    const save = () => {
+      t = null;
+      const now = placeNow.current;
+      // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
+      if (top === null || !now || placeDue.current) return;
+      placeTop.current = top;
+      placeSave(page, now.view, { ...now.place, top });
+    };
     const stop = heardListScroll(el, (sc) => {
+      top = sc.scrollTop;
       if (t) clearTimeout(t);
-      t = setTimeout(() => {
-        const now = placeNow.current;
-        // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
-        if (!now || placeDue.current) return;
-        placeTop.current = sc.scrollTop;
-        placeSave(page, now.view, { ...now.place, top: sc.scrollTop });
-      }, PLACE_SAVE_DELAY_MS);
+      t = setTimeout(save, PLACE_SAVE_DELAY_MS);
     });
     return () => {
       stop();
-      if (t) clearTimeout(t);
+      if (t) {
+        clearTimeout(t);
+        save();
+      }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }

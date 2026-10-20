@@ -21,6 +21,7 @@ import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
+import { heldUnder, showHeld } from "../../kit/motion/held-list";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -55,7 +56,8 @@ export const ixOpensAt = (thread: Thread | null | undefined, focusMessageId: str
 const ixPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
 /** The page each thread a thumb is carrying was grabbed in (ixGoing). */
 const goingHosts = new WeakMap<Element, Element>();
-// While a thumb carries a thread away, its list is drawn under it (components.css, data-going on the page's grid). A
+// While a thumb carries a thread away, its list is drawn under it (components.css, data-going on the page's grid), where
+// it was left (kit/motion/held-list.ts showHeld: the list held under the thread, at the rows you opened it from). A
 // thread let go past a third is let go of after it has left (kit/motion/swipe.ts swipeLeave closes it first), when it has no
 // parent: the page it was grabbed in is kept from the grab, so the mark always comes off. It stayed on, and the next
 // thread opened with its list drawn under it, the two showing through each other (Ruben, 17 Oct 2026), as the
@@ -67,11 +69,13 @@ const ixGoing = (el: Element | null, on: boolean) => {
   if (on) goingHosts.set(el, host);
   else goingHosts.delete(el);
   host.toggleAttribute("data-going", on);
+  showHeld(on);
 };
 // A thread on a phone goes back to its list under the thumb, as Back does: swiped right, it follows the finger and the
-// list shows under it (kit/motion/swipe.ts touchSwipe). Nothing without a Back, and nothing wider than a phone.
+// list comes in under it from a little to its left (kit/motion/swipe.ts touchSwipe). Nothing without a Back, and nothing
+// wider than a phone.
 export const ixSwipeBack = (onBack: (() => void) | null | undefined): HTMLAttributes<HTMLDivElement> =>
-  (onBack ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing }) : null) ?? {};
+  (onBack ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing, under: heldUnder, backNavigates: true }) : null) ?? {};
 
 /** What the pane asks of its page: the thread, and what to do with each press. */
 export interface InboxThreadProps {

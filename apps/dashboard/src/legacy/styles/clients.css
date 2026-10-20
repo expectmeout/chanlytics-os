@@ -1204,13 +1204,44 @@
     inset: -8px -1px;
   }
   /* A thumb carrying the page back to People (person-real.tsx pageSwipe): its edge says it is lifted, and the foot's dock
-     steps aside while it moves. */
+     steps aside while it moves. It wears the page's own ground and stands over the list coming in under it (kit
+     motion/held-list.ts, components.css [data-held]), as an open thread does (components.css): the page has no ground of
+     its own, and the list showed through it. */
   .cl-profile[data-going] {
+    position: relative;
+    z-index: 1;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
     box-shadow: var(--shadow-lg);
   }
   body:has(.cl-profile[data-going]) .cl-prof-dock {
     opacity: 0;
     transition: opacity var(--duration-fast) var(--ease-out);
+  }
+}
+
+/* A person opened over the list (people-route.tsx: the list is held under the page) comes in over it, as an open thread
+   comes in over the Inbox's (mobile.css thread-in), and on a desk as a page arriving fades in (components.css route-in):
+   no page of the frame's arrives any more to fade it in. Not a person stepped to from another: that page turns (data-slide). */
+@keyframes person-over {
+  from {
+    opacity: 0;
+    translate: 28px 0;
+  }
+}
+.cl-profile[data-over] {
+  animation: route-in 240ms var(--ease-out);
+}
+@media (max-width: 720px) {
+  .cl-profile[data-over] {
+    animation: person-over 260ms var(--ease-out);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-profile[data-over] {
+    animation: none;
   }
 }
 
@@ -3251,7 +3282,7 @@
   /* The list picked stands 5px under the strip, as the Inbox's buckets and Conversations' channels stand 4px under theirs
      (inbox.css, conversations.css): the strip is the frame's, in its slot, for People as for them. The room is the bar's
      own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. */
-  .main:has(> .main-scroll > .clients) .pg-slot {
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-slot {
     padding-bottom: 0;
   }
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on

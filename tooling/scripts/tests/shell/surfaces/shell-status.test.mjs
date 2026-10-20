@@ -977,7 +977,10 @@ test("every view of Leads is one mount: a search, a list, a class or an open lea
       all.key,
       "People and Leads are one view of the frame, the page keeping its scopes",
     );
-    assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
+    // A person's page is drawn by People's page over the list it was opened from, which stays where it was under it
+    // (people-route.tsx, 20 Oct 2026): People's view too, each person a page of their own inside it.
+    assert.equal(at("#/clients/c-1").key, all.key, "a person's page is People's view, over its list");
+    assert.equal(at("#/clients/c-2").key, at("#/clients/c-1").key, "and so is the next person's");
     // People's views are the page's, which follows its own address (surfaces/people/people-route.tsx): one mount for the
     // list and every view of it. A page it did not write the address of mounts afresh on its own (people-address.test.mjs).
     assert.equal(
@@ -1993,7 +1996,8 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   // as the Inbox's Needs you, Conversations and Live do: from the side the tab stands on, which the view says
   // (`data-slide`) and the kit's deck brings it in by, the same on a desk and a phone (8 Oct 2026; it was a class a
   // phone's stylesheet slid and a desk's ignored). One person's page to the next is the same family and no strip's
-  // move, and draws at once.
+  // move, and draws at once. A person's page is People's view since it is drawn over the list (people-route.tsx, 20 Oct
+  // 2026): the frame's view stays on screen, and the person comes in over the list by an entrance of the page's own.
   shell.installShell(win);
   // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people-globals.ts).
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
@@ -2035,13 +2039,9 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   assert.equal(slides(leads), null, "the frame slides nothing: the page moves its own scope");
   const back = go("#/clients");
   assert.equal(view(back).props.key, view(tree).props.key, "and back");
-  assert.equal(
-    stays(go("#/clients/c-aisha")),
-    false,
-    "a person's profile is somewhere else, though its route starts with the list's word",
-  );
-  assert.equal(stays(go("#/clients/c-bob")), true, "the next person's page is the same family and no strip's move");
-  assert.equal(stays(go("#/clients")), false, "and so is the list, coming back from it");
+  assert.equal(view(go("#/clients/c-aisha")).props.key, view(tree).props.key, "a person's page is People's view");
+  assert.equal(view(go("#/clients/c-bob")).props.key, view(tree).props.key, "the next person's page too");
+  assert.equal(view(go("#/clients")).props.key, view(tree).props.key, "and the list, coming back from them");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
   // A page landing where the reading pane stood fades in, even on the page the reading pane was for.
   win.__surfaceGate = () => false;

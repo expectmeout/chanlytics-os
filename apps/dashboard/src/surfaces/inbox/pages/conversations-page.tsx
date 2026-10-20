@@ -7,6 +7,7 @@
  */
 import { heldPill, mmss } from "@chanlytics/contracts";
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent } from "react";
+import { useHeldList } from "../../kit/motion/held-list";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -681,6 +682,9 @@ export const ConversationsPage = ({
   // A demo's seeded calls and chats, fetched as the page mounts (demo.ts); their landing redraws it as a read's does.
   useEffect(warmDemo, []);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
+  // On a phone the list stays where it was under an open row, and is put back there as the row goes, by any Back.
+  const root = useRef<HTMLDivElement | null>(null);
+  useHeldList(phoneOpen && cvOnPhone(), () => root.current?.querySelector<HTMLElement>(":scope > .cv-list") ?? null);
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
   // row on a phone lands here, and the viewer closes.
@@ -761,7 +765,7 @@ export const ConversationsPage = ({
   const pick = useCvPick({ everyone, channel, unread: cvUnread, flash });
   const shownRows = useShownCvRows(visible, selectedRow?.id, swap);
   return (
-    <div className="conversations" data-takeover={phoneOpen || undefined}>
+    <div ref={root} className="conversations" data-takeover={phoneOpen || undefined}>
       {listPane({
         data,
         rows: visible,

@@ -10,7 +10,7 @@
  * called in the order the page always called them, so every hook keeps its cell. The rules of what waits on you and where
  * a thread sits are rules.ts; holding every draft still counting down is hold-all.ts.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { EmptyState } from "../../kit/empty/empty";
 import { usePartShown, useSurface } from "../../use-surface";
 import { InboxAgentRail } from "./agent-rail";
@@ -40,6 +40,7 @@ import { ThreadPane } from "../thread/thread-pane";
 import type { InboxSurface, Thread } from "../types";
 import { cancelSend } from "../verbs";
 import { Button } from "../../kit/button/button";
+import { useHeldList } from "../../kit/motion/held-list";
 
 /** The record once the bulk bar's acts are in: what is on screen is read from it. */
 type AfterBulk = InboxSoFar & InboxActs & InboxRealBulk & ReturnType<typeof inboxBulkActs>;
@@ -385,7 +386,9 @@ const inboxPage = (
     opening,
     replies,
     toSendOpen,
+    root,
   }: {
+    root: RefObject<HTMLDivElement | null>;
     density: Density;
     showAgentRail: boolean;
     onOpenClient: NonNullable<InboxProps["onOpenClient"]>;
@@ -427,7 +430,7 @@ const inboxPage = (
   const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
 
   return (
-    <div className={`inbox ${railThread ? "with-rail" : ""}`} data-takeover={phoneThreadOpen || undefined}>
+    <div ref={root} className={`inbox ${railThread ? "with-rail" : ""}`} data-takeover={phoneThreadOpen || undefined}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -507,6 +510,8 @@ export const Inbox = ({
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, INBOX_BASELINE } = inboxData();
   // One record of the page, made in the order the page always made it: each part reads what the parts above it made.
   const ix = useInboxState(THREADS, initialThreadId, toSendOpen);
+  // The page's own element, where its list is found as a thread opens over it (useHeldList, below).
+  const root = useRef<HTMLDivElement | null>(null);
   const withMoves = Object.assign(ix, inboxMoves(ix));
   const withVerdict = Object.assign(withMoves, inboxVerdict(withMoves));
   const withVeto = Object.assign(withVerdict, useInboxVeto(withVerdict));
@@ -535,5 +540,7 @@ export const Inbox = ({
     withBucketMoves,
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
   );
-  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen });
+  // On a phone the list stays where it was under an open thread, and is put back there as the thread goes, by any Back.
+  useHeldList(full.phoneThreadOpen, () => root.current?.querySelector<HTMLElement>(":scope > .ix-list") ?? null);
+  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen, root });
 };

@@ -17,7 +17,11 @@ const LEAVE_FALLBACK_MS = 420;
 /** A frame shown for less than this was never seen, and does not leave. */
 const SEEN_MS = 60;
 
-const stillCopy = (node: Element): Element => {
+/**
+ * A picture of a node as it stands, drawn in its place by whoever asks: no id, no test id, no role, inert, hidden from a
+ * screen reader. A list held under what it opened is shown by one while a thumb carries that away (held-list.ts).
+ */
+export const stillCopyOf = (node: Element): Element => {
   const copy = node.cloneNode(true) as Element;
   // A canvas clones blank: what it drew (Ask's three, a chart) is painted into its copy, or it would vanish the moment
   // the leaving began while all round it played out. One it cannot read stays blank.
@@ -38,6 +42,11 @@ const stillCopy = (node: Element): Element => {
   for (const k of STILL_ATTRIBUTES) copy.removeAttribute(k);
   copy.setAttribute("aria-hidden", "true");
   copy.setAttribute("inert", "");
+  return copy;
+};
+/** The still copy an overlay leaves by: it plays out its leaving (components.css, `[data-leaving]`). */
+const stillCopy = (node: Element): Element => {
+  const copy = stillCopyOf(node);
   copy.setAttribute("data-leaving", "true");
   return copy;
 };
