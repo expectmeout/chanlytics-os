@@ -74,7 +74,7 @@ const NOT_A_MEND = new Set(["verb:google-disconnect", "verb:email-setup", MESSAG
  * deployment does not have, or on a step the row draws under itself (Google's locations to choose among).
  */
 type Press = "connect" | "fix" | "settings" | null;
-function pressOf(r: Row, holds: boolean): Press {
+function rowWordOf(r: Row, holds: boolean): Press {
   if (r.state === "later") return null;
   if (r.verb && (r.state === "none" || r.state === "waiting_you")) return "connect";
   if (r.verb && r.state === "attention" && !NOT_A_MEND.has(r.verb.to)) return "fix";
@@ -469,7 +469,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
   // A row that waits on the owner: its sentence stands in the row, and Connect is the coral primary.
   const wants = r.state === "waiting_you";
   const says = rowSays(r, wants);
-  const press = pressOf(r, !!r.detail || says.more || !!r.verb);
+  const press = rowWordOf(r, !!r.detail || says.more || !!r.verb);
   const panelId = `connection-${r.kind}-about`;
   // What the row offers a thumb: its own button where it asks for something (Connect, Fix), the row's press that opens
   // its Settings, or nothing.
