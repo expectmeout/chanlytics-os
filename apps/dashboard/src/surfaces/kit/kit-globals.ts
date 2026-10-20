@@ -15,14 +15,14 @@
  * a thread's media, the attention row, the agenda's rows, and the record kit: the row, the fields, the fold, the inline
  * editor, the sheet, the registry that keeps one fold open and the unsaved-work rule) is imported by the TSX that draws it,
  * and was published for pages that moved long ago: eighty names nothing read were taken down in one sweep (O4b, 11 October
- * 2026). `RecordSwitch` stays, for the bell's alert switch (topbar.jsx).
+ * 2026). `RecordSwitch` stays, for the bell's alert switch (frame/topbar/notif-popover.tsx).
  *
  * Nothing here is behaviour: it is the kit's own components, and a page draws them exactly as it drew the old ones.
  *
  * The strip of views and what moves a view are the frame's to draw and to ask until the frame itself moves (decision 0015,
  * step 13): the strip (`ViewTabs`, which the shell's SurfaceTabs draws), the page a swipe walks (`viewPager`, which it
  * hands kit/motion/swipe.ts `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
- * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (app-shell.jsx PhoneTabs).
+ * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (frame/phone-tabs.tsx PhoneTabs).
  */
 import { Confirm } from "./confirm/confirm";
 import { FailedRead } from "./empty/empty";

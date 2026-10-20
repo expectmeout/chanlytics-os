@@ -54,7 +54,7 @@ if (typeof window !== "undefined") {
     Confirm: KIT_GLOBALS.Confirm,
     MoreMenu: KIT_GLOBALS.MoreMenu,
     PolicyChip: KIT_GLOBALS.PolicyChip,
-    // The bell's alert switch (topbar.jsx) is the one record-kit part a page of the shell still draws by name.
+    // The bell's alert switch (surfaces/frame/topbar/notif-popover.tsx) is the one record-kit part a page of the shell still draws by name.
     RecordSwitch: KIT_GLOBALS.RecordSwitch,
     // The doors every page uses to move and to ask, for the pages that read them by name (surfaces/frame-doors.ts: the frame fills the
     // registry as it renders; these go through it).
@@ -74,7 +74,7 @@ if (typeof window !== "undefined") {
     useNeedsYou,
     threadVerbs,
     // The strip of views, the page a swipe walks, the deck a view moves by and the phone's tab bar, which the frame draws
-    // and asks by name until it moves itself (surface-tabs.jsx, app-shell.jsx).
+    // and asks by name until it moves itself (frame/surface-tabs.tsx, surfaces/frame/app-shell.tsx).
     ViewTabs: KIT_GLOBALS.ViewTabs,
     viewPager: KIT_GLOBALS.viewPager,
     viewDeck: KIT_GLOBALS.viewDeck,
@@ -82,8 +82,8 @@ if (typeof window !== "undefined") {
     // Ask's Line, which the frame draws on every page: its pages and the parts only they draw come as a chunk of their own,
     // once the frame is idle or the Line is first opened (ask/line.tsx).
     AskBar: AskLine,
-    // And People's parts the shell still draws or calls by name: the strip's scopes (surface-tabs.jsx), the two sheets the
-    // frame draws once and their doors (app-shell.jsx), and the demo's Lists page's mark and route (people-globals.ts).
+    // And People's parts the shell still draws or calls by name: the strip's scopes (frame/surface-tabs.tsx), the two sheets the
+    // frame draws once and their doors (surfaces/frame/app-shell.tsx), and the demo's Lists page's mark and route (people-globals.ts).
     plScopes: PEOPLE_GLOBALS.plScopes,
     plScopeRoute: PEOPLE_GLOBALS.plScopeRoute,
     __listRoute: PEOPLE_GLOBALS.__listRoute,

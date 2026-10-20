@@ -14,7 +14,7 @@
  * then nothing moves but the page's own question.
  *
  * It draws what the shell's SurfaceTabs drew, which is now the frame's adapter over this (legacy/components/
- * surface-tabs.jsx), with one element more: the highlight a change of view carries (./glide.ts). `className` is for
+ * frame/surface-tabs.tsx), with one element more: the highlight a change of view carries (./glide.ts). `className` is for
  * the page's layout, and comes last.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";

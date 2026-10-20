@@ -1,7 +1,7 @@
 /**
  * The frame's head in Glass (the interface kit's step 5.4). The canvases open every page the same way: the date and
  * time in the top bar's row, where Classic's crumbs stand; the page's name with its standing sentence under the bar;
- * and the capsule of views with the page's own act on the row under that. The frame (legacy/pages/app-shell.jsx)
+ * and the capsule of views with the page's own act on the row under that. The frame (frame/app-shell.tsx)
  * leaves three empty places for them in Glass alone, and this draws into them, fed by what the page said
  * (standing.ts) and by the crumbs the frame drew. Classic has none of it: the frame leaves no place, and this draws
  * nothing, so the tree Classic draws is the tree it drew.
@@ -153,7 +153,7 @@ function GlassHead() {
   );
 }
 
-/** The page's own act, where it named one; the frame's act stands in the same place otherwise (app-shell.jsx). */
+/** The page's own act, where it named one; the frame's act stands in the same place otherwise (frame/app-shell.tsx). */
 function PageAct() {
   const said = useStandingSaid();
   return said?.act ? <>{said.act}</> : null;
@@ -205,7 +205,7 @@ export function FrameHead({ look }: { look: string }) {
     seek();
     return () => cancelAnimationFrame(raf);
   }, [look, crumbs, places]);
-  // Where the page scrolls (Today), the head's place sits in the page's own scroller (app-shell.jsx glassHead), which
+  // Where the page scrolls (Today), the head's place sits in the page's own scroller (frame/shell-chrome.tsx glassHead), which
   // the shell draws again when the route lands or moves: the place found is left behind in a detached tree, and the
   // head drawn into it is drawn into nothing. So the document is watched, and a place that left it is forgotten,
   // which asks for the new one (the effect above). A stand-in document without an observer is drawn once.
@@ -216,7 +216,7 @@ export function FrameHead({ look }: { look: string }) {
     return () => watcher.disconnect();
   }, [look]);
   // The bar's centre is laid over the top bar as the date's place is, in what holds the date's place: the frame's top
-  // (app-shell.jsx `.frame-top`), whose height and whether the page has gone under it are watched from here before it is
+  // (frame/shell-chrome.tsx `.frame-top`), whose height and whether the page has gone under it are watched from here before it is
   // painted (frame-top.ts), since the page under it starts that far down.
   const column = places?.dateline?.parentElement ?? null;
   // A stand-in document has no observer, and no top to measure.

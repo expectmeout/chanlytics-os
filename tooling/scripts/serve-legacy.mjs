@@ -17,9 +17,10 @@
  * legacy-bridge/legacy.css imports and the files legacy-bridge/manifest.ts loads, in its order. A
  * file is added to the app's list, and the mockup loads it from there.
  *
- * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * Seven files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/frame-globals.js`, the frame's helpers the pages here read by name (the toast, a thumb's gestures, the role gate:
- * surfaces/frame/frame-globals.ts),
+ * surfaces/frame/frame-globals.ts), `data/frame-app.js`, the frame itself (surfaces/frame/app-shell.tsx), under the name
+ * the document's own boot draws it by,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
  * TSX since decision 0015, step 5), `data/ask-line-globals.js`, the parts only Ask's Line draws by name (its charts, its
@@ -72,8 +73,21 @@ const SAMPLES = {
     jsx: "transform",
     reactIsTheWindows: true,
   },
+  // The frame itself (surfaces/frame/app-shell.tsx, TypeScript since the one-system plan's step 7e), on the page's own
+  // React, under the name the document's boot draws (`ChanlyticsApp`); the app imports it (LegacyApp.tsx).
+  "/data/frame-app.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/frame/app-shell.tsx"),
+    globalName: "__FA",
+    footer: "window.ChanlyticsApp = __FA.ChanlyticsApp;",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/frame", "apps/dashboard/src/surfaces/kit", "apps/dashboard/src/legacy-bridge"],
+  },
   // The frame's helpers the pages read by name (surfaces/frame/frame-globals.ts), on the page's own React, installed as the
-  // app installs them from seed-globals: the functions, then the presence and policy stores and the tip where none is.
+  // app installs them from seed-globals: the functions, then the presence and policy stores, the contracts and the tip
+  // where none is.
   "/data/frame-globals.js": {
     entry: path.join(REPO, "apps/dashboard/src/surfaces/frame/frame-globals.ts"),
     globalName: "__FG",
@@ -209,6 +223,7 @@ async function sampleBundle(route) {
 
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
 export const frameGlobalsBundle = () => sampleBundle("/data/frame-globals.js");
+export const frameAppBundle = () => sampleBundle("/data/frame-app.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
 export const askLineGlobalsBundle = () => sampleBundle("/data/ask-line-globals.js");

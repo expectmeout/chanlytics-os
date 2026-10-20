@@ -108,7 +108,7 @@ function LeadsScopePage({ param, scopeView }: { param: string; scopeView?: Scope
   // Leads' first part (client/page-speed.ts): its rows drawn, which wait for both its read and its chunk.
   usePartShown("leads", "table", !!(leads && Page));
   // Until both are in, it says so where it will stand: the page keeps its scopes, so the frame's reading pane does not stand
-  // in for this one (app-shell.jsx readsInPlace).
+  // in for this one (frame/shell-hooks.ts readsInPlace).
   return leads && Page ? (
     <Page
       key="leads"
@@ -186,7 +186,7 @@ function PersonPage({ id, tab }: ReturnType<typeof personRouteOf>) {
 }
 
 type Scope = "people" | "leads" | "pipeline";
-/** The scopes in the strip's order, which says the side a scope comes in from (surface-tabs.jsx stripPlace reads the same). */
+/** The scopes in the strip's order, which says the side a scope comes in from (frame/surface-tabs.tsx stripPlace reads the same). */
 const SCOPE_ORDER: readonly string[] = plScopes().map((s) => s.id);
 /** The deck's one seat for People's scopes. */
 const SCOPE_SEAT = "people-scope";

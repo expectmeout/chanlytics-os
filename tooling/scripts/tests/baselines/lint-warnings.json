@@ -81,17 +81,6 @@
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
-  "apps/dashboard/src/legacy/components/sidebar.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 4,
-    "jsx-a11y-x/interactive-supports-focus": 1,
-    "jsx-a11y-x/no-static-element-interactions": 3
-  },
-  "apps/dashboard/src/legacy/components/topbar.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/pages/app-shell.jsx": {
-    "react-hooks/exhaustive-deps": 5
-  },
   "apps/dashboard/src/legacy/pages/ask-hooks.jsx": {
     "react-hooks/exhaustive-deps": 2
   },
@@ -163,6 +152,20 @@
   },
   "apps/dashboard/src/server/workspace/capabilities.ts": {
     "@typescript-eslint/no-base-to-string": 1
+  },
+  "apps/dashboard/src/surfaces/frame/app-shell.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/surfaces/frame/sidebar/sidebar-menus.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1,
+    "jsx-a11y-x/interactive-supports-focus": 1
+  },
+  "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx": {
+    "jsx-a11y-x/click-events-have-key-events": 3,
+    "jsx-a11y-x/no-static-element-interactions": 3
+  },
+  "apps/dashboard/src/surfaces/frame/topbar/bell-demo-acts.tsx": {
+    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/surfaces/leads/bench/bench.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1,

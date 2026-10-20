@@ -23,11 +23,38 @@ installLegacyReact({
 });
 const W = globalThis.window;
 W.PR_STORE = { away: false, transfers: true };
-await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
+// The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
+const topbarParts = {
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx")),
+};
+Object.assign(W, {
+  Topbar: topbarParts.Topbar,
+  LiveCallBar: topbarParts.LiveCallBar,
+  ShellStatusBar: topbarParts.ShellStatusBar,
+  NotifPopover: topbarParts.NotifPopover,
+});
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+Object.assign(W, {
+  SurfaceTabs: surfaceTabs.SurfaceTabs,
+  stripPlace: surfaceTabs.stripPlace,
+  stripSlide: surfaceTabs.stripSlide,
+  stripSwipe: surfaceTabs.stripSwipe,
+});
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
+Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet, openShortcuts: shortcutsSheet.openShortcuts });
+// The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
+const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
+Object.assign(W, {
+  SHELL_ROUTES: routeTable.SHELL_ROUTES,
+  SOON_META: routeTable.SOON_META,
+  drawRoute: routeTable.drawRoute,
+});
 const { hearPresence } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
 const { SURFACE_STATES } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
 

@@ -102,7 +102,7 @@ export function useStandingSaid(): Standing | null {
 /** What the page on screen said, read once: for a test that draws a page and asks what it told the head. */
 export const standingSaid = (): Standing | null => standingNow();
 
-/** The crumbs the frame drew for the page on screen (app-shell.jsx, through the chrome bridge). */
+/** The crumbs the frame drew for the page on screen (frame/app-shell.tsx, through the chrome bridge). */
 export function crumbsShown(shown: readonly ShownCrumb[]): void {
   if (shown === crumbs) return;
   crumbs = shown;

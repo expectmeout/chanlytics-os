@@ -4,16 +4,19 @@
  * The bell rows the edge wrote for a line's setup (and the "we got your request" rows, kept thirty days) still carry
  * `admin/setup`, which the registry moves to the first run (ROUTES_MOVED). The move runs in an effect after the first draw, and
  * the first draw was the honesty gate's card, "Settings - Not in this release", for the frame or more it took. The route table
- * (app-routes.jsx drawRoute) now answers a route that has a place to go (`retiredTo`, resolved with the route) with nothing,
+ * (surfaces/frame/route-table.tsx drawRoute) now answers a route that has a place to go (`retiredTo`, resolved with the route) with nothing,
  * whatever the gate says of it, and the page `admin` is Settings' own (surface-registry.ts), which opens Profile for an address
  * that names no pane of it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact } from "../_legacy-react.mjs";
+import { importSrc } from "../_source.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "demo" });
-await import("../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
+// The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
+const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
+Object.assign(globalThis, { drawRoute });
 
 const route = (over) => ({
   page: "admin",

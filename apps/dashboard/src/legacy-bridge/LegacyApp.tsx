@@ -102,6 +102,7 @@ import { alertsOverride } from "@/surfaces/settings/notifications/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installIdentity } from "./identity";
 import { fillDoors } from "../surfaces/frame-doors";
+import { ChanlyticsApp } from "@/surfaces/frame/app-shell";
 import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 // The handover, which the shell asks on every boot, is its own small module; the create screen is fetched as it is drawn.
@@ -212,10 +213,11 @@ if (getActiveWorkspace())
     report: publicEnv.productionBuild && publicEnv.NEXT_PUBLIC_BUILD_SHA !== "dev",
   });
 
-// The mockup's own data-before-mount contract (boot gate). The seeded people (CLIENTS), the Agents roster and the
-// seeded Today (FLEET_DATA, CHANLY_DATA) went with the mockup's pages (17 Oct 2026); the seeded Inbox (INBOX_DATA) is a
-// demo session's alone: a real session's is its first read's, which no page waits on to mount (X6-1).
-const REQUIRED = ["CHANLY", "POLICY", "ChanlyticsApp"] as const;
+// The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's
+// helpers publish (surfaces/frame/frame-globals.ts). The frame itself is imported (surfaces/frame/app-shell.tsx, the
+// one-system plan's step 7e). The seeded Inbox (INBOX_DATA) is a demo session's alone: a real session's is its first
+// read's, which no page waits on to mount (X6-1).
+const REQUIRED = ["CHANLY", "POLICY"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
 const SURFACES = [
@@ -323,7 +325,7 @@ import { SeeOverMount } from "@/surfaces/see/see-mount";
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
  *
- * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
+ * surfaces/frame/shell-hooks.ts computes `routeLoading`'s INITIAL state during its first
  * render, and it is a child of this component: children render before parent
  * effects run, so a gate installed in one was undefined at the only moment it
  * mattered (surface-registry.ts installRouteGate, which says what that painted).
@@ -408,27 +410,6 @@ function useDocumentStamps(theme: Theme, look: LookPref): void {
   }, [look]);
 }
 
-type ChanlyticsAppComponent = React.ComponentType<{
-  theme: string;
-  themePref: string;
-  onTheme: (v: string) => void;
-  look: string;
-  onLook: (v: string) => void;
-  sidebar: string;
-  onSidebar: (v: string) => void;
-  inboxDensity: string;
-  showInboxAgentRail: boolean;
-  /** The page of a route that has left the shell, which the layout drew (src/surfaces/routes.ts). */
-  routePage: ReactNode;
-  /** The route of the router's pathname, the one the page reads: the frame moves when the page does (app-shell.jsx). */
-  routeNow: string | null;
-  surfaceRoutes: typeof SURFACE_ROUTES;
-  /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
-  sharedPage: ReactNode;
-  /** Fills the bridge's doors with the frame's own move, Ask and Back to People as it renders (surfaces/frame-doors.ts). */
-  fillDoors: typeof fillDoors;
-}>;
-
 const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
 const SHARED_PAGE = (
   <Suspense fallback={null}>
@@ -458,7 +439,7 @@ const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES
 /**
  * The shell as an element kept until one of its props changes, its callbacks made once: LegacyApp draws again when the
  * workspace moves or a preference does, and the shell under it is drawn again only for a preference. Each page redraws
- * on its own surfaces (surface-status.ts), and the shell on the route's (app-shell.jsx). It was drawn again, with three
+ * on its own surfaces (surface-status.ts), and the shell on the route's (surfaces/frame/app-shell.tsx). It was drawn again, with three
  * new callbacks, on every surface's read.
  */
 function useShellApp(
@@ -472,59 +453,44 @@ function useShellApp(
   const onTheme = useCallback((v: string) => choose("theme", v), [choose]);
   const onLook = useCallback((v: string) => choose("look", v), [choose]);
   const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);
-  const ChanlyticsApp = (window as unknown as { ChanlyticsApp?: ChanlyticsAppComponent }).ChanlyticsApp;
   const { theme: themePref, sidebar, inboxDensity, showInboxAgentRail } = prefs;
   return useMemo(
-    () =>
-      ChanlyticsApp ? (
-        <>
-          <ChanlyticsApp
-            theme={theme}
-            themePref={themePref}
-            onTheme={onTheme}
-            look={look}
-            onLook={onLook}
-            sidebar={sidebar}
-            onSidebar={onSidebar}
-            inboxDensity={inboxDensity}
-            showInboxAgentRail={showInboxAgentRail}
-            routePage={routePage}
-            routeNow={route}
-            surfaceRoutes={SURFACE_ROUTES}
-            sharedPage={SHARED_PAGE}
-            fillDoors={fillDoors}
-          />
-          {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
-          <FrameHead look={look} />
-          {/* What New conversation opens, held once for every page that asks for it (inbox/new-conversation/host.tsx). */}
-          <NewConversationHost />
-          {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
-          <BookingToolHost route={route} />
-          {/* A lead's sheet over whichever page its address opens it on (`?lead=`, leads/sheet/over-mount.tsx). */}
-          <LeadOverMount />
-          {/* A run or a message open over whichever page it was pressed on (`?see=`, surfaces/see/see-mount.tsx: the Campaigns
+    () => (
+      <>
+        <ChanlyticsApp
+          theme={theme}
+          themePref={themePref}
+          onTheme={onTheme}
+          look={look}
+          onLook={onLook}
+          sidebar={sidebar}
+          onSidebar={onSidebar}
+          inboxDensity={inboxDensity}
+          showInboxAgentRail={showInboxAgentRail}
+          routePage={routePage}
+          routeNow={route}
+          surfaceRoutes={SURFACE_ROUTES}
+          sharedPage={SHARED_PAGE}
+          fillDoors={fillDoors}
+        />
+        {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
+        <FrameHead look={look} />
+        {/* What New conversation opens, held once for every page that asks for it (inbox/new-conversation/host.tsx). */}
+        <NewConversationHost />
+        {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
+        <BookingToolHost route={route} />
+        {/* A lead's sheet over whichever page its address opens it on (`?lead=`, leads/sheet/over-mount.tsx). */}
+        <LeadOverMount />
+        {/* A run or a message open over whichever page it was pressed on (`?see=`, surfaces/see/see-mount.tsx: the Campaigns
               wiring review's rule C), with the frame's own toast host, so what it says outlives the sheet. */}
-          <SeeOverMount />
-          {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
-          <JoinedNote />
-          {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}
-          <SpeedFrame route={route} />
-        </>
-      ) : null,
-    [
-      ChanlyticsApp,
-      theme,
-      themePref,
-      onTheme,
-      look,
-      onLook,
-      sidebar,
-      onSidebar,
-      inboxDensity,
-      showInboxAgentRail,
-      routePage,
-      route,
-    ],
+        <SeeOverMount />
+        {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
+        <JoinedNote />
+        {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}
+        <SpeedFrame route={route} />
+      </>
+    ),
+    [theme, themePref, onTheme, look, onLook, sidebar, onSidebar, inboxDensity, showInboxAgentRail, routePage, route],
   );
 }
 

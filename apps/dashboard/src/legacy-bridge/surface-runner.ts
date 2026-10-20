@@ -170,7 +170,7 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
  * Loading twelve surfaces nobody is looking at ahead of the one they are is
  * backwards; so was reading Settings, People and Leads ahead of the calendar
  * Today's day card is drawn from, which landed 1.6 s after the queue beside it.
- * Parsed the way the shell parses it (app-shell.jsx parseRoute). A route that
+ * Parsed the way the shell parses it (surfaces/frame/shell-routes.ts parseRoute). A route that
  * owns no surface ranks nothing first, which costs nothing: the order is only
  * a preference.
  */

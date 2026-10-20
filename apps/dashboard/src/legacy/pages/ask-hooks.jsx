@@ -283,7 +283,7 @@ const useAskGrow = (ref, value, open) => {
 };
 
 // Back closes a phone's takeover (S8): one entry with a null state and the same address, so the shell's hash router
-// never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
+// never hears it and Next's app router, which reloads on a Back to a state it did not write (surfaces/frame/shell-hooks.ts), ignores
 // it. Whether the entry is ours is `pushed`, not the popped state; closing any other way goes back over it.
 const useAskBack = (on, pushed, onClose) => {
   // The close it calls is the latest one, while the entry is pushed once per opening, never again for a new function.

@@ -6,7 +6,7 @@
  * contracts' (first-run.ts, FIRST_RUN_HELPERS); the rows and everything a row does are Setup's (setup/rows). Nothing is
  * stored: the step is worked out from Setup's view model on every draw.
  *
- * Drawn by the frame INSTEAD of its chrome (app-shell.jsx, the start route, as it draws the shared viewer), so the page is
+ * Drawn by the frame INSTEAD of its chrome (frame/shell-chrome.tsx, the start route, as it draws the shared viewer), so the page is
  * the whole screen; its App Router page is `app/(os)/w/[workspace]/start/[[...param]]/page.tsx`. Its controls are the
  * kit's (the button, the quiet link, the panel, the face, the record kit's field and choice), on the page's own light.
  * The button, the link, the panel and the face are drawn by the kit's CLASSES on plain elements, as Setup's rows are,

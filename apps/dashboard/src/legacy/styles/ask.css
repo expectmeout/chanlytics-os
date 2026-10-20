@@ -465,7 +465,7 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
     background: none; color: var(--ink); z-index: 121;
   }
   /* The three in the ✦ (components/ask-face.jsx, on the raised ground), over the disc: the tile is set (`side`,
-     app-shell.jsx, 14px), not fitted, and the canvas is 3.2 tiles by 2.72, the room everything the three do needs
+     surfaces/frame/shell-chrome.tsx, 14px), not fitted, and the canvas is 3.2 tiles by 2.72, the room everything the three do needs
      round them. The tile was 12.5px on a canvas of 40 by 34, the 40px disc's own; in the 62px circle the mark stood
      small with empty glass round it, so it is a tile's eighth larger and the circle is as it was (Ruben, 7 Oct 2026).
      The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts CENTRE_Y) so that the ink and the

@@ -33,7 +33,7 @@ const feedOf = (api: BellApi): AwayBellRow[] => api.feed() as AwayBellRow[];
 // every unread row that is not drawn, including the ones the page above already holds. Both sentences come from
 // contracts; this file draws them. It draws wherever a bell is published.
 //
-// A group does what the bell's does (contracts bellSections is the one grouping, topbar.jsx draws it): a press opens the notes
+// A group does what the bell's does (contracts bellSections is the one grouping, frame/topbar/notif-popover.tsx draws it): a press opens the notes
 // under it, in place, and each note opens its own record and is read as it is opened. A press that read the whole group and
 // jumped to one page left the records it never showed unseen and counted as read (task 5.2, D1-notice-two-drawings). The card
 // lists the unread alone, and has no dismiss of its own (E3): the bell keeps the read ones under Earlier.

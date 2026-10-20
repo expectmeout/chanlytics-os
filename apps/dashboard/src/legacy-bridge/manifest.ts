@@ -16,23 +16,12 @@
  */
 import "./seed-globals";
 
-import "@/legacy/components/surface-tabs.jsx";
-import "@/legacy/components/sidebar.jsx";
-import "@/legacy/components/shortcuts.jsx";
-// The three as the top bar's Ask button and the Line's face: before the two that draw it.
+// The three as the top bar's Ask button and the Line's face (the top bar is surfaces/frame/topbar/topbar.tsx, which reads it by name).
 import "@/legacy/components/ask-face.jsx";
-import "@/legacy/components/topbar.jsx";
 
-import "@/legacy/data/constants.jsx";
 // Ask's Line (the five pages/ask-*.jsx) is a chunk of its own, fetched once the frame is idle or the Line is first opened
 // (ask/line.tsx, published as the shell's AskBar by seed-globals).
 // People is TSX (surfaces/people): its list, its Leads scope, the Pipeline and a person's page; the parts the shell still
 // draws by name are published by seed-globals from people-globals.ts before any of these loads.
-
-// Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
-// one-key save and how a number is written, which the old card in settings.jsx uses too.
-// The route table (SHELL_ROUTES, drawRoute): what each route draws, before the shell that reads it.
-import "@/legacy/pages/app-routes.jsx";
-import "@/legacy/pages/app-shell.jsx";
 
 export {};

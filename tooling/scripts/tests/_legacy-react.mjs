@@ -157,6 +157,8 @@ export function useStubHooks(stub = globalThis.React) {
   for (const hook of HOOKS) if (stub[hook]) reactModule[hook] = stub[hook];
   if (!stub.useLayoutEffect && stub.useEffect) reactModule.useLayoutEffect = stub.useEffect;
   reactModule.Fragment = stub.Fragment;
+  // The frame's error boundary is a class (surfaces/frame/shell-chrome.tsx), and the react-server module has no Component.
+  if (stub.Component) reactModule.Component = stub.Component;
   // A page's rows are drawn memoised (the people table's PeopleRowMemo): a stub has no reconciler to keep them, so the wrapper is the component.
   reactModule.memo = (component) => component;
 }

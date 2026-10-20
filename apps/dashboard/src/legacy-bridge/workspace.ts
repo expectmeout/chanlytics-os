@@ -350,7 +350,7 @@ export function warmSoon(routes: readonly string[], win: AddressWindow = window)
 const NEXT_KEEPS_A_WARM_MS = 5 * MIN_MS;
 
 /**
- * The routes kept warm: the phone's tab bar's places, which a thumb goes to from anywhere (app-shell.jsx PhoneTabs). The
+ * The routes kept warm: the phone's tab bar's places, which a thumb goes to from anywhere (surfaces/frame/phone-tabs.tsx PhoneTabs). The
  * router lets a warmed page go after five minutes, and nothing warmed it again until the page on screen changed: a phone
  * put away and taken out came back to places that each waited on the server first (12% of the bar's moves on
  * production, 5 to 12 Oct 2026). They are warmed again as the tab comes back to the screen, and, on a tab left on

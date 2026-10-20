@@ -10,6 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { importSrc } from "../_source.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -641,7 +642,14 @@ test("a strip is walked only where the shell is narrow, and there only where the
   const { viewPager } = await import("../../../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
   Object.assign(globalThis.window, { viewPager, viewDeck });
-  await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(globalThis.window, {
+    SurfaceTabs: surfaceTabs.SurfaceTabs,
+    stripPlace: surfaceTabs.stripPlace,
+    stripSlide: surfaceTabs.stripSlide,
+    stripSwipe: surfaceTabs.stripSwipe,
+  });
   const keep = globalThis.window.matchMedia;
   let width = 800;
   let token = "100%";

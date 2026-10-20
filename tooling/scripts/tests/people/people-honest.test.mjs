@@ -32,6 +32,7 @@ import {
   stateOf,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
+import { importSrc } from "../_source.mjs";
 import { keysDrawn } from "../_keys.mjs";
 
 const TID = "t-salon";
@@ -541,7 +542,12 @@ const barMenuOf = (tree, words) => {
   );
 };
 // The shell's ? sheet, whose Esc is heard before People's.
-await import("../../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
+Object.assign(globalThis.window, {
+  ShortcutsSheet: shortcutsSheet.ShortcutsSheet,
+  openShortcuts: shortcutsSheet.openShortcuts,
+});
 
 /** A tree walked once per node: a drawn component is its children as it was given them and what it rendered, and the two share nodes. */
 const walk = (n, fn, seen = new Set()) => {
@@ -1202,10 +1208,17 @@ test("the switch between the scopes is the frame's strip of views: the page draw
 // Ruben, 24 Sep: the scopes on a phone should look like the Inbox's views. They were a boxed switch squeezed into the
 // bar beside the list button ("All deals 6" shortened at 375px); now they are the shell's own tab strip, the Inbox's
 // .stabs, on a row of their own over the bar, and they stay while the bar is the search field.
-// A phone's page swipes across its strip, and a tap slides the same way (surface-tabs.jsx stripPlace): People's strip
+// A phone's page swipes across its strip, and a tap slides the same way (frame/surface-tabs.tsx stripPlace): People's strip
 // is its scopes, in plScopes' order, and a person's page is on none.
 test("People's scopes are its strip's order: People, Leads, the Pipeline; a person's page is on no strip", async () => {
-  await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(globalThis.window, {
+    SurfaceTabs: surfaceTabs.SurfaceTabs,
+    stripPlace: surfaceTabs.stripPlace,
+    stripSlide: surfaceTabs.stripSlide,
+    stripSwipe: surfaceTabs.stripSwipe,
+  });
   const w = globalThis.window;
   assert.deepEqual(w.stripPlace("clients", null), { strip: "people", at: 0 });
   assert.deepEqual(w.stripPlace("clients", "seg:needs-you"), { strip: "people", at: 0 });
@@ -1657,7 +1670,7 @@ test("on a phone More opens the selection's sheet -- Messages and receptionist â
     // Note, from the dock: the note sheet for the selection (step-sheet.tsx, which writes the line through the batch door:
     // notes/step-sheet.test.mjs), asked with who is picked; once it says what it reached, the bar says it and clears.
     // The ask goes through the frame's door (sheets/doors.tsx), said once the frame's sheet listens: drawn here as
-    // app-shell.jsx draws it.
+    // the frame draws it (surfaces/frame/shell-chrome.tsx).
     const asked = [];
     const hear = (e) => asked.push(e.detail);
     const frameSheet = () => {
@@ -2343,7 +2356,7 @@ test("the Leads scope imports People's parts: the list page's hooks, the table a
     "PhoneSheet",
   ])
     assert.equal(peoplePages[name], undefined, `${name} is imported, not published`);
-  // The shell's strip reads People's scope words by name (components/surface-tabs.jsx stripPlace); it draws them from the page's chrome.
+  // The shell's strip reads People's scope words by name (surfaces/frame/surface-tabs.tsx stripPlace); it draws them from the page's chrome.
   for (const name of ["plScopes", "plScopeRoute"]) assert.equal(typeof peoplePages[name], "function", name);
   assert.equal(peoplePages.PeopleScopeTabs, undefined, "and the page's own copy of the strip is gone");
 });

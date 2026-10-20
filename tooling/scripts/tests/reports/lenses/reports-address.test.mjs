@@ -185,7 +185,14 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
   hold();
   const win = globalThis.window;
   win.CHANLY = { address: { href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } };
-  await importSrc("apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(win, {
+    SurfaceTabs: surfaceTabs.SurfaceTabs,
+    stripPlace: surfaceTabs.stripPlace,
+    stripSlide: surfaceTabs.stripSlide,
+    stripSwipe: surfaceTabs.stripSwipe,
+  });
   const views = chromeAt(null).views;
   assert.equal("stays" in views, false);
   const strip = win.SurfaceTabs({ page: "reports", param: null, views, onNavigate() {} }).rendered;

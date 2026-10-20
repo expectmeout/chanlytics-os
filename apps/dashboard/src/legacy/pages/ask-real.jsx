@@ -52,7 +52,7 @@ const arPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720
 const arStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 // Where the three come from as the Line opens: the top bar's button, where it is drawn. On a phone the ✦ is gone
-// before the takeover comes in (app-shell.jsx draws it only while Ask is closed), so the takeover's own fade is it.
+// before the takeover comes in (surfaces/frame/shell-chrome.tsx draws it only while Ask is closed), so the takeover's own fade is it.
 const arFaceFrom = () => {
   if (typeof document === "undefined" || !document.querySelector) return null;
   const el = document.querySelector('[data-testid="tb-ask-face"]');

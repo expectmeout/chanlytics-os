@@ -3276,7 +3276,7 @@ test("on the first run, drawn in place of the app's chrome, a sheet and a fold's
   const portals = [];
   const doc = globalThis.document;
   const was = { querySelector: doc.querySelector, createPortal: W.ReactDOM.createPortal };
-  // The first run draws no .app-root (app-shell.jsx): its shell is the root there.
+  // The first run draws no .app-root (surfaces/frame/shell-chrome.tsx): its shell is the root there.
   doc.querySelector = (sel) => (inRoots(sel, ".fr-shell") ? shell : null);
   W.ReactDOM.createPortal = (node, into) => {
     portals.push(into);

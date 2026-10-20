@@ -87,7 +87,7 @@ test("the route gate is installed at module scope, not in an effect", () => {
   const call = s.indexOf("\ninstallRouteGate();");
   assert.notEqual(call, -1, "installRouteGate() must be called at top level");
 
-  // app-shell.jsx computes routeLoading's INITIAL value during its first
+  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first
   // render, and it is a CHILD of this component — children render before
   // parent effects run. Installing the gate in a useEffect left it undefined
   // at the only moment it mattered: routeReady() fell back to true and a cold
@@ -113,7 +113,7 @@ test("the cache is hydrated at module scope, before React renders", () => {
 
 test("the shell derives route loading during render", () => {
   const shell = fs.readFileSync(
-    path.join(here, "../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx"),
+    path.join(here, "../../../../../apps/dashboard/src/surfaces/frame/shell-hooks.ts"),
     "utf8",
   );
   for (const name of ["surfaceReady", "surfaceUnavailable", "routeLoading"]) {

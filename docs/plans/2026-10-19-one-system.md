@@ -82,41 +82,88 @@ on the build: the frame 6.2 KB lighter (539,484 to 533,278 B gz), three pages' o
 heavier, window names 71 to 54, publisher sites 104 to 76, files over 800 lines 2 to 1, and the tests that load a
 classic script 105 to 34.
 
-**Wave 2 · no classic script left.** About 10 days; Ask needs `cm-ask-manager` landed or dropped first.
+**Wave 2 · no classic script left.** Reviewed against the backend on 20 October 2026 (section 10): two pull requests,
+the frame first.
 
-4. and 5. from wave 1: **the mascot's driver after the first paint** and **Ask's install as a door**, built with Ask's
-   move in step 6 (section 9 says why).
+**2a · one frame** (about 6 days):
+
+- **Demo mode stays.** Ruben, 20 October 2026: "Keep demo mode: port it into the TSX frame as written." The frame's
+  demo layer moves with it, behind the same `__DEMO_MODE` reads.
+- 7. **The frame leaves** (below), demo layer and all, drawing as the JSX drew:
+  - It reads its data as it does today: the bridge's names off the window (the tests' seams until step 9) and wave 1's
+    modules by import. No route changes and no server code changes.
+  - It also reads `STORE_DATA`, `FL_STORE` and `LD_STORE` as written, demo-only reads that nothing on main publishes.
+- 8. **The mockup and the tree** (below) go on Ruben's word once 7e lands. The mockup draws the TSX frame from a bundle
+  of its own (`data/frame-app.js`), so 7e does not force it out.
+
+**2b · Ask** (about 4 days), once `cm-ask-manager` is landed or dropped:
+
+- 6. **Ask leaves** (below), with steps 4 and 5 (Ask's install as a door, the mascot after the first paint).
+- The voice agent's session, unused since 5 October, does not come into the boot. It becomes a chunk that a voice
+  session would load, or it is deleted on Ruben's word.
+
+The steps:
 
 6. **Ask leaves**: its five pages as TSX in `apps/dashboard/src/surfaces/ask/`, importing the kit's charts, the hold to
    talk and Leads' plan card; `ask/line-globals.ts` and the lane's Rises row go. Each of `ask-real.jsx`'s 18
    exhaustive-deps warnings is read first: a missing dependency that is a bug is fixed in a commit before the move, one
    that is meant carries its reason on its line.
 7. **The frame leaves**, as five commits, each proved equal by value and by a style-equality record of every page:
-   - a. The route table: `[[...route]]/page.tsx` draws the parked pages' landing and the not-found card itself
-     (`surfaces/frame/landing.tsx`); `SHELL_ROUTES`, `SOON_META` and `drawRoute` go.
-   - b. The sidebar, and the shortcuts sheet as a chunk of its own. Its 8 accessibility warnings are fixed in a commit
-     before the move, so the proof holds across it.
-   - c. The strip (`surface-tabs.jsx`).
-   - d. The top bar: the bell (its popover a chunk, drawn only when open), the live call bar, the status bar.
-   - e. The frame itself (`app-shell.jsx`, `constants.jsx`) as `surfaces/frame/`. `manifest.ts`, the boot gate, the
-     names `seed-globals.ts` publishes for JSX, `surfaces/kit/kit-globals.ts`, `surfaces/inbox/legacy-globals.ts` and
-     `surfaces/people/people-globals.ts` go. The frame then reads no `window` as its modules evaluate, so `#frame-shell`,
-     `src/frame-shell.ts` and `ssr: false` can go, and its chrome can join the one prerendered document (decision 0053):
-     the sidebar and top bar would paint before any script runs. Measured then (first paint p75 is about 850 ms today),
-     not promised here.
+   - a. The route table becomes `surfaces/frame/route-table.tsx`, typed, with the same markup. `frame-globals.ts`
+     publishes it for the frame's JSX until 7e. At 7e the parked pages' landing and the not-found card become the
+     catch-all page's own, and the names go. Built on 20 October, staged: `app-routes.jsx` gone, one publisher site
+     and one legacy file fewer.
+   - b. The sidebar and the shortcuts sheet: `surfaces/frame/sidebar/sidebar.tsx`, `sidebar-menus.tsx`, `sidebar-who.tsx` and
+     `shortcuts.tsx`. Built on 20 October, staged, as written. Its 8 accessibility warnings moved with it (a Rises row);
+     making the nav's rows links is its own change once the frame is TypeScript.
+   - c. The strip: `surfaces/frame/surface-tabs.tsx`. Built on 20 October, staged.
+   - d. The top bar: `surfaces/frame/topbar/topbar.tsx`, the bell's notes (`notif-popover.tsx`), the live call bar and the
+     status line (`status-bars.tsx`), and the demo's bell and presence (`bell-demo.ts`, its seeds, and
+     `bell-demo-acts.tsx`, read only in a demo). Built on 20 October, staged. The popover stays in the frame's chunk:
+     a chunk of its own is a change to measure after 7e.
+
+     What 7a to 7d share: each part draws the tree the JSX drew. The frame's JSX reads each part by its old name,
+     published once by `frame-globals.ts`. Reads of the shell's words, the bell and the demo flag go through one
+     accessor each (`frame-window.ts`), so `__chrome` falls from 7 files to 4, `__notifs` from 3 to 2 and `__DEMO_MODE`
+     from 9 to 6. The register falls by 4 functions over the limits (51), 1 file over 200 lines, 8 publisher sites
+     (68) and 5 legacy files. Measured on the build against main's (`250585eff`): route JS 535,495 to 536,992 B gz (+1.5 KB:
+     the parts split under the limits, their reads through the accessors), every page and the CSS unchanged. A pull
+     request of 7a to 7d carries a `Bundle:` line; 7e takes the names away.
+   - e. The frame itself (`app-shell.jsx`, `constants.jsx`) as `surfaces/frame/`. Built on 20 October, staged:
+     - `app-shell.tsx` resolves the route and holds the gates and hooks, in the order the JSX called them;
+       `shell-routes.ts` parses the address, `shell-hooks.ts` holds the hooks, `shell-chrome.tsx` draws the chrome
+       around the table's answer, and `phone-tabs.tsx` the phone's tab bar. `constants.ts` is `CHANLY`, which
+       `frame-globals.ts` publishes as `window.CHANLY` where none stands (a test's stand-in keeps its own).
+     - `LegacyApp.tsx` imports the frame, and the boot gate waits on `CHANLY` and `POLICY` alone. The mockup draws it
+       from its own bundle. `manifest.ts` loads `seed-globals.ts` and Ask's face only.
+     - `frame-globals.ts` no longer publishes the frame's parts (the sidebar, the top bar and its bars, the strip, the
+       sheet, the route table). The parts read their stand-ins off `globalThis` first, so the node tests still stand in.
+     - The sidebar's three files and the top bar's five moved into `frame/sidebar/` and `frame/topbar/`, which keeps the
+       frame's folder at 16 modules.
+     - Left for after 2b, since Ask's pages still read them: the names `seed-globals.ts` publishes for JSX,
+       `surfaces/kit/kit-globals.ts`, `surfaces/inbox/legacy-globals.ts` and `surfaces/people/people-globals.ts`. Then
+       the frame reads no `window` as its modules evaluate, so `#frame-shell`, `src/frame-shell.ts` and `ssr: false` can
+       go, and its chrome can join the one prerendered document (decision 0053), painting the sidebar and top bar before
+       any script runs. That is measured then (first paint p75 is about 850 ms today), not promised here.
+     - The register against main: lint warnings 282 to 278 (exhaustive-deps 37 to 33: the setters the JSX left out are
+       listed), publisher sites 76 to 67 in 25 files, functions over the limits 55 to 51, and dead exports 255 to 257
+       (the route table's rows and the soon landing's words, which two tests hold as data: a Rises row).
 
    The moved rows draw with the kit where the lint in `src/surfaces` asks it (no raw `<button>`); where a kit part moves
    a pixel, that is a commit of its own with its record, before the move.
 8. **The mockup and the tree**: `Chanlytics.html`, `bridge-stubs.jsx`, `serve-legacy.mjs`'s document and its bundles,
    `legacy-harness.test.mjs`, `legacy/CLAUDE.md` (the rules in it that still guide a page move into
    `.claude/skills/chanlytics-interface/SKILL.md`), the legacy block of `eslint.config.mjs`, the line in `.prettierignore`
-   and the exclude in `apps/dashboard/tsconfig.json`. `corepack pnpm e2e:local` runs the real app, `next start` on a
-   build, behind the harness's record, which already answers the two auth calls and every `/api/v1` read a page makes;
-   the kit's gallery keeps a document of the stylesheets alone.
+   and the exclude in `apps/dashboard/tsconfig.json`. `corepack pnpm e2e:local` runs the real app (`next start` on a
+   build). Playwright answers every `/api/v1` read from the harness's record (`page.route`) and signs in with the
+   stand-in it uses today, so nothing leaves the machine. The kit's gallery keeps a document of the stylesheets alone.
 
-On its merge: no JSX, no manifest and no Babel in a browser anywhere; `src/legacy` holds stylesheets only; window names
-about 45, publisher sites about 35; lint warnings 284 to 247, functions over the limit 58 to 51, files over 800 lines 0,
-inline style props 69 to 57; about 5,300 lines of JSX typed, formatted and linted.
+On 2a's merge: no frame JSX, and Ask's pages are the last JSX. Demo mode stays in the TSX frame (Ruben, 20 October),
+and the mockup goes with step 8 on his word. On 2b's merge: no JSX, no
+manifest and no Babel in a browser anywhere; `src/legacy` holds stylesheets only. Window names come to about 45 and
+publisher sites to about 35. Lint warnings go from 284 to 247, functions over the limit from 58 to 51, files over 800
+lines to 0, and inline style props from 69 to 57. About 5,300 lines of JSX become typed, formatted and linted, and
+about 3,400 lines of samples are deleted.
 
 **Wave 3 · one way to reach anything.** About 5 to 6 days.
 
@@ -228,10 +275,16 @@ Each is mine, stated so it can be reversed:
 ## 6. Ruben's word
 
 - **The plan**: the three waves in this order, or stop after any one of them.
-- **`cm-ask-manager`** (Ask's answers shape themselves, local since 13 October): land it or drop it before wave 2; it
-  holds Ask's files.
-- **Two deletions**: the standalone mockup in step 8 (`Chanlytics.html` and its server's document; `e2e:local` moves to
-  the real app), and the parked pages' stylesheets in step 11.
+- **`cm-ask-manager`** (Ask's answers shape themselves, local since 13 October): land it or drop it before 2b. It holds
+  48 staged files, among them the server's Ask loop, prompt and tools, and it is 164 commits behind main. Landing it
+  takes his look and an eval run, which spends.
+- **Demo mode**: kept (20 October); it moves with the frame.
+- **Deletions**:
+  - the standalone mockup, in step 8, once 7e lands (`Chanlytics.html` and its server's document; `e2e:local` moves to
+    the real app);
+  - the voice agent's session in 2b: `ask/voice.ts`, `voice-events.ts`, `spoken.ts` and the routes `ask/voice`,
+    `ask/voice/end` and `ask/voice/page`;
+  - the parked pages' stylesheets, in step 11.
 
 ## 7. Risks
 
@@ -316,3 +369,62 @@ tests that drew it before draw it now.
 - **The mascot's** rest frame can only be identical if it keeps the drawing, the colour and the character, about 6.5 KB
   of the 12.4. That leaves about 6 KB saved, which is not worth a first paint at risk now. With Ask's move, the face
   becomes TSX anyway.
+
+## 10. Wave 2, reviewed against the backend (20 October 2026)
+
+Read on main at `250585eff` (#1747).
+
+**What the code says.**
+
+- **Demo mode exists only in the standalone mockup.**
+  - `seed-globals.ts` sets `__DEMO_MODE` to false when nothing has set it. `bridge-stubs.jsx`, which only
+    `Chanlytics.html` loads, is the one place that sets it true, and the e2e harness's fixture sets it false.
+  - Everything behind `demoSession()` and `window.__DEMO_MODE` is therefore drawn in no workspace:
+    - the samples (Reports 624 + 305 lines, the Inbox's 1,177, People's 397, the Calendar's 439, Broadcasts' 234 and
+      Live's 81, with wave 1's `demo.ts` loaders);
+    - the demo branches in 24 surface files;
+    - in the sidebar: a made-up account and workspace, the agents strip, Leads' "ready" count, and "Hire from store" with
+      a count that falls back to a made-up 6;
+    - in the top bar: the bell's rows and its listeners for listings, the fleet, leads and presence. Their senders went
+      with the mockup's pages (#1351, 17 October).
+  - The product's demo is a real workspace: the live chanlytics workspace's sample rows (18 October). The site shows
+    the real app (Ruben, 14 and 15 October).
+- **Campaigns › Ads is the exception.** Its page draws fixtures behind a fake port until 0049 wires its read. It is
+  drawn in a demo session, and also in a real workspace whose config turns `features.ads_preview` on. Its fixtures stay.
+- **The frame reads three stores that nothing publishes**: `STORE_DATA`, `FL_STORE` and `LD_STORE`. Every other read
+  has a backend behind it:
+  - the bell: `legacy-bridge/surfaces/notifications.ts`, `GET notifications`;
+  - the person and the workspaces: `surface-data.ts`, `GET workspaces`;
+  - the live call bar: the live surface over calls and the live feed;
+  - billing: the billing surface;
+  - "needs you": the Inbox's store.
+
+  These go through the typed client, and a read already in flight is shared. The TSX frame needs no new route and no
+  server change.
+- **Ask's client is typed already**: `ask/api.ts` goes through the typed client to the 13 routes under `/api/v1/ask`. Its
+  palette feeds contracts' rules and holds none of its own. So moving Ask is a move of the client, with nothing to
+  realign on the server.
+- **The voice agent's session has been unused since 5 October** (Ruben's choice: a hold goes the typed way and Ask's
+  voice reads the answer). It is kept: `ask/voice.ts` (557 lines), `voice-events.ts`, `spoken.ts`, three routes, the
+  brain door and the webhook.
+- **`cm-ask-manager` holds Ask's files on both sides**: the JSX (`ask-real`, `ask-text`, `ask-turn`), `ask/api.ts`,
+  `ask/palette.ts` and `ask.css`, and on the server `server/ask/loop.ts`, `prompt.ts` and `tools/act/*`. That is 48
+  staged files, 164 commits behind main.
+
+**The calls** (mine, each reversible):
+
+- **Two pull requests.** 2a is the frame and 2b is Ask. Ask waits on `cm-ask-manager`, and the frame doesn't.
+- **Demo mode goes before the frame moves**, if Ruben agrees. Porting a layer no workspace draws into typed TSX, under
+  the kit's lint and the complexity limits, would be work thrown away. If he keeps it, it moves as written. Ruben kept
+  it (20 October), so it moves as written.
+- **The TSX frame reads nothing off `window` once it is whole.** Steps 7b to 7d move each part as written: wave 1's
+  stores by import, and the bridge's names off the window as the tests' seams. 7e and step 9 end those reads, and the
+  names it published for the JSX go with 7e.
+- **The mockup outlives 7e.** `e2e:local` and the mutation runs drive it today, in real mode behind the record, and it
+  draws the TSX frame from a bundle of its own (`data/frame-app.js`), so nothing breaks when the JSX goes. It goes with
+  step 8 on Ruben's word: those runs then move to the real app on a build, with Playwright answering from the same
+  record.
+- **The voice agent's session stays out of the boot**, as a chunk or deleted. It never reaches the frame's bytes.
+- **The prerendered chrome stays a measurement.** One document serves every workspace, so it could only draw the frame
+  with no workspace and no role filled in: the nav without its counts or names, filled at hydration. It is measured
+  after 7e, not promised.

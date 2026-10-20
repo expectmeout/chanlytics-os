@@ -2,7 +2,7 @@
  * The routes that have left the shell (decision 0015, step 3): each has an App Router page of its own, and the frame,
  * which stays mounted in the layout, draws its chrome around it. A route is here when its page is
  * `app/(os)/w/[workspace]/<word>/page.tsx` (`<word>` is the route's own name, or the product's where
- * `ROUTE_WORDS` says another) and its row has left `legacy/pages/app-routes.jsx`; the registry test
+ * `ROUTE_WORDS` says another) and its row has left the frame's route table (`surfaces/frame/route-table.tsx`); the registry test
  * (`tooling/scripts/tests/shell/surfaces/surface-registry.test.mjs`) holds the two to each other, in both directions.
  *
  * What the frame needs to know of one is what its row said: which item of the sidebar it lights, its crumbs, and
@@ -25,12 +25,12 @@ import { settingsCrumbs } from "./settings/frame/tabs";
 type Crumb = string | { label: string; to: string } | { label: string; to?: string; go: unknown };
 
 /**
- * The top bar's one act, drawn by the frame (app-routes.jsx drawRoute) from what the surface says: a link that opens
+ * The top bar's one act, drawn by the frame (frame/route-table.tsx drawRoute) from what the surface says: a link that opens
  * elsewhere (`href`: the Calendar's booking link), or the Ask door (`ask`), which only a demo session offers (Ask opens there
  * over seeded pages; a real workspace has nothing to ask), composing from `prompt` where the surface gives one. `glyph` is an icon of
  * the kit; `primary` is the filled button.
  */
-interface SurfaceAct {
+export interface SurfaceAct {
   label: string;
   glyph: string;
   primary?: boolean;
@@ -78,7 +78,7 @@ interface ChromeAt {
 }
 
 /** How the frame wraps a route's page: the row's `activeNav`, `crumbs` and `pane`, each fixed or asked of the address's param. */
-interface SurfaceRoute {
+export interface SurfaceRoute {
   activeNav: string | ((param: string | null) => string);
   crumbs: readonly Crumb[] | ((param: string | null) => readonly Crumb[]);
   pane: boolean;

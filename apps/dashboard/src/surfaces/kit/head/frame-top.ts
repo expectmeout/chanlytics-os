@@ -1,5 +1,5 @@
 /**
- * The frame's top on a phone (app-shell.jsx `.frame-top`: the date, the bell, a call, the shell's status, a pane's name and
+ * The frame's top on a phone (frame/shell-chrome.tsx `.frame-top`: the date, the bell, a call, the shell's status, a pane's name and
  * strip), which stands fixed over the page as the window scrolls it (mobile.css, "The window scrolls"). Watched here for
  * two things the stylesheet cannot know:
  * - its height, as `--frame-top` on the document: the column starts that far down under it, Settings' strip sticks that

@@ -133,7 +133,9 @@ test("the wiring: one profile row per account, written by its owner only, read b
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installIdentity();"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("display_name?: string | null"));
 
-  const sidebar = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
+  const sidebar = ["sidebar", "sidebar-who"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
+    .join("\n");
   assert.ok(sidebar.includes("window.__identity.words(me)"), "the chip reads the same words");
   assert.ok(
     sidebar.includes('window.addEventListener("surface:workspace", bump);'),
