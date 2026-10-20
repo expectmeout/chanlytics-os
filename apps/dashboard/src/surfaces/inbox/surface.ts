@@ -20,7 +20,7 @@ import {
   type EscalationDto,
 } from "@chanlytics/contracts";
 import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-templates";
-import { carriedReading, carriesMark } from "../seen";
+import { carriedReading, carriesMark } from "../seen-carry";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { readHeldThreads } from "./held-threads";

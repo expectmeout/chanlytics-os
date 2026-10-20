@@ -27,7 +27,7 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { holderName } from "../holder-names";
-import { carriesMark } from "../seen";
+import { carriesMark } from "../seen-carry";
 import type { PeopleLoaded } from "./surface-map";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 

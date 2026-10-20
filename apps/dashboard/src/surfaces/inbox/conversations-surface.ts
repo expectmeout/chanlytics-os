@@ -14,7 +14,7 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
-import { carriedReading, carriesMark } from "../seen";
+import { carriedReading, carriesMark } from "../seen-carry";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
