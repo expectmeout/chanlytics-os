@@ -96,6 +96,7 @@ export {
   isReachOutHold,
   holdWords,
   holdDoors,
+  HOLDS_INCLUDED_FOR_CHAIN,
   HOLD_DOOR_WORDS,
 } from "./reach-out-words";
 export { ReachOutStepSchema, ReachOutChainSchema } from "./reach-out-schemas";

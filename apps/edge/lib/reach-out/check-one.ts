@@ -4,8 +4,9 @@
  * record; a failed rule asks for one rewrite, told why, then holds (openingVerdict). The three code holds come first: a
  * person in People writes from the business's domain (F6), the business reads like a chain (F4), and the business is
  * abroad, in a country its owner says yes to first (decision 0056, 9: contracts reachOutCountryOf); the opening is still
- * written for them, so an owner's Include sends it as it reads. A hold its owner already included this send, or its lead
- * in this chain, past is never made again (R7).
+ * written for them, so an owner's Include sends it as it reads. A business hold its owner already included this send, or
+ * its lead in this chain, past is never made again; an Include past a word hold (an unbacked fact, a pitch) covered that
+ * one email, and a later step's opening, new words, is read as any other (R7: contracts HOLDS_INCLUDED_FOR_CHAIN).
  *
  * Here too: the model it asks (askReachOutModel: Haiku, the registry's reach_out_check route, through the platform's one
  * JSON-model transport, with no retry of its own on "not now"; an overload is asked once of the route's fallback when
@@ -16,6 +17,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  HOLDS_INCLUDED_FOR_CHAIN,
   OPENING_SCHEMA,
   READING_SCHEMA,
   chainOf,
@@ -112,7 +114,10 @@ export interface CheckInput {
   customerDomain: string | null;
   /** The lead's country when it is one its owner says yes to first (contracts reachOutCountryOf: held); else null. */
   abroad: string | null;
-  /** The holds this send's owner included it (or its lead in this chain) past: never made again (R7). */
+  /**
+   * The holds this send's owner included it, or its lead in this chain, past (the planner's union over the lead's sends):
+   * one an Include carries (contracts HOLDS_INCLUDED_FOR_CHAIN) is never made again; the rest covered one email (R7).
+   */
   included: string[];
 }
 
@@ -212,8 +217,10 @@ export async function checkOne(
       rewritten = true;
     }
   }
-  // Included past it by its owner: the opening goes as it reads (R7).
-  if (hold && i.included.includes(hold)) {
+  // Included past it by its owner, where an Include carries (R7): a business hold is not made again, and the opening
+  // goes as it reads; a word hold's Include covered one email, and this opening is new words.
+  const included = (h: ReachOutHold): boolean => HOLDS_INCLUDED_FOR_CHAIN.has(h) && i.included.includes(h);
+  if (hold && included(hold)) {
     hold = null;
     detail = null;
   }
@@ -221,11 +228,11 @@ export async function checkOne(
   // over an opening the reader or code refused keeps no opening: an Include past the code hold then finds none, and the
   // send is checked again (the sender's no_opening), where the opening's own hold is said.
   const code: { hold: ReachOutHold; detail: string } | null =
-    i.customerDomain && !i.included.includes("customer_domain")
+    i.customerDomain && !included("customer_domain")
       ? { hold: "customer_domain", detail: i.customerDomain }
-      : i.chain && !i.included.includes("chain")
+      : i.chain && !included("chain")
         ? { hold: "chain", detail: `${i.chain.by}:${i.chain.listings}` }
-        : i.abroad && !i.included.includes("abroad")
+        : i.abroad && !included("abroad")
           ? { hold: "abroad", detail: i.abroad }
           : null;
   if (code) {

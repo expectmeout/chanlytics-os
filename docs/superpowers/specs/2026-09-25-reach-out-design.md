@@ -264,9 +264,11 @@ Skip · Not a fit). The approval sheet repeats the count. A held email never sen
   is held `check_unavailable` with no detail, and the check's clock puts it back to be checked an hour on. A hold for a
   rule an opening broke waits for its owner.
 - **The doors.** Include, Rewrite, Skip and Not a fit are one door, `reach_out_send_decide`; Not a fit archives the lead
-  in the same transaction. Include is refused past the fortnight. An Include is kept on the send (`included_for`), so
-  neither it nor a later step's send to the same lead is held for that reason again. "Check the held again" puts a
-  run's unanswered `check_unavailable` holds back in one call (`reach_out_run_recheck`).
+  in the same transaction. Include is refused past the fortnight. An Include is kept on the send (`included_for`): past
+  a business hold (customer_domain, chain, language, abroad) neither it nor a later step's send to the same lead is held
+  for that reason again; past a word hold (unbacked_fact, reads_like_spam) it covers that one email, since every step's
+  opening is new words (contracts `HOLDS_INCLUDED_FOR_CHAIN`, 19 Oct 2026). "Check the held again" puts a run's
+  unanswered `check_unavailable` holds back in one call (`reach_out_run_recheck`).
 - **The tally is the approval sheet's** (F12): checked, ready and held for the whole run is read there a minute after
   Start, with each held email's doors. The sheet's "Before it goes" previews one business at a time.
 

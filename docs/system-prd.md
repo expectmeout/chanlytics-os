@@ -1069,8 +1069,10 @@ chain end with a call or a note for the team.
   (contracts `checkOpening`, `openingVerdict`), asks one rewrite, then holds; a business whose domain a person in People
   writes from, or that reads like a chain, is held first. A held send (`held`, with its reason and detail) waits for its
   owner and keeps its run open; fourteen days from its planning it is given up (`kept_waiting`). A send its owner
-  included past a hold carries `included_for`, and neither it nor a later step's send to the same lead is held for that
-  again. Each send is stamped with the words it was checked against (`checked_words`, a hash) and their version
+  included past a hold carries `included_for`: past a business hold (a customer's domain, a chain, a language, abroad)
+  neither it nor a later step's send to the same lead is held for that again; past a word hold (an unbacked fact, a
+  pitch) the Include covers that one email, and a later step's new opening is read as any other (contracts
+  `HOLDS_INCLUDED_FOR_CHAIN`). Each send is stamped with the words it was checked against (`checked_words`, a hash) and their version
   (`check_gen`); the sender sends a send back to be checked when its words changed since, or its opening is missing.
   The model's spend is bounded where it is spent: a workspace that may not spend, has no room in its month, or spent
   its 400 model attempts of the UTC day (contracts `REACH_OUT_CHECKS_PER_DAY`, counted in `reach_out_check_spend`,
