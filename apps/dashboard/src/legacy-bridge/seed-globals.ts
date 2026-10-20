@@ -14,17 +14,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import {
-  ROLE_PERMS,
-  roleGate,
-  samePhone,
-  whyNotAPhone,
-  normalizeLink,
-  whyNotAHandoff,
-  handoffE164,
-  formatPhoneDisplay,
-  BROKEN_CONFIG_WORDS,
-} from "@chanlytics/contracts";
+import { roleGate } from "@chanlytics/contracts";
 import { demoCode as inboxDemo } from "../surfaces/inbox/shell";
 import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
@@ -36,6 +26,7 @@ import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
 import { DOOR_NAMES } from "../surfaces/frame-doors";
 import { installRoleStore } from "./identity";
+import { installFrameGlobals } from "../surfaces/frame/frame-globals";
 
 declare global {
   interface Window {
@@ -43,15 +34,7 @@ declare global {
     ReactDOM: typeof ReactDOM;
     useSurface: (names: SurfaceNames) => number;
     __DEMO_MODE: boolean;
-    ROLE_PERMS: typeof ROLE_PERMS;
     __roleGate: typeof roleGate;
-    __samePhone: typeof samePhone;
-    __whyNotAPhone: typeof whyNotAPhone;
-    __normalizeLink: typeof normalizeLink;
-    __whyNotAHandoff: typeof whyNotAHandoff;
-    __handoffE164: typeof handoffE164;
-    __phoneDisplay: typeof formatPhoneDisplay;
-    __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
   }
 }
 
@@ -89,8 +72,6 @@ if (typeof window !== "undefined") {
     // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
     // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.
     useNeedsYou,
-    CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
-    CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
     threadVerbs,
     // The strip of views, the page a swipe walks, the deck a view moves by and the phone's tab bar, which the frame draws
     // and asks by name until it moves itself (surface-tabs.jsx, app-shell.jsx).
@@ -124,37 +105,16 @@ if (typeof window !== "undefined") {
   // Scripted demo theater (fake leads, fabricated handoffs, live-call sims,
   // veto auto-sends, canned Ask) stays OFF outside an explicit demo session.
   if (typeof window.__DEMO_MODE === "undefined") window.__DEMO_MODE = false;
-  // The role table the SERVER enforces, published for the mockup's gate()
-  // chips. settings.jsx carried its own hand-kept copy, and a permission table
-  // maintained in two places is one edit away from the client offering a
-  // control the server will refuse — or, worse, hiding one it would allow.
-  window.ROLE_PERMS = ROLE_PERMS;
   // The gate's sentence, from the same table: a control a role may not press
   // says who may before the press, in the words the server's refusal gives
-  // after it (contracts refusal.ts roleGate). data-bits.jsx gate() reads it.
+  // after it (contracts refusal.ts roleGate). frame/gate.ts reads it.
   window.__roleGate = roleGate;
-  // "(646) 555-0175" and "+16465550175" are one number. The editor compares
-  // the typed value against the provisioned line as you type, and a page that
-  // rolled its own comparison would accuse a workspace of a conflict for
-  // writing its own number in a friendly format.
-  window.__samePhone = samePhone;
-  // Why a typed number is not one anyone can be reached on, in the owner's
-  // words. The published number is now optional, so the only thing standing
-  // between a typo and a receptionist reading it aloud is this check.
-  window.__whyNotAPhone = whyNotAPhone;
-  // THE web-address normalizer (contracts link.ts): the Business tab's website and booking link are stored as it
-  // stores them, "harbormoving.example" with its https:// supplied, and refused where it refuses.
-  window.__normalizeLink = normalizeLink;
-  window.__whyNotAHandoff = whyNotAHandoff;
-  window.__handoffE164 = handoffE164;
-  // A stored number written the way people write one, "+1 (305) 555-0100", as
-  // Setup and Connections already show them: Business showed the E.164.
-  window.__phoneDisplay = formatPhoneDisplay;
-  // A broken configuration in the words Setup's row says (S8).
-  window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
   // The role store every gate asks (identity.ts), made before any page loads, as settings.jsx made it as the
   // manifest loaded: identity.ts completes it once its own install runs.
   installRoleStore();
+  // The frame's helpers the pages read by name: the toast, a thumb's gestures, an overlay's way out, focus, the role gate,
+  // a door that is a link, presence, the seeded charter and the tip (surfaces/frame/frame-globals.ts).
+  installFrameGlobals();
 }
 
 export {};

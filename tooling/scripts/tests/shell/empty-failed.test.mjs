@@ -129,7 +129,7 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
 Object.assign(globalThis.window, kitPages);
 const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;

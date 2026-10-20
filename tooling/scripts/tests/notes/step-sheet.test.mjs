@@ -234,9 +234,9 @@ Object.assign(W, {
   __ACTIVE_WORKSPACE: "t1",
 });
 const L = "../../../../apps/dashboard/src/legacy";
-// The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are data-bits'; everything else it
+// The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it
 // reads is imported, as the sheet imports it.
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};

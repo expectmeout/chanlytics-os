@@ -193,7 +193,7 @@ interface Grip {
   box: HTMLElement | null;
 }
 
-/** How far a thumb goes before the gesture says its way: data-bits touchSwipe's, so both read a touch alike. */
+/** How far a thumb goes before the gesture says its way: kit/motion/swipe.ts touchSwipe's, so both read a touch alike. */
 const GRAB_AT = 8;
 /** How long after its way back should have ended the box is let go of, should the browser's last frame be late. */
 const BACK_SLACK_MS = 40;

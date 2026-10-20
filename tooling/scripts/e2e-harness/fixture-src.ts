@@ -3,8 +3,8 @@
  * and People, real, where the record has them. (Settings › Business no longer draws here: Settings left the mockup in
  * step 11 of decision 0015, and its globals below are what the bridge publishes for the pages that remain.)
  *
- * The shell's globals and the tab's, as the bridge publishes them (legacy-bridge/business-tab.ts installBusinessTab,
- * zone.ts installClock, identity.ts, seed-globals.ts and inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
+ * The shell's globals, as the bridge publishes them (zone.ts installClock, identity.ts, seed-globals.ts and
+ * inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
  * built from the scenario the way legacy-bridge/surface-data.ts's settings apply builds them -- through the same
  * contracts functions, from this worktree's SOURCE. The server bundles this with the scenario's own object as a
  * banner (window.__HX_SCENARIO) and puts it FIRST in the document's head, before data/bridge-stubs.jsx, which writes
@@ -15,10 +15,6 @@
  * opens with `import "server-only"` and pulls in @chanlytics/db, neither of which belongs in a browser bundle. The
  * three lines it is are written out below, from the same contracts functions the server calls.
  *
- * `installBusinessTab()` below is the tab's helpers FROM SOURCE, and the harness serves `data/business-tab.js` --
- * which the document loads after this and which is built from `packages/contracts/dist` -- as an empty script, so
- * nothing overwrites them (server.mjs says so where it answers that route).
- *
  * Nothing here saves. __saveSettings and __workspace.setTimezone refuse, so a spec that ever pressed a Save would see
  * the refusal on the page instead of quietly writing to a scenario.
  *
@@ -28,7 +24,6 @@
 import * as C from "@chanlytics/contracts";
 import { installClock } from "@/legacy-bridge/zone";
 import { installRoleStore, installRoles } from "@/legacy-bridge/identity";
-import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { installPeopleCourier, personDetail } from "@/surfaces/people/people-detail";
@@ -112,9 +107,6 @@ w.__chrome = {
   typing: (t: EventTarget | null) => C.isTypingTarget(t as Element),
 };
 
-/* ---- the tab's own helpers (legacy-bridge/business-tab.ts): __businessTab, __hoursLines, __configLimits ---- */
-installBusinessTab();
-
 /* ---- identity.ts, seed-globals.ts and inbox-verbs.ts, as the unit harness publishes them ---- */
 w.__identity = { words: C.identityWords, member: C.memberWords, initials: C.personInitials };
 w.__tz = {
@@ -125,23 +117,7 @@ w.__tz = {
   also: C.zoneSearchWords,
 };
 w.DEFAULT_TIMEZONE = C.DEFAULT_TIMEZONE;
-w.__phoneDisplay = C.formatPhoneDisplay;
-w.__whyNotAPhone = C.whyNotAPhone;
-w.__whyNotAHandoff = C.whyNotAHandoff;
-w.__samePhone = C.samePhone;
-// THE web-address normalizer, which the website and booking link rows store and check by (seed-globals.ts).
-w.__normalizeLink = C.normalizeLink;
-// The name the page reads (business-tab-save.jsx), which is the bridge's own (seed-globals.ts). Published under
-// any other name, the transfer row falls through to the mockup's ported copy in data/bridge-stubs.jsx.
-w.__handoffE164 = C.handoffE164;
 w.__roleGate = C.roleGate;
-w.__receptionistDefaults = C.newReceptionistDefaults;
-w.__instructionsDraft = C.instructionsDraft;
-w.__fallbackMessages = C.fallbackMessages;
-w.__fallbackDefaults = C.FALLBACK_DEFAULTS;
-w.__unknownDetails = C.unknownDetails;
-// A broken configuration in Setup's words (seed-globals.ts publishes it).
-w.__brokenConfigWords = C.BROKEN_CONFIG_WORDS;
 // The workspace's zone is saved through PATCH workspaces, never the settings saver. Refused here.
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
@@ -163,14 +139,6 @@ w.__SETTINGS = {
   prompt: preview(S.config.brain),
   updatedBy: OWNER.name,
   updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
-};
-// What the receptionist is told, as the prompt sheet reads it: inbox-verbs.ts composedPrompt's three lines, written out
-// for the reason the preview is (that module brings the surface runner and the API client with it). e2e-harness.test.mjs
-// runs both over this window and holds them to one answer.
-w.__composedPrompt = (channel: "whatsapp" | "voice" = "whatsapp") => {
-  const prompt = w.__SETTINGS && w.__SETTINGS.prompt;
-  if (!prompt) return null;
-  return { text: prompt[channel], now: prompt.now, tz: prompt.tz };
 };
 const resolved = C.resolveFacts(S.config.brain, S.known);
 w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };

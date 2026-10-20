@@ -21,7 +21,7 @@ const { startSurfaces } = await import(`${SRC}/legacy-bridge/surface-runner.ts`)
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
 const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
 const { installIdentity } = await import(`${SRC}/legacy-bridge/identity.ts`);
-const { installBusinessTab } = await import(`${SRC}/legacy-bridge/business-tab.ts`);
+const { BUSINESS_TAB } = await import(`${SRC}/legacy-bridge/business-tab.ts`);
 const { composePromptPreview } = await import(`${SRC}/server/receptionist/prompt-preview.ts`);
 
 const brain = {
@@ -123,16 +123,15 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
     __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
-  installBusinessTab();
   // The save's own rules, which the tab asks for as it mounts: what a fold will say is judged by them.
-  await W.__businessTab.loadSaveRules();
+  await BUSINESS_TAB.loadSaveRules();
   // Settings hears the live feed now (its facts, rules, library and team: 0047), so the runner is given one to join.
   const stop = startSurfaces([settingsOverride], () => () => {});
   try {
     await quiet(async () => {
       for (let i = 0; i < 40 && !(W.__SETTINGS && W.__SETTINGS.prompt); i += 1) await pause();
       assert.equal(W.__SETTINGS.prompt.tz, "America/New_York");
-      const told = () => W.__businessTab.consequenceOf("hours", W.__SETTINGS.config.brain, "whatsapp").text;
+      const told = () => BUSINESS_TAB.consequenceOf("hours", W.__SETTINGS.config.brain, "whatsapp").text;
       assert.match(told(), /America\/New_York/);
 
       srv.asked.length = 0;

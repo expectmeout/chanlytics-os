@@ -19,15 +19,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  stateOf,
-  whyNotAHandoff,
-  whyNotAPhone,
-  samePhone,
-  handoffE164,
-  formatPhoneDisplay,
-} from "@chanlytics/contracts";
-import * as C from "@chanlytics/contracts";
+import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -178,7 +170,7 @@ globalThis.React = {
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit's folds answer the rail's question too, and the kit is published before any page, as it is in the app.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
@@ -191,11 +183,6 @@ Object.assign(globalThis.window, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   canDo: () => true,
-  __whyNotAHandoff: whyNotAHandoff,
-  __whyNotAPhone: whyNotAPhone,
-  __samePhone: samePhone,
-  __handoffE164: handoffE164,
-  __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (name, email) =>
@@ -210,15 +197,6 @@ Object.assign(globalThis.window, {
     accepted();
     return Promise.resolve({ ok: true });
   },
-  __receptionistDefaults: () => ({
-    system_prompt: "You answer for Northside Studio.",
-    fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" },
-  }),
-  __instructionsDraft: C.instructionsDraft,
-  __instructionsMax: C.INSTRUCTIONS_MAX,
-  __fallbackMessages: C.fallbackMessages,
-  __fallbackDefaults: C.FALLBACK_DEFAULTS,
-  __unknownDetails: C.unknownDetails,
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
   __SETTINGS: {
     role: "owner",
@@ -438,12 +416,6 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
     // A config the parser refused is a third thing: it says so, and asks for the repair.
     fresh();
     globalThis.window.__SETTINGS = { ...was, broken: { issues: ["brain.booking_link: Invalid url"] } };
-    globalThis.window.__brokenConfigWords = {
-      title: "We cannot read your settings",
-      body: "A person at Chanlytics will put it right.",
-      ask: "Ask for a repair",
-      requested: () => "Asked",
-    };
     tree = draw("workspace");
     assert.ok(byTestId(tree, "settings-broken"));
     assert.equal(byTestId(tree, "the-business-page"), null);

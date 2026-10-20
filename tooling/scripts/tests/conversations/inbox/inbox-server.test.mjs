@@ -427,7 +427,7 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
 
 test("the composer of a text thread says Text, not WhatsApp", async () => {
   // The shell's own toast and role gate, which the pane draws through the bridge (surfaces/legacy-verbs.ts).
-  await import(at("apps/dashboard/src/legacy/components/data-bits.jsx"));
+  (await import(at("apps/dashboard/src/surfaces/frame/frame-globals.ts"))).installFrameGlobals();
   const { Composer } = await import(at("apps/dashboard/src/surfaces/inbox/thread/composer.tsx"));
   const rows = [message("m1", uuid(1), A, { channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];
   const vm = toInboxThreadVM(

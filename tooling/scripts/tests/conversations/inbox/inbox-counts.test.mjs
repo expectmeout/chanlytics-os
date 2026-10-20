@@ -164,7 +164,7 @@ globalThis.dispatchEvent = (e) => {
   return dispatched(e);
 };
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 /** A read landing (surface:inbox) is fired at what listens for it, by name: a page adds several listeners. */
 const landsARead = () => globalThis.dispatchEvent({ type: "surface:inbox" });

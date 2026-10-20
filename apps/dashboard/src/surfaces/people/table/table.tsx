@@ -186,7 +186,7 @@ const plSectionBodies = <R extends TableRow>(
                   </span>
                 </>
               ) : null}
-              {/* Folding a group takes its rows from under the head: the head holds still (data-bits holdStill). */}
+              {/* Folding a group takes its rows from under the head: the head holds still (kit/motion/hold-still.ts holdStill). */}
               {onToggle && s.toggle ? (
                 <button
                   type="button"

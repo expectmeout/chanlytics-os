@@ -28,15 +28,15 @@ const toasts = [];
 Object.assign(W, {
   CHANLY: { nav() {}, R: {} },
   appNavigate() {},
-  // The role store's gate is data-bits.jsx's own (window.gate, canDo, gateTitle), over this role and contracts' table.
+  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
   __roleGate: contracts.roleGate,
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
-// The toast is the shell's (data-bits.jsx's usePPToast): what the page flashes is recorded in its place.
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+// The toast is the shell's (the frame's usePPToast): what the page flashes is recorded in its place.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 const S = "../../../../apps/dashboard/src/surfaces";
 const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);

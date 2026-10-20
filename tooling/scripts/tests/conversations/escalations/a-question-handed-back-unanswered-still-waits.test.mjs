@@ -265,7 +265,7 @@ installLegacyReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { InboxThread } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;

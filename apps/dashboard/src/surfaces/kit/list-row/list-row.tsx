@@ -6,7 +6,7 @@
  * nothing to say is not drawn. What each line says is the page's. `className` is for the page's layout, and comes last;
  * the ref reaches the element.
  *
- * A row with a page of its own is a link to it, given `href` (the shell's "a door is a link", data-bits `routeDoor`),
+ * A row with a page of its own is a link to it, given `href` (the shell's "a door is a link", frame-doors.ts `routeDoor`),
  * which kit.css draws in the row's colours with no underline. What a press on any other row does (select it, open a
  * pane beside the list) is the page's, on the row itself: its handler, role and state pass through to the <div>. A
  * row is never put inside a button, which may not hold its lines.

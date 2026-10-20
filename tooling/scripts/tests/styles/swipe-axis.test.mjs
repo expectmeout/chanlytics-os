@@ -1,5 +1,5 @@
 /**
- * A touch under a strip picks one axis and keeps it. The reader (data-bits `touchSwipe`) chooses at 8px: mostly down,
+ * A touch under a strip picks one axis and keeps it. The reader (frame-globals `touchSwipe`) chooses at 8px: mostly down,
  * a scroll and the page never moves; else the page walks its strip. The browser was told nothing of that choice, so its
  * own vertical scroll ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's
  * recording, 9 Oct 2026). `touch-action` is read on the element that scrolls, between the finger and it, so each strip

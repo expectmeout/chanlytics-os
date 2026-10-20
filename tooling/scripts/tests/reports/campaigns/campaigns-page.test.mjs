@@ -140,6 +140,9 @@ const spanOf = (card) =>
 const rowsOfSpans = (tree) =>
   all(tree, (n) => n.type === "div" && classes(n).includes("rpt-grid")).map((grid) => cardsOfGrid(grid).map(spanOf));
 
+// A demo's sample is fetched only in a demo session (surfaces/reports/demo.ts): fetched once here, so a demo draws it at once.
+await (await import("../../../../../apps/dashboard/src/surfaces/reports/demo.ts")).reportsDemo();
+
 test("the window's cards, in order, for a workspace that has everything", () => {
   const tree = draw();
   const seen = all(tree, (n) => ORDER.includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);

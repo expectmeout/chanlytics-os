@@ -34,11 +34,11 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             58   of which over 200 lines: 5
-files over 800 lines                  2
+functions over the limit             55   of which over 200 lines: 5
+files over 800 lines                  1
 directories over 20 modules           3
-window globals                       71   names
-window publishers                   104   sites in 31 files
+window globals                       54   names
+window publishers                    76   sites in 31 files
 copies                               67   of 19 names
 as unknown as                       122
 as never                             12
@@ -56,11 +56,11 @@ personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          32   in 11 files
 literal style values                825   in 22 stylesheets
 primitives outside the kit         1554   selectors naming 666 classes
-inline style props                   69   in 38 files
+inline style props                   68   in 37 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     255
-source-text reads in tests          736
-lint warnings                       284   in 125 files, 37 of them exhaustive-deps
+source-text reads in tests          735
+lint warnings                       282   in 124 files, 37 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
@@ -117,7 +117,7 @@ repository's root. `tooling/scripts/tests/docs/docs-paths.test.mjs` fails when o
 7. **Feature components**: `src/legacy/pages/<surface>*.jsx`, fed through `src/legacy-bridge`.
 8. **Global state**: `docs/architecture.md`, The shell; the `*_STORE`s and who owns them in `apps/dashboard/src/legacy/CLAUDE.md`; which surface retires each in decision 0015.
 9. **Server state cache**: `src/legacy-bridge/{surface-cache,read-cache,surface-runner,surface-realtime,refresh-map}.ts`.
-10. **Errors**: `AppError` in `packages/contracts/src/shared/errors.ts` and the envelope in `src/server/route.ts`, `refusalOf` in `packages/contracts/src/shell/refusal.ts`, `FailedRead` and `EmptyState` in `src/legacy/components/data-bits.jsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `apps/edge/lib/ops/page-operator.ts`.
+10. **Errors**: `AppError` in `packages/contracts/src/shared/errors.ts` and the envelope in `src/server/route.ts`, `refusalOf` in `packages/contracts/src/shell/refusal.ts`, `FailedRead` and `EmptyState` in `src/surfaces/kit/empty/empty.tsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `apps/edge/lib/ops/page-operator.ts`.
 11. **Form validation**: the zod `input` on every route that declares one; field-level problems come from contracts. There is no form library, by design.
 12. **Permissions**: `ROLE_PERMS`, `route()`, `roleGate` in the UI.
 13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.

@@ -308,7 +308,7 @@ test("the unread rows the bell does not list are said once, after its own, with 
 /* ------------------------------ the popover ------------------------------ */
 
 installLegacyReact();
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 await import("../../../../apps/dashboard/src/legacy/components/topbar.jsx");
 const W = globalThis.window;
 
@@ -421,7 +421,7 @@ test("the mockup's bell, with no sections of its own, still stands new above ear
 });
 
 /* ------------------------------ a thumb on a note ------------------------------ */
-// On a phone a thumb slides a note (data-bits touchSwipe): left over Dismiss, where it leaves, folds shut so the notes
+// On a phone a thumb slides a note (frame-globals touchSwipe): left over Dismiss, where it leaves, folds shut so the notes
 // under it glide up, then goes (Undo finds it open again); right over Mark read while it is unread, where it comes back
 // read and keeps its place under New rather than jumping down to Earlier. A read note does not move right. The × folds
 // a note the same way, on a desk too. Under reduced motion a dismissed note goes at once. The gesture runs on an element

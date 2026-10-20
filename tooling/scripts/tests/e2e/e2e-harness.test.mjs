@@ -25,7 +25,6 @@ import vm from "node:vm";
 import {
   campaignMessagesOf,
   channelsReady,
-  hoursLines,
   MEMBERSHIP_ROLES,
   pipelineOf,
   resolveFacts,
@@ -39,7 +38,7 @@ import {
 import { NAME, TIMEZONE, workspaceChannel, workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import { scenario, SCENARIOS, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { buildFixture } from "../../e2e-harness/fixture.mjs";
-import { answer, appRules, BUSINESS_TAB_SCRIPT, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
+import { answer, appRules, documentWithFixture, pageOf } from "../../e2e-harness/server.mjs";
 import { templatesRead } from "../../e2e-harness/templates-read.mjs";
 
 const NOW = Date.parse("2026-09-22T09:00:00Z");
@@ -114,34 +113,18 @@ async function publishedGlobals(name) {
   return window;
 }
 
-test("the page's fixture publishes the tab's globals through the same contracts functions the bridge does", async () => {
+test("the page's fixture publishes the settings read through the same contracts functions the bridge does", async () => {
   const w = await publishedGlobals("salon");
   const brain = scenario("salon", NOW).config.brain;
   const S = scenario("salon", NOW);
-
-  // installBusinessTab's own: the week's lines, from contracts, not a second spelling of "which days share hours".
-  assert.equal(typeof w.__hoursLines, "function");
-  assert.deepEqual(plain(w.__hoursLines(brain.profile.hours)), hoursLines(brain.profile.hours));
-  assert.equal(w.__configLimits.maxClosures, MAX_CLOSURES);
 
   // The settings read's facts, resolved from the record against what the platform knows (surface-data.ts's apply).
   assert.deepEqual(plain(w.__FACTS.facts), plain(resolveFacts(brain, S.known)));
   assert.deepEqual(plain(w.__SETTINGS.config), S.config);
   assert.equal(w.__SETTINGS.version, S.version);
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
-
-  // What the receptionist is told, which the prompt sheet cuts: the bridge's own reading of the settings read, run over
-  // the fixture's window, answers exactly what the fixture's written-out copy does, on both channels.
-  const { composedPrompt } = await import("../../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  const was = globalThis.window;
-  globalThis.window = w;
-  try {
-    for (const channel of ["whatsapp", "voice"]) {
-      assert.deepEqual(plain(w.__composedPrompt(channel)), plain(composedPrompt(channel)), channel);
-      assert.ok(w.__composedPrompt(channel).text.length > 0, `${channel}: there is a prompt to read`);
-    }
-  } finally {
-    globalThis.window = was;
+  for (const channel of ["whatsapp", "voice"]) {
+    assert.ok(w.__SETTINGS.prompt[channel].length > 0, `${channel}: there is a prompt to read`);
   }
 
   // Nothing the fixture publishes can write: a spec that pressed a Save is refused on the page.
@@ -303,21 +286,16 @@ test("the email-only record is the nightly's with no WhatsApp number, a mailbox 
   );
 });
 
-test("the document runs the fixture's install of the tab's helpers, not the dist-built copy after it", () => {
+test("the document runs the fixture before the mockup's stubs, which write only what is missing", () => {
   const html = documentWithFixture();
   const at = (needle) => html.indexOf(needle);
   assert.ok(at("/_hx/fixture.js") > 0, "the fixture is in the document the harness serves");
   assert.ok(at("/_hx/fixture.js") < at("data/bridge-stubs.jsx"), "the fixture runs before the mockup's stubs");
-  assert.ok(at("/_hx/fixture.js") < at("data/business-tab.js"), "and before the tab's helpers are loaded");
-
-  // And what the harness answers for that script installs nothing, so the fixture's source-built copy stands.
-  const window = { __businessTab: "from source", __hoursLines: "from source", __configLimits: "from source" };
-  new vm.Script(BUSINESS_TAB_SCRIPT).runInNewContext({ window });
-  assert.deepEqual(window, {
-    __businessTab: "from source",
-    __hoursLines: "from source",
-    __configLimits: "from source",
-  });
+  assert.equal(
+    at("data/business-tab.js"),
+    -1,
+    "and the mockup loads no Business tab helpers: it draws no Business tab",
+  );
 });
 
 test("the document carries the app's own rules after the mockup's stylesheets, the touch floor among them", () => {

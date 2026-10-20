@@ -106,7 +106,7 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
-  /* The sheet rises from the bottom, stands on the keyboard (--kb, data-bits watchKeyboard), and its foot clears the
+  /* The sheet rises from the bottom, stands on the keyboard (--kb, kit/motion/keyboard.ts watchKeyboard), and its foot clears the
      home indicator. It is as tall as what it holds, up to 88% of what the phone shows, and past that its body scrolls
      under its head and foot (Ruben, 14 Oct 2026, the fitted sheets: six sheets stood at 88% of blank whatever they
      held). While a box in it is typed in it holds its height (--sheet-hold, kit/motion/use-height-glide.ts). */

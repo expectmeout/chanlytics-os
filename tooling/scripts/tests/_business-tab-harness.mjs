@@ -17,28 +17,13 @@
 import {
   stateOf,
   roleGate,
-  formatPhoneDisplay,
-  whyNotAPhone,
-  whyNotAHandoff,
-  normalizeLink,
   zoneSearchWords,
-  samePhone,
-  handoffE164,
   resolveFacts,
   factConflicts,
-  newReceptionistDefaults,
-  hoursLines,
   timezoneWords,
   timezoneCity,
   knownTimezones,
   DEFAULT_TIMEZONE,
-  MAX_INTERVALS_PER_DAY,
-  MAX_CLOSURES,
-  instructionsDraft,
-  INSTRUCTIONS_MAX,
-  fallbackMessages,
-  FALLBACK_DEFAULTS,
-  unknownDetails,
 } from "@chanlytics/contracts";
 import { installLegacyReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -50,21 +35,10 @@ Object.assign(globalThis, {
   canDo: () => true,
   gate: () => ({}),
   usePPToast: () => [null, () => {}],
-  // As the bridge publishes them (seed-globals.ts, inbox-verbs.ts): a number's written form, the phone checks, the
-  // role gate's words, and who last changed the settings.
-  __phoneDisplay: formatPhoneDisplay,
-  __whyNotAPhone: whyNotAPhone,
-  __normalizeLink: normalizeLink,
-  __whyNotAHandoff: whyNotAHandoff,
-  __samePhone: samePhone,
-  __handoffE164: handoffE164,
+  // As the bridge publishes them (seed-globals.ts): the role gate's words. The tab imports the rest of its helpers
+  // (contracts' phone checks, link normalizer and receptionist defaults), so a test draws it with the real ones.
   __roleGate: roleGate,
-  // What a new receptionist starts with, which a rename writes again under the new name (inbox-verbs.ts).
-  __receptionistDefaults: newReceptionistDefaults,
-  // When you're open: the composer's own run-collapsing and the caps the write schema keeps (inbox-verbs.ts), and the
-  // zone's words (identity.ts). This device is in Chicago.
-  __hoursLines: hoursLines,
-  __configLimits: { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES },
+  // The zone's words (identity.ts). This device is in Chicago.
   __tz: {
     words: timezoneWords,
     city: timezoneCity,
@@ -73,31 +47,19 @@ Object.assign(globalThis, {
     also: zoneSearchWords,
   },
   DEFAULT_TIMEZONE,
-  // How it answers: what the instructions box opens with and how much it holds, and the three messages sent in the
-  // business's name, their default wording and the details a message may name (inbox-verbs.ts).
-  __instructionsDraft: instructionsDraft,
-  __instructionsMax: INSTRUCTIONS_MAX,
-  __fallbackMessages: fallbackMessages,
-  __fallbackDefaults: FALLBACK_DEFAULTS,
-  __unknownDetails: unknownDetails,
 });
-await import(`${L}/components/data-bits.jsx`);
-// How long the Calendar keeps a read and its words for a read that gives no reason (window.__calendarPage), which the tab's
-// calendar row keeps too: the app publishes them from the Calendar's surface (surfaces/calendar/verbs.ts installCalendar).
-globalThis.window.__calendarPage = (await import(`${L}/../surfaces/calendar/words.ts`)).CALENDAR_PAGE;
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
 await import("./receptionist/business-tab/_business-parts.mjs");
 const W = globalThis.window;
-// The tab's helpers, from the module the app installs: the gap line, and what each row will tell the receptionist.
-const { installBusinessTab, loadSaveRules } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
-installBusinessTab();
+// The tab's helpers, from the module the tab imports: the gap line, and what each row will tell the receptionist.
+const { BUSINESS_TAB, loadSaveRules } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 // And the save's own rules, which the tab asks for as it mounts (business-tab.jsx): here before any page is drawn, as
 // they are in the app by the time a fold is open.
 await loadSaveRules();
-// What the receptionist is told, read off the settings read as the app reads it (inbox-verbs.ts composedPrompt, the
-// function itself): the prompt sheet cuts it, and draws nothing where it answers nothing.
+// What the receptionist is told, read off the settings read as the tab reads it (inbox-verbs.ts composedPrompt, which
+// the prompt sheet imports): a test that wants another answer writes the settings read's `prompt`.
 const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-W.__composedPrompt = composedPrompt;
 // The settings read's own preview, built as the server builds it: a row's draft is resolved with its inputs (Task 3.1).
 const { composePromptPreview } = await import("../../../apps/dashboard/src/server/receptionist/prompt-preview.ts");
 
@@ -414,7 +376,7 @@ const without = (o, key) => {
  * change to contracts' words changes none of these tests.
  */
 const composed = (block, brain, channel = "whatsapp") => {
-  const b = W.__businessTab.consequenceOf(block, brain, channel);
+  const b = BUSINESS_TAB.consequenceOf(block, brain, channel);
   return b ? b.text.split("\n").filter((l) => l.trim() !== "") : [];
 };
 /** What an editor says saving writes, part by part: each part's eyebrow, and the lines under it. */
@@ -467,6 +429,7 @@ const dayOf = (tree, d) => byTestId(tree, `rec-hours-day-${d}`);
 const written = (config) => structuredClone(config);
 
 export {
+  BUSINESS_TAB,
   WHOLE_RECORD,
   KNOWN,
   POLICIES,
@@ -479,6 +442,7 @@ export {
   cancelRow,
   composePromptPreview,
   composed,
+  composedPrompt,
   dayOf,
   drawTab,
   escape,

@@ -867,7 +867,7 @@ a.chip:focus-visible {
     padding-left: 4px;
   }
 }
-/* A menu that escapes its pane (MoreMenu `escape`, data-bits.jsx moreFit): placed against the window, so a pane that
+/* A menu that escapes its pane (MoreMenu `escape`, more-menu.tsx moreFit): placed against the window, so a pane that
    scrolls cannot cut it off and it is as wide as every other menu. Drawn unseen until placed, so it never flashes at
    the window's corner, and it grows from the corner it hangs by. */
 .more-wrap > .more-menu.escape {
@@ -1275,7 +1275,7 @@ a.more-item {
   font-size: 11.5px;
 }
 
-/* ---- FieldError — one sentence under the box it belongs to (data-bits.jsx).
+/* ---- FieldError — one sentence under the box it belongs to (field-error.tsx).
    Six forms coloured their own hint red inline; this is the one red a field
    error wears, with its glyph, wrapping rather than clipping. */
 .field-error {
@@ -1296,7 +1296,7 @@ a.more-item {
 }
 
 /* ---- EmptyState and FailedRead — the one "nothing here" and the one
-   "couldn't read" (data-bits.jsx). Three kinds: a page centres itself in a
+   "couldn't read" (empty.tsx). Three kinds: a page centres itself in a
    pane, a card sits in a card or a rail, a line is one sentence in a table
    or a list. A failed read is the same shape with the alert glyph and a
    Retry. ---- */
@@ -1454,7 +1454,7 @@ a.more-item {
   color: var(--ink-muted);
   animation: pp-toast-in var(--duration-base) var(--ease-out);
 }
-/* `translate`, never `transform`: a finger pulling the toast away (data-bits touchSwipe) holds it by its transform. */
+/* `translate`, never `transform`: a finger pulling the toast away (kit/motion/swipe.ts touchSwipe) holds it by its transform. */
 @keyframes pp-toast-in {
   from {
     opacity: 0;
@@ -1515,9 +1515,9 @@ a.more-item {
   opacity: 0.85;
 }
 /* Under a finger the Undo keeps the size it is drawn (the phone's 28px, mobile.css) and the touch floor's 44px is the
-   press round it. No toast has a ×: a tap anywhere besides it, or on its words, takes it (data-bits usePPToast and the
+   press round it. No toast has a ×: a tap anywhere besides it, or on its words, takes it (frame/flash.tsx usePPToast and the
    kit's toast.tsx; Ruben, 18 Oct 2026). The toast takes no pan of the page under it, so a pull down or a flick across
-   is the toast's (data-bits touchSwipe, Base UI's swipe). */
+   is the toast's (kit/motion/swipe.ts touchSwipe, Base UI's swipe). */
 @media (pointer: coarse) {
   .pp-toast {
     touch-action: none;
@@ -1531,7 +1531,7 @@ a.more-item {
     inset: -8px 0;
   }
 }
-/* On a phone the toast is one snackbar: the newest alone (data-bits), as wide as the tab bar and Ask's circle together
+/* On a phone the toast is one snackbar: the newest alone (frame/flash.tsx), as wide as the tab bar and Ask's circle together
    (the stack's 14px sides, mobile.css), one height whatever it says, its words at the phone's reading size. A toast
    as wide as its words stood in a different place for each thing it said, and 12px words were the smallest on the
    screen. */
@@ -3954,7 +3954,7 @@ a.list-row {
    over its head, the ink's wash behind it. A column at both widths, so a composer's foot stays at the sheet's foot
    while its rows scroll (the record sheet's head, tools, body and foot, above). It comes and goes by the house's
    keyframes (above), and holds still under reduced motion. The wash is a backdrop by name, as every wash of the house
-   is: the overlay code finds the one behind a sheet by that word (data-bits.jsx, washBehind), to fade it as the sheet
+   is: the overlay code finds the one behind a sheet by that word (kit/motion/swipe.ts, washBehind), to fade it as the sheet
    is pulled down and to play its leaving. */
 .sheet-backdrop {
   --sheet-wash-out: 160ms;
@@ -5148,7 +5148,7 @@ footer.rec-sheet-foot .btn {
 }
 
 /* A record sheet from the bottom, on a phone (data-phone: the record kit's own width, which the component reads, as
-   record.css draws it there). A grabber at its top says it is pulled down to close, as it is (data-bits touchSwipe),
+   record.css draws it there). A grabber at its top says it is pulled down to close, as it is (kit/motion/swipe.ts touchSwipe),
    and its ✕ steps out of sight wherever its foot holds the act that closes it (the kit's foot, with its Cancel, or a
    page's pair of acts, data-foot-pair, with its Cancel or Done): that act, a press on the wash and the pull already
    close it, and a third Close in the corner was the first thing a thumb met (Ruben, 10 Oct 2026). It stays

@@ -12,6 +12,7 @@
   "campaigns/sequences": "playbooks sequences settings",
   "campaigns/templates": "channels playbooks reach_outs settings",
   "channels": "channels",
+  "frame": "",
   "inbox": "broadcasts conversations inbox people settings",
   "inbox/new-conversation": "people settings",
   "inbox/pages": "broadcasts conversations inbox",

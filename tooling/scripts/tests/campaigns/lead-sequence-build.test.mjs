@@ -23,13 +23,13 @@ const W = globalThis;
 Object.assign(W, {
   CHANLY: { nav: () => {}, R: {} },
   appNavigate: () => {},
-  // The role store's gate (data-bits.jsx's window.gate, canDo), over an owner and contracts' table.
+  // The role store's gate (the frame's window.gate, canDo), over an owner and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
   __roleGate: contracts.roleGate,
   useHotkey: () => {},
 });
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../../../apps/dashboard/src/surfaces";
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);

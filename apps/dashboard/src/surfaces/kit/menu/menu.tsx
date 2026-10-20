@@ -13,7 +13,7 @@
  * portal on the document's body, where no pane can cut it off or hold it under a blur. The kit writes none of it.
  * Under 900px it is the phone's action sheet: the same menu, from the bottom edge over the page (kit.css), on a layer
  * that a press outside closes it through, and a pull down from its top lets it go, following the finger, as the Sheet's
- * does (data-bits touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
+ * does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
  * stays the menu's own (legacy-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which

@@ -57,7 +57,7 @@ installTabMemory(globalThis);
 const TM = globalThis.__tabMemory;
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis, {
   useHotkey: () => {},
   usePPToast: () => [null, (t) => toasts.push(t)],

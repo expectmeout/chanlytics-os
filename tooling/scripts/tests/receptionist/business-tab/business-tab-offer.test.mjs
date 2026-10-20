@@ -21,6 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
 import {
+  BUSINESS_TAB,
   W,
   cancelFoldOf,
   drawTab,
@@ -156,7 +157,7 @@ test("the booking-rules fold shows what the composer will write", () => {
   tree = redrawTab();
   const S = W.__businessTabSave;
   const base = S.saver.base();
-  const block = W.__businessTab.consequenceOf(
+  const block = BUSINESS_TAB.consequenceOf(
     "booking_rules",
     S.saveFold("booking_rules", base, S.draftOf("booking_rules", base)).brain,
     "whatsapp",

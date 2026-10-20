@@ -7,7 +7,7 @@
  * (business/saver.ts).
  */
 import { useEffect, useState } from "react";
-import { EXPORT_HOLDS_WORDS, exportLeftOutWords } from "@chanlytics/contracts";
+import { BROKEN_CONFIG_WORDS, EXPORT_HOLDS_WORDS, exportLeftOutWords } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -17,7 +17,7 @@ import { RecordRow } from "../../kit/record/row";
 import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { BtCreateCard } from "../business/create";
 import { setupVerbs } from "../../setup/surface";
-import { brokenConfigWords, settingsNow, setupNow } from "../business/shell";
+import { settingsNow, setupNow } from "../business/shell";
 import { BusinessTab, type BusinessPart } from "../business/tab";
 
 type Flash = (f: LegacyFlash) => void;
@@ -95,9 +95,8 @@ export function WorkspaceData() {
 
 /** Only Chanlytics can repair a broken configuration (S8): the card asks for the repair, and once asked says when. */
 function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Flash }) {
-  const W = brokenConfigWords();
+  const W = BROKEN_CONFIG_WORDS;
   const repairAsked = setupNow()?.dto?.requests?.repair ?? null;
-  if (!W) return null;
   const askRepair = async () => {
     if (!canDo("approve")) return;
     const r = await setupVerbs.request("repair");

@@ -297,7 +297,7 @@ and an owner-only item (a person's "Delete person") is offered.
 
 One flake to know about, in the product and not in the harness: the week's copy
 menu is an `escape` `MoreMenu`, which closes on any captured scroll event
-(`data-bits.jsx`), so a scroll into view between the menu opening and the item
+(`more-menu.tsx`), so a scroll into view between the menu opening and the item
 being clicked closes it and the item is never there -- rare, likelier on the
 harness because its page is slower, and the nightly can hit it too.
 

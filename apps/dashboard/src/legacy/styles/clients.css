@@ -3408,7 +3408,7 @@
     transition: background-color var(--duration-fast) var(--ease-out);
   }
   /* The dock rises 6px into the tab bar's place as the bar fades out of it, and plays out the same way, faster, from the
-     still copy React no longer holds (data-bits `leaving`): on the house's curves, never slower than a press answers. */
+     still copy React no longer holds (kit/motion/leaving.ts `leaving`): on the house's curves, never slower than a press answers. */
   .pp-bulk[data-dock] {
     animation: pp-dock-in 180ms var(--ease-out);
   }

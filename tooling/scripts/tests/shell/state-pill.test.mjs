@@ -294,7 +294,7 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
 const { StatePill } = kitPages;
 

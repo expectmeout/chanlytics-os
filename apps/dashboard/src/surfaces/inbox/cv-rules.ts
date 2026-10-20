@@ -1,8 +1,7 @@
 /**
  * Conversations' rules, said once and pure (moved from pages/conversations.jsx, decision 0015, step 3): which tab a row is
  * in, the glyph of each wire, and the two spellings of the address (`conversations/<tab>:<row>`). The page reads them, and
- * so do the frame's crumbs and Ask (which took `CV_ROUTE` and `CV_IN_CHANNEL` off the window: the app publishes those two
- * names from here). No React, so it stays light for whoever imports it. And the one row a person has in the list.
+ * so do the frame's crumbs and Ask, by import. No React, so it stays light for whoever imports it. And the one row a person has in the list.
  */
 import type { SeenReading } from "@chanlytics/contracts";
 import type { ConversationRow, Picked } from "./types";

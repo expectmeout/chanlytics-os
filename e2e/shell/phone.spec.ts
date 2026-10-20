@@ -195,7 +195,7 @@ test.describe("Phone shell on a real workspace", () => {
 
   /**
    * The drawer is the desk's sidebar, 248px (Ruben, 25 Sep: at 300 its words ended by 190 and the rest was empty), and a
-   * thumb slides it away (data-bits touchSwipe onAway): it follows the finger, a short slide settles it back, past a
+   * thumb slides it away (kit/motion/swipe.ts touchSwipe onAway): it follows the finger, a short slide settles it back, past a
    * third it goes. Nothing opens it by a swipe, because from the screen's edge that is the phone's own back: More does.
    * Real touches through the browser's own input (CDP).
    */
@@ -437,7 +437,7 @@ test.describe("Phone shell on a real workspace", () => {
   });
   /**
    * A sheet stands on the keyboard (25 Sep). A phone lays its keyboard over the page and keeps the layout's height, so
-   * Add people's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
+   * Add people's Save sat under the keys. The shell says what the keyboard covers as --kb (kit/motion/keyboard.ts watchKeyboard;
    * keyboard-inset.test.mjs proves the measure); here a keyboard 300px tall is said as the phone would say it, and the
    * sheet stands on it, whole, with its Save above the keys, and goes back down when the keyboard goes.
    */
@@ -468,7 +468,7 @@ test.describe("Phone shell on a real workspace", () => {
     await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
   });
   /**
-   * A thumb pulls a sheet down to close it (the kit's Sheet, through data-bits touchSwipe, 5 Oct 2026): from its handle,
+   * A thumb pulls a sheet down to close it (the kit's Sheet, through kit/motion/swipe.ts touchSwipe, 5 Oct 2026): from its handle,
    * past a third of its height, it leaves the way it was pulled and is gone.
    */
   test("a sheet pulled down from its handle past a third closes", async ({ page }) => {
@@ -983,7 +983,7 @@ test.describe("Phone shell on a real workspace", () => {
 
   /**
    * On a phone the bell's notes are a sheet from the bottom, as every other sheet there is (25 Sep): edge to edge, a
-   * handle, and a thumb pulls it down to close (data-bits touchSwipe). It was a 568px popover hung from the top bar, as
+   * handle, and a thumb pulls it down to close (kit/motion/swipe.ts touchSwipe). It was a 568px popover hung from the top bar, as
    * far from the thumb as the screen allows. A real touch through the browser's own input (CDP), as Ask's is pulled.
    */
   test("the bell's notes are a sheet from the bottom, and a thumb pulls it down to close", async ({ page }) => {
@@ -1173,7 +1173,7 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * A touch under a strip keeps the axis it began on (9 Oct 2026, Ruben's recording of Reports): a swipe across that
    * drifts down walks the strip and scrolls nothing, and a scroll down that drifts across scrolls and walks nothing.
-   * The reader chose one axis at 8px from the start (data-bits touchSwipe), but the browser was told nothing of it and
+   * The reader chose one axis at 8px from the start (kit/motion/swipe.ts touchSwipe), but the browser was told nothing of it and
    * panned the page's list under a page already moving sideways, so a thumb could carry the page in circles. Each
    * strip page's phone scroller says `touch-action: pan-y` (components.css; swipe-axis.test.mjs holds the list), and
    * the browser keeps to the axis it was given, as a phone's own pagers do. Real touches through CDP, as the swipe
@@ -1264,7 +1264,7 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
    * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
-   * (data-bits holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
+   * (kit/motion/hold-still.ts holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
    */
   test("a person's head starts at the page's edge with the way back in the top bar, and History's tabs hold still under the thumb", async ({
     page,

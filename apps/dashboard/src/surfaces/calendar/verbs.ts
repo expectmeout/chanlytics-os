@@ -1,7 +1,7 @@
 /**
  * Calendar, the verbs and the arithmetic (moved from legacy-bridge/calendar.ts, decision 0015: the amendment takes a
- * surface's bridge modules with it). The page imports `calendar`; the Business tab, which is still the shell's, reads it
- * as `window.__calendar` (installCalendar below), and the page's two words as `window.__calendarPage`.
+ * surface's bridge modules with it). The page imports `calendar`; the Business tab reads it as `window.__calendar`
+ * (installCalendar below), and imports the page's two words (words.ts CALENDAR_PAGE).
  *
  * The page keeps one loaded WINDOW of days (nine weeks around the day it looks at) and derives every view from it — a
  * week, a day, six weeks for a month, two weeks for the agenda — so switching views is a slice, never a fetch. Only a
@@ -35,7 +35,6 @@ import {
 } from "./surface";
 import { calendarRunsOverride, paintHeldRuns, runsWanted } from "./runs-surface";
 import { windowsToWarm } from "./warm";
-import { CALENDAR_PAGE } from "./words";
 
 /**
  * Load `days` days starting on `from` (a day key); a null `from` is the window around today. `runs`: whether the
@@ -147,10 +146,10 @@ export const calendar = {
 };
 
 /**
- * What the pages that have not moved read of the Calendar, under the names they read: the Business tab (business-tab-open.jsx)
- * asks for a read (`__calendar.refresh`), checks a pasted address (`previewFeed`) and states the last read for as long as this
- * board keeps one, in this board's words (`__calendarPage`). A line to delete with the Business tab's move.
+ * The Calendar's verbs under the name the Business tab's calendar row reads them by: it asks for a read
+ * (`__calendar.refresh`) and checks a pasted address (`previewFeed`). A line to delete when the tab imports them (the
+ * one-system plan, step 9).
  */
 export function installCalendar(): void {
-  Object.assign(window, { __calendar: calendar, __calendarPage: CALENDAR_PAGE });
+  Object.assign(window, { __calendar: calendar });
 }

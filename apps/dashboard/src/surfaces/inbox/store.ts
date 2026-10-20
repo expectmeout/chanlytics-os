@@ -192,6 +192,44 @@ export function hearPresence(): () => void {
   return () => window.removeEventListener("presence:changed", onChange);
 }
 
+/**
+ * Presence, Take transfers (moved from legacy/components/data-bits.jsx, the one-system plan's step 2): phone agents check
+ * it before warm-transferring. Away is a manual switch the top bar holds in a demo session: it freezes the veto timers and
+ * forces the holding line. Published as `PR_STORE` for the top bar and the Inbox's shell, which read it there.
+ */
+export interface PresenceStore {
+  away: boolean;
+  transfers: boolean;
+  reachable(): boolean;
+  _emit(): void;
+  setAway(v: boolean): void;
+  setTransfers(v: boolean): void;
+}
+
+/** A presence store as the JSX made it: Available, transfers allowed. */
+export function makePresenceStore(): PresenceStore {
+  return {
+    away: false,
+    transfers: true,
+    reachable() {
+      return !this.away;
+    },
+    _emit() {
+      window.dispatchEvent(
+        new CustomEvent("presence:changed", { detail: { away: this.away, transfers: this.transfers } }),
+      );
+    },
+    setAway(v) {
+      this.away = v;
+      this._emit();
+    },
+    setTransfers(v) {
+      this.transfers = v;
+      this._emit();
+    },
+  };
+}
+
 /* ------------------------------- your own verbs in flight ------------------------------- */
 
 /**

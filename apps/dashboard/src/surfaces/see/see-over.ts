@@ -5,7 +5,7 @@
  * another in place. A move to another page leaves the query behind, so the sheet closes with the page.
  *
  * The frame's own move (legacy-bridge/workspace.ts goToRoute) asks `inPlace` before it moves: a press anywhere on a mention
- * of a run or a message -- a door (data-bits routeDoor), the bell's row, a page's own press -- opens the thing over the page
+ * of a run or a message -- a door (frame-doors.ts routeDoor), the bell's row, a page's own press -- opens the thing over the page
  * it was pressed on, rather than taking the person to the thing's home. A run's home is beside Sequences' list, so on
  * Campaigns' own pages a press on a run goes there; a message's is the Library (Messages), so only there does a press go
  * to it, and on Sequences a step's message or the call's text opens over the list (Ruben, 11 Oct 2026: a message is never

@@ -1,7 +1,7 @@
 /**
  * A list to choose one from, as a phone holds it (the kit's Picker and Select; kit.css draws it under the kit's 900px from
  * `data-sheet` on its popup): the phone's action sheet, as the kit's Menu is, whose pull down from its top lets it go,
- * following the finger (data-bits touchSwipe), its touch kept its own (keepTouch). Open is Base UI's to decide; it is held
+ * following the finger (kit/motion/swipe.ts touchSwipe), its touch kept its own (keepTouch). Open is Base UI's to decide; it is held
  * here only so the pull can close it.
  */
 import { useState } from "react";

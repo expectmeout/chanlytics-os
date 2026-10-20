@@ -66,9 +66,9 @@ const flashed = [];
 const sent = [];
 installLegacyReact({ __DEMO_MODE: false, CHANLY: { nav: () => {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../../../apps/dashboard/src";
-// The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (data-bits.jsx), drawn for real.
-await import(`${S}/legacy/components/data-bits.jsx`);
-// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+// The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (surfaces/frame), drawn for real.
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.usePPToast = () => [null, (m) => flashed.push(m)];
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
