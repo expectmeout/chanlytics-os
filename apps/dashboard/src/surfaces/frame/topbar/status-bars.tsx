@@ -16,11 +16,16 @@ const useLiveRead = () => {
   useSurface("live");
 };
 
+/** The bars that move while a call lasts: drawn once, moved by the stylesheet, held still where motion is not welcome. */
+const LIVE_WAVE = Array.from({ length: 6 }, (_, i) => <i key={i} />);
+
 /**
- * The live-call bar: who is on the phone right now, and how long. A call in progress is the most time-critical thing this
- * product knows, and it is true for minutes a week, so it is a bar across the top while it is happening, on a phone and
- * on a desk, and a press opens Live, where handing over and ending ask before they act. The rule for "still up" is
- * contracts' (liveStillUp), the same one the Live page and the strip's pulse apply between refreshes.
+ * The live call, in the header (Ruben, 20 Oct 2026: never on the page): who is on the phone right now, and how long. A call
+ * in progress is the most time-critical thing this product knows, and it is true for minutes a week, so it is a capsule in
+ * the header's row while it is happening, on every page, on a phone and on a desk, and a press opens Live, where handing
+ * over and ending ask before they act. One call is its caller's name and clock, two their first names and a clock each,
+ * three or more the count alone (contracts liveBar). The rule for "still up" is contracts' (liveStillUp), the same one the
+ * Live page applies between refreshes. Where it stands in the header is components.css's.
  */
 export function LiveCallBar() {
   const Glyph = frameGlyph();
@@ -30,7 +35,7 @@ export function LiveCallBar() {
   useLiveRead();
   const chrome = frameChrome();
   const bar = chrome && chrome.liveBar ? chrome.liveBar(window.__LIVE, Date.now()) : null;
-  // A second, so the clock reads like a clock, and only while a call is up.
+  // A second, so the clocks read like clocks, and only while a call is up.
   const up = !!bar;
   useEffect(() => {
     if (!up) return undefined;
@@ -39,18 +44,43 @@ export function LiveCallBar() {
   }, [up]);
   if (!bar) return null;
   const open = () => window.CHANLY?.nav?.(bar.callId ? `live/${bar.callId}` : "live");
+  const clock = (sinceMs: number | null) =>
+    sinceMs === null ? null : (
+      <span className="live-bar-clock tabular">
+        {chrome && chrome.fmtClock ? chrome.fmtClock(Math.floor(sinceMs / CLOCK_SECOND_MS)) : ""}
+      </span>
+    );
+  const [only] = bar.calls;
   return (
-    <button type="button" className="live-bar" onClick={open} data-testid="live-bar">
-      <span className="live-dot" aria-hidden="true" />
-      <span className="live-bar-text">{bar.text}</span>
-      {bar.sinceMs !== null && (
-        <span className="live-bar-clock tabular">
-          {chrome && chrome.fmtClock ? chrome.fmtClock(Math.floor(bar.sinceMs / CLOCK_SECOND_MS)) : ""}
+    <button
+      type="button"
+      className="live-bar"
+      onClick={open}
+      aria-label={bar.label}
+      data-count={bar.count}
+      data-testid="live-bar"
+    >
+      <span className="live-bar-dot" aria-hidden="true" />
+      <span className="live-bar-text">{bar.lead}</span>
+      <span className="live-bar-more">{bar.more}</span>
+      {bar.count === 1 && only ? clock(only.sinceMs) : null}
+      {bar.count === 2 && (
+        <span className="live-bar-calls" data-testid="live-bar-calls">
+          {bar.calls.map((c, i) => (
+            <span key={c.who + i}>
+              {i > 0 && " · "}
+              {c.who} {clock(c.sinceMs)}
+            </span>
+          ))}
         </span>
       )}
       {bar.checking && <span className="live-bar-checking">still marked live · checking</span>}
-      <span className="live-bar-go">
-        <Glyph name="arrow-right" size={12} />
+      <span className="live-bar-wave" aria-hidden="true">
+        {LIVE_WAVE}
+      </span>
+      <span className="live-bar-act">
+        <span className="live-bar-act-words">{bar.act}</span>
+        <Glyph name="chevron" size={11} />
       </span>
     </button>
   );

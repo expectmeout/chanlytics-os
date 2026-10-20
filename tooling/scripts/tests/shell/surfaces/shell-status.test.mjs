@@ -1657,7 +1657,8 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   const bar = drawn();
   assert.ok(bar, "someone is on the phone");
   assert.equal(clocks, 1, "a call up: the clock runs");
-  assert.match(textOf(bar), /On the phone now · Rosa/);
+  assert.match(textOf(bar), /Rosa Díaz/, "the caller in full: one call is named, in the header");
+  assert.equal(bar.props["aria-label"], "Rosa Díaz is on the line. Open Live");
   const went = [];
   win.CHANLY = { nav: (to) => went.push(to), address };
   bar.props.onClick();

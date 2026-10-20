@@ -197,23 +197,56 @@ export function callsStillUp<C extends Pick<LiveCallVM, "live" | "heartbeatAtMs"
   return (read?.now ?? []).filter((c) => liveStillUp(c, read?.heartbeatMs ?? 0, nowMs));
 }
 
-/** What the shell says across the top while someone is on the phone. */
-export interface LiveBarVM {
-  /** The one call to open, or null when there are several and the bar opens the list. */
-  callId: string | null;
-  /** "On the phone now · Dana" or "2 calls on your line now". */
-  text: string;
-  /** How long it has been running, for the bar's clock; null when unknown or several. */
+/** A call the header's capsule names: who, and how long it has run (null with no clock: unknown, or gone quiet). */
+export interface LiveBarCall {
+  who: string;
   sinceMs: number | null;
+}
+
+/**
+ * What the header says while someone is on the phone (Ruben, 20 Oct 2026: the call lives in the header, never on the page).
+ * One call is named in full with its clock, two by their first names with a clock each, and three or more by the count
+ * alone: a header has room for two names, and a list of twelve would push everything else off it.
+ */
+export interface LiveBarVM {
+  /** The one call to open, or null when there are several and the press opens the list. */
+  callId: string | null;
+  /** How many calls are up. */
+  count: number;
+  /** The one call, or each of two; empty from three on, where the count is the whole of it. */
+  calls: LiveBarCall[];
+  /** Who, or how many, in the fewest words: the one caller's name, or "2 calls". All a phone's header has room for. */
+  lead: string;
+  /** What follows it where there is room: "On the line" after a name, "on your line" after a count. */
+  more: string;
+  /**
+   * The press's words: Open Live, the one call or the list, as Conversations says it. Never "Listen in": there is no
+   * audio to listen to, and the press opens Live (call-lifecycle.test.mjs).
+   */
+  act: string;
+  /** All of it in one sentence, for a reader: who, how many, and where the press goes. */
+  label: string;
   /** Still marked live, but the provider has gone quiet: no clock, and it says so. */
   checking: boolean;
 }
 
+/** A call's clock as the header says it, or nothing where it has none. */
+const barSince = (c: Pick<LiveCallVM, "checking" | "startedAtMs">, nowMs: number): number | null =>
+  // A call whose provider has gone quiet gets no running clock: the number would keep climbing for something that may
+  // already have ended.
+  c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs);
+
+/** The calls a header names: the one in full, two by their first names, none from three on. */
+const BAR_NAMES_MAX = 2;
+
+/** Where the press goes, in its own words. */
+const BAR_ACT = "Open Live";
+
 /**
- * The live-call bar, or nothing.
+ * The live call in the header, or nothing.
  *
  * A call in progress is the most time-critical thing the product knows, and it
- * is true for minutes a week — so it is a bar the shell shows while it is
+ * is true for minutes a week — so it is a capsule in the header while it is
  * happening rather than a place in the nav that is empty the rest of the time.
  * It carries no controls: ending a call and handing it over are decisions with
  * confirmations, and they belong on Live, which this opens.
@@ -221,22 +254,32 @@ export interface LiveBarVM {
 export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM | null {
   const up = callsStillUp(vm, nowMs);
   if (up.length === 0) return null;
-  if (up.length > 1) {
+  const checking = up.some((c) => c.checking);
+  if (up.length === 1) {
+    const c = up[0];
     return {
-      callId: null,
-      text: `${up.length} calls on your line now`,
-      sinceMs: null,
-      checking: up.some((c) => c.checking),
+      callId: c.callId,
+      count: 1,
+      calls: [{ who: c.who, sinceMs: barSince(c, nowMs) }],
+      lead: c.who,
+      more: "On the line",
+      act: BAR_ACT,
+      label: `${c.who} is on the line. ${BAR_ACT}`,
+      checking,
     };
   }
-  const c = up[0];
+  const named = up.length <= BAR_NAMES_MAX;
+  const lead = `${up.length} calls`;
+  const more = "on your line";
   return {
-    callId: c.callId,
-    text: `On the phone now · ${c.whoShort}`,
-    // A call whose provider has gone quiet gets no running clock: the number
-    // would keep climbing for something that may already have ended.
-    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
-    checking: c.checking,
+    callId: null,
+    count: up.length,
+    calls: named ? up.map((c) => ({ who: c.whoShort, sinceMs: barSince(c, nowMs) })) : [],
+    lead,
+    more,
+    act: BAR_ACT,
+    label: `${lead} ${more}${named ? `: ${up.map((c) => c.who).join(" and ")}` : ""}. ${BAR_ACT}`,
+    checking,
   };
 }
 

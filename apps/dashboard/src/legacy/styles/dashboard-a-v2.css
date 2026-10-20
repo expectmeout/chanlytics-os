@@ -1437,11 +1437,8 @@ a.ts-next { text-decoration: none; }
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-/* The call's clock is the canvas's: mono, in the accent's words. */
-.ts-clock { font-family: var(--font-mono); font-size: var(--text-sm); letter-spacing: 0; color: var(--accent-ink); }
 /* The appointment's start in the semibold, the rest of its words in the muted ink (E3). */
 .ts-rest { color: var(--ink-muted); }
-.ts-more { font-size: var(--text-sm); color: var(--ink-dim); }
 .ts-open { padding-right: 20px; }
 .ts-capsule {
   display: inline-flex;
@@ -1456,66 +1453,8 @@ a.ts-next { text-decoration: none; }
   white-space: nowrap;
 }
 .ts-capsule.ts-closed { background: var(--surface-inset-fill); color: var(--ink-muted); }
-/* The call rides in the strip, not above the queue's rows. */
+/* The call rides in the header (status-bars.tsx), not above the queue's rows. */
 .dash-a-v2 .tq-live { display: none; }
-/* The call on the line as E3 draws it: the coral dot with its ring, "On the line", the clock in the accent's words,
-   eight bars that move while the call lasts, and Listen in as an inset capsule (the kit's button under the strip's own
-   class). The ring and the bars hold still where motion is not welcome. */
-.ts-live-dot {
-  position: relative;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-circle);
-  background: var(--accent);
-}
-.ts-live-dot::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: var(--radius-circle);
-  background: var(--accent-soft);
-}
-.ts-live > .ts-words { font-weight: var(--weight-semibold); }
-.ts-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
-.ts-wave > i {
-  display: block;
-  width: 2px;
-  height: 14px;
-  border-radius: var(--radius-xs);
-  background: var(--accent);
-  transform-origin: center;
-  transform: scaleY(0.55);
-}
-.dash-a-v2 .ts-live > .ts-listen {
-  height: 30px;
-  margin-left: 4px;
-  padding: 0 12px;
-  border: 1px solid var(--surface-inset-edge);
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .ts-live-dot::before { animation: today-ring 1.8s var(--ease-out) infinite; }
-  .ts-wave > i { animation: today-wave 0.9s var(--ease-in-out) infinite; }
-  .ts-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
-  .ts-wave > i:nth-child(3n) { animation-duration: 1.34s; }
-  .ts-wave > i:nth-child(2) { animation-delay: 0.13s; }
-  .ts-wave > i:nth-child(3) { animation-delay: 0.26s; }
-  .ts-wave > i:nth-child(4) { animation-delay: 0.39s; }
-  .ts-wave > i:nth-child(5) { animation-delay: 0.52s; }
-  .ts-wave > i:nth-child(6) { animation-delay: 0.65s; }
-  .ts-wave > i:nth-child(7) { animation-delay: 0.78s; }
-  .ts-wave > i:nth-child(8) { animation-delay: 0.91s; }
-}
-@keyframes today-wave {
-  0%, 100% { transform: scaleY(0.3); }
-  50% { transform: scaleY(1); }
-}
 
 /* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
    sentence beside it, the door to the Inbox in ink with its arrow. */
@@ -1853,7 +1792,6 @@ a.ts-next { text-decoration: none; }
   .ts-cell + .ts-cell { border-left: 0; }
   .ts-eyebrow { display: none; }
   .ts-next .ts-words::before { content: attr(data-phase) " "; font-weight: var(--weight-semibold); }
-  .dash-a-v2 .ts-live > .ts-listen { display: none; }
   .ts-open { padding-right: 14px; }
   .ts-capsule { padding: 0; background: transparent; }
   /* The queue's head is the count, the name and the door: the sentence under them is a desk's. */

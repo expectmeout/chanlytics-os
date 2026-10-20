@@ -1,20 +1,15 @@
 /**
- * The strip under Today's head in Glass (canvas E3): who is on the line right now, the next appointment, and when the
- * receptionist next has time -- three facts the page already holds (the Live surface, the day's own view model), in
- * one row of cells across the page. Classic draws none of it: the call rides above the queue there (queue.tsx
- * LiveRail) and the day's card says the rest. Drawn by the Glass composition alone (today-page.tsx), and nothing at
- * all with no call up, no calendar and no opening to say. The next appointment is drawn as E3 draws it, and opens the
- * appointment it names (its record, else its day on the Calendar): every link to a visit opens it (the wiring's second
- * audit, S9-7), and E3 draws no day pane. The call's cell is E3's: the dot, "On the line", the clock, the bars that move
- * while it lasts, and Listen in; the caller's name is the button's label for a reader.
+ * The strip under Today's head in Glass (canvas E3): the next appointment, and when the receptionist next has time -- facts
+ * the day's own view model holds, in one row of cells across the page. Classic draws none of it: the day's card says it
+ * there. Drawn by the Glass composition alone (today-page.tsx), and nothing at all with no calendar and no opening to say.
+ * The next appointment is drawn as E3 draws it, and opens the appointment it names (its record, else its day on the
+ * Calendar): every link to a visit opens it (the wiring's second audit, S9-7), and E3 draws no day pane. A call on the
+ * line is not the page's: it is the header's, on every page (Ruben, 20 Oct 2026; frame/topbar/status-bars.tsx).
  */
 import type { TodayDayItemVM } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
 import { routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
-import { appNavigate } from "../shell";
 import { useDayVm } from "./day";
-import { liveClock, useLiveNow } from "./live-now";
 
 /** The next appointment today: the one under way, else the next to come. */
 function nextOf(items: TodayDayItemVM[]): TodayDayItemVM | null {
@@ -30,44 +25,18 @@ function nextRest(b: TodayDayItemVM): string {
   return [what.join(" · "), b.dur, b.said?.word].filter(Boolean).join(" · ");
 }
 
-/** The eight bars that move while a call lasts (E3's waveform): drawn once, moved by the sheet. */
-const WAVE = Array.from({ length: 8 }, (_, i) => <i key={i} />);
-
 export const TodayStrip = () => {
-  const { live, nowMs } = useLiveNow();
   const day = useDayVm();
   // Drawn once the Calendar's weeks are in, whatever they hold (client/page-speed.ts).
   usePartShown("today", "strip", useSurface("calendar") !== undefined);
   const today = day?.frames.find((f) => f.today) ?? null;
   const next = today ? nextOf(today.items) : null;
-  const call = live[0] ?? null;
   const opening = day?.nextOpening ?? null;
   const closed = today?.closed.yes ? today.closed : null;
-  if (!call && !next && !opening && !closed) return null;
-  const elapsed = call ? Math.max(0, Math.floor((nowMs - (call.startedAtMs || nowMs)) / 1000)) : 0;
+  if (!next && !opening && !closed) return null;
   const phase = next?.phase === "now" ? "Now" : "Next";
   return (
     <div className="today-strip" data-testid="today-strip">
-      {call && (
-        <div className="ts-cell ts-live" data-testid="today-strip-live">
-          <span className="ts-live-dot" aria-hidden="true" />
-          <span className="ts-words">On the line</span>
-          <span className="ts-clock tabular">{liveClock(elapsed)}</span>
-          <span className="ts-wave" aria-hidden="true">
-            {WAVE}
-          </span>
-          {live.length > 1 && <span className="ts-more">+{live.length - 1} more</span>}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="ts-listen"
-            aria-label={`Listen in: ${call.who} on the line`}
-            onClick={() => appNavigate(`live/${call.callId}`)}
-          >
-            Listen in
-          </Button>
-        </div>
-      )}
       {next && (
         <a
           className="ts-cell ts-next"

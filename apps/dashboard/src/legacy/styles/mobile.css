@@ -713,12 +713,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .side-wrap > [role="presentation"] {
     background: var(--surface-veil);
   }
-  /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
-     over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
-     views it stands over is what it covers in Classic too. */
-  .main:has(> .frame-top > .live-bar) .ix-sending-strip {
-    top: calc(118px + env(safe-area-inset-top, 0px));
-  }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
      frame's head and strip of views, the tab bar and the room kept for it leave. The bar is named by its class under a
      :has(), never its test id: a :has() over an attribute had every element with a test id styled again each time the
