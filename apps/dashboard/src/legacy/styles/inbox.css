@@ -2939,6 +2939,12 @@ button.tl-stamp:focus-visible {
     background: transparent;
     box-shadow: none;
   }
+  /* Except the row the thread was opened from, which is the open one: lit while the thread stands over the list and once it
+     is back, until the next touch (kit/motion/held-list.ts, data-hover), as People's is. The rule above put it out, and
+     the Inbox came back to an unlit list where People lit the row it had opened (Ruben, 20 Oct 2026). */
+  .inbox .ix-thread.active:is(:hover, [data-hover]) {
+    background: var(--hover-fill);
+  }
   /* The thread's header is one 52px pill of the control layer's glass (the kit's capsule), 8px from the sides: the arrow to go back as a
      bare glyph, who it is (the face, the name and its wire in two short lines: one press to their page, the chevron
      says so), and Actions as a labelled inset capsule with its chevron, since three dots said nothing of what they
