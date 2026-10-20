@@ -56,7 +56,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/dashboard-a-v2.css": {
-    "font": 58,
+    "font": 57,
     "radius": 9,
     "shadow": 2,
     "colour": 0,
