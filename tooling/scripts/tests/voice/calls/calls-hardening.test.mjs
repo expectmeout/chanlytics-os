@@ -181,8 +181,11 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   ].map(textOf);
   for (const words of seen)
     assert.ok(!words.includes("The transcript arrives when the call ends"), "REGRESSION: turns stream now");
-  const tabs = readRaw("apps/dashboard/src/legacy/components/surface-tabs.jsx");
-  assert.ok(tabs.includes("window.__LIVE.heartbeatMs"), "the tab applies the heartbeat rule too");
+  const tabs = readRaw("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  assert.ok(
+    tabs.includes("chrome.liveStillUp(c, live.heartbeatMs, Date.now())"),
+    "the tab applies the heartbeat rule too",
+  );
   const today = readCode("packages/contracts/src/today/today-rows.ts");
   assert.ok(today.includes('import { ANALYSIS_GRACE_MS } from "../voice/live"'), "one grace constant");
 });

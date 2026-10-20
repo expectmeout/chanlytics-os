@@ -6,7 +6,7 @@
  *
  * The value is the seam's (`useSurface("billing")`): undefined until read, null when the read failed, so the pane shows
  * a retry rather than "Reading your billing…" for ever. `__BILLING_ACCOUNT` is its mirror and `__billing` the verbs, for
- * the frame's top bar, which says a paused workspace from them (topbar.jsx): lines to delete when the frame moves (step 13).
+ * the frame's top bar, which says a paused workspace from them (frame/topbar/topbar.tsx): lines to delete when the frame moves (step 13).
  */
 import {
   toBillingVM,
@@ -158,7 +158,7 @@ export const billingVerbs: BillingApi = {
   },
 };
 
-/** The verbs for the frame's top bar, which still reads them off the window (topbar.jsx): a line to delete at step 13. */
+/** The verbs for the frame's top bar, which still reads them off the window (frame/topbar/topbar.tsx): a line to delete at step 13. */
 export function installBilling(win: Window = window): void {
   win.__billing = billingVerbs;
 }

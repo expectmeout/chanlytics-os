@@ -45,6 +45,26 @@ export function scrollerOf(node: Element | null | undefined, { self = false }: {
   return documentScroller();
 }
 
+/**
+ * The box that moves `node` as it scrolls now: the nearest above it that scrolls itself AND holds more than it shows, else
+ * the document's scroller. A box that scrolls only across (a wide table's) has a computed overflow down its length too,
+ * but grows with its rows and holds no more than it shows: passed over, as a phone's table is.
+ */
+export function movingScrollerOf(node: Element): HTMLElement {
+  for (let n = node.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement)
+    if (scrollsItself(n) && n.scrollHeight > n.clientHeight + 1) return n;
+  return documentScroller();
+}
+
+/**
+ * Whether `el` is in a list held under what it opened, or its picture (held-list.ts): no page on the screen, whose rows
+ * nothing measures and whose scroll the window is not (shown-rows.ts, People's scroller.ts, page-give.ts). Asked here,
+ * beside the scroll it is about, so what only asks (the frame's page-give) loads nothing of the hold.
+ */
+export function inHeldList(el: Element | null | undefined): boolean {
+  return !!el?.closest?.("[data-held]");
+}
+
 /** How tall the screen a box shows is: the window's for the document's scroller (its clientHeight is the window's too). */
 export function shownHeight(box: Element): number {
   return isDocumentScroller(box) ? document.documentElement.clientHeight : box.clientHeight;

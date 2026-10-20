@@ -1171,6 +1171,58 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * Back to your place (kit/motion/held-list.ts; Ruben, 20 Oct 2026: "they can swipe back to go back exactly where they
+   * were"): a row opened from a list scrolled down, its page carried back by a thumb, finds the list as it was left, the
+   * row it was opened from where it stood and the same element, as iMessage does. An open thread took the window, whose
+   * scroll fell to the top with nothing to put it back; a person's page took People down and built it again after a fade.
+   * Each row is drawn half the screen tall and the page given room under its list (a style the test adds), so a list of
+   * one row scrolls: the suite's workspace has three people and one conversation.
+   */
+  test("a row opened from a list scrolled down and carried back by a thumb finds the list as it was left, the row where it stood", async ({
+    page,
+  }) => {
+    // A thumb from the screen's left, clear of the edge the phone keeps for its own back, carried most of the way across.
+    const carryBack = async () => {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 48, y: 560 }] });
+      for (let x = 78; x <= 318; x += 30)
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: 562 }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    const places: Record<string, string> = {};
+    for (const [hash, rowSel, opened] of [
+      ["conversations", ".cv-row", ".conversations .ix-thread-pane"],
+      ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name"],
+    ] as const) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      if ((await page.locator(rowSel).count()) === 0) continue; // an empty list here proves nothing
+      await page.addStyleTag({ content: `${rowSel} { height: 420px !important; } body { padding-bottom: 1600px; }` });
+      await page.evaluate(() => window.scrollBy(0, 260));
+      // The row a third of the way down the screen, marked so the one found after is the same element, and where it stands.
+      const was = await page.evaluate((sel) => {
+        const row = document.elementFromPoint(195, 300)?.closest(sel);
+        if (!row) return null;
+        row.setAttribute("data-e2e-opened", "");
+        return { top: row.getBoundingClientRect().top, scrolled: window.scrollY };
+      }, rowSel);
+      if (!was) throw new Error(`${hash}: no row stands a third of the way down the screen`);
+      expect(was.scrolled, `${hash}: the list is scrolled down`).toBeGreaterThan(200);
+      const row = page.locator(`${rowSel}[data-e2e-opened]`);
+      await row.click();
+      await expect(page.locator(opened)).toBeVisible();
+      await carryBack();
+      await expect(page.locator(opened), `${hash}: the row's page has gone`).toBeHidden();
+      await expect(row, `${hash}: the same row, kept: nothing was built again`).toBeVisible();
+      const off = Math.round((await row.evaluate((el) => el.getBoundingClientRect().top)) - was.top);
+      places[hash] = Math.abs(off) <= 1 ? "where it stood" : `${off}px from where it stood`;
+    }
+    test.skip(Object.keys(places).length === 0, "no list here has a row");
+    for (const [where, how] of Object.entries(places))
+      expect(how, `${where}: the row you were on`).toBe("where it stood");
+  });
+
+  /**
    * A touch under a strip keeps the axis it began on (9 Oct 2026, Ruben's recording of Reports): a swipe across that
    * drifts down walks the strip and scrolls nothing, and a scroll down that drifts across scrolls and walks nothing.
    * The reader chose one axis at 8px from the start (kit/motion/swipe.ts touchSwipe), but the browser was told nothing of it and

@@ -1,5 +1,8 @@
+/** The tops watched now, each by the measure that sets its height. */
+const measures = new Set<() => void>();
+
 /**
- * The frame's top on a phone (app-shell.jsx `.frame-top`: the date, the bell, a call, the shell's status, a pane's name and
+ * The frame's top on a phone (frame/shell-chrome.tsx `.frame-top`: the date, the bell, a call, the shell's status, a pane's name and
  * strip), which stands fixed over the page as the window scrolls it (mobile.css, "The window scrolls"). Watched here for
  * two things the stylesheet cannot know:
  * - its height, as `--frame-top` on the document: the column starts that far down under it, Settings' strip sticks that
@@ -22,8 +25,19 @@ export function watchFrameTop(top: HTMLElement): () => void {
   sized.observe(top);
   under();
   size();
+  measures.add(size);
   return () => {
     window.removeEventListener("scroll", under);
     sized.disconnect();
+    measures.delete(size);
   };
+}
+
+/**
+ * The frame's top measured now, in the draw that changed it, rather than when its observer next reports: a page put back
+ * where it stood under the top (kit motion/held-list.ts) is placed against the top's height as it will be painted, and
+ * the observer's answer came after, a frame late, with the page a strip's height out.
+ */
+export function measureFrameTop(): void {
+  for (const size of measures) size();
 }

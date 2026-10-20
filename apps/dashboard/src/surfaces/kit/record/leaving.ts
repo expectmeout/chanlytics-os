@@ -40,7 +40,7 @@ const recStill = (node: Node, deep: boolean) => {
 
 /**
  * Where a sheet is drawn: the app's root, where no pane's layout reaches it (RecordSheet says why), or the first run's
- * own shell, which is drawn in place of the app's chrome and has no .app-root (app-shell.jsx). One lookup, for a fold's
+ * own shell, which is drawn in place of the app's chrome and has no .app-root (frame/shell-chrome.tsx). One lookup, for a fold's
  * sheet, its leaving and RecordSheet alike.
  */
 export const recPortalRoot = (): Element | null =>

@@ -495,12 +495,15 @@ test("the bell raises a row for every missed call in its day, not just the newes
 });
 
 test("the top bar shows the real feed outside a demo, with the device-alert switch", () => {
-  const tb = readRaw("apps/dashboard/src/legacy/components/topbar.jsx");
-  assert.ok(tb.includes("const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;"));
-  assert.ok(tb.includes("const shown = real ? realRows : window.__DEMO_MODE ? notifs.map(tbOverlay) : [];"));
+  const tb = readRaw("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
+  assert.ok(tb.includes("const real = !isDemoFrame() && bell ? bell : null;"));
+  assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  assert.ok(tb.includes("if (real) { real.seenAll();"), "Mark all read is this device's line");
-  assert.ok(tb.includes('data-testid="notif-alerts"'), "the switch is addressable");
+  assert.ok(tb.includes("real.seenAll();"), "Mark all read is this device's line");
+  assert.ok(
+    tb.includes("alerts={b.real ? b.alertState : null}"),
+    "the bell hands its notes this device's alerts switch",
+  );
   assert.ok(tb.includes("Alerts are blocked in your browser settings"), "a denied permission is said, not hidden");
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installNotifications();"),

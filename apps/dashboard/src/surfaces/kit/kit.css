@@ -1649,7 +1649,7 @@ a.more-item {
   flex: none;
   position: relative;
 }
-/* A tab is a link (surface-tabs.jsx: a door is a link), drawn as the tab it was when it was a button: a button's line
+/* A tab is a link (frame/surface-tabs.tsx: a door is a link), drawn as the tab it was when it was a button: a button's line
    height, no underline of the link's own, and no flash where a thumb presses it. */
 .stabs-tab {
   display: inline-flex;

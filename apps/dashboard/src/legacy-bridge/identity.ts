@@ -243,8 +243,7 @@ const permsOf = (role: string): Record<string, boolean> =>
   (ROLE_PERMS as Record<string, Record<string, boolean>>)[role] ?? {};
 
 /** Who is signed in and how the session started, read when a gate asks. */
-const signedIn = (): { role?: string | null } | null | undefined =>
-  Reflect.get(window, "__ME") as { role?: string | null } | null | undefined;
+const signedIn = (): { role?: string | null } | null | undefined => Reflect.get(window, "__ME");
 const inDemo = (): boolean => !!Reflect.get(window, "__DEMO_MODE");
 
 function makeRoleStore(): SessionStore {

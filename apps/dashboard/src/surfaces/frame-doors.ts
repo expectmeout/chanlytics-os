@@ -109,7 +109,7 @@ export function navigate(route: string, opts?: GoOptions): void {
   else go(route, opts);
 }
 
-/** The frame's move under the window name the pages that read it use (`window.appNavigate`): constants.jsx `CHANLY.nav`, the Line. */
+/** The frame's move under the window name the pages that read it use (`window.appNavigate`): frame/constants.ts `CHANLY.nav`, the Line. */
 function moveByName(route: string, opts?: GoOptions): void {
   if (!frame) return missing("navigate");
   if (opts === undefined) frame.navigate(route);

@@ -40,7 +40,7 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
-/* The page region and its heading take focus when a move to another page puts it there (app-shell.jsx focusPage): a place
+/* The page region and its heading take focus when a move to another page puts it there (surfaces/frame/shell-hooks.ts focusPage): a place
    to read from, not a control, so no ring drawn round the whole page. */
 .main-scroll:focus, .main-scroll :is(h1, h2, [role="heading"])[tabindex="-1"]:focus { outline: none; }
 /* The first stop for Tab, a way past the sidebar and the bars to the page: drawn only while it has focus. */
@@ -326,7 +326,7 @@
 
 .topbar-spacer { flex: 1; }
 
-/* ---------- The shell's one line (topbar.jsx ShellStatusBar) ----------
+/* ---------- The shell's one line (frame/topbar/status-bars.tsx ShellStatusBar) ----------
    Under the top bar and above the page, on every screen size: one thing at a
    time, toned by what it costs -- danger when customers are affected, warn
    when this screen is behind, plain when nothing is lost. */
@@ -619,7 +619,7 @@
 .app-root .main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .app-root .main-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .app-root .main-scroll.pane { overflow: hidden; display: flex; }
-/* What stands over the page (app-shell.jsx): no box of its own, so the top bar, the bars under it and a pane's head are
+/* What stands over the page (surfaces/frame/shell-chrome.tsx): no box of its own, so the top bar, the bars under it and a pane's head are
    the column's own rows, as they always were. A phone gives it a box, the one that stays as the window scrolls
    (mobile.css, "The window scrolls"). */
 .frame-top { display: contents; }
@@ -627,7 +627,7 @@
 /* ---------- Route transition ---------- */
 .route-view { animation: route-in 240ms var(--ease-out); }
 /* A view that follows another of the same page (People to Leads and back) draws at once: the fade is for arriving
-   somewhere else, and it made every switch between the two scopes read as a wait (app-shell.jsx routeStay). */
+   somewhere else, and it made every switch between the two scopes read as a wait (surfaces/frame/shell-hooks.ts routeStay). */
 .route-view.route-stay { animation: none; }
 @keyframes route-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -643,7 +643,7 @@
   .route-view { animation: none; }
 }
 /* A view from the tab beside arrives from that side by the deck (surfaces/kit/motion/view-deck.ts), on the timeline of
-   the page it replaced, at every width: it says its side (app-shell.jsx `data-slide`; a page's own views say theirs the
+   the page it replaced, at every width: it says its side (surfaces/frame/shell-chrome.tsx `data-slide`; a page's own views say theirs the
    same way) and plays no entrance of its own. A phone had a slide here and a desk the fade above, each begun as the
    view mounted, whatever the page before it was doing: the page leaving was cut wherever the next one's render fell,
    and this one began 40px to its side at full opacity (measured frame by frame, 8 Oct 2026). */
@@ -993,7 +993,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  /* Its ground is the kit's pop panel (topbar.jsx: panel panel-pop panel-flush), the glass every menu and list wears. */
+  /* Its ground is the kit's pop panel (frame/topbar/notif-popover.tsx: panel panel-pop panel-flush), the glass every menu and list wears. */
   z-index: 250;
   overflow: hidden;
   animation: route-in 180ms var(--ease-out);
@@ -1028,7 +1028,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 .tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
 .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, transparent); }
 /* A dismissed note folds shut so the notes under it glide up, then it goes: the slot is given its own height and then
-   none (topbar.jsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
+   none (frame/topbar/notif-popover.tsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
    content's height until the last frame). The note and the grounds a thumb slides it over sit inside. */
 .tbn-slot { overflow: hidden; transition: height 200ms var(--ease-in); }
 .tbn-slot-in { position: relative; }
@@ -1081,7 +1081,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   .tbn-item.in-group .tbn-open { padding-left: 54px; }
   .tbn-item.in-group .tbn-dot { left: 42px; }
   /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (kit/motion/swipe.ts
-     touchSwipe onBack, onAway). Only the way the note is going shows, and only while it moves (topbar.jsx tbnMoving,
+     touchSwipe onBack, onAway). Only the way the note is going shows, and only while it moves (frame/topbar/notif-popover.tsx tbnMoving,
      `data-moving`), fading as it settles back: at rest the notes stand on the sheet's glass, with no ground under them.
      Both stood under every note, so a slide to the right showed the red of Dismiss. A dismissed note stays slid aside
      over its ground while its slot folds. */
@@ -1098,7 +1098,7 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
 }
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
-   standing over the page with no wash, pulled down to close (topbar.jsx NotifPopover, kit/motion/swipe.ts touchSwipe), rising and leaving
+   standing over the page with no wash, pulled down to close (frame/topbar/notif-popover.tsx NotifPopover, kit/motion/swipe.ts touchSwipe), rising and leaving
    as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
 .tbn-handle { display: none; }
 @media (max-width: 720px) {
@@ -1467,7 +1467,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* Menus are drawn on the page, anchored to their trigger, so the rail can open them too. */
 .sb-menu { position: fixed; top: auto; right: auto; max-width: 300px; max-height: min(520px, 84vh); }
 /* On a phone the sidebar is a drawer, and its two menus are the phone's action sheet, as every menu of the kit's is there
-   (kit.css, the Menu under 900px; named by where it is placed, sidebar.jsx `data-sb-place`): from the screen's foot, edge to edge, a handle, each item a thumb tall. Opened over
+   (kit.css, the Menu under 900px; named by where it is placed, frame/sidebar/sidebar-menus.tsx `data-sb-place`): from the screen's foot, edge to edge, a handle, each item a thumb tall. Opened over
    its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
    placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
 @media (max-width: 900px) {
@@ -1586,7 +1586,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 [data-loading] [data-dims] { opacity: 0.45; pointer-events: none; transition-delay: 150ms; }
 @media (prefers-reduced-motion: reduce) { [data-dims] { transition: none; } }
 
-/* A route whose surface has not landed: the pane the page will fill stays empty (app-shell.jsx, the route view) and
+/* A route whose surface has not landed: the pane the page will fill stays empty (surfaces/frame/shell-chrome.tsx, the route view) and
    says so after a beat -- one muted line at the page's gutter, so a surface that lands fast is never said. Never a
    skeleton: the one that stood here matched no page and moved every page when it left. The animation IS the delay
    (fill-mode both holds the words at the from-frame until 600ms), so it is never set to none, under reduced motion
@@ -1841,6 +1841,23 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 
+/* A list held under what it opened (kit motion/held-list.ts), or the still picture that stands in for one its page keeps
+   out of the document: where it stood on the screen, out of sight, taking no room and no touch, so the row's page has the
+   window. A thumb carrying that page away shows it under it (`data-held="shown"`), at the rows it was left on; the page
+   it goes back to paints over it (z-index 1 while it moves: the thread above, a person's page in clients.css). Whatever
+   a page's own rules say of its list's place (a desk's pane is relative), a held one stands out of the page. */
+[data-held] {
+  position: fixed !important;
+  z-index: 0;
+  box-sizing: border-box;
+  margin: 0;
+  visibility: hidden !important;
+  pointer-events: none;
+}
+[data-held="shown"] {
+  visibility: visible !important;
+}
+
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
 .tl-arrived { animation: nudge-in 260ms var(--ease-out); }
 
@@ -1974,7 +1991,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   box-shadow: var(--surface-inset-depth);
   color: var(--ink);
 }
-/* The workspace row: the three in a circle like the member's face (sidebar.jsx draws them in Glass), the name semibold
+/* The workspace row: the three in a circle like the member's face (frame/sidebar/sidebar.tsx draws them in Glass), the name semibold
    and under it only how many workspaces there are to switch between, where there is more than one (Ruben, 11 Oct 2026:
    "1 of 1 line on" said again what Today says), no rule under the row; and the member's row under the rail's one hairline, a 32px face, the name semibold and the role under it, no
    chip of its own. Each reached by its place, since the ratchet counts the mark's, the chip's and the face's names.
@@ -2230,7 +2247,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
    top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with
    the page's act at its right, as the canvases open every page. The frame leaves the places in Glass alone
-   (app-shell.jsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
+   (surfaces/frame/shell-chrome.tsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
 .topbar .crumbs {
   display: none;
 }
@@ -2288,8 +2305,8 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
      D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
      over the hidden name. Leads names two (an open search's Reach out, then Find leads), and both are the strip's height. */
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > button,
-  .main:has(> .main-scroll > .clients) .pg-act-slot > span > a {
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > button,
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > a {
     height: var(--control-h-lg);
     padding: 0 16px;
     font-size: var(--text-base);
@@ -2305,16 +2322,16 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    window with the sidebar open). The name's place keeps a line of its own, so the views stand where they stand on every page,
    fourteen under it. */
 @media (width > 900px) {
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-slot {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 14px var(--space-4);
   }
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-head-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-head-slot {
     flex: 1 0 100%;
   }
-  .main:has(> .main-scroll > :is(.rpt, .clients)) .pg-act-slot {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot {
     margin-left: auto;
   }
 }
@@ -2641,7 +2658,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      is less than its words (three scopes beside "New proposal" on a phone 360 wide), the capsule says the first of them
      beside its mark, "New", "Add", "Find": the rest wraps onto a second line, which the words' box, one line tall, does
      not show (kit/head/act-words.tsx). Nothing is measured, and no width is named. The slot says whose strip it holds
-     (app-shell.jsx `data-strip`), so these stand after the rules for every other strip and outweigh them by that name. */
+     (surfaces/frame/shell-chrome.tsx `data-strip`), so these stand after the rules for every other strip and outweigh them by that name. */
   .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -2730,7 +2747,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 
 /* The pools of light move as the canvases' do (their glow drifts over twenty seconds), on a desk, each on a layer of its
-   own moved by a transform, which the compositor runs (app-shell.jsx draws the three in .pg-light, the app root's first
+   own moved by a transform, which the compositor runs (surfaces/frame/shell-chrome.tsx draws the three in .pg-light, the app root's first
    child). They moved as the pools' centres before, six properties every element inherits, so every element of the page
    was styled again on every frame for as long as it was open: on a phone the main thread 37% to 79% busy and iPhones
    reloading the page, on a desk at 4x CPU 3.6 to 4.1 s of long tasks in every 5 s (5 Oct 2026). On a desk the ground is
@@ -2824,7 +2841,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sb-collapse { display: none; }
 .nav-item { padding: 0 12px; font-size: var(--text-base); }
 
-/* The key hint on the Ask capsule (Glass alone, topbar.jsx tbAskKbd): a small inset at the capsule's right, in the mono. */
+/* The key hint on the Ask capsule (Glass alone, frame/topbar/topbar.tsx): a small inset at the capsule's right, in the mono. */
 .tb-ask-kbd {
   margin-left: auto;
   padding: 2px 6px;

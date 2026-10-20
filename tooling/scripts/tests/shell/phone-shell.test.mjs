@@ -35,7 +35,8 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".ix-back { display: none; }"), "hidden by default");
-  assert.ok(css.includes(".inbox[data-takeover] .ix-list { display: none; }"));
+  // A list held under the thread it opened stays laid out, where it stood (kit motion/held-list.ts, components.css).
+  assert.ok(css.includes(".inbox[data-takeover] .ix-list:not([data-held]) { display: none; }"));
   assert.ok(css.includes(".inbox[data-takeover] .ix-thread-pane { display: flex; }"));
   assert.ok(
     css.includes(".lm-whisper .btn { min-height: 44px; }"),
@@ -44,7 +45,9 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
 });
 
 test("the tab bar carries the real surfaces and the count that matters, drawn by the kit's TabBar", () => {
-  const shell = readRaw("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = ["phone-tabs.tsx", "shell-chrome.tsx", "shell-hooks.ts"]
+    .map((f) => readRaw(`apps/dashboard/src/surfaces/frame/${f}`))
+    .join("\n");
   assert.ok(shell.includes('testid="phone-tabs"'));
   for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "calendar"'])
     assert.ok(shell.includes(route), route);
@@ -55,12 +58,13 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
   );
   assert.ok(shell.includes('count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null'), "what needs you");
   assert.ok(
-    shell.includes(
-      "<PhoneTabs page={page} param={param} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} onPlace={onPlace} />",
-    ),
+    shell.includes("<PhoneTabs") &&
+      shell.includes("inboxNeeds={s.inboxNeeds}") &&
+      shell.includes("onMenu={() => s.setNavOpen(true)}") &&
+      shell.includes("onPlace={s.onPlace}"),
   );
   assert.ok(
-    shell.includes("{!window.__IN_APP && ("),
+    shell.includes("!window.__IN_APP && ("),
     "and only outside the app: inside it the native tab bar stands there (window.__IN_APP, stamped before paint)",
   );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");

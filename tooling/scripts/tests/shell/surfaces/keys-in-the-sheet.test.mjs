@@ -29,10 +29,13 @@ installLegacyReact({
 const W = globalThis.window;
 const { installShell } = await importSrc("apps/dashboard/src/legacy-bridge/shell.ts");
 installShell(W);
-await import("../../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
-await import("../../../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
+Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet, openShortcuts: shortcutsSheet.openShortcuts });
 
-/** The sidebar and the sheet, as the shell draws them (app-shell.jsx). */
+/** The sidebar and the sheet, as the shell draws them (surfaces/frame/shell-chrome.tsx). */
 const shell = (props = {}) =>
   W.React.createElement(
     "Fragment",

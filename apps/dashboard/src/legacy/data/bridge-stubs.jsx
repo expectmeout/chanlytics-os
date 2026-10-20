@@ -5,7 +5,7 @@
  * behind them, so everything `legacy-bridge/seed-globals.ts` and
  * `legacy-bridge/identity.ts` install from @chanlytics/contracts is simply
  * absent — and the pages that read those globals do not all ask first.
- * `components/sidebar.jsx` calls `window.__identity.words(me)` outright, and
+ * the sidebar (`surfaces/frame/sidebar/sidebar-who.tsx`) calls `window.__identity.words(me)`, and
  * `pages/settings.jsx` calls `.member()` and `.initials()` the same way.
  *
  * Every global here is written ONLY when it is missing. This file sits in the

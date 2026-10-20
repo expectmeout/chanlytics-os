@@ -1,5 +1,5 @@
 /**
- * Ask's Line as the frame draws it (app-shell.jsx's `AskBar`, the one Line every page shares). Its pages and the parts
+ * Ask's Line as the frame draws it (surfaces/frame/shell-chrome.tsx's `AskBar`, the one Line every page shares). Its pages and the parts
  * only they draw are a chunk of their own (line-code.ts), fetched once the frame is idle, or at once when the Line is
  * opened before that (⌘K, the top bar's Ask, a door that asks). In the frame they were about 70 KB, compressed, that every
  * first load parsed before any page could draw (the loadability review, 19 Oct 2026). The Line is drawn inside this

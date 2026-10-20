@@ -170,7 +170,7 @@ const fire = (type) => win.dispatchEvent({ type });
 globalThis.window = win;
 /** The address moves as the App Router's History leaves it: a push or a replace writes the path and fires nothing. */
 const history = historyOf(win);
-/** What a page reads the address through (data/constants.jsx), and what these tests' own `CHANLY` keeps of it. */
+/** What a page reads the address through (surfaces/frame/constants.ts), and what these tests' own `CHANLY` keeps of it. */
 const address = await legacyAddress();
 win.CHANLY = { nav() {}, address };
 globalThis.document = {
@@ -479,10 +479,30 @@ globalThis.React = {
 globalThis.useSurface = (await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts")).surfaceHook(
   globalThis.React,
 );
-await import("../../../../../apps/dashboard/src/legacy/components/topbar.jsx");
-// The route table the shell reads (SHELL_ROUTES, drawRoute), loaded where both lists load it: just before the shell.
-await import("../../../../../apps/dashboard/src/legacy/pages/app-routes.jsx");
-await import("../../../../../apps/dashboard/src/legacy/pages/app-shell.jsx");
+// The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by: TypeScript, so their
+// hooks are this file's stub's (the "react" module's, set from it).
+(await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
+const topbarParts = {
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
+  ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx")),
+};
+Object.assign(win, {
+  Topbar: topbarParts.Topbar,
+  LiveCallBar: topbarParts.LiveCallBar,
+  ShellStatusBar: topbarParts.ShellStatusBar,
+  NotifPopover: topbarParts.NotifPopover,
+});
+// The route table the shell reads (SHELL_ROUTES, drawRoute: surfaces/frame/route-table.tsx), under the names the frame
+// reads it by, as frame-globals.ts publishes it: just before the shell.
+const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
+Object.assign(win, {
+  SHELL_ROUTES: routeTable.SHELL_ROUTES,
+  SOON_META: routeTable.SOON_META,
+  drawRoute: routeTable.drawRoute,
+});
+// The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by.
+win.ChanlyticsApp = (await importSrc("apps/dashboard/src/surfaces/frame/app-shell.tsx")).ChanlyticsApp;
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -649,7 +669,7 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   });
   const { tree, title } = mount("#/inbox/th-9");
   assert.equal(title, "(2) Rosa · Inbox · Chanlytics");
-  // The top bar and the bars under it stand in the frame's top, over the page (app-shell.jsx `.frame-top`).
+  // The top bar and the bars under it stand in the frame's top, over the page (surfaces/frame/shell-chrome.tsx `.frame-top`).
   const top = find(tree, (n) => n.props?.className === "frame-top");
   const kids = top.props.children.filter((k) => k && typeof k === "object");
   const at = (type) => kids.findIndex((k) => k.type === type);
@@ -957,7 +977,10 @@ test("every view of Leads is one mount: a search, a list, a class or an open lea
       all.key,
       "People and Leads are one view of the frame, the page keeping its scopes",
     );
-    assert.notEqual(at("#/clients/c-1").key, at("#/clients/c-2").key, "two profiles are still two mounts");
+    // A person's page is drawn by People's page over the list it was opened from, which stays where it was under it
+    // (people-route.tsx, 20 Oct 2026): People's view too, each person a page of their own inside it.
+    assert.equal(at("#/clients/c-1").key, all.key, "a person's page is People's view, over its list");
+    assert.equal(at("#/clients/c-2").key, at("#/clients/c-1").key, "and so is the next person's");
     // People's views are the page's, which follows its own address (surfaces/people/people-route.tsx): one mount for the
     // list and every view of it. A page it did not write the address of mounts afresh on its own (people-address.test.mjs).
     assert.equal(
@@ -1003,7 +1026,7 @@ test("a page can say the same place more exactly: a replaced address makes no en
     deep = true;
     assert.equal(key(again), key(tree), "the same page, on the address it asked for, with no event to wait for");
     assert.ok(find(again, (n) => n.type === "RoutePage"));
-    // A push is the shell's own navigate, which the shell's CHANLY.nav hands a route to (data/constants.jsx).
+    // A push is the shell's own navigate, which the shell's CHANLY.nav hands a route to (surfaces/frame/constants.ts).
     win.appNavigate("clients/leads");
     assert.equal(win.location.pathname, "/w/acme/people/leads", "and a plain navigation is still pushed");
     assert.equal(history.pushed.at(-1), "/w/acme/people/leads");
@@ -1522,7 +1545,14 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
   const { useStubHooks } = await import("../../_legacy-react.mjs");
   useStubHooks(globalThis.React);
   globalThis.ViewTabs = (await importSrc("apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-  await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(win, {
+    SurfaceTabs: surfaceTabs.SurfaceTabs,
+    stripPlace: surfaceTabs.stripPlace,
+    stripSlide: surfaceTabs.stripSlide,
+    stripSwipe: surfaceTabs.stripSwipe,
+  });
   const tabsAt = (param) => {
     deep = true;
     cells = [];
@@ -1966,10 +1996,18 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   // as the Inbox's Needs you, Conversations and Live do: from the side the tab stands on, which the view says
   // (`data-slide`) and the kit's deck brings it in by, the same on a desk and a phone (8 Oct 2026; it was a class a
   // phone's stylesheet slid and a desk's ignored). One person's page to the next is the same family and no strip's
-  // move, and draws at once.
+  // move, and draws at once. A person's page is People's view since it is drawn over the list (people-route.tsx, 20 Oct
+  // 2026): the frame's view stays on screen, and the person comes in over the list by an entrance of the page's own.
   shell.installShell(win);
-  // Where a view stands on a strip is the strip's (surface-tabs.jsx stripPlace), over People's scope words (people-globals.ts).
-  await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people-globals.ts).
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const strip = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(win, {
+    SurfaceTabs: strip.SurfaceTabs,
+    stripPlace: strip.stripPlace,
+    stripSlide: strip.stripSlide,
+    stripSwipe: strip.stripSwipe,
+  });
   const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
   Object.assign(win, { plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
   const view = (t) =>
@@ -2001,13 +2039,9 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   assert.equal(slides(leads), null, "the frame slides nothing: the page moves its own scope");
   const back = go("#/clients");
   assert.equal(view(back).props.key, view(tree).props.key, "and back");
-  assert.equal(
-    stays(go("#/clients/c-aisha")),
-    false,
-    "a person's profile is somewhere else, though its route starts with the list's word",
-  );
-  assert.equal(stays(go("#/clients/c-bob")), true, "the next person's page is the same family and no strip's move");
-  assert.equal(stays(go("#/clients")), false, "and so is the list, coming back from it");
+  assert.equal(view(go("#/clients/c-aisha")).props.key, view(tree).props.key, "a person's page is People's view");
+  assert.equal(view(go("#/clients/c-bob")).props.key, view(tree).props.key, "the next person's page too");
+  assert.equal(view(go("#/clients")).props.key, view(tree).props.key, "and the list, coming back from them");
   assert.equal(stays(go("#/inbox")), false, "another page fades in");
   // A page landing where the reading pane stood fades in, even on the page the reading pane was for.
   win.__surfaceGate = () => false;

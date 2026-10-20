@@ -53,8 +53,10 @@ const element = (name, css = {}, parent = null) => {
       for (let n = other; n; n = n.parentElement) if (n === this) return true;
       return false;
     },
+    // A name, or an attribute's (`[data-held]`).
     closest(sel) {
-      for (let n = this; n; n = n.parentElement) if (n.name === sel) return n;
+      const attr = /^\[([\w-]+)\]$/.exec(sel)?.[1];
+      for (let n = this; n; n = n.parentElement) if (attr ? attr in n.attrs : n.name === sel) return n;
       return null;
     },
   };
@@ -352,6 +354,18 @@ test("rows go up past the foot only once nothing over them is on the screen, so 
   long.list.top = -900;
   pull(long, -150);
   assert.ok(long.movedOf(long.list) < -20, "at the foot of a long list, the rows go up");
+});
+
+test("a list held under the row's page it opened is not the page on the screen: the row's page gives, and the list stays", () => {
+  // People keeps its list under a person's page, held where it stood and out of sight (held-list.ts): it still says it
+  // gives, and stood first, so it was taken for the person's rows.
+  const p = rowsPage();
+  p.list.attrs["data-held"] = "";
+  Object.assign(p.list.css, { position: "fixed", visibility: "hidden" });
+  const person = element("person", {}, p.main);
+  pull(p, 150, person);
+  assert.equal(p.movedOf(p.list), 0, "the held list stays where it is held");
+  assert.ok(p.moved() > 20, `the person's page gives as a page does (${p.moved()})`);
 });
 
 test("a fixed layer beside the rows does not hold them; one among them does", () => {

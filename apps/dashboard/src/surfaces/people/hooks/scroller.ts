@@ -3,7 +3,7 @@
  * (pl-table-scroll), else the pane itself, and on a phone, where the window scrolls the page (mobile.css, "The window
  * scrolls"), the document's scroller.
  */
-import { documentScroller, isDocumentScroller, scrollsItself } from "../../kit/motion/page-scroll";
+import { documentScroller, inHeldList, isDocumentScroller, scrollsItself } from "../../kit/motion/page-scroll";
 
 export const ldScroller = (pane: HTMLElement | null): HTMLElement | null => {
   if (!pane) return null;
@@ -27,9 +27,10 @@ export function heardListScroll(pane: HTMLElement, heard: (scroller: HTMLElement
     if (sc && e && e.target === sc) heard(sc);
   };
   // The window is every view's: a view on its way out (taken off the page, or its still copy while it leaves, kit
-  // motion/view-deck.ts) hears the next one's scroll to its top, and that is no scroll of its list.
+  // motion/view-deck.ts) hears the next one's scroll to its top, and that is no scroll of its list; nor is one held under
+  // a person's page (kit motion/held-list.ts), whose scroll the window is then.
   const onWindow = () => {
-    if (!pane.isConnected || pane.closest(".view-leaving")) return;
+    if (!pane.isConnected || pane.closest(".view-leaving") || inHeldList(pane)) return;
     const sc = ldScroller(pane);
     if (sc && isDocumentScroller(sc)) heard(sc);
   };

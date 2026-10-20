@@ -594,7 +594,7 @@ test("the frame publishes the sheet's doors under the names the deal card and th
   assert.equal(PEOPLE_GLOBALS.StepSheetHost, doors.StepSheetHost);
   assert.equal(PEOPLE_GLOBALS.openStepSheet, doors.askStepSheet);
   wire(() => personDto(Date.now()));
-  // The frame's host, as app-shell.jsx draws it, asked for the sheet before it has drawn one.
+  // The frame's host, as the frame draws it (surfaces/frame/shell-chrome.tsx), asked for the sheet before it has drawn one.
   unmount();
   recFolds.reset();
   clearReadCaches();

@@ -23,7 +23,7 @@ import {
   workspaceInitials,
   identityWords,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installLegacyReact, fresh, again, all, byTestId, classes, press, textOf } from "../_legacy-react.mjs";
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
@@ -153,10 +153,10 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
     ],
   );
   assert.deepEqual(where("⌘↵"), ["Everywhere", "Inbox"], "⌘↵ saves an edit anywhere, and sends in the Inbox");
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
   assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
   assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");
-  assert.ok(readCode("apps/dashboard/src/legacy/components/shortcuts.jsx").includes('e.key === "?"'), "? is real");
+  assert.ok(readCode("apps/dashboard/src/surfaces/frame/shortcuts.tsx").includes('e.key === "?"'), "? is real");
 });
 
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
@@ -210,32 +210,41 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   // Another workspace's own title and its Back: create-workspace-screen.test.mjs draws the screen and presses them.
   assert.ok(bridge.includes("statusLine: shellStatusLine,") && bridge.includes("themes: THEME_OPTIONS,"));
 
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.ok(shell.includes('${sidebar === "rail" ? "rail" : ""}') && shell.includes('collapsed={sidebar === "rail"}'));
+  const shell = ["shell-chrome.tsx", "shell-hooks.ts"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
+    .join("\n");
   assert.ok(
-    shell.includes("if (window.innerWidth > 900) { e.preventDefault(); onSidebar("),
+    shell.includes('${s.sidebar === "rail" ? "rail" : ""}') && shell.includes('collapsed={s.sidebar === "rail"}'),
+  );
+  assert.ok(
+    shell.includes("if (window.innerWidth > DESK_MIN_PX) {") &&
+      shell.includes('onSidebar(sidebar === "rail" ? "open" : "rail");'),
     "⌘B folds the sidebar on a desk only",
   );
-  assert.ok(shell.includes("window.__shell.switchWorkspace(all[n - 1].id)"));
-  assert.ok(shell.includes("<ShortcutsSheet />"));
+  assert.ok(shell.includes("shell.switchWorkspace(ws.id)"));
+  assert.ok(
+    shell.includes('const Sheet = fromGlobal("ShortcutsSheet", ShortcutsSheet);') && shell.includes("<Sheet />"),
+  );
 
-  const sidebar = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
+  const sidebar = ["sidebar", "sidebar-menus", "sidebar-who"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
+    .join("\n");
   for (const pin of [
-    "const WorkspaceMenu = ",
-    "const UserMenu = ",
-    "const useSbMenu = ",
+    "export function WorkspaceMenu(",
+    "export function UserMenu(",
+    "export function useSbMenu(",
     'className="more-menu sb-menu"',
     'testid="sb-account-menu"',
     'testid="sb-workspace-menu"',
     "window.__shell.signOut();",
     "window.__shell.switchWorkspace(w.id)",
     "window.__identity.words(me)",
-    "data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}",
+    "const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;",
     // The sheet opens on ?, and on a desk from the account menu's row (keys-in-the-sheet.test.mjs draws it).
     // Settings came in from the sidebar's list.
     'data-testid="sb-me-settings"',
     'data-testid="sb-me-shortcuts"',
-    "window.__shell.createWorkspace();",
+    "window.__shell?.createWorkspace();",
   ])
     assert.ok(sidebar.includes(pin), pin);
   assert.ok(
@@ -247,7 +256,9 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"])
     assert.ok(new RegExp(`\\b${name}: \\(p\\) =>`).test(icons), name);
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/components/shortcuts.jsx";'),
+    readCode("apps/dashboard/src/surfaces/frame/shell-chrome.tsx").includes(
+      'import { ShortcutsSheet } from "./shortcuts";',
+    ),
   );
 
   const css = readRaw("apps/dashboard/src/legacy/styles/components.css");
@@ -270,7 +281,7 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
   // Both buttons open a popover from the sidebar. The row at the top always drew the chevrons; the chip at the foot drew
   // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
   installLegacyReact({ usePPToast: () => [null, () => {}] });
-  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   fresh();
   const drawn = again(() =>
@@ -297,7 +308,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
   // "1 of 1 line on" under the name said again what Today says, for any workspace (Ruben, 11 Oct 2026). What the row's
   // menu does is switch, so the line under the name says how many there are to switch between.
   installLegacyReact({ usePPToast: () => [null, () => {}] });
-  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   globalThis.window.TODAY_DATA = { standing: { lines: { short: "1 of 1 line on" } } };
   const workspace = (id, name) => ({ id, slug: id, name, status: "active", timezone: "UTC", role: "owner" });
@@ -340,7 +351,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
 test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never Ask's three", async () => {
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
   installLegacyReact({ usePPToast: () => [null, () => {}] });
-  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
   globalThis.window.__identity = { workspace: workspaceInitials, words: identityWords };
   const LOGO = "https://proj.supabase.co/storage/v1/object/public/workspace-logos/a/b.png";
@@ -412,13 +423,15 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // it again: two 240ms route-in fades compounding (the shell's, and the pane's
   // own) which reads as a flash, plus the surface's state, scroll position and
   // fetches thrown away on a navigation that never left it.
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  const shell = ["shell-routes.ts", "shell-hooks.ts", "shell-chrome.tsx"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
+    .join("\n");
   assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
   // What it mounts under is a separate question, and it is asked of the shell as drawn (shell-status.test.mjs: one
   // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
   assert.ok(
     shell.includes("const viewKey = routeLoading && !onStrip ? `${mountKey}/reading` : mountKey;") &&
-      shell.includes("key={viewKey}"),
+      shell.includes("key={s.viewKey}"),
     "and the surface is keyed on that, not on the gate key -- and on readiness while its surface is on its way, so the route-in fade plays on the page as it lands; a strip's view still reading is that view, read in place",
   );
   assert.ok(shell.includes("routeReady(page, param)"), "the readiness check still sees the param");
@@ -439,7 +452,7 @@ test("the account menu offers the look only once contracts does: none while it i
   // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
   // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
   installLegacyReact({ usePPToast: () => [null, () => {}] });
-  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   const picked = [];
   const themed = [];
   const accountMenu = (lookOffered) => {

@@ -48,7 +48,7 @@
  * it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY); and there no pane's
  * layout reaches it -- a Settings pane sizes its every child to the prose column, and animates itself in with a transform
  * that would pin a fixed sheet to the pane. The first run is drawn in place of the app's chrome, with no .app-root
- * (app-shell.jsx), and its shell (.fr-shell) is the root there.
+ * (frame/app-shell.tsx), and its shell (.fr-shell) is the root there.
  */
 import { useCallback, useEffect, useRef } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";

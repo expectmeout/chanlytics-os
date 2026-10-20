@@ -1051,7 +1051,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 @media (pointer: coarse) { .ta-x { width: 44px; margin-right: -8px; } }
 .ta-row[data-count="1"] .ta-msg { color: var(--ink-dim); }
 .ta-row:not([data-count="1"]) .ta-title { letter-spacing: -0.005em; }
-/* A group opens in place, as the bell's does (topbar.jsx): the chevron turns, and the notes under it are rows of their own. */
+/* A group opens in place, as the bell's does (frame/topbar/topbar.tsx): the chevron turns, and the notes under it are rows of their own. */
 .ta-chev { flex: none; align-self: center; display: inline-flex; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
 .ta-main[aria-expanded="true"] .ta-chev { rotate: 180deg; }
 .ta-row.in-group .ta-title { font-weight: var(--weight-regular); }

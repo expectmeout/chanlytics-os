@@ -31,7 +31,7 @@ const WORKSPACE_APP = path.join(DASH, "../app/(os)/w/[workspace]");
 // The product's word for a route the shell names otherwise (contracts shell/address.ts): the page's folder says the word.
 const { ROUTE_WORDS } = await import("@chanlytics/contracts");
 const wordOf = (route) => (Object.hasOwn(ROUTE_WORDS, route) ? ROUTE_WORDS[route] : route);
-// Rows a moved route keeps in app-routes.jsx: each for an address its page does not take, or (address null) for a session
+// Rows a moved route keeps in route-table.tsx: each for an address its page does not take, or (address null) for a session
 // its page is not drawn for. The mockup's seeded Lists page is drawn where there is no workspace to read (a demo session),
 // a real workspace's Lists being the App Router page. A person's page, the Pipeline and Leads are People's page's own since
 // they moved (Leads: decision 0015, step 9).
@@ -42,10 +42,13 @@ const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surface
   pathToFileURL(path.join(DASH, "legacy-bridge/surface-registry.ts")).href
 );
 
-const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "utf8");
-// The shell's router is the route table (app-routes.jsx SHELL_ROUTES): a row per route, `page: "…"`. The shell itself
-// still names the two pages it draws outside the table (shared, start) and the family it fades (clients).
-const routes = fs.readFileSync(path.join(DASH, "legacy/pages/app-routes.jsx"), "utf8");
+// The frame (surfaces/frame, TypeScript since the one-system plan's step 7e): its gate (shell-hooks.ts) and the two pages it
+// draws outside the table (app-shell.tsx: shared, start), the family it fades (clients) and its soon landing (shell-routes.ts).
+const shell = ["app-shell.tsx", "shell-hooks.ts", "shell-routes.ts"]
+  .map((f) => fs.readFileSync(path.join(DASH, "surfaces/frame", f), "utf8"))
+  .join("\n");
+// The shell's router is the route table (surfaces/frame/route-table.tsx SHELL_ROUTES): a row per route, `page: "…"`.
+const routes = fs.readFileSync(path.join(DASH, "surfaces/frame/route-table.tsx"), "utf8");
 
 /** A route's App Router page: `<word>/page.tsx`, or under an optional catch-all (`<word>/[[...thread]]/page.tsx`) where the route takes an address under it. */
 function pageFileOf(route) {
@@ -89,7 +92,7 @@ test("the registry classifies nothing the shell does not route", () => {
   assert.deepEqual(stale, [], "classified but not routed");
 });
 
-test("a route with an App Router page has no row in app-routes.jsx, and a page has its route", () => {
+test("a route with an App Router page has no row in route-table.tsx, and a page has its route", () => {
   // A route is drawn once. A surface that moved took its row with it (decision 0015, step 3); a row left behind would be
   // drawn by the frame's table while the layout drew the page too, and a page with no entry here is a route the frame
   // draws no chrome around.
@@ -104,7 +107,7 @@ test("a route with an App Router page has no row in app-routes.jsx, and a page h
     assert.deepEqual(
       rows.filter((row) => !allowed.some(({ word }) => row.includes(word))),
       [],
-      `${route} has an App Router page and still a row in app-routes.jsx for an address the page takes`,
+      `${route} has an App Router page and still a row in route-table.tsx for an address the page takes`,
     );
     assert.ok(
       routeHasPage(route) && routeHasPage(`${route}/x`) === (page.params === true || !!page.takes?.("x")),
@@ -199,7 +202,7 @@ test("the real set is exactly the converted surfaces", () => {
 test("the shell consults the registry through one interception, not per-route conditionals", () => {
   // The design property: ONE gate derived from the table. Per-route
   // __DEMO_MODE checks are how fifteen branches got missed the first time.
-  assert.ok(shell.includes('window.__surfaceState(page, param) === "demo"'), "the interception is gone");
+  assert.ok(shell.includes('surfaceState(page, param) === "demo"'), "the interception is gone");
   const adHoc = [...(shell + routes).matchAll(/page(?: ===|:) "[a-z-]+"[^\n]*__DEMO_MODE/g)];
   assert.deepEqual(
     adHoc.map((m) => m[0]),
@@ -273,7 +276,7 @@ test("every real sub-route names an existing page", () => {
 });
 
 test("the shell asks with the param, or sub-routes are decoration", () => {
-  assert.match(shell, /__surfaceState\(page, param\)/);
+  assert.match(shell, /\bsurfaceState\(page, param\)/);
 });
 
 /* ------------------------- no fabricated colleagues ----------------------- */
@@ -489,8 +492,8 @@ test("the tab bar offers what the registry says is real, and only that", () => {
   //
   // The registry is the source of truth for both, so this is the rule rather
   // than two more corrections.
-  const tabsSrc = fs.readFileSync(path.join(DASH, "legacy/components/surface-tabs.jsx"), "utf8");
-  const rows = [...tabsSrc.matchAll(/\{ id: "([a-z-]+)", label: "[^"]+", to: "([a-z-]+)"([^}]*)\}/g)].map(
+  const tabsSrc = fs.readFileSync(path.join(DASH, "surfaces/frame/surface-tabs.tsx"), "utf8");
+  const rows = [...tabsSrc.matchAll(/\{\s*id: "([a-z-]+)",\s*label: "[^"]+",\s*to: "([a-z-]+)"([^}]*)\}/g)].map(
     ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
   );
   // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.

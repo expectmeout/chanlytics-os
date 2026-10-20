@@ -639,7 +639,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
     going.includes('testid="today-going-row"') && going.includes("GOING_TODAY_WORDS.stop"),
     "a run under the veto window is Today's Going today row, with its Stop (decision 0064)",
   );
-  const top = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
+  const top = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
   assert.ok(
     top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'),
     "presence, the bell and the theme are one group",

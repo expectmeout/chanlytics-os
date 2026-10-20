@@ -171,7 +171,9 @@ function OpenRecord(p: {
     <RecordNotice a={a} tab={tab} />
   );
   // The swipe is the pane's: its head, body and dock go back to the list together, the list drawn under them.
-  const swipe = phone ? touchSwipe({ onBack: close, pages: tabPages, when: () => phone, onGrab: cmGoing }) : undefined;
+  const swipe = phone
+    ? touchSwipe({ onBack: close, pages: tabPages, when: () => phone, onGrab: cmGoing, backNavigates: true })
+    : undefined;
   return (
     <CmPane
       title={row.name}

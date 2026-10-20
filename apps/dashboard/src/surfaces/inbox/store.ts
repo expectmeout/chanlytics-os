@@ -182,7 +182,7 @@ export const VW_UTIL = {
 
 /**
  * Freeze and thaw the countdowns as the member goes Away and comes back; once, when the surfaces start. Away is the demo's:
- * its control is drawn only in a demo session (topbar.jsx), and the countdowns it freezes are the seeded threads', so a real
+ * its control is drawn only in a demo session (frame/topbar/topbar.tsx), and the countdowns it freezes are the seeded threads', so a real
  * session registers no listener at all.
  */
 export function hearPresence(): () => void {

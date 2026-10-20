@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
+import { importSrc } from "../../_source.mjs";
 
 let cells = [];
 const frames = hookFrames();
@@ -74,7 +75,14 @@ const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surf
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
 globalThis.ViewTabs = (await import("../../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+Object.assign(globalThis.window, {
+  SurfaceTabs: surfaceTabs.SurfaceTabs,
+  stripPlace: surfaceTabs.stripPlace,
+  stripSlide: surfaceTabs.stripSlide,
+  stripSwipe: surfaceTabs.stripSwipe,
+});
 
 const people = () => ({ rows: [], lists: [], saved: [] });
 const viewsAt = (param) => peopleChrome({ param, backToPeople: null }).views ?? null;

@@ -9,26 +9,6 @@
     "branches": 11,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 194,
-    "branches": 28,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/sidebar.jsx::SidebarRow#1": {
-    "lines": 42,
-    "branches": 31,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
-    "lines": 154,
-    "branches": 11,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
-    "lines": 344,
-    "branches": 40,
-    "depth": 0
-  },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 409,
     "branches": 65,

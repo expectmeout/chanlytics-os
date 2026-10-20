@@ -31,7 +31,8 @@ for (const m of MEASURES) ratchet(m);
 // parsing the shell's script-mode JSX, the numbers would quietly drop to zero and
 // every ratchet would pass. This is the assertion that says so instead.
 test("the measure sees the shell's JSX and the packages' TypeScript", () => {
-  const shell = functionsIn(parse("apps/dashboard/src/legacy/pages/app-shell.jsx"));
+  // The Line's page, the largest JSX left (the frame is TypeScript since the one-system plan's step 7e).
+  const shell = functionsIn(parse("apps/dashboard/src/legacy/pages/ask-real.jsx"));
   const core = functionsIn(parse("packages/core/src/deliver.ts"));
   assert.ok(shell.length > 10, "the shell's page parsed as JSX and its functions were found");
   assert.ok(

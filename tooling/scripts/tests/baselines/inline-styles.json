@@ -1,11 +1,12 @@
 {
-  "apps/dashboard/src/legacy/components/sidebar.jsx": 10,
   "apps/dashboard/src/legacy/pages/ask-turn.jsx": 1,
   "apps/dashboard/src/surfaces/calendar/blocks.tsx": 7,
   "apps/dashboard/src/surfaces/campaigns/ads/drawer/days.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run-sheet.tsx": 2,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx": 1,
+  "apps/dashboard/src/surfaces/frame/sidebar/sidebar-menus.tsx": 1,
+  "apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx": 9,
   "apps/dashboard/src/surfaces/inbox/pages/agent-rail.tsx": 2,
   "apps/dashboard/src/surfaces/inbox/thread/approval.tsx": 2,
   "apps/dashboard/src/surfaces/inbox/thread/call.tsx": 1,

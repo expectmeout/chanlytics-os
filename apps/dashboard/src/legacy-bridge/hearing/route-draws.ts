@@ -122,7 +122,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  * push that content down if it landed after it. Today draws what is left to set up above its queue. A wait that
  * failed is over (the band says so where it would be, or draws nothing), and a wait never makes a page unavailable:
  * that is its own surface's to say, and a page whose own surface is in draws after ROUTE_WAIT_MS whatever else is
- * still out (app-shell.jsx).
+ * still out (surfaces/frame/app-shell.tsx).
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup"],

@@ -10,6 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { importSrc } from "../_source.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -131,7 +132,14 @@ test("a thread swipes back across, following the finger, and the page is told wh
   const back = [];
   const grabs = [];
   const el = element();
-  const h = touchSwipe({ onBack: () => back.push(1), when: () => true, onGrab: (_, on) => grabs.push(on) });
+  const h = touchSwipe({
+    onBack: () => {
+      back.push(1);
+      el.isConnected = false;
+    },
+    when: () => true,
+    onGrab: (_, on) => grabs.push(on),
+  });
   h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
   h.onTouchMove({ touches: [{ clientX: 140, clientY: 306 }], currentTarget: el });
   assert.equal(el.style.transform, "translate3d(80px, 0, 0)");
@@ -141,7 +149,7 @@ test("a thread swipes back across, following the finger, and the page is told wh
   await wait(220);
   assert.deepEqual(back, [1]);
   await wait(80);
-  assert.deepEqual(grabs, [true, false]);
+  assert.deepEqual(grabs, [true, false], "gone, it is let go of");
   // From the screen's edge the browser's own back is the thumb's, and a swipe left is nothing to a thread.
   const edge = element();
   drag(h, edge, [10, 300], [120, 300], [200, 300]);
@@ -149,6 +157,272 @@ test("a thread swipes back across, following the finger, and the page is told wh
   drag(h, left, [200, 300], [120, 300], [40, 300]);
   assert.equal(edge.style.transform, undefined);
   assert.equal(left.style.transform, undefined);
+});
+
+/* -------------------------------- a thread carried back -------------------------------- */
+// iOS's back: the page carries on from the finger's speed as it lifts, a flick back against the way stays, and the list
+// it opened from comes in under it from a little to the left, dim, lit as the page goes (Ruben, 20 Oct 2026: "swipe back
+// to go back exactly where they were ... smoothly"). The speed was read before as the whole touch's average, and the page
+// left on one curve from rest whatever the finger had been doing.
+
+/** A clock the drag keeps: `step(ms)` moves it on. Put back after `fn`, which drags at once and waits for nothing. */
+const timed = (fn) => {
+  const keep = Date.now;
+  let clock = 5000;
+  Date.now = () => clock;
+  try {
+    return fn((ms) => (clock += ms));
+  } finally {
+    Date.now = keep;
+  }
+};
+
+/** A thread carried back from x 60, each move `ms` after the one before it, lifted `lift` ms after the last. */
+const carry = (h, el, moves, lift) =>
+  timed((step) => {
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
+    for (const [ms, x] of moves) {
+      step(ms);
+      h.onTouchMove({ touches: [{ clientX: x, clientY: 302 }], currentTarget: el });
+    }
+    step(lift);
+    h.onTouchEnd({ changedTouches: [{ clientX: moves.at(-1)[1], clientY: 302 }], currentTarget: el });
+  });
+
+/** A thread that goes when its Back is asked for, as React takes it away. */
+const goingThread = () => {
+  const el = element();
+  const h = touchSwipe({ onBack: () => (el.isConnected = false), when: () => true });
+  return { el, h };
+};
+
+test("a thread let go carries on at the finger's speed: as fast as it was moving, sooner the faster, from rest where it stood still", () => {
+  const leaveOf = (moves, lift) => {
+    const { el, h } = goingThread();
+    carry(h, el, moves, lift);
+    assert.equal(el.style.transform, "translate3d(100%, 0, 0)");
+    return el.style.transition;
+  };
+  // 150px of 375 gone, 225 left. At 1px a millisecond, slowing to rest takes 450 ms: held to the longest, 180, its start a
+  // slope of 0.8 against the straight line.
+  assert.equal(
+    leaveOf(
+      [
+        [50, 160],
+        [50, 210],
+      ],
+      10,
+    ),
+    "transform 180ms cubic-bezier(0.33, 0.267, 0.67, 1)",
+  );
+  // At 3.125px a millisecond, 144 ms, starting at twice the straight line's pace.
+  assert.equal(
+    leaveOf(
+      [
+        [16, 160],
+        [16, 210],
+      ],
+      10,
+    ),
+    "transform 144ms cubic-bezier(0.33, 0.667, 0.67, 1)",
+  );
+  // A flick faster than the shortest leave can carry: 120 ms, its start held to a slope that never overshoots.
+  assert.equal(
+    leaveOf(
+      [
+        [16, 120],
+        [16, 210],
+      ],
+      10,
+    ),
+    "transform 120ms cubic-bezier(0.33, 1.000, 0.67, 1)",
+  );
+  // Held still before it lifted: past the line, it eases away from rest.
+  assert.equal(
+    leaveOf(
+      [
+        [16, 160],
+        [16, 210],
+      ],
+      200,
+    ),
+    "transform 180ms cubic-bezier(0.33, 0.000, 0.67, 1)",
+  );
+});
+
+test("read as it lifts: a short flick the way back leaves, a slow one settles, and one flicked back against the way stays", () => {
+  const verdict = (moves, lift) => {
+    const { el, h } = goingThread();
+    carry(h, el, moves, lift);
+    return el.style.transform;
+  };
+  assert.equal(
+    verdict(
+      [
+        [16, 80],
+        [16, 100],
+      ],
+      10,
+    ),
+    "translate3d(100%, 0, 0)",
+    "40px at 1.25px a millisecond: a flick",
+  );
+  assert.equal(
+    verdict(
+      [
+        [100, 80],
+        [100, 100],
+      ],
+      10,
+    ),
+    "translate3d(0, 0, 0)",
+    "40px slowly: back where it was",
+  );
+  assert.equal(
+    verdict(
+      [
+        [16, 260],
+        [16, 210],
+      ],
+      10,
+    ),
+    "translate3d(0, 0, 0)",
+    "150px past the line, but on its way back at 3px a millisecond: it stays, as on iOS",
+  );
+  assert.equal(
+    verdict(
+      [
+        [16, 260],
+        [200, 255],
+      ],
+      10,
+    ),
+    "translate3d(100%, 0, 0)",
+    "past the line and drifting back slower than a flick: it goes",
+  );
+});
+
+test("what lies under a thread carried back comes in from a little to its left, dim, and is lit as the thread goes", async () => {
+  const list = element();
+  const el = element();
+  const h = touchSwipe({ onBack: () => (el.isConnected = false), when: () => true, under: () => list });
+  timed((step) => {
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
+    step(16);
+    h.onTouchMove({ touches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+    assert.equal(list.style.transition, "none", "while the finger holds the thread, it moves at once");
+    assert.equal(list.style.translate, "-90px 0", "a fifth of the way: four fifths of 30% of the width to the left");
+    assert.ok(Math.abs(Number(list.style.opacity) - 0.68) < 1e-9, "and a fifth of the way from 0.6 to lit");
+    step(200);
+    h.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 302 }], currentTarget: el });
+  });
+  const curve = "180ms cubic-bezier(0.33, 0.000, 0.67, 1)";
+  assert.equal(list.style.transition, `translate ${curve}, opacity ${curve}`, "on the thread's own curve");
+  assert.equal(list.style.translate, "0px 0");
+  assert.equal(list.style.opacity, "1");
+  await wait(400);
+  assert.deepEqual(
+    [list.style.transition, list.style.translate, list.style.opacity],
+    ["", "", ""],
+    "the thread gone, the list's own rules have it again",
+  );
+});
+
+test("a thread let go short settles back, and the list goes back under it, out of sight only once it is covered", async () => {
+  const list = element();
+  const grabs = [];
+  const el = element();
+  const h = touchSwipe({ onBack: () => {}, when: () => true, under: () => list, onGrab: (_, on) => grabs.push(on) });
+  timed((step) => {
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
+    step(16);
+    h.onTouchMove({ touches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+    step(200);
+    h.onTouchEnd({ changedTouches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+  });
+  assert.equal(el.style.transform, "translate3d(0, 0, 0)");
+  assert.equal(list.style.translate, "-112px 0", "back to where it starts, 30% of the width to the left");
+  assert.equal(list.style.opacity, "0.6");
+  assert.equal(list.style.transition, "translate 240ms var(--ease-out), opacity 240ms var(--ease-out)");
+  assert.deepEqual(grabs, [true], "still drawn under the thread as it settles: nothing blinks out behind it");
+  await wait(400);
+  assert.deepEqual(grabs, [true, false], "covered, the list goes out of sight");
+  assert.equal(list.style.translate, "");
+});
+
+/** An element whose every transform is kept, in order and when: what was on the screen, whenever the timers ran. */
+const watched = () => {
+  const el = element();
+  const seen = [];
+  let now;
+  Object.defineProperty(el.style, "transform", {
+    get: () => now,
+    set: (v) => {
+      now = v;
+      seen.push({ v, at: performance.now() });
+    },
+  });
+  const from = (v) => seen.slice(seen.findIndex((s) => s.v === v));
+  /** What it was given from the leave on, and how long it stood where it went before it settled back. */
+  const after = () => from("translate3d(100%, 0, 0)").map((s) => s.v);
+  const stood = () => {
+    const [went, back] = from("translate3d(100%, 0, 0)");
+    return back ? back.at - went.at : Infinity;
+  };
+  return { el, after, stood };
+};
+
+/** Carried back past the line, at rest as it lifts. */
+const pastTheLine = (h, el) =>
+  carry(
+    h,
+    el,
+    [
+      [16, 160],
+      [16, 260],
+    ],
+    200,
+  );
+
+test("a Back that lands a commit late is waited for: the page is never settled back into view on its way out; one kept settles", async () => {
+  // A Back that moves the address takes the page away a commit or more after the close: read once, 60 ms on, a thread
+  // was still there, so it settled back into view for a frame and then went.
+  const late = watched();
+  const lateGrabs = [];
+  pastTheLine(
+    touchSwipe({
+      onBack: () => setTimeout(() => (late.el.isConnected = false), 150),
+      backNavigates: true,
+      when: () => true,
+      onGrab: (_, on) => lateGrabs.push(on),
+    }),
+    late.el,
+  );
+  const kept = watched();
+  pastTheLine(touchSwipe({ onBack: () => {}, backNavigates: true, when: () => true }), kept.el);
+  // A card swiped back and kept where it is (the bell's read, a lead's keep) moves no address: nothing to wait for.
+  const card = watched();
+  pastTheLine(touchSwipe({ onBack: () => {}, when: () => true }), card.el);
+  await wait(300);
+  assert.equal(
+    kept.el.style.transform,
+    "translate3d(100%, 0, 0)",
+    "a page that asks first is given as long as a Back takes",
+  );
+  await wait(900);
+  assert.deepEqual(
+    late.after(),
+    ["translate3d(100%, 0, 0)", ""],
+    "gone, it is let go of where it went, never back in view",
+  );
+  assert.deepEqual(lateGrabs, [true, false]);
+  assert.deepEqual(kept.after(), ["translate3d(100%, 0, 0)", "translate3d(0, 0, 0)", ""], "kept: settled back");
+  assert.deepEqual(card.after(), ["translate3d(100%, 0, 0)", "translate3d(0, 0, 0)", ""], "the card too");
+  assert.ok(kept.stood() >= 360, `the page waited a Back's time (${Math.round(kept.stood())} ms)`);
+  assert.ok(
+    card.stood() < 360,
+    `the card came back once seen to stay: its close is in place (${Math.round(card.stood())} ms)`,
+  );
 });
 
 test("a drawer slides away to the left under the finger, its wash fading, and its own rules take it after the close", async () => {
@@ -641,7 +915,14 @@ test("a strip is walked only where the shell is narrow, and there only where the
   const { viewPager } = await import("../../../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
   Object.assign(globalThis.window, { viewPager, viewDeck });
-  await import("../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  Object.assign(globalThis.window, {
+    SurfaceTabs: surfaceTabs.SurfaceTabs,
+    stripPlace: surfaceTabs.stripPlace,
+    stripSlide: surfaceTabs.stripSlide,
+    stripSwipe: surfaceTabs.stripSwipe,
+  });
   const keep = globalThis.window.matchMedia;
   let width = 800;
   let token = "100%";

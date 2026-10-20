@@ -29,7 +29,7 @@ import {
   type Rect,
   type VirtualizerOptions,
 } from "@tanstack/react-virtual";
-import { scrollsItself } from "../motion/page-scroll";
+import { inHeldList, isDocumentScroller, movingScrollerOf } from "../motion/page-scroll";
 
 /** A part of the list as drawn: a row, by its index, or the room of the rows between two drawn ones. */
 export type ShownPart = { kind: "row"; index: number } | { kind: "gap"; key: string; height: number };
@@ -64,15 +64,12 @@ interface Told {
 }
 
 /**
- * The nearest box that scrolls the list down its length, or the window when none does (a phone's). A box scrolling only
- * across (a wide table's) has a computed overflow down its length too, but grows with its rows: it holds no more than it
- * shows, and is passed over (people/hooks/scroller.ts reads a table's box the same way). Where a page scrolls is
- * kit/motion/page-scroll.ts's (its `scrollerOf` takes the box its styles say scrolls, whatever it holds).
+ * The nearest box that scrolls the list down its length, or the window when none does (a phone's): page-scroll.ts's
+ * `movingScrollerOf`, as the virtualizer is told it.
  */
 function listScrollerOf(el: Element): Scroller {
-  for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement)
-    if (scrollsItself(n) && n.scrollHeight > n.clientHeight + 1) return n;
-  return window;
+  const box = movingScrollerOf(el);
+  return isDocumentScroller(box) ? window : box;
 }
 
 /** Where the list starts in what its scroller scrolls: the room above it, which the rows' own offsets count from. */
@@ -82,23 +79,53 @@ function marginOf(el: Element, scroller: Scroller): number {
   return top - scroller.getBoundingClientRect().top + scroller.scrollTop;
 }
 
+/**
+ * The scroller's observers, deaf while the list is held under what it opened (kit motion/held-list.ts): the window then
+ * scrolls what stands over the list, and a list that heard it drew the rows of the page's top under a thumb carrying that
+ * page back to it. Held, it draws the rows it drew as it was left.
+ */
+type Observers<S extends Element | Window> = Pick<
+  VirtualizerOptions<S, Element>,
+  "observeElementRect" | "observeElementOffset"
+>;
+function unlessHeld<S extends Element | Window>(observe: Observers<S>, held: () => boolean): Observers<S> {
+  return {
+    observeElementRect: (instance, cb) =>
+      observe.observeElementRect(instance, (rect) => {
+        if (!held()) cb(rect);
+      }),
+    observeElementOffset: (instance, cb) =>
+      observe.observeElementOffset(instance, (offset, isScrolling) => {
+        if (!held()) cb(offset, isScrolling);
+      }),
+  };
+}
+
 /** The virtualizer's options for the window, or for a box that scrolls. */
-function windowOptions(w: Window, told: Told, changed: (sync: boolean) => void): VirtualizerOptions<Window, Element> {
+function windowOptions(
+  w: Window,
+  told: Told,
+  changed: (sync: boolean) => void,
+  held: () => boolean,
+): VirtualizerOptions<Window, Element> {
   return {
     ...told,
     getScrollElement: () => w,
-    observeElementRect: observeWindowRect,
-    observeElementOffset: observeWindowOffset,
+    ...unlessHeld<Window>({ observeElementRect: observeWindowRect, observeElementOffset: observeWindowOffset }, held),
     scrollToFn: windowScroll,
     onChange: (_, sync) => changed(sync),
   };
 }
-function boxOptions(box: Element, told: Told, changed: (sync: boolean) => void): VirtualizerOptions<Element, Element> {
+function boxOptions(
+  box: Element,
+  told: Told,
+  changed: (sync: boolean) => void,
+  held: () => boolean,
+): VirtualizerOptions<Element, Element> {
   return {
     ...told,
     getScrollElement: () => box,
-    observeElementRect,
-    observeElementOffset,
+    ...unlessHeld<Element>({ observeElementRect, observeElementOffset }, held),
     scrollToFn: elementScroll,
     onChange: (_, sync) => changed(sync),
   };
@@ -162,6 +189,9 @@ export function useShownRows({
   atNow.current = at;
   // The element the rows are drawn in, as React puts it in the page: a list drawn only once it has rows is found then.
   const [list, setList] = useState<Element | null>(null);
+  const listNow = useRef(list);
+  listNow.current = list;
+  const held = () => inHeldList(listNow.current);
   const kept = useRef(keep);
   kept.current = keep;
   const changed = (sync: boolean) => (sync ? flushSync(drawAgain) : drawAgain());
@@ -189,15 +219,15 @@ export function useShownRows({
       scroller,
       v:
         scroller instanceof Window
-          ? new Virtualizer(windowOptions(scroller, told, changed))
-          : new Virtualizer(boxOptions(scroller, told, changed)),
+          ? new Virtualizer(windowOptions(scroller, told, changed, held))
+          : new Virtualizer(boxOptions(scroller, told, changed, held)),
     };
   }
   const v = scroller ? (deck.current?.v ?? null) : null;
   if (v instanceof Virtualizer && scroller) {
     if (scroller instanceof Window)
-      (v as Virtualizer<Window, Element>).setOptions(windowOptions(scroller, told, changed));
-    else (v as Virtualizer<Element, Element>).setOptions(boxOptions(scroller, told, changed));
+      (v as Virtualizer<Window, Element>).setOptions(windowOptions(scroller, told, changed, held));
+    else (v as Virtualizer<Element, Element>).setOptions(boxOptions(scroller, told, changed, held));
   }
   // Where the list scrolls and where it starts in it, found once it is in the page and again as the page around it moves
   // (a band above the list that comes or goes, the window's width).
@@ -205,6 +235,8 @@ export function useShownRows({
     const el = list;
     if (whole || !el) return undefined;
     const find = () => {
+      // Held, it stands where it was left and out of the page's flow: where it starts in its scroller is as it was.
+      if (inHeldList(el)) return;
       const box = listScrollerOf(el);
       const margin = marginOf(el, box);
       setAt((was) =>

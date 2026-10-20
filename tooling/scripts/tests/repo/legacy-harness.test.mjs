@@ -90,8 +90,10 @@ const importsOf = (list) =>
 /** Every legacy file the bridge loads for every workspace, in order: the frame's, then Ask's Line's, less the parts it publishes first. */
 const manifest = [...importsOf("manifest.ts"), ...importsOf("ask/line-code.ts").filter((f) => f !== "./line-globals")];
 
-/** The shell, which is where a deleted page keeps its last reference. */
-const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
+/** The frame (TypeScript since the one-system plan's step 7e), which is where a deleted page keeps its last reference. */
+const shell = ["app-shell.tsx", "route-table.tsx", "shell-chrome.tsx"]
+  .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
+  .join("\n");
 
 /** Every file of the mockup on disk, in the shape both lists name it. */
 const onDisk = DIRS.flatMap((dir) =>
@@ -147,7 +149,7 @@ const BRIDGED = ["__DEMO_MODE", "__identity", "__tz", "DEFAULT_TIMEZONE", "askAb
 
 test("the harness seeds the bridge's globals before anything reads them", () => {
   // data/inbox-data.jsx and data/people-data.jsx read __DEMO_MODE at module
-  // scope; components/sidebar.jsx and pages/settings.jsx call __identity
+  // scope; the sidebar (surfaces/frame) and pages/settings.jsx call __identity
   // unguarded. First, or it may as well not be there.
   assert.equal(harness[0], STUBS, "bridge-stubs.jsx is the first script the harness loads");
 
@@ -246,7 +248,7 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
   assert.equal(fs.existsSync(path.join(ROOT, LEGACY, "pages/leads.jsx")), false);
   assert.equal(manifest.includes("pages/leads.jsx"), false);
   assert.equal(html.includes("pages/leads.jsx"), false);
-  assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
+  assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "the frame draws no LeadsPage");
 });
 
 test("the mockup takes the kit's components and the Inbox's and People's names from bundles, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
