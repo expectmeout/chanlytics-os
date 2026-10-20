@@ -3,9 +3,9 @@
  * script and a database in memory:
  *
  *   one send     words with no opening cost nothing; an opening written, read by code and by the reader; one rewrite
- *                told why, then held; the code holds first; a hold its owner included it past is never made again
- *                (R7); a model that throws, times out, says nothing or says it in no shape fails the try; the budget
- *                asked before every call (R1).
+ *                told why, then held; the code holds first; a business hold its owner included it past is never made
+ *                again, and an Include past a word hold covers that one email (R7); a model that throws, times out,
+ *                says nothing or says it in no shape fails the try; the budget asked before every call (R1).
  *   the tick     what passes is checked against its words (checked_words, R5) and its lease ends; a failed try backs
  *                off 1, 2, 4, 8, 15 minutes, and an hour of them holds it check_unavailable (R4); a check never writes
  *                onto words that changed under it (R3, R5); a workspace that may not spend, has no room this month or
@@ -175,6 +175,31 @@ test("a hold its owner included the send past is never made again (R7)", async (
   const es = scripted(WROTE("Una frase."), READ({ language: "es" }));
   const l = await checkOne(input({ included: ["language"] }), es.ask, open);
   assert.deepEqual([l.hold, l.opening.opening], [null, "Una frase."], "the opening goes as it reads");
+});
+
+test("an Include past a word hold covers that one email: a later step's new opening is read afresh (R7)", async () => {
+  // The step before was included past an unbacked fact; this step's opening is new words its owner never saw.
+  const twice = scripted(
+    WROTE("Loved by locals."),
+    READ({ backed: false, unbacked: "Loved by locals" }),
+    WROTE("Loved by all."),
+    READ({ backed: false, unbacked: "Loved by all" }),
+  );
+  const held = await checkOne(input({ included: ["unbacked_fact"] }), twice.ask, open);
+  assert.deepEqual([held.hold, held.detail], ["unbacked_fact", "Loved by all"]);
+  const pitch = scripted(
+    WROTE("Movers love us."),
+    READ({ pitch: true }),
+    WROTE("Movers love it."),
+    READ({ pitch: true }),
+  );
+  assert.equal((await checkOne(input({ included: ["reads_like_spam"] }), pitch.ask, open)).hold, "reads_like_spam");
+});
+
+test("an Include past a business hold covers the lead for the chain: a later step's send is not held for it (R7)", async () => {
+  const sound = scripted(WROTE("A 4.9 from 16 reviews."), READ());
+  const out = await checkOne(input({ chain: { by: "site", listings: 3 }, included: ["chain"] }), sound.ask, open);
+  assert.deepEqual([out.hold, out.opening.opening], [null, "A 4.9 from 16 reviews."]);
 });
 
 test("a model that cannot answer fails the try: nothing, no shape, a throw, a deadline", async () => {
@@ -609,6 +634,16 @@ test("words with no opening are checked with no call; a hold its owner included 
   const out = await tick(w, byBusiness({}).ask);
   assert.deepEqual([out.checked, out.held, out.calls], [1, 0, 0]);
   assert.deepEqual([w.row(chain.id).state, w.row(chain.id).opening], ["planned", null]);
+});
+
+test("a nudge to a lead whose first email was included past an unbacked fact is read afresh, and held for its own (R7)", async () => {
+  const nudge = send({ lead_id: "nudge", included_for: ["unbacked_fact"] });
+  const w = world({ sends: [nudge], records: { nudge: record("Nudge Movers") } });
+  const m = byBusiness({ "Nudge Movers": [WROTE("A 4.8 says it."), READ(), WROTE("A 4.7 says it."), READ()] });
+  const out = await tick(w, m.ask);
+  assert.deepEqual([out.checked, out.held], [1, 1]);
+  const r = w.row(nudge.id);
+  assert.deepEqual([r.state, r.reason, r.included_for], ["held", "unbacked_fact", ["unbacked_fact"]]);
 });
 
 test("a check_unavailable hold with no rule broken goes back to be checked an hour on; one for a rule keeps (R4)", async () => {

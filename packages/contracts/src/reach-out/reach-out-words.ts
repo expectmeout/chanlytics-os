@@ -21,6 +21,8 @@
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
  *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
+ *   HOLDS_INCLUDED_FOR_CHAIN the holds an owner's Include carries to the lead's later sends in the chain (R7); an Include
+ *                            past any other covers that one email
  */
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
@@ -623,6 +625,20 @@ export function holdDoors(h: ReachOutHold): HoldDoor[] {
       return ["include", "skip"];
   }
 }
+
+/**
+ * The holds an owner's Include carries past this one email to the lead's later sends in the chain (R7). These four are
+ * facts about the business, the same at every step: a person in People writes from its domain, it reads like a chain,
+ * its listing reads in another language, it is abroad. The two word holds, unbacked_fact and reads_like_spam, are about
+ * one opening's words, and every step's opening is written fresh: an Include past them vouches for that email alone,
+ * and a later step's opening is read as any other. check_unavailable is never included (reach_out_send_decide refuses).
+ */
+export const HOLDS_INCLUDED_FOR_CHAIN: ReadonlySet<ReachOutHold> = new Set<ReachOutHold>([
+  "customer_domain",
+  "chain",
+  "language",
+  "abroad",
+]);
 
 /** A held email's doors, in one meaning each (the lead-to-sequence canvas): it goes as it reads, or this one is skipped. */
 export const HOLD_DOOR_WORDS: Record<HoldDoor, string> = {

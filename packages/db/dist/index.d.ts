@@ -43794,7 +43794,10 @@ interface UncheckedSend {
     template_id: string;
     template_language: string;
     signed_by: string | null;
-    /** The holds its owner included it, or its lead in this chain, past (R7): never held for them again. */
+    /**
+     * The holds its owner included it, or its lead in this chain, past (R7): the check honours the ones an Include carries
+     * (contracts HOLDS_INCLUDED_FOR_CHAIN).
+     */
     included_for: string[];
     record: ReachOutRecordRow;
 }

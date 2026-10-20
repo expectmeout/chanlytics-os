@@ -376,6 +376,12 @@ export function holdDoors(h) {
       return ["include", "skip"];
   }
 }
+export const HOLDS_INCLUDED_FOR_CHAIN = /* @__PURE__ */ new Set([
+  "customer_domain",
+  "chain",
+  "language",
+  "abroad"
+]);
 export const HOLD_DOOR_WORDS = {
   include: "Send as written",
   rewrite: "Rewrite the opening",
