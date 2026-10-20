@@ -21,7 +21,7 @@ import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
-import { heldUnder, showHeld } from "../../kit/motion/held-list";
+import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -72,10 +72,12 @@ const ixGoing = (el: Element | null, on: boolean) => {
   showHeld(on);
 };
 // A thread on a phone goes back to its list under the thumb, as Back does: swiped right, it follows the finger and the
-// list comes in under it from a little to its left (kit/motion/swipe.ts touchSwipe). Nothing without a Back, and nothing
-// wider than a phone.
+// screen it goes back to comes in under it from a little to its left, the list and the frame's chrome over it as they
+// stood (kit/motion/swipe.ts touchSwipe, kit/motion/held-list.ts). Nothing without a Back, and nothing wider than a phone.
 export const ixSwipeBack = (onBack: (() => void) | null | undefined): HTMLAttributes<HTMLDivElement> =>
-  (onBack ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing, under: heldUnder, backNavigates: true }) : null) ?? {};
+  (onBack
+    ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing, under: heldUnder, along: heldAlong, backNavigates: true })
+    : null) ?? {};
 
 /** What the pane asks of its page: the thread, and what to do with each press. */
 export interface InboxThreadProps {

@@ -26,7 +26,7 @@ import type { LookedAt, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/con
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { tabMemory } from "../../kit/record/shell-verbs";
-import { heldUnder, showHeld } from "../../kit/motion/held-list";
+import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { mayAtLeast, navigate, touchSwipe } from "../../legacy-verbs";
 import { addressReplace } from "../shell-verbs";
@@ -497,8 +497,8 @@ function useRailHeld(held: RefObject<HTMLDivElement | null>): (scroller: HTMLDiv
 /**
  * A phone's thumb on the page (kit/motion/swipe.ts touchSwipe): across the tab's panes it walks the strip (work.tsx tabPages), and
  * right of the first tab, or from the head at any tab, it carries the page back to People, the page following the finger
- * and the list it was opened from coming in under it, at the rows it was left on (kit/motion/held-list.ts); the foot's
- * dock steps aside while it moves. Never from 24px of either edge, the phone's own back, nor from a field or a row that
+ * with its ‹ People and ‹ › and the list it was opened from coming in under it, at the rows it was left on, its head and
+ * strip of views over it as they stood (kit/motion/held-list.ts); the foot's dock steps aside while it moves. Never from 24px of either edge, the phone's own back, nor from a field or a row that
  * scrolls across. None on a desk.
  */
 function pageSwipe(c: PageCtx) {
@@ -513,6 +513,7 @@ function pageSwipe(c: PageCtx) {
       showHeld(on);
     },
     under: heldUnder,
+    along: heldAlong,
     backNavigates: true,
   });
 }

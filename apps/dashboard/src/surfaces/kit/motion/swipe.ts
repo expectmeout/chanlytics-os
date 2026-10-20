@@ -40,8 +40,9 @@
  * from that speed (`carryOn`): it slowed as the finger lifted and sped up again, on a fixed curve that started at rest
  * (Ruben, 20 Oct 2026, "Back to your place"). Whether the page let it go is judged once it has had the time to (a Back
  * that moves the address, `backNavigates`, lands later than a close in place): one still on the page by then was kept.
- * `under` is what lies under a page carried back: a list held under the row's page it opened (held-list.ts), which
- * comes in from a little to its left and brightens as the page goes, and goes back as the page settles.
+ * `under` is what lies under a page carried back: a list held under the row's page it opened, with the frame's chrome over
+ * it (held-list.ts), which comes in from a little to its left and brightens as the page goes, and goes back as the page
+ * settles; `along` is what goes with the page (what it drew in the frame's top for itself), moved as the page is.
  */
 import type { TouchEvent } from "react";
 import type { ViewPage } from "../view-tabs/pager";
@@ -76,7 +77,9 @@ export interface SwipeOptions {
   /** Grabbed (`on`, with the way it moves) or let go: what is under it can show while it moves. */
   onGrab?: ((el: Element, on: boolean, way?: "down" | "back" | "away") => void) | null;
   /** What lies under a page carried back, asked as it is grabbed: it comes in under the page as the page goes. */
-  under?: (() => HTMLElement | null) | null;
+  under?: (() => readonly HTMLElement[]) | null;
+  /** What goes with a page carried back, asked once it is grabbed (and `under` asked): it moves as the page does. */
+  along?: (() => readonly HTMLElement[]) | null;
   /**
    * Whether `onBack` moves the address (a page carried back to its list), which takes the page away later than a close in
    * place: it is waited for before the page is judged kept. A card swiped back and kept (the bell's read, a lead's keep)
@@ -145,8 +148,9 @@ interface Held {
   mt: number;
   vx: number;
   vy: number;
-  /** What lies under a page carried back (`under`), while it is carried. */
-  below: HTMLElement | null;
+  /** What lies under a page carried back (`under`), and what goes with it (`along`), while it is carried. */
+  below: readonly HTMLElement[];
+  along: readonly HTMLElement[];
 }
 
 const elementOf = (e: SwipeEvent | null | undefined): HTMLElement | null =>
@@ -252,24 +256,42 @@ const carryOn = (d: number, size: number, speed: number): { ms: number; easing: 
   return { ms, easing: `cubic-bezier(0.33, ${(slope / 3).toFixed(3)}, 0.67, 1)` };
 };
 // Where what lies under a page carried back stands, with the page `share` of its way gone.
-const placeUnder = (below: HTMLElement, width: number, share: number) => {
+const placeUnder = (below: readonly HTMLElement[], width: number, share: number) => {
   const s = Math.min(1, Math.max(0, share));
-  below.style.translate = `${Math.round(-UNDER_SHARE * width * (1 - s))}px 0`;
-  below.style.opacity = String(UNDER_DIM + (1 - UNDER_DIM) * s);
+  for (const el of below) {
+    el.style.translate = `${Math.round(-UNDER_SHARE * width * (1 - s))}px 0`;
+    el.style.opacity = String(UNDER_DIM + (1 - UNDER_DIM) * s);
+  }
 };
-const clearUnder = (below: HTMLElement | null) => {
-  if (!below) return;
-  below.style.transition = "";
-  below.style.translate = "";
-  below.style.opacity = "";
+const clearUnder = (below: readonly HTMLElement[]) => {
+  for (const el of below) {
+    el.style.transition = "";
+    el.style.translate = "";
+    el.style.opacity = "";
+  }
+};
+// What goes with a page carried back, `dx` across, on `move` (a transition, or none while the finger holds it).
+const moveAlong = (along: readonly HTMLElement[], dx: number, move: string) => {
+  for (const el of along) {
+    el.style.transition = move === "none" ? "none" : `transform ${move}`;
+    el.style.transform = `translate3d(${Math.round(dx)}px, 0, 0)`;
+  }
+};
+const clearAlong = (along: readonly HTMLElement[]) => {
+  for (const el of along) {
+    el.style.transition = "";
+    el.style.transform = "";
+  }
 };
 // Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again. What lay under it goes back with it, and out of sight once it is covered.
 const swipeSettle = (g: Held) => {
-  const { el, wash, below } = g;
+  const { el, wash, below, along } = g;
   const covered = () => {
     clearUnder(below);
-    g.below = null;
+    clearAlong(along);
+    g.below = [];
+    g.along = [];
     if (g.onGrab) g.onGrab(el, false);
   };
   if (!el.style) {
@@ -284,10 +306,9 @@ const swipeSettle = (g: Held) => {
     wash.style.transition = now ? "none" : `opacity ${move}`;
     wash.style.opacity = "";
   }
-  if (below) {
-    below.style.transition = now ? "none" : `translate ${move}, opacity ${move}`;
-    placeUnder(below, el.offsetWidth || DEFAULT_SIZE, 0);
-  }
+  for (const b of below) b.style.transition = now ? "none" : `translate ${move}, opacity ${move}`;
+  placeUnder(below, el.offsetWidth || DEFAULT_SIZE, 0);
+  moveAlong(along, 0, now ? "none" : move);
   setTimeout(
     () => {
       el.style.transition = "";
@@ -318,7 +339,9 @@ const swipeArrive = (g: Held) => {
 // Let go of for good: its inline styles go, and its own rules have it again.
 const swipeClear = (g: Held) => {
   clearUnder(g.below);
-  g.below = null;
+  clearAlong(g.along);
+  g.below = [];
+  g.along = [];
   if (g.onGrab) g.onGrab(g.el, false);
   if (!g.el.style) return;
   g.el.style.transition = "";
@@ -361,7 +384,7 @@ const TURN = { ms: LEAVE_MS, easing: "var(--ease-in)" };
 // carried back comes in as it goes. A page that stays is asked for the next once it has left, and comes back in when that
 // has landed.
 const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: string } = TURN) => {
-  const { el, wash, way, below } = g;
+  const { el, wash, way, below, along } = g;
   const done = () => {
     if (way === "page") {
       void Promise.resolve(close()).then(() => swipeArrive(g));
@@ -376,7 +399,7 @@ const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: 
   };
   const width = el.offsetWidth || DEFAULT_SIZE;
   if (!el.style || motionReduced()) {
-    if (below) placeUnder(below, width, 1);
+    placeUnder(below, width, 1);
     done();
     return;
   }
@@ -387,10 +410,9 @@ const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: 
     wash.style.transition = `opacity ${move}`;
     wash.style.opacity = "0";
   }
-  if (below) {
-    below.style.transition = `translate ${move}, opacity ${move}`;
-    placeUnder(below, width, 1);
-  }
+  for (const b of below) b.style.transition = `translate ${move}, opacity ${move}`;
+  placeUnder(below, width, 1);
+  moveAlong(along, width, move);
   setTimeout(done, curve.ms);
 };
 // A page that stays (the Calendar's days) says only what is each side and how to turn: it is given a strip page's three
@@ -444,12 +466,12 @@ const swipeTake = (g: Held, dx: number, dy: number) => {
   if (g.way !== "page" && el.style) el.style.transition = "none";
   if (g.wash && g.wash.style) g.wash.style.transition = "none";
   if (o.onGrab && g.way !== "page") o.onGrab(el, true, g.way);
-  // What lies under a page carried back, shown by the grab, starts a little to its left, and dim.
-  g.below = g.way === "back" && o.under ? o.under() : null;
-  if (g.below) {
-    g.below.style.transition = "none";
-    placeUnder(g.below, el.offsetWidth || DEFAULT_SIZE, 0);
-  }
+  // What lies under a page carried back, shown by the grab, starts a little to its left, and dim; what goes with it holds.
+  g.below = g.way === "back" && o.under ? o.under() : [];
+  g.along = g.way === "back" && o.along ? o.along() : [];
+  for (const b of g.below) b.style.transition = "none";
+  placeUnder(g.below, el.offsetWidth || DEFAULT_SIZE, 0);
+  moveAlong(g.along, 0, "none");
 };
 // What follows the finger, as far as it has gone.
 const swipeFollow = (g: Held, dx: number, dy: number) => {
@@ -460,10 +482,9 @@ const swipeFollow = (g: Held, dx: number, dy: number) => {
     if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || DEFAULT_SIZE)));
   } else if (g.way === "back") {
     el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
-    if (g.below) {
-      const width = el.offsetWidth || DEFAULT_SIZE;
-      placeUnder(g.below, width, Math.max(0, dx) / width);
-    }
+    const width = el.offsetWidth || DEFAULT_SIZE;
+    placeUnder(g.below, width, Math.max(0, dx) / width);
+    moveAlong(g.along, Math.max(0, dx), "none");
   } else if (g.way === "away") {
     const d = Math.min(0, dx);
     el.style.transform = `translate3d(${d}px, 0, 0)`;
@@ -566,7 +587,8 @@ export const touchSwipe = (options: SwipeOptions): SwipeHandlers => {
       mt: Date.now(),
       vx: 0,
       vy: 0,
-      below: null,
+      below: [],
+      along: [],
     });
   };
   const onTouchMove: Handler = (e) => {

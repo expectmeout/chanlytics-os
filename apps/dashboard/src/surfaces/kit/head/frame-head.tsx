@@ -33,6 +33,19 @@ function placesNow(): Places {
   };
 }
 
+/**
+ * What the page on screen drew in the frame's top for itself, as the screen shows it: its way back in the date's place (a
+ * person's ‹ People, with ‹ › in the bell's) and the name the bar says once its head has gone. A row's page carried back
+ * takes a still copy of them with it (kit motion/held-list.ts), and the head stands as it stood over the list under it.
+ */
+export function pagesOwnTop(): HTMLElement[] {
+  const date = document.getElementById(PLACES.dateline);
+  const bar = date?.parentElement?.querySelector<HTMLElement>(".pg-bartitle[data-shown]") ?? null;
+  return [date && date.querySelector(".pg-back") ? date : null, bar].filter(
+    (el): el is HTMLElement => !!el && el.getClientRects().length > 0,
+  );
+}
+
 /** Whether the places found are still in the document: the shell drawn again from nothing leaves them behind. */
 const stillThere = (p: Places): boolean => !!p.head && document.contains(p.head);
 

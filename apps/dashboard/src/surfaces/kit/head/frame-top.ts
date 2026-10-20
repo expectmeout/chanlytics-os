@@ -1,5 +1,7 @@
 /** The tops watched now, each by the measure that sets its height. */
 const measures = new Set<() => void>();
+/** Whether the top's height is held where it is (holdFrameTop). */
+let heightHeld = false;
 
 /**
  * The frame's top on a phone (frame/shell-chrome.tsx `.frame-top`: the date, the bell, a call, the shell's status, a pane's name and
@@ -21,7 +23,9 @@ export function watchFrameTop(top: HTMLElement): () => void {
   };
   const size = () => doc.style.setProperty("--frame-top", `${top.offsetHeight}px`);
   window.addEventListener("scroll", under, { passive: true });
-  const sized = new ResizeObserver(size);
+  const sized = new ResizeObserver(() => {
+    if (!heightHeld) size();
+  });
   sized.observe(top);
   under();
   size();
@@ -40,4 +44,16 @@ export function watchFrameTop(top: HTMLElement): () => void {
  */
 export function measureFrameTop(): void {
   for (const size of measures) size();
+}
+
+/**
+ * The top's height held where it is (`on`), whatever the top draws, until it is let go and measured again: while a thumb
+ * carries a row's page back, the frame draws its chrome again under that page (kit motion/held-list.ts showHeld), and the
+ * page, which starts under the top, would have moved down by all of it under the finger. Only a measure asked for by name
+ * (measureFrameTop) is taken while it is held.
+ */
+export function holdFrameTop(on: boolean): void {
+  if (heightHeld === on) return;
+  heightHeld = on;
+  if (!on) measureFrameTop();
 }

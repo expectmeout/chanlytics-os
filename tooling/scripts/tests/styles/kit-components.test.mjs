@@ -1307,7 +1307,8 @@ test("TabBar draws the gallery's Tab bar family: links on one capsule, the lozen
   );
   assert.equal(bar.type, "nav");
   assert.equal(bar.props.className, "tab-bar phone-places", "the page's layout class comes last");
-  assert.deepEqual(keysOf(bar), ["aria-label", "className", "data-testid", "ref"]);
+  // The frame's chrome (data-chrome): a row's page carried back by a thumb shows it under it (kit/motion/held-list.ts).
+  assert.deepEqual(keysOf(bar), ["aria-label", "className", "data-chrome", "data-testid", "ref"]);
   const [pill, ...tabs] = bar.props.children.flat().filter(Boolean);
   assert.equal(pill.props.className, "tab-bar-pill");
   assert.deepEqual(

@@ -305,7 +305,7 @@ test("read as it lifts: a short flick the way back leaves, a slow one settles, a
 test("what lies under a thread carried back comes in from a little to its left, dim, and is lit as the thread goes", async () => {
   const list = element();
   const el = element();
-  const h = touchSwipe({ onBack: () => (el.isConnected = false), when: () => true, under: () => list });
+  const h = touchSwipe({ onBack: () => (el.isConnected = false), when: () => true, under: () => [list] });
   timed((step) => {
     h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
     step(16);
@@ -332,7 +332,7 @@ test("a thread let go short settles back, and the list goes back under it, out o
   const list = element();
   const grabs = [];
   const el = element();
-  const h = touchSwipe({ onBack: () => {}, when: () => true, under: () => list, onGrab: (_, on) => grabs.push(on) });
+  const h = touchSwipe({ onBack: () => {}, when: () => true, under: () => [list], onGrab: (_, on) => grabs.push(on) });
   timed((step) => {
     h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
     step(16);
@@ -348,6 +348,64 @@ test("a thread let go short settles back, and the list goes back under it, out o
   await wait(400);
   assert.deepEqual(grabs, [true, false], "covered, the list goes out of sight");
   assert.equal(list.style.translate, "");
+});
+
+test("the frame's chrome comes in with the list, and what the page drew in the frame's top goes with the page", async () => {
+  // Under a page carried back lies the whole screen it goes back to: the list held under it and the frame's top, tab bar
+  // and Ask's circle over that list, each as far to the left and as dim as the list (Ruben, 20 Oct 2026: the head and the
+  // strip came in at once as the Back landed). A person's ‹ People and ‹ › stand in the frame's top: a still copy of them
+  // goes with the page, as far across, on its curve, and comes back with it.
+  const list = element();
+  const top = element();
+  const band = element();
+  const el = element();
+  const h = touchSwipe({
+    onBack: () => (el.isConnected = false),
+    when: () => true,
+    under: () => [list, top],
+    along: () => [band],
+  });
+  timed((step) => {
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
+    step(16);
+    h.onTouchMove({ touches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+    assert.deepEqual(
+      [top.style.translate, top.style.opacity],
+      [list.style.translate, list.style.opacity],
+      "as the list is",
+    );
+    assert.equal(band.style.transition, "none", "with the finger, at once");
+    assert.equal(band.style.transform, "translate3d(75px, 0, 0)", "as far across as the page");
+    step(200);
+    h.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 302 }], currentTarget: el });
+  });
+  const curve = "180ms cubic-bezier(0.33, 0.000, 0.67, 1)";
+  assert.equal(top.style.translate, "0px 0", "in place as the page goes");
+  assert.equal(band.style.transition, `transform ${curve}`, "on the page's own curve");
+  assert.equal(band.style.transform, "translate3d(375px, 0, 0)", "away with it, the page's width");
+  await wait(400);
+  assert.deepEqual(
+    [top.style.translate, top.style.opacity, band.style.transform],
+    ["", "", ""],
+    "nothing left on either",
+  );
+});
+
+test("let go short, what went with the page comes back with it", async () => {
+  const band = element();
+  const el = element();
+  const h = touchSwipe({ onBack: () => {}, when: () => true, under: () => [], along: () => [band] });
+  timed((step) => {
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: el, target: el });
+    step(16);
+    h.onTouchMove({ touches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+    step(200);
+    h.onTouchEnd({ changedTouches: [{ clientX: 135, clientY: 302 }], currentTarget: el });
+  });
+  assert.equal(band.style.transform, "translate3d(0px, 0, 0)");
+  assert.equal(band.style.transition, "transform 240ms var(--ease-out)");
+  await wait(400);
+  assert.equal(band.style.transform, "");
 });
 
 /** An element whose every transform is kept, in order and when: what was on the screen, whenever the timers ran. */
@@ -932,7 +990,7 @@ test("a strip is walked only where the shell is narrow, and there only where the
   };
   globalThis.document.timeline = { currentTime: 0 };
   globalThis.getComputedStyle = () => ({ getPropertyValue: () => token });
-  const walked = () => {
+  const walked = (takenOver = false) => {
     const pressed = [];
     const tab = (active, name) => ({
       offsetLeft: active ? 4 : 90,
@@ -958,12 +1016,16 @@ test("a strip is walked only where the shell is narrow, and there only where the
       animate: () => ({ finished: new Promise(() => {}), cancel() {} }),
     });
     view.contains = (other) => other === view;
+    view.querySelector = (sel) => (takenOver && sel === "[data-takeover]" ? {} : null);
     viewDeck.view("frame")(view);
     drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
     return pressed;
   };
   try {
     assert.deepEqual(walked(), ["leads"], "a page of one column, under 900px: walked");
+    // An open thread or a person's page: the strip over it is the list's, drawn again under it only while a thumb carries
+    // it back (kit/motion/held-list.ts), and the touch that carries it is never also a walk.
+    assert.deepEqual(walked(true), [], "under a page that takes the screen over, nothing is");
     token = "56px";
     assert.deepEqual(walked(), [], "two panes at the same width travel a desk's length: not a finger's to carry");
     token = "100%";

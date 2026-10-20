@@ -2916,7 +2916,8 @@ button.tl-stamp:focus-visible {
   }
   /* The buckets are the Inbox's sub-menu, so they are not a second capsule under the strip of views (components.css draws
      that one): the kit's sub-tabs, at the page's gutter, 4px under the strip. */
-  .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot {
+  .main:has(> .main-scroll > .inbox:not([data-takeover])) .pg-slot,
+  :root[data-carrying] .main:has(> .main-scroll > .inbox) .pg-slot {
     padding-bottom: 4px;
   }
   .inbox .ix-list > .ix-buckets {

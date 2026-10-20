@@ -7,8 +7,9 @@
  * views a route's group has, what each counts, their addresses warmed, and where a route stands on its strip. The
  * frame's JSX reads it by its old names (frame-globals.ts) until the frame itself is TypeScript (step 7e).
  */
-import { useEffect, useReducer } from "react";
+import { useEffect, useLayoutEffect, useReducer } from "react";
 import type { ComponentType } from "react";
+import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
 import { frameChrome, isDemoFrame } from "./frame-window";
@@ -142,25 +143,39 @@ interface SurfaceTabsProps {
   onNavigate: (to: string) => void;
 }
 
+// Detail views keep their focus: none on a person's profile. A list (seg:, list:) and a state (state:) are views of People
+// (the wiring audit's N24). A page that says its own views says none for one.
+const stOnAPerson = (page: string, param: string | null | undefined, own: SurfaceViews | null): boolean =>
+  !own && page === "clients" && !!param && !/^(seg|list|state):/.test(param);
+
 // `views` is a page that says its own views (surfaces/routes.ts SurfaceViews: People's scopes, Reports' lenses, from its
 // chrome): the same strip, drawn here once for every page, whether the views are a group's or the page's own. A page's
-// views are its tabs, the one picked is its own to name, and a view is a move to a route like any tab here.
+// views are its tabs, the one picked is its own to name, and a view is a move to a route like any tab here. While a thumb
+// carries a row's page back to the list held under it, the strip is the one drawn over that list (kit/head/standing.ts
+// headUnder), so the screen under the page is the one it goes back to: a person's page draws none of its own.
 export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps) {
   useLiveRedraws();
-  const own = views && views.tabs.length > 1 ? views : null;
+  const under = useHeadUnder();
+  const at: StripAt | null = under ? under.strip : { page, param, views };
+  const own = at && at.views && at.views.tabs.length > 1 ? at.views : null;
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
   // Inbox has been, and nowhere in the standalone mockup.
   const needs = window.useNeedsYou ? window.useNeedsYou() : 0;
-  const [groupKey, tabs] = stTabsOf(page, own);
-  const warmRoutes = tabs.map((t) => t.to).join(" ");
+  const [groupKey, tabs] = at ? stTabsOf(at.page, own) : [null, []];
+  // None stood over the list a carried page goes back to, or this is a person's profile.
+  const none = !at || stOnAPerson(at.page, at.param, own);
+  // A strip drawn only under a carried page warms nothing: its addresses were warmed as it stood.
+  const warmRoutes = under ? "" : tabs.map((t) => t.to).join(" ");
   useEffect(() => {
     const a = stAddress();
     if (warmRoutes && a && a.warmSoon) a.warmSoon(warmRoutes.split(" "));
   }, [groupKey, page, warmRoutes]);
+  // What it drew, for the head kept as it stands as a row opens over the page (kit motion/held-list.ts).
+  useLayoutEffect(() => {
+    if (!under) stripShown(tabs.length >= 2 && !none ? { page, param, views } : null);
+  });
   if (tabs.length < 2) return null;
-  // Detail views keep their focus: hide on a person's profile. A list (seg:, list:) and a state (state:) are views of
-  // People (the wiring audit's N24). A page that says its own views says none for one.
-  if (!own && page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
+  if (none || !at) return null;
   const routeOf = (id: string) => {
     const tab = tabs.find((t) => t.id === id);
     return tab ? tab.to : id;
@@ -171,7 +186,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
       name={groupKey || ""}
       label={own ? own.label : "Section views"}
       testid={own ? own.testid : undefined}
-      picked={own ? own.picked : page}
+      picked={own ? own.picked : at.page}
       tabs={tabs.map((t: StTab) => ({
         id: t.id,
         label: t.label,

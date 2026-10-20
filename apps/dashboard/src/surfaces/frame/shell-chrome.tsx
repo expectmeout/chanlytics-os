@@ -10,6 +10,7 @@ import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
 import { AskLine } from "@/legacy-bridge/ask/line";
 import { FailedRead } from "../kit/empty/empty";
+import { useHeadUnder } from "../kit/head/standing";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
@@ -162,6 +163,20 @@ interface HeadAt {
 }
 
 /**
+ * The slot of the frame's head, which says whose strip of views it holds (`data-strip`): the page's, or, while a thumb
+ * carries a row's page back to the list held under it, the list's, as the strip it holds then is (surface-tabs.tsx).
+ */
+function PageSlot({ views, children }: { views: SurfaceViews | null | undefined; children: ReactNode }) {
+  const under = useHeadUnder();
+  const held = under ? under.strip && under.strip.views : views;
+  return (
+    <div className="pg-slot" data-strip={held && held.tabs.length > 1 ? held.name : undefined}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * The frame's places for the kit's head in Glass (pg-head and pg-act, with the row of views between them; the kit draws
  * into them, surfaces/kit/head/frame-head.tsx): over the page where the page is a pane that scrolls inside itself, and at
  * the top of the page's own scroll where the page scrolls (Today). Classic draws the row of views alone, over the page.
@@ -172,14 +187,14 @@ const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAc
   if (!glass) return where === "over" ? <Strip page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
-    <div className="pg-slot" data-strip={views && views.tabs.length > 1 ? views.name : undefined}>
+    <PageSlot views={views}>
       <div className="pg-head-slot" id="pg-head" />
       <Strip page={page} param={param} views={views} onNavigate={navigate} />
       <div className="pg-act-slot">
         <span id="pg-act" />
         {primaryAction}
       </div>
-    </div>
+    </PageSlot>
   );
 };
 
@@ -253,13 +268,15 @@ const sideWrap = (s: ChromeAt) => {
 /**
  * What stands over the page: no box on a desk; on a phone the one fixed over it as the window scrolls (mobile.css). In
  * Glass the top bar's row holds the date and time where the crumbs were, and the page's act moves down to the row of views.
+ * It is the frame's chrome (`data-chrome`, as the tab bar and Ask's circle are): a row's page carried back by a thumb shows
+ * it under the page with the list it goes back to (kit/motion/held-list.ts).
  */
 const frameTop = (s: ChromeAt, glass: boolean) => {
   const Bar = fromGlobal("Topbar", Topbar);
   const Live = fromGlobal("LiveCallBar", LiveCallBar);
   const Status = fromGlobal("ShellStatusBar", ShellStatusBar);
   return (
-    <div className="frame-top">
+    <div className="frame-top" data-chrome="">
       {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
       <Bar
         crumbs={(glass ? [] : s.crumbs) as never[]}
@@ -353,6 +370,7 @@ const phoneAsk = (s: ChromeAt) => {
     <button
       type="button"
       className="phone-ask"
+      data-chrome=""
       onClick={s.openAsk}
       aria-label="Ask Chanlytics"
       title="Ask Chanlytics"

@@ -5,9 +5,12 @@
  * rather than a list arriving (5 Oct 2026). Rows drawn after the first (the budget's next three hundred, a refresh, a
  * rail pick) come as they are: the list's own swap rise answers a pick (use-swap-motion.ts). The web animations API on
  * the rows themselves, `backwards`, so a row waits unseen for its turn, and nothing is left on it after. Not under
- * reduced motion.
+ * reduced motion, and not for a list coming back from under the row it opened (held-list.ts): it is where it was left, as
+ * the screen showed it under that row's page, and React's Activity, which kept People's scope as a person stood over it,
+ * draws it as a mount again (Ruben, 20 Oct 2026: every row faded up 4px as the person went).
  */
 import { useLayoutEffect, useRef } from "react";
+import { cameBack } from "./held-list";
 
 /** The rise: as the house's `rise-in` (kit.css), twelve rows, each 30 ms after the one above, the eighth on at once. */
 const RISE_PX = 4;
@@ -54,7 +57,7 @@ export function riseRows(table: RisingTable): number {
 export function useRowsArrive<T extends HTMLElement = HTMLTableElement>() {
   const table = useRef<T | null>(null);
   useLayoutEffect(() => {
-    if (table.current) riseRows(table.current);
+    if (table.current && !cameBack(table.current)) riseRows(table.current);
   }, []);
   return table;
 }

@@ -66,7 +66,8 @@ export function touchSwipe(opts: {
   onBack: () => void;
   when: () => boolean;
   onGrab: (el: Element | null, on: boolean) => void;
-  under?: () => HTMLElement | null;
+  under?: () => readonly HTMLElement[];
+  along?: () => readonly HTMLElement[];
   backNavigates?: boolean;
 }): HTMLAttributes<HTMLDivElement> | null {
   const t = fn<[typeof opts], HTMLAttributes<HTMLDivElement>>("touchSwipe");

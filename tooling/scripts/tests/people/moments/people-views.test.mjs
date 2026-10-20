@@ -51,6 +51,8 @@ globalThis.React = {
   useEffect: (fn) => {
     fn();
   },
+  // A store outside React (the frame's head, kit/head/standing.ts): read as it stands.
+  useSyncExternalStore: (_subscribe, now) => now(),
 };
 const warmed = [];
 globalThis.window = {
@@ -71,6 +73,7 @@ const win = globalThis.window;
 
 const { peopleChrome } = await import("../../../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { headNow, headUnder } = await import("../../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_legacy-react.mjs")).useStubHooks(globalThis.React);
@@ -224,4 +227,35 @@ test("a page that says no views is drawn from its group: the Inbox's still reads
   win.__DEMO_MODE = true;
   assert.equal(strip({ page: "clients", param: "c-aisha", views: null }), null);
   win.__DEMO_MODE = false;
+});
+
+test("under a person's page carried back to People, the strip is the one People drew, picked where it was", () => {
+  // A person's page draws no strip (detail views keep their focus), so as a thumb carried it back the list came in under
+  // it with no strip over it, and the strip came in at once as the Back landed (Ruben, 20 Oct 2026). The strip People
+  // drew is kept as the person opens (kit/motion/held-list.ts takes the head as it stands) and drawn while carried.
+  setSurfaceValue("people", people());
+  assert.equal(tabsOf(strip({ page: "clients", param: "pipeline", views: viewsAt("pipeline") })).length, 3);
+  const asItStood = headNow();
+  const person = {
+    page: "clients",
+    param: "5c0e0000-0000-4000-8000-000000000001",
+    views: viewsAt("5c0e0000-0000-4000-8000-000000000001"),
+  };
+  assert.equal(strip(person), null, "a person's page draws none of its own");
+  headUnder(asItStood);
+  try {
+    const tabs = tabsOf(strip(person));
+    assert.deepEqual(
+      tabs.map((b) => [b.props["data-testid"], b.props.className.includes("active")]),
+      [
+        ["scope-people", false],
+        ["scope-leads", false],
+        ["scope-pipeline", true],
+      ],
+      "the list's strip, the Pipeline picked, as it stood",
+    );
+  } finally {
+    headUnder(null);
+  }
+  assert.equal(strip(person), null, "the carry over, the page's own again");
 });

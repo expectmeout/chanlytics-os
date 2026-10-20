@@ -521,8 +521,10 @@
      here (SurfaceTabs already hides itself on a person's profile for exactly this reason), Ask's circle in ask.css, and
      the Glass frame's head, tab bar and the room kept for it in the 900px block below. Back returns to the list that
      carries them. On a desktop the list and the thread share the screen, so they stay. The frame's strip alone: a strip
-     the page draws inside itself (a person's tabs, canvas A) is the page's own. */
-  .main:has([data-takeover]) .stabs:not([data-takeover] *) { display: none; }
+     the page draws inside itself (a person's tabs, canvas A) is the page's own. While a thumb carries the page back to the
+     list held under it (data-carrying on the document, kit motion/held-list.ts), the frame lets go of none of it: the
+     screen under the page is the one it goes back to, drawn as the list had it, so nothing comes in as the Back lands. */
+  :root:not([data-carrying]) .main:has([data-takeover]) .stabs:not([data-takeover] *) { display: none; }
   /* Needs you is the tab AND the bucket under it. The count belongs to the bucket, which is
      the thing that filters by it. */
   .main:has(.inbox) .stabs-badge { display: none; }
@@ -707,16 +709,16 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      frame's head and strip of views, the tab bar and the room kept for it leave. The bar is named by its class under a
      :has(), never its test id: a :has() over an attribute had every element with a test id styled again each time the
      page under the strip changed (the strips review, 18 Oct 2026: 12 to 17 ms a swap on a phone's CPU). */
-  .main:has(> .main-scroll > [data-takeover]) .pg-slot,
-  .app-root:has([data-takeover]) .phone-places {
+  :root:not([data-carrying]) .main:has(> .main-scroll > [data-takeover]) .pg-slot,
+  :root:not([data-carrying]) .app-root:has([data-takeover]) .phone-places {
     display: none;
   }
   /* An open thread is headed by its own person: the page's date and the bell over its capsule stand down too, 44px given
      back to the conversation (the phone thread's canvas). So does a Campaigns pane open (a sequence, a run): its own
      capsule heads it, Back and More its only two glyphs (the Sequences phone canvas, 16 Oct 2026). A person's page keeps the bar, which holds its way back. The
      shell's status line and a call's bar are not the bar's, and stay. */
-  .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .topbar,
-  .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .pg-dateline-slot {
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .topbar,
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .pg-dateline-slot {
     display: none;
   }
   .main-scroll:has(> [data-takeover]) {
