@@ -362,7 +362,8 @@
     display: none;
   }
   /* 4px under the strip, as the Inbox's tabs are (its slot has 16 of padding under the strip). */
-  .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot {
+  .main:has(> .main-scroll > .conversations:not([data-takeover])) .pg-slot,
+  :root[data-carrying] .main:has(> .main-scroll > .conversations) .pg-slot {
     padding-bottom: 4px;
   }
   /* The list is the page itself: the pools show through, no ground of its own. */

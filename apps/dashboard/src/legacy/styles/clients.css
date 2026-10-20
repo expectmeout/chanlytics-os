@@ -1206,10 +1206,11 @@
   /* A thumb carrying the page back to People (person-real.tsx pageSwipe): its edge says it is lifted, and the foot's dock
      steps aside while it moves. It wears the page's own ground and stands over the list coming in under it (kit
      motion/held-list.ts, components.css [data-held]), as an open thread does (components.css): the page has no ground of
-     its own, and the list showed through it. */
+     its own, and the list showed through it. It moves over the frame's chrome drawn again under it with the list, as the
+     thread does. */
   .cl-profile[data-going] {
     position: relative;
-    z-index: 1;
+    z-index: 202;
     background-color: var(--surface-page-fill);
     background-image: var(--surface-page-top), var(--surface-page-light);
     background-repeat: no-repeat;
@@ -3281,8 +3282,10 @@
   }
   /* The list picked stands 5px under the strip, as the Inbox's buckets and Conversations' channels stand 4px under theirs
      (inbox.css, conversations.css): the strip is the frame's, in its slot, for People as for them. The room is the bar's
-     own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. */
-  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-slot {
+     own now (below), so its targets can reach it: .cl-main clips what stands over its top edge. A person's page carried
+     back to its list shows the list's slot under it (data-carrying, kit motion/held-list.ts), so it stands as the list's. */
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-slot,
+  :root[data-carrying] .main:has(> .main-scroll > .clients) .pg-slot {
     padding-bottom: 0;
   }
   /* The page's light shows through, as it does behind the Inbox and as it does behind People on a desk: the page stood on

@@ -68,6 +68,8 @@ globalThis.React = {
     }
   },
   useCallback: (fn) => fn,
+  // A store outside React (the frame's head, kit/head/standing.ts): read as it stands.
+  useSyncExternalStore: (_subscribe, now) => now(),
 };
 globalThis.window = {
   location: { hash: "", pathname: "/w/marisas", origin: "https://app.chanlytics.com" },

@@ -503,9 +503,9 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   /* Inside the native shell the native tab bar stands under it: the ✦ lifts by the shell's inset (mobile.css, html.in-app). */
   html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
   /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
-     and Send sits a thumb from here. Ask comes back with the list. A bar docked at the foot (data-dock, mobile.css) takes
-     the same room. */
-  body:has([data-takeover]) .phone-ask { display: none; }
+     and Send sits a thumb from here. Ask comes back with the list, and is there under the page as a thumb carries it back
+     (data-carrying, mobile.css). A bar docked at the foot (data-dock, mobile.css) takes the same room. */
+  :root:not([data-carrying]) body:has([data-takeover]) .phone-ask { display: none; }
   /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css). */
   .phone-ask { transition: opacity var(--duration-fast) var(--ease-out), visibility 0s linear 0s; }
   body:has([data-dock]:not([data-leaving])) .phone-ask {

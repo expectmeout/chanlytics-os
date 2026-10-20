@@ -23,12 +23,14 @@ export interface ViewPage {
 
 /**
  * The page under the strip drawn over `view`, for a touch that began at `from`: null where the touch is another's,
- * where no strip is drawn (an open thread, a person's page), and where the page does not travel its own width (a
- * desk, where a finger carries nothing).
+ * where no strip is drawn, where a page takes the screen over (an open thread, a person's page: its strip is the list's,
+ * drawn again under it only while a thumb carries it back to that list, kit/motion/held-list.ts), and where the page does
+ * not travel its own width (a desk, where a finger carries nothing).
  */
 export function viewPager(view: Element, from: EventTarget | null): ViewPage | null {
   const began = from as { closest?: (selector: string) => unknown } | null;
   if (began && began.closest && began.closest(OWN_TOUCH)) return null;
+  if (view.querySelector?.("[data-takeover]")) return null;
   const strip = view.parentElement ? view.parentElement.querySelector<HTMLElement>(".stabs") : null;
   if (!strip || strip.getClientRects().length === 0) return null;
   const tabs = Array.from(strip.querySelectorAll<HTMLElement>(".stabs-tab"));

@@ -113,8 +113,9 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
     press(e.currentTarget, place);
   };
 
+  // The frame's chrome (`data-chrome`): a row's page carried back by a thumb shows it under it (kit/motion/held-list.ts).
   return (
-    <nav ref={bar} className={cx("tab-bar", className)} aria-label={label} data-testid={testid}>
+    <nav ref={bar} className={cx("tab-bar", className)} aria-label={label} data-testid={testid} data-chrome="">
       <span className="tab-bar-pill" aria-hidden="true" />
       {places.map((place) => (
         <a

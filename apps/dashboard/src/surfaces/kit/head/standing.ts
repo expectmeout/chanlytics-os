@@ -7,10 +7,16 @@
  *
  * A plain store, not the surface seam: the standing is what the page says of itself, not a read from the workspace.
  * Classic reads none of it: the frame leaves no place for the head there, and the head draws nothing.
+ *
+ * The head can also stand as it stood over another page (`headUnder`): while a thumb carries a row's page back to the
+ * list held under it (kit motion/held-list.ts), the head says what it said over that list as the row opened, its strip of
+ * views with it (`stripShown`, told by the frame's strip), so what lies under the page is the screen it goes back to and
+ * nothing of it is drawn as the page goes.
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { nothing } from "../../legacy-parts";
 import type { ReactNode } from "react";
+import type { SurfaceViews } from "../../routes";
 
 interface Standing {
   /** The page's name; the last crumb's words where the page says none. Null: the page draws its own head (a person's
@@ -55,8 +61,25 @@ interface Said {
   standing: Standing;
 }
 
+/** The strip of views the frame drew over the page on screen (frame/surface-tabs.tsx): the route and views it drew. */
+export interface StripAt {
+  page: string;
+  param?: string | null;
+  views?: SurfaceViews | null;
+}
+
+/** The head as it stands over a page: what the page said, the crumbs, and the strip of views, or none. */
+export interface HeadAt {
+  standing: Standing | null;
+  crumbs: readonly ShownCrumb[];
+  strip: StripAt | null;
+}
+
 let said: Said | null = null;
 let crumbs: readonly ShownCrumb[] = [];
+let strip: StripAt | null = null;
+/** The head as it stood over the page a carried page goes back to; null while nothing is carried. */
+let under: HeadAt | null = null;
 const standingWatchers = new Set<() => void>();
 
 const tellStandingWatchers = (): void => {
@@ -68,8 +91,9 @@ const subscribe = (fn: () => void): (() => void) => {
   return () => standingWatchers.delete(fn);
 };
 
-const standingNow = (): Standing | null => said?.standing ?? null;
-const crumbsNow = (): readonly ShownCrumb[] => crumbs;
+const standingNow = (): Standing | null => (under ? under.standing : (said?.standing ?? null));
+const crumbsNow = (): readonly ShownCrumb[] => (under ? under.crumbs : crumbs);
+const underNow = (): HeadAt | null => under;
 const noCrumbs: readonly ShownCrumb[] = [];
 const noCrumbsEver = (): readonly ShownCrumb[] => noCrumbs;
 
@@ -113,6 +137,29 @@ export function useCrumbsShown(): readonly ShownCrumb[] {
   return useSyncExternalStore(subscribe, crumbsNow, noCrumbsEver);
 }
 
+/** The strip the frame drew, told by the strip once it is drawn (null where it drew none), for the head kept as it stands. */
+export function stripShown(drawn: StripAt | null): void {
+  strip = drawn;
+}
+
+/** The head as it stands now, over the page on screen: kept by a list held under the row it opens (held-list.ts). */
+export const headNow = (): HeadAt => ({ standing: said?.standing ?? null, crumbs, strip });
+
+/**
+ * The head stands as it stood over another page (`head`), until it is given null: while a thumb carries a page back to
+ * the list held under it, so what the frame draws over that list is drawn as the list had it.
+ */
+export function headUnder(head: HeadAt | null): void {
+  if (head === under) return;
+  under = head;
+  tellStandingWatchers();
+}
+
+/** The head the frame stands as while a page is carried back (headUnder), drawn again as it comes and goes; null for none. */
+export function useHeadUnder(): HeadAt | null {
+  return useSyncExternalStore(subscribe, underNow, nothing);
+}
+
 /** A crumb's words. */
 export const crumbLabel = (c: ShownCrumb): string => (typeof c === "string" ? c : c.label);
 
@@ -120,5 +167,7 @@ export const crumbLabel = (c: ShownCrumb): string => (typeof c === "string" ? c 
 export function forgetStanding(): void {
   said = null;
   crumbs = noCrumbs;
+  strip = null;
+  under = null;
   tellStandingWatchers();
 }
