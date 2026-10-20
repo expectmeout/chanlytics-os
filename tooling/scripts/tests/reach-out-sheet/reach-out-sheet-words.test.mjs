@@ -211,98 +211,116 @@ const RUN = (over = {}) => ({
 /** 8:00 AM in Chicago on the run's day, before its first send at 9:40. */
 const MORNING = Date.parse("2026-09-28T13:00:00Z");
 
-test("the approval sheet says who today, who later, what the check held, and names the first send's time (R21, R22)", () => {
-  const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING });
-  assert.equal(
-    flat(w.sub),
-    "To leads · step 1, your email · goes from 9:40 AM once you approve it, one every 12 minutes as each business opens",
+test("a run waiting on its owner says the decision first: how many go and of how many, its parts, when and from where, the held with their answers, the email and the foot (R21, R22)", () => {
+  const at = (over, p) =>
+    approvalWordsOf(RUN(over), { timezone: "America/Chicago", today: "2026-09-28", now: MORNING, ...p });
+  const w = at();
+  assert.deepEqual([w.title, w.step, w.who], ["Reach out · Personal trainers", "Step 1", null]);
+  assert.deepEqual(w.count, { n: 30, words: "go today", of: "of 42" });
+  assert.deepEqual(
+    w.parts.map((x) => [x.key, x.n, x.words]),
+    [
+      ["go", 30, "30 ready"],
+      ["later", 11, "11 in the coming days"],
+      ["held", 1, "1 held"],
+    ],
   );
-  assert.deepEqual([w.will, w.of], ["30 will get it today", "of 42"]);
-  assert.deepEqual(w.why, [
-    { tone: "plain", text: "11 wait for the coming days — 30 a day from this mailbox", door: null },
-    { tone: "warn", text: "1 held by the check", door: "See them" },
-  ]);
+  assert.deepEqual(
+    [flat(w.when.lead), w.when.rest],
+    ["From 9:40 AM", "in their hours · one every 12 minutes as each business opens"],
+  );
+  assert.equal(w.from, "From sam@chanlytics-mail.example · 12 days of sending");
   assert.deepEqual(w.rules, [
-    "each has a checked address",
-    "none is on a person in People",
-    "none heard from you before",
-    "all from sam@chanlytics-mail.example, 12 days of sending",
+    "Each has a checked address",
+    "None is on a person in People",
+    "None heard from you before",
   ]);
   assert.deepEqual(w.words[0], { text: "You're a one-person studio.", opening: true });
-  assert.equal(
-    w.reader,
-    "as Coach Priya Nair reads it · every opening is its own; your offer and ask are the same for all 41",
+  assert.deepEqual(w.mail, {
+    name: "Coach Priya Nair",
+    as: "As they read it · step 1, your email",
+    subject: "The calls you miss",
+    opening: "Opening: its own for each",
+    same: "Offer and ask: the same for all 41",
+  });
+  // Approve says the count it releases (the run-to-leads canvas's "Approve 2"); when it goes is the foot's, beside it.
+  assert.equal(w.approve, "Approve 30");
+  assert.deepEqual([flat(w.dock.lead), w.dock.said], ["30 go from 9:40 AM", "1 held waits for you"]);
+  assert.equal(w.note, "Skipping loses this run only. The sequence keeps its place and asks again tomorrow.");
+  assert.deepEqual(
+    [w.heldHead, w.heldNote.closed, w.heldNote.gated],
+    [
+      "1 held by the check",
+      "It waits for your say. Approve sends only the 30 ready.",
+      "It waits for an owner's or operator's say.",
+    ],
   );
-  assert.equal(flat(w.approve), "Approve — 30 from 9:40 AM");
-  assert.equal(w.approveNote, null);
-  assert.equal(w.note, "Skipping loses this run only — the sequence keeps its place and asks again tomorrow.");
   assert.deepEqual(w.held[0], {
     id: "s",
     name: "Hyde Park Bootcamp",
     // Its lead, opened over the page: the sheet's name is a door to who it is (D1-lead-person-door).
     leadId: LEAD,
-    why: "reads like a chain: 3 listings share their website",
-    doors: [
-      ["include", "Send as written"],
-      ["not_a_fit", "Not a fit"],
+    why: "Reads like a chain: 3 listings share their website",
+    // Step 1: the no is Take out, since skipping would end their place (00459); a chain suggests nothing.
+    answers: [
+      { door: "include", words: "Send as written", lead: false },
+      { door: "not_a_fit", words: "Not a fit", lead: false },
+      { door: "take_out", words: "Take out", lead: false },
     ],
   });
   assert.equal(w.recheck, null);
 
-  // Still being checked: Approve counts only the checked, and says so; an earlier day's run goes from now.
-  const later = approvalWordsOf(RUN({ checking: 5, run_for: "2026-09-26" }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: MORNING,
+  // Still being checked: Approve counts only the checked, the foot says the rest; an earlier day's run goes from now.
+  const later = at({ checking: 5, run_for: "2026-09-26" });
+  assert.equal(later.approve, "Approve 30");
+  assert.deepEqual([later.dock.lead, later.dock.said], ["30 go from now", "5 more go once checked"]);
+  assert.deepEqual(later.when, {
+    lead: "From now",
+    rest: "re-timed in their hours · one every 12 minutes as each business opens",
   });
-  assert.equal(later.approve, "Approve — 30 from now");
-  assert.equal(later.approveNote, "5 more are being checked; they go once they pass.");
-  assert.match(later.sub, /goes from now, re-timed in their hours, once you approve it/);
+  assert.deepEqual(
+    later.parts.map((x) => x.words),
+    ["30 ready", "11 in the coming days", "1 held", "5 being checked"],
+  );
   // Unconfirmed addresses included: "each has a checked address" is not said (R22).
-  const unconfirmed = approvalWordsOf(RUN({ include_unconfirmed: true }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: MORNING,
-  });
-  assert.equal(unconfirmed.rules.includes("each has a checked address"), false);
-  // A hold the check could not answer offers the run's one "check the held again" (R18).
-  const down = approvalWordsOf(RUN({ held: [{ ...RUN().held[0], reason: "check_unavailable", detail: null }] }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: MORNING,
-  });
-  assert.equal(down.recheck, "Check the held again");
+  assert.equal(at({ include_unconfirmed: true }).rules.includes("Each has a checked address"), false);
+  // A hold the check could not answer: the run's one "check the held again" (R18), and on its row only its no.
+  const down = at({ held: [{ ...RUN().held[0], reason: "check_unavailable", detail: null }] });
+  assert.deepEqual(down.recheck, { said: "The check couldn't run for 1", act: "Check the held again" });
+  assert.deepEqual(
+    down.held[0].answers.map((a) => a.door),
+    ["take_out"],
+  );
+  assert.equal(down.held[0].why, "The check couldn't run; it tries again on its own within the hour");
+  // From step 2 the no is Skip this email: their place goes on to the next step (00459).
+  assert.deepEqual(
+    at({ step_n: 1 }).held[0].answers.map((a) => a.words),
+    ["Send as written", "Not a fit", "Skip this email"],
+  );
+  // A read from before the lead was carried has no lead to take out.
+  assert.deepEqual(
+    at({ held: [{ ...RUN().held[0], lead_id: "" }] }).held[0].answers.map((a) => a.door),
+    ["include", "not_a_fit"],
+  );
   // A run whose step was dropped from its chain since says so, never another step's name (R17).
-  const dropped = approvalWordsOf(RUN({ step_id: null, step_n: null }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: MORNING,
-  });
-  assert.match(dropped.sub, /^To leads · a step since removed · goes from/);
+  const dropped = at({ step_id: null, step_n: null });
+  assert.deepEqual([dropped.step, dropped.mail.as], ["A step since removed", "As they read it · a step since removed"]);
   // Today's run whose first time has passed goes from now, never at 9:40 once it is 10 (R21).
-  const past = approvalWordsOf(RUN(), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: Date.parse("2026-09-28T15:00:00Z"),
-  });
-  assert.equal(past.approve, "Approve — 30 from now");
-  assert.match(past.sub, /goes from now, in their hours, once you approve it/);
-  assert.doesNotMatch(past.sub, /9:40/);
-  // Planned on a closed day (a Sunday): nothing today, the first on Monday. The time says its day, and Approve counts
-  // no "0", which would say none go then (seen in the real app, 27 Sep 2026).
-  const sunday = approvalWordsOf(RUN({ run_for: "2026-09-27", today: 0, later: 41 }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-27",
-    now: Date.parse("2026-09-27T17:00:00Z"),
-  });
-  assert.equal(flat(sunday.approve), "Approve — from tomorrow 9:40 AM");
-  assert.match(flat(sunday.sub), /goes from tomorrow 9:40 AM once you approve it/);
+  const past = at({}, { now: Date.parse("2026-09-28T15:00:00Z") });
+  assert.deepEqual([past.when.lead, past.dock.lead], ["From now", "30 go from now"]);
+  assert.doesNotMatch(flat(past.when.rest), /9:40/);
+  // Planned on a closed day (a Sunday): nothing today, the first on Monday. The time says its day, and the decision
+  // counts the coming days', never a "0", which would say none go (seen in the real app, 27 Sep 2026).
+  const sunday = at(
+    { run_for: "2026-09-27", today: 0, later: 41 },
+    { today: "2026-09-27", now: Date.parse("2026-09-27T17:00:00Z") },
+  );
+  assert.deepEqual(sunday.count, { n: 41, words: "go in the coming days", of: "of 42" });
+  assert.equal(sunday.approve, "Approve 41");
+  assert.deepEqual(
+    [flat(sunday.when.lead), flat(sunday.dock.lead)],
+    ["From tomorrow 9:40 AM", "41 go from tomorrow 9:40 AM"],
+  );
   // And its flash says when they go, never "0 emails today".
   assert.equal(
     contracts.reachOutRunWordsOf(RUN({ run_for: "2026-09-27", today: 0, later: 41 }), {
@@ -314,21 +332,49 @@ test("the approval sheet says who today, who later, what the check held, and nam
     "Reach out · Personal trainers approved — 41 emails in the coming days, in their hours",
   );
   // Two days on, it says the date.
-  const friday = approvalWordsOf(RUN({ run_for: "2026-09-26", today: 0, later: 41 }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-26",
-    now: Date.parse("2026-09-26T23:00:00Z"),
+  const friday = at(
+    { run_for: "2026-09-26", today: 0, later: 41 },
+    { today: "2026-09-26", now: Date.parse("2026-09-26T23:00:00Z") },
+  );
+  assert.equal(flat(friday.dock.lead), "41 go from Sep 28 · 9:40 AM");
+  // Nothing today and nothing to come: the count stays, and the foot says nothing goes.
+  const none = at({ today: 0, later: 0, first_at: null });
+  assert.deepEqual([none.approve, none.dock.lead], ["Approve 0", "Nothing goes yet"]);
+});
+
+test("a run approved or going says the same facts in its state: going today, the run going on without the held, its own verb in the foot", () => {
+  const live = (state, over) =>
+    contracts.reachOutRunWordsOf(RUN(over), { state, timezone: "America/Chicago", today: "2026-09-28", now: MORNING });
+  const sending = live("sending");
+  assert.deepEqual([sending.k, sending.count.words, sending.approve], ["Sending", "going today", null]);
+  assert.deepEqual(sending.when, { lead: "Going now", rest: "one every 12 minutes as each business opens" });
+  assert.equal(sending.heldNote.closed, "It waits for your say; the run goes on without them.");
+  assert.equal(sending.heldNote.open, "It waits for your say; the run goes on without them.");
+  assert.deepEqual([sending.dock.lead, sending.dock.said], ["Going now", "Stop keeps the rest from going"]);
+  assert.equal(sending.parts[0].words, "30 going");
+  const scheduled = live("scheduled");
+  assert.deepEqual(
+    [scheduled.k, flat(scheduled.dock.lead), scheduled.dock.said],
+    ["Scheduled", "Goes from 9:40 AM", "Cancel keeps it from going"],
+  );
+  // Its head says what it waits for (the run-to-leads canvas): your OK.
+  assert.equal(live("pending_approval").k, "Waits for your OK");
+  // A run its owner sends (00429): what is handed to them counts, from their own inbox, and its head says whose it is.
+  const owner = live("sending", { owner_sends: true, mailboxes: [] });
+  assert.deepEqual([owner.who, owner.count.words, owner.from], ["You send them", "for you to send", null]);
+  assert.deepEqual(owner.when, { lead: "From your own inbox", rest: "each handed to you once it is checked" });
+  assert.equal(owner.parts[0].words, "30 handed to you");
+  // Who gets it: a clock time is a clock time; the words that stand for one are not.
+  const listed = live("scheduled", {
+    planned: [{ send_id: "p1", business_name: "Studio Two", send_at: "2026-09-28T14:40:00Z", checked: true }],
+    checking: 3,
   });
-  assert.equal(flat(friday.approve), "Approve — from Sep 28 · 9:40 AM");
-  // Nothing today and no first time: the count stays, so Approve never ends on a dash.
-  const none = approvalWordsOf(RUN({ today: 0, later: 0, first_at: null }), {
-    timezone: "America/Chicago",
-    share: 30,
-    today: "2026-09-28",
-    now: MORNING,
-  });
-  assert.equal(none.approve, "Approve — 0");
+  assert.deepEqual(
+    listed.list.map((x) => [x.name, x.clock]),
+    [["Studio Two", true]],
+  );
+  assert.equal(listed.listNote, "3 more are being checked; they go once they pass");
+  assert.equal(listed.listHead, contracts.WHO_GETS_IT_WORDS.head);
 });
 
 test("D1-lead-person-door: each held and each ready business carries its lead's id, which its name opens over the page; none named, none carried", () => {

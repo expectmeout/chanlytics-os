@@ -1,6 +1,7 @@
 import { clockDate, clockNear } from "../shared/clock.js";
 import { capitalize, plural } from "../shared/words.js";
-import { holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
+import { isReachOutHold } from "../reach-out/reach-out-words.js";
+import { heldWhyOf } from "./sequence-held.js";
 import { scheduleDays, scheduleWait } from "./sequence-schedule.js";
 import { sequenceLeftWords } from "./sequence-words.js";
 export const PLACE_WORDS = {
@@ -44,7 +45,7 @@ export function placeWordOf(r, seq, clock, named = true) {
       return { word: PLACE_WORDS.left, tone, line: `${seq.name} \xB7 ${sequenceLeftWords(r.why) || "taken out"}` };
   }
 }
-const heldWhyOf = (hold, detail) => isReachOutHold(hold) ? capitalize(holdWords(hold, detail)) : null;
+const placeHeldWhy = (hold, detail) => isReachOutHold(hold) ? heldWhyOf(hold, detail) : null;
 export const PLACE_RAIL_WORDS = {
   theirPlace: "Their place",
   ifAdded: "If you add them",
@@ -70,7 +71,7 @@ function sendStateOf(s, row, clock) {
     return { tone: "done", words: Number.isFinite(t2) ? `Sent ${clockDate(t2, clock.tz, clock.nowMs)}` : "Sent" };
   }
   if (s.state === "held") {
-    const why = heldWhyOf(s.reason, s.hold_detail);
+    const why = placeHeldWhy(s.reason, s.hold_detail);
     return { tone: "need", words: why ? `Held: ${why.charAt(0).toLowerCase()}${why.slice(1)}` : "Held by the check" };
   }
   if (s.state === "drafted") return { tone: "need", words: "Yours to send, from your own inbox" };

@@ -331,7 +331,7 @@ function bcSheetActs(p: { b: BroadcastDto; avm: ApprovalVM; sheet: BcSheetAsk })
  * it clear of the frame's top and the foot: on a phone it opened under the message, off the screen, and the press seemed
  * to do nothing. A ref of its own, the same one each render, so it runs as the list mounts and not again.
  */
-export function bringListIntoView(el: HTMLElement | null): void {
+function bringListIntoView(el: HTMLElement | null): void {
   if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 }
 
@@ -351,7 +351,7 @@ interface WhoGetsItProps {
  * press that opens and closes the list at the head's right (Ruben, 19 Oct 2026: "See the 4" and "Hide the list" stood in
  * the foot beside Approve, as wide as it), and its rows under the head once open, brought into view as they open.
  */
-export function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
+function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
   return (
     <section
       className="bc-touched bc-sheet-people bc-approval-people"
@@ -390,8 +390,7 @@ interface BcSheetActsAsk {
 
 /**
  * The acts on a phone, docked at the screen's foot as a sequence's are (its Approve in the record's dock): when it goes, and
- * Approve across the foot, Skip in the head's menu as the record has it; Skip's question in their place once the menu
- * asks it. A run too late to approve has Skip there instead, with why. On a phone the band of acts stood after the words,
+ * Approve with Skip on its caret (SkipCaret); Skip's question in their place once the caret's menu asks it. A run too late to approve has Skip there instead, with why. On a phone the band of acts stood after the words,
  * a solid slab halfway down the screen; who gets it is the sheet's own fold (WhoGetsIt), no longer a half of the foot.
  */
 export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
@@ -421,9 +420,12 @@ export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
         <span className="bc-dock-said" data-testid="bc-sheet-goes">
           {avm.goesLine}
         </span>
-        <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
-          <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
-        </Button>
+        <span className="bc-dock-split">
+          <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
+            <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
+          </Button>
+          <SkipCaret name={runTitleOf(b)} sheet={sheet} />
+        </span>
       </div>
     );
   return (
@@ -451,17 +453,24 @@ interface SkipAsk {
 }
 
 /**
- * The head's menu on a phone, as a sequence's record has one: Skip, which asks in the dock. A campaign run's sheet and a
- * reach-out run's draw it alike; none for a role that may not.
+ * Skip on a phone, as Approve's caret (Ruben, 20 Oct 2026: no three dots where a pill can carry them): the dock's Approve
+ * and, joined to it, a caret whose menu holds Skip, which asks in the dock. A campaign run's dock and a reach-out run's draw
+ * it alike; none for a role that may not.
  */
-export function SheetSkipMore({ name, sheet }: { name: string; sheet: SkipAsk }) {
+export function SkipCaret({ name, sheet }: { name: string; sheet: SkipAsk }) {
   if (!sheet.canSend) return null;
   return (
     <Menu
       label={`More for ${name}`}
       trigger={
-        <Button variant="quiet" size="touch" iconOnly aria-label={`More for ${name}`} data-testid="bc-sheet-more">
-          <Icon name="more" size={18} />
+        <Button
+          variant="primary"
+          iconOnly
+          className="bc-dock-caret"
+          aria-label={`More for ${name}`}
+          data-testid="bc-sheet-more"
+        >
+          <Icon name="chevron-down" size={14} />
         </Button>
       }
       groups={[
@@ -482,13 +491,8 @@ export function SheetSkipMore({ name, sheet }: { name: string; sheet: SkipAsk })
   );
 }
 
-/** The campaign run's menu: none for a run too late to approve, whose dock holds Skip already. */
-export function BcSheetMore({ b, avm, sheet }: Pick<BcSheetActsAsk, "b" | "avm" | "sheet">) {
-  return avm.approve ? <SheetSkipMore name={runTitleOf(b)} sheet={sheet} /> : null;
-}
-
 interface BcSheetProps {
-  /** A phone's: the acts are the pane's docked foot (bcSheetDock) and Skip is in its head's menu (BcSheetMore), not here. */
+  /** A phone's: the acts are the pane's docked foot (bcSheetDock), Skip on Approve's caret (SkipCaret), not here. */
   docked: boolean;
   d: BroadcastDetailDto;
   people: RunPersonVM[];

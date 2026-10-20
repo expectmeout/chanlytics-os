@@ -14,23 +14,26 @@ import { cx, variants } from "../variants";
 
 const meterClasses = variants({
   base: "meter",
-  variants: { size: { md: "", sm: "meter-sm", lg: "meter-lg" } },
-  defaults: { size: "md" },
+  variants: { size: { md: "", sm: "meter-sm", lg: "meter-lg" }, apart: { no: "", yes: "meter-apart" } },
+  defaults: { size: "md", apart: "no" },
 });
 
 const meterPartClasses = variants({
   base: "meter-part",
-  variants: { tone: { ok: "meter-ok", read: "meter-read", warn: "meter-warn", rest: "meter-rest" } },
+  variants: {
+    tone: { ok: "meter-ok", read: "meter-read", warn: "meter-warn", rest: "meter-rest", open: "meter-open" },
+  },
 });
 
 /**
  * One part: its share of the whole, and its colour, a tone or a chart's series colour (`var(--color-<key>)`). A part at
  * `rest` is drawn in the strong hairline's colour, as the rest of the whole is: a share that is there and does nothing (a
  * moment's paused campaigns). A part at `read` is ok's green, softer: a check that passed as Claude read it, not as the
- * listing showed it (the lead sheet's fit).
+ * listing showed it (the lead sheet's fit). A part `open` is its outline alone: a share still to come (a run's emails
+ * the check is still reading).
  */
 type MeterPart = { share: number } & (
-  { tone: "ok" | "read" | "warn" | "rest"; color?: undefined } | { color: string; tone?: undefined }
+  { tone: "ok" | "read" | "warn" | "rest" | "open"; color?: undefined } | { color: string; tone?: undefined }
 );
 
 /** A meter: its parts, the rest of the whole or none, its height, and what it says to a screen reader. */
@@ -40,14 +43,16 @@ export type MeterProps = Omit<ComponentPropsWithRef<"div">, "children" | "role" 
   /** The rest of the whole, after the parts, in the strong hairline's colour. */
   rest?: boolean;
   size?: "sm" | "md" | "lg";
+  /** Its parts apart, 4px between them and each rounded: a run's bar by count. */
+  apart?: boolean;
   /** What it says to a screen reader, since it draws no words: each part, in words. */
   "aria-label": string;
 };
 
 /** A meter: an image of its parts, named by its label. */
-export function Meter({ parts, rest = false, size, className, ...div }: MeterProps) {
+export function Meter({ parts, rest = false, size, apart = false, className, ...div }: MeterProps) {
   return (
-    <div {...div} className={cx(meterClasses({ size }), className)} role="img">
+    <div {...div} className={cx(meterClasses({ size, apart: apart ? "yes" : "no" }), className)} role="img">
       {parts
         .filter((part) => part.share > 0)
         .map((part, at) => (

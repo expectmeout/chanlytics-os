@@ -363,8 +363,9 @@ export function holdDoors(h) {
   switch (h) {
     case "customer_domain":
       return ["skip", "include"];
+    // Not a fit closes the lead; Skip lets this email go unsent and keeps the lead, as every other hold's no does.
     case "chain":
-      return ["include", "not_a_fit"];
+      return ["include", "not_a_fit", "skip"];
     case "language":
       return ["include", "skip"];
     case "unbacked_fact":

@@ -3,24 +3,40 @@
  * thing as a sheet over the page it was pressed on -- `?see=<kind>:<id>` on that page's own address, one entry of the
  * history, so Back closes it -- and the sheet holds the door to the thing's home. The page under it stays as it was left:
  * the Inbox's row, Today's queue, the person's campaigns. Campaigns first (Ruben's call 2): a run, and a message of the
- * Library. A sequence is a place, its record with its tabs and their sheets, and opens at its home.
+ * Library. A sequence is a place, its record with its tabs and their sheets, and opens at its home. To send, every email
+ * handed to its owner (00429), opens so too, over whatever page its door was pressed on (Ruben, 20 Oct 2026: a list that
+ * unfolded under its row in Needs you; drawer sheets, never inline).
  *
  * Pure: the grammar of the param and which homes open in place. The frame reads it in the browser (the frame is one
  * prerender for every address), as it reads the lead sheet's `?lead=<id>`.
  */
-import { messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "../sequences/sequence-address";
+import {
+  TO_SEND_ROUTE,
+  messageOfRoute,
+  messageRoute,
+  parseSequencesRoute,
+  runRoute,
+} from "../sequences/sequence-address";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";
 
-/** A thing that opens over the page: a run (with the sequence it is a day of, where the writer knew it), or a message. */
-export type SeeRef = { kind: "run"; id: string; sequenceId: string | null } | { kind: "message"; name: string };
+/**
+ * A thing that opens over the page: a run (with the sequence it is a day of, where the writer knew it), a message, or To
+ * send, the one list of every email handed to its owner.
+ */
+export type SeeRef =
+  { kind: "run"; id: string; sequenceId: string | null } | { kind: "message"; name: string } | { kind: "to-send" };
+
+/** To send's word on the address: the list is one, so it names no id. */
+const TO_SEND_SEE = "to-send";
 
 /** A word of the param: an id, a uuid's shape or a name's (a message's snake_case), never a colon, slash or space. */
 const WORD = /^[A-Za-z0-9_-]+$/;
 
-/** The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`. */
+/** The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`, `to-send`. */
 export function seeValueOf(ref: SeeRef): string {
+  if (ref.kind === "to-send") return TO_SEND_SEE;
   if (ref.kind === "message") return `message:${ref.name}`;
   return ref.sequenceId && ref.sequenceId !== ref.id ? `run:${ref.id}:${ref.sequenceId}` : `run:${ref.id}`;
 }
@@ -28,6 +44,7 @@ export function seeValueOf(ref: SeeRef): string {
 /** The thing a param's value names, or null for a value that names none (a word out of shape, a kind not opened so). */
 export function seeRefOf(value: string | null | undefined): SeeRef | null {
   if (!value) return null;
+  if (value === TO_SEND_SEE) return { kind: "to-send" };
   const [kind, id, sequenceId, ...rest] = value.split(":");
   if (rest.length > 0 || !id || !WORD.test(id)) return null;
   if (kind === "message") return sequenceId === undefined ? { kind: "message", name: id } : null;
@@ -44,6 +61,7 @@ export function seeRefOf(value: string | null | undefined): SeeRef | null {
  */
 export function seeRefOfRoute(route: string): SeeRef | null {
   const [path = ""] = route.split("?");
+  if (path === TO_SEND_ROUTE) return { kind: "to-send" };
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
@@ -51,8 +69,12 @@ export function seeRefOfRoute(route: string): SeeRef | null {
   return message && WORD.test(message) ? { kind: "message", name: message } : null;
 }
 
-/** The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. */
+/**
+ * The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. To send has no
+ * page of its own: its address opens it over the Inbox, and its sheet has no door home.
+ */
 export function seeHomeOf(ref: SeeRef): string {
+  if (ref.kind === "to-send") return TO_SEND_ROUTE;
   return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
 }
 
@@ -63,4 +85,5 @@ export const SEE_WORDS = {
   /** Its kicker, where it was opened over. */
   run: "A run",
   message: "A message",
+  toSend: "To send",
 } as const;

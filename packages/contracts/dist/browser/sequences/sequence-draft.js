@@ -39,6 +39,8 @@ export const isListToken = (token) => /^seg:[a-z0-9_]{1,40}$/.test(token) || /^l
 export const SEQUENCE_NEW_WORDS = {
   /** The one New (the Campaigns wiring review's rule F): every sequence, a message sent once among them, starts here. */
   title: "New",
+  /** The head's act, its noun said where the row has room for it (kit/head/act-words.tsx: "New" where it has not). */
+  act: "New sequence",
   ask: "What should it do?",
   example: "After someone comes in, thank them the next day, and if they haven\u2019t booked again in 4 weeks, invite them back",
   draft: "Draft it",

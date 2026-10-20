@@ -33,11 +33,12 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { gate, gatedProps, navigate, touchSwipe } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane, useCmPhone } from "../parts/split";
-import { ReachOutRun, RoRunDock, RoRunMore, roRunHead, roRunWaits } from "../reach-out/approval";
+import { ReachOutRun, RoRunDock, roRunHead, roRunWaits } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
 import { starters } from "../templates/verbs";
-import { BcSheet, BcSheetMore, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
+import { BcSheet, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
+import type { Flash } from "./page/types";
 import { broadcasts } from "./verbs";
 import { bcLateWords, bcOpensOnItsSheet } from "./when-words";
 
@@ -97,15 +98,7 @@ function useBcRunWatch(id: string, d: BroadcastDetailDto | null, setAnswer: Disp
 }
 
 // A live reach-out run is its own block (Reach out Part 4 PR 7, reach-out/approval.tsx), waiting on you or not (R20).
-const bcReachOutBlock = (
-  d: BroadcastDetailDto,
-  p: {
-    sheet: BcSheetAsk | null;
-    acts: ReactNode;
-    onDecided: () => void;
-    docked: { seeAll: boolean; onSeeAll: () => void } | null;
-  },
-) =>
+const bcReachOutBlock = (d: BroadcastDetailDto, p: { onDecided: () => void; flash: Flash | null; armed: boolean }) =>
   d.reach_out && BC_LIVE.has(d.broadcast.state) ? (
     <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
       <ReachOutRun d={d} {...p} />
@@ -199,29 +192,55 @@ function bcValues(b: BroadcastDto) {
   );
 }
 
-/** The five figures: what went out and what came back, each with when it came. */
-function bcFigures(vm: RunReportVM) {
+/** A figure's bars: when each came, in RUN_REPORT_STEPS steps, at most `tall` px, a step with none a track. */
+function bcFigBars(f: RunReportVM["figures"][number], span: string, tall: number) {
+  const top = Math.max(...f.bars, 1);
   return (
-    <div className="bc-figs" data-testid="bc-figures">
-      {vm.figures.map((f) => {
-        const top = Math.max(...f.bars, 1);
-        return (
+    <span className="bc-fig-bars" aria-hidden="true" title={`When they came, across ${span}`}>
+      {f.bars.map((v, i) => (
+        <span
+          key={i}
+          data-on={v > 0 ? "" : undefined}
+          style={{ height: `${v > 0 ? Math.max(3, Math.round((v / top) * tall)) : 2}px` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The five figures, as one card (the run-to-leads canvas's decision; Ruben, 20 Oct 2026): what it sent, the one large
+ * number, of how many at the line's end and when it went under it; then what came of it, four to a line under a hairline,
+ * each with when it came. Their bars are in the blue Reports draws its data in (charts.css), their numbers in plain ink.
+ */
+function bcFigures(vm: RunReportVM) {
+  const [sent, ...came] = vm.figures;
+  return (
+    <section className="bc-figs" data-testid="bc-figures">
+      {sent ? (
+        <div className="bc-fig bc-fig-one" data-tone={sent.tone} data-testid={`bc-fig-${sent.id}`}>
+          <p className="bc-fig-top">
+            <span className="bc-fig-v">{sent.n}</span>
+            <span className="bc-fig-k">{sent.label.toLowerCase()}</span>
+            <span className="bc-fig-sub">{sent.sub}</span>
+          </p>
+          {bcFigBars(sent, vm.span, 28)}
+        </div>
+      ) : null}
+      <div className="bc-figs-row">
+        {came.map((f) => (
           <div key={f.id} className="bc-fig" data-tone={f.tone} data-testid={`bc-fig-${f.id}`}>
             <span className="bc-fig-k">{f.label}</span>
             <span className="bc-fig-n">
-              <span className="bc-fig-v tabular">{f.n}</span>
+              <span className="bc-fig-v">{f.n}</span>
               {f.pct !== null && <span className="bc-fig-pct">{f.pct}%</span>}
             </span>
-            <span className="bc-fig-bars" aria-hidden="true" title={`When they came, across ${vm.span}`}>
-              {f.bars.map((v, i) => (
-                <span key={i} style={{ height: `${v > 0 ? Math.max(3, Math.round((v / top) * 16)) : 1}px` }} />
-              ))}
-            </span>
+            {bcFigBars(f, vm.span, 16)}
             <span className="bc-fig-sub">{f.sub}</span>
           </div>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -325,24 +344,26 @@ interface BcDecidedAsk {
   seeAll: boolean;
   onSeeAll: () => void;
   onDecided: () => void;
+  /** The page's toast, where the page has one: what a held email's Take out says, with its Put back. */
+  flash: Flash | null;
   pane: (head: BcPaneHead, body: ReactNode, foot?: ReactNode) => ReactNode;
 }
 
 /**
  * A run decided on its page, as it is decided there: a live reach-out's run as its block, a campaign run waiting for
- * approval as its sheet. On a phone each docks its acts at the pane's foot and keeps Skip in its head's menu, as a
- * sequence's record does. Null for any other run, which is its report.
+ * approval as its sheet. On a phone each docks its acts at the pane's foot, Skip on Approve's caret (run-sheet.tsx
+ * SkipCaret: no three dots in the head); a live reach-out's run docks them on a desk too, with Skip beside Approve, and the run's own
+ * verbs there once it goes. Null for any other run, which is its report.
  */
-function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pane }: BcDecidedAsk): ReactNode {
-  // A reach-out's run waiting on its owner docks its acts on a phone, as a campaign run's sheet does (below).
-  const roDock = phone && sheet && roRunWaits(d, sheet) ? sheet : null;
-  const ro = bcReachOutBlock(d, { sheet, acts, onDecided, docked: roDock ? { seeAll, onSeeAll } : null });
-  if (ro)
-    return pane(
-      { ...(roRunHead(d, sheet) || {}), ...(roDock ? { tools: <RoRunMore d={d} sheet={roDock} /> } : {}) },
-      ro,
-      roDock ? <RoRunDock d={d} sheet={roDock} /> : undefined,
-    );
+function bcDecidedPane(ask: BcDecidedAsk): ReactNode {
+  const { d, sheet, acts, phone, seeAll, onSeeAll, onDecided, flash, pane } = ask;
+  // Skip's question asked: on a phone the page dims under it (the block draws the wash).
+  const armed = !!(sheet && sheet.armed && sheet.canSend && roRunWaits(d, sheet));
+  const ro = bcReachOutBlock(d, { onDecided, flash, armed });
+  if (ro) {
+    // Skip is Approve's caret on a phone, as a campaign run's is (below), and the foot's own word on a desk.
+    return pane(roRunHead(d, sheet, phone) || {}, ro, <RoRunDock d={d} sheet={sheet} acts={acts} phone={phone} />);
+  }
   const b = d.broadcast;
   const avm =
     sheet && b.state === "pending_approval"
@@ -351,7 +372,7 @@ function bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided, pan
   if (!sheet || !avm) return null;
   const people = broadcasts.report(d).people;
   return pane(
-    { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
+    bcSheetHead(d, sheet),
     <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
       <BcSheet d={d} people={people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
     </div>,
@@ -367,6 +388,8 @@ interface BroadcastDetailProps {
   acts?: ReactNode;
   again?: ((b: BroadcastDto) => ReactNode) | null;
   sheet?: BcSheetAsk | null;
+  /** The page's toast, where the page has one: a reach-out run's Take out says its receipt there, with Put back. */
+  flash?: Flash | null;
 }
 
 export function BroadcastDetail({
@@ -376,6 +399,7 @@ export function BroadcastDetail({
   acts = null,
   again = null,
   sheet = null,
+  flash = null,
 }: BroadcastDetailProps) {
   // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
   const [answer, setAnswer] = useState<BcAnswer | null>(null);
@@ -483,7 +507,7 @@ export function BroadcastDetail({
   }
   const b = d.broadcast;
   const onSeeAll = () => setSeeAll((v) => !v);
-  const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, pane });
+  const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, flash, pane });
   if (decided) return decided;
   const vm = broadcasts.report(d);
   return pane(

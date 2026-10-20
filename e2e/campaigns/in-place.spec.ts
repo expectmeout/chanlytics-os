@@ -7,7 +7,7 @@ import type { SequenceRecordDto, SequencesPageDto } from "../../packages/contrac
 /**
  * What opens where it was pressed (the Campaigns wiring review's rule C), in a browser: until the framework's rating of
  * 19 Oct 2026 it was proved only over a made-up window. A run waiting for an OK opens over the Inbox and over Today, a
- * step's message over its sequence, the emails handed to you in place on the Inbox, Get their yes over People's list and
+ * step's message over its sequence, the emails handed to you in their sheet over the Inbox, Get their yes over People's list and
  * closed back to it, and New's choices replace the address rather than stack it. A sheet over a page is one entry in the
  * history, so Back closes it and leaves the page as it was; on a phone the tab bar stands down while it is open.
  * Nothing is approved, sent or written: a row is pressed on its name, never on its verb, whose Approve would send.
@@ -60,7 +60,7 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     }
   });
 
-  test("the emails handed to you open in place on the Inbox, and close there", async ({ page }) => {
+  test("the emails handed to you open as a sheet over the Inbox: one entry, Back puts it away", async ({ page }) => {
     await page.goto("/#/inbox");
     await expect(page).toHaveURL(atRoute(/^inbox/));
     const row = page.getByTestId("brief-to-send");
@@ -69,12 +69,15 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     test.skip((await row.count()) === 0, "no email here is handed to its owner to send");
     const before = await entries(page);
     await row.locator(".cl-attn-who").click();
-    await expect(page.getByTestId("bc-to-send-body")).toBeVisible();
+    // A sheet over the page, as a run is (Ruben, 20 Oct 2026: never a list unfolded under its row).
+    await expect(page.getByTestId("see-to-send").getByTestId("bc-to-send-body")).toBeVisible();
     expect(routeOf(page.url())).toMatch(/^inbox/);
+    expect(seeOf(page)).toBe("to-send");
+    expect(await entries(page), "the list is one entry").toBe(before + 1);
+    await expect(page.getByTestId("inbox-runs-waiting").getByTestId("bc-to-send-body")).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByTestId("see-to-send")).toHaveCount(0);
     expect(seeOf(page)).toBeNull();
-    expect(await entries(page), "in place: no page, no entry").toBe(before);
-    await row.locator(".cl-attn-who").click();
-    await expect(page.getByTestId("bc-to-send-body")).toHaveCount(0);
   });
 
   test("a step's message opens over its sequence, Back closes it, and its home is Messages open on it", async ({

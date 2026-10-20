@@ -12,6 +12,8 @@ import type { SequenceReachDto, SequenceRecordDto, SequenceRowDto } from "./sequ
 /** The head's words past its one act. */
 export const SEQUENCE_ACT_WORDS = {
   more: (name: string) => `More for ${name}`,
+  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
+  moreWord: "More",
   askAbout: "Ask about it",
   runNow: "Run now",
   runNowTip:

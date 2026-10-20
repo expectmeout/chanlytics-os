@@ -15,7 +15,7 @@ import {
   TO_SEND_ROUTE,
   peopleNeedsOf,
   runRoute,
-  type ReachOutDecision,
+  type HeldChoice,
   type SequenceHeldVM,
   type SequencePersonDto,
 } from "@chanlytics/contracts";
@@ -33,6 +33,8 @@ import { pressed } from "./verbs";
 type Flash = (flash: LegacyFlash) => void;
 
 interface NeedsProps {
+  /** The sequence they are in: what a held email's Take out leaves. */
+  sequenceId: string;
   rows: readonly SequencePersonDto[];
   count: number;
   timezone: string;
@@ -44,21 +46,30 @@ interface NeedsProps {
  * Needs you, open: the held and the handed-over emails, under one count, the same the list's row and the badge say.
  * Nothing where none holds any.
  */
-export function SequenceNeeds({ rows, count, timezone, flash, onDecided }: NeedsProps) {
+export function SequenceNeeds({ sequenceId, rows, count, timezone, flash, onDecided }: NeedsProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const vm = peopleNeedsOf(rows, { timezone, now: Date.now() });
   if (vm.held.length === 0 && vm.toSend.length === 0 && vm.unread.length === 0) return null;
   const may = canDo("approve");
   // The emails to send this read holds, with or without their drafts: what the part's tally counts.
   const handed = rows.filter((r) => r.group === "to_send").length;
-  const decide = async (h: SequenceHeldVM, door: ReachOutDecision) => {
+  // A door is the decide verb; Take out, at step 1, the leave verb on their place, as People's own Take out (Put back undoes it).
+  const answer = async (h: SequenceHeldVM, door: HeldChoice) => {
     setBusy(h.id);
-    await pressed(
-      "sequence_send_decide",
-      { send_id: h.id, decision: door, name: h.name, run_id: h.batchId },
-      flash,
-      onDecided,
-    );
+    if (door === "take_out")
+      await pressed(
+        "sequence_leave",
+        { sequence_id: sequenceId, enrollment_ids: [], lead_ids: h.leadId ? [h.leadId] : [], name: h.name },
+        flash,
+        onDecided,
+      );
+    else
+      await pressed(
+        "sequence_send_decide",
+        { send_id: h.id, decision: door, name: h.name, run_id: h.batchId },
+        flash,
+        onDecided,
+      );
     setBusy(null);
   };
   // Each through its own verb, one after another; what went is said once, and the first refusal in its door's words.
@@ -111,7 +122,7 @@ export function SequenceNeeds({ rows, count, timezone, flash, onDecided }: Needs
                 h={h}
                 may={may}
                 busy={busy !== null}
-                onDecide={(door) => void decide(h, door)}
+                onAnswer={(door) => void answer(h, door)}
                 ids={SEQUENCE_HELD_IDS}
               />
             ))}

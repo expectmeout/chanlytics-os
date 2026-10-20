@@ -140,8 +140,8 @@
     "blur": 0
   },
   "apps/dashboard/src/surfaces/campaigns/campaigns.css": {
-    "font": 11,
-    "radius": 15,
+    "font": 10,
+    "radius": 14,
     "shadow": 0,
     "colour": 1,
     "blur": 0

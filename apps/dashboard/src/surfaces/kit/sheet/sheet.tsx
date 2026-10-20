@@ -65,6 +65,11 @@ type SheetShape =
        */
       kicker?: boolean;
       /**
+       * The tools of a kicker stand on its line, between the title and the Close, where they were a strip under it: a
+       * door out of what the sheet is over (Open in Campaigns).
+       */
+      toolsInLine?: boolean;
+      /**
        * What it holds closes it from its own foot (a composer's Cancel): on a phone the head's Close steps out of sight
        * there, as a record sheet's does over its Cancel, and comes back for a keyboard.
        */
@@ -87,6 +92,7 @@ type SheetShape =
       tools?: undefined;
       foot?: undefined;
       kicker?: undefined;
+      toolsInLine?: undefined;
       footCloses?: undefined;
       rest?: undefined;
     };
@@ -130,11 +136,12 @@ function recordParts(p: SheetProps & { shape?: "record" }) {
           <Dialog.Title className="rec-sheet-title">{p.title}</Dialog.Title>
           {p.sub ? <Dialog.Description className="rec-sheet-sub">{p.sub}</Dialog.Description> : null}
         </div>
+        {p.toolsInLine && p.tools ? <div className="rec-sheet-line">{p.tools}</div> : null}
         <Dialog.Close className="rec-sheet-close" aria-label={p.close.label} data-testid={partId(p.testid, "close")}>
           {p.close.glyph}
         </Dialog.Close>
       </header>
-      {p.tools ? <div className="rec-sheet-tools">{p.tools}</div> : null}
+      {p.tools && !p.toolsInLine ? <div className="rec-sheet-tools">{p.tools}</div> : null}
       <div className="rec-sheet-body">{p.children}</div>
       {p.foot ? <footer className="rec-sheet-foot">{p.foot}</footer> : null}
     </>

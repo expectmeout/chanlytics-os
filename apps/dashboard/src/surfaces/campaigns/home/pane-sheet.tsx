@@ -34,6 +34,8 @@ interface PaneSheetProps {
   title: ReactNode;
   /** A strip over the pane: the composer's choice between its two kinds. */
   tools?: ReactNode;
+  /** The tools stand on the kicker's line, beside the Close (a thing open over a page: its way home). */
+  toolsInLine?: boolean;
   /** Close it, as the page does: the address goes back to the home. */
   onClose: () => void;
   /** Press the pane's own Close instead, which asks before a composer's words are thrown away. */
@@ -59,6 +61,7 @@ export function PaneSheet({
   open,
   title,
   tools,
+  toolsInLine = false,
   onClose,
   askFirst = false,
   wide = false,
@@ -80,6 +83,7 @@ export function PaneSheet({
       title={title}
       close={{ label: LIFECYCLE_WORDS.close, glyph: <Icon name="x" size={13} /> }}
       tools={tools}
+      toolsInLine={toolsInLine}
       kicker
       footCloses={footCloses}
       className={cx("cmh-host", wide && "cmh-host-wide", over && "cmh-host-over")}

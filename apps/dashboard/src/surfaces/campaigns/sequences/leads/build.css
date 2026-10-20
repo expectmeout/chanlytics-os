@@ -1,11 +1,12 @@
 /* A sequence to leads written on its record (the lead-to-sequence canvas's Build boards, 18 Oct 2026): the values named
    in a step's box, the Start row's door, a step's sheet (its words, Insert, the wait, the preview) and How it runs. Layout,
-   and colours read from the tokens: a value is the info ink it is in the email as a lead gets it, amber is what needs you. */
+   and colours read from the tokens: a value is what varies' coral (--slot), as it is in the email as a lead gets it, amber
+   is what needs you. */
 .ld-slotname {
   padding: 0 5px;
   border-radius: var(--radius-sm);
-  background: var(--info-soft);
-  color: var(--info-ink);
+  background: var(--slot-soft);
+  color: var(--slot);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
@@ -25,6 +26,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+/* A step's sheet stands clear of the head's rule, as a customer's step does. */
+.ld-step {
+  padding-top: 14px;
 }
 .ld-write-acts {
   display: flex;
