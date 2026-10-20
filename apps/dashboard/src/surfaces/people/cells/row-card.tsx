@@ -7,7 +7,7 @@
  * that, failing to load, leave the initials showing. The face is also the row's checkbox: a tap there selects, and a tap
  * on the rest opens (clients.css lays the box over it); `pick` says where the row stands in a selection, and the kit's
  * face draws it. `tail`: a line of its own under the facts, where a page has one more thing to say of the row (the
- * Pipeline's next step). `swipe`: a thumb's handlers (data-bits touchSwipe) on the row, which then slides over
+ * Pipeline's next step). `swipe`: a thumb's handlers (kit/motion/swipe.ts touchSwipe) on the row, which then slides over
  * `grounds`, the words on either side of it (Leads' Keep and Exclude); neither is drawn without the other. `unread`: the
  * person is new to the reader (surfaces/seen.ts), and the name and what was said wear the page's own marks for it
  * (clients.css .pl-unread), as the Inbox's unread row does.

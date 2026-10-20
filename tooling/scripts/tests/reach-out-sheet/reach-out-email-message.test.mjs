@@ -33,14 +33,14 @@ const went = [];
 Object.assign(W, {
   CHANLY: { nav: (to) => went.push(to), R: {} },
   appNavigate: (to) => went.push(to),
-  // The role store's gate is data-bits.jsx's own (window.gate, canDo, gateTitle), over this role and contracts' table.
+  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
   ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
   __roleGate: contracts.roleGate,
   __surfaceState: () => "live",
   useHotkey: () => {},
 });
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 const S = "../../../../apps/dashboard/src/surfaces";
 const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);

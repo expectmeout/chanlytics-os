@@ -18,11 +18,12 @@
  * file is added to the app's list, and the mockup loads it from there.
  *
  * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
+ * `data/frame-globals.js`, the frame's helpers the pages here read by name (the toast, a thumb's gestures, the role gate:
+ * surfaces/frame/frame-globals.ts),
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
  * TSX since decision 0015, step 5), `data/ask-line-globals.js`, the parts only Ask's Line draws by name (its charts, its
- * hold to talk, Leads' plan card: legacy-bridge/ask/line-globals.ts),
- * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
+ * hold to talk, Leads' plan card: legacy-bridge/ask/line-globals.ts), and `data/mascot.js`
  * (see SAMPLES below). The stylesheets the app imports from outside the tree are read where the app has them (the kit's
  * and Campaigns', outsideCss below).
  *
@@ -70,6 +71,18 @@ const SAMPLES = {
     // TSX: elements from the page's React (`React.createElement`), and the hooks it imports are the page's React's.
     jsx: "transform",
     reactIsTheWindows: true,
+  },
+  // The frame's helpers the pages read by name (surfaces/frame/frame-globals.ts), on the page's own React, installed as the
+  // app installs them from seed-globals: the functions, then the presence and policy stores and the tip where none is.
+  "/data/frame-globals.js": {
+    entry: path.join(REPO, "apps/dashboard/src/surfaces/frame/frame-globals.ts"),
+    globalName: "__FG",
+    footer: "__FG.installFrameGlobals();",
+    banner: "var process = globalThis.process || { env: {} };",
+    jsx: "transform",
+    reactIsTheWindows: true,
+    atDashboard: true,
+    watch: ["apps/dashboard/src/surfaces/frame", "apps/dashboard/src/surfaces/kit", "apps/dashboard/src/legacy-bridge"],
   },
   // The Inbox's and Conversations' names (surfaces/inbox/legacy-globals.ts, through e2e-harness/inbox-src.ts): the
   // session's decisions and the two rules the shell asks (what waits on you, which tab a row is on), with the demo's seeded
@@ -122,14 +135,6 @@ const SAMPLES = {
     reactIsTheWindows: true,
     atDashboard: true,
     watch: ["apps/dashboard/src/surfaces/people", "apps/dashboard/src/legacy-bridge"],
-  },
-  // Not a sample: the object the app publishes as window.__businessTab (legacy-bridge/business-tab.ts). With no
-  // settings read behind the mockup, a fold is told nothing.
-  "/data/business-tab.js": {
-    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/business-tab.ts"),
-    globalName: "__BT",
-    // And the save's own rules, which the page asks for as the tab mounts: bundled in, so here at once.
-    footer: "__BT.installBusinessTab(); __BT.loadSaveRules();",
   },
   // Not a sample either: the three (legacy-bridge/mascot), the character Ask's face draws (components/ask-face.jsx:
   // the top bar's button, the Stage and the phone's ✦), so the mockup's Ask has its face.
@@ -203,11 +208,11 @@ async function sampleBundle(route) {
 }
 
 export const kitGlobalsBundle = () => sampleBundle("/data/kit-globals.js");
+export const frameGlobalsBundle = () => sampleBundle("/data/frame-globals.js");
 export const inboxGlobalsBundle = () => sampleBundle("/data/inbox-globals.js");
 export const peopleGlobalsBundle = () => sampleBundle("/data/people-globals.js");
 export const askLineGlobalsBundle = () => sampleBundle("/data/ask-line-globals.js");
 export const peopleGlobalsHarnessBundle = () => sampleBundle("/data/people-globals-harness.js");
-export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
 export const mascotBundle = () => sampleBundle("/data/mascot.js");
 
 export const send = (res, status, type, body) => {

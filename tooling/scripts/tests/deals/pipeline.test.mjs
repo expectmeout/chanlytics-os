@@ -1091,7 +1091,7 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The record kit's sheet, which New proposal is drawn in on a desk.
 // The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
 Object.assign(globalThis.window, kitPages);

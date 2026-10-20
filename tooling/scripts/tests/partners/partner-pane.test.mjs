@@ -1,5 +1,5 @@
 /**
- * Settings › Partner (decision 0012), drawn: the TSX pane (surfaces/settings/partner) on the stub React, over data-bits
+ * Settings › Partner (decision 0012), drawn: the TSX pane (surfaces/settings/partner) on the stub React, over frame-globals
  * and the real verbs (settings/partner/surface.ts), the account as the seam holds it. Reading, a failed read, the offer and its one press, and a partner's link, share,
  * earnings and count, every sentence contracts'. And the rail: the tab is on the account, beside Profile.
  */
@@ -13,7 +13,7 @@ const teamCodeBox = (tree) =>
   all(tree, (n) => n.type === "input" && n.props?.["data-testid"] === "team-partner-code")[0];
 
 installLegacyReact();
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { partnerVerbs } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
 const { PanePartner } = await import("../../../../apps/dashboard/src/surfaces/settings/partner/pane.tsx");

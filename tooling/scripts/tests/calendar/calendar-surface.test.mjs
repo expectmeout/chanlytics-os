@@ -44,6 +44,9 @@ const { SURFACE_ROUTES, routeHasPage } = await import(`${S}/surfaces/routes.ts`)
 const NOW = Date.parse("2026-09-08T16:00:00.000Z");
 const CALENDAR = { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 };
 
+// A demo's sample is fetched only in a demo session (surfaces/calendar/demo.ts): fetched once here, so a demo draws it at once.
+await (await import("../../../../apps/dashboard/src/surfaces/calendar/demo.ts")).calendarDemo();
+
 test("the Calendar's read is one typed value in the seam, mirrored under the name Today, Ask, People and the Business tab read", () => {
   assert.equal(calendarOverride.value, "calendar", "the cache keeps the typed value beside the surface's snapshot");
   assert.equal(calendarOverride.globals, undefined, "and there is no window global the surface owns any more");
@@ -248,18 +251,13 @@ test("the page draws what the seam holds; a demo session with none draws the sam
   unmount();
 });
 
-test("what the pages that have not moved still read of the Calendar stays published: the verbs and the page's two words, by their old names", () => {
-  const was = { verbs: globalThis.__calendar, page: globalThis.__calendarPage };
+test("the Business tab's calendar row still finds the Calendar's verbs by their old name, and imports the page's two words", () => {
+  const was = globalThis.__calendar;
   delete globalThis.__calendar;
-  delete globalThis.__calendarPage;
   installCalendar();
   assert.equal(typeof globalThis.__calendar.refresh, "function", "the Business tab asks for a read");
   assert.equal(typeof globalThis.__calendar.previewFeed, "function", "and checks a pasted address");
-  assert.equal(
-    globalThis.__calendarPage,
-    CALENDAR_PAGE,
-    "and states the last read for as long as the board keeps one, in its words",
-  );
-  assert.equal(CALENDAR_PAGE.refreshMs, 5 * 60 * 1000);
-  Object.assign(globalThis, { __calendar: was.verbs, __calendarPage: was.page });
+  assert.equal(globalThis.__calendarPage, undefined, "the words are imported (words.ts), never published");
+  assert.equal(CALENDAR_PAGE.refreshMs, 5 * 60 * 1000, "the row keeps a read for as long as the board does");
+  globalThis.__calendar = was;
 });

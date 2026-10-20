@@ -118,7 +118,7 @@ Object.assign(globalThis, {
   clearInterval() {},
 });
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/legacy-verbs.ts).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 

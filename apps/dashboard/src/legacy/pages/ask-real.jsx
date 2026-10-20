@@ -937,7 +937,7 @@ const arLineView = (ln) => {
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (
-    // It goes the way it came as it closes (data-bits leaving): a desk's panel back out to the right, a phone's screen
+    // It goes the way it came as it closes (kit/motion/leaving.ts leaving): a desk's panel back out to the right, a phone's screen
     // fading, where a thumb also pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-modal
     // carry the motion.
     <div className="ask-overlay ask-line-scrim" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>

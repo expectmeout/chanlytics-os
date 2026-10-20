@@ -56,8 +56,8 @@ export const CR_FEED_WORDS = {
 
 /**
  * Settings › Business states the same calendar's last read in its own row (pages/business-tab-open.jsx). It keeps a read
- * for as long as this board does, and says these two states in these words: one number and one spelling, here, published
- * as `window.__calendarPage` (verbs.ts) for the row, which is still the shell's.
+ * for as long as this board does, and says these two states in these words: one number and one spelling, here, which
+ * the row imports.
  */
 export const CALENDAR_PAGE = { refreshMs: CR_REFRESH_MS, words: CR_FEED_WORDS };
 

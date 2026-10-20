@@ -9,7 +9,7 @@
  *   Disconnect asks first (S17).
  * Run against Settings › Billing and Settings › Connections (surfaces/settings/billing and surfaces/settings/connections,
  * TSX since decision 0015's step 11: the pane, the business record's form and the sending domains' block) on a stub
- * React, over data-bits' real gate, contracts' role table, view models and rows, the billing surface's own verbs and
+ * React, over the frame's real gate, contracts' role table, view models and rows, the billing surface's own verbs and
  * words, and the connections' verbs (their module objects, stubbed by assignment: nothing here reaches the wire).
  */
 import { test } from "node:test";
@@ -163,8 +163,8 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+// frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
 Object.assign(globalThis.window, kitPages);
 useStubHooks();

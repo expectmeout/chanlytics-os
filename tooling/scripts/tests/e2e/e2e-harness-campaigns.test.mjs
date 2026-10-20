@@ -73,7 +73,7 @@ installLegacyReact({
 });
 const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
-await import(`${SRC}/legacy/components/data-bits.jsx`);
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, {
   useHotkey: () => {},

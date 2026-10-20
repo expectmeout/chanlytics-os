@@ -968,7 +968,7 @@ const L = "../../../../apps/dashboard/src/legacy";
 const PEOPLE = "../../../../apps/dashboard/src/surfaces/people";
 // The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
 // else the sheet reads is imported, as the sheet imports it.
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 // The Inbox's reply courier, which the app publishes for the sheet (seed-globals, from surfaces/inbox/thread/thread-verbs.tsx).
 W.threadVerbs = (await import("../../../../apps/dashboard/src/surfaces/inbox/thread/thread-verbs.tsx")).threadVerbs;
 const quietly = async (fn) => {

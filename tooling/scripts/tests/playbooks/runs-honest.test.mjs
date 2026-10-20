@@ -251,8 +251,8 @@ installLegacyReact({
 const S = "../../../../apps/dashboard/src";
 const { installClock } = await import(`${S}/legacy-bridge/zone.ts`);
 installClock();
-// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (data-bits), the unsaved-work rule (record-fold).
-await import(`${S}/legacy/components/data-bits.jsx`);
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work rule (record-fold).
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { installPolicyStore } = await import(`${S}/legacy-bridge/policy-store.ts`);
 installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.

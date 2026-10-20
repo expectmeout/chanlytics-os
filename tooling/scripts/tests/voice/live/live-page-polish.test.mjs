@@ -76,8 +76,8 @@ installLegacyReact({
   },
 });
 const S = "../../../../../apps/dashboard/src";
-// What the shell still owns and the page draws by name (the role gate on the whisper): data-bits.jsx.
-await import(`${S}/legacy/components/data-bits.jsx`);
+// What the shell still owns and the page draws by name (the role gate on the whisper): surfaces/frame.
+(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 globalThis.usePPToast = () => [null, () => {}];
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

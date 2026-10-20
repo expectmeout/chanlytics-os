@@ -236,10 +236,10 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 // The bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces.
 globalThis.useSurface = () => 0;
-// A stub React attaches no ref, so the dialog's element does not exist here: the one focus helper (data-bits trapFocus,
+// A stub React attaches no ref, so the dialog's element does not exist here: the one focus helper (frame-globals trapFocus,
 // proved on a document of its own in shell/focus-trap.test.mjs) is handed a stand-in for it, and every ask is kept.
 const trapped = [];
 const realTrapFocus = globalThis.window.trapFocus;
@@ -2409,27 +2409,16 @@ test("REGRESSION (C3): a service that needs a consultation is spoken of as the r
   assert.ok(!day.includes("books"), day);
 });
 
-test("(C3) the bridge publishes the hours in the Calendar's words, for the Business card that says them beside the bar", async () => {
-  // With the Business tab's helpers (business-tab.ts), which the mockup is handed too.
-  const { installBusinessTab } = await import("../../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
-  const W = globalThis.window;
-  const was = { lines: W.__hoursLines, tab: W.__businessTab, limits: W.__configLimits };
-  try {
-    installBusinessTab();
-    // What it says, not which copy of contracts it is: the runner loads the bridge's contracts apart from the test's.
-    const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
-    assert.equal(
-      typeof W.__hoursLines,
-      "function",
-      "REGRESSION: the card summarised the prompt's runs in the prompt's clock",
-    );
-    assert.deepEqual(W.__hoursLines(week), ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"]);
-    assert.equal(W.__hoursRuns, undefined, "and there is no second way to say them");
-  } finally {
-    W.__hoursLines = was.lines;
-    W.__businessTab = was.tab;
-    W.__configLimits = was.limits;
-  }
+test("(C3) the Business card says the hours in the Calendar's words, beside the bar", async () => {
+  // With contracts' hoursLines, which the tab's hours row imports (surfaces/settings/business/open.tsx).
+  const { hoursLines } = await import("@chanlytics/contracts");
+  const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
+  assert.deepEqual(
+    hoursLines(week),
+    ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"],
+    "REGRESSION: the card summarised the prompt's runs in the prompt's clock",
+  );
+  assert.equal(globalThis.window.__hoursRuns, undefined, "and there is no second way to say them");
 });
 
 /* ------------------- C4: keyboard, screen reader, phone, contrast ------------------- */

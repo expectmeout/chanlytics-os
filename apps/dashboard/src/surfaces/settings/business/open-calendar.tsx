@@ -7,12 +7,12 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { CalendarVM } from "@chanlytics/contracts";
-import type { CALENDAR_PAGE } from "../../calendar/words";
+import { CALENDAR_PAGE } from "../../calendar/words";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordBox } from "../../kit/record/field";
 import { navigate } from "../../legacy-verbs";
 import { businessTabSave } from "./saver";
-import { calendarApi, calendarNow, calendarPage, chromeWords, surfaceFailedFn } from "./shell";
+import { calendarApi, calendarNow, chromeWords, surfaceFailedFn } from "./shell";
 
 /* ------------------------------------ the calendar it reads ------------------------------------ */
 
@@ -64,7 +64,7 @@ const useBtoFeedRead = (stored: boolean) => {
       document.removeEventListener("visibilitychange", bump);
     };
   }, []);
-  const keeps: Partial<typeof CALENDAR_PAGE> = calendarPage() || {};
+  const keeps: Partial<typeof CALENDAR_PAGE> = CALENDAR_PAGE;
   const C = calendarNow() || null;
   const at = C && typeof C.fetchedAt === "number" ? C.fetchedAt : null;
   const fresh =
@@ -169,13 +169,13 @@ const btoFeedLine = (
  * What the calendar's last read found, in the words the Calendar page says it in: the same pill (contracts
  * CALENDAR_FEED_WORDS, through StatePill's `calendar` kind) and the same line (toCalendarVM's feed.detail: where it was
  * read from, when, how many events; feed.problem when it could not be, or that page's own words where the read gives no
- * reason, calendarPage().words). The form had a "Check the address" button for this; a row that can say it needs
+ * reason, CALENDAR_PAGE.words). The form had a "Check the address" button for this; a row that can say it needs
  * no button (spec §4.3).
  *
  * Only a read this tab HAS is stated, and only while it is fresh. The Calendar surface is read as the app boots on
  * every route, so it is here; but its "read 4m ago" is counted from the moment IT was read (contracts toCalendarVM),
  * so on a tab open since the morning the words would be the morning's. Fresh is as long as the Calendar page itself
- * keeps a read before it reads again (its CR_REFRESH_MS, calendarPage().refreshMs: one number, that page's).
+ * keeps a read before it reads again (its CR_REFRESH_MS, CALENDAR_PAGE.refreshMs: one number, that page's).
  *   fresh                 stated as it stands, and ONE timer is set for the moment it stops being fresh, which draws
  *                         the row again: worked out only as the row drew, an idle page said "read 4m ago" for forty
  *                         minutes. The timer DECIDES: as it fires it records that the read it was set for has expired,

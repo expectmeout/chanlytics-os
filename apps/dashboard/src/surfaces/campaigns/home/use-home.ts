@@ -7,10 +7,9 @@
  * one that could not be read is null and says so (the seam's own status, `useSurfaceFailed`, which the shell's route gate
  * reads).
  */
-import { useMemo, useState } from "react";
-import { demoSession } from "../../legacy-verbs";
+import { useEffect, useMemo, useState } from "react";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
-import { broadcastsSample } from "../broadcasts/sample";
+import { useBroadcastsDemo } from "../broadcasts/demo";
 import type { BcWhole } from "../broadcasts/page/types";
 
 /**
@@ -23,7 +22,12 @@ export function useComposerData(open: boolean): { broadcasts: BcWhole | null | u
   const failed = useSurfaceFailed("broadcasts");
   const unreached = useSurfaceFailed("audiences");
   const whole = useMemo(() => (live && audiences ? { ...audiences, ...live } : null), [live, audiences]);
-  // A demo session's sample, made once for the page's life, and only once the composer is asked for.
-  const [sample] = useState(() => (open && demoSession() ? broadcastsSample() : null));
+  // A demo session's sample, made once for the page's life, and only once the composer is asked for (its code fetched then).
+  const demo = useBroadcastsDemo(open);
+  const [made, setMade] = useState<BcWhole | null>(() => (open && demo ? demo.broadcastsSample() : null));
+  useEffect(() => {
+    if (open && demo && !made) setMade(demo.broadcastsSample());
+  }, [open, demo, made]);
+  const sample = made;
   return { broadcasts: whole ?? sample ?? (failed || unreached ? null : undefined) };
 }

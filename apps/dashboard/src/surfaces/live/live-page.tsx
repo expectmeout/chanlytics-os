@@ -16,11 +16,11 @@ import { useEffect, useState } from "react";
 import { liveStillUp } from "@chanlytics/contracts";
 import type { LiveCallVM } from "@chanlytics/contracts";
 import { refreshLive } from "@/legacy-bridge/inbox-verbs";
-import { demoSession, navigate, replaceRoute } from "../legacy-verbs";
+import { navigate, replaceRoute } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
 import { LrPanel } from "./panel";
-import { liveSample } from "./sample";
+import { useLiveDemo } from "./demo";
 import type { LiveSurface } from "./surface";
 
 // The clock ticks once a second while a call is up; a call's calls are read again every eight.
@@ -141,8 +141,9 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
 // sample, and a session with neither draws nothing.
 export function LivePage(props: LivePageProps) {
   const live = useSurface("live");
+  const demo = useLiveDemo();
   // The page's first part: drawn once Live's read is in (client/page-speed.ts). Live is never kept in the tab, so a load waits for it.
   usePartShown("live", "list", live !== undefined);
   if (live !== undefined) return <LiveMonitorReal {...props} />;
-  return demoSession() ? <LiveMonitorReal {...props} sample={liveSample()} /> : null;
+  return demo ? <LiveMonitorReal {...props} sample={demo.liveSample()} /> : null;
 }

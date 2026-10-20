@@ -14,7 +14,7 @@ import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";
-await import(`${L}/components/data-bits.jsx`);
+(await import(`${L}/../surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const S = "../../../../apps/dashboard/src/surfaces";
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { LeadImportSheet, useLeadLists } =

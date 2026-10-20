@@ -3,7 +3,7 @@
  * the window's own where it is and does what the JSX did where it is not (the standalone mockup, a test's stand-in
  * window). The kit's TSX reads no `window` name itself; it imports these, as a surface imports `legacy-verbs.ts`.
  *
- * The frame owns every one of them: `touchSwipe`, `trapTab`, `tabStops` and `leaveOverlay` are data-bits' (the pull that
+ * The frame owns every one of them: `touchSwipe`, `trapTab`, `tabStops` and `leaveOverlay` are the frame's (the pull that
  * closes a sheet, Tab kept inside a dialog, the tab stops of a part, a sheet's still copy leaving), `__tip` the app's one
  * tooltip, `__chrome` the chrome's words, `__tabMemory` the tab's kept work, `ReactDOM` the page's portal, and the rest
  * are the browser's own (`matchMedia`, the window's listeners, `getSelection`, the console). Each line is deleted on the
@@ -30,17 +30,17 @@ export function showTip(el: Element | null): void {
   if (el && window.__tip) window.__tip.show(el);
 }
 
-/** The tab stops inside a part, in order (data-bits `tabStops`); none where the frame has no such verb. */
+/** The tab stops inside a part, in order (kit/focus/trap.ts `tabStops`); none where the frame has no such verb. */
 export function tabStops(root: Element): HTMLElement[] {
   return window.tabStops ? window.tabStops(root) : [];
 }
 
-/** Tab and Shift+Tab kept inside a dialog (data-bits `trapTab`). */
+/** Tab and Shift+Tab kept inside a dialog (kit/focus/trap.ts `trapTab`). */
 export function trapTab(e: KeyboardEvent, root: Element | null): void {
   window.trapTab?.(e, root);
 }
 
-/** A sheet that React has let go of, played out from a still copy (data-bits `leaveOverlay`). */
+/** A sheet that React has let go of, played out from a still copy (kit/motion/leaving.ts `leaveOverlay`). */
 export function leaveOverlay(sheet: Element, wash: Element | null): void {
   window.leaveOverlay?.(sheet, wash);
 }

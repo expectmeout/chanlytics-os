@@ -87,7 +87,7 @@ test("a press asks for the sheet, on the pick; a pointer warms it; a role that m
     { open: true, personId: null },
   );
   closeNewConversation();
-  // The shell's role gate, as data-bits answers a role that may not: spread after the handlers, it takes the press.
+  // The shell's role gate, as frame-globals answers a role that may not: spread after the handlers, it takes the press.
   let asked = null;
   globalThis.window.gate = (perm, doing) => {
     asked = [perm, doing];

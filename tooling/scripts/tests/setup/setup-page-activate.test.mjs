@@ -140,8 +140,8 @@ globalThis.document ??= {
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */

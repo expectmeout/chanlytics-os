@@ -33,7 +33,7 @@ function part<P>(name: "Confirm" | "StatePill"): ComponentType<P> {
   return (typeof found === "function" ? found : nothing) as ComponentType<P>;
 }
 
-/** The one way an act is confirmed (data-bits `Confirm`): the question, what it does, a Yes that names the verb, a quiet No. */
+/** The one way an act is confirmed (the kit's `Confirm`): the question, what it does, a Yes that names the verb, a quiet No. */
 interface ConfirmProps {
   question: ReactNode;
   detail?: ReactNode;
@@ -55,7 +55,7 @@ interface ConfirmProps {
 }
 export const confirmPart = (): ComponentType<ConfirmProps> => part<ConfirmProps>("Confirm");
 
-/** The one pill for a state (data-bits `StatePill`): its tone from contracts, its words the page's or the state's own. */
+/** The one pill for a state (the kit's `StatePill`): its tone from contracts, its words the page's or the state's own. */
 interface StatePillProps {
   kind: string;
   value: unknown;

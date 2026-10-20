@@ -56,7 +56,7 @@ after(() => {
   console.error = realConsoleError;
 });
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const S = "../../../../../apps/dashboard/src";
 const { ThreadPane } = await import(`${S}/surfaces/inbox/thread/thread-pane.tsx`);
 const { threadVerbs } = await import(`${S}/surfaces/inbox/thread/thread-verbs.tsx`);

@@ -15,19 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  stateOf,
-  whyNotAHandoff,
-  whyNotAPhone,
-  samePhone,
-  handoffE164,
-  formatPhoneDisplay,
-  instructionsDraft,
-  INSTRUCTIONS_MAX,
-  fallbackMessages,
-  FALLBACK_DEFAULTS,
-  unknownDetails,
-} from "@chanlytics/contracts";
+import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -191,7 +179,7 @@ globalThis.React = {
   },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
@@ -202,12 +190,6 @@ Object.assign(globalThis.window, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   canDo: () => true,
-  // As the bridge publishes them (seed-globals.ts): the phone checks and a number's written form are contracts'.
-  __whyNotAHandoff: whyNotAHandoff,
-  __whyNotAPhone: whyNotAPhone,
-  __samePhone: samePhone,
-  __handoffE164: handoffE164,
-  __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
     initials: (name, email) =>
@@ -223,13 +205,6 @@ Object.assign(globalThis.window, {
     accepted();
     return Promise.resolve({ ok: true });
   },
-  // What the instructions box opens with and the most it holds, as the bridge publishes them (S4).
-  __instructionsDraft: instructionsDraft,
-  __instructionsMax: INSTRUCTIONS_MAX,
-  // And the messages sent in the business's name, as the form previews and checks them (S5).
-  __fallbackMessages: fallbackMessages,
-  __fallbackDefaults: FALLBACK_DEFAULTS,
-  __unknownDetails: unknownDetails,
 });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
@@ -471,23 +446,9 @@ test("a real roster is counted in people, never in seats of a plan it does not h
   assert.ok(buttonSaying(tree, "Invite"), "and nothing says the seats are full");
 });
 
-test("the bridge publishes a number's written form from contracts, beside the phone checks the rows already use", async () => {
-  const stub = globalThis.window.__phoneDisplay;
-  delete globalThis.window.__phoneDisplay;
-  try {
-    await import("../../../../../apps/dashboard/src/legacy-bridge/seed-globals.ts");
-    assert.equal(
-      typeof globalThis.window.__phoneDisplay,
-      "function",
-      "REGRESSION: the page had no way to write a stored number for people",
-    );
-    assert.equal(globalThis.window.__phoneDisplay("+13055550100"), "+1 (305) 555-0100");
-    assert.equal(
-      globalThis.window.__phoneDisplay("+442071838750"),
-      formatPhoneDisplay("+442071838750"),
-      "contracts' own rule, not a copy",
-    );
-  } finally {
-    globalThis.window.__phoneDisplay = stub;
-  }
+test("the tab writes a stored number for people by contracts' rule, beside the phone checks the rows already use", async () => {
+  const { phoneShown } = await import("../../../../../apps/dashboard/src/surfaces/settings/business/save.tsx");
+  assert.equal(phoneShown("+13055550100"), "+1 (305) 555-0100", "REGRESSION: a stored number was shown as E.164");
+  assert.equal(phoneShown("+442071838750"), formatPhoneDisplay("+442071838750"), "contracts' own rule, not a copy");
+  assert.equal(phoneShown("ask for Dana"), "ask for Dana", "anything but E.164 is shown as it was written");
 });

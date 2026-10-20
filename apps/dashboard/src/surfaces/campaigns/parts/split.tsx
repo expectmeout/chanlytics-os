@@ -32,7 +32,7 @@ const goingHosts = new WeakMap<Element, Element>();
  * so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
  */
 export const cmGoing = (el: Element, on: boolean) => {
-  // The pane is let go of after it has left (data-bits swipeLeave closes it first), when it has no parent: the split it
+  // The pane is let go of after it has left (kit/motion/swipe.ts swipeLeave closes it first), when it has no parent: the split it
   // was grabbed in is kept from the grab, so the mark always comes off.
   const host = el.parentElement ?? goingHosts.get(el) ?? null;
   if (!host) return;
@@ -126,7 +126,7 @@ interface CmPaneProps {
   id?: string;
   className?: string;
   /**
-   * A phone's swipe (data-bits touchSwipe's handlers, its onGrab cmGoing): on the pane's root, so the head, the body and
+   * A phone's swipe (kit/motion/swipe.ts touchSwipe's handlers, its onGrab cmGoing): on the pane's root, so the head, the body and
    * the foot go back to the list together under the thumb.
    */
   swipe?: HTMLAttributes<HTMLElement>;

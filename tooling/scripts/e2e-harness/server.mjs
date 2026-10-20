@@ -29,6 +29,7 @@ import { OWNER, scenario, WORKSPACE } from "./scenarios.mjs";
 import { templatesRead } from "./templates-read.mjs";
 import {
   inboxGlobalsBundle,
+  frameGlobalsBundle,
   kitGlobalsBundle,
   askLineGlobalsBundle,
   legacyDocument,
@@ -44,15 +45,6 @@ const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
 
 /** The two calls `signIn()` makes, which are POSTs. Every other route the harness answers is a read. */
 const AUTH = { LINK: "/auth/v1/admin/generate_link", VERIFY: "/auth/v1/verify" };
-
-/**
- * `data/business-tab.js` in the mockup is the tab's helpers built from `packages/contracts/dist`, and its footer
- * installs them over whatever is there. The fixture has already installed the same helpers FROM SOURCE, so the
- * harness answers this route with nothing at all: what the page runs is the source copy, which is the point of the
- * harness (a change to the bridge or to contracts shows in the next run, not in the next dist build).
- */
-export const BUSINESS_TAB_SCRIPT =
-  "/* the harness installed the tab's helpers from source (e2e-harness/fixture-src.ts); nothing to do here */\n";
 
 /**
  * Every JSON answer the harness gives, as a function of the method, the path, the query and the record: the two
@@ -201,8 +193,7 @@ export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import
 
 /**
  * The mockup's document with the fixture FIRST in its head -- before data/bridge-stubs.jsx, which writes only
- * what is missing, and before data/business-tab.js, which the harness then answers with nothing -- and the app's own
- * rules LAST, after every stylesheet, where the app has them.
+ * what is missing -- and the app's own rules LAST, after every stylesheet, where the app has them.
  */
 export function documentWithFixture() {
   return legacyDocument()
@@ -255,12 +246,12 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".css"], appRules());
         return;
       }
-      if (p === "/data/business-tab.js") {
-        send(res, 200, TYPES[".js"], BUSINESS_TAB_SCRIPT);
-        return;
-      }
       if (p === "/data/kit-globals.js") {
         send(res, 200, TYPES[".js"], await kitGlobalsBundle());
+        return;
+      }
+      if (p === "/data/frame-globals.js") {
+        send(res, 200, TYPES[".js"], await frameGlobalsBundle());
         return;
       }
       if (p === "/data/inbox-globals.js") {

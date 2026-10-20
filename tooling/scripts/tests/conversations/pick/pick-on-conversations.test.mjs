@@ -43,7 +43,7 @@ Object.assign(globalThis, {
 });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 const S = "../../../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);

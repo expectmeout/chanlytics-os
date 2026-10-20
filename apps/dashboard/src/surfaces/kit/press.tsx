@@ -2,7 +2,7 @@
  * What a press of the kit's is, decided once for the Button and the LinkButton
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): one that acts where it stands is a <button>, of type
  * button unless a form's own is asked for; one that opens a page of its own is a link, its address in the href, so a
- * long press, a middle click or a new tab opens it too (the shell's "a door is a link", data-bits `routeDoor`). The
+ * long press, a middle click or a new tab opens it too (the shell's "a door is a link", frame-doors.ts `routeDoor`). The
  * element is chosen where the press is written, by an address or none, since each takes its own attributes and ref.
  */
 import type { ComponentPropsWithRef } from "react";

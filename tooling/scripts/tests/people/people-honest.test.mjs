@@ -451,7 +451,7 @@ useStubHooks(globalThis.React);
 // The shell's own hook (legacy-bridge/surface-status.ts) for the JSX pages this file still loads: these tests draw once, and
 // the redraw is proved in shell/surfaces. PeopleReal, being TSX, reads People through the real useSurface.
 globalThis.useSurface = () => 0;
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 Object.assign(globalThis.window, kitPages);
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];

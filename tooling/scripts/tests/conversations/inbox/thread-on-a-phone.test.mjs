@@ -99,7 +99,7 @@ installLegacyReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { InboxThread, ixSwipeBack } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const walk = (n, fn) => {

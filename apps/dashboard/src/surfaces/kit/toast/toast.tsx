@@ -17,7 +17,7 @@
  * reader hears each toast arrive in, and F6 takes the keyboard into; a toast's clock stops while a mouse rests on the
  * stack or focus is in it; it goes when its time is up, or swiped away; a fourth waits behind the three until one goes.
  * The stack is drawn in a portal on the document's body, above every sheet. What the kit adds is the house's going
- * (data-bits usePPToast, Ruben, 18 Oct 2026): no ×, since a press anywhere besides a toast, or on its words, takes it,
+ * (frame/flash.tsx usePPToast, Ruben, 18 Oct 2026): no ×, since a press anywhere besides a toast, or on its words, takes it,
  * and a phone shows the newest alone, beside a send's Undo.
  *
  * It draws what the gallery's Toast family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which

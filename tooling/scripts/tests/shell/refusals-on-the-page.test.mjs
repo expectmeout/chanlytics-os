@@ -105,7 +105,7 @@ globalThis.window = {
   canDo: () => true,
   appNavigate() {},
 };
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 
 Object.assign(globalThis.window, kitPages);
 useStubHooks();

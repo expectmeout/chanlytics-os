@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { installLegacyReact, fresh, again, all, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact();
-await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const { AdAccounts } = await import("../../../../apps/dashboard/src/surfaces/settings/connections/ad-accounts.tsx");
 
 const flashes = [];

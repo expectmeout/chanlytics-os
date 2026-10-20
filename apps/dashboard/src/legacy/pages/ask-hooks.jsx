@@ -199,7 +199,7 @@ const AH_KEYS_MS = 250;
 const ahRect = (el) => (el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null);
 /** Where the field and the hero stand as the field is focused, to slide them from there once the screen has made room. */
 const ahSlideFrom = (stage, hero) => (ahStill() ? null : { stage: ahRect(stage), hero: ahRect(hero) });
-// A phone's field just focused: the screen has made room for the keys at once (data-bits watchKeyboard's kb-expected;
+// A phone's field just focused: the screen has made room for the keys at once (kit/motion/keyboard.ts watchKeyboard's kb-expected;
 // ask.css), so the browser finds the field above them and moves nothing. What the eye sees is the field and the three
 // sliding to their places over the keyboard's own beat: a still copy of the field that React never holds goes from
 // where the field stood to where it is, over the field itself, held clear meanwhile (the kit's way, as `leaving`), and

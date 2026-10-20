@@ -213,7 +213,7 @@ const sbMenuRoot = (menu) => {
   return root && typeof ReactDOM !== "undefined" && ReactDOM.createPortal ? root : null;
 };
 // At the foot (a phone's action sheet) a pull down from its top lets the menu go, following the finger, as every sheet's
-// does (data-bits touchSwipe; Ruben, 8 Oct 2026: it drew the handle and did not answer a pull). The touch stays the
+// does (kit/motion/swipe.ts touchSwipe; Ruben, 8 Oct 2026: it drew the handle and did not answer a pull). The touch stays the
 // menu's own: it is drawn at the app's root and is still the drawer's child to React, and the drawer reads a swipe across
 // as its own close.
 const sbMenuPull = (menu) => {
@@ -403,7 +403,7 @@ const Sidebar = ({
     ...badges,
   };
 
-  // On a phone the drawer slides back under the thumb (data-bits touchSwipe onAway): it follows the finger to the left,
+  // On a phone the drawer slides back under the thumb (kit/motion/swipe.ts touchSwipe onAway): it follows the finger to the left,
   // the page behind lightens with it, and let go past a third or with a flick it goes, short of that it settles. It
   // was a jump at 48px with nothing following, and a scroll down its list that drifted 48px left closed it too. This,
   // a tap on the backdrop, Escape and picking a destination are how the drawer closes: it has no bar of its own,

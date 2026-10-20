@@ -42,7 +42,7 @@ export function currentRoute(): string {
 }
 
 /**
- * A door as a link (data-bits `routeDoor`): its address in the href, the app's own way there on a plain press. Nothing
+ * A door as a link (frame-doors.ts `routeDoor`): its address in the href, the app's own way there on a plain press. Nothing
  * where the shell has none, and the caller then draws no link.
  */
 export function routeDoor(to: string, go?: ((to: string) => void) | null): HTMLAttributes<HTMLAnchorElement> | null {
@@ -55,13 +55,13 @@ export function hasRouteDoor(): boolean {
   return !!fn("routeDoor");
 }
 
-/** A key handler that runs `run` on Enter and Space (data-bits `keyPress`). */
+/** A key handler that runs `run` on Enter and Space (kit/focus/keys.ts `keyPress`). */
 export function keyPress(run: () => void): HTMLAttributes<HTMLElement>["onKeyDown"] {
   const k = fn<[() => void], HTMLAttributes<HTMLElement>["onKeyDown"]>("keyPress");
   return k ? k(run) : undefined;
 }
 
-/** A thumb carries a pane away (data-bits `touchSwipe`): the props to spread on it, none without the shell. */
+/** A thumb carries a pane away (kit/motion/swipe.ts `touchSwipe`): the props to spread on it, none without the shell. */
 export function touchSwipe(opts: {
   onBack: () => void;
   when: () => boolean;
@@ -71,7 +71,7 @@ export function touchSwipe(opts: {
   return t ? t(opts) : null;
 }
 
-/** A refusal as a toast (data-bits `refusalToast`). */
+/** A refusal as a toast (frame/flash.tsx `refusalToast`). */
 export function refusalToast(r: unknown, what?: string | null): Flash {
   const f = fn<[unknown, string | null | undefined], Flash>("refusalToast");
   return f ? f(r, what) : { tone: "danger", msg: "That didn't go through." };
@@ -107,7 +107,7 @@ export function surfaceState(page: string): string | undefined {
   return state ? state(page) : undefined;
 }
 
-/** Whether the member is Away, which freezes every countdown and forces the holding line (data-bits `PR_STORE`). */
+/** Whether the member is Away, which freezes every countdown and forces the holding line (inbox/store.ts `PR_STORE`). */
 export function presenceAway(): boolean {
   const p = object<{ away?: boolean }>("PR_STORE");
   return !!(p && p.away);
@@ -120,7 +120,7 @@ export function clockZone(): string {
 
 /* --------------------------------- people --------------------------------- */
 
-/** A person's own sheet: the one deal sheet, asked for by the person and the move (data-bits `openDealSheet`). */
+/** A person's own sheet: the one deal sheet, asked for by the person and the move (people-globals.ts `openDealSheet`). */
 export function openDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
   fn<[typeof ask], void>("openDealSheet")?.(ask);
 }

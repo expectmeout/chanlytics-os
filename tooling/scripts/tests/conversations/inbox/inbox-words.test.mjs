@@ -384,7 +384,7 @@ installLegacyReact({
 globalThis.document.visibilityState = "hidden";
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pages spread and call (gate, the toast, canDo), as the app publishes them.
-await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+(await import("../../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
 const S = "../../../../../apps/dashboard/src/surfaces";
 const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);

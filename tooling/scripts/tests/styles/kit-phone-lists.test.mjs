@@ -39,7 +39,7 @@ const partsOf = (tree) => ({
   veils: all(tree, (n) => n.props?.className === "more-backdrop"),
 });
 
-/** A thumb's reader, as data-bits gives the page one: what the list asks of it, kept to be pulled by the test. */
+/** A thumb's reader, as frame-globals gives the page one: what the list asks of it, kept to be pulled by the test. */
 function withThumb(run) {
   const asked = [];
   const was = globalThis.touchSwipe;
