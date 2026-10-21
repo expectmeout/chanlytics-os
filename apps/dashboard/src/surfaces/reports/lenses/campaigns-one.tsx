@@ -30,10 +30,11 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { ListRow } from "../../kit/list-row/list-row";
 import { Picker } from "../../kit/picker/picker";
 import { routeDoor } from "../../legacy-verbs";
 import { cmChevron, cmGroups } from "../../campaigns/parts/picks";
-import { RptSection } from "../blocks";
+import { RptSection, useRptDesk } from "../blocks";
 import { RPT_SENT } from "../series";
 import type { ReportsSurface } from "../surface";
 import type { CampaignsScopeHere, OneState } from "./campaigns-scope";
@@ -204,7 +205,21 @@ function stepsCard(vm: CampaignOneVM, className: string) {
   );
 }
 
-/** Each send of the days, newest first, in History's own words; one still to decide opens where it waits. */
+/** A send's mark, by what it is, as History's day marks it: went (or is going), failed, waits for an OK, to come, canceled. */
+const SEND_GLYPHS: Readonly<Record<string, string>> = {
+  sent: "send",
+  sending: "send",
+  failed: "alert",
+  pending_approval: "clock",
+  scheduled: "calendar",
+  canceled: "ban",
+};
+
+/**
+ * Each send of the days, newest first, a row each as History's Day by day draws them (the kit's list row: when, what came of it
+ * under it, what it sent at its end), so it holds at any width; one still to decide opens where it is decided. Its table twin is
+ * the card's CSV.
+ */
 function sendsCard(vm: CampaignOneVM, sequenceId: string) {
   return (
     <ChartCard
@@ -218,78 +233,56 @@ function sendsCard(vm: CampaignOneVM, sequenceId: string) {
         rows: vm.sends.map((s) => [s.when, s.said, s.end]),
       }}
     >
-      <div className="ck-table-wrap rpt-sources">
-        <table className="ck-table">
-          <thead>
-            <tr>
-              <th>{W.heads.when}</th>
-              <th>{W.heads.what}</th>
-              <th className="num">{W.heads.sent}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vm.sends.map((s) => (
-              <tr key={s.id} data-testid="rpt-cmp-send">
-                <td>{s.when}</td>
-                <td className="rpt-dim">{s.said}</td>
-                <td className="num">
-                  {s.went ? (
-                    s.end
-                  ) : (
-                    <LinkButton size="inherit" className="rpt-src" {...routeDoor(runRoute(s.id, sequenceId))}>
-                      {s.end}
-                    </LinkButton>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="rpt-cmp-sends">
+        {vm.sends.map((s) => (
+          <ListRow
+            key={s.id}
+            mark={<Icon name={SEND_GLYPHS[s.state] ?? "dot"} size={14} />}
+            name={s.when}
+            said={s.said}
+            end={(cls) => <span className={cls}>{s.end}</span>}
+            className="rpt-cmp-send"
+            data-testid="rpt-cmp-send"
+            {...(s.went ? {} : routeDoor(runRoute(s.id, sequenceId)))}
+          />
+        ))}
       </div>
     </ChartCard>
   );
 }
 
-/** One campaign's cards over the days shown: its four figures, the days and its steps, and each send. */
-function oneBody(vm: CampaignOneVM, counting: boolean, sequenceId: string) {
+/**
+ * One campaign's cards over the days shown (nothing in them is said once, its door to its own pages the row's above): its four figures, the days and its steps, and each send, each the section's own
+ * child, so the section's gap stands between them as it does on every lens. While pages further back are still read the page
+ * dims them (reports-page.tsx, as for a lens's own read).
+ */
+function oneBody(vm: CampaignOneVM, sequenceId: string) {
   if (vm.empty)
-    return (
-      <EmptyState
-        kind="card"
-        glyph="send"
-        title={vm.empty.title}
-        body={vm.empty.body}
-        testid="rpt-cmp-empty"
-        action={{ label: vm.door.label, to: vm.door.to }}
-      />
-    );
-  // While pages further back are still being read the cards dim, by the one rule every page uses ([data-loading] [data-dims]).
+    return <EmptyState kind="card" glyph="send" title={vm.empty.title} body={vm.empty.body} testid="rpt-cmp-empty" />;
   return (
-    <div data-loading={counting ? "" : undefined}>
-      <div data-dims aria-busy={counting || undefined}>
-        <dl className="rpt-figures quad" data-testid="rpt-cmp-figures">
-          {vm.figures.map((f) => (
-            <Figure
-              key={f.id}
-              id={f.id}
-              label={f.label}
-              value={f.value}
-              meta={f.meta}
-              definition={f.definition}
-              n={f.n}
-              {...(f.minN === null ? {} : { minN: f.minN })}
-              className="rpt-cell"
-              data-testid={`rpt-cmp-figure-${f.id}`}
-            />
-          ))}
-        </dl>
-        <div className="rpt-grid">
-          {daysCard(vm, vm.byStep ? "rpt-span-7" : "rpt-span-12")}
-          {stepsCard(vm, "rpt-span-5")}
-        </div>
-        {vm.sends.length > 0 ? <div className="rpt-grid">{sendsCard(vm, sequenceId)}</div> : null}
+    <>
+      <dl className="rpt-figures quad" data-testid="rpt-cmp-figures">
+        {vm.figures.map((f) => (
+          <Figure
+            key={f.id}
+            id={f.id}
+            label={f.label}
+            value={f.value}
+            meta={f.meta}
+            definition={f.definition}
+            n={f.n}
+            {...(f.minN === null ? {} : { minN: f.minN })}
+            className="rpt-cell"
+            data-testid={`rpt-cmp-figure-${f.id}`}
+          />
+        ))}
+      </dl>
+      <div className="rpt-grid">
+        {daysCard(vm, vm.byStep ? "rpt-span-7" : "rpt-span-12")}
+        {stepsCard(vm, "rpt-span-5")}
       </div>
-    </div>
+      {vm.sends.length > 0 ? <div className="rpt-grid">{sendsCard(vm, sequenceId)}</div> : null}
+    </>
   );
 }
 
@@ -305,18 +298,24 @@ function oneState(here: CampaignsScopeHere) {
     );
   if (one.state === "failed") return <FailedRead what={W.failed} onRetry={one.retry} testid="rpt-cmp-failed" />;
   if (one.state === "gone") return <EmptyState kind="card" glyph="send" title={W.gone} testid="rpt-cmp-gone" />;
-  return oneBody(one.vm, one.counting, here.scope.id);
+  return oneBody(one.vm, here.scope.id);
 }
 
-/** The scope's row over the lens: the picker, the days it covers, and one campaign's door to its own pages. */
+/**
+ * The scope's row over the lens: the picker, the days it covers where the head's capsule does not say them beside it (a phone's
+ * says its dates alone; a desk's says both), and one campaign's door to its own pages.
+ */
 export function CampaignScopeRow({ here, R }: { here: CampaignsScopeHere; R: ReportsSurface }) {
   const door = here.one?.state === "read" ? here.one.vm.door : null;
+  const desk = useRptDesk();
   return (
     <div className="rpt-cmp-scope">
       <CampaignScopePicker here={here} />
-      <span className="rpt-cmp-pane" data-testid="rpt-cmp-pane">
-        {R.vm.rangeLabel}
-      </span>
+      {desk ? null : (
+        <span className="rpt-cmp-pane" data-testid="rpt-cmp-pane">
+          {R.vm.rangeLabel}
+        </span>
+      )}
       {door ? (
         <LinkButton className="rpt-cmp-door" {...routeDoor(door.to)} data-testid="rpt-cmp-open">
           {door.label} <Icon name="chevron" size={11} />

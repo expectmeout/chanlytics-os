@@ -46832,6 +46832,8 @@ interface CampaignOneStepVM {
 /** One send of the days: when, which step, and what came of it in History's own words. */
 interface CampaignOneSendVM {
     id: string;
+    /** What it is (sent, going out, failed, waiting for an OK, to come, canceled): its mark, as History's day marks it. */
+    state: string;
     when: string;
     end: string;
     said: string;
