@@ -19,7 +19,6 @@ import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
 import type { CallLine, ConversationRow } from "../types";
 import { useCallTurns } from "./call-turns";
-import { threadScroller, threadShown } from "./scroller";
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
@@ -136,14 +135,12 @@ function callLinks(call: ConversationRow | null, lines: CallLine[] | null) {
 // something else, and the thread does not pull you back.
 function keepLineInView(list: HTMLElement | null, followed: RefObject<number>, active: number) {
   if (!list || active < 0 || !list.closest) return;
-  const conversation = list.closest(".ix-th-scroll");
+  const scroller = list.closest(".ix-th-scroll");
   const now = list.children[active];
   const before = followed.current >= 0 ? list.children[followed.current] : null;
   followed.current = active;
-  if (!conversation || !now) return;
-  // The pane's scroller on a desk, the window on a phone, between the thread's head and its foot (scroller.ts).
-  const scroller = threadScroller(conversation);
-  const box = threadShown(conversation, scroller);
+  if (!scroller || !now) return;
+  const box = scroller.getBoundingClientRect();
   const bar = list.parentElement ? list.parentElement.querySelector<HTMLElement>(".tl-listen") : null;
   const top = box.top + (bar ? bar.offsetHeight + 12 : 0);
   const seen = (n: Element | null) => {
@@ -152,7 +149,7 @@ function keepLineInView(list: HTMLElement | null, followed: RefObject<number>, a
     return r.bottom > top && r.top < box.bottom;
   };
   if (!seen(before)) return;
-  const by = tlFollowBy(now.getBoundingClientRect(), { top, bottom: box.bottom, height: box.bottom - box.top });
+  const by = tlFollowBy(now.getBoundingClientRect(), { top, bottom: box.bottom, height: box.height });
   if (!by) return;
   const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   scroller.scrollBy({ top: by, behavior: still ? "auto" : "smooth" });

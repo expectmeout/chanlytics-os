@@ -8,7 +8,6 @@ import { callNoteLines, type LiveCallVM } from "@chanlytics/contracts";
 import { navigate, routeDoor, touchSwipe } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { carriedOver, heldAlong, heldUnder } from "../kit/motion/held-list";
-import { scrollerOf } from "../kit/motion/page-scroll";
 import { Icon } from "../kit/icon/icon";
 import { Face } from "../kit/face/face";
 import { StoppedMark } from "../kit/pill/stopped-mark";
@@ -19,11 +18,8 @@ import { LrWhisper } from "./whisper";
 
 const LrTranscript = ({ c }: { c: LiveCallVM }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  // To the newest line: in the transcript's own box on a desk, the window on a phone (mobile.css, "The window scrolls").
   useEffect(() => {
-    if (!scrollRef.current) return;
-    const box = scrollerOf(scrollRef.current, { self: true });
-    box.scrollTop = box.scrollHeight;
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [c.callId, c.transcript.length]);
   return (
     <>

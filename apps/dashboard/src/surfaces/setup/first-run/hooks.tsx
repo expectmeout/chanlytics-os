@@ -7,7 +7,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { scrollerOf } from "../../kit/motion/page-scroll";
 import { liveOverride } from "../../live/surface";
 import { billingVerbs } from "../../settings/billing/surface";
 import { businessTabSave } from "../shell";
@@ -28,10 +27,8 @@ export function useHeadingFocus(face: string | null): void {
     const before = drawnFace.current;
     drawnFace.current = face;
     if (before === null || face === null || before === face) return;
-    // The shell on a desk; on a phone the window scrolls the step (first-run.css), and the shell is no scroller.
     const shell = "querySelector" in document ? document.querySelector<HTMLElement>(".fr-shell") : null;
-    const box = shell ? scrollerOf(shell, { self: true }) : null;
-    if (box && box.scrollTo) box.scrollTo(0, 0);
+    if (shell && shell.scrollTo) shell.scrollTo(0, 0);
     const h = document.getElementById ? document.getElementById("fr-heading") : null;
     if (h && h.focus) h.focus({ preventScroll: true });
   }, [face]);

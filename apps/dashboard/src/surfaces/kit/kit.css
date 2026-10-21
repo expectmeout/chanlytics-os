@@ -4384,10 +4384,9 @@ a.list-row {
    the border. The material is the look's (tokens.css, --surface-control-*); where the bar stands, its padding and what it
    holds are the page's. It is drawn only where a page takes the screen over (data-takeover on its root, mobile.css),
    on a phone, in Glass: elsewhere the page's own bar stands. A bar docked at the foot (data-dock on the bar itself:
-   People's selection) is a capsule too, and keeps the position the page gave it. It carries no backdrop-filter: a filter
-   makes a bar the containing block of a menu inside it, whose sheet then opens off the top of the screen (a docked bar
-   over rows that scroll adds its own, with its menu drawn on the body; a bar the window scrolls a page under, a thread's
-   head among them, takes its blur on a layer of its own behind what it holds, mobile.css). Its shadow is the
+   People's selection) is a capsule too, and keeps the position the page gave it. It carries no backdrop-filter: nothing
+   scrolls under it, and a filter makes a bar the containing block of a menu inside it, whose sheet then opens off the top
+   of the screen (a docked bar over rows that scroll adds its own, with its menu drawn on the body). Its shadow is the
    floating glass's short one (tokens.css, --surface-float-depth): rows pass under a phone's bars. */
 @media (max-width: 900px) {
   [data-takeover] .capsule {

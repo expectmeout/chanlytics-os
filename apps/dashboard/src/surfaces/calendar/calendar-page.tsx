@@ -287,8 +287,8 @@ function CalendarReal({
       data-peek={open && !phone ? "" : undefined}
     >
       {calendarHead(bar)}
-      {/* On a phone the bar sticks over the days, under the frame's strip of views, and the window scrolls them
-          (mobile.css, "The window scrolls"); a swipe across the days walks to the next or previous days. It is the pane's own touch
+      {/* On a phone the bar stands over the days, under the frame's strip of views, and the pane under it holds still
+          (mobile.css .cal-pane); a swipe across the days walks to the next or previous days. It is the pane's own touch
           (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:
           contents and the page scrolls as one. */}
       <div
