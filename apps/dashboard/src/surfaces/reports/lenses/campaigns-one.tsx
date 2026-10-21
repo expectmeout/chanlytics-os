@@ -59,7 +59,7 @@ export async function readRows(): Promise<readonly SequenceRowDto[] | null> {
  * pages reach past the first day (contracts historyCovers) or there are no more, each said as it lands. A page further back
  * that fails stops there, and the days are said from what was read.
  */
-export async function readOne(
+export async function readCampaignOne(
   id: string,
   from: string,
   said: (read: Omit<OneRead, "key">) => void,

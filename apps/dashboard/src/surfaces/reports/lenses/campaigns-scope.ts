@@ -25,7 +25,7 @@ import type { OneRead } from "./campaigns-one";
 /** What the chunk holds: its reads, its fold, and what it draws. */
 interface OneParts {
   readRows: (typeof import("./campaigns-one"))["readRows"];
-  readOne: (typeof import("./campaigns-one"))["readOne"];
+  readCampaignOne: (typeof import("./campaigns-one"))["readCampaignOne"];
   oneStateOf: (typeof import("./campaigns-one"))["oneStateOf"];
   choicesOf: (typeof import("./campaigns-one"))["choicesOf"];
   Row: (typeof import("./campaigns-one"))["CampaignScopeRow"];
@@ -64,7 +64,7 @@ function useOneParts(on: boolean): OneParts | null {
       if (!live) return;
       setParts({
         readRows: m.readRows,
-        readOne: m.readOne,
+        readCampaignOne: m.readCampaignOne,
         oneStateOf: m.oneStateOf,
         choicesOf: m.choicesOf,
         Row: m.CampaignScopeRow,
@@ -101,7 +101,7 @@ function useOne(parts: OneParts | null, id: string | null, from: string, again: 
   useEffect(() => {
     if (!parts || !id) return undefined;
     let live = true;
-    void parts.readOne(
+    void parts.readCampaignOne(
       id,
       from,
       (r) => {
