@@ -344,6 +344,11 @@
   .sq-nw-foot:not([data-foot-pair]) > .sq-nw-foot-line {
     padding-left: var(--space-3);
   }
+  /* A line over the pair (the leaving ask, who a sequence reaches) stands two rows tall, so the capsule rounds as a run's
+     asking dock does (campaigns.css, .bc-approval-foot): a pill's round ends cut across its words and its Discard. */
+  .cm-pane-foot:has(> .sq-nw-foot[data-foot-pair] > .sq-nw-foot-line:not(.is-quiet)) {
+    border-radius: var(--surface-control-radius);
+  }
 }
 .sq-nw-name {
   display: inline-flex;

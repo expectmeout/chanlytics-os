@@ -50,6 +50,8 @@ export const SEQUENCE_WORDS = {
   start: "Start",
   discard: "Discard",
   notStarted: "Not started \xB7 nothing goes yet",
+  /** A message sent once, kept as a draft (00465): it waits under Drafts until it is sent. */
+  keptOnce: "Kept as a draft \xB7 nothing goes until you send it",
   change: "Change",
   edit: "Edit",
   you: "You approve",
@@ -228,7 +230,7 @@ export function sequenceStateWords(row) {
   }
   return SEQUENCE_STATE_WORDS[row.state];
 }
-export const SEQUENCE_STATE_WORDS = {
+const SEQUENCE_STATE_WORDS = {
   draft: "Draft",
   on: "On",
   paused: "Paused",
@@ -251,7 +253,7 @@ export function sequenceRowState(row) {
   return null;
 }
 export function sequenceRowLine(row, tz, nowMs, twin = null) {
-  if (row.state === "draft") return SEQUENCE_WORDS.notStarted;
+  if (row.state === "draft") return row.once ? SEQUENCE_WORDS.keptOnce : SEQUENCE_WORDS.notStarted;
   const needs = needsWords(row.needs);
   if (needs) return needs;
   if (twin) return twinLineOf(row);
@@ -259,7 +261,8 @@ export function sequenceRowLine(row, tz, nowMs, twin = null) {
     const at = Date.parse(row.date.at);
     if (row.last)
       return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} \xB7 ${plural(row.last.sent, "person", "people")} \xB7 ${row.last.replied} replied`;
-    return `${clockDate(at, tz, nowMs)} \xB7 ${plural(row.date.people, "person", "people")}`;
+    const when = at > nowMs ? `Goes ${clockWhen(at, tz, nowMs).replace(/^today /, "at ")}` : clockDate(at, tz, nowMs);
+    return `${when} \xB7 ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
   if (row.next) return `next ${clockWhen(Date.parse(row.next.at), tz, nowMs)}`;

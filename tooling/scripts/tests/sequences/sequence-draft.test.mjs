@@ -16,7 +16,9 @@
  * body Keep and Start send -- a wait held to its audience's bounds, what must still hold its audience's, a call or a note
  * the last step, the first step the sequence's own, nothing started with no one to send to, Meta's review leaving out who
  * hears only WhatsApp, the draft as it stands while Ask drafts it again, and a one-off kept as a draft opened as the draft
- * it was.
+ * it was. And the make's own rules (new-make.ts): a one-off goes by the channels that carry it then, never WhatsApp's new
+ * version; a lead's step is sent as a sequence to leads holds one; who said stop is no list, and a one-off's list of who
+ * said yes is everyone.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -27,6 +29,8 @@ const { setModelStream } = await import("../../../../apps/dashboard/src/server/m
 const { draftFrom } = await import("../../../../apps/dashboard/src/server/sequences/draft.ts");
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
+const { onceChannelsOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
+const { leadChainStepOf, newListOf } = await import("../../../../packages/contracts/src/index.ts");
 
 let calls;
 /** The model, answering `said`: one text event and a stop, as the gateway streams them. */
@@ -381,7 +385,8 @@ test("news Ask writes for everyone is an offer's kind: a yes to offers hears it,
   const r = M.reviewOf(holiday);
   assert.deepEqual(r, { others: "email", only: 95, can: 141 });
   assert.equal(M.notReady(holiday), null, "it can go now, by email");
-  assert.equal(M.reviewOf(M.setAt(holiday, "2026-10-21T09:00")), null, "tomorrow, Meta has had its day");
+  // Scheduled for tomorrow it is still made now, and judged now: it goes by email then too; kept, it waits for Meta.
+  assert.deepEqual(M.reviewOf(M.setAt(holiday, "2026-10-21T09:00")), r);
   // Where WhatsApp is all it goes by, sent now no one hears it.
   const waOnly = M.setChannels(holiday, ["whatsapp"]);
   assert.deepEqual(M.reviewOf(waOnly).can, 0);
@@ -504,7 +509,18 @@ test("a draft built by hand: every part a choice still to make, and nothing it c
     [d.kind, d.audience, d.who, d.steps.length, d.mode, d.policy_class],
     ["sequence", "people", null, 1, "ask", "campaign"],
   );
-  assert.ok(M.notReady(d), "no one to send to, no message");
+  assert.deepEqual(
+    M.notReady(d),
+    { lead: "Pick when, how, and a message", sub: "Then it can start" },
+    "the foot names the parts the page still says to pick",
+  );
+  const once = M.draftByHand("once", "people", "Harbor Studio");
+  assert.equal(once.name, "New message", "a one-off by hand is a message, not a sequence");
+  assert.deepEqual(M.notReady(once), { lead: "Pick who, how, and a message", sub: "Then it can go" });
+  assert.equal(
+    M.notReady({ ...once, who: { kind: "everyone", label: "everyone" }, channels: ["email"] }).lead,
+    "Pick a message",
+  );
   const ready = M.setMessage(M.setWho(d, { kind: "moment", trigger: "visited", label: "x" }), 0, held);
   assert.equal(M.notReady(ready), null);
   assert.deepEqual(ready.channels, ["whatsapp", "sms"], "a person's first message's channels are the sequence's");
@@ -640,4 +656,92 @@ test("a one-off kept as a draft opens as the draft it was; one whose message is 
   );
   assert.equal(gone.steps[0].message, null);
   assert.equal(M.onceKeptOf({ name: "x", once: null }, library, "x"), null);
+});
+
+test("the make sends a one-off by what carries it then: a message Ask wrote goes without its WhatsApp version until Meta approves it", () => {
+  const written = {
+    message: { written: { versions: { whatsapp: { body: "Hi" }, email: { subject: "S", body: "B" } } } },
+  };
+  assert.deepEqual(onceChannelsOf(written, ["whatsapp", "email"]), ["email"]);
+  assert.deepEqual(onceChannelsOf(written, ["whatsapp"]), [], "nothing else carries it: the make refuses in words");
+  assert.deepEqual(onceChannelsOf({ message: { written: null } }, ["whatsapp", "email"]), ["whatsapp", "email"]);
+  // A lead's step as a sequence to leads holds it: the first its subject, a later one in its thread, a call last.
+  const email = (subject, body) => ({ does: "message", email: { subject, body }, after_days: 7, hand: "" });
+  assert.deepEqual(leadChainStepOf(email("Hi", "Words"), 0), { subject: "Hi", body: "Words", after_days: null });
+  assert.deepEqual(leadChainStepOf(email("Hi", "Again"), 1), { subject: null, body: "Again", after_days: 7 });
+  assert.deepEqual(leadChainStepOf({ does: "call", email: null, after_days: 3, hand: "Ring them" }, 2), {
+    subject: null,
+    body: "",
+    after_days: 3,
+    hand: { kind: "call", words: "Ring them" },
+  });
+});
+
+test("who said stop is no list, and a one-off's list of who said yes is everyone, from the engine to the doors", () => {
+  assert.deepEqual(
+    ["seg:opted_out", "seg:offers_ok", "seg:opted_in", "seg:lapsed", "list:abc"].map((t) => newListOf(t, "once")),
+    ["never", "everyone", "everyone", "list", "list"],
+  );
+  assert.equal(newListOf("seg:offers_ok", "sequence"), "list", "a sequence may start as someone says yes");
+  assert.equal(newListOf("seg:opted_out", "sequence"), "never");
+  // A door to a consent list opens on everyone; to who said stop, on no one; to a list New does not know, on no one, said.
+  const once = (to, label) => M.fixedOf({ moment: null, who: "once", to }, label);
+  assert.equal(once("seg:offers_ok", "Can receive offers").who.kind, "everyone");
+  assert.equal(once("seg:opted_out", "Opted out").who, undefined);
+  assert.equal(once("seg:gone", null).who, undefined);
+  assert.deepEqual(once("seg:lapsed", "Lapsed").who, { kind: "list", token: "seg:lapsed", label: "Lapsed" });
+  assert.equal(M.doorListGone({ moment: null, who: "once", to: "seg:gone" }, null, true), true);
+  assert.equal(
+    M.doorListGone({ moment: null, who: "once", to: "seg:gone" }, null, false),
+    false,
+    "not before the read",
+  );
+  assert.equal(M.doorListGone({ moment: null, who: "once", to: "seg:offers_ok" }, null, true), false);
+  // Ask is never told who said stop; a one-off it drafts on a list of who said yes goes to everyone.
+  const toOffers = draftKept(
+    answer({ kind: "once", who: "l2", name: "Spring", steps: [step({ message: "k2", texts: ["Hi"] })] }),
+    {
+      ...KNOWN,
+      lists: [
+        ...KNOWN.lists,
+        { key: "l2", token: "seg:offers_ok", label: "Can receive offers", count: 9, pool: pool(9) },
+      ],
+    },
+    { words: "Send the offer to everyone" },
+  );
+  assert.equal(toOffers.who.kind, "everyone");
+});
+
+test("Meta's review holds a scheduled one-off too; late at night 'now' says when the hours open; a value is asked by its name", () => {
+  const holiday = {
+    ...M.draftByHand("once", "people", "x"),
+    who: M.everyoneOf(true),
+    channels: ["whatsapp", "email"],
+    reach: { can: 10, of: null, left: null, only_whatsapp: 4 },
+    steps: [
+      {
+        ...M.draftByHand("once", "people", "x").steps[0],
+        message: {
+          ...held,
+          written: { name: "h", category: "marketing", versions: { whatsapp: { body: "Hi" } }, slots: [] },
+        },
+      },
+    ],
+  };
+  assert.deepEqual(M.reviewOf(M.setAt(holiday, "2026-10-23T09:00")), { others: "email", only: 4, can: 6 });
+  // Ten minutes on, or nine the next morning past the sending hours (nextOpenMoment), by the business's clock.
+  const at = (iso) => Date.parse(iso);
+  assert.equal(M.goesSoonWords("UTC", at("2026-10-20T12:00:00Z")), "Goes 10 minutes after you send");
+  assert.match(M.goesSoonWords("UTC", at("2026-10-20T23:30:00Z")), /^Goes at 9:00 AM, when your sending hours open$/);
+  assert.equal(M.firstBatchWords(10, 9), "today at 10:00 AM");
+  assert.equal(M.firstBatchWords(10, 14), "tomorrow at 10:00 AM");
+  // A typed value is asked by its slot's own name; "Value 2" is no name.
+  const m = { ...held, labels: ["First name", "When the openings are"] };
+  assert.equal(M.valueLabelOf(m, 1), "When the openings are");
+  assert.equal(M.valueLabelOf({ ...held, labels: ["Value 2"] }, 0), null);
+  // What Ask could not do is its card's title over the rest.
+  assert.deepEqual(M.cannotParts("Left out: “if they loved it”. A step can wait on a booking."), {
+    title: "Left out: “if they loved it”",
+    words: "A step can wait on a booking.",
+  });
 });

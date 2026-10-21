@@ -1803,18 +1803,11 @@
       "rate": "ask",
       "spend": false
     },
-    "POST sequences/draft-leads": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "operator",
-      "rate": "ask",
-      "spend": false
-    },
     "POST sequences/new": {
       "kind": "write",
       "scope": "workspace",
       "role": "operator",
-      "rate": "playbook",
+      "rate": "broadcast",
       "spend": false
     },
     "POST settings/receptionist": {

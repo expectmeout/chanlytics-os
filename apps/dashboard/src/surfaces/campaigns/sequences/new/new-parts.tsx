@@ -21,7 +21,14 @@ import { cx } from "../../../kit/variants";
 import { MessagePreview } from "../../parts/message-preview";
 
 /** The owner's line, kept on top, with its way to say it again (or what Ask is doing with it). */
-export function SaidLine(p: { said: string; doing?: string | null; onAgain?: (() => void) | null; again?: string }) {
+export function SaidLine(p: {
+  said: string;
+  doing?: string | null;
+  onAgain?: (() => void) | null;
+  again?: string;
+  /** Its act a button (Stop, while Ask drafts), not words to press. */
+  button?: boolean;
+}) {
   return (
     <div className="sq-nw-said" data-testid="sq-nw-said">
       <Icon name="sparkle" size={14} />
@@ -34,7 +41,11 @@ export function SaidLine(p: { said: string; doing?: string | null; onAgain?: (()
         ) : (
           <span>{W.say.asked}</span>
         )}
-        {p.onAgain ? (
+        {p.onAgain && p.button ? (
+          <Button size="sm" onClick={p.onAgain} data-testid="sq-nw-again">
+            {p.again ?? W.say.sayAgain}
+          </Button>
+        ) : p.onAgain ? (
           <LinkButton onClick={p.onAgain} data-testid="sq-nw-again">
             {p.again ?? W.say.sayAgain}
           </LinkButton>
@@ -96,14 +107,16 @@ export function WordPick(p: { label: string; onPick: () => void; empty?: boolean
 }
 
 /** Who it reaches now, where the workspace counted it, and who it leaves out. */
-export function ReachLine({ reach, audience }: { reach: NewReach | null; audience: NewAudience }) {
+export function ReachLine(p: { reach: NewReach | null; audience: NewAudience; list?: boolean }) {
+  const { reach, audience } = p;
   if (!reach) return null;
   return (
     <p className={cx("sq-nw-reach", reach.can === 0 && "is-none")} data-testid="sq-nw-reach">
       <span className="sq-nw-dot" aria-hidden="true" />
       <span>
         <b>{reach.can}</b>
-        {reach.of !== null ? ` ${W.reach.of(reach.of)}` : null} {audience === "leads" ? W.reach.ready : W.reach.canHear}
+        {reach.of !== null ? ` ${p.list ? W.reach.ofList(reach.of) : W.reach.of(reach.of)}` : null}{" "}
+        {audience === "leads" ? W.reach.ready : W.reach.canHear}
       </span>
       {reach.left ? <span className="sq-nw-reach-left">{reach.left}</span> : null}
     </p>
