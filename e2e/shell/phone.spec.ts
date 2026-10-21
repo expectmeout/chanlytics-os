@@ -766,21 +766,20 @@ test.describe("Phone shell on a real workspace", () => {
    * the frame's top with the rows on an iPhone (Ruben, 19 Oct 2026): the screen holds now, and the page gives way by
    * itself (mobile.css, "A pull past the page's end"), however short, while the frame's top and the strip in it stay
    * where they stand. On a page of rows only the rows give, and what stands over them (the buckets, the search, the
-   * list's name and count) holds, as the Calendar's bar does (Ruben, 19 Oct 2026). Live kept scrollers of its own until
-   * 21 Oct 2026, when every page came to be scrolled by the window (mobile.css, "The window scrolls": Safari floated
-   * its glass toolbar over the Inbox and stood it on a flat band under Live), and it gives as Campaigns' rooms do.
+   * list's name and count) holds, as the Calendar's bar does (Ruben, 19 Oct 2026). A page that holds still keeps its
+   * own scroller (Live), which holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives
+   * way as a long one does.
    */
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
     const pulls: Record<string, string> = {};
-    // Where the list is, and what gives under a pull: its own scroller (a box that scrolls itself), its rows, or the
-    // route view.
+    // Where the list is, and what gives under a pull: its own scroller (Live), its rows, or the route view.
     for (const [hash, sel, gives] of [
       ["inbox", ".ix-threads", ".ix-threads"],
       ["conversations", ".cv-rows", ".cv-rows"],
-      ["live", ".lm-list", "#main"],
-      ["live", ".lm-panel", "#main"],
+      ["live", ".lm-list", "own"],
+      ["live", ".lm-panel", "own"],
       // The table with its foot, under the list's bar, its search and its count.
       ["clients", ".cl-main-scroll", ".pp-scope .cl-table-wrap"],
       ["clients/leads", ".cl-main-scroll", ".leads-scope .cl-table-wrap"],
@@ -1066,11 +1065,10 @@ test.describe("Phone shell on a real workspace", () => {
 
   /**
    * The Calendar holds its bar and walks its days (25 Sep). Its range, steps and views scrolled away with the days, and
-   * a pull dragged them, as People's strip did before #1041: now the bar stands over the days (8 Oct 2026: the board
-   * takes the room the page leaves, and the pane never pulls), sticking under the frame's top as the window scrolls the
-   * days (21 Oct 2026, mobile.css "The window scrolls": in a pane of its own Safari's toolbar stood on a flat band under
-   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views keep their 38px
-   * look, with 44px to press.
+   * a pull dragged them, as People's strip did before #1041: now the bar stands over a pane that holds still (8 Oct
+   * 2026: the board takes the room the page leaves, so nothing of the page is under the tab bar to scroll to, and the
+   * pane never pulls), and a swipe across the days walks to the next or previous days, as the steps do. The views keep
+   * their 38px look, with 44px to press.
    */
   test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
     page,
@@ -1087,19 +1085,10 @@ test.describe("Phone shell on a real workspace", () => {
       return false;
     });
     expect(barScrolls, "the bar stands over what scrolls").toBe(false);
-    const pulls = await page
+    const still = await page
       .getByTestId("cal-pane")
-      .evaluate((el) => getComputedStyle(el).overscrollBehaviorY !== "none");
-    expect(pulls, "the pane never pulls").toBe(false);
-    // The window scrolls the days, and the bar stays where it stood, stuck under the frame's top.
-    const barAt = Math.round((await range.boundingBox())!.y);
-    await page.evaluate(() => window.scrollTo(0, document.scrollingElement!.scrollHeight));
-    await expect
-      .poll(async () => Math.round((await range.boundingBox())!.y), {
-        message: "the bar where it stood, the days scrolled",
-      })
-      .toBe(barAt);
-    await page.evaluate(() => window.scrollTo(0, 0));
+      .evaluate((el) => getComputedStyle(el).overscrollBehaviorY === "none" && el.scrollHeight <= el.clientHeight + 1);
+    expect(still, "the pane holds still: nothing of it is off the screen, and it never pulls").toBe(true);
     const tall = await page.getByTestId("cal-view-week").evaluate((el) => {
       const r = el.getBoundingClientRect();
       const x = r.left + r.width / 2;

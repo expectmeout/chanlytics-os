@@ -20,7 +20,6 @@ import type { AdDraft, ChipId, DoorVM, NewAdVM } from "@chanlytics/contracts/ads
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
-import { scrollerOf } from "../../../kit/motion/page-scroll";
 import { useUnsavedWork } from "../../../kit/record/work";
 import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
@@ -120,9 +119,8 @@ function NewAdSheet({ opening, open, read, config, onClose, onTurnOn, flash }: S
     seen.current = step;
     const h = heading.current;
     if (!h) return;
-    // The body's own scroll on a desk; on a phone the window scrolls an open pane (mobile.css), to the top.
     const body = h.closest(".cm-pane-body");
-    if (body) scrollerOf(body, { self: true }).scrollTop = 0;
+    if (body) body.scrollTop = 0;
     h.focus({ preventScroll: true });
   }, [step]);
   const go = (next: Step) => {
