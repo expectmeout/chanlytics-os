@@ -828,8 +828,9 @@ var ERASURE_STRATEGIES = {
   },
   // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
   segments: all(NOT_PERSONAL, "name", "rule"),
-  // A sequence (decision 0060): its name, the business's.
-  sequences: { name: NOT_PERSONAL },
+  // A sequence (decision 0060): its name, and a one-off kept as a draft (00465: who it goes to by list or everyone, when,
+  // its channels and its message as the owner wrote it), the business's.
+  sequences: all(NOT_PERSONAL, "name", "once"),
   // A batch's name, its audience (a list's or a step's name, a rule in the closed vocabulary), its channels, its template
   // and what fills its slots: the business's.
   sequence_batches: all(
@@ -1944,6 +1945,28 @@ async function saveSequenceStep(db, p) {
     ...decided(p)
   });
   return answer(data, error);
+}
+async function keepOnceDraft(db, p) {
+  const { data, error } = await db.rpc("sequence_once_keep", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_once: p.once,
+    ...p.id ? { p_id: p.id } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function peopleHandRun(db, p) {
+  const { data, error } = await db.rpc("sequence_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the call or note step's run: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, already: r.already ?? 0 };
 }
 async function removeSequenceStep(db, p) {
   const { data, error } = await db.rpc("sequence_step_remove", {
@@ -7210,6 +7233,7 @@ export {
   keepMailboxWatch,
   keepMessageCost,
   keepModelTurn,
+  keepOnceDraft,
   keepProviderEvent,
   keptPersonOf,
   knownThreads,
@@ -7321,6 +7345,7 @@ export {
   pauseEmailOffers,
   peopleAtLead,
   peopleCursorOf,
+  peopleHandRun,
   peopleOnTheirOwnMode,
   peoplePage,
   peopleSeries,

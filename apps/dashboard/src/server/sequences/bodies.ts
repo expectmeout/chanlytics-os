@@ -7,9 +7,16 @@ import {
   ReachOutChainSchema,
   ReachOutStepSchema,
   SEQUENCE_DRAFT_THEN_MAX,
-  SEQUENCE_DRAFT_WORDS_MAX,
   UUID,
+  NEW_AUDIENCES,
+  NEW_KINDS,
+  NEW_WORDS_MAX,
   isListToken,
+  HAND_KINDS,
+  HAND_WORDS_MAX,
+  NEW_STEP_DOES,
+  PARAM_SOURCES,
+  SEQUENCE_MODES,
 } from "@chanlytics/contracts";
 
 /**
@@ -69,14 +76,26 @@ export const LEAVE_BODY = z
   .refine((b) => b.enrollment_ids.length + b.lead_ids.length > 0, { message: "Who leaves?" });
 export type LeaveBody = z.infer<typeof LEAVE_BODY>;
 
-/** A step after the first, as a new sequence names it: its wait, what must still hold, its message and values. */
-const THEN_STEP = z.strictObject({
-  after_days: AFTER_DAYS,
-  template_id: anId("Which message?"),
-  params: PARAMS.optional(),
-  only_if: ONLY_IF.optional(),
-  name: STEP_NAME.optional(),
+/** A call or a note for the team in place of a message (decision 0065): what to do when the person comes up. */
+const HAND = z.strictObject({
+  kind: z.enum(HAND_KINDS),
+  words: z.string().trim().min(1, "Say what to do when they come up.").max(HAND_WORDS_MAX),
 });
+
+/**
+ * A step after the first, as a new sequence names it: its wait, what must still hold, and its message with its values,
+ * or a call or a note for the team (`hand`, the last step only, judged by the door).
+ */
+const THEN_STEP = z
+  .strictObject({
+    after_days: AFTER_DAYS,
+    template_id: anId("Which message?").optional(),
+    hand: HAND.optional(),
+    params: PARAMS.optional(),
+    only_if: ONLY_IF.optional(),
+    name: STEP_NAME.optional(),
+  })
+  .refine((t) => !t.template_id !== !t.hand, "A step sends a message, or hands them over.");
 
 /**
  * POST sequences: a new sequence made whole (S4, New), kept as a draft or started (`start`). Its first step is a
@@ -124,31 +143,108 @@ export const DRAFT_LEADS_BODY = z.strictObject({
 export const MOVE_BODY = z.strictObject({ lead_id: anId("Which lead?") });
 export type MoveBody = z.infer<typeof MOVE_BODY>;
 
+/** Who a draft is for, as a door or the owner chose it (contracts DraftWho); whether the workspace holds it is judged where it is made. */
+const NEW_WHO = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("moment"),
+    trigger: z.string().trim().min(1).max(40),
+    label: z.string().trim().min(1).max(120),
+  }),
+  z.strictObject({
+    kind: z.literal("list"),
+    token: z.string().refine(isListToken, "Which list?"),
+    label: z.string().trim().min(1).max(120),
+  }),
+  z.strictObject({ kind: z.literal("everyone"), label: z.string().trim().min(1).max(120) }),
+  z.strictObject({ kind: z.literal("search"), id: anId("Which search?"), label: z.string().trim().min(1).max(120) }),
+  z.strictObject({
+    kind: z.literal("leads"),
+    ids: z.array(anId("Which lead?")).min(1).max(500, "At most 500 at once."),
+    label: z.string().trim().min(1).max(120),
+  }),
+]);
+
 /**
- * POST sequences/draft: the owner's line, the draft it rewrites when they say it again (`previous`, its name and how many
- * steps it had: what the model is told of it), and the list it starts on where it starts on one (`list`, its token and
- * name as the composer offers it; whether the workspace keeps it is judged where it is made, POST sequences).
+ * POST sequences/draft (decision 0065): the owner's line, and any choice already made (`kind`, `audience`, `who`: a door's,
+ * or the owner's in the draft, which Ask keeps), and the draft it rewrites when they say it again (`previous`, its name and
+ * how many steps it had: what the model is told of it).
  */
 export const DRAFT_BODY = z.strictObject({
   words: z
     .string()
     .trim()
     .min(8, "Say what it should do — one line is enough.")
-    .max(SEQUENCE_DRAFT_WORDS_MAX, `At most ${SEQUENCE_DRAFT_WORDS_MAX} characters.`),
+    .max(NEW_WORDS_MAX, `At most ${NEW_WORDS_MAX} characters.`),
+  kind: z.enum(NEW_KINDS).optional(),
+  audience: z.enum(NEW_AUDIENCES).optional(),
+  who: NEW_WHO.optional(),
   previous: z
     .strictObject({
       name: z.string().max(80),
-      steps: z
-        .number()
-        .int()
-        .min(1)
-        .max(SEQUENCE_DRAFT_THEN_MAX + 1),
-    })
-    .optional(),
-  list: z
-    .strictObject({
-      token: z.string().refine(isListToken, "Which list?"),
-      label: z.string().trim().min(1).max(120),
+      steps: z.number().int().min(1).max(8),
     })
     .optional(),
 });
+
+/** A message Ask wrote, as New holds it until it is filed (contracts NewWrittenMessage; write-message.ts judges it). */
+const WRITTEN = z.strictObject({
+  name: z.string().trim().min(1).max(60),
+  category: z.enum(["marketing", "utility"]),
+  versions: z.strictObject({
+    whatsapp: z.strictObject({ body: z.string().max(1024) }).optional(),
+    email: z.strictObject({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
+    sms: z.strictObject({ body: z.string().max(600) }).optional(),
+  }),
+  slots: z
+    .array(
+      z.strictObject({
+        position: z.number().int().min(1).max(10),
+        label: z.string().trim().min(1).max(60),
+        example: z.string().max(200),
+        kind: z.enum(PARAM_SOURCES),
+      }),
+    )
+    .max(10),
+});
+
+/** One step of New's draft as it is kept or started (contracts NewStep): a person's message, a lead's email, or a call or a note. */
+const NEW_STEP = z.strictObject({
+  name: z.string().trim().max(120),
+  after_days: z.number().int().min(1).max(90).nullable(),
+  only_if: ONLY_IF,
+  does: z.enum(NEW_STEP_DOES),
+  message: z
+    .strictObject({
+      template_id: anId("Which message?").nullable(),
+      params: PARAMS,
+      written: WRITTEN.nullable(),
+    })
+    .nullable(),
+  email: z.strictObject({ subject: z.string().max(200).nullable(), body: z.string().max(4000) }).nullable(),
+  hand: z.string().max(HAND_WORDS_MAX),
+});
+
+/**
+ * POST sequences/new (decision 0065): New's draft, kept (`start` false) or started. A sequence or a one-off, to people or to
+ * leads; who and when, the hour, the channels, the mode, and each step. A kept one-off names its draft when it is kept
+ * again or sent (`draft_id`). Every part is judged again by the doors it is made through.
+ */
+export const NEW_MAKE_BODY = z.strictObject({
+  kind: z.enum(NEW_KINDS),
+  audience: z.enum(NEW_AUDIENCES),
+  name: z.string().trim().min(1, "Name it.").max(80),
+  who: NEW_WHO,
+  run_hour: z.number().int().min(9).max(20),
+  at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+    .nullable(),
+  channels: z.array(z.enum(CONSENT_CHANNELS)).max(3),
+  mode: z.enum(SEQUENCE_MODES).nullable(),
+  adds_new: z.boolean(),
+  owner_sends: z.boolean().optional(),
+  draft_id: anId("Which draft?").optional(),
+  steps: z.array(NEW_STEP).min(1, "Add a step.").max(6),
+  start: z.boolean(),
+});
+export type NewMakeBody = z.infer<typeof NEW_MAKE_BODY>;

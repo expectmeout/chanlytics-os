@@ -2108,6 +2108,15 @@ interface PlaybookRow {
     after_days?: number | null;
     /** What must still hold of someone due it (D6, contracts FOLLOW_UP_CONDITIONS): no_booking, no_reply. */
     only_if?: string[] | null;
+    /** A call or a note for the team in place of a message (00465, decision 0065): a customer's last step. */
+    hand?: unknown;
+}
+/** One person a customer's call or note step hands over, as the door takes it (00465 sequence_hand_run). */
+interface PeopleHandItem {
+    send_id: string;
+    contact_id: string;
+    words: string;
+    source_id: string;
 }
 /** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 interface FollowUpDue {
@@ -2207,6 +2216,18 @@ interface RunPlaybookPorts extends AssemblePorts {
     followUpsDue(stepId: string, runFor: string): Promise<FollowUpDue[]>;
     /** People taken out of their sequence with why (00441 sequence_enrollments_leave): how many left. Throws on a failed write. */
     leave(enrollmentIds: readonly string[], why: string): Promise<number>;
+    /**
+     * A customer's call or note step's run for its day, written whole (00465 sequence_hand_run): the run, a handed send and
+     * a dated step for the team per person, and their place moved past the step. Throws on a failed write.
+     */
+    handRun(p: {
+        stepId: string;
+        runId: string;
+        day: string;
+        items: PeopleHandItem[];
+    }): Promise<{
+        made: number;
+    }>;
     /**
      * Who a customer's sequence has reached, by contact id: everyone it holds now, or sent anything to (the loop review's
      * item 6: a sequence on a list goes once to each person, the list's people when it starts, then each who joins). A list's

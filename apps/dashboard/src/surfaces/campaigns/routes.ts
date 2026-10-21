@@ -16,7 +16,7 @@ import {
   MESSAGES_ROUTE,
   RUN_UNNAMED_WORDS,
   SEQUENCES_ROUTE,
-  SEQUENCE_NEW_WORDS,
+  NEW_WORDS,
   SEQUENCE_WORDS,
   isAdsParam,
   isMessagesParam,
@@ -102,7 +102,7 @@ function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: 
       : named
         ? [CAMPAIGNS, named]
         : place?.view === "new"
-          ? [CAMPAIGNS, SEQUENCE_NEW_WORDS.title]
+          ? [CAMPAIGNS, NEW_WORDS.title]
           : [CAMPAIGN_ROOMS.home],
     mount: "campaigns",
     act: null,

@@ -59,22 +59,11 @@ export const PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; lane 6, where the composer over the list
-  // went): what Sequences opens on, and Send once, made of Sent's runs and who each audience reaches (People's book, its
-  // lists and the week's touches, their own read), the channels read and the settings read, which holds the messages it
-  // offers. Write to leads reads its searches as it is chosen. Each surface's first reads.
-  "campaigns/sequences/new": [
-    "sequences",
-    "channels",
-    "settings",
-    "broadcasts",
-    "broadcasts/touches",
-    "contacts",
-    "segments",
-    "team",
-    "policies",
-    "templates?all=1"
-  ],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; decision 0065, one New for every
+  // sequence): what Sequences opens on, and Campaigns' read of the moments, the lists and who each reaches (playbooks, with
+  // the channels read the counts are by), whose messages are the settings read's. The searches whose leads are ready are
+  // read as New opens. Each surface's first reads.
+  "campaigns/sequences/new": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

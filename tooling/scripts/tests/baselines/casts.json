@@ -159,7 +159,7 @@
     "nonNull": 1
   },
   "apps/dashboard/src/surfaces/people/surface.ts": {
-    "unknownAs": 2
+    "unknownAs": 1
   },
   "apps/edge/lib/google/profile-connection.ts": {
     "nonNull": 1

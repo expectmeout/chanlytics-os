@@ -1,0 +1,481 @@
+/* New (decision 0065; the New canvas, artifact 3eGjrhpQABiRHEgmiy27Kb): its layout, on the kit's parts and the tokens.
+   The line kept on top, who and when as one sentence of words to press, who it reaches, the steps on the record's rail
+   (place/rail.tsx draws them), what Ask checked, and the sheets' rows. Amber needs you, red failed, green can go. */
+
+.sq-nw {
+  container: sq-nw / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+}
+.sq-nw-cols,
+.sq-nw-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* A wide pane stands what Ask checked and how it runs beside the steps, held in view as the steps scroll (the canvas's
+   desk board). */
+@container sq-nw (width > 640px) {
+  .sq-nw-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-5);
+  }
+  .sq-nw-col.is-side {
+    position: sticky;
+    top: 0;
+  }
+  .sq-nw-col.is-side > .sq-nw-cap:first-child {
+    margin-top: 0;
+  }
+}
+.sq-nw[aria-busy="true"] .sq-nw-who,
+.sq-nw[aria-busy="true"] .sq-nw-rail {
+  opacity: 0.55;
+}
+
+/* The owner's line, kept on top, with its way to say it again. */
+.sq-nw-said {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+.sq-nw-said > .icon {
+  margin-top: var(--space-1);
+  color: var(--accent-ink);
+}
+.sq-nw-said-words {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+.sq-nw-said-by {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sq-nw-busy {
+  color: var(--accent-ink);
+  font-weight: var(--weight-medium);
+}
+
+/* A caption, and the caption over Who and when with the toggle at its end. */
+.sq-nw-cap {
+  margin: var(--space-4) var(--space-1) 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+.sq-nw-caprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.sq-nw-caprow .sq-nw-cap {
+  margin: 0 var(--space-1);
+}
+.sq-nw-aud.is-wide {
+  width: 100%;
+}
+
+/* Who and when, one sentence of words to press, and who it reaches under it. */
+.sq-nw-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+}
+.sq-nw-sentence {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 2;
+  color: var(--ink-muted);
+}
+.sq-nw-word {
+  vertical-align: middle;
+}
+.sq-nw-reach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.sq-nw-reach b {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.sq-nw-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--ok);
+}
+.sq-nw-reach.is-none .sq-nw-dot {
+  background: var(--warn);
+}
+.sq-nw-reach-left {
+  margin-left: auto;
+  color: var(--ink-dim);
+}
+
+/* What stops or bends the draft: amber where it needs you, red where something failed. */
+.sq-nw-cases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sq-nw-case {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+.sq-nw-case[data-tone="warn"] {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+}
+.sq-nw-case[data-tone="bad"] {
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+.sq-nw-case-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.sq-nw-case[data-tone="warn"] .sq-nw-case-head {
+  color: var(--warn-ink);
+}
+.sq-nw-case[data-tone="bad"] .sq-nw-case-head {
+  color: var(--danger-ink);
+}
+.sq-nw-case-words {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.sq-nw-case-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* A step's box on the rail: its words, then what changes it. */
+.sq-nw-rail {
+  margin-top: var(--space-2);
+}
+.sq-nw-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sq-nw-stepacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.sq-nw-k {
+  color: var(--ink-dim);
+}
+.sq-nw-by {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+}
+.sq-nw-remove {
+  align-self: flex-start;
+}
+.sq-nw-wait {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* A rule a lead's step keeps on its own, said beside its wait and never pressed. */
+.sq-nw-fixed {
+  color: var(--ink-dim);
+}
+.sq-nw-task {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.sq-nw-once {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A lead's email as the business reads it. */
+.sq-nw-mail {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.sq-nw-mail-subject {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.sq-nw-mail-body {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--ink-muted);
+  white-space: pre-line;
+}
+.sq-nw-mail-body.is-blank {
+  color: var(--ink-dim);
+}
+
+/* What Ask checked: a tick each, amber where it still needs you. */
+.sq-nw-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sq-nw-check {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.sq-nw-check > .icon {
+  margin-top: var(--space-1);
+  color: var(--ok);
+}
+.sq-nw-check.is-warn > .icon {
+  color: var(--warn);
+}
+.sq-nw-check small {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* A note under a part, and the foot's line before its acts. */
+.sq-nw-note {
+  margin: 0 var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.sq-nw-note.is-warn {
+  color: var(--warn-ink);
+}
+/* The foot: its line, then its act or its pair (Keep as a draft and Start, the house's pair on a phone, kit.css). */
+.sq-nw-foot {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sq-nw-foot-line {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+.sq-nw-foot-line b {
+  font-weight: var(--weight-semibold);
+}
+.sq-nw-foot-line small {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* A phone's foot is its two acts: a line that only says when it begins stands down (the canvas's phone boards); a line
+   that says who it reaches keeps its place beside the one act, inset from the capsule's rim. */
+@media (max-width: 900px) {
+  .sq-nw-foot-line.is-quiet {
+    display: none;
+  }
+  .sq-nw-foot:not([data-foot-pair]) > .sq-nw-foot-line {
+    padding-left: var(--space-3);
+  }
+}
+.sq-nw-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sq-nw-name > .icon {
+  flex: none;
+  color: var(--ink-dim);
+}
+
+/* The line to Ask, with Draft it under it. */
+.sq-nw-say {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sq-nw-say-acts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.sq-nw-say-acts small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* Ask at work: the draft's shape held while it writes. */
+.sq-nw-skel {
+  height: 64px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+.sq-nw-skel.is-big {
+  height: 96px;
+}
+
+/* A sheet's rows: its choices, its switches, a day's two fields, a wait to step, a pair of acts. */
+.sq-nw-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sq-nw-rows {
+  display: flex;
+  flex-direction: column;
+}
+.sq-nw-choice.is-on {
+  background: var(--selected-fill);
+}
+.sq-nw-choice.is-off {
+  opacity: 0.55;
+}
+.sq-nw-door {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.sq-nw-count {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+/* What kind a start makes, at its row's end. */
+.sq-nw-kind {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.sq-nw-switchrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-base);
+}
+.sq-nw-switchrow small {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sq-nw-switchrow[data-off="true"] > span {
+  opacity: 0.55;
+}
+.sq-nw-when-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.sq-nw-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+}
+.sq-nw-days {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 120px;
+}
+.sq-nw-days b {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+.sq-nw-days small {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.sq-nw-pair {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+.sq-nw-pair > * {
+  flex: 1 1 0;
+}
+.sq-nw-versions {
+  width: 100%;
+}
+/* Ask's changes under the words, and the values to put in: a row of small presses. */
+.sq-nw-presses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

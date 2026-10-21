@@ -2603,6 +2603,8 @@ import {
   followUpLeaves,
   followUpReach,
   followUpStop,
+  handOf,
+  handStepWords,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
   readyForMessage,
@@ -2787,6 +2789,52 @@ async function drawFollowUp(r, message, how) {
     return { error: `follow_up: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
+async function runPeopleHand(r, hand) {
+  const { p, ctx, ports, runFor, mode } = r;
+  if (await ports.alreadyRan(p.id, runFor)) return r.off("already_ran_today", { record: false });
+  if ((p.only_if ?? []).includes("no_booking") && ctx.calendar === "unavailable")
+    return { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD };
+  try {
+    const due = await ports.followUpsDue(p.id, runFor);
+    const people = new Map(ctx.people.map((person) => [person.id, person]));
+    const leaving = /* @__PURE__ */ new Map();
+    const goes = [];
+    for (const d of due) {
+      const person = people.get(d.contact_id);
+      const stop = person ? followUpStop(person, p.only_if ?? [], d.sent_at ? Date.parse(d.sent_at) : null) : "gone";
+      if (person && !stop) goes.push(person);
+      else leaving.set(stop ?? "gone", [...leaving.get(stop ?? "gone") ?? [], d.enrollment_id]);
+    }
+    for (const [why, ids] of leaving) await ports.leave(ids, why);
+    const handed = goes.slice(0, Math.max(1, p.cap_per_run));
+    if (handed.length === 0) {
+      await r.record({ mode, eligible: 0, hand: hand.kind });
+      return { outcome: "empty", eligible: 0, mode };
+    }
+    const runId = await reachOutRunIdFor(p.id, runFor);
+    const items = await Promise.all(
+      handed.map(async (person) => ({
+        send_id: await sendIdFor(runId, person.id),
+        contact_id: person.id,
+        words: handStepWords(hand.kind, person.name, hand.words),
+        source_id: await handStepIdFor(p.id, person.id)
+      }))
+    );
+    const made = await ports.handRun({ stepId: p.id, runId, day: runFor, items });
+    await r.record({ mode, eligible: made.made, hand: hand.kind, broadcast_id: runId, state: "sent" });
+    return {
+      outcome: "sent",
+      broadcast_id: runId,
+      eligible: made.made,
+      mode,
+      state: "sent",
+      scheduled_for: ctx.now.toISOString(),
+      moved_from: null
+    };
+  } catch (e) {
+    return { outcome: "failed", error: `hand: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
 async function drawOf(r, message, how, listIds) {
   if (isFollowUp(r.p)) return drawFollowUp(r, message, how);
   if (listIds === null) return draw(r, message, how, { listIds: null, reached: /* @__PURE__ */ new Set() });
@@ -2881,6 +2929,8 @@ async function runPlaybook(ports, cmd) {
   const goesAt = open ? open.at : now;
   const channels = parseChannels(void 0, p.channels ?? null);
   const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  const hand = isFollowUp(p) ? handOf(p.hand) : null;
+  if (hand) return runPeopleHand(run, hand);
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
   const gate = await allowed(run, message);
@@ -3761,7 +3811,7 @@ async function runReachOut(ports, step, cmd) {
 }
 
 // src/campaigns/run-hand-step.ts
-import { handStepWords } from "../../contracts/dist/index.js";
+import { handStepWords as handStepWords2 } from "../../contracts/dist/index.js";
 var doorRefuses = (f) => followerRefusalOf(f, { bounced: false }) !== null;
 async function runHandStep(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
@@ -3780,7 +3830,7 @@ async function runHandStep(ports, step, cmd) {
       send_id: await sendIdFor(runId, l.lead_id),
       lead_id: l.lead_id,
       contact_id: l.contact_id,
-      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      words: handStepWords2(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
       source_id: await handStepIdFor(step.id, l.lead_id)
     }))
   );

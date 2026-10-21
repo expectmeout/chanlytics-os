@@ -6258,6 +6258,7 @@ export type Database = {
           id: string
           mode: string | null
           name: string
+          once: Json | null
           starts: string
           state: string
           tenant_id: string
@@ -6269,6 +6270,7 @@ export type Database = {
           id?: string
           mode?: string | null
           name: string
+          once?: Json | null
           starts: string
           state?: string
           tenant_id: string
@@ -6280,6 +6282,7 @@ export type Database = {
           id?: string
           mode?: string | null
           name?: string
+          once?: Json | null
           starts?: string
           state?: string
           tenant_id?: string
@@ -9403,6 +9406,16 @@ export type Database = {
           sent_at: string
         }[]
       }
+      sequence_hand_run: {
+        Args: {
+          p_day: string
+          p_items: Json
+          p_run_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       sequence_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -9486,6 +9499,18 @@ export type Database = {
           p_lead_id: string
           p_tenant_id: string
           p_to_root: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      sequence_once_keep: {
+        Args: {
+          p_decision?: Json
+          p_id?: string
+          p_name: string
+          p_once: Json
+          p_tenant_id: string
+          p_undo_of?: string
           p_via?: string
         }
         Returns: Json

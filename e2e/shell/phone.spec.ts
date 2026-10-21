@@ -289,13 +289,12 @@ test.describe("Phone shell on a real workspace", () => {
   });
   /**
    * Campaigns on a phone is Sequences (decision 0060; Sent's list and the home that stood here went in its S6): the list,
-   * every control of it inside the screen, its New whole on the first screen. The one-off composer a date opens, in a
-   * sheet from the bottom at its own address, holds nothing past the edge either: Broadcasts' "Send now" once sat 208px
-   * past it (.bc-actions, a flex row with no wrap in a 283px column, under .main-scroll's overflow-x: hidden), where a case
-   * that only looked for the button would have passed the whole time. Read-only: New and its date are pressed, and the
-   * composer is left unsaved.
+   * every control of it inside the screen, its New whole on the first screen, and New on a one-off too (decision 0065:
+   * one New for every sequence): Broadcasts' "Send now" once sat 208px past the edge (.bc-actions, a flex row with no
+   * wrap in a 283px column, under .main-scroll's overflow-x: hidden), where a case that only looked for the button would
+   * have passed the whole time. Read-only: New is opened, and nothing is drafted.
    */
-  test("Campaigns: every control on Sequences is inside the screen, New on the first screen, and a one-off's composer too", async ({
+  test("Campaigns: every control on Sequences is inside the screen, New on the first screen, and New on a one-off too", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
@@ -311,12 +310,11 @@ test.describe("Phone shell on a real workspace", () => {
     const pane = page.getByTestId("sq-new");
     await expect(pane).toBeVisible();
     await controlsInsideTheScreen(page, pane);
-    await pane.getByTestId("sq-new-on-date").click();
-    await pane.getByTestId("sq-new-open-date").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
-    const composer = page.getByTestId("cmh-composer").getByTestId("bc-composer");
-    await expect(composer).toBeVisible();
-    await controlsInsideTheScreen(page, composer);
+    // A one-off is the same New (decision 0065): its line and its starts inside the screen too.
+    await page.goto("/#/campaigns/sequences/new:once");
+    const once = page.getByTestId("sq-new");
+    await expect(once.getByTestId("sq-nw-line")).toBeVisible();
+    await controlsInsideTheScreen(page, once);
   });
 
   /**
@@ -350,20 +348,6 @@ test.describe("Phone shell on a real workspace", () => {
     }
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
-  });
-
-  test("Campaigns: Send now asks before it sends", async ({ page }) => {
-    // The send is New's Once (`campaigns/sequences/new:once`), where the composer's old address lands.
-    await page.goto("/#/campaigns/sequences/new:once");
-    await page.waitForLoadState("networkidle");
-    const send = page.getByTestId("bc-send");
-    test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");
-    await send.click();
-    await expect(page.getByTestId("bc-send-confirm")).toBeVisible();
-    await expect(page.getByTestId("bc-send-yes")).toBeVisible();
-    // Nothing has gone: the question can be dismissed and the button comes back.
-    await page.getByTestId("bc-send-no").click();
-    await expect(page.getByTestId("bc-send")).toBeVisible();
   });
 
   /**

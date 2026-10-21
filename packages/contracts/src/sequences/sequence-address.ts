@@ -30,7 +30,7 @@ export type NewWho = "once" | "leads";
  */
 export type SequencesPlace = (
   | { view: "list" }
-  | { view: "new"; moment?: string; who?: NewWho; to?: string }
+  | { view: "new"; moment?: string; who?: NewWho; to?: string; draft?: string }
   | { view: "record"; id: string; tab: SequenceTab; run?: string }
 ) & {
   /** The Leads address it was opened from, where Back, Start and Cancel return; absent where none was named. */
@@ -67,13 +67,15 @@ export function parseSequencesRoute(route: string): SequencesPlace | null {
 
 /**
  * New, by the word its address holds: a moment rides in it (`new:moment:<trigger>`), and so does who it is for
- * (`new:once`, `new:once:to:<audience>`, an audience's id holding colons of its own, `seg:<list>`; `new:leads`).
+ * (`new:once`, `new:once:to:<audience>`, an audience's id holding colons of its own, `seg:<list>`; `new:leads`), or the
+ * one-off kept as a draft it opens on (`new:once:draft:<id>`, 00465).
  */
 function newPlaceOf(word: string): Extract<SequencesPlace, { view: "new" }> {
   const [, kind, ...rest] = word.split(":");
   if (kind === "moment" && rest[0]) return { view: "new", moment: rest[0] };
   if (kind === "leads") return { view: "new", who: "leads" };
   if (kind !== "once") return { view: "new" };
+  if (rest[0] === "draft" && rest[1]) return { view: "new", who: "once", draft: rest[1] };
   const to = rest[0] === "to" ? rest.slice(1).join(":") : "";
   return to ? { view: "new", who: "once", to } : { view: "new", who: "once" };
 }
@@ -117,6 +119,9 @@ export const runRoute = (id: string, sequenceId?: string | null): string =>
  */
 export const sendOnceRoute = (audience?: string | null): string =>
   audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
+
+/** New on a message sent once, kept as a draft (00465): its who, when, how and message as it was kept. */
+export const onceDraftRoute = (id: string): string => `${SEQUENCES_ROUTE}/new:once:draft:${id}`;
 
 /** New for leads: a sequence written to the leads a search found (the composer's Write to leads, `campaigns/new:leads`). */
 export const newForLeadsRoute = (): string => `${SEQUENCES_ROUTE}/new:leads`;

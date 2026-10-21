@@ -355,6 +355,8 @@ export {
   cancelSequenceBatch,
   makeSequence,
   discardSequence,
+  keepOnceDraft,
+  peopleHandRun,
   sequencesOfPerson,
   sequencePlaceOf,
   sequencePlacesOf,
@@ -362,7 +364,7 @@ export {
   aimSearchAt,
   setChainSource,
 } from "./repositories/campaigns/sequences";
-export type { SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
+export type { PeopleHandItem, SequenceDoorAnswer, SequenceMoveAnswer } from "./repositories/campaigns/sequences";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
   resolveChannelDetailed,

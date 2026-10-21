@@ -250,6 +250,7 @@ export const ROUTES = {
   "POST sequences/[id]/steps/[step]/words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/words" },
   "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
   "POST sequences/draft-leads": { method: "POST", path: "/api/v1/sequences/draft-leads" },
+  "POST sequences/new": { method: "POST", path: "/api/v1/sequences/new" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
@@ -545,6 +546,7 @@ export type Routes = {
   "POST sequences/[id]/steps/[step]/words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/words/route").POST;
   "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;
   "POST sequences/draft-leads": typeof import("../../app/api/v1/sequences/draft-leads/route").POST;
+  "POST sequences/new": typeof import("../../app/api/v1/sequences/new/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;

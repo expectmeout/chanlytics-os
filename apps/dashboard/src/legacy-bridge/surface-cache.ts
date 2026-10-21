@@ -305,6 +305,14 @@ export function snapshotSurface(
   });
 }
 
+/**
+ * A surface the page changed in place, taken into the tab's cached copy for the workspace the page is in (the bridge's
+ * `__ACTIVE_WORKSPACE`, read here once for every caller): a saved view of People, a person a mark says was read.
+ */
+export function resnapshotHere(key: string, globals: string[], value?: SurfaceKey): void {
+  resnapshotSurface(key, globals, window.__ACTIVE_WORKSPACE ?? null, value);
+}
+
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
 export function resnapshotSurface(key: string, globals: string[], tenant: string | null, value?: SurfaceKey): void {
   const blob = current();

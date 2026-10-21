@@ -17,6 +17,8 @@ import {
   followUpLeaves,
   followUpReach,
   followUpStop,
+  handOf,
+  handStepWords,
   messageAboutOfTrigger,
   proposalFactsFor,
   readyForMessage,
@@ -36,8 +38,10 @@ import {
   type RunPlan,
   type RunReach,
   type SequenceMode,
+  type StepHand,
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
+import { handStepIdFor, reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
 import { allowanceRecord, pastTheMonth } from "./allowance";
 import { parseChannels } from "./message-channels";
 import type {
@@ -314,6 +318,61 @@ async function drawFollowUp(
 }
 
 /**
+ * A customer's call or note step (00465, decision 0065): the people its sequence brought to it, their wait over, each
+ * handed to the team as a call to make or a note, a dated step on their person due that day, at most its cap, the longest
+ * waiting first. Whoever what it was for no longer holds of (they booked, wrote back, or are gone) leaves, as a message
+ * step's would, so the team is never asked to call someone who booked. Nothing is sent, so nothing waits for an OK, spends,
+ * or asks for a channel. The run, its handed sends and the steps are written whole by the door. A read or a write that
+ * fails is this run failing: nothing is recorded, and the next sweep asks again.
+ */
+async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
+  const { p, ctx, ports, runFor, mode } = r;
+  if (await ports.alreadyRan(p.id, runFor)) return r.off("already_ran_today", { record: false });
+  if ((p.only_if ?? []).includes("no_booking") && ctx.calendar === "unavailable")
+    return { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD };
+  try {
+    const due = await ports.followUpsDue(p.id, runFor);
+    const people = new Map(ctx.people.map((person) => [person.id, person]));
+    const leaving = new Map<string, string[]>();
+    const goes: PersonRowVM[] = [];
+    for (const d of due) {
+      const person = people.get(d.contact_id);
+      const stop = person ? followUpStop(person, p.only_if ?? [], d.sent_at ? Date.parse(d.sent_at) : null) : "gone";
+      if (person && !stop) goes.push(person);
+      else leaving.set(stop ?? "gone", [...(leaving.get(stop ?? "gone") ?? []), d.enrollment_id]);
+    }
+    for (const [why, ids] of leaving) await ports.leave(ids, why);
+    const handed = goes.slice(0, Math.max(1, p.cap_per_run));
+    if (handed.length === 0) {
+      await r.record({ mode, eligible: 0, hand: hand.kind });
+      return { outcome: "empty", eligible: 0, mode };
+    }
+    const runId = await reachOutRunIdFor(p.id, runFor);
+    const items = await Promise.all(
+      handed.map(async (person) => ({
+        send_id: await sendIdFor(runId, person.id),
+        contact_id: person.id,
+        words: handStepWords(hand.kind, person.name, hand.words),
+        source_id: await handStepIdFor(p.id, person.id),
+      })),
+    );
+    const made = await ports.handRun({ stepId: p.id, runId, day: runFor, items });
+    await r.record({ mode, eligible: made.made, hand: hand.kind, broadcast_id: runId, state: "sent" });
+    return {
+      outcome: "sent",
+      broadcast_id: runId,
+      eligible: made.made,
+      mode,
+      state: "sent",
+      scheduled_for: ctx.now.toISOString(),
+      moved_from: null,
+    };
+  } catch (e) {
+    return { outcome: "failed", error: `hand: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/**
  * Who the run reaches: a moment's people, or the people a step after the first is due to (D6). A sequence on a list goes
  * once to each person (the loop review's item 6): the list's people when it starts, then each who joins, never again to
  * anyone it already reached or holds. A read of who it reached that fails is this run failing: nothing is recorded.
@@ -508,6 +567,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);
   const run: Run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  // A call or a note for the team (decision 0065): nothing is sent, so no message is read and no channel asked of.
+  const hand = isFollowUp(p) ? handOf(p.hand) : null;
+  if (hand) return runPeopleHand(run, hand);
 
   // WhatsApp's version, where it is all the run goes by, must still be what Meta approved; the number must be one Meta
   // lets send (when WhatsApp is ticked).
