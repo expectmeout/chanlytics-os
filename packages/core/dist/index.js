@@ -2604,7 +2604,7 @@ import {
   followUpReach,
   followUpStop,
   handOf,
-  handStepWords,
+  personHandWords,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
   readyForMessage,
@@ -2816,7 +2816,9 @@ async function runPeopleHand(r, hand) {
       handed.map(async (person) => ({
         send_id: await sendIdFor(runId, person.id),
         contact_id: person.id,
-        words: handStepWords(hand.kind, person.name, hand.words),
+        // Their own name, or their WhatsApp one: never the row's fallback (a number, an address, "Unknown"), which a
+        // call to "ana@example.com" would read; with neither, "them" (personHandWords).
+        words: personHandWords(hand.kind, person.givenName || person.waName || "", hand.words),
         source_id: await handStepIdFor(p.id, person.id)
       }))
     );
@@ -3811,7 +3813,7 @@ async function runReachOut(ports, step, cmd) {
 }
 
 // src/campaigns/run-hand-step.ts
-import { handStepWords as handStepWords2 } from "../../contracts/dist/index.js";
+import { handStepWords } from "../../contracts/dist/index.js";
 var doorRefuses = (f) => followerRefusalOf(f, { bounced: false }) !== null;
 async function runHandStep(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
@@ -3830,7 +3832,7 @@ async function runHandStep(ports, step, cmd) {
       send_id: await sendIdFor(runId, l.lead_id),
       lead_id: l.lead_id,
       contact_id: l.contact_id,
-      words: handStepWords2(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
       source_id: await handStepIdFor(step.id, l.lead_id)
     }))
   );

@@ -1,15 +1,18 @@
 /**
  * New's pickers (decision 0065; the New canvas's rows C and F): a sheet for each choice the draft says as a word to press.
  * What kind it is, who it is for (people's moments and lists, or the searches whose leads are ready, the toggle between
- * them at the top), when a one-off goes, the hour, the channels, a step's message, its wait and what must still hold, a
- * step added (a message, a call or a note), Your OK, and where a sequence to leads sends from. Each changes the draft in
+ * them at the top), when a one-off goes, the hour, the channels, a step's message, its wait and what must still hold, Your
+ * OK, and where a sequence to leads sends from (a step added is add-step.tsx's, which a record draws too). Each changes the draft in
  * place through new-model.ts, but the kind and the audience, which Ask drafts again from the same line. The kit's Sheet:
  * a side pane on a desk, from the bottom on a phone. Every word is contracts'.
  */
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
+  CHANNELS_DOOR,
+  DAY_MS,
   FOLLOW_UP_CONDITIONS,
   SEQUENCE_EDIT_WORDS,
+  NEW_ONCE_AHEAD_DAYS,
   NEW_WAIT_DAYS,
   NEW_WORDS as W,
   PLAYBOOK_HOURS,
@@ -27,7 +30,6 @@ import {
   type NewAudience,
   type NewDraftDto,
   type NewKind,
-  type NewStepDoes,
   type ReachOutSourceDto,
   type SequenceMode,
   type SequenceRowDto,
@@ -35,11 +37,14 @@ import {
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
+import { LinkButton } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";
 import { Select } from "../../../kit/select/select";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
 import { keyPress, routeDoor } from "../../../legacy-verbs";
+import { pageClock } from "@/legacy-bridge/zone";
+import { WhenDayTime } from "../../broadcasts/when";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
 
@@ -438,9 +443,20 @@ export function WhenSheet(p: {
   const later = laterTodayOf(now);
   // Late at night "now" waits for the sending hours, as every send does (nextOpenMoment): said so here.
   const goes = M.sendsAt(p.tz, Date.now());
-  const day = p.at ? p.at.slice(0, 10) : now.slice(0, 10);
-  const time = p.at ? p.at.slice(11, 16) : "09:00";
-  const picked = p.at !== null && p.at !== later;
+  // A day picked opens on tomorrow's first hour, and moves by the kit's pickers within the days a send may wait. Tomorrow
+  // is the business's day after today, counted on the calendar at noon UTC, so a clock change overnight moves no day.
+  const day = new Date(Date.parse(`${now.slice(0, 10)}T12:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+  const tomorrow = `${day}T${String(PLAYBOOK_HOURS.min).padStart(2, "0")}:00`;
+  // Picking a day is the owner's choice, held here, so a day and time picked that happens to be Later today's stays on
+  // its own row, its pickers in place.
+  const [byDay, setByDay] = useState(p.at !== null && p.at !== later);
+  const picked = p.at !== null && (byDay || p.at !== later);
+  // The pickers read and write the business's clock (pageClock), as the day and time words say it.
+  const pickedMs = picked && p.at ? pageClock().fromInput(p.at) : null;
+  const pick = (at: string | null, day: boolean) => {
+    setByDay(day);
+    p.onAt(at);
+  };
   return (
     <PickSheet
       open={p.open}
@@ -455,7 +471,7 @@ export function WhenSheet(p: {
           name={upFirst(W.draft.now)}
           said={goes.moved ? W.sheets.nowOpens(goes.time) : W.sheets.nowSaid}
           on={p.at === null}
-          onPick={() => p.onAt(null)}
+          onPick={() => pick(null, false)}
           testid="sq-nw-when-now"
         />
         {later ? (
@@ -463,8 +479,8 @@ export function WhenSheet(p: {
             glyph="clock"
             name={W.sheets.laterToday}
             said={W.sheets.laterTodayAt(clockHour(Number(later.slice(11, 13))))}
-            on={p.at === later}
-            onPick={() => p.onAt(later)}
+            on={p.at === later && !picked}
+            onPick={() => pick(later, false)}
             testid="sq-nw-when-later"
           />
         ) : null}
@@ -473,15 +489,18 @@ export function WhenSheet(p: {
           name={W.sheets.pickADay}
           said={W.sheets.pickADaySaid}
           on={picked}
-          onPick={() => p.onAt(`${day}T${time}`)}
+          onPick={() => pick(picked ? p.at : tomorrow, true)}
           testid="sq-nw-when-day"
         />
       </div>
-      {picked ? (
-        <div className="sq-nw-when-fields">
-          <Field label={W.sheets.day} type="date" value={day} onValueChange={(d) => p.onAt(`${d}T${time}`)} />
-          <Field label={W.sheets.time} type="time" value={time} onValueChange={(t) => p.onAt(`${day}T${t}`)} />
-        </div>
+      {pickedMs !== null ? (
+        <p className="sq-nw-when-daytime" data-testid="sq-nw-when-daytime">
+          <WhenDayTime
+            at={pickedMs}
+            maxDays={NEW_ONCE_AHEAD_DAYS}
+            onChange={(ms) => pick(pageClock().inputValue(ms), true)}
+          />
+        </p>
       ) : null}
       <p className="sq-nw-note">{W.sheets.whenNote}</p>
     </PickSheet>
@@ -548,13 +567,21 @@ export function ChannelsSheet(p: {
               <span>
                 {name}
                 <small>
-                  {never
-                    ? W.channels.noOffer
-                    : !holds.includes(c)
-                      ? W.channels.noVersion
-                      : !p.ready.includes(c)
-                        ? W.channels.notReady
-                        : (countOf(c) ?? W.channels.can)}
+                  {never ? (
+                    W.channels.noOffer
+                  ) : !holds.includes(c) ? (
+                    W.channels.noVersion
+                  ) : !p.ready.includes(c) ? (
+                    // Not connected: the door that connects it, where every "can't send on" door lands.
+                    <>
+                      {W.channels.notReady} ·{" "}
+                      <LinkButton size="inherit" {...routeDoor(CHANNELS_DOOR)} data-testid={`sq-nw-connect-${c}`}>
+                        {W.reach.connect(c)}
+                      </LinkButton>
+                    </>
+                  ) : (
+                    (countOf(c) ?? W.channels.can)
+                  )}
                 </small>
               </span>
               <Switch
@@ -646,49 +673,6 @@ export function TimingSheet(p: {
       ) : null}
       {p.draft.audience === "people" ? <HourSelect hour={p.draft.run_hour} onHour={p.onHour} /> : null}
       <p className="sq-nw-note">{p.draft.audience === "leads" ? W.sheets.leadsTiming : W.sheets.peopleTiming}</p>
-    </PickSheet>
-  );
-}
-
-/** A step added after the last (step `after`): a message, or a call or a note (always the last). */
-export function AddStepSheet(p: {
-  open: boolean;
-  after: number;
-  onAdd: (does: NewStepDoes) => void;
-  onClose: () => void;
-}) {
-  return (
-    <PickSheet
-      open={p.open}
-      title={W.draft.addStep}
-      sub={W.sheets.addSub(p.after)}
-      onClose={p.onClose}
-      testid="sq-nw-add"
-    >
-      <div className="sq-nw-rows">
-        <Choice
-          glyph="chat"
-          name={W.does.message}
-          said={W.sheets.addMessage}
-          onPick={() => p.onAdd("message")}
-          testid="sq-nw-add-message"
-        />
-        <Choice
-          glyph="phone"
-          name={W.sheets.addCall}
-          said={W.hand.call}
-          onPick={() => p.onAdd("call")}
-          testid="sq-nw-add-call"
-        />
-        <Choice
-          glyph="note"
-          name={W.hand.noteTitle}
-          said={W.hand.note}
-          onPick={() => p.onAdd("note")}
-          testid="sq-nw-add-note"
-        />
-      </div>
-      <p className="sq-nw-note">{W.hand.last}</p>
     </PickSheet>
   );
 }

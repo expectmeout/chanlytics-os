@@ -14,6 +14,7 @@ import {
   ReachOutChainSchema,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_MODE_WORDS,
+  handTitleOf,
   isSequenceMode,
   plural,
   sequenceRoute,
@@ -187,6 +188,10 @@ async function proposeStep(
     const step = laterStep(rec, input.step_id);
     if (isRefusal(step)) return refuse(step.refusal);
     if (input.template_id) return refuse("a step's message is changed with action words");
+    if (step.hand && input.params)
+      return refuse("a call or a note has no message, so no params: change its wait instead");
+    if (step.hand && input.channels?.length)
+      return refuse("a call or a note lands on Today and goes by no channel: change its wait instead");
     if (!Object.keys(fields).length) return refuse("say what changes: after_days, only_if, channels, name or params");
     return propose({
       kind: "sequence_step",
@@ -198,6 +203,8 @@ async function proposeStep(
     });
   }
   if (input.after_days === undefined) return refuse("a new step names after_days, the wait after the step before it");
+  // A call or a note closes a sequence (00465): nothing is added after one.
+  if (rec.steps.at(-1)?.hand) return refuse("its last step is a call or a note, and nothing goes after one");
   if (!input.template_id) return refuse("a new step names template_id, the message it sends");
   const msg = await stepMessage(t, input.template_id);
   if (isRefusal(msg)) return refuse(msg.refusal);
@@ -221,7 +228,7 @@ async function proposeStepRemove(
   return propose({
     kind: "sequence_step_remove",
     title: `${rec.sequence.name}: take away step ${step.place}`,
-    summary: `Step ${step.place} (${step.template_name ?? "its message"})${later ? ` and the ${plural(later, "step", "steps")} after it` : ""} go; whoever waited for it is done. Nothing undoes it.`,
+    summary: `Step ${step.place} (${step.hand ? handTitleOf(step.hand.kind) : (step.template_name ?? "its message")})${later ? ` and the ${plural(later, "step", "steps")} after it` : ""} go; whoever waited for it is done. Nothing undoes it.`,
     payload: { sequence_id: rec.sequence.id, step_id: step.id },
   });
 }
@@ -234,6 +241,7 @@ async function proposeWords(
   if (isRefusal(rec)) return refuse(rec.refusal);
   const step = rec.steps.find((s) => s.id === str(input.step_id, 40));
   if (!step) return refuse("step_id must be a step of this sequence (sequences with action sequence lists them)");
+  if (step.hand) return refuse("that step is a call or a note: it sends no message");
   const msg = await stepMessage(t, input.template_id);
   if (isRefusal(msg)) return refuse(msg.refusal);
   return propose({

@@ -9,11 +9,14 @@
  * harness answers for a record.
  *
  * - The harness answers GET templates as the route's own reader does (templates-read.mjs), for every record and `all` or not.
- * - The broadcast composer's picker lists what the spec expects, and says what it says where there is none or one cannot go
- *   out (the playbook composer went with its Every time: the closed-loop audit of 17 Oct 2026, G); the Library draws the
- *   rows the spec counts, the quiet line where there is no number, and its composer's first step opens where the
- *   spec says. Over the email-only record, the nightly's, the salon's and a workspace that holds a message in every state.
- * - A workspace with no WhatsApp number offers the messages it has written, and nothing asks it for its number.
+ * - New's one-off that reaches nobody (the spec's own draft, e2e/campaigns/nobody-once.ts) holds Send now back and says why,
+ *   with the yes it needs as its door, as broadcasts.spec.ts expects; the Library draws the rows the spec counts, the quiet
+ *   line where there is no number, and its composer's first step opens where the spec says. Over the email-only record, the
+ *   nightly's, the salon's and a workspace that holds a message in every state. (The send screen whose picker the specs once
+ *   read went with decision 0065's step 7, and the playbook composer with its Every time: the closed-loop audit of 17 Oct
+ *   2026, G.)
+ * - A workspace with no WhatsApp number offers New the messages it has written, opens a one-off on a channel it can send on,
+ *   and nothing asks it for its number.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -35,16 +38,11 @@ import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { answer } from "../../e2e-harness/server.mjs";
 import { templatesRead } from "../../e2e-harness/templates-read.mjs";
-import { broadcastSlots, libraryRows, messagesOf, messagesOffered } from "../../../../e2e/campaigns/offered.ts";
+import { libraryRows, messagesOf } from "../../../../e2e/campaigns/offered.ts";
+import { NOBODY_ONCE } from "../../../../e2e/campaigns/nobody-once.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-
-/**
- * The links the harness gives the composers: the scenario's booking link, and no review link (its GET settings answers
- * no `review_link`, as a workspace whose Google listing keeps none).
- */
-const HARNESS_LINKS = { bookingLink: true, reviewLink: false };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -92,7 +90,8 @@ Object.assign(globalThis, {
 });
 const quiet = console.error;
 console.error = () => {};
-const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { DraftView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-draft.tsx`);
+const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
@@ -103,9 +102,6 @@ const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 console.error = quiet;
 
-/** One of the page's choices, the kit's Picker, by its test id; and its options in their order. */
-const pickerOf = (t, id) => find(t, (n) => n.type === Picker && n.props["data-testid"] === id);
-const optionsOf = (p) => p.props.groups.flatMap((g) => g.options);
 /** A part of the page, or of its head where the page says it to the frame (the page's one act, New, is the frame's). */
 const headed = (tree, id) =>
   byTestId(tree, id) ??
@@ -266,137 +262,142 @@ test("the harness answers GET templates as the route's own reader does, for the 
   }
 });
 
-/* ---------------------------------- the broadcast composer ---------------------------------- */
+/* ---------------------------------- New's one-off ---------------------------------- */
 
-const broadcastsSurface = (over = {}) => ({
-  audiences: [
-    { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, conversational: 3 } },
-    { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
-  ],
-  templates: [],
-  rows: [],
-  more: false,
-  heldReasons: contracts.HELD_REASONS,
-  chunk: contracts.BROADCAST_CHUNK,
-  number: null,
-  optIn: null,
-  getYes: contracts.GET_YES_ROUTE,
-  listsRead: true,
-  scheduleMaxDays: 30,
-  businessName: "Northside Studio",
-  bookingLink: true,
-  ...over,
-});
+const W = contracts.NEW_WORDS;
+/** The channels New can send on, as its page reads them of the record (new-page.tsx: those the channels read says are ready). */
+const readyChannelsOf = (record) => contracts.CONSENT_CHANNELS.filter((c) => readyOf(record)[c]?.ready);
 /**
- * The send screen, opened as New's Send once hosts it (home/new-message.tsx, the Campaigns wiring review's lane 6): the surface
- * as it publishes the templates read, the page's own offer, handed in as New hands it.
+ * New's Library over what the harness answers for a record (new-page.tsx): the messages the templates read offers
+ * (parts/channels.ts cmOfferedMessages, which the settings surface makes them by), and the rows their values are read from.
  */
-const broadcastComposer = (record) => {
-  const number = hasNumber(record)
-    ? {
-        present: true,
-        display: "+1 305-555-0100",
-        health: contracts.numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
-      }
-    : { present: false, display: null, health: contracts.numberHealth({ quality: null, event: null, limit: null }) };
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      templates: cmOfferedMessages(read(record, "/api/v1/templates")),
-      ready: readyOf(record),
-      number,
-    }),
-  );
-  freshTree();
-  const props = {
-    data: surfaceValue("broadcasts"),
-    initialSegment: "no-such-list",
-    flash() {},
-    onDone() {},
-    onYes() {},
-  };
-  BroadcastSend(props);
-  return drawAgain(() => BroadcastSend(props));
+const libraryOf = (record) => {
+  const offered = cmOfferedMessages(read(record, "/api/v1/templates"));
+  return { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered };
 };
+/**
+ * New's pane over a draft, as its page draws it once its reads are in (new-page.tsx useNewReads): the record's channels and
+ * Library, nobody in its lists, and the draft counted again against nothing new.
+ */
+const newPane = (record, draft) => {
+  const ready = readyChannelsOf(record);
+  const props = {
+    draft,
+    reads: {
+      who: { moments: [], lists: [], everyone: 0, everyoneHeld: 0, sources: [], running: [] },
+      library: libraryOf(record),
+      ready,
+      paused: readyOf(record).paused === true,
+      today: contracts.zoneDayKey(NOW, "UTC"),
+      timezone: "UTC",
+      recount: { counts: { pools: {}, searches: [] }, running: [], ready },
+    },
+    busy: false,
+    doing: null,
+    redraftingFor: null,
+    leaving: null,
+    acts: { change() {}, redraft() {}, undo() {}, again() {}, discard() {}, make() {}, close() {} },
+  };
+  freshTree();
+  drawAgain(() => globalThis.React.createElement(DraftView, props));
+  return byTestId(
+    drawAgain(() => globalThis.React.createElement(DraftView, props)),
+    "sq-new",
+  );
+};
+/** The host element a testid names (a kit Button is its own node and the host button it draws, both carrying the id). */
+const hostOf = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
 
-test("the broadcast composer's picker lists what the spec expects of the rows, and says what it says where there is none or one cannot go out", () => {
+test("New's one-off that reaches nobody holds Send now back and says why, with the yes it needs as its door, as the spec expects, over every record", () => {
   for (const [name, record] of WORKSPACES) {
-    const templates = read(record, "/api/v1/templates");
-    const { groups, why } = messagesOffered(templates, broadcastSlots(HARNESS_LINKS));
-    const tree = broadcastComposer(record);
-    if (groups.length === 0) {
-      assert.ok(byTestId(tree, "bc-no-template"), `${name}: the honest line`);
-      assert.equal(pickerOf(tree, "bc-template"), null, `${name}: no picker`);
-      assert.equal(!!byTestId(tree, "bc-blocked"), !!why, `${name}: the reason, as a line of its own`);
-      if (why) assert.equal(textOf(byTestId(tree, "bc-blocked")), why, name);
-    } else {
-      assert.equal(byTestId(tree, "bc-no-template"), null, `${name}: nothing to say there is none`);
-      const picker = pickerOf(tree, "bc-template");
-      // One option per message, whatever languages it has, in the order the spec expects and with the words it expects.
-      assert.deepEqual(
-        optionsOf(picker).map((o) => o.value),
-        groups.map((g) => g.name),
-        `${name}: one option a message, in the library's order`,
-      );
-      assert.deepEqual(
-        optionsOf(picker).map((o) => o.label),
-        groups.map((g) => g.title),
-        `${name}: each by its title`,
-      );
-      assert.equal(picker.props.note ?? null, why, `${name}: why the rest is not there, under the list`);
-      assert.equal(byTestId(tree, "bc-blocked"), null, `${name}: never both`);
-    }
-    // The number a send goes out on is drawn where it goes by WhatsApp, and where the number holds a ticked WhatsApp off
-    // (broadcasts-honest.test.mjs): the spec reads the tick, and the line's words where it stands with the tick off. No
-    // number here holds WhatsApp off, so the line follows the tick exactly.
-    const byWhatsApp = byTestId(tree, "bc-via-whatsapp").props["data-on"] === "true";
-    assert.equal(!!byTestId(tree, "bc-number"), byWhatsApp, `${name}: the number line follows WhatsApp's tick`);
-    assert.equal(
-      !!byTestId(tree, "bc-number") && textOf(byTestId(tree, "bc-number")).includes("No WhatsApp number"),
-      false,
-      `${name}: and a send by WhatsApp has a number to say, where a workspace can send on it`,
+    const pane = newPane(record, NOBODY_ONCE);
+    // broadcasts.spec.ts: the sentence says Once, who it reaches says 0, and Send now is held.
+    assert.equal(W.draft.kind.once, "Once", "the word the spec reads");
+    assert.ok(
+      textOf(byTestId(pane, "sq-nw-sentence")).includes(W.draft.kind.once),
+      `${name}: the sentence is the draft's`,
     );
+    assert.ok(textOf(byTestId(pane, "sq-nw-reach")).includes("0"), `${name}: nobody can hear it`);
+    assert.equal(hostOf(pane, "sq-nw-send-now").props.disabled, true, `${name}: Send now is held`);
+    // The card says why and offers the ways: the yes nobody gave (People's Get their yes), and someone else.
+    const nobody = byTestId(pane, "sq-nw-nobody");
+    assert.ok(nobody, `${name}: the card`);
+    assert.ok(hostOf(nobody, "sq-nw-nobody-yes"), `${name}: their yes`);
+    assert.ok(hostOf(nobody, "sq-nw-nobody-who"), `${name}: someone else`);
+    // Nobody said the yes an offer needs, said as the list's own and the purpose's: never a number, never a channel.
+    assert.ok(
+      textOf(nobody).includes(contracts.noYesWords(`“${contracts.EVERYONE_LABEL}”`, "marketing")),
+      `${name}: the yes to offers`,
+    );
+    for (const id of ["sq-nw-nobody-connect", "sq-nw-nobody-how"])
+      assert.equal(hostOf(nobody, id), null, `${name}: ${id}`);
   }
+  // News is heard on the yes to messages: the card names that yes, never the yes to offers it does not need.
+  const news = M.setMessage(NOBODY_ONCE, 0, { ...NOBODY_ONCE.steps[0].message, offer: false });
+  const said = textOf(byTestId(newPane(scenario("salon", NOW), news), "sq-nw-nobody"));
+  assert.ok(said.includes(contracts.noYesWords(`“${contracts.EVERYONE_LABEL}”`, "conversational")), said);
+  assert.equal(/yes to offers/.test(said), false, said);
 });
 
-test("a workspace with no WhatsApp number offers the messages it has written, opens on a channel it can send on, and is never asked for its number", () => {
+test("a workspace with no WhatsApp number offers New the messages it has written, opens a one-off on a channel it can send on, and is never asked for its number", () => {
   const record = scenario("email-only", NOW);
   assert.equal(hasNumber(record), false);
-  const { groups } = messagesOffered(read(record, "/api/v1/templates"), broadcastSlots(HARNESS_LINKS));
+  assert.deepEqual(readyChannelsOf(record), ["email"], "it sends by email alone");
+  const library = libraryOf(record);
+  // Its messages, each as New holds it: the starter, in the library's order, then the offer.
+  const held = library.messages.map((m) => M.heldMessageOf(m, library.rows)).filter(Boolean);
+  const nameOf = (m) => library.rows.find((r) => r.id === m.template_id).name;
+  assert.deepEqual(held.map(nameOf), ["after_visit_check", "spring_offer"]);
+  // A one-off by hand, its first message the starter: ticked by the channels it holds that the workspace can send on.
+  const first = held[0];
+  assert.deepEqual(first.channels, ["email", "sms"], "an email and a text, and no WhatsApp version");
+  const draft = M.setMessage(M.draftByHand("once", "people", WORKSPACE.name), 0, first, readyChannelsOf(record));
+  assert.deepEqual(draft.channels, ["email"], "it opens on Email: there is no text line to send on");
+  const pane = newPane(record, draft);
+  assert.equal(
+    textOf(hostOf(byTestId(pane, "sq-nw-sentence"), "sq-nw-channels-pick")),
+    M.channelsSaidOf(["email"], ""),
+  );
+  // The message sheet offers both, each a press.
   assert.deepEqual(
-    groups.map((g) => g.name),
-    ["after_visit_check", "spring_offer"],
-    "the starter, in the library's order, then the offer",
+    held.map((m) => !!hostOf(byTestId(pane, "sq-nw-message"), `sq-nw-message-${m.template_id}`)),
+    [true, true],
+    "both, in the sheet that picks the message",
   );
-  const tree = broadcastComposer(record);
-  assert.equal(byTestId(tree, "bc-no-template"), null);
-  assert.deepEqual(
-    optionsOf(pickerOf(tree, "bc-template")).map((o) => o.value),
-    ["after_visit_check", "spring_offer"],
+  // How it goes, each channel's row saying why it can't be ticked: no WhatsApp version, no text line. No number is asked for.
+  const channels = byTestId(pane, "sq-nw-channels");
+  const rowOf = (name) => find(channels, (n) => n.props?.className === "sq-nw-switchrow" && textOf(n).startsWith(name));
+  for (const [name, why] of [
+    [W.channels.whatsapp, W.channels.noVersion],
+    [W.channels.sms, W.channels.notReady],
+  ]) {
+    assert.equal(rowOf(name).props["data-off"], "true", `${name} cannot be ticked`);
+    assert.ok(textOf(rowOf(name)).includes(why), `${name}: and says why`);
+  }
+  assert.equal(rowOf(W.channels.email).props["data-off"], undefined, "Email can");
+  assert.equal(
+    /WhatsApp number|phone number/i.test(textOf(pane)),
+    false,
+    "a send that does not go by WhatsApp never asks for its number",
   );
-  assert.equal(byTestId(tree, "bc-via-whatsapp").props["data-on"], "false", "it opens on Email");
-  assert.equal(byTestId(tree, "bc-via-email").props["data-on"], "true");
-  assert.equal(byTestId(tree, "bc-number"), null, "a send that does not go by WhatsApp never asks for its number");
-});
 
-/* ---------------------------------- the playbook composer ---------------------------------- */
-
-/** The moments the composer is asked to open on, one of each kind the slot rule tells apart. */
-test("the slot rule the spec reads a broadcast by is the page's: a visit's message is none of it, and what the page leaves out the spec leaves out", () => {
-  const record = { ...scenario("salon", NOW), templates: MIXED };
-  const templates = read(record, "/api/v1/templates");
-  // A visit's message is none of a broadcast's.
-  assert.ok(!messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.some((g) => g.name === "visit_reminder"));
-  // The messages the page leaves out are the ones the spec leaves out: hidden whole, and a version in review kept by its email.
-  const names = messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.map((g) => g.name);
-  assert.ok(
-    !names.includes("this_months_offer"),
-    "a hidden WhatsApp version hides the message with the email beside it",
+  // Its offer to its list, by email, where those who said yes can't be reached: said as the send's own refusal says it, by
+  // what an email asks of a person -- never a number, and never their yes again (the send screen's words, decision 0065
+  // step 7). Counted as Ask's draft counts it: nobody, two who said yes.
+  const [list] = record.lists;
+  const offer = M.setWho(M.setMessage(draft, 0, held[1], readyChannelsOf(record)), {
+    kind: "list",
+    token: `list:${list.id}`,
+    label: list.name,
+  });
+  const card = byTestId(
+    newPane(record, { ...offer, reach: { can: 0, of: 3, left: null, nobody: "no_reach", said_yes: 2 } }),
+    "sq-nw-nobody",
   );
-  assert.ok(names.includes("after_visit_check"), "a version in review is offered by the email beside it");
-  assert.ok(names.includes("hours_note"), "an email in two languages is one option");
-  const why = messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).why;
-  assert.match(why, /a picture for a heading/, "a message no send can carry whole is said, not offered");
+  const said = contracts.emptyAudienceRefusal("marketing", list.name, [], { channels: ["email"], about: "ours" });
+  assert.ok(textOf(card).includes(said), textOf(card));
+  assert.equal(/number/.test(said), false, "an email is never said to need a number");
+  assert.equal(hostOf(card, "sq-nw-nobody-yes"), null, "nor their yes, which they gave");
 });
 
 /* ---------------------------------- the Library ---------------------------------- */

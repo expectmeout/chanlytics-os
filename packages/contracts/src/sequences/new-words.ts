@@ -3,7 +3,7 @@
  * checked, and the cases that stop or bend a draft. The engine (the server's sequences/new-draft.ts) says its checks and
  * what it could not do in these words, and the page says everything else in them.
  */
-import type { NewAudience, NewKind, NewStepDoes } from "./new-draft";
+import type { NewAudience, NewKind, NewNobody, NewStepDoes } from "./new-draft";
 import type { SequenceMode } from "./sequence";
 
 export const NEW_WORDS = {
@@ -110,6 +110,13 @@ export const NEW_WORDS = {
     parts: { when: "when", who: "who", search: "a search", how: "how", message: "a message" },
     thenItCanStart: "Then it can start",
     thenItCanGo: "Then it can go",
+    /** A value the message leaves to be typed, still blank (the send screen's "Fill in"), by its name where it has one. */
+    fill: (what: string | null) => (what ? `Fill in “${what}”` : "Fill in the message’s blank"),
+    /** A one-off set for a time that has gone by while the draft waited. */
+    passed: "That time has passed",
+    passedSub: "Pick a later one, or send it now",
+    /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
+    tooFar: (days: number) => `Pick a time within ${days} days`,
     sayIt: "Say it",
     orSay: "Or say it in a line, and Ask fills it in.",
     lineFirst: (n: number | null) =>
@@ -177,6 +184,8 @@ export const NEW_WORDS = {
   /** Send now asks first (E1): who and how, and that it can still be stopped. */
   confirm: {
     title: (name: string, n: number) => `Send “${name}” to ${n} ${n === 1 ? "person" : "people"}?`,
+    /** Where the workspace counts nobody for it (news sent once to a list, to everyone): asked without a number. */
+    titleNow: (name: string) => `Send “${name}” now?`,
     at: (time: string) => `It goes at ${time}, in 10 minutes. Until then, Stop takes it back`,
     opens: (time: string) => `It goes at ${time}, when your sending hours open. Until then, Stop takes it back`,
     after: "Once delivered, it can’t be taken back",
@@ -213,7 +222,16 @@ export const NEW_WORDS = {
     heldBack: (n: number) => `${n} held back this week`,
     checking: (n: number) => `${n} ${n === 1 ? "address" : "addresses"} being checked`,
     byChannel: (n: number, channel: string) => `${n} by ${channel}`,
+    /** Under "No one to send to yet" in the foot: why, by the cure each asks for (contracts NewNobody). */
+    why: {
+      breath: "Everyone heard from you this week",
+      no_channel: "Nothing it goes by can carry it",
+      no_reach: "No number or address to send to",
+      no_yes: "No one has said yes yet",
+    } satisfies Record<NewNobody, string>,
   },
+  /** A workspace paused for billing: said first, in the foot and over the draft, before anything else stops it. */
+  paused: { lead: "Sending is paused", sub: "Resume it from Settings › Billing" },
   /** Your OK, as its sheet names each way and How it runs says the one picked. */
   ok: {
     ask: "Every batch waits for you",
@@ -318,6 +336,11 @@ export const NEW_WORDS = {
     yourMessages: "Your messages",
     anOffer: "an offer, never a text",
     firstStepOnly: "Names their booking, so step 1 only",
+    /** A visit's message on a first step nothing about a visit starts (a one-off, a list): its run knows no booking. */
+    visitOnly: "Names their booking, so only where a booking starts it",
+    /** A proposal's message where no deal starts it, or after step 1: its run knows no proposal there. */
+    dealOnly: "Names their proposal, so only where a deal starts it",
+    proposalFirstOnly: "Names their proposal, so step 1 only",
     newMessage: "A new message",
     askWrote: "Ask wrote it · yours once you save",
     youWrite: "Yours · filed when you start it",
@@ -408,3 +431,10 @@ export const NEW_WORDS = {
     welcome: (n: number) => `${n} new ${n === 1 ? "person" : "people"}`,
   },
 } as const;
+
+/**
+ * A call's or a note's title, by its kind: what New's rail and a sequence's record call the step, whatever name the
+ * database gave it (sequence_create and sequence_step_save name a step as the sequence where none is given).
+ */
+export const handTitleOf = (kind: string): string =>
+  kind === "note" ? NEW_WORDS.hand.noteTitle : NEW_WORDS.hand.callTitle;

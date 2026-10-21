@@ -112,6 +112,8 @@ export const SEQUENCE_FLOW_WORDS = {
   checked: "Each one is checked before it goes",
   takeAwayAsk: (place: number) => `Take step ${place} away?`,
   takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  /** A call or a note asked away: it is always the last step, so nothing goes with it. */
+  takeAwayHandDetail: "Nobody still waiting for it lands on your Today.",
   /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
   newWords: (rejected: boolean) =>
     rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
@@ -128,6 +130,14 @@ export const SEQUENCE_FLOW_WORDS = {
   /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
   noFollowUpOnReminder:
     "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+  /** A step's change refused by the door (decision 0065 step 6): a message step keeps a message, a call or a note its words. */
+  handOnMessage: "This step sends a message. To call them instead, add a call as the last step.",
+  valuesOnHand: "A call or a note has no message to fill. Change what it says to do instead.",
+  channelsOnHand: "A call or a note lands on your Today, so it goes by no channel.",
+  /** A step added after a call or a note, refused by the door before the database would (00465). */
+  nothingAfterHand: "A call or a note is always the last step. Take it away to add another after it.",
+  /** A step's add with neither a message nor a call or a note (the step verb's refusal). */
+  sayWhatStepDoes: "Say which message the step sends, or what to do.",
   sample: "The next one, as it reads",
   addLeads: "Add leads",
   /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */

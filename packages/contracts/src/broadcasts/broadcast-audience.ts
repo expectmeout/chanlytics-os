@@ -78,25 +78,7 @@ export const EVERYONE_HINT =
  */
 export const CONSENT_LIST_IDS: readonly string[] = ["opted_in", "offers_ok", "opted_out"];
 
-/** Of those, the two that are a yes: a door that names one ("Broadcast to everyone who said yes") means Everyone. */
-const LISTS_THAT_MEAN_EVERYONE: readonly string[] = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
-
-/**
- * Whether a door to the composer (`campaigns/new:to:<list>`) names a list the composer does not offer now: one archived
- * or deleted since the link was made, one whose data the workspace has not switched on or could not read just now (a
- * calendar's lists, the saved lists), or a word that was never a list.
- * The composer is then on another audience (Everyone on a first draw, wherever it was on a page already open), and
- * must say so (UNKNOWN_AUDIENCE_WORDS): it was there in silence, and a message meant for a few was one press from others. False while the audiences are not read yet (null).
- */
-export function doorNamesNoAudience(
-  to: string | null,
-  audiences: ReadonlyArray<{ kind: string; id?: string | null }> | null,
-): boolean {
-  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
-  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
-}
-
-/** What the composer says when the door it was opened by names no list it offers (doorNamesNoAudience). */
+/** What New says when the door it was opened by names a list it can't send to now (its own doorListGone). */
 export const UNKNOWN_AUDIENCE_WORDS =
   "That list can't be messaged right now, so check who this is addressed to before you send.";
 
@@ -190,25 +172,6 @@ export function heldWords(held: HeldOn, purpose: AskedPurpose): string {
       return unreachable;
     }
   }
-}
-
-/** What a person lacks for a channel to reach them at all, as the line under a send names it. */
-const LACKS: Record<ConsentChannel, string> = {
-  whatsapp: "no phone number",
-  sms: "no phone number",
-  email: "no email address that works",
-};
-
-/**
- * Who the wire holds back from a send by these channels, whatever they said, as one clause for the line under the list:
- * a stop, no way to reach them on a channel it goes by (a number, an address that works) and a person's own hand on the
- * conversation. They are heldWords' reasons said short, and the way to reach is named only for the channels ticked: a send
- * by email alone does not say "no number".
- */
-export function heldBackWords(channels: readonly ConsentChannel[]): string {
-  const lacks = [...new Set(CONSENT_CHANNELS.filter((c) => channels.includes(c)).map((c) => LACKS[c]))];
-  const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
-  return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
 
 /**

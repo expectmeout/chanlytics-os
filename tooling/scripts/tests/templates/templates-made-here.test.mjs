@@ -249,10 +249,6 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
-  const p = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/send-screen.tsx");
-  // A slot's source choice is the bubble's control now (parts/slot.tsx), where the table's select was.
-  assert.ok(p.includes("<CmSlot") && p.includes('data-testid="bc-new-template"'));
-  assert.ok(p.includes("<TemplateComposer"), "one composer, mounted where a template is needed");
   const head = readCode("apps/dashboard/src/surfaces/campaigns/templates/page-parts.tsx");
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   assert.ok(

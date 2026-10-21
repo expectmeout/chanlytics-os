@@ -1,5 +1,5 @@
 /**
- * What the ad runs on, as one quiet line under its sentence (MOCKUP; the shape of parts/reach.tsx CmReachLine): a dot -- green
+ * What the ad runs on, as one quiet line under its sentence (MOCKUP; the shape the send screen's reach line had): a dot -- green
  * only when the ad account is active, a payment method exists, the Page and the number are linked and the ad is active; amber
  * with the first reason otherwise -- and "Running · Meta approved it Mon 14 Sep · WhatsApp linked". The line is the press
  * that opens the same dot rows as the platform's standing, with the time they were read.

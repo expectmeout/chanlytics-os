@@ -6,8 +6,9 @@ import { changeSequenceStep, dropSequenceStep } from "@/server/sequences/doors";
 /**
  * One step after the first of a customer's sequence (decision 0060, D6).
  *
- * PUT    /api/v1/sequences/:id/steps/:step — any of { after_days, only_if, channels, name, params }, changed in place;
- *        answers what each held (`was`).
+ * PUT    /api/v1/sequences/:id/steps/:step — any of { after_days, only_if, channels, name, params, hand }, changed in
+ *        place: a message's values on a step that sends one, a call's or a note's kind and words on a step that hands
+ *        them over (decision 0065 step 6); answers what each held (`was`).
  * DELETE /api/v1/sequences/:id/steps/:step — the step goes, with the steps after it; whoever waited for it has had what
  *        is left of the sequence. Never the first step, which is the sequence.
  *

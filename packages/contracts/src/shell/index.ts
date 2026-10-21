@@ -107,7 +107,6 @@ export { SEE_PARAM, SEE_WORDS, seeHomeOf, seeRefOf, seeRefOfRoute, seeValueOf } 
 export type { SeeRef } from "./see-over";
 export {
   CAMPAIGN_ROOMS,
-  NO_TEMPLATE_WORDS,
   LIBRARY_WORDS,
   NEW_MESSAGE_WORDS,
   LIBRARY_STARTER_WORDS,
@@ -126,7 +125,7 @@ export {
   runStopWords,
   OFFERS_IN_WRITING_WORDS,
 } from "./campaign-rooms";
-export type { NoMessageWords, RunStopWords } from "./campaign-rooms";
+export type { RunStopWords } from "./campaign-rooms";
 export { stateTone, stateLabel, stateOf, stateWordList, leadPinTone, leadMapLegend, TONES } from "./tone";
 export type { Tone, StateKind, LeadPinnable } from "./tone";
 export {

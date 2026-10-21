@@ -2,10 +2,13 @@
  * The Sequences page's verbs (decision 0060, contracts ask-proposals/sequences.ts), executed through the one table every
  * sheet and card commits by (verbSpec): each makes the call its door takes, says its receipt from the door's answer, and
  * keeps an undo that is the door's own way back, or none where nothing comes back (a step taken away, a draft let go).
+ * What a step's verb sends is what its door takes: the route's own body (server/sequences/bodies.ts) parses it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verbSpec } from "@chanlytics/contracts";
+import { HAND_WORDS_MAX, SEQUENCE_FLOW_WORDS, verbSpec } from "@chanlytics/contracts";
+
+const { NEW_STEP_BODY, STEP_CHANGE_BODY } = await import("../../../../apps/dashboard/src/server/sequences/bodies.ts");
 
 const TAB = { settings: null };
 const SEQ = "11111111-1111-4111-8111-111111111111";
@@ -19,6 +22,11 @@ const card = (kind, payload) => ({
 const commit = (kind, payload) => {
   const c = card(kind, payload);
   return c.spec.commit(c.card, TAB);
+};
+/** What a door's body refuses, each issue's words; none where it takes it. */
+const refusedBy = (body, sent) => {
+  const r = body.safeParse(sent);
+  return r.success ? [] : r.error.issues.map((i) => i.message);
 };
 
 test("a step after the last is added, a step changed, and each undo is the door's way back", () => {
@@ -36,7 +44,7 @@ test("a step after the last is added, a step changed, and each undo is the door'
     params: { id: SEQ, step: STEP },
     body: { after_days: 5 },
   });
-  assert.deepEqual(commit("sequence_step", { sequence_id: SEQ }), { refused: "Say which message the step sends." });
+  assert.deepEqual(commit("sequence_step", { sequence_id: SEQ }), { refused: SEQUENCE_FLOW_WORDS.sayWhatStepDoes });
   const added = card("sequence_step", { sequence_id: SEQ, template_id: MSG, after_days: 3 }).card;
   assert.equal(s.receipt(added, { place: 2 }), "Step 2 added");
   const kept = s.undo.record(added, { id: STEP, decision_id: "d1" }, TAB);
@@ -47,6 +55,91 @@ test("a step after the last is added, a step changed, and each undo is the door'
   const changed = card("sequence_step", { sequence_id: SEQ, step_id: STEP, after_days: 5 }).card;
   const back = s.undo.record(changed, { id: STEP, was: { after_days: 3, only_if: [] }, decision_id: "d2" }, TAB);
   assert.deepEqual(s.undo.call(back, TAB).body, { after_days: 3, only_if: [] });
+});
+
+test("a call or a note for the team is a step too (decision 0065 step 6): added with its words and no message, changed, and put back as it was", () => {
+  const s = verbSpec("sequence_step");
+  const call = { kind: "call", words: "Ask how the cut held up" };
+  // Added at the end: its words in place of a message, so no template rides with it.
+  const added = commit("sequence_step", {
+    sequence_id: SEQ,
+    after_days: 3,
+    only_if: ["no_booking"],
+    hand: { kind: "call", words: "  Ask how the cut held up " },
+  });
+  assert.deepEqual(added, {
+    route: "POST sequences/[id]/steps",
+    params: { id: SEQ },
+    body: { after_days: 3, only_if: ["no_booking"], hand: call },
+  });
+  assert.equal("template_id" in added.body, false);
+  assert.deepEqual(refusedBy(NEW_STEP_BODY, added.body), [], "the add door takes it");
+  // Neither a message nor what to do: refused before it is sent, in the step's own words.
+  for (const hand of [undefined, null, { kind: "call", words: "  " }, { kind: "visit", words: "Come in" }])
+    assert.deepEqual(commit("sequence_step", { sequence_id: SEQ, after_days: 3, hand }), {
+      refused: SEQUENCE_FLOW_WORDS.sayWhatStepDoes,
+    });
+  // Changed: a note's words, alone where nothing else changed.
+  const note = { kind: "note", words: "Send the aftercare sheet" };
+  const change = commit("sequence_step", { sequence_id: SEQ, step_id: STEP, hand: note });
+  assert.deepEqual(change, {
+    route: "PUT sequences/[id]/steps/[step]",
+    params: { id: SEQ, step: STEP },
+    body: { hand: note },
+  });
+  assert.deepEqual(refusedBy(STEP_CHANGE_BODY, change.body), []);
+  // A call's change undone: its words as they were, and never a message's values, nor the channels 00465's `was` names
+  // (the first step's), which the door refuses on a call.
+  const changed = card("sequence_step", { sequence_id: SEQ, step_id: STEP, hand: note }).card;
+  const wasCall = s.undo.record(
+    changed,
+    {
+      id: STEP,
+      was: { after_days: 3, only_if: ["no_booking"], channels: ["whatsapp"], name: "Win back", hand: call, params: [] },
+      decision_id: "d7",
+    },
+    TAB,
+  );
+  const back = s.undo.call(wasCall, TAB);
+  assert.deepEqual(back.body, { after_days: 3, only_if: ["no_booking"], name: "Win back", hand: call });
+  assert.equal("params" in back.body, false);
+  assert.deepEqual(refusedBy(STEP_CHANGE_BODY, back.body), [], "the change door takes the way back");
+  // A message's change undone: its values as they were, and no hand of null for the door to refuse.
+  const message = card("sequence_step", { sequence_id: SEQ, step_id: STEP, after_days: 5 }).card;
+  const wasMessage = s.undo.record(
+    message,
+    { id: STEP, was: { after_days: 3, only_if: [], hand: null, params: [{ kind: "first_name" }] }, decision_id: "d8" },
+    TAB,
+  );
+  const put = s.undo.call(wasMessage, TAB);
+  assert.deepEqual(put.body, { after_days: 3, only_if: [], params: [{ kind: "first_name" }] });
+  assert.equal("hand" in put.body, false);
+  assert.deepEqual(refusedBy(STEP_CHANGE_BODY, put.body), []);
+});
+
+test("the step doors take a message or a call or a note, exactly one, and a call or a note with no message's values or channels", () => {
+  const call = { kind: "call", words: "Ask how the cut held up" };
+  const add = (body) => refusedBy(NEW_STEP_BODY, { after_days: 3, ...body });
+  assert.deepEqual(add({ template_id: MSG, params: ["@first_name"], channels: ["whatsapp"] }), []);
+  assert.deepEqual(add({ hand: call, only_if: ["no_booking"] }), []);
+  assert.deepEqual(NEW_STEP_BODY.parse({ after_days: 3, hand: { ...call, words: ` ${call.words} ` } }).hand, call);
+  // Both, or neither: the step verb's own refusal.
+  assert.deepEqual(add({ template_id: MSG, hand: call }), [SEQUENCE_FLOW_WORDS.sayWhatStepDoes]);
+  assert.deepEqual(add({}), [SEQUENCE_FLOW_WORDS.sayWhatStepDoes]);
+  // A call has no message to fill or carry.
+  assert.deepEqual(add({ hand: call, params: [] }), [SEQUENCE_FLOW_WORDS.valuesOnHand]);
+  assert.deepEqual(add({ hand: call, channels: ["email"] }), [SEQUENCE_FLOW_WORDS.valuesOnHand]);
+  // Its words are 1 to HAND_WORDS_MAX characters, as the database holds them, and it is a call or a note.
+  const words = (w) => add({ hand: { kind: "note", words: w } });
+  assert.deepEqual(words("x".repeat(HAND_WORDS_MAX)), []);
+  for (const w of ["", "   ", "x".repeat(HAND_WORDS_MAX + 1)]) assert.notDeepEqual(words(w), [], `“${w.slice(0, 9)}…”`);
+  for (const hand of [{ kind: "visit", words: "Come in" }, { kind: "call" }, { ...call, when: "today" }])
+    assert.notDeepEqual(add({ hand }), [], JSON.stringify(hand));
+  // A change may name a call's words, and must name something.
+  assert.deepEqual(refusedBy(STEP_CHANGE_BODY, { hand: call }), []);
+  assert.notDeepEqual(refusedBy(STEP_CHANGE_BODY, {}), [], "nothing named, nothing to change");
+  assert.notDeepEqual(refusedBy(STEP_CHANGE_BODY, { hand: null }), [], "a hand of null is no change the door takes");
+  assert.notDeepEqual(refusedBy(STEP_CHANGE_BODY, { hand: { kind: "call", words: "" } }), []);
 });
 
 test("a step taken away and people taken out say what the door did, and keep no undo", () => {

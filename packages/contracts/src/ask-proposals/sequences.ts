@@ -11,6 +11,8 @@ import { toSendSaidWords } from "../reach-out/reach-out-approval";
 import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../sequences/sequence-address";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test";
 import { leadsRoute } from "../leads/lead-plan";
+import { handOf } from "../reach-out/reach-out-hand";
+import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words";
 import {
   asText,
   decisionOf,
@@ -24,12 +26,21 @@ import {
   type ProposalSpec,
 } from "./spec";
 
-/** The fields of a step a change may name, as the step door takes them. */
-const STEP_FIELDS = ["after_days", "only_if", "channels", "name", "params"] as const;
+/** The fields of a step a change may name, as the step door takes them; a message's values, or a call's words, apart. */
+const STEP_FIELDS = ["after_days", "only_if", "channels", "name"] as const;
 
-/** A payload's step fields, those it names. */
-const stepFieldsOf = (pl: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(STEP_FIELDS.filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]));
+/**
+ * A payload's step fields, those it names: a call's or a note's words where it hands them over (decision 0065 step 6),
+ * else a message's values. Never both, and never a hand of null: a change's `was` names the one its step holds.
+ */
+function stepFieldsOf(pl: Record<string, unknown>): Record<string, unknown> {
+  const hand = handOf(pl.hand);
+  // A call or a note goes by no channel: its `was` names the first step's, which the door refuses on it.
+  const kept = STEP_FIELDS.filter((k) => pl[k] !== undefined && !(hand && k === "channels"));
+  const fields = Object.fromEntries(kept.map((k) => [k, pl[k]]));
+  if (hand) return { ...fields, hand };
+  return pl.params !== undefined ? { ...fields, params: pl.params } : fields;
+}
 
 /** Where every sequence verb's Open goes: the sequence's record. */
 const openSequence = ({ payload }: { payload: Record<string, unknown> }): string | null => {
@@ -38,8 +49,9 @@ const openSequence = ({ payload }: { payload: Record<string, unknown> }): string
 };
 
 /**
- * A customer's step after the first (D6): added at the end where the payload names no step, else that step changed. The
- * undo of an added step takes it away; of a change, puts back what the door found when it wrote (its `was`).
+ * A customer's step after the first (D6): added at the end where the payload names no step, else that step changed. A
+ * step sends a message (`template_id`), or hands them over as a call or a note (`hand`, decision 0065 step 6). The undo
+ * of an added step takes it away; of a change, puts back what the door found when it wrote (its `was`).
  */
 export const sequenceStepSpec: ProposalSpec = {
   needs: "operator",
@@ -49,8 +61,9 @@ export const sequenceStepSpec: ProposalSpec = {
     if (!id) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     const step = idIn(pl, "step_id");
     if (step) return { route: "PUT sequences/[id]/steps/[step]", params: { id, step }, body: stepFieldsOf(pl) };
+    if (handOf(pl.hand)) return { route: "POST sequences/[id]/steps", params: { id }, body: stepFieldsOf(pl) };
     const template = idIn(pl, "template_id");
-    if (!template) return refuseWith("Say which message the step sends.");
+    if (!template) return refuseWith(SEQUENCE_FLOW_WORDS.sayWhatStepDoes);
     return { route: "POST sequences/[id]/steps", params: { id }, body: { ...stepFieldsOf(pl), template_id: template } };
   },
   receipt: ({ payload: pl }, data) => {

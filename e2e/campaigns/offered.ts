@@ -1,14 +1,8 @@
 import {
-  CONSENT_CHANNELS,
   campaignMessagesOf,
-  compareTemplates,
-  groupTemplates,
   isLibrarySample,
-  sendableTemplates,
-  templateSlots,
   type CampaignMessage,
   type CampaignMessageRow,
-  type TemplateGroup,
 } from "../../packages/contracts/src/index";
 
 /**
@@ -42,72 +36,6 @@ export interface TemplatesRead {
  */
 export const messagesOf = (read: TemplatesRead): CampaignMessage[] =>
   read.messages ?? campaignMessagesOf(read.templates);
-
-/**
- * What a composer may fill a slot from: a broadcast has no visit and no proposal, a playbook's moment says; the booking
- * link where one is on file, and the review link where the Google listing keeps one (GET settings' `review_link`, which
- * the pages read: broadcasts/surface.ts and playbooks/surface.ts `reviewLink`).
- */
-export interface SlotRule {
-  visits: boolean;
-  bookingLink: boolean;
-  reviewLink: boolean;
-  proposal: boolean;
-}
-
-/** The links a workspace's slots may be filled from, as the composers are given them. */
-export interface SlotLinks {
-  bookingLink: boolean;
-  reviewLink: boolean;
-}
-
-/** The broadcast composer's rule (broadcasts/page/words.ts bcSlots): no visit's time or service, no proposal's link. */
-export const broadcastSlots = (links: SlotLinks): SlotRule => ({
-  visits: false,
-  bookingLink: links.bookingLink,
-  reviewLink: links.reviewLink,
-  proposal: false,
-});
-
-/**
- * The row a message's words are drawn from, under the message's own id: the anchor's, else the first of its rows in the
- * product's order of channels (parts/channels.ts cmOfferedMessages).
- */
-function wordsRowOf(rows: readonly TemplateRow[], m: CampaignMessage): TemplateRow | null {
-  const own = rows.filter((r) => r.name === m.name && r.language === m.language);
-  return (
-    own.find((r) => r.id === m.anchor.id) ??
-    CONSENT_CHANNELS.flatMap((c) => own.filter((r) => r.channel === c))[0] ??
-    null
-  );
-}
-
-/**
- * What a composer's picker lists, in the order it lists it, and the one sentence under it for what cannot go out from here:
- * every message that is offered (not hidden, at least one channel held), and one whose WhatsApp version is approved but
- * cannot go whole (a picture for a heading) and holds nothing else, which is listed to say why it is not offered; in the
- * library's order, left with those whose every slot the composer can fill (contracts templateSlots), and one option a message
- * whatever languages it has.
- */
-export function messagesOffered(
-  read: TemplatesRead,
-  how: SlotRule,
-): { groups: TemplateGroup<TemplateRow>[]; why: string | null } {
-  const rows = messagesOf(read).flatMap((m) => {
-    const whatsapp = m.versions.whatsapp;
-    const blockedAlone = !m.hidden && whatsapp !== null && whatsapp.status === "approved" && whatsapp.blocked !== null;
-    const row = wordsRowOf(read.templates, m);
-    if (!(m.offered || blockedAlone) || !row) return [];
-    return [{ ...row, title: m.title, category: m.category, blocked: m.offered ? null : (whatsapp?.blocked ?? null) }];
-  });
-  const { sendable, why } = sendableTemplates(rows.sort(compareTemplates));
-  return {
-    groups: groupTemplates(
-      sendable.filter((t) => templateSlots({ name: t.name, variables: t.variables }, how) !== null),
-    ),
-    why,
-  };
-}
 
 /**
  * What the Library lists of the workspace's messages (templates/group.ts listingOf): a row to each starter of the set

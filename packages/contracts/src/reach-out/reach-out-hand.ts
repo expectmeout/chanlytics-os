@@ -34,3 +34,13 @@ export function handStepWords(kind: HandKind, business: string, words: string): 
   const who = business.trim() || "This business";
   return kind === "call" ? `Call ${who}: ${words.trim()}` : `${who}: ${words.trim()}`;
 }
+
+/**
+ * The step the team is handed for one customer (decision 0065: a customer's call or note), as Today shows it: "Call Ana
+ * Morales: ask how the cut held up". A person with no name on file is "them", never a business: the step stands on
+ * their own page, so a note is its words alone.
+ */
+export function personHandWords(kind: HandKind, name: string, words: string): string {
+  if (name.trim()) return handStepWords(kind, name, words);
+  return kind === "call" ? `Call them: ${words.trim()}` : words.trim();
+}

@@ -3,13 +3,22 @@
  * words are kept in the tab, come back when it opens again, and are thrown away only after one question.
  *
  * - The send screen's Cancel and a trip to another page lost a name, a typed value and a picked time; a template
- *   half-written, or a translation the assistant had just been paid to write, went with a Cancel. Each is kept per tab (tab-memory.ts) under one rule (record-fold.jsx
- *   useUnsavedWork), the registry holds the tab from closing over it, and Cancel asks once (UnsavedAsk).
- * - Words kept come back as their composer opens again (`campaigns/new`, the sheet Campaigns opens over Sequences,
- *   home/sheets.tsx), on the words. The playbook composer's went with its Every time (the closed-loop audit of 17 Oct
- *   2026, G): a sequence's draft is New sequence's own.
- * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it.
+ *   half-written, or a translation the assistant had just been paid to write, went with a Cancel. Each is kept per tab
+ *   (tab-memory.ts) under one rule (kit/record/work.tsx useUnsavedWork), the registry holds the tab from closing over it,
+ *   and Close asks once.
+ * - A one-off is New's since decision 0065's step 7 took the send screen away (sequences/new/new-page.tsx): its draft is
+ *   kept under New's address once it says who it is for, comes back when New opens there again, and Close asks Keep as a
+ *   draft or Discard; a send the server took keeps nothing, and Send it again opens New on what the run sent. The playbook
+ *   composer's went with its Every time (the closed-loop audit of 17 Oct 2026, G): a sequence's draft is New's own too.
+ * - What New asks and counts holds to the draft as it now stands: Send now's question goes with any change, so nothing is
+ *   sent from a question about a draft that has moved; a draft the tab kept is counted again as it comes back; and where
+ *   the channels could not be read, a message picked goes by WhatsApp, as every send did before a channel was read.
+ * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it, and
+ * New's two doors (POST sequences/draft and sequences/new) answered as their routes answer.
  */
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
@@ -18,7 +27,6 @@ import {
   fresh as freshTree,
   again,
   unmount,
-  all,
   find,
   byTestId,
   textOf,
@@ -26,7 +34,7 @@ import {
   settle,
 } from "../_legacy-react.mjs";
 
-const { toBroadcastVM, stateOf, numberHealth } = contracts;
+const { stateOf, NEW_WORDS: W } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -71,8 +79,16 @@ Object.assign(globalThis, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
-const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-// Send once inside the one New (the Campaigns wiring review's lane 6): the composer's sheet over Sequences went into it.
+// React's context, which the react-server condition this suite runs under has none of: Campaigns' toast is held in one at the
+// route's mount (home/route-toast.ts), and New, drawn here on its own, reads its default -- none -- and says its own toast.
+const react = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), `${SRC}/legacy-bridge/_.js`))(
+  "react",
+);
+react.createContext ??= (value) => ({ value, Provider: "Provider" });
+react.useContext ??= (context) => context.value;
+const { NewSequence } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-page.tsx`);
+const { reachOuts } = await import(`${SRC}/surfaces/campaigns/reach-out/surface.ts`);
+const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 // The Library's pane is a chunk of its own (campaigns-code.tsx): fetched here as a reach for a message's door fetches it,
 // so every draw below finds it in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
@@ -80,15 +96,14 @@ warmCampaignsCode("campaigns/messages/any");
 await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
-const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
-const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
-/** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
-const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
+const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
+const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
+const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
-const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -103,6 +118,8 @@ const fresh = () => {
 };
 /** The tree drawn again over the same cells, as React draws it after a state change. */
 const redraw = (draw) => again(draw);
+/** The host element a testid names (a kit Button is its own node and the host button it draws, both carrying the id). */
+const hostOf = (tree, id) => find(tree, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
 /** What the tab keeps, whole: every draft in the slot. */
 const drafts = () => JSON.parse(globalThis.sessionStorage.getItem("chanlytics.drafts.v1") || "{}");
 /** The browser's own question before the tab closes: whether the registry's listener held it. */
@@ -123,31 +140,6 @@ const tabClosing = () => {
 
 const D = 24 * 3_600_000;
 const iso = (ms) => new Date(NOW + ms).toISOString();
-const dto = (over = {}) => ({
-  id: "b-sent",
-  name: "Win-back · 2026-09-10",
-  template_id: "tpl-1",
-  template_name: "winback_offer",
-  template_language: "en_US",
-  params: [{ kind: "first_name" }],
-  audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
-  state: "sent",
-  scheduled_for: iso(-5 * D),
-  started_at: iso(-5 * D),
-  finished_at: iso(-5 * D + 60_000),
-  recipient_count: 3,
-  failure: null,
-  created_at: iso(-5 * D),
-  playbook_id: "pb-1",
-  run_for: "2026-09-10",
-  counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
-  ...over,
-});
-const healthyNumber = {
-  present: true,
-  display: "+1 305-555-0100",
-  health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
-};
 /** A starter as WhatsApp holds it once approved: the library's words and slots. */
 const starterRow = (key, id) => {
   const s = contracts.starterByKey(key);
@@ -176,6 +168,7 @@ const ownTemplate = {
   category: "marketing",
   purpose: "marketing",
   source: "meta",
+  hidden_at: null,
   title: "Autumn offer",
   body_preview: "Hi {{1}}, {{2}} this autumn.",
   variables: [
@@ -183,31 +176,6 @@ const ownTemplate = {
     { position: 2, label: "Value 2", example: "20% off" },
   ],
 };
-/** Who each audience reaches, as its own read publishes it (broadcasts/audiences-surface.ts): the composer is made of it too. */
-const audiencesSurface = (over = {}) => ({
-  audiences: [
-    { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, conversational: 3 } },
-    { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
-  ],
-  listsRead: true,
-  heardRead: true,
-  fetchedAt: 1,
-  ...over,
-});
-const broadcastsSurface = (over = {}) => ({
-  templates: [ownTemplate],
-  rows: [toBroadcastVM(dto(), ZONE)],
-  more: false,
-  heldReasons: contracts.HELD_REASONS,
-  chunk: contracts.BROADCAST_CHUNK,
-  number: healthyNumber,
-  optIn: null,
-  getYes: contracts.GET_YES_ROUTE,
-  scheduleMaxDays: 30,
-  businessName: "Northside Studio",
-  bookingLink: false,
-  ...over,
-});
 const playbook = (over = {}) => ({
   id: "pb-1",
   name: "Win-back",
@@ -246,10 +214,37 @@ const poolOf = (pool, candidates = pool) => ({
   noNumber: 0,
   saidYes: pool,
 });
+/** A list Campaigns counts, as its read names it (playbooks/surface.ts): People's by `seg:`, the workspace's own by `list:`. */
+const listOf = (id, name, candidates, builtin = false) => ({
+  id,
+  name,
+  smart: builtin,
+  builtin,
+  candidates,
+  held: 0,
+  named: null,
+});
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()],
-  pools: { quiet_30: poolOf(4), new_week: poolOf(0), visit_tomorrow: poolOf(3), visited: poolOf(2) },
-  templates: [starterRow("winback_offer", "tpl-1")],
+  pools: {
+    quiet_30: poolOf(4),
+    new_week: poolOf(0),
+    visit_tomorrow: poolOf(3),
+    visited: poolOf(2),
+    everyone_monthly: poolOf(5),
+    "seg:vip": poolOf(3, 3),
+    "list:s1": poolOf(2, 2),
+  },
+  lists: [listOf("seg:vip", "VIP clients", 3, true), listOf("list:s1", "Regulars", 2)],
+  // The messages a one-off may send, made of the settings read as the surface makes them (parts/channels.ts).
+  templates: cmOfferedMessages({ templates: [starterRow("winback_offer", "tpl-1"), ownTemplate] }),
+  messages: null,
+  // What the workspace can send on now (server/campaigns/channels-ready.ts): its WhatsApp number, and no text line or mailbox.
+  ready: contracts.channelsReady({
+    whatsapp: { canSend: true, refusal: null },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  }),
   triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => ({
     id: t.id,
     label: t.label,
@@ -272,46 +267,114 @@ const playbooksSurface = (over = {}) => ({
   fetchedAt: NOW,
   ...over,
 });
-// The verbs the pages import, as this test holds them: a run's report by no clock, a read that finds nothing, a send the
-// server takes. The words (failureWords, noNumberWords, saidYesWords) are the verbs' own, over contracts.
-broadcasts.report = (d) =>
-  contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null });
-broadcasts.detail = async () => ({ ok: false, code: "not_found", status: 404, message: "Run not found." });
-broadcasts.send = async () => ({
-  ok: true,
-  data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
-});
-
-/** Whether New, which hosts the send screen, has been told the screen was left (sent, scheduled or cancelled). */
-let left = false;
 /**
- * The send screen as New's Send once hosts it (home/new-message.tsx), on the list its address names: its toast the host's,
- * its door to their yes New's address replaced, and New closed once the screen says it was left.
+ * One of New's one-offs as Ask answers it (POST sequences/draft, contracts NewDraftDto): to the list its door named, now, by
+ * WhatsApp, of the workspace's offer with a value still to type.
  */
-const page = (props = { initialSegment: null }) =>
-  left
-    ? null
-    : BroadcastSend({
-        data: { ...surfaceValue("audiences"), ...surfaceValue("broadcasts") },
-        initialSegment: props.initialSegment ?? null,
-        flash: (t) => toasts.push(t),
-        onDone: () => {
-          left = true;
-        },
-        onYes: (route) => replaced.push(route),
-      });
-/** New opened on Send once, as a door does: the send screen, drawn twice as a mount settles. */
-const openByLink = () => {
-  unmount();
-  fresh();
-  left = false;
-  redraw(() => page({ initialSegment: "no-such-list" }));
+const ASKED = {
+  said: "Tell my VIPs about the autumn colour offer",
+  business: "Northside Studio",
+  kind: "once",
+  audience: "people",
+  name: "Autumn colour",
+  who: { kind: "list", token: "seg:vip", label: "VIP clients" },
+  run_hour: 10,
+  at: null,
+  channels: ["whatsapp"],
+  mailbox: null,
+  adds_new: false,
+  steps: [
+    {
+      name: "Autumn colour",
+      after_days: null,
+      only_if: [],
+      does: "message",
+      message: {
+        template_id: "tpl-own",
+        title: "Autumn offer",
+        body: "Hi {{1}}, {{2}} this autumn.",
+        channels: ["whatsapp"],
+        params: [{ kind: "first_name" }, { kind: "text", value: "" }],
+        offer: true,
+        written: null,
+        labels: ["Name", "Value 2"],
+      },
+      email: null,
+      hand: "",
+    },
+  ],
+  policy_class: "campaign",
+  mode: null,
+  reach: { can: 3, of: 3, left: null, held: 0, by: { whatsapp: 3 } },
+  checks: [],
+  twin: null,
+  cannot: null,
+};
+/**
+ * New's two doors, answered as their routes answer (the envelope the typed client reads): Ask's draft, and what a make made
+ * -- a one-off sent, or kept under Drafts. Every write is kept; any other address is a read that finds nothing.
+ */
+const posted = [];
+globalThis.fetch = async (url, init) => {
+  const at = new URL(String(url), "https://app.chanlytics.com").pathname;
+  const body = init?.body ? JSON.parse(String(init.body)) : null;
+  if (init?.method === "POST") posted.push({ at, body });
+  const data =
+    at === "/api/v1/sequences/draft"
+      ? ASKED
+      : at === "/api/v1/sequences/new"
+        ? body.start
+          ? { made: "b-new", kind: "once", state: "on", scheduled_for: iso(10 * 60_000) }
+          : { made: "s-kept", kind: "once", state: "draft" }
+        : null;
+  return data
+    ? new Response(JSON.stringify({ ok: true, data }), { status: 200 })
+    : new Response(JSON.stringify({ ok: false, error: { code: "not_found", message: "Not here." } }), { status: 404 });
+};
+// The searches whose leads are ready, which New reads as it opens: none here.
+reachOuts.sources = async () => [];
+// A one-off's Stop, from its toast: the send cancelled through Broadcasts' verb.
+const cancelled = [];
+broadcasts.cancel = async (id) => {
+  cancelled.push(id);
+  return { ok: true, data: null };
+};
+
+/** New on the address a door gave it (`campaigns/sequences/new:once:to:seg:vip`), and the key it keeps a draft under there. */
+const DOOR = { who: "once", to: "seg:vip" };
+const HERE = "|once|seg:vip|";
+let opened = DOOR;
+const page = () => globalThis.React.createElement(NewSequence, opened);
+/**
+ * What is still to land (the searches read, Ask's answer, a make), landed -- once `done` says so, or after a second at most
+ * (the first walk of a verb loads its spec) -- and the page drawn again over it.
+ */
+const landed = async (done = () => true) => {
+  for (let i = 0; i < 200; i += 1) {
+    await settle();
+    await new Promise((r) => setTimeout(r, 5));
+    if (i >= 2 && done()) break;
+  }
   return redraw(page);
 };
-/** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
-const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
-/** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
-const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this send");
+/** New opened by a door, as a mount of its own: drawn as the mount settles, its reads in. */
+const openNew = async (props = DOOR) => {
+  unmount();
+  fresh();
+  opened = props;
+  redraw(page);
+  return landed();
+};
+/** The line New is asked from, and the value a step's message leaves to type: the kit's Fields, by their test ids. */
+const lineBox = (tree) => find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-line");
+const valueBox = (tree) => find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-value-1-1");
+/** New's one-off as Ask drafts it from a line: the line typed, Draft pressed, and its answer in. */
+const askDrafts = async (props = DOOR) => {
+  const tree = await openNew(props);
+  type(lineBox(tree), ASKED.said);
+  press(hostOf(redraw(page), "sq-nw-draft"));
+  return landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
+};
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
@@ -328,113 +391,280 @@ beforeEach(() => {
   fresh();
   clearTabMemory();
   globalThis.__recordFolds.reset();
-  setSurfaceValue("broadcasts", broadcastsSurface());
-  setSurfaceValue("audiences", audiencesSurface());
+  posted.length = 0;
+  cancelled.length = 0;
+  // What New opens on (new-page.tsx): Campaigns' read, and the sequences that run -- none.
   setSurfaceValue("playbooks", playbooksSurface());
+  setSurfaceValue("sequences", { sequences: [], timezone: ZONE, word: "visit" });
 });
 
 /* ---------------------------------- D: an act is said when the server takes it ---------------------------------- */
 
-/* ---------------------------------- G: the send screen ---------------------------------- */
+/* ---------------------------------- G: New's one-off ---------------------------------- */
 
-test("the send screen keeps its words -- a name, a typed value, a picked time -- and opens again on them; a list or a message chosen alone keeps nothing; Cancel asks once and Yes clears it", () => {
-  let tree = openByLink();
-  assert.ok(byTestId(tree, "bc-composer"));
-  // The list and the message are choices, not words: chosen, nothing is kept and Cancel closes at once.
-  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
-  tree = redraw(page);
-  assert.deepEqual(drafts(), {}, "a choice alone is not work");
-  press(byTestId(tree, "bc-compose-close"));
+test("New keeps a one-off once it says who it is for, opens again on it, and Close asks once: a second Close leaves it in the tab, Discard throws it away", async () => {
+  // A door to a list New can't send to now says so, where the send screen opened on Everyone in silence.
+  let tree = await openNew({ who: "once", to: "no-such-list" });
+  assert.equal(textOf(byTestId(tree, "sq-nw-door-gone")), contracts.UNKNOWN_AUDIENCE_WORDS);
+  // A line typed is not work: nothing is kept, and the tab closes without asking.
+  tree = await openNew();
+  type(lineBox(tree), ASKED.said);
   redraw(page);
-  tree = redraw(page);
-  assert.equal(byTestId(tree, "bc-composer"), null, "Cancel closes New, as it did the sheet");
+  assert.deepEqual(drafts(), {}, "a line alone is not work");
+  assert.equal(tabClosing(), false);
 
-  // New opened again is a mount of its own: the list is picked again, and this time words are written for it.
-  tree = openByLink();
-  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
+  // Ask's draft says who it is for (the door's list, which Ask was told to keep): it is work, kept as it changes.
+  tree = await askDrafts();
+  assert.deepEqual(posted.at(-1).body.who, ASKED.who, "Ask is told the list the door named");
+  assert.ok(byTestId(tree, "sq-nw-sentence"), "New on the draft");
+  type(valueBox(tree), "20% off colour");
   tree = redraw(page);
-  typedSlots(tree)[0].props.onTyped("20% off colour");
-  tree = redraw(page);
-  type(nameBox(tree), "Autumn colour");
-  tree = redraw(page);
-  // A picked time is work too: the day and the time, kept as the instant the pair names.
-  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
-  tree = redraw(page);
-  const kept = TM.draft("broadcast");
-  assert.equal(kept.name, "Autumn colour");
-  assert.ok(typeof kept.whenAt === "number" && kept.whenAt > Date.now(), "the time picked, as an instant ahead");
-  assert.deepEqual(
-    kept.params["tpl-own"],
-    [null, "20% off colour"],
-    "the value typed into the second slot (the first is each person's own name)",
-  );
-  assert.equal(kept.aud, "saved:s1", "and the list it was for");
+  const kept = TM.draft("new", HERE);
+  assert.deepEqual(kept.draft.who, ASKED.who, "the draft, under New's address");
+  assert.deepEqual(kept.draft.steps[0].message.params[1], { kind: "text", value: "20% off colour" }, "the value typed");
   assert.equal(tabClosing(), true, "the tab asks before closing over it");
 
-  // Cancel with words asks -- in the pane's foot, where the send's acts were (the pane's Close stays at its head, as the
-  // layout is the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md §3.1); Keep editing puts them back.
-  press(byTestId(tree, "bc-compose-close"));
+  // Close with a draft asks, in the pane's foot where its act was: keep it under Drafts, or discard it.
+  press(hostOf(tree, "cm-pane-close"));
   tree = redraw(page);
-  assert.ok(byTestId(tree, "bc-composer"), "not closed");
-  assert.ok(byTestId(tree, "bc-leave-confirm"), "asked");
-  assert.equal(byTestId(tree, "bc-send"), null, "the question stands alone in the foot");
-  press(byTestId(tree, "bc-leave-no"));
-  tree = redraw(page);
-  assert.ok(byTestId(tree, "bc-compose-close"));
-  assert.ok(byTestId(tree, "bc-schedule"), "and the send's one act is back: Schedule, since a time is picked");
-  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
+  assert.ok(hostOf(tree, "sq-nw-leave-discard") && hostOf(tree, "sq-nw-leave-keep"), "asked");
+  assert.equal(hostOf(tree, "sq-nw-send-now"), null, "the question stands alone in the foot");
+  assert.deepEqual(went, [], "not closed");
+  // A second Close while it asks goes, and the draft stays in the tab.
+  press(hostOf(tree, "cm-pane-close"));
+  assert.deepEqual(went, [contracts.SEQUENCES_ROUTE], "onto Sequences");
+  assert.ok(TM.draft("new", HERE), "kept");
 
-  // Left and come back to: the send screen, on the same list, with the same words.
-  unmount();
-  fresh();
-  tree = page();
-  assert.ok(byTestId(tree, "bc-composer"), "opens on the send half-written");
-  assert.equal(nameBox(tree).props.value, "Autumn colour");
-  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
-  assert.equal(pickerOf(tree, "bc-audience").props.value, "saved:s1", "on Regulars, the list it was for");
-  assert.equal(pickerOf(tree, "bc-when-mode").props.value, "later", "and the time that was picked");
-  assert.equal(
-    pickerOf(tree, "bc-when-time").props.value,
-    globalThis.__clock.inputValue(kept.whenAt).split("T")[1],
-    "at the hour it was",
-  );
-  // A link that names a list wins the list.
-  unmount();
-  fresh();
-  tree = page({ initialSegment: "s1" });
-  assert.ok(byTestId(tree, "bc-composer"));
-  unmount();
-  fresh();
-  tree = page();
-
-  // Yes, throw it away: closed, cleared, and nothing kept -- the next send opens empty.
-  press(byTestId(tree, "bc-compose-close"));
+  // Come back to: New on the same address opens on the draft, with the value typed.
+  tree = await openNew();
+  assert.ok(byTestId(tree, "sq-nw-sentence"), "opens on the draft half-written");
+  assert.equal(valueBox(tree).props.value, "20% off colour");
+  // Discard: closed, cleared, nothing kept -- New opens again on its line.
+  press(hostOf(tree, "cm-pane-close"));
   tree = redraw(page);
-  press(byTestId(tree, "bc-leave-yes"));
+  press(hostOf(tree, "sq-nw-leave-discard"));
   redraw(page);
-  tree = redraw(page);
-  assert.equal(byTestId(tree, "bc-composer"), null);
-  assert.equal(TM.draft("broadcast"), null);
-  tree = openByLink();
-  assert.equal(nameBox(tree).props.value, "", "REGRESSION: the last send's words stayed in the page after a Cancel");
-  assert.equal(typedSlots(tree)[0].props.typed, "");
-  assert.equal(pickerOf(tree, "bc-when-mode").props.value, "now", "and no time picked");
+  assert.equal(TM.draft("new", HERE), null);
+  assert.equal(went.at(-1), contracts.SEQUENCES_ROUTE, "onto Sequences");
+  // New goes with the page it left (the route unmounts it), and the tab holds nothing.
+  unmount();
+  assert.equal(tabClosing(), false, "and the tab holds nothing");
+  tree = await openNew();
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "REGRESSION: the last draft stayed in the page after a Discard");
+  assert.ok(lineBox(tree), "New opens on its line");
+  assert.equal(
+    posted.some((p) => p.at === "/api/v1/sequences/new"),
+    false,
+    "nothing was made",
+  );
 });
 
-test("a send the server took keeps nothing: New closes and the next send is empty", async () => {
-  let tree = openByLink();
-  typedSlots(tree)[0].props.onTyped("20% off colour");
+test("a send the server took keeps nothing: New closes, its toast says when it goes with its Stop, and the next New is empty", async () => {
+  let tree = await askDrafts();
+  type(valueBox(tree), "20% off colour");
   tree = redraw(page);
-  assert.ok(TM.draft("broadcast"));
-  press(byTestId(tree, "bc-send"));
+  assert.ok(TM.draft("new", HERE));
+  // Send now asks first; its yes sends it through New's one door, as it stands.
+  press(hostOf(tree, "sq-nw-send-now"));
   tree = redraw(page);
-  await press(byTestId(tree, "bc-send-yes"));
+  press(hostOf(tree, "sq-nw-send-yes"));
+  await landed(() => went.length > 0);
+  const made = posted.filter((p) => p.at === "/api/v1/sequences/new");
+  assert.equal(made.length, 1, "made once");
+  assert.equal(made[0].body.start, true, "sent, not kept");
+  assert.deepEqual(made[0].body.steps[0].message.params[1], { kind: "text", value: "20% off colour" });
+  assert.equal(TM.draft("new", HERE), null, "and nothing is kept");
+  assert.deepEqual(went, [contracts.SEQUENCES_ROUTE], "New closes onto Sequences");
+  // Its toast says it goes, with its Stop, which cancels the send it made.
+  const said = toasts.at(-1);
+  assert.equal(said.tone, "ok");
+  assert.ok(textOf(said.msg).startsWith(contracts.NEW_WORDS.sent.goes(ASKED.name, "")), "it goes");
+  assert.ok(textOf(said.msg).endsWith(" · " + contracts.NEW_WORDS.draft.people(3)), "to the three who can hear it");
+  assert.equal(said.action.label, contracts.NEW_WORDS.sent.stop);
+  said.action.onClick();
+  assert.deepEqual(cancelled, ["b-new"], "Stop cancels the send it made");
+  tree = await openNew();
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null, "the next one starts empty");
+  assert.equal(lineBox(tree).props.value, "", "on an empty line");
+});
+
+test("Send it again opens New's one-off filled with what the run sent, and lets the run's send go once New drops it", async () => {
+  // What a sent run's Send it again keeps for the tab (broadcasts/page/runs.tsx bcAgainOf): its list, its message, and
+  // what filled each value -- each person's own name, and the words typed.
+  TM.keepDraft("broadcast", {
+    aud: "saved:s1",
+    tplId: "tpl-own",
+    sources: { "tpl-own": ["first_name", "text"] },
+    params: { "tpl-own": ["", "20% off colour"] },
+    name: "",
+    whenAt: null,
+  });
+  let tree = await openNew({ who: "once" });
+  const sentence = byTestId(tree, "sq-nw-sentence");
+  assert.ok(sentence, "New on a one-off, not its line");
+  assert.equal(textOf(hostOf(sentence, "sq-nw-who-pick")), "Regulars", "to the list it went to");
+  assert.equal(textOf(hostOf(tree, "sq-nw-pick-1")), "Autumn offer", "with the message it sent");
+  assert.equal(valueBox(tree).props.value, "20% off colour", "and the words typed into it");
+  assert.equal(
+    find(tree, (n) => n.type === Field && n.props["data-testid"] === "sq-nw-name").props.value,
+    "Autumn offer",
+  );
+  assert.equal(TM.draft("new", "|once||"), null, "nothing of New's own is kept until it is changed");
+  // Discarded, the run's send goes: New opens on its line the next time.
+  press(hostOf(tree, "sq-nw-discard"));
   redraw(page);
+  assert.equal(TM.draft("broadcast"), null, "the run's send let go");
+  tree = await openNew({ who: "once" });
+  assert.equal(byTestId(tree, "sq-nw-sentence"), null);
+  assert.ok(lineBox(tree));
+});
+
+test("Send now's question goes with any change -- a time picked or a channel unticked through the sheets, the audience drafted again -- and nothing is sent from it", async () => {
+  let tree = await askDrafts();
+  type(valueBox(tree), "20% off colour");
   tree = redraw(page);
-  assert.equal(byTestId(tree, "bc-composer"), null, "sent, the screen closes");
-  assert.equal(TM.draft("broadcast"), null, "and nothing is kept");
-  tree = openByLink();
-  assert.equal(typedSlots(tree)[0].props.typed, "", "the next one starts empty");
+  const asks = () => !!byTestId(tree, "sq-nw-send-confirm");
+  const sendNow = () => {
+    press(hostOf(tree, "sq-nw-send-now"));
+    tree = redraw(page);
+    assert.ok(asks(), "Send now asks first");
+  };
+  // A sheet opened to change something puts the question away.
+  sendNow();
+  press(hostOf(byTestId(tree, "sq-nw-sentence"), "sq-nw-when-pick"));
+  tree = redraw(page);
+  assert.equal(asks(), false, "When opened, it is put away");
+  // Asked again with When open, a day picked there puts it away: it never asks about now over a time picked since.
+  sendNow();
+  press(hostOf(tree, "sq-nw-when-day"));
+  tree = redraw(page);
+  assert.equal(asks(), false, "a time picked puts it away");
+  assert.equal(hostOf(tree, "sq-nw-send-yes"), null, "its yes with it");
+  assert.ok(hostOf(tree, "sq-nw-schedule"), "Schedule, in Send now's place");
+  // Back to now, then How: WhatsApp unticked while it asks puts it away, and with no way left nothing can go.
+  press(hostOf(tree, "sq-nw-when-now"));
+  tree = redraw(page);
+  press(hostOf(byTestId(tree, "sq-nw-sentence"), "sq-nw-channels-pick"));
+  tree = redraw(page);
+  sendNow();
+  const whatsapp = () =>
+    find(byTestId(tree, "sq-nw-channels"), (n) => n.type === Switch && n.props.label === W.channels.whatsapp);
+  whatsapp().props.onCheckedChange(false);
+  tree = redraw(page);
+  assert.equal(asks(), false, "a channel unticked puts it away");
+  assert.equal(hostOf(tree, "sq-nw-send-now").props.disabled, true, "by no way, it can't go");
+  whatsapp().props.onCheckedChange(true);
+  tree = redraw(page);
+  // The body's toggle drafts it again for leads: asked about the draft it was, the question goes as Ask writes it again.
+  sendNow();
+  find(tree, (n) => n.type === Segmented && n.props.className === "sq-nw-aud").props.onValueChange("leads");
+  tree = redraw(page);
+  assert.equal(asks(), false, "drafted again, it is put away");
+  const askedFor = () => posted.filter((p) => p.at === "/api/v1/sequences/draft");
+  tree = await landed(() => askedFor().length === 2 && !textOf(redraw(page)).includes(W.say.againFor.leads));
+  assert.equal(askedFor()[1].body.audience, "leads", "Ask was asked again, for leads");
+  assert.equal(asks(), false);
+  assert.deepEqual(
+    posted.filter((p) => p.at === "/api/v1/sequences/new"),
+    [],
+    "nothing was sent from a question put away",
+  );
+});
+
+test("REGRESSION: a draft the tab kept is counted again as it comes back, against the playbooks read as it is now: a count from before never stands", async () => {
+  // Kept while nobody on VIP clients could hear it, its value typed; since, five of the seven on it can.
+  const kept = {
+    ...ASKED,
+    steps: [
+      {
+        ...ASKED.steps[0],
+        message: {
+          ...ASKED.steps[0].message,
+          params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+        },
+      },
+    ],
+    reach: { can: 0, of: 3, left: W.reach.neverYes(3), held: 0, by: { whatsapp: 0 }, nobody: "no_yes" },
+  };
+  TM.keepDraft("new", { draft: kept, line: ASKED.said }, HERE);
+  const read = playbooksSurface();
+  setSurfaceValue("playbooks", { ...read, pools: { ...read.pools, "seg:vip": poolOf(7, 5) } });
+  let tree = await openNew();
+  assert.ok(byTestId(tree, "sq-nw-sentence"), "New opens on the kept draft");
+  assert.ok(textOf(byTestId(tree, "sq-nw-reach")).startsWith(`5 ${W.reach.ofList(7)}`), "who can hear it now");
+  assert.equal(byTestId(tree, "sq-nw-nobody"), null, "never the card for nobody, from before");
+  assert.equal(hostOf(tree, "sq-nw-send-now").props.disabled, false, "and it can go");
+  press(hostOf(tree, "sq-nw-send-now"));
+  tree = redraw(page);
+  assert.ok(
+    textOf(byTestId(tree, "sq-nw-send-confirm")).includes(W.confirm.title(ASKED.name, 5)),
+    "asked for the five",
+  );
+});
+
+test("REGRESSION: a draft the tab kept by a channel closed since comes back on the channels the workspace sends on now, and goes by them", async () => {
+  // Kept by WhatsApp and email; the workspace sends on WhatsApp alone now (the read's ready), so How could not untick email.
+  const both = ["whatsapp", "email"];
+  const step = ASKED.steps[0];
+  const kept = {
+    ...ASKED,
+    channels: both,
+    steps: [
+      {
+        ...step,
+        message: {
+          ...step.message,
+          channels: both,
+          params: [{ kind: "first_name" }, { kind: "text", value: "20% off" }],
+        },
+      },
+    ],
+  };
+  TM.keepDraft("new", { draft: kept, line: ASKED.said }, HERE);
+  let tree = await openNew();
+  assert.equal(
+    textOf(hostOf(byTestId(tree, "sq-nw-sentence"), "sq-nw-channels-pick")),
+    M.channelsSaidOf(["whatsapp"], ""),
+    "by WhatsApp alone",
+  );
+  press(hostOf(tree, "sq-nw-send-now"));
+  tree = redraw(page);
+  press(hostOf(tree, "sq-nw-send-yes"));
+  await landed(() => went.length > 0);
+  const made = posted.filter((p) => p.at === "/api/v1/sequences/new");
+  assert.deepEqual(made.at(-1).body.channels, ["whatsapp"], "never by the mailbox it no longer has");
+});
+
+test("where the channels could not be read, a message picked goes by WhatsApp, as every send did before a channel was read: ticked, and Send now live", async () => {
+  // Campaigns' read without its channels (server/campaigns/channels-ready.ts failed): no pause either.
+  setSurfaceValue("playbooks", playbooksSurface({ ready: null }));
+  // A one-off built by hand to the list the door named, its message still to pick, as the tab kept it.
+  const byHand = M.setWho(M.draftByHand("once", "people", "Northside Studio"), ASKED.who);
+  TM.keepDraft("new", { draft: byHand, line: null }, HERE);
+  let tree = await openNew();
+  assert.equal(hostOf(tree, "sq-nw-send-now").props.disabled, true, "a message still to pick");
+  press(hostOf(tree, "sq-nw-pick-1"));
+  tree = redraw(page);
+  press(hostOf(tree, "sq-nw-message-tpl-1"));
+  tree = redraw(page);
+  assert.equal(
+    textOf(hostOf(byTestId(tree, "sq-nw-sentence"), "sq-nw-channels-pick")),
+    M.channelsSaidOf(["whatsapp"], ""),
+  );
+  assert.equal(byTestId(tree, "sq-nw-paused"), null, "a read that failed is no pause");
+  assert.equal(
+    hostOf(tree, "sq-nw-send-now").props.disabled,
+    false,
+    "REGRESSION: an unread read ticked nothing, and Send now stayed shut",
+  );
+  press(hostOf(tree, "sq-nw-send-now"));
+  tree = redraw(page);
+  press(hostOf(tree, "sq-nw-send-yes"));
+  await landed(() => went.length > 0);
+  const made = posted.filter((p) => p.at === "/api/v1/sequences/new");
+  assert.equal(made.length, 1);
+  assert.deepEqual(made[0].body.channels, ["whatsapp"], "sent by WhatsApp");
+  assert.equal(made[0].body.steps[0].message.template_id, "tpl-1");
 });
 
 /* ---------------------------------- G: the template composer ---------------------------------- */

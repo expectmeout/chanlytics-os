@@ -1,6 +1,7 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
 import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf } from "./sequence-held.js";
 import { isReachOutHold } from "../reach-out/reach-out-words.js";
+import { personHandWords } from "../reach-out/reach-out-hand.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
 import { addressOf } from "../activity/record-address.js";
@@ -41,7 +42,14 @@ export const SEQUENCE_EDIT_WORDS = {
   noMessages: "No message is ready to send yet. Write one in Messages first.",
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
   reaches: (first) => first ? "Your change reaches the next batch" : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
-  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now"
+  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now",
+  /**
+   * What a call's or a note's change reaches (decision 0065 step 6): its words are read the day it runs, so they reach
+   * everyone not on your Today yet; a new wait, only those who get the step before from now.
+   */
+  handReaches: "New words reach everyone not on your Today yet; a new wait, only those who get the step before from now",
+  /** A call or a note as it lands on Today for one person (the run's own sentence, personHandWords), for the example. */
+  onToday: (kind, words) => personHandWords(kind, "Dani", words)
 };
 export const SEQUENCE_NEEDS_WORDS = {
   title: "Needs you",

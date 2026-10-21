@@ -2269,7 +2269,8 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `after_days` | integer | yes | ≥ 1; ≤ 90 |
-| `template_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `template_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `hand` | object | no | A call or a note for the team: { kind: call \| note, words } (1 to 280 characters) |
 | `params` | array of any | no | at most 20 |
 | `only_if` | array of one of `"no_booking"`, `"no_reply"` | no | at most 2 |
 | `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | no | at least 1; at most 3 |
@@ -2286,6 +2287,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | no | at least 1; at most 3 |
 | `name` | string | no | at least 1 characters; at most 120 characters |
 | `params` | array of any | no | at most 20 |
+| `hand` | object | no | A call or a note for the team: { kind: call \| note, words } (1 to 280 characters) |
 
 ### `DELETE /api/v1/sequences/[id]/steps/[step]`
 

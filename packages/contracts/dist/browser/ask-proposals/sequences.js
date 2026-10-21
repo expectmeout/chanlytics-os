@@ -4,6 +4,8 @@ import { toSendSaidWords } from "../reach-out/reach-out-approval.js";
 import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test.js";
 import { leadsRoute } from "../leads/lead-plan.js";
+import { handOf } from "../reach-out/reach-out-hand.js";
+import { SEQUENCE_FLOW_WORDS } from "../sequences/sequence-words.js";
 import {
   asText,
   decisionOf,
@@ -13,8 +15,14 @@ import {
   uniqueIds,
   PROPOSAL_WORDS
 } from "./spec.js";
-const STEP_FIELDS = ["after_days", "only_if", "channels", "name", "params"];
-const stepFieldsOf = (pl) => Object.fromEntries(STEP_FIELDS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+const STEP_FIELDS = ["after_days", "only_if", "channels", "name"];
+function stepFieldsOf(pl) {
+  const hand = handOf(pl.hand);
+  const kept = STEP_FIELDS.filter((k) => pl[k] !== void 0 && !(hand && k === "channels"));
+  const fields = Object.fromEntries(kept.map((k) => [k, pl[k]]));
+  if (hand) return { ...fields, hand };
+  return pl.params !== void 0 ? { ...fields, params: pl.params } : fields;
+}
 const openSequence = ({ payload }) => {
   const id = idIn(payload, "sequence_id");
   return id ? sequenceRoute(id) : null;
@@ -27,8 +35,9 @@ export const sequenceStepSpec = {
     if (!id) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     const step = idIn(pl, "step_id");
     if (step) return { route: "PUT sequences/[id]/steps/[step]", params: { id, step }, body: stepFieldsOf(pl) };
+    if (handOf(pl.hand)) return { route: "POST sequences/[id]/steps", params: { id }, body: stepFieldsOf(pl) };
     const template = idIn(pl, "template_id");
-    if (!template) return refuseWith("Say which message the step sends.");
+    if (!template) return refuseWith(SEQUENCE_FLOW_WORDS.sayWhatStepDoes);
     return { route: "POST sequences/[id]/steps", params: { id }, body: { ...stepFieldsOf(pl), template_id: template } };
   },
   receipt: ({ payload: pl }, data) => {

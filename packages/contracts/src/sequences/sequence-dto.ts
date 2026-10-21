@@ -139,7 +139,7 @@ export interface SequenceStepDto {
   template_name: string | null;
   template_language: string | null;
   params: unknown;
-  /** A sequence to leads' last step for the team: a call or a note. */
+  /** A sequence's last step for the team, a lead's or (00465) a customer's: a call or a note; null for a message. */
   hand: { kind: string; words: string } | null;
   next_words: SequenceNextWordsDto | null;
   /** When a person last let a batch of its words go (00462); null while they are new, and its next batch asks. */

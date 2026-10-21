@@ -5,10 +5,11 @@
  *
  * Sent's list went to each sequence's History (decision 0060, D3), and its mount went with the Campaigns wiring review
  * (19 Oct 2026): each of its addresses lands on the page that took it over (contracts retiredRouteOf). What stays here is
- * the two screens the page's one state holds: the send screen, which New's Send once draws (BroadcastSend: lane 6), and a
- * run's own screen, which Sequences draws at the run's home under its sequence and any page opens over itself
- * (BroadcastRun: lanes 2 and 3). To send is a part of the Inbox's Needs you (lane 4: surfaces/waits/to-send-part.tsx), and
- * Get their yes a sheet over People's list (lane 7: people/sheets/get-yes-sheet.tsx).
+ * a run's own screen, which Sequences draws at the run's home under its sequence and any page opens over itself
+ * (BroadcastRun: lanes 2 and 3). The send screen New's Send once drew left in decision 0065's step 7: New drafts a one-off
+ * in its one draft, and says what the screen said of a missing yes and a list nobody can be sent to. To send is a part of
+ * the Inbox's Needs you (lane 4: surfaces/waits/to-send-part.tsx), and Get their yes a sheet over People's list (lane 7:
+ * people/sheets/get-yes-sheet.tsx).
  *
  * The audience chips carry the count of people who may receive an offer (what
  * the channels it goes by ask of them), computed by the same contracts predicate the
@@ -32,7 +33,6 @@ import { cmDefaultChannels, cmReadyOf } from "../parts/channels";
 import { bcAgainOf, bcRunSolo, bcRunsOf, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
-import { bcComposerGlass } from "./page/send-screen";
 import {
   useBcArmed,
   useBcList,
@@ -41,18 +41,16 @@ import {
   useBcOpen,
   useBcWords,
   useBcYes,
-  useUnknownAudienceNotice,
   type RunOver,
 } from "./page/state";
-import type { BcApproving, BcBase, BcData, BcV, BcWhole, Flash } from "./page/types";
+import type { BcApproving, BcBase, BcData, BcV, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE, BroadcastDetail } from "./run";
 import { useBroadcastsDemo } from "./demo";
 
-/** What the page's state opens on: the audience a send is for, or the run open (a run's own screen, BroadcastRun). */
+/** What the page's state opens on: the run open (a run's own screen, BroadcastRun). */
 interface BroadcastsPageProps {
   data: BcData;
-  initialSegment?: string | null;
   /** The run open: a run's own screen (BroadcastRun), drawn at its home under its sequence. */
   initialRun?: string | null;
 }
@@ -80,36 +78,21 @@ function bcWorked(base: BcBase, approving: BcApproving): BcV {
   return { ...v10, ...bcAgainOf(v10) };
 }
 
-/** What the page's state is opened with: what a link names, and (New's Send once) the send already open. */
+/** What the page's state is opened with: what a link names, and where the run's screen stands. */
 interface BroadcastsPageState extends BroadcastsPageProps {
-  /** The send screen is open from the first draw: New's Send once, which opens it by its address. */
-  opened?: boolean;
   /**
-   * The host's own toast, where the screen is hosted in a sheet that closes over what a send says (Campaigns' home): the page
-   * raises its toasts there and draws no host of its own, which would go with the sheet.
+   * The host's own toast, where the screen is hosted in a sheet that closes over what an act says (a run open over another
+   * page): the page raises its toasts there and draws no host of its own, which would go with the sheet.
    */
   flash?: Flash;
-  /**
-   * Where the screen's door to the yes goes where its host moves the page itself, and so, left that way, has nothing more to be
-   * told about the screen having been left (Campaigns' home replaces the composer's address with the section's).
-   */
-  onYes?: (route: string) => void;
   /** A run's screen open over another page (`?see=`): the sheet it stands in is told what it opens next. */
   over?: RunOver;
 }
 
 // The page calls its hooks in the order it always has, each holding one concern (page/state.tsx); plain functions
-// (page/) work out what its screens say, on every draw as before, and return the elements they draw. It is one hook, so
-// Sent's sheets and Campaigns' composer, which hosts the send screen, hold the one state.
-function useBroadcastsPage({
-  data,
-  initialSegment = null,
-  initialRun = null,
-  opened = false,
-  flash: hosted,
-  onYes,
-  over,
-}: BroadcastsPageState) {
+// (page/) work out what its screens say, on every draw as before, and return the elements they draw. It is one hook,
+// kept whole as the send screen that shared it left (decision 0065 step 7): a run's screen holds the one state.
+function useBroadcastsPage({ data, initialRun = null, flash: hosted, over }: BroadcastsPageState) {
   const [ownToast, ownFlash]: [ReactNode, Flash] = useLegacyToast();
   const flash = hosted ?? ownFlash;
   const toastNode = hosted ? null : ownToast;
@@ -119,8 +102,7 @@ function useBroadcastsPage({
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
   const { offered, link, review, templates } = useBcOffered(data);
-  const { kept, aud, setAud, writing, setWriting } = useBcList(initialSegment, audiences, opened);
-  useUnknownAudienceNotice(initialSegment, data.audiences, flash);
+  const { kept, aud, setAud, setWriting } = useBcList(audiences);
   const [tplId, setTplId] = useState(() => {
     if (kept && kept.tplId && templates.some((t) => t.id === kept.tplId)) return kept.tplId;
     const d = bcDefault(templates);
@@ -152,18 +134,7 @@ function useBroadcastsPage({
   const { armed, setArmed } = useBcArmed({ tplId, aud, channels, whenAt, heardTooFor });
   // The run open beside Sequences' list, by the address (useBcOpen).
   const { openId, openRun } = useBcOpen(initialRun, data.rows ?? null, over);
-  // Left by the door to the yes, a hosted screen has been moved on by its host: it is not "done" as a send or a Cancel is.
-  const leftByDoor = useRef(false);
-  const { yesDoor, yesLink } = useBcYes(
-    data,
-    setWriting,
-    onYes
-      ? (route) => {
-          leftByDoor.current = true;
-          onYes(route);
-        }
-      : undefined,
-  );
+  const { yesDoor, yesLink } = useBcYes(data, setWriting);
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = useState<string | null>(null);
   const [stopping, setStopping] = useState<string | null>(null);
@@ -220,43 +191,7 @@ function useBroadcastsPage({
   const approvingRef = useRef<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
   const v = bcWorked(base, { approvingRef, approving, setApproving });
-  return { v, toastNode, writing, openId, leftByDoor };
-}
-
-/**
- * The send screen on its own, for Campaigns' composer (Send once, and Send it again): held by the same hook as Sent's sheets,
- * so what is kept in the tab, the channels, the preview and the one Send are the page's. `initialSegment` is the
- * audience it opens on ("message these people", from People or a list: `campaigns/new:to:<audience>`). `flash` is the home's
- * toast, not a host of the screen's own: a send closes the sheet at once, and the toast that says it is sending, with its Stop
- * and its "See who", must outlive it. `onDone` is told when the screen has been left, sent or scheduled or cancelled, which is
- * when the page's own `writing` ends. `onYes` is the door to where their yes is got: the host moves the page there itself (the
- * sheet's address is replaced by the section's), and is not told `onDone` besides, which would close what it has left.
- */
-export function BroadcastSend({
-  data,
-  initialSegment = null,
-  flash,
-  onDone,
-  onYes,
-  above = null,
-}: {
-  data: BcWhole;
-  initialSegment?: string | null;
-  flash: Flash;
-  onDone: () => void;
-  onYes: (route: string) => void;
-  /** What its host draws over the sentence: New's who and when, where the screen is New's pane. */
-  above?: ReactNode;
-}) {
-  const { v, writing, leftByDoor } = useBroadcastsPage({ data, initialSegment, opened: true, flash, onYes });
-  const seen = useRef(false);
-  useEffect(() => {
-    if (writing) {
-      seen.current = true;
-      leftByDoor.current = false;
-    } else if (seen.current && !leftByDoor.current) onDone();
-  }, [writing]); // eslint-disable-line react-hooks/exhaustive-deps -- told when the send screen is left, not when its host re-draws
-  return bcComposerGlass(v, above);
+  return { v, toastNode, openId };
 }
 
 /**

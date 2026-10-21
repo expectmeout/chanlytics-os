@@ -19,7 +19,6 @@ import {
   EVERYONE_LABEL,
   UNKNOWN_AUDIENCE_WORDS,
   CONSENT_LIST_IDS,
-  doorNamesNoAudience,
   retiredRouteOf,
   PEOPLE_LISTS,
   broadcastName,
@@ -699,46 +698,12 @@ installLegacyReact({
 const SRC = "../../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: Confirm, StatePill.
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-const { BroadcastSend, BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
+// New's draft as its page holds it (decision 0065): what a door's address asks of it, where the composer's doors land now.
+const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 
-const marketing = {
-  id: "tpl-m",
-  name: "spring_offer",
-  language: "en_US",
-  channel: "whatsapp",
-  meta_status: "approved",
-  category: "MARKETING",
-  purpose: "marketing",
-  body_preview: "Hi {{1}}, spring is here.",
-  variables: [{ position: 1, label: "First name" }],
-};
-const utility = { ...marketing, id: "tpl-u", name: "visit_note", category: "UTILITY", purpose: "conversational" };
-/** Who a send to an audience reaches, as the surface keeps them (contracts AudiencePreview): a few of them, and the counts. */
-const reach = (sending, saidYes) => ({
-  people: sending > 0 ? [{ id: "k1", label: "Ada Lovelace", firstName: "Ada", refusal: null }] : [],
-  sending,
-  held: 0,
-  saidYes,
-  heardTouches: [],
-});
-/** An audience the page offers, counted for each purpose as the surface counts it: a message and an offer each need their own yes. */
-const audienceOf = (id, label, counts, saidYes = counts) => ({
-  kind: "saved",
-  id,
-  label,
-  hint: `${label}, of those whose yes covers this message`,
-  counts,
-  preview: {
-    conversational: reach(counts.conversational, saidYes.conversational),
-    marketing: reach(counts.marketing, saidYes.marketing),
-  },
-});
-const REGULARS = audienceOf("s-regulars", "Regulars", { conversational: 3, marketing: 2 });
-const NOBODY = audienceOf("s-nobody", "New this week", { conversational: 0, marketing: 0 });
 const RUN = toBroadcastVM(
   {
     id: "b1",
@@ -769,9 +734,6 @@ const GOOD_NUMBER = {
 /** The Broadcasts surface as a workspace that has read its own holds it (surface.ts BroadcastsSurface). */
 const surfaceOf = (over = {}) => ({
   rows: [RUN],
-  templates: [marketing],
-  listsRead: true,
-  audiences: [REGULARS],
   number: GOOD_NUMBER,
   heldReasons: {},
   chunk: 25,
@@ -792,30 +754,14 @@ const surfaceOf = (over = {}) => ({
   ...over,
 });
 /**
- * What a test asks to see, drawn afresh over a surface: People's Get their yes (`initialYes`, the Campaigns wiring review's
- * lane 7), a run's one screen at its home (`initialRun`, lane 2), else the send screen as New's Send once hosts it, on the
- * list named (lane 6). Sent's page, which drew all three beside Sequences' list, went with its mount.
+ * People's Get their yes (the Campaigns wiring review's lane 7), open as its address opens it, drawn afresh over a surface.
+ * Sent's page, which drew it beside Sequences' list, went with its mount, and the send screen with decision 0065's step 7
+ * (New's one-off says what that screen said: campaigns/new-send-checks.test.mjs).
  */
-const drawn = (props = {}, over = {}) => {
+const yesSheet = (over = {}) => {
   setSurfaceValue("broadcasts", surfaceOf(over));
   freshTree();
-  if (props.initialYes) return globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
-  if (props.initialRun) return BroadcastRun({ id: props.initialRun });
-  return BroadcastSend({
-    data: surfaceOf(over),
-    initialSegment: props.initialSegment ?? null,
-    flash() {},
-    onDone() {},
-    onYes() {},
-  });
-};
-const compose = (over = {}) => drawn({ initialSegment: "s-regulars" }, over);
-// The list the send is for is the kit's picker's token: the one chosen, with the count this message reaches, which is its
-// option's word at the end (the chips that carried it are gone).
-const chipOf = (tree) => {
-  const p = find(tree, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
-  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
-  return `${one.label} ${one.meta}`;
+  return globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
 };
 
 test("the surface and the page: Broadcasts is real, fed by the same rules, and the demo draws the sample", async () => {
@@ -887,32 +833,9 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
 
-  const composer = compose();
-  for (const id of ["bc-composer", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
-  // The template picker is one component across both composers, so the page
-  // names its chips rather than spelling the attribute.
-  assert.ok(byTestId(composer, "bc-template"), "bc-template");
-  assert.ok(byTestId(compose({ templates: [] }), "bc-no-template"), "no approved template says so");
-  // The empty-audience line names WHICH yes is missing and where to record it. It
-  // used to say "said yes to offers" for every template, which for a `utility` one
-  // sent the owner to record a consent that message does not need.
-  const nobody = { audiences: [NOBODY] };
-  const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
-  assert.ok(offers.includes("has said yes to offers yet. Record it under “Offers and news”"), offers);
-  const messages = textOf(
-    byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
-  );
-  assert.ok(messages.includes("has said yes to messages yet") && !/yes to offers/.test(messages), messages);
-  // The count on a chip is the one for the chosen template's purpose: an offer needs the separate yes, a message does not.
-  assert.equal(chipOf(compose()), "Regulars 2", "an offer reaches those who said yes to offers");
-  assert.equal(
-    chipOf(compose({ templates: [utility] })),
-    "Regulars 3",
-    "a message reaches everyone whose yes covers it",
-  );
-  // Nothing invented: no credits, no revenue, on the send screen or Get their yes.
-  for (const tree of [composer, drawn({ initialYes: true })])
-    assert.ok(!/credits|Booked from broadcasts|\$\d/.test(textOf(tree)), "nothing the schema has no column for");
+  // Nothing invented: no credits, no revenue, on Get their yes. (The send screen that said who a list reaches went with
+  // decision 0065's step 7: New's one-off counts it.)
+  assert.ok(!/credits|Booked from broadcasts|\$\d/.test(textOf(yesSheet())), "nothing the schema has no column for");
 });
 
 test("the number's health: what WhatsApp said decides what may be sent; nothing reported is said so", async () => {
@@ -968,32 +891,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   );
   assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
-  // broadcasts-honest and runs-honest draw them. The number the send goes from, on the send screen: what WhatsApp says
-  // of it, why it may not send, and the button that follows it.
-  const numberOn = (health, over = {}) =>
-    compose({ number: { present: true, display: "+1 305-555-0100", health }, ...over });
-  const send = (tree) => byTestId(tree, "bc-send");
-  const ok = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }));
-  assert.ok(byTestId(ok, "bc-number"), "the number is said");
-  assert.equal(byTestId(ok, "bc-number-refusal"), null);
-  assert.equal(byTestId(ok, "bc-over-limit"), null);
-  assert.equal(
-    send(ok).props.disabled,
-    false,
-    "a number that may send, an audience inside its limit: the button is live",
-  );
-  const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
-  assert.ok(textOf(byTestId(flagged, "bc-number")).includes("flagged"), "why it may not send, over the sentence");
-  assert.equal(send(flagged).props.disabled, true, "the button follows the number");
-  const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
-  const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });
-  assert.ok(textOf(byTestId(over, "bc-over-limit")).includes("up to 250"), "an audience past the day's limit says so");
-  assert.equal(send(over).props.disabled, true, "and the button follows the limit too");
-  const none = compose({
-    number: { present: false, display: null, health: numberHealth({ quality: null, event: null, limit: null }) },
-  });
-  assert.ok(textOf(byTestId(none, "bc-number")).includes("No WhatsApp number connected"));
-  assert.equal(send(none).props.disabled, true, "no number, nothing to send from");
+  // broadcasts-honest and runs-honest draw them.
   const vm = readCode("packages/contracts/src/conversations/message-author.ts");
   assert.ok(
     vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
@@ -1022,14 +920,14 @@ test("getting their yes while the workspace is paused: the card stays where its 
     pageUrl: null,
     open: "paused",
   };
-  const ledger = drawn({ initialYes: true }, { optIn: paused });
+  const ledger = yesSheet({ optIn: paused });
   const card = byTestId(ledger, "bc-optin");
   assert.ok(card, "the pane every 'get their yes' door lands on");
   assert.equal(textOf(byTestId(ledger, "bc-optin-paused")), GET_YES_PAUSED_WORDS.body);
   for (const id of ["bc-optin-copy", "bc-optin-sign", "bc-optin-form"]) assert.ok(!byTestId(ledger, id), id);
   assert.ok(!find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"), "no code to download");
   // No number: no code, sign or link either, and the pane says where the code comes from.
-  const none = drawn({ initialYes: true }, { optIn: paused, number: { ...GOOD_NUMBER, present: false } });
+  const none = yesSheet({ optIn: paused, number: { ...GOOD_NUMBER, present: false } });
   assert.equal(byTestId(none, "bc-optin-paused"), null);
   const { GET_YES_NO_NUMBER_WORDS } = await import("@chanlytics/contracts");
   assert.ok(textOf(byTestId(none, "bc-optin-no-number")).startsWith(GET_YES_NO_NUMBER_WORDS.body));
@@ -1063,7 +961,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   // The card's code is the code's address only while there is a link: run in broadcast-counts-are-whole.test.mjs, for an
   // open, a paused and an ended workspace and an older server's answer.
   // broadcasts/get-yes, where every "nobody has said yes" door lands: its pane beside Sequences' list (decision 0060, D3).
-  const ledger = drawn({ initialYes: true });
+  const ledger = yesSheet();
   const optIn = byTestId(ledger, "bc-optin");
   assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the pane, and the link to copy");
   assert.ok(
@@ -1071,8 +969,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
     "the QR downloads as the file the owner prints",
   );
   // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the page, and
-  // three printed it beside a disabled button. broadcasts/get-yes opens it, and nothing else, beside the list.
-  assert.equal(byTestId(drawn(), "bc-optin"), null, "the address names it, or nothing opens it");
+  // three printed it beside a disabled button. broadcasts/get-yes opens it, beside the list.
   // And the QR reaches the desk: a bare code printed says nothing about whose messages or how to stop them, and
   // the .svg it downloaded as is a file most owners cannot open. The sign is the code with those words, one sheet.
   const sign = byTestId(ledger, "bc-optin-sign");
@@ -1188,28 +1085,38 @@ test("the page says once why a customer who only ever texted is not in an offer'
   assert.match(alone, /once they say yes on WhatsApp/);
 });
 
-test("a door to the composer that names a list it does not offer says so: it opened on Everyone in silence", () => {
-  const audiences = [
-    { kind: "everyone", id: null },
-    { kind: "list", id: "lapsed" },
-    { kind: "saved", id: "s-vip" },
-  ];
-  assert.equal(doorNamesNoAudience("lapsed", audiences), false, "a People list the composer offers");
-  assert.equal(doorNamesNoAudience("s-vip", audiences), false, "a list kept by hand");
-  assert.equal(doorNamesNoAudience(null, audiences), false, "New message with no list named");
+test("a door to New that names a list it can't send to says so: the composer it replaced opened on Everyone in silence", () => {
+  // A door's address as New's page reads it (new-page.tsx useDoor): a one-off to the list it names, People's lists by their
+  // `seg:` token, and the list's name where the lists read holds it (null where it does not).
+  const once = (to) => ({ moment: null, who: "once", to });
+  const lapsed = { kind: "list", token: "seg:lapsed", label: "Lapsed" };
+  assert.equal(M.doorListGone(once("seg:lapsed"), "Lapsed", true), false, "a People list New offers");
+  assert.deepEqual(M.fixedOf(once("seg:lapsed"), "Lapsed"), { kind: "once", audience: "people", who: lapsed });
+  assert.equal(M.doorListGone(once("list:s-vip"), "VIP", true), false, "a list kept by hand");
+  assert.equal(M.doorListGone(once(null), null, true), false, "New with no list named");
+  assert.deepEqual(M.fixedOf(once(null), null), { kind: "once", audience: "people" }, "who is the owner's to pick");
   // The consent lists are the filter itself, so a door from one means Everyone and needs no word.
-  for (const to of ["opted_in", "offers_ok"]) assert.equal(doorNamesNoAudience(to, audiences), false, to);
-  // A list archived since the link was made, one this workspace has not the data for, a word that was never a list,
-  // and the people who asked to stop, who are nobody's audience.
-  for (const to of ["s-archived", "booked_week", "nonsense", "opted_out"])
-    assert.equal(doorNamesNoAudience(to, audiences), true, to);
-  // Before the audiences are read nothing is known, so nothing is said.
-  assert.equal(doorNamesNoAudience("s-archived", null), false);
-  // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
+  for (const to of ["opted_in", "offers_ok"]) {
+    assert.equal(M.doorListGone(once(`seg:${to}`), null, true), false, to);
+    assert.deepEqual(M.fixedOf(once(`seg:${to}`), null).who, M.everyoneOf(true), `${to} is everyone`);
+  }
+  // A list archived since the link was made, one this workspace has not the data for, a word that was never a list: said,
+  // and who is left for the owner to pick, never Everyone in its place.
+  for (const to of ["list:s-archived", "seg:booked_week", "seg:nonsense"]) {
+    assert.equal(M.doorListGone(once(to), null, true), true, to);
+    assert.deepEqual(M.fixedOf(once(to), null), { kind: "once", audience: "people" }, to);
+  }
+  // The people who asked to stop are nobody's audience (contracts newListOf: "never" a list): said, as the send screen
+  // said it, and who is left to pick.
+  assert.equal(M.doorListGone(once("seg:opted_out"), null, true), true, "who said stop");
+  assert.deepEqual(M.fixedOf(once("seg:opted_out"), null), { kind: "once", audience: "people" });
+  // Before the lists are read nothing is known, so nothing is said; and a door that asks for no one-off names no list.
+  assert.equal(M.doorListGone(once("list:s-archived"), null, false), false);
+  assert.equal(M.doorListGone({ moment: null, who: null, to: "list:s-archived" }, null, true), false);
+  // The consent lists are named once, for New's lists and for this door (CONSENT_LIST_IDS).
   assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
-  // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
+  // People's own step for the Can receive offers list writes this door: New's one-off, on Everyone, with no word.
   assert.equal(retiredRouteOf("broadcasts/offers_ok"), "campaigns/sequences/new:once:to:offers_ok");
-  assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
   assert.equal(
     UNKNOWN_AUDIENCE_WORDS,
     "That list can't be messaged right now, so check who this is addressed to before you send.",

@@ -22,6 +22,7 @@ import {
   sequenceRoute,
   whoSuits,
   zoneDayKey,
+  type ConsentChannel,
   type NewAudience,
   type NewDraftAsk,
   type NewDraftDto,
@@ -31,6 +32,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { runningOf } from "@/lib/new-checks";
 import { Button } from "../../../kit/button/button";
 import { keepTabDraft, tabDraft, useUnsavedWork } from "../../../kit/record/work";
 import { canDo, navigate, refusalToast, useLegacyToast } from "../../../legacy-verbs";
@@ -87,6 +89,8 @@ function useNewReads(
     running: seq?.sequences ?? [],
   };
   const offered = pb.templates ?? [];
+  // What it can send on now; where that could not be read, WhatsApp, as every send went before a channel was read.
+  const ready: ConsentChannel[] = pb.ready ? CONSENT_CHANNELS.filter((c) => pb.ready?.[c]?.ready) : ["whatsapp"];
   return {
     business: pb.businessName,
     start: {
@@ -98,9 +102,23 @@ function useNewReads(
     draft: {
       who,
       library: { messages: offered.flatMap((t) => (t.message ? [t.message] : [])), rows: offered },
-      ready: CONSENT_CHANNELS.filter((c) => pb.ready?.[c]?.ready),
+      ready,
+      paused: pb.ready?.paused === true,
       today: zoneDayKey(Date.now(), pb.timezone),
       timezone: pb.timezone,
+      // What a draft is counted again against as it changes: the same pools, searches and sequences Ask's draft read.
+      recount: {
+        counts: {
+          pools: pb.pools,
+          searches: (sources ?? []).map((s) => ({
+            id: s.id,
+            ready: s.ready,
+            checking: Math.max(0, s.with_unconfirmed - s.ready),
+          })),
+        },
+        running: runningOf(seq?.sequences ?? []),
+        ready,
+      },
     },
   };
 }
@@ -264,6 +282,24 @@ function LeavingAsk(p: { busy: boolean; onDiscard: () => void; onKeep: () => voi
   );
 }
 
+/**
+ * The draft New shows, counted against the workspace as it is now, on the channels it sends on now: one the tab kept,
+ * counted again as it comes back (who said yes, or a channel connected or closed, since it was left); one in hand as it is
+ * (each change counts it again); else the one its address opened (Send it again, a kept one-off), counted.
+ */
+function shownDraftOf(
+  held: NewDraftDto | null,
+  kept: NewDraftDto | null,
+  opened: NewDraftDto | null,
+  reads: Reads | null,
+): NewDraftDto | null {
+  if (!reads) return held ?? opened;
+  const k = reads.draft.recount;
+  if (held && held === kept)
+    return M.recounted(null, M.onReadyChannels({ ...held, reach: null }, reads.draft.ready), k);
+  return held ?? (opened ? M.recounted(null, M.onReadyChannels(opened, reads.draft.ready), k) : null);
+}
+
 /** What New keeps in the tab while it holds a draft: the draft and the line, under the address it was opened on. */
 interface KeptHere {
   draft: NewDraftDto | null;
@@ -293,7 +329,10 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const line = typed ?? seed;
   const [held, setDraft] = useState<NewDraftDto | null>(back?.draft ?? null);
   const { opened, letGo } = useOpenedOn(who, kept, reads);
-  const draft = held ?? opened;
+  // Who it reaches, its twin and its checks, said again as it changes (decision 0065 step 7); what Ask answered stands.
+  const recount = (prev: NewDraftDto | null, next: NewDraftDto) =>
+    reads ? M.recounted(prev, next, reads.draft.recount) : next;
+  const draft = shownDraftOf(held, back?.draft ?? null, opened, reads);
   const [saying, setSaying] = useState(false);
   const work = useUnsavedWork("new", here, {
     value: { draft: held, line: typed } satisfies KeptHere,
@@ -324,7 +363,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     const previous = { name: draft.name, steps: draft.steps.length };
     // By hand, the draft is built again here; Ask's is drafted again from the same line.
     if (!draft.said) {
-      setDraft({ ...M.draftByHand(kind, audience, draft.business), ...keep });
+      setDraft(recount(null, { ...M.draftByHand(kind, audience, draft.business), ...keep }));
       return;
     }
     const mine = { kind, audience };
@@ -339,7 +378,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   };
   const byHand = (kind?: NewKind) => {
     const d = M.draftByHand(kind ?? door.kind ?? "sequence", door.audience ?? "people", reads?.business ?? "");
-    show(door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d);
+    show(recount(null, door.who && whoSuits(door.who, d.audience, d.kind) ? M.setWho(d, door.who) : d));
     asking.clear();
   };
   // A kept one-off let go goes from Drafts too; any other draft was never made, so it is only let go here.
@@ -381,7 +420,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
         }
         acts={{
           change: (d) => {
-            setDraft(d);
+            setDraft(recount(draft, d));
             work.stay();
           },
           redraft,

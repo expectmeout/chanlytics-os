@@ -58,6 +58,9 @@ export const NO_NUMBER_REACH = "a send reaches only a recorded yes with a number
 export function noNumberWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
 }
+export function noYesWords(who, purpose) {
+  return `Nobody on ${who} has said yes to ${purpose === "marketing" ? "offers" : "messages"} yet.`;
+}
 export const NO_CHANNEL_REACH = "a send needs a channel you can send on, and none can carry it right now";
 export function noChannelWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_CHANNEL_REACH}.`;

@@ -13,12 +13,15 @@
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
  * message (core templateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
  * foot (record-foot.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
- * phone, so the press is at the thumb however long the step's fields run.
+ * phone, so the press is at the thumb however long the step's fields run. A call for you or a note for the team (decision
+ * 0065 step 6) is changed in its own one-column editor below (HandEditor), its wait and condition the same choices.
  */
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CONSENT_CHANNELS,
+  HAND_WORDS_MAX,
+  NEW_WORDS,
   PREVIEW_CHANNEL_WORDS,
   SEQUENCE_EDIT_WORDS as E,
   defaultParamSpecs,
@@ -30,6 +33,7 @@ import {
   stepApprovalOf,
   type ConsentChannel,
   type FollowUpCondition,
+  type HandKind,
   type ParamSpec,
   type SequenceStepDto,
 } from "@chanlytics/contracts";
@@ -38,6 +42,7 @@ import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
+import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { gate } from "../../legacy-verbs";
@@ -50,6 +55,7 @@ import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
 import { RecordFootContext } from "./record-foot";
+import { HandTask } from "./step-words";
 import { useBatchRead } from "./use-record";
 import { pressed } from "./verbs";
 
@@ -270,8 +276,10 @@ function EditorRight(p: {
 }
 
 interface EditorFootProps {
-  first: boolean;
-  byWhatsApp: boolean;
+  /** What a save reaches, said once beside Cancel and Save. */
+  reaches: string;
+  /** What else it waits on, after it (WhatsApp's review of new words); none where nothing does. */
+  note: string | null;
   /** A new step, whose press says Add the step. */
   adding: boolean;
   /** Whether Save may be pressed: a message picked, something changed, nothing on its way. */
@@ -285,7 +293,7 @@ interface EditorFootProps {
  * RecordFootContext), which the editor holds while it is open: what a save reaches beside them on a desk, and over the
  * fields' end on a phone, where the foot is a thumb's pair. Anywhere else, under the fields.
  */
-function EditorFoot({ first, byWhatsApp, adding, ready, onCancel, onSave }: EditorFootProps) {
+function EditorFoot({ reaches, note, adding, ready, onCancel, onSave }: EditorFootProps) {
   const foot = useContext(RecordFootContext);
   const phone = useCmPhone();
   const holdFoot = foot?.hold;
@@ -296,8 +304,8 @@ function EditorFoot({ first, byWhatsApp, adding, ready, onCancel, onSave }: Edit
   }, [holdFoot]);
   const reach = (
     <p className="sq-ed-reach">
-      <b>{E.reaches(first)}</b>
-      {byWhatsApp ? <span> · {E.whatsAppFirst}</span> : null}
+      <b>{reaches}</b>
+      {note ? <span> · {note}</span> : null}
     </p>
   );
   const presses = (
@@ -418,34 +426,7 @@ export function StepEditor({
     <div className="sq-editor" data-testid="sq-editor">
       <div className="sq-ed-split">
         <div className="sq-ed-fields">
-          {first ? null : (
-            <div className="sq-editor-row">
-              <Field
-                label={E.after}
-                control={
-                  <Select
-                    value={days}
-                    onValueChange={setDays}
-                    chevron={chevron}
-                    options={WAITS.map((d) => ({ value: String(d), label: E.days(d) }))}
-                    data-testid="sq-editor-days"
-                  />
-                }
-              />
-              <Field
-                label={E.only}
-                control={
-                  <Select
-                    value={hold}
-                    onValueChange={(v) => setHold(isHold(v) ? v : "always")}
-                    chevron={chevron}
-                    options={Object.entries(STEP_HOLDS).map(([value, h]) => ({ value, label: h.label }))}
-                    data-testid="sq-editor-hold"
-                  />
-                }
-              />
-            </div>
-          )}
+          {first ? null : <WaitFields days={days} hold={hold} onDays={setDays} onHold={setHold} />}
           {offered.length === 0 ? (
             <p className="sq-msg-none">{E.noMessages}</p>
           ) : (
@@ -487,8 +468,8 @@ export function StepEditor({
         {picked ? <EditorRight {...{ picked, params, policyClass, batchId, writing, setWriting, flash }} /> : null}
       </div>
       <EditorFoot
-        first={first}
-        byWhatsApp={byWhatsApp}
+        reaches={E.reaches(first)}
+        note={byWhatsApp ? E.whatsAppFirst : null}
         adding={!step}
         ready={!busy && !!picked && changed}
         onCancel={onCancel}
@@ -497,3 +478,125 @@ export function StepEditor({
     </div>
   );
 }
+
+/** How long after the step before, and what must still hold: a later step's two choices, a message's or a call's. */
+function WaitFields(p: { days: string; hold: Hold; onDays: (d: string) => void; onHold: (h: Hold) => void }) {
+  return (
+    <div className="sq-editor-row">
+      <Field
+        label={E.after}
+        control={
+          <Select
+            value={p.days}
+            onValueChange={p.onDays}
+            chevron={chevron}
+            options={WAITS.map((d) => ({ value: String(d), label: E.days(d) }))}
+            data-testid="sq-editor-days"
+          />
+        }
+      />
+      <Field
+        label={E.only}
+        control={
+          <Select
+            value={p.hold}
+            onValueChange={(v) => p.onHold(isHold(v) ? v : "always")}
+            chevron={chevron}
+            options={Object.entries(STEP_HOLDS).map(([value, h]) => ({ value, label: h.label }))}
+            data-testid="sq-editor-hold"
+          />
+        }
+      />
+    </div>
+  );
+}
+
+interface HandEditorProps {
+  sequenceId: string;
+  /** The call or note changed, or none for one added at the end. */
+  step: SequenceStepDto | null;
+  /** What it is while it is added: the choice pressed on the sheet's first face. */
+  kind: HandKind;
+  flash: Flash;
+  onDone: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * A call for you or a note for the team, added last or changed in its sheet (decision 0065 step 6, the New canvas's C6):
+ * which it is, how long after the step before and what must still hold, what to do, and the task as it lands on Today
+ * for one person. One column: a call is short, and its preview one row. Saved through the step's own verb, one press (a
+ * call has no message, so no words door and no review), with what a save reaches beside Cancel and Save in the foot.
+ */
+export function HandEditor({ sequenceId, step, kind: picked, flash, onDone, onCancel }: HandEditorProps) {
+  const phone = useCmPhone();
+  const youDoId = useId();
+  const was = step?.hand ? { kind: handKindOf(step.hand.kind), words: step.hand.words } : null;
+  const [kind, setKind] = useState<HandKind>(was?.kind ?? picked);
+  const [words, setWords] = useState(was?.words ?? "");
+  const [days, setDays] = useState(String(step?.after_days ?? 3));
+  const [hold, setHold] = useState<Hold>(stepHoldOf(step?.only_if ?? ["no_booking"]));
+  const [busy, setBusy] = useState(false);
+  const handChanged = !was || was.kind !== kind || was.words.trim() !== words.trim();
+  const waitChanged = !step || days !== String(step.after_days ?? 3) || hold !== stepHoldOf(step.only_if);
+  const hand = { kind, words: words.trim() };
+  const save = async () => {
+    setBusy(true);
+    const wait = { after_days: Number(days), only_if: [...STEP_HOLDS[hold].only] };
+    const ok = await pressed(
+      "sequence_step",
+      step
+        ? { sequence_id: sequenceId, step_id: step.id, ...(waitChanged ? wait : {}), ...(handChanged ? { hand } : {}) }
+        : { sequence_id: sequenceId, ...wait, hand },
+      flash,
+      () => {},
+    );
+    setBusy(false);
+    if (ok) onDone();
+  };
+  return (
+    <div className="sq-editor" data-testid="sq-hand-editor">
+      <div className="sq-ed-fields">
+        {/* Its caption beside the choice, named by it, as a field's label reads: never a field's own label, which would
+            hand both radios one id and turn a press on it into "A call". */}
+        <div className="sq-ed-pick">
+          <span className="sq-ed-cap" id={youDoId}>
+            {NEW_WORDS.draft.youDo}
+          </span>
+          <Segmented
+            labelledBy={youDoId}
+            value={kind}
+            onValueChange={(v) => setKind(handKindOf(v))}
+            readOnly={busy}
+            options={[
+              { value: "call", label: NEW_WORDS.does.call, testid: "sq-hand-call" },
+              { value: "note", label: NEW_WORDS.does.note, testid: "sq-hand-note" },
+            ]}
+          />
+        </div>
+        <WaitFields days={days} hold={hold} onDays={setDays} onHold={setHold} />
+        <Field
+          label={NEW_WORDS.draft.whatToDo}
+          rows={3}
+          value={words}
+          onValueChange={setWords}
+          maxLength={HAND_WORDS_MAX}
+          autoFocus={!step && !phone}
+          data-testid="sq-hand-words"
+        />
+        <HandTask kind={kind} words={words} testid="sq-hand-today" />
+      </div>
+      <EditorFoot
+        reaches={step ? E.handReaches : E.reaches(false)}
+        note={null}
+        adding={!step}
+        ready={!busy && hand.words !== "" && (handChanged || waitChanged)}
+        onCancel={onCancel}
+        onSave={() => void save()}
+      />
+    </div>
+  );
+}
+
+/** A hand's kind as the editor holds it: a note, else a call. */
+const handKindOf = (v: string): HandKind => (v === "note" ? "note" : "call");
