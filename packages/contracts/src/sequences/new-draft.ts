@@ -185,7 +185,18 @@ export interface NewReach {
   by?: Partial<Record<ConsentChannel, number>>;
   /** Who hears it only by WhatsApp, where its WhatsApp version is new: left out of a send before Meta approves it. */
   only_whatsapp?: number;
+  /**
+   * Why nobody can hear it, said only where nobody can (decision 0065 step 7, what the send screen said): everyone it
+   * reaches heard from you this week, no channel it goes by can carry it, those who said yes can't be reached (no number
+   * or address), or nobody said the yes it needs. Each asks for its own cure, so only one door is offered.
+   */
+  nobody?: NewNobody;
+  /** Who said the yes it needs, where nobody can hear it: what the words say they lack. */
+  said_yes?: number;
 }
+
+/** Why nobody can hear a draft (NewReach.nobody), each with its own cure: wait a week, connect, reach them, their yes. */
+export type NewNobody = "breath" | "no_channel" | "no_reach" | "no_yes";
 
 /** Where a sequence to leads sends from: the workspace's connected mailboxes (none named: every one), or the owner by hand. */
 export interface NewMailbox {

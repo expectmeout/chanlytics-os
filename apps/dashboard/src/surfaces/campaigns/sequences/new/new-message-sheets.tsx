@@ -13,7 +13,9 @@ import {
   REACH_OUT_SLOTS,
   numberedValues,
   slugTemplateName,
+  triggerOf,
   type CampaignMessage,
+  type DraftWho,
   type NewDraftDto,
   type NewEmail,
   type NewMessage,
@@ -35,9 +37,21 @@ export interface LibraryReads {
   rows: readonly { id: string; name: string; variables: unknown; body_preview?: string | null }[];
 }
 
-/** Whether a held message's values can be filled on this step: a visit's and a proposal's only on a first step. */
-const fillsHere = (m: NewMessage, first: boolean): boolean =>
-  first || m.params.every((p) => p.kind !== "visit_when" && p.kind !== "visit_service" && p.kind !== "proposal_link");
+/**
+ * Why a held message can't be picked on this step, as its run fills its values (the draft's own rule, server
+ * draft-judge.ts fillable), or null where it can: a visit's values only on a visit moment's first step, a proposal's only
+ * on a deal moment's, never on a one-off or a list, whose run knows neither. "Step 1 only" is said only where this
+ * draft's step 1 would take it.
+ */
+function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string | null {
+  const moment = who?.kind === "moment" ? (triggerOf(who.trigger)?.kind ?? null) : null;
+  const kinds = m.params.map((p) => p.kind);
+  if (kinds.some((k) => k === "visit_when" || k === "visit_service") && !(first && moment === "visit"))
+    return moment === "visit" ? W.sheets.firstStepOnly : W.sheets.visitOnly;
+  if (kinds.includes("proposal_link") && !(first && moment === "deal"))
+    return moment === "deal" ? W.sheets.proposalFirstOnly : W.sheets.dealOnly;
+  return null;
+}
 
 const channelsSaid = (m: NewMessage): string => channelsSaidOf(m.channels, " · ");
 
@@ -85,13 +99,14 @@ export function MessageSheet(p: {
       <p className="sq-nw-cap">{W.sheets.yourMessages}</p>
       <div className="sq-nw-rows">
         {held.map((m) => {
-          const fits = fillsHere(m, p.i === 0);
+          const notHere = notHereOf(m, p.i === 0, p.draft.kind === "sequence" ? p.draft.who : null);
+          const fits = notHere === null;
           return (
             <Choice
               key={m.template_id}
               glyph="chat"
               name={m.title}
-              said={fits ? `${channelsSaid(m)}${m.offer ? ` · ${W.sheets.anOffer}` : ""}` : W.sheets.firstStepOnly}
+              said={notHere ?? `${channelsSaid(m)}${m.offer ? ` · ${W.sheets.anOffer}` : ""}`}
               on={step?.message?.template_id === m.template_id}
               off={!fits}
               onPick={() => p.onMessage(m)}

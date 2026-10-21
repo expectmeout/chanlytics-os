@@ -505,6 +505,9 @@ const SHAPES = {
   sequence_step: [
     card("sequence_step", { sequence_id: "q1", template_id: "t1", after_days: 3 }),
     card("sequence_step", { sequence_id: "q1", step_id: "st1", after_days: 5 }),
+    // A call or a note for the team in place of a message (decision 0065 step 6): added through the same doors, changed too.
+    card("sequence_step", { sequence_id: "q1", hand: { kind: "call", words: "Ask how it went" }, after_days: 3 }),
+    card("sequence_step", { sequence_id: "q1", step_id: "st1", hand: { kind: "note", words: "Send the price list" } }),
   ],
   sequence_step_remove: [card("sequence_step_remove", { sequence_id: "q1", step_id: "st1" })],
   sequence_words: [card("sequence_words", { sequence_id: "q1", step_id: "st1", template_id: "t1", params: [] })],

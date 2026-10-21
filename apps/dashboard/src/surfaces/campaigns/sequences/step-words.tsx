@@ -4,17 +4,22 @@
  * example person with the step's own values (contracts exampleParams over the step's params, what it sends), with a door
  * to it in Messages and its WhatsApp standing where it is not approved. The message is the workspace's offered one of the
  * step's name and language (the settings read, parts/channels.ts cmOfferedFrom), so the words are the ones it sends; a
- * step whose message the workspace no longer offers says so, with the act that picks another.
+ * step whose message the workspace no longer offers says so, with the act that picks another. A call or a note (decision
+ * 0065 step 6) has no message: its task is drawn as it lands on Today.
  */
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
 import {
+  NEW_WORDS,
   SCHEDULE_WORDS as SW,
+  SEQUENCE_EDIT_WORDS as E,
   SEQUENCE_FLOW_WORDS as F,
   addressOf,
   exampleParams,
+  handTitleOf,
   parseParamSpecs,
   stepApprovalOf,
+  type HandKind,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -89,6 +94,25 @@ export function StepWords({ name, message, params, gone = null, testid }: StepWo
   return (
     <div className="sq-msg" data-testid={testid}>
       <MessagePreview compact plain from={business} body={message.body_preview} values={values} />
+    </div>
+  );
+}
+
+/**
+ * A call's or a note's task as it lands on Today for one person: the run's own sentence for the example ("Call Dani: ask
+ * how the cut held up"), its kind's title while nothing is typed, and where it lands. The view and the editor draw it, the
+ * sentence whole, wrapping: it is the only place the owner reads a saved call's words in full.
+ */
+export function HandTask({ kind, words, testid }: { kind: HandKind; words: string; testid: string }) {
+  return (
+    <div className="sq-hand" data-testid={testid}>
+      <span className="sq-hand-glyph" aria-hidden="true">
+        <Icon name={kind === "note" ? "note" : "phone"} size={15} />
+      </span>
+      <p className="sq-hand-words">
+        <b>{words.trim() ? E.onToday(kind, words) : handTitleOf(kind)}</b>
+        <small>{NEW_WORDS.hand[kind]}</small>
+      </p>
     </div>
   );
 }

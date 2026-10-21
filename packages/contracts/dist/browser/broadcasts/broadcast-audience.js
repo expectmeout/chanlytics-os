@@ -17,11 +17,6 @@ export function audienceTrigger(audience) {
 export const EVERYONE_LABEL = "Everyone";
 export const EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
 export const CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
-const LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
-export function doorNamesNoAudience(to, audiences) {
-  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
-  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
-}
 export const UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
 export function eligibleFor(rows, kind, id, savedIds, purpose, how) {
   return enrolFor(rows, kind, id, savedIds, purpose, how).map((e) => e.row);
@@ -62,16 +57,6 @@ export function heldWords(held, purpose) {
       return unreachable;
     }
   }
-}
-const LACKS = {
-  whatsapp: "no phone number",
-  sms: "no phone number",
-  email: "no email address that works"
-};
-export function heldBackWords(channels) {
-  const lacks = [...new Set(CONSENT_CHANNELS.filter((c) => channels.includes(c)).map((c) => LACKS[c]))];
-  const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
-  return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
 export function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "list") {

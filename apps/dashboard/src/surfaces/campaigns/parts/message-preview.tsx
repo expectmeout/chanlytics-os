@@ -34,8 +34,6 @@ import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
 import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
-import { Button } from "../../kit/button/button";
-import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { cx } from "../../kit/variants";
 
@@ -435,76 +433,5 @@ export function MessagePreview({
       )}
       {children}
     </div>
-  );
-}
-
-interface PreviewPerson {
-  label: string;
-  position: string;
-}
-
-interface PreviewStepperProps {
-  people?: readonly PreviewPerson[] | null;
-  index: number;
-  onStep: (index: number) => void;
-  note?: ReactNode;
-  tone?: string | null;
-  /** What the two presses are called to a screen reader: people by default, the channels a playbook's walk steps through. */
-  words?: { before: string; next: string };
-}
-
-/**
- * Who is looking at it: one person at a time, out of the ones this send reaches (a playbook, which names no one, steps
- * through the channels it reaches instead): "‹ Ana Reyes · 1 of 7 ›".
- *
- * An audience chip showed a count and never a person, so the last thing an owner
- * saw before pressing Send was a number. These are rows the page already holds --
- * the same rows the count is a length of.
- */
-export function PreviewStepper({
-  people,
-  index,
-  onStep,
-  note = null,
-  tone = null,
-  words = PREVIEW_WORDS.walk.people,
-}: PreviewStepperProps) {
-  if (!people || people.length < 2) return null;
-  const p = people[index] || people[0];
-  if (!p) return null;
-  const go = (d: number) => () => onStep((index + d + people.length) % people.length);
-  // A person walked is drawn with their face, as a thread draws them (a number is a glyph, never two digits); a channel
-  // is its words alone.
-  const person = words === PREVIEW_WORDS.walk.people;
-  return (
-    <>
-      <div className="mp-step" data-testid="mp-step">
-        <span className="mp-step-who">
-          {person ? <Face person={{ name: p.label }} size="sm" /> : null}
-          <span className="mp-step-name">{p.label}</span>
-          <span className="mp-step-pos tabular">{p.position}</span>
-        </span>
-        {/* The icon set has one chevron and it points right; the back button
-            mirrors it rather than adding a second glyph for one arrow. Both stand at the walk's end, under the thumb. */}
-        <Button
-          iconOnly
-          variant="quiet"
-          size="sm"
-          className="mp-step-btn mp-step-back"
-          onClick={go(-1)}
-          aria-label={words.before}
-        >
-          <Icon name="chevron" size={13} />
-        </Button>
-        <Button iconOnly variant="quiet" size="sm" className="mp-step-btn" onClick={go(1)} aria-label={words.next}>
-          <Icon name="chevron" size={13} />
-        </Button>
-      </div>
-      {note && (
-        <p className={`mp-note${tone ? ` ${tone}` : ""}`} data-testid="mp-note">
-          {note}
-        </p>
-      )}
-    </>
   );
 }

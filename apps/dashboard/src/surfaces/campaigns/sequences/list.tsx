@@ -102,7 +102,8 @@ export function SequencesList({ page, openId }: SequencesListProps) {
         {groups.map(({ group, rows }) => (
           <section key={group} className="sq-group" aria-label={SEQUENCE_WORDS.groups[group]}>
             <h3 className="sq-group-name">
-              {SEQUENCE_WORDS.groups[group]}
+              {/* Its name its own, so a phone sets it as the Pipeline's section head sets its stage (sequences.css). */}
+              <span className="sq-group-label">{SEQUENCE_WORDS.groups[group]}</span>
               <span className={group === "needs" ? "tally tally-warn" : "tally"}>{rows.length}</span>
               {group === "ended" && words === "" ? (
                 <LinkButton

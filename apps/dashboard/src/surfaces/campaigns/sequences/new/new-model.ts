@@ -6,14 +6,24 @@
  * the audience) is Ask's to draft again from the same line.
  */
 import {
+  CONSENT_CHANNELS,
+  DAY_MS,
+  EVERYONE_LABEL,
   FOLLOW_UP_CONDITIONS,
   MIN_MS,
+  NEW_ONCE_AHEAD_DAYS,
   NEW_WORDS,
+  NO_CHANNEL_REACH,
   PLAYBOOK_DEFAULTS,
+  allLeftOutWords,
   clockHour,
   clockTime,
   defaultSlotKinds,
+  emptyAudienceRefusal,
   messageHolds,
+  noChannelWords,
+  noYesWords,
+  saidYesWords,
   newConditionsOf,
   newListOf,
   newSequenceLine,
@@ -38,6 +48,16 @@ import {
   type SequenceMode,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
+import {
+  carriersOf,
+  messagePurposeOf,
+  newChecksOf,
+  newReachOf,
+  reachHowOf,
+  twinOf,
+  type NewCounts,
+  type NewRunning,
+} from "@/lib/new-checks";
 
 /** What a door's address asked New for: a moment's line, a one-off, leads, or an audience to message. */
 interface NewAsked {
@@ -106,9 +126,15 @@ export function fixedOf(asked: NewAsked, label: string | null): Omit<NewDraftAsk
   return { kind: "once", audience: "people", ...(who ? { who } : {}) };
 }
 
-/** Whether a door named a list New cannot send to now: unknown here, once the lists are read (the send screen's words). */
-export const doorListGone = (asked: NewAsked, label: string | null, read: boolean): boolean =>
-  read && asked.who === "once" && !!asked.to && newListOf(asked.to, "once") === "list" && label === null;
+/**
+ * Whether a door named a list New cannot send to now (the send screen's words): one unknown here once the lists are read,
+ * or who said stop, whom nothing is ever sent to.
+ */
+export function doorListGone(asked: NewAsked, label: string | null, read: boolean): boolean {
+  if (!read || asked.who !== "once" || !asked.to) return false;
+  const is = newListOf(asked.to, "once");
+  return is === "never" || (is === "list" && label === null);
+}
 
 /** A step with nothing in it yet: a message to pick, after the step before. */
 function blankStep(audience: NewAudience, first: boolean): NewStep {
@@ -214,6 +240,19 @@ function keptWrittenOf(title: string, written: NewWrittenMessage, params: readon
   };
 }
 
+/** The channels a send kept from before goes by now: those it ticked that its message can still carry. */
+function stillCarried(ticked: readonly ConsentChannel[], message: NewMessage | null): ConsentChannel[] {
+  const carriers = message ? carriersOf(message) : CONSENT_CHANNELS;
+  return ticked.filter((c) => carriers.includes(c));
+}
+
+/**
+ * A draft from before (one the tab kept, Send it again, a kept one-off) on the channels the workspace sends on now: one
+ * closed since is never left ticked where How cannot untick it.
+ */
+export const onReadyChannels = (d: NewDraftDto, ready: readonly ConsentChannel[]): NewDraftDto =>
+  d.audience === "people" ? { ...d, channels: d.channels.filter((c) => ready.includes(c)) } : d;
+
 /** A one-off kept as a draft (00465 `sequences.once`), opened again as New's draft; null where its message is gone. */
 export function onceKeptOf(
   row: Pick<SequenceRowDto, "name" | "once">,
@@ -232,7 +271,7 @@ export function onceKeptOf(
     name: row.name,
     who: o.who,
     at: o.at,
-    channels: [...o.channels],
+    channels: audience === "leads" ? [...o.channels] : stillCarried(o.channels, message),
     steps: [{ ...o.step, message }],
   };
 }
@@ -264,7 +303,7 @@ export function againOf(
     ...base,
     name: kept.name?.trim() || held.title,
     who,
-    channels: kept.channels?.length ? kept.channels.filter((c) => held.channels.includes(c)) : held.channels,
+    channels: stillCarried(kept.channels?.length ? kept.channels : held.channels, held),
     steps: [{ ...blankStep("people", true), message }],
   };
 }
@@ -324,11 +363,20 @@ export function valueLabelOf(m: NewMessage, at: number): string | null {
   return named.trim() && !/^Value \d+$/.test(named.trim()) ? named.trim() : null;
 }
 
-/** A step's message changed: one of the workspace's, or the one Ask wrote, kept. */
-export const setMessage = (d: NewDraftDto, i: number, message: NewMessage): NewDraftDto => {
+/**
+ * A step's message changed: one of the workspace's, or the one Ask wrote, kept. A person's first message ticks the
+ * channels it holds that the workspace can send on now (`ready`), as Ask's draft does: never one nothing can carry.
+ */
+export const setMessage = (
+  d: NewDraftDto,
+  i: number,
+  message: NewMessage,
+  ready: readonly ConsentChannel[] | null = null,
+): NewDraftDto => {
   const next = withStep(d, i, (s) => ({ ...s, does: "message", message, hand: "" }));
   if (i !== 0 || d.audience !== "people") return next;
-  return { ...next, channels: message.channels, who: d.who?.kind === "everyone" ? everyoneOf(message.offer) : d.who };
+  const channels = carriersOf(message).filter((c) => !ready || ready.includes(c));
+  return { ...next, channels, who: d.who?.kind === "everyone" ? everyoneOf(message.offer) : d.who };
 };
 
 /** A typed value of a step's message, as the owner types it. */
@@ -406,25 +454,146 @@ export function reviewOf(d: NewDraftDto): { others: string; only: number; can: n
   return { others: channelsSaidOf(others, " and "), only, can: Math.max(0, (d.reach?.can ?? 0) - only) };
 }
 
-/** What still stops the draft being made, in the foot's words; null when it can be. */
-export function notReady(d: NewDraftDto): { lead: string; sub: string } | null {
+/** What the foot reads beside the draft: whether the workspace is paused, and the business's day and time now. */
+export interface FootReads {
+  paused: boolean;
+  /** "YYYY-MM-DDTHH:MM" by the business's clock, which a one-off's time is set and read in. */
+  localNow: string;
+  /** The channels the workspace can send on now. */
+  ready: readonly ConsentChannel[];
+}
+
+/**
+ * The channel to connect where a person's draft goes by nothing because none of the ways its first message can go is
+ * connected (so How has nothing to tick): the first of them; null where one is, or nothing is picked yet.
+ */
+function unconnectedOnly(d: NewDraftDto, ready: readonly ConsentChannel[]): ConsentChannel | null {
+  const first = d.steps[0]?.message;
+  if (d.audience !== "people" || d.channels.length > 0 || !first) return null;
+  const carriers = carriersOf(first);
+  return carriers.length > 0 && carriers.every((c) => !ready.includes(c)) ? (carriers[0] ?? null) : null;
+}
+
+/** The last moment a one-off may be set for, by the business's clock: NEW_ONCE_AHEAD_DAYS after now. */
+const lastAtOf = (localNow: string): string =>
+  new Date(Date.parse(`${localNow}:00Z`) + NEW_ONCE_AHEAD_DAYS * DAY_MS).toISOString().slice(0, 16);
+
+/** The first value a person's message leaves to be typed that is still blank, by its name where it has one. */
+function blankValueOf(d: NewDraftDto): { label: string | null } | null {
+  if (d.audience !== "people") return null;
+  for (const s of d.steps) {
+    const m = s.does === "message" ? s.message : null;
+    const at = m ? m.params.findIndex((p) => p.kind === "text" && !p.value.trim()) : -1;
+    if (m && at >= 0) return { label: valueLabelOf(m, at) };
+  }
+  return null;
+}
+
+/**
+ * What still stops the draft being made, in the foot's words; null when it can be. A paused workspace first, whatever is
+ * filled in (nothing sends until billing resumes); then the parts still to pick, a channel to connect where none it can
+ * go by is, a blank value, a time gone by or too far ahead, and who can hear a one-off to people (the send screen's
+ * foot, decision 0065 step 7).
+ */
+export function notReady(d: NewDraftDto, at: FootReads): { lead: string; sub: string } | null {
+  if (at.paused) return { lead: NEW_WORDS.paused.lead, sub: NEW_WORDS.paused.sub };
   const steps = d.steps.every((s) =>
     s.does !== "message" ? !!s.hand.trim() : d.audience === "leads" ? true : !!s.message,
   );
-  // The parts still to pick, by what the empty part says on the page: a sequence's when, a one-off's who, a search.
+  // The parts still to pick, by what the empty part says on the page: a sequence's when, a one-off's who, a search. How
+  // is asked only where something can be picked: with none of its ways connected, the foot says what to connect.
   const W = NEW_WORDS.draft;
+  const then = d.kind === "once" ? W.thenItCanGo : W.thenItCanStart;
+  const unconnected = unconnectedOnly(d, at.ready);
   const parts = [
     ...(d.who ? [] : [d.audience === "leads" ? W.parts.search : d.kind === "once" ? W.parts.who : W.parts.when]),
-    ...(d.audience === "people" && d.channels.length === 0 ? [W.parts.how] : []),
+    ...(d.audience === "people" && d.channels.length === 0 && !unconnected ? [W.parts.how] : []),
     ...(steps ? [] : [W.parts.message]),
   ];
-  if (parts.length) return { lead: W.pick(parts), sub: d.kind === "once" ? W.thenItCanGo : W.thenItCanStart };
-  // A one-off goes now to whoever can hear it: with nobody, there is nothing to send (D4). A sequence runs on, so a
-  // moment with nobody today still starts.
-  if (d.kind === "once" && d.reach?.can === 0) return { lead: NEW_WORDS.reach.nobody, sub: NEW_WORDS.reach.pickAWay };
+  if (parts.length) return { lead: W.pick(parts), sub: then };
+  if (unconnected) return { lead: NEW_WORDS.reach.why.no_channel, sub: NEW_WORDS.reach.connect(unconnected) };
+  const blank = blankValueOf(d);
+  if (blank) return { lead: W.fill(blank.label), sub: then };
+  if (d.kind === "once" && d.at !== null && d.at <= at.localNow) return { lead: W.passed, sub: W.passedSub };
+  if (d.kind === "once" && d.at !== null && d.at > lastAtOf(at.localNow))
+    return { lead: W.tooFar(NEW_ONCE_AHEAD_DAYS), sub: then };
+  // A one-off to people goes now to whoever can hear it: with nobody, there is nothing to send (D4), said by why. A
+  // sequence runs on, so a moment with nobody today still starts, and a one-off to leads takes the leads found from now.
+  if (d.kind === "once" && d.audience === "people" && d.reach?.can === 0)
+    return {
+      lead: NEW_WORDS.reach.nobody,
+      sub: d.reach.nobody ? NEW_WORDS.reach.why[d.reach.nobody] : NEW_WORDS.reach.pickAWay,
+    };
   // Sent now, a WhatsApp version still with Meta leaves out who hears only WhatsApp: where that is everyone, none (D5).
   if (d.reach && reviewOf(d)?.can === 0) return { lead: NEW_WORDS.reach.nobody, sub: NEW_WORDS.review.title };
   return null;
+}
+
+/** The door a one-off with no one to hear it offers, by why: their yes, a channel to connect, or how it goes. */
+export type NobodyDoor = { kind: "yes" } | { kind: "connect"; channel: ConsentChannel } | { kind: "how" } | null;
+
+/**
+ * No one to send a one-off to (D4), said by why (decision 0065 step 7, what the send screen said): nobody said the yes it
+ * needs (the door to getting it); those who said it can't be reached (what they lack, never their yes again, which would
+ * ask for an answer they gave); no channel it goes by can carry it (Connect, or how it goes); everyone heard from you
+ * this week. One door at most, with who it goes to beside it. Null where someone can hear it, or how is still to pick
+ * (no channel ticked, with one it could be ticked to connected).
+ */
+export function nobodyOf(d: NewDraftDto, ready: readonly ConsentChannel[]): { words: string; door: NobodyDoor } | null {
+  const r = d.reach;
+  if (d.kind !== "once" || d.audience !== "people" || !d.who || r?.can !== 0) return null;
+  if (d.channels.length === 0 && !unconnectedOnly(d, ready)) return null;
+  const label = d.who.kind === "everyone" ? EVERYONE_LABEL : d.who.label;
+  const said = `“${label}”`;
+  const first = d.steps[0]?.message ?? null;
+  const purpose = messagePurposeOf(first);
+  // Only what can carry it: connecting texting, or ticking it, never helps an offer.
+  const holds = first ? carriersOf(first) : [];
+  // A channel its message holds that the workspace can send on and the draft doesn't tick: how it goes is the cure.
+  const untried = holds.some((c) => ready.includes(c) && !d.channels.includes(c));
+  if (r.nobody === "breath") return { words: allLeftOutWords(label, r.held ?? 0), door: null };
+  if (r.nobody === "no_channel") {
+    const unconnected = holds.find((c) => !ready.includes(c)) ?? null;
+    return {
+      words: r.said_yes ? saidYesWords(said, purpose, 0, r.said_yes, NO_CHANNEL_REACH) : noChannelWords(said, purpose),
+      door: unconnected ? { kind: "connect", channel: unconnected } : untried ? { kind: "how" } : null,
+    };
+  }
+  if (r.nobody === "no_reach")
+    return {
+      words: d.channels.includes("email")
+        ? emptyAudienceRefusal(purpose, label, [], { channels: d.channels, about: "ours" })
+        : saidYesWords(said, purpose, 0, r.said_yes ?? 0),
+      door: untried ? { kind: "how" } : null,
+    };
+  return { words: noYesWords(said, purpose), door: { kind: "yes" } };
+}
+
+/** What New recounts a draft against: Campaigns' counts, the sequences that run, and the channels it can send on. */
+export interface RecountReads {
+  counts: NewCounts;
+  running: readonly NewRunning[];
+  ready: readonly ConsentChannel[];
+}
+
+/** Whether two drafts would be counted alike: the same who, how, kind and steps. */
+const countedAlike = (a: NewDraftDto, b: NewDraftDto): boolean =>
+  JSON.stringify([a.who, a.channels, a.kind, a.audience, a.steps]) ===
+  JSON.stringify([b.who, b.channels, b.kind, b.audience, b.steps]);
+
+/**
+ * The draft as it now stands, its count, its twin and its checks said again where the owner changed who, how, the kind or
+ * a step (decision 0065 step 7: the send screen recounted on every draw), or where nothing was counted yet (a draft built
+ * by hand, Send it again, a kept one-off). What Ask answered stands until something it was counted for changes.
+ */
+export function recounted(prev: NewDraftDto | null, next: NewDraftDto, k: RecountReads): NewDraftDto {
+  if (prev ? countedAlike(prev, next) : next.reach !== null) return next;
+  const reach = newReachOf(next.who, k.counts, reachHowOf(next));
+  // A twin is a sequence's; one Ask found stands until who changes.
+  const twin =
+    next.kind !== "sequence" ? null : prev && prev.who === next.who ? next.twin : twinOf(next.who, k.running);
+  const counted = { ...next, reach, twin };
+  return { ...counted, checks: newChecksOf(counted, k.ready) };
 }
 
 /** The body Keep (start false) and Start or Send (true) send: the draft as it stands. */

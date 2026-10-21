@@ -620,11 +620,12 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
   );
-  // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its screens, in surfaces/campaigns/broadcasts.
+  // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its run's screens, in
+  // surfaces/campaigns/broadcasts (the send screen went with decision 0065's step 7).
   const broadcastsTsx = [
     "broadcasts-page.tsx",
     "when.tsx",
-    ...["acts", "audience", "runs", "send-screen", "state"].map((f) => `page/${f}.tsx`),
+    ...["acts", "runs", "state"].map((f) => `page/${f}.tsx`),
     ...["reach", "types", "words"].map((f) => `page/${f}.ts`),
   ];
   assert.ok(

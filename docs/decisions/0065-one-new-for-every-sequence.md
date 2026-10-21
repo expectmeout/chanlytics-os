@@ -2,8 +2,10 @@
 
 **Status:** Decided 20 October 2026 (Ruben: "Approved with your picks", on the New canvas, artifact
 3eGjrhpQABiRHEgmiy27Kb v8, option 2 on the one model, with its three calls as recommended). Built: #1764 (00465 on
-production before its merge, 21 October 2026), completed against the canvas end to end on `campaigns/new-complete`.
-Steps 6 and 7 are still to do. Where this note and the code disagree, the code wins.
+production before its merge, 21 October 2026), completed against the canvas end to end in #1767. Steps 6 and 7 built
+on `campaigns/new-steps-6-7` (21 October 2026): the record's Add a step offers a call or a note, and the send screen
+left, New's one-off counting who can hear it again as it changes and saying why nobody can, by its cure. Where this
+note and the code disagree, the code wins.
 
 ## Context
 

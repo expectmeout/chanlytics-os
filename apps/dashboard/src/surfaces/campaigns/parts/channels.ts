@@ -4,7 +4,7 @@
  * are on, why one cannot be, and how the reach splits across the ones that are. The rules are contracts' (campaign-message.ts:
  * campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage; reach-for.ts: channelChoices, reachSplit, heldWords); the readiness is the
  * workspace's (server/campaigns/channels-ready.ts) with the message's own versions laid over it. Plain functions, nothing
- * here draws: the broadcast composer and the playbook composer read the same ones, and parts/send-by.tsx draws the row.
+ * here draws: the playbook composer and a run's screen read the same ones.
  */
 import {
   CONSENT_CHANNELS,
@@ -17,7 +17,6 @@ import {
   whatsappLineOf,
   channelChoices,
   channelNeverCarries,
-  channelsStandingParts,
   heldWords,
   messageHolds,
   newCampaignChannels,
@@ -29,7 +28,6 @@ import {
   type CampaignMessage,
   type ChannelDto,
   type NumberHealth,
-  type ChannelStandingPart,
   type ChannelsReady,
   type ConsentChannel,
   type MessageAbout,
@@ -40,7 +38,6 @@ import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { offeredRows } from "@/surfaces/offered-templates";
-import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
 /** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
 /** What a playbook's kept channel that cannot send yet is promised. */
@@ -55,7 +52,7 @@ export const CM_VIA_WORDS = {
   nowhere: "None of the channels ticked can carry this message yet.",
   /** A playbook keeps a channel that cannot send yet: its run holds those people until it can. */
   waits: (why: string): string => `${why} ${ONCE_IT_CAN}`,
-  /** The same promise without the reason, under a line that has already said every channel's (send-by.tsx). */
+  /** The same promise without the reason, under a line that has already said every channel's. */
   onceItCan: ONCE_IT_CAN,
 } as const;
 
@@ -66,18 +63,6 @@ export const CM_VIA_WORDS = {
  */
 export function cmReadyOf(read: ChannelsReady | null | undefined): ChannelsReady {
   return readyOrWhatsApp(read);
-}
-
-/**
- * Where the workspace can send on nothing at all, its standing in parts (contracts channelsStandingParts: "Nothing can send
- * yet", then each channel with its reason and the door that mends it), which the Send by row says once in place of three
- * closed switches' reasons. Null where any channel is open, and where the readiness was not read: the page then says what
- * it always said. Null too for a workspace paused for billing, whose standing is that one fact: each composer says the
- * pause where its Send would be (CAMPAIGNS_PAUSED_WORDS), and the row keeps its switches' own reasons.
- */
-export function cmNothingOpen(read: ChannelsReady | null | undefined): ChannelStandingPart[] | null {
-  if (!read || read.paused === true || CONSENT_CHANNELS.some((c) => read[c].ready)) return null;
-  return channelsStandingParts(read);
 }
 
 /**
@@ -336,11 +321,6 @@ function cmChannelsKept(ticks: readonly string[], purpose: AskedPurpose): Consen
   return CONSENT_CHANNELS.filter((c) => ticks.includes(c) && channelNeverCarries(c, purpose) === null);
 }
 
-/** The ticks after one is pressed, in the page's order. */
-export function cmTick(ticks: readonly string[], channel: ConsentChannel, on: boolean): ConsentChannel[] {
-  return CONSENT_CHANNELS.filter((c) => (c === channel ? on : ticks.includes(c)));
-}
-
 /**
  * The reach split in one line, where the campaign goes by anything but WhatsApp alone ("Reaches 84: 52 on WhatsApp, 32 by
  * email · 12 can't be reached"); null for WhatsApp alone, whose reach the page has always said by its number.
@@ -356,9 +336,6 @@ export function cmSplitWords(split: ReachSplit | null | undefined, on: readonly 
 export function cmReachBy(split: ReachSplit | null | undefined, on: readonly ConsentChannel[]): string | null {
   return split && on.some((c) => c !== "whatsapp") ? reachByWords(split) : null;
 }
-
-/** A channel's colour on the split bar: the chart palette's, as Reports draws the channel. */
-export const cmChannelColour = (channel: ConsentChannel): string => RPT_CHANNEL_COLORS[channel];
 
 /** Who is held and why, by reason, the most first: "7 · No email address on file, so nothing can be sent." */
 export function cmHeldLines(

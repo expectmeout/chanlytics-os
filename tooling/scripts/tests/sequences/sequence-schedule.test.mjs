@@ -103,6 +103,9 @@ test("each step stands on its day: the first on day 1, each after on the day its
   assert.deepEqual(scheduleSpan(row(), STEPS), { count: "2 messages", over: "over 14 days" });
   assert.deepEqual(scheduleSpan(row(), [step(1)]), { count: "One message", over: null });
   assert.deepEqual(scheduleSpan(row({ starts: "leads" }), [...STEPS, step(3, { after_days: 4 })]).count, "3 steps");
+  // A customer's that closes on a call for you counts steps, never the call as a message (decision 0065 step 6).
+  const call = step(3, { after_days: 4, template_name: null, hand: { kind: "call", words: "Ring them" } });
+  assert.deepEqual(scheduleSpan(row(), [...STEPS, call]).count, "3 steps");
   const oneOff = row({
     starts: "date",
     date: { batch_id: "b1", state: "scheduled", at: "2026-11-24T15:00:00Z", people: 186 },

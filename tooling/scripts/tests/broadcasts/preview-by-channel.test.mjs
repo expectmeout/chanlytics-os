@@ -18,13 +18,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
-import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 installLegacyReact({
   location: {
@@ -44,15 +42,10 @@ installLegacyReact({
 const SRC = "../../../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
 installClock();
-const { CmSplitBar } = await import(`${SRC}/surfaces/campaigns/parts/split-bar.tsx`);
-const { MessagePreview, PreviewStepper } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
+const { MessagePreview } = await import(`${SRC}/surfaces/campaigns/parts/message-preview.tsx`);
 const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaigns/parts/preview-by.ts`);
 const channelsModule = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
-const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } =
-  channelsModule;
-const { CmViaWord } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
-const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
-const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
+const { cmReachBy, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } = channelsModule;
 
 const h = (type, props, ...kids) => globalThis.React.createElement(type, props, ...kids);
 
@@ -377,112 +370,6 @@ test("an email is drawn as a mail -- who from, the subject, the words with their
   assert.equal(textOf(byTestId(tree, "mp-version-note")), "This message has no email version yet.");
 });
 
-test("the stepper walks the people and wraps, each press one step, and says its place: ‹ Ana Reyes · 1 of 3 ›", () => {
-  fresh();
-  const people = [
-    { label: "Ana Reyes", position: "1 of 3" },
-    { label: "Sol Text", position: "2 of 3" },
-    { label: "Mia Mail", position: "3 of 3" },
-  ];
-  const steps = [];
-  const at = (index) => h(PreviewStepper, { people, index, onStep: (i) => steps.push(i) });
-  let tree = at(0);
-  // A person is drawn with their initials (the kit's face, hidden from a screen reader), then their name and place.
-  assert.equal(textOf(byTestId(tree, "mp-step")), "ARAna Reyes1 of 3");
-  const press1 = (tree, label) => press(find(tree, (n) => n.props?.["aria-label"] === label));
-  press1(tree, "The next person");
-  press1(tree, "The person before this one");
-  assert.deepEqual(steps, [1, 2], "forward one, and back from the first wraps to the last");
-  tree = at(2);
-  press1(tree, "The next person");
-  assert.deepEqual(steps.at(-1), 0, "past the last, the first");
-  // Its two presses are the kit's quiet icon buttons, named for a screen reader.
-  assert.deepEqual(
-    [
-      ...new Set(
-        all(byTestId(tree, "mp-step"), (n) => typeof n.props?.["aria-label"] === "string").map(
-          (n) => n.props["aria-label"],
-        ),
-      ),
-    ],
-    ["The person before this one", "The next person"],
-  );
-  // A playbook's walk is its channels, and says so to a screen reader.
-  tree = h(PreviewStepper, {
-    people: [
-      { label: "On WhatsApp", position: "10 people" },
-      { label: "By email", position: "4 people" },
-    ],
-    index: 1,
-    onStep() {},
-    words: contracts.PREVIEW_WORDS.walk.channels,
-  });
-  assert.equal(textOf(byTestId(tree, "mp-step")), "By email4 people");
-  assert.ok(find(tree, (n) => n.props?.["aria-label"] === "The next channel"));
-  // One alone is no walk.
-  assert.equal(byTestId(h(PreviewStepper, { people: people.slice(0, 1), index: 0, onStep() {} }), "mp-step"), null);
-});
-
-/* ---------------------------------- why a channel is closed, to a finger ---------------------------------- */
-
-test("why a channel is closed is said under its word in the channels' list, where a finger reads it -- the kit's tooltip never shows to a finger -- and each toggle keeps the same words as its description", () => {
-  fresh();
-  // The workspace sends on WhatsApp alone: WhatsApp is the one on (and stays on), text and email are closed, each for its own reason.
-  const ready = contracts.channelsReady({
-    whatsapp: { canSend: true, refusal: null },
-    textLine: null,
-    email: { mailbox: false, domain: false },
-  });
-  const ticks = cmViaTicks(["whatsapp"], ready, { purpose: "conversational", about: "ours" }, false);
-  assert.deepEqual(
-    ticks.map((t) => t.why !== null),
-    [true, true, true],
-    "(the one channel that is on says why it cannot be turned off, as the others say why they cannot be turned on)",
-  );
-  // The channels are a word of the sentence that opens their list (the kit popover's children, which the stub draws).
-  const tree = again(() => h(CmViaWord, { ticks, onTick() {}, testid: "bc-via" }));
-  for (const t of ticks) {
-    const one = byTestId(tree, `bc-via-${t.channel}`);
-    const why = byTestId(tree, `bc-via-${t.channel}-why`);
-    assert.equal(textOf(why), t.why, "its reason under its word");
-    assert.equal(one.props["aria-describedby"], why.props.id, "and its description");
-    assert.equal(one.props.role, "switch");
-  }
-  assert.equal(byTestId(tree, "bc-via-whys"), null, "no line under the list says a reason a second time");
-  // Nothing to say: every channel open and none the last one on: no reason under any.
-  fresh();
-  const open = contracts.channelsReady({
-    whatsapp: { canSend: true, refusal: null },
-    textLine: { sms_state: "active", reg_mock: false },
-    email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
-  });
-  const quiet = h(CmViaWord, {
-    ticks: cmViaTicks(["whatsapp", "sms"], open, { purpose: "conversational", about: "ours" }, false),
-    onTick() {},
-    testid: "bc-via",
-  });
-  assert.equal(["whatsapp", "sms", "email"].filter((c) => byTestId(quiet, `bc-via-${c}-why`)).length, 0);
-});
-
-test("the channels' list is drawn in tokens: a row a finger's height, the reason under its word in the quiet size and ink, a closed one's in the warning's", () => {
-  const file = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
-  const css = transform({
-    filename: file,
-    code: fs.readFileSync(path.join(ROOT, file)),
-    minify: true,
-  }).code.toString();
-  const sub = /\.cm-via-sub\{([^}]*)\}/.exec(css);
-  assert.ok(sub, "a rule for the reason");
-  assert.ok(sub[1].includes("font-size:var(--text-xs)") && sub[1].includes("color:var(--ink-dim)"), sub[1]);
-  assert.ok(
-    /\.cm-via-sub\[data-warn=true\]\{color:var\(--warn-ink\)\}/.test(css),
-    "a closed one's in the warning's ink",
-  );
-  const one = /\.cm-via \.cm-via-one\{([^}]*)\}/.exec(css);
-  assert.ok(one, "a rule for the row");
-  assert.ok(one[1].includes("min-height:52px"), one[1]);
-});
-
 /* ---------------------------------- the split as a bar ---------------------------------- */
 
 const SPLIT = (byChannel, over = {}) => ({
@@ -491,63 +378,6 @@ const SPLIT = (byChannel, over = {}) => ({
   held: 5,
   heldBy: { no_yes: 5 },
   ...over,
-});
-
-test("the split bar: a part for each channel that reaches anyone, its width the share of the people reached, in the channel's own colour, its words in the tooltip", () => {
-  fresh();
-  const split = SPLIT({ whatsapp: 12, sms: 0, email: 12 });
-  const tree = h(CmSplitBar, { split, className: "bc-to-bar", testid: "bar" });
-  const meter = find(tree, (n) => n.type === Meter);
-  assert.deepEqual(
-    meter.props.parts,
-    [
-      { share: 12, color: cmChannelColour("whatsapp") },
-      { share: 12, color: cmChannelColour("email") },
-    ],
-    "WhatsApp and email, in that order; a channel nobody is reached on has no part",
-  );
-  assert.deepEqual(
-    all(meter, (n) => n.props?.style && "flexGrow" in n.props.style).map((n) => n.props.style.flexGrow),
-    [12, 12],
-    "each part's share is its width",
-  );
-  assert.deepEqual(
-    ["whatsapp", "sms", "email"].map(cmChannelColour),
-    ["var(--chart-cat-1)", "var(--chart-cat-4)", "var(--chart-cat-3)"],
-    "a channel is the colour Reports draws it in, a chart palette token",
-  );
-  assert.equal(
-    meter.props["aria-label"],
-    "Reaches 24: 12 on WhatsApp, 12 by email",
-    "the split in words, to a screen reader",
-  );
-  assert.equal(meter.props.size, "sm", "thin");
-  assert.equal(meter.props["data-testid"], "bar");
-  assert.equal(meter.props.tabIndex, 0, "a stop for the keyboard, which brings the tip");
-  const tip = find(tree, (n) => n.type === Tooltip);
-  assert.equal(tip.props.tip, "12 on WhatsApp, 12 by email", "its words on hover and on focus, in the kit's tooltip");
-  // Three channels, unequal: the widths follow the numbers, and the held are not in the bar.
-  const three = find(
-    h(CmSplitBar, { split: SPLIT({ whatsapp: 52, sms: 12, email: 32 }), testid: "bar" }),
-    (n) => n.type === Meter,
-  );
-  assert.deepEqual(
-    three.props.parts.map((p) => p.share),
-    [52, 12, 32],
-  );
-  assert.equal(three.props["aria-label"], "Reaches 96: 52 on WhatsApp, 12 by text, 32 by email");
-  // One channel is one whole part, said as one.
-  const one = find(
-    h(CmSplitBar, { split: SPLIT({ whatsapp: 0, sms: 0, email: 8 }), testid: "bar" }),
-    (n) => n.type === Meter,
-  );
-  assert.deepEqual(one.props.parts, [{ share: 8, color: "var(--chart-cat-3)" }]);
-  assert.equal(one.props["aria-label"], "Reaches 8 by email");
-  // Nobody reached: no bar.
-  assert.equal(
-    find(h(CmSplitBar, { split: SPLIT({ whatsapp: 0, sms: 0, email: 0 }), testid: "bar" }), (n) => n.type === Meter),
-    null,
-  );
 });
 
 test("the To line's clause says the split in the bar's words, and nothing where the campaign goes by WhatsApp alone", () => {

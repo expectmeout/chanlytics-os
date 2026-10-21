@@ -21,8 +21,6 @@ import {
   whoSuits,
   type ConsentChannel,
   type NewAudience,
-  type NewCheck,
-  type NewReach,
   type NewDraftAnswer,
   type NewDraftAnswerStep,
   type NewDraftAsk,
@@ -36,7 +34,8 @@ import {
   type ParamSourceKind,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { readingFor, type PoolRead } from "@/lib/campaign-channels";
+import type { PoolRead } from "@/lib/campaign-channels";
+import { carriersOf, newChecksOf, newReachOf, twinOf, type NewCounts, type NewRunning } from "@/lib/new-checks";
 import { checkMessage } from "../campaigns/write-message";
 
 /**
@@ -93,15 +92,8 @@ export interface KnownMessage {
   labels?: string[];
 }
 
-/** A sequence the workspace keeps, for its twin. */
-export interface KnownRunning {
-  id: string;
-  name: string;
-  starts: string;
-  trigger: string | null;
-  list: string | null;
-  search: string | null;
-}
+/** A sequence the workspace keeps, for its twin (lib/new-checks.ts, which New's page reads it by too). */
+export type KnownRunning = NewRunning;
 
 /** What a draft is judged against: the business, what it offers and holds, and what already runs. */
 export interface DraftKnown {
@@ -313,123 +305,12 @@ function onceAt(when: string, localNow: string): string | null {
   return ahead > 0 && ahead <= NEW_ONCE_AHEAD_DAYS ? at : null;
 }
 
-/** A sequence already on the same moment, list or search: a second would double it. */
-function twinOf(who: DraftWho | null, known: DraftKnown): { id: string; name: string } | null {
-  if (!who) return null;
-  const r = known.running.find((x) =>
-    who.kind === "moment"
-      ? x.starts === "moment" && x.trigger === who.trigger
-      : who.kind === "list"
-        ? x.starts === "list" && x.list === who.token
-        : who.kind === "search" && x.starts === "leads" && x.search === who.id,
-  );
-  return r ? { id: r.id, name: r.name } : null;
-}
-
-/** Who of those a pool names it leaves out, the most said once: a stop, no yes, no number. */
-function leftOf(r: ReturnType<typeof readingFor>): string | null {
-  if (!r) return null;
-  const R = NEW_WORDS.reach;
-  const why = [
-    { n: r.stopped, say: R.saidStop },
-    { n: r.noYes, say: R.neverYes },
-    { n: r.noNumber, say: R.noNumber },
-  ].sort((x, y) => y.n - x.n)[0];
-  return why && why.n > 0 ? why.say(why.n) : null;
-}
-
-/**
- * Who it reaches now, where the workspace counted it, on the channels it goes by (Campaigns' pools, as a run counts them):
- * how many can hear it of how many it names, who it leaves out, who the week's breath holds back, and each channel's
- * share. Everyone is counted for what a yes to offers hears (the month's offer's pool), an offer or news: a message the
- * workspace holds as one about their visit, sent to everyone, is not counted here, so no number is said. Where its
- * WhatsApp version is new, who hears it only by WhatsApp, whom a send before Meta approves it leaves out. A search counts
- * its ready leads, and the addresses still being checked.
- */
-function reachOf(
-  who: DraftWho | null,
-  known: DraftKnown,
-  how: { channels: readonly ConsentChannel[]; offer: boolean; review: boolean },
-): NewReach | null {
-  if (!who) return null;
-  if (who.kind === "search") {
-    const s = known.searches.find((x) => x.id === who.id);
-    return s ? { can: s.ready, of: null, left: s.checking > 0 ? NEW_WORDS.reach.checking(s.checking) : null } : null;
-  }
-  if (who.kind === "leads") return { can: who.ids.length, of: null, left: null };
-  const pool =
-    who.kind === "moment"
-      ? known.moments.find((m) => m.trigger === who.trigger)?.pool
-      : who.kind === "list"
-        ? known.lists.find((l) => l.token === who.token)?.pool
-        : how.offer
-          ? known.everyonePool
-          : null;
-  // The channels it goes by: none is none (no channel can carry it here), never a playbook's WhatsApp alone.
-  const r = readingFor(pool, how.channels);
-  if (!r) return null;
-  const others = how.channels.filter((c) => c !== "whatsapp");
-  const without = others.length ? (readingFor(pool, others)?.candidates ?? r.candidates) : 0;
-  const only = how.review && how.channels.includes("whatsapp") ? Math.max(0, r.candidates - without) : 0;
-  return {
-    can: r.candidates,
-    of: r.pool > r.candidates ? r.pool : null,
-    left: leftOf(r),
-    ...(r.held > 0 ? { held: r.held } : {}),
-    ...(r.by_channel ? { by: r.by_channel } : {}),
-    ...(only > 0 ? { only_whatsapp: only } : {}),
-  };
-}
-
-const CHANNEL_SAID: Record<ConsentChannel, string> = { whatsapp: "WhatsApp", email: "email", sms: "text" };
-
-/** What Ask checked of a step's message: one Ask wrote waits on Meta's review; one the workspace holds goes today. */
-function stepChecks(d: Pick<NewDraftDto, "audience" | "steps">, ready: readonly ConsentChannel[]): NewCheck[] {
-  const C = NEW_WORDS.checks;
-  return d.steps.flatMap((s, i): NewCheck[] => {
-    const n = i + 1;
-    if (s.does !== "message") return [{ tone: "ok", words: C.hand(n), detail: null }];
-    const m = s.message;
-    if (m?.written)
-      return [
-        { tone: "warn", words: C.newMessage(n), detail: m.written.versions.whatsapp ? C.newMessageDetail : null },
-      ];
-    const goes = (m?.channels ?? []).filter((c) => ready.includes(c));
-    return d.audience === "people" && i === 0 && goes.length
-      ? [{ tone: "ok", words: C.canGo(n, goes.map((c) => CHANNEL_SAID[c]).join(" or ")), detail: null }]
-      : [];
-  });
-}
-
-/** What Ask checked, said as the draft shows it: before Start, what would double, wait, or go another way. */
-function draftChecksOf(
-  d: Pick<NewDraftDto, "audience" | "kind" | "steps" | "who" | "twin" | "reach">,
-  ready: readonly ConsentChannel[],
-): NewCheck[] {
-  const C = NEW_WORDS.checks;
-  const out: NewCheck[] = [];
-  const ok = (words: string, detail: string | null = null) => out.push({ tone: "ok", words, detail });
-  const warn = (words: string, detail: string | null = null) => out.push({ tone: "warn", words, detail });
-  if (d.who && d.kind === "sequence") {
-    if (d.twin) warn(C.twin(d.twin.name), C.twinDetail);
-    else ok(C.noTwin(`starts on “${d.who.label}”`));
-  }
-  out.push(...stepChecks(d, ready));
-  const offer = !!d.steps[0]?.message?.offer;
-  if (d.audience === "leads") {
-    ok(C.notCustomers);
-    ok(C.noFirstLink);
-    ok(C.pace(12));
-    if (d.kind === "once") ok(C.oneEmail, C.oneEmailDetail);
-    return out;
-  }
-  if (d.kind === "once") {
-    if (offer) ok(C.offersOnly);
-    if (d.reach?.held) ok(C.breath(d.reach.held), C.breathDetail);
-    const byEmail = d.reach?.by?.email ?? 0;
-    if (offer && byEmail > 0) ok(C.byEmail(byEmail), C.byEmailDetail);
-  } else ok(C.stops, C.stopsDetail);
-  return out;
+/** Campaigns' counts as the draft is read against them: each moment's, list's and everyone's pool by its key. */
+function knownCountsOf(known: DraftKnown): NewCounts {
+  const pools: Record<string, PoolRead | null> = { everyone_monthly: known.everyonePool };
+  for (const m of known.moments) pools[m.trigger] = m.pool;
+  for (const l of known.lists) pools[l.token] = l.pool;
+  return { pools, searches: known.searches };
 }
 
 /** The class its steps run under: its moment's, a list's campaign, a lead's outreach. */
@@ -456,7 +337,7 @@ function howOf(
   return {
     run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour || PLAYBOOK_DEFAULTS.runHour)),
     at: p.kind === "once" ? onceAt(answer.when, known.localNow) : null,
-    channels: leads ? ["email"] : (p.first?.channels ?? []).filter((c) => known.ready.includes(c)),
+    channels: leads ? ["email"] : (p.first ? carriersOf(p.first) : []).filter((c) => known.ready.includes(c)),
     mailbox: leads ? { ids: box?.ids ?? [], owner_sends: !box, label: box?.label ?? "" } : null,
     adds_new: leads && p.who?.kind === "search",
     policy_class: policy,
@@ -495,14 +376,15 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
     who: everyoneSaid(who, first),
     ...how,
     steps,
-    reach: reachOf(who, known, {
+    reach: newReachOf(who, knownCountsOf(known), {
+      kind,
       channels: how.channels,
       offer: !!first?.offer,
       review: !!first?.written?.versions.whatsapp,
     }),
     checks: [],
-    twin: kind === "sequence" ? twinOf(who, known) : null,
+    twin: kind === "sequence" ? twinOf(who, known.running) : null,
     cannot: said || (cannot.length ? [...new Set(cannot)].join(" ") : null),
   };
-  return { ...draft, checks: draftChecksOf(draft, known.ready) };
+  return { ...draft, checks: newChecksOf(draft, known.ready) };
 }

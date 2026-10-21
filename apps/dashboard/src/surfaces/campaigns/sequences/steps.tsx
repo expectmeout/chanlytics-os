@@ -21,6 +21,7 @@ import {
   SEQUENCE_WORDS,
   addressOf,
   clockDate,
+  handTitleOf,
   scheduleChannels,
   scheduleDays,
   scheduleEnd,
@@ -30,6 +31,7 @@ import {
   scheduleWait,
   sequenceCancels,
   takesFollowUps,
+  type NewStepDoes,
   type ScheduleCtx,
   type SequencePeopleDto,
   type SequenceRecordDto,
@@ -48,6 +50,7 @@ import { StepSheet, type StepSheetTarget } from "./step-sheet";
 import { StepPreviewLine, StepWords, useStepMessageRead } from "./step-words";
 import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
+import type { CmOffered } from "../parts/channels";
 
 type Flash = (flash: LegacyFlash) => void;
 
@@ -151,6 +154,14 @@ interface StepRowProps {
   onOpen: () => void;
 }
 
+/** A step's words on its box: a call's or a note's own, what stands where its message is gone, or two lines of it. */
+function StepPre({ step, message, gone }: { step: SequenceStepDto; message: CmOffered | null; gone: boolean }) {
+  // A call's words are the step's own words, drawn in their ink; a gone message is said in its place, quieter.
+  if (step.hand) return <span className="sq-stepbox-pre">{step.hand.words}</span>;
+  if (gone) return <span className="sq-stepbox-pre is-said">{SW.gone}</span>;
+  return <StepPreviewLine message={message} params={step.params} />;
+}
+
 /** A step on its day: one box, the whole of it the press that opens its sheet. */
 function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const customer = step.kind === "moment" && !step.hand;
@@ -160,8 +171,12 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const state = scheduleStepState(rec.sequence, step, { ...ctx, gone });
   const done = state?.tone === "done";
   const by = stepBy(step);
-  const title = customer ? (message?.title ?? step.template_name ?? F.noMessage) : step.name;
-  const said = step.hand ? step.hand.words : gone ? SW.gone : null;
+  // A call or a note by its kind, as New's rail calls it: the name the database gave it is the sequence's.
+  const title = step.hand
+    ? handTitleOf(step.hand.kind)
+    : customer
+      ? (message?.title ?? step.template_name ?? F.noMessage)
+      : step.name;
   return (
     <RailRow day={SW.day(day)} tone={state?.tone} testid={`sq-step-${step.place}`}>
       <RailBox
@@ -170,13 +185,7 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
         onOpen={onOpen}
         by={by}
         figures={<StepFigures sent={step.sent} replied={step.replied} />}
-        pre={
-          said ? (
-            <span className="sq-stepbox-pre is-said">{said}</span>
-          ) : (
-            <StepPreviewLine message={message} params={step.params} />
-          )
-        }
+        pre={<StepPre step={step} message={message} gone={gone} />}
         state={state}
         done={done}
       />
@@ -227,19 +236,29 @@ function DateRow({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<Sequ
   );
 }
 
-/** Add a step, a thumb tall at the steps' end; or, on a reminder, the one line that says why it takes none. */
-function AddRow({ rec, onAdd }: { rec: SequenceRecordDto; onAdd: () => void }) {
-  const row = rec.sequence;
-  if (takesFollowUps(row)) return <RailAdd onAdd={onAdd} gateProps={gate("approve")} />;
-  if (row.starts !== "moment") return null;
+/** One line where Add a step would stand, saying why it doesn't. */
+function RailNote({ words, testid }: { words: string; testid: string }) {
   return (
     <RailRow>
-      <p className="sq-rail-note" data-testid="sq-no-follow-up">
+      <p className="sq-rail-note" data-testid={testid}>
         <Icon name="info" size={13} />
-        <span>{F.noFollowUpOnReminder}</span>
+        <span>{words}</span>
       </p>
     </RailRow>
   );
+}
+
+/**
+ * Add a step, a thumb tall at the steps' end; on a reminder, the one line that says why it takes none; and where a call or
+ * a note closes it (00465: nothing goes after one, decision 0065 step 6), the line that says how to add another.
+ */
+function AddRow({ rec, onAdd }: { rec: SequenceRecordDto; onAdd: () => void }) {
+  const row = rec.sequence;
+  const last = rec.steps[rec.steps.length - 1];
+  if (takesFollowUps(row) && last?.hand) return <RailNote words={SW.handLast(last.hand.kind)} testid="sq-hand-last" />;
+  if (takesFollowUps(row)) return <RailAdd onAdd={onAdd} gateProps={gate("approve")} />;
+  if (row.starts !== "moment") return null;
+  return <RailNote words={F.noFollowUpOnReminder} testid="sq-no-follow-up" />;
 }
 
 interface StepsProps {
@@ -257,9 +276,9 @@ interface StepsProps {
   onCancelSend: () => void;
 }
 
-/** The sheet's target for the record's step open to be changed. */
-const sheetTargetOf = (editing: string): StepSheetTarget =>
-  editing === "new" ? { kind: "new" } : { kind: "step", id: editing };
+/** The sheet's target for the record's step open to be changed: the step to come carries what it will do, once picked. */
+const sheetTargetOf = (editing: string, does: NewStepDoes | null): StepSheetTarget =>
+  editing === "new" ? { kind: "new", does } : { kind: "step", id: editing };
 
 /**
  * Who is in it, for who is in line for each step and what the check held of each: read where a step after the first has
@@ -277,7 +296,9 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.
   const [held, setHeld] = useState<StepSheetTarget | null>(null);
   const [open, setOpen] = useState(false);
-  const target = editing ? sheetTargetOf(editing) : held;
+  // What the step to come will do, pressed on the sheet's first face (decision 0065 step 6).
+  const [does, setDoes] = useState<NewStepDoes | null>(null);
+  const target = editing ? sheetTargetOf(editing, does) : held;
   // Ended (End it, or its first step gone): its steps went with it, so it says so, and History keeps what it sent.
   if (row.state === "ended" && row.starts !== "date")
     return (
@@ -317,10 +338,14 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
     setOpen(false);
     onEditing(null);
   };
-  // The editor's Cancel or Save: back to the step as it reads, or closed where the step was still to come.
+  // The editor's Cancel or Save: back to the step as it reads, or closed where the step was still to come, the sheet
+  // leaving with what it held.
   const editDone = () => {
     if (target?.kind === "step") openOn(target);
-    else setOpen(false);
+    else {
+      setHeld(target);
+      setOpen(false);
+    }
     onEditing(null);
   };
   // Each step on its day, after the wait before it.
@@ -344,7 +369,18 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
       start={<StartRow rec={rec} flash={flash} moved={moved} howAsked={howAsked} />}
       steps={steps}
       day={row.starts === "date" && row.date ? <DateRow rec={rec} date={row.date} /> : null}
-      add={row.starts === "date" ? null : <AddRow rec={rec} onAdd={() => onEditing("new")} />}
+      add={
+        row.starts === "date" ? null : (
+          <AddRow
+            rec={rec}
+            onAdd={() => {
+              // Asked fresh each time, so the sheet opens on what the step will do, never on the last one picked.
+              setDoes(null);
+              onEditing("new");
+            }}
+          />
+        )
+      }
       end={end}
     >
       {sequenceCancels(row) ? (
@@ -375,6 +411,7 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
         flash={flash}
         moved={moved}
         onEdit={() => onEditing(target?.kind === "step" ? target.id : "new")}
+        onPick={setDoes}
         onEditDone={editDone}
         onClose={close}
       />

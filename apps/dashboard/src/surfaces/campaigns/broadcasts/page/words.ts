@@ -14,15 +14,7 @@ interface Keyed {
 }
 
 export const bcKey = (a: Keyed) => `${String(a.kind)}:${a.id || ""}`;
-// Words for people: a starter's title, or the name with its underscores made spaces.
-export const bcTitle = (name: string | null | undefined) => starters.title(name);
 export const bcIsStarter = (name: string) => !!starters.byName(name);
-// The language a row goes out in, as a person reads it. A workspace holding the
-// starter set in both languages has two rows per name, and the chips said the
-// same words over each -- so the question asked before a send names the one it
-// means. Empty when there is no row: a guess is worse than nothing here.
-export const bcLangWords = (t: { language: string } | null | undefined) =>
-  t ? ` (${starters.langWords(t.language)})` : "";
 // The library's order: starters first, then templates written here, then the rest.
 export const bcOrder = (a: BroadcastTemplate, b: BroadcastTemplate) => starters.compare(a, b);
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.

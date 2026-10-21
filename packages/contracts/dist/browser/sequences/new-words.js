@@ -98,6 +98,13 @@ export const NEW_WORDS = {
     parts: { when: "when", who: "who", search: "a search", how: "how", message: "a message" },
     thenItCanStart: "Then it can start",
     thenItCanGo: "Then it can go",
+    /** A value the message leaves to be typed, still blank (the send screen's "Fill in"), by its name where it has one. */
+    fill: (what) => what ? `Fill in \u201C${what}\u201D` : "Fill in the message\u2019s blank",
+    /** A one-off set for a time that has gone by while the draft waited. */
+    passed: "That time has passed",
+    passedSub: "Pick a later one, or send it now",
+    /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
+    tooFar: (days) => `Pick a time within ${days} days`,
     sayIt: "Say it",
     orSay: "Or say it in a line, and Ask fills it in.",
     lineFirst: (n) => `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
@@ -164,6 +171,8 @@ export const NEW_WORDS = {
   /** Send now asks first (E1): who and how, and that it can still be stopped. */
   confirm: {
     title: (name, n) => `Send \u201C${name}\u201D to ${n} ${n === 1 ? "person" : "people"}?`,
+    /** Where the workspace counts nobody for it (news sent once to a list, to everyone): asked without a number. */
+    titleNow: (name) => `Send \u201C${name}\u201D now?`,
     at: (time) => `It goes at ${time}, in 10 minutes. Until then, Stop takes it back`,
     opens: (time) => `It goes at ${time}, when your sending hours open. Until then, Stop takes it back`,
     after: "Once delivered, it can\u2019t be taken back",
@@ -197,8 +206,17 @@ export const NEW_WORDS = {
     noNumber: (n) => `${n} with no number or address`,
     heldBack: (n) => `${n} held back this week`,
     checking: (n) => `${n} ${n === 1 ? "address" : "addresses"} being checked`,
-    byChannel: (n, channel) => `${n} by ${channel}`
+    byChannel: (n, channel) => `${n} by ${channel}`,
+    /** Under "No one to send to yet" in the foot: why, by the cure each asks for (contracts NewNobody). */
+    why: {
+      breath: "Everyone heard from you this week",
+      no_channel: "Nothing it goes by can carry it",
+      no_reach: "No number or address to send to",
+      no_yes: "No one has said yes yet"
+    }
   },
+  /** A workspace paused for billing: said first, in the foot and over the draft, before anything else stops it. */
+  paused: { lead: "Sending is paused", sub: "Resume it from Settings \u203A Billing" },
   /** Your OK, as its sheet names each way and How it runs says the one picked. */
   ok: {
     ask: "Every batch waits for you",
@@ -303,6 +321,11 @@ export const NEW_WORDS = {
     yourMessages: "Your messages",
     anOffer: "an offer, never a text",
     firstStepOnly: "Names their booking, so step 1 only",
+    /** A visit's message on a first step nothing about a visit starts (a one-off, a list): its run knows no booking. */
+    visitOnly: "Names their booking, so only where a booking starts it",
+    /** A proposal's message where no deal starts it, or after step 1: its run knows no proposal there. */
+    dealOnly: "Names their proposal, so only where a deal starts it",
+    proposalFirstOnly: "Names their proposal, so step 1 only",
     newMessage: "A new message",
     askWrote: "Ask wrote it \xB7 yours once you save",
     youWrite: "Yours \xB7 filed when you start it",
@@ -393,3 +416,4 @@ export const NEW_WORDS = {
     welcome: (n) => `${n} new ${n === 1 ? "person" : "people"}`
   }
 };
+export const handTitleOf = (kind) => kind === "note" ? NEW_WORDS.hand.noteTitle : NEW_WORDS.hand.callTitle;

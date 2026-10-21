@@ -18,7 +18,7 @@ import {
   followUpReach,
   followUpStop,
   handOf,
-  handStepWords,
+  personHandWords,
   messageAboutOfTrigger,
   proposalFactsFor,
   readyForMessage,
@@ -352,7 +352,9 @@ async function runPeopleHand(r: Run, hand: StepHand): Promise<RunOutcome> {
       handed.map(async (person) => ({
         send_id: await sendIdFor(runId, person.id),
         contact_id: person.id,
-        words: handStepWords(hand.kind, person.name, hand.words),
+        // Their own name, or their WhatsApp one: never the row's fallback (a number, an address, "Unknown"), which a
+        // call to "ana@example.com" would read; with neither, "them" (personHandWords).
+        words: personHandWords(hand.kind, person.givenName || person.waName || "", hand.words),
         source_id: await handStepIdFor(p.id, person.id),
       })),
     );

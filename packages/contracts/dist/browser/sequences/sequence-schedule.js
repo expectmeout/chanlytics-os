@@ -21,6 +21,8 @@ export const SCHEDULE_WORDS = {
   /** What the figures on every box count, said once over their column. */
   per: "last 30 days",
   addStep: "Add a step",
+  /** Where Add a step stood on a customer's rail that a call or a note closes (00465: nothing goes after one). */
+  handLast: (kind) => kind === "note" ? "A note is always the last step. To add a message, take the note away first." : "A call is always the last step. To add a message, take the call away first.",
   /** A step to leads has no words of its own: each email is its business's. */
   leadPreview: "Written for each business, and checked before it goes.",
   gone: "Its message isn\u2019t in Messages anymore, so this step sends nothing until it has one.",
@@ -71,7 +73,8 @@ export function scheduleSpan(row, steps) {
   if (row.starts === "date")
     return { count: "One message", over: row.date ? `to ${plural(row.date.people, "person", "people")}` : null };
   const n = steps.length;
-  const [one, many] = row.starts === "leads" ? ["step", "steps"] : ["message", "messages"];
+  const notAllMessages = row.starts === "leads" || steps.some((s) => s.hand);
+  const [one, many] = notAllMessages ? ["step", "steps"] : ["message", "messages"];
   const days = Math.max(1, ...scheduleDays(steps).values()) - 1;
   return {
     count: n === 1 ? `One ${one}` : `${n} ${many}`,

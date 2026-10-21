@@ -10,7 +10,7 @@
  * Who it reaches is Campaigns' count (the playbooks read's pools, as a run counts them): how many can hear it of how many
  * it names, who it leaves out, who the week's breath holds back, each channel's share, and, sent before Meta approves a
  * new WhatsApp version, who hears it only by WhatsApp. A message about nothing of the person's own is an offer or news,
- * which only a yes to offers hears and a text never carries.
+ * which only a yes to offers hears and a text never carries, one Ask wrote or one it picked that holds a text version.
  *
  * And the draft as the page holds it (surfaces/campaigns/sequences/new/new-model.ts): every change a picker makes and the
  * body Keep and Start send -- a wait held to its audience's bounds, what must still hold its audience's, a call or a note
@@ -30,7 +30,7 @@ const { draftFrom } = await import("../../../../apps/dashboard/src/server/sequen
 const { draftKept } = await import("../../../../apps/dashboard/src/server/sequences/draft-judge.ts");
 const M = await import("../../../../apps/dashboard/src/surfaces/campaigns/sequences/new/new-model.ts");
 const { onceChannelsOf } = await import("../../../../apps/dashboard/src/server/sequences/new-make.ts");
-const { leadChainStepOf, newListOf } = await import("../../../../packages/contracts/src/index.ts");
+const { NEW_WORDS, leadChainStepOf, newListOf } = await import("../../../../packages/contracts/src/index.ts");
 
 let calls;
 /** The model, answering `said`: one text event and a stop, as the gateway streams them. */
@@ -56,6 +56,8 @@ const pool = (candidates, more = {}) => ({
   saidYes: candidates,
   ...more,
 });
+/** What the foot reads of the workspace: not paused, and the business's clock where KNOWN's is. */
+const FOOT = { paused: false, localNow: "2026-10-20T14:30", ready: ["whatsapp", "email", "sms"] };
 const KNOWN = {
   business: "Harbor Studio",
   localNow: "2026-10-20T14:30",
@@ -384,13 +386,73 @@ test("news Ask writes for everyone is an offer's kind: a yes to offers hears it,
   assert.deepEqual([holiday.reach.can, holiday.reach.only_whatsapp], [236, 95]);
   const r = M.reviewOf(holiday);
   assert.deepEqual(r, { others: "email", only: 95, can: 141 });
-  assert.equal(M.notReady(holiday), null, "it can go now, by email");
+  assert.equal(M.notReady(holiday, FOOT), null, "it can go now, by email");
   // Scheduled for tomorrow it is still made now, and judged now: it goes by email then too; kept, it waits for Meta.
   assert.deepEqual(M.reviewOf(M.setAt(holiday, "2026-10-21T09:00")), r);
   // Where WhatsApp is all it goes by, sent now no one hears it.
   const waOnly = M.setChannels(holiday, ["whatsapp"]);
   assert.deepEqual(M.reviewOf(waOnly).can, 0);
-  assert.match(M.notReady(waOnly).lead, /No one to send to/);
+  assert.match(M.notReady(waOnly, FOOT).lead, /No one to send to/);
+});
+
+test("REGRESSION: an offer Ask picks that holds a text version goes by what carries it -- its text version is never ticked", () => {
+  // The workspace's offer with a WhatsApp, an email and a text version, every channel connected.
+  const known = {
+    ...KNOWN,
+    messages: [
+      ...KNOWN.messages,
+      {
+        key: "k4",
+        templateId: ID(4),
+        title: "A chair this week",
+        body: "Hi {{1}}, {{2}}",
+        offer: true,
+        channels: ["whatsapp", "email", "sms"],
+        slots: ["first_name", "text"],
+        labels: ["First name", "The offer"],
+      },
+    ],
+  };
+  const chair = (k = known) =>
+    draftKept(
+      answer({
+        kind: "once",
+        who: "everyone",
+        name: "A chair this week",
+        when: "now",
+        steps: [step({ message: "k4", texts: ["A chair is free this week"] })],
+      }),
+      k,
+      { words: "Tell everyone a chair is free this week" },
+    );
+  const out = chair();
+  assert.deepEqual(
+    out.steps[0].message.channels,
+    ["whatsapp", "email", "sms"],
+    "the message keeps every version it holds",
+  );
+  assert.deepEqual(out.channels, ["whatsapp", "email"], "a text never carries an offer");
+  assert.deepEqual(
+    out.checks.find((c) => c.words === NEW_WORDS.checks.canGo(1, "WhatsApp or email")),
+    { tone: "ok", words: NEW_WORDS.checks.canGo(1, "WhatsApp or email"), detail: null },
+    "its check names the ways it goes, never text",
+  );
+  assert.deepEqual([out.reach.can, out.reach.by.sms], [236, 0]);
+  // Texting the only channel connected: nothing ticked, and no one counted by it.
+  const textOnly = chair({ ...known, ready: ["sms"] });
+  assert.deepEqual([textOnly.channels, textOnly.reach.can, textOnly.reach.nobody], [[], 0, "no_channel"]);
+  assert.deepEqual(
+    textOnly.checks,
+    [{ tone: "ok", words: NEW_WORDS.checks.offersOnly, detail: null }],
+    "no step said to go by anything",
+  );
+  // A sequence on a moment Ask builds with it: the same, its first step's channels the sequence's.
+  const quiet = draftKept(
+    answer({ who: "m2", steps: [step({ message: "k4", texts: ["A chair is free this week"] })] }),
+    known,
+    { words: "Offer the quiet ones a chair" },
+  );
+  assert.deepEqual(quiet.channels, ["whatsapp", "email"]);
 });
 
 test("who it reaches is the count's: of how many it names, and who it leaves out, said once; none picked is none heard", () => {
@@ -510,19 +572,19 @@ test("a draft built by hand: every part a choice still to make, and nothing it c
     ["sequence", "people", null, 1, "ask", "campaign"],
   );
   assert.deepEqual(
-    M.notReady(d),
+    M.notReady(d, FOOT),
     { lead: "Pick when, how, and a message", sub: "Then it can start" },
     "the foot names the parts the page still says to pick",
   );
   const once = M.draftByHand("once", "people", "Harbor Studio");
   assert.equal(once.name, "New message", "a one-off by hand is a message, not a sequence");
-  assert.deepEqual(M.notReady(once), { lead: "Pick who, how, and a message", sub: "Then it can go" });
+  assert.deepEqual(M.notReady(once, FOOT), { lead: "Pick who, how, and a message", sub: "Then it can go" });
   assert.equal(
-    M.notReady({ ...once, who: { kind: "everyone", label: "everyone" }, channels: ["email"] }).lead,
+    M.notReady({ ...once, who: { kind: "everyone", label: "everyone" }, channels: ["email"] }, FOOT).lead,
     "Pick a message",
   );
   const ready = M.setMessage(M.setWho(d, { kind: "moment", trigger: "visited", label: "x" }), 0, held);
-  assert.equal(M.notReady(ready), null);
+  assert.equal(M.notReady(ready, FOOT), null);
   assert.deepEqual(ready.channels, ["whatsapp", "sms"], "a person's first message's channels are the sequence's");
   const leads = M.draftByHand("once", "leads", "Harbor Studio");
   assert.deepEqual(
@@ -566,7 +628,7 @@ test("a call or a note is always the last step: a message added after one goes b
   );
   assert.equal(M.removeStep(d, 0).steps.length, 3, "the first step is the sequence's");
   assert.equal(M.removeStep(d, 2).steps.length, 2);
-  assert.ok(M.notReady(M.setHand(d, 2, "  ")), "a note with nothing to do cannot start");
+  assert.ok(M.notReady(M.setHand(d, 2, "  "), FOOT), "a note with nothing to do cannot start");
 });
 
 test("while Ask drafts it again, the draft stands in its new shape: its line, its name, who where that suits, the rest to come", () => {

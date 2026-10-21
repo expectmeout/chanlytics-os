@@ -86,6 +86,7 @@ export function readingFor(
   const widest = within.sort((a, b) => b.channels.length - a.channels.length)[0];
   if (widest) return widest;
   if (want.includes("whatsapp")) return pool;
+  // No channel it goes by can carry it: everyone is held on that, and a closed channel takes back no one's yes.
   return {
     candidates: 0,
     held: 0,
@@ -93,7 +94,7 @@ export function readingFor(
     noYes: 0,
     stopped: 0,
     noNumber: 0,
-    saidYes: 0,
+    saidYes: pool.saidYes,
     no_address: 0,
     address_stopped: 0,
     no_channel: pool.pool,

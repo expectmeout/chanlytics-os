@@ -3,13 +3,16 @@
  * the moment's own run over the people the database says are due it (core runPlaybook), through fakes that log their
  * calls. Who leaves, and why, is the run's to say: booked (or came in), replied, gone, or a reason of their own no channel
  * reaches them for; one the workspace can mend (no channel ready today) keeps them due (the loop review, 17 Oct 2026).
+ * A call or a note for the team in place of a message (decision 0065) hands each one due to Today in the run's own
+ * sentence (contracts personHandWords), and sends nothing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, followUpLeaves, followUpStop, numberHealth } from "@chanlytics/contracts";
+import { channelsReady, followUpLeaves, followUpStop, numberHealth, personHandWords } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
+const { handStepIdFor, reachOutRunIdFor, sendIdFor } = await importSrc("packages/core/src/campaigns/reach-out-ids.ts");
 const NOW = new Date("2026-10-08T14:00:00Z"); // 10:00 in New York
 const D = 86_400_000;
 const SENT = new Date(NOW.getTime() - 4 * D).toISOString();
@@ -129,23 +132,26 @@ const context = (people) => ({
 function fakes(due) {
   const log = [];
   const ports = {
-    message: async (name, language) => [
-      {
-        id: "tpl-1",
-        channel: "whatsapp",
-        name,
-        language,
-        meta_status: "approved",
-        category: "marketing",
-        variables: [],
-        hidden_at: null,
-        title: null,
-        source: "meta",
-        components: [],
-        body_preview: null,
-        rejected_reason: null,
-      },
-    ],
+    message: async (name, language) => {
+      log.push(["message", name, language]);
+      return [
+        {
+          id: "tpl-1",
+          channel: "whatsapp",
+          name,
+          language,
+          meta_status: "approved",
+          category: "marketing",
+          variables: [],
+          hidden_at: null,
+          title: null,
+          source: "meta",
+          components: [],
+          body_preview: null,
+          rejected_reason: null,
+        },
+      ];
+    },
     alreadyRan: async () => false,
     followUpsDue: async (...args) => {
       log.push(["followUpsDue", ...args]);
@@ -163,6 +169,11 @@ function fakes(due) {
     monthSent: async () => 0,
     holdRecipients: async (_id, ids) => ({ skipped: ids, error: null }),
     notify: async () => undefined,
+    // A call's or a note's run, written whole by its door (00465 sequence_hand_run): each item a step made.
+    handRun: async (p) => {
+      log.push(["handRun", p]);
+      return { made: p.items.length };
+    },
   };
   return { ports, log, of: (name) => log.filter((l) => l[0] === name) };
 }
@@ -310,4 +321,125 @@ test("a step that goes only to those who haven't booked needs a calendar it can 
     ).outcome,
     "sent",
   );
+});
+
+/** A customer's call or note in place of a message (decision 0065): no message of its own, what to do for each one due. */
+const handStep = (kind, words) =>
+  step({ template_id: null, template_name: null, template_language: null, hand: { kind, words } });
+
+test("a customer's call hands each one due to Today in the run's own sentence -- by name, or 'them' -- and sends nothing", async () => {
+  const words = "ask how the cut held up";
+  const due = ["a", "b", "c", "d"].map((id) => ({ enrollment_id: `e-${id}`, contact_id: id, sent_at: SENT }));
+  // Ana is named; the second has no name of their own, so the row calls them by their number (personName's fallback), which
+  // the task never does; the third booked since the step before; the fourth is gone.
+  const people = [
+    customer("a", { name: "Ana Reyes", givenName: "Ana Reyes" }),
+    customer("b", { name: "+1 (555) 010-0101", givenName: null, waName: null }),
+    customer("c", { booked: true }),
+  ];
+  const f = fakes(due);
+  const r = await runPlaybook(f.ports, {
+    playbook: handStep("call", words),
+    ctx: context(people),
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  const runId = await reachOutRunIdFor("s2", "2026-10-08");
+  assert.deepEqual(r, {
+    outcome: "sent",
+    broadcast_id: runId,
+    eligible: 2,
+    mode: "auto",
+    state: "sent",
+    scheduled_for: NOW.toISOString(),
+    moved_from: null,
+  });
+  const [[, run]] = f.of("handRun");
+  assert.deepEqual([run.stepId, run.runId, run.day], ["s2", runId, "2026-10-08"]);
+  assert.deepEqual(run.items, [
+    {
+      send_id: await sendIdFor(runId, "a"),
+      contact_id: "a",
+      words: personHandWords("call", "Ana Reyes", words),
+      source_id: await handStepIdFor("s2", "a"),
+    },
+    {
+      send_id: await sendIdFor(runId, "b"),
+      contact_id: "b",
+      words: personHandWords("call", "", words),
+      source_id: await handStepIdFor("s2", "b"),
+    },
+  ]);
+  assert.match(run.items[0].words, /^Call Ana Reyes: /);
+  assert.match(run.items[1].words, /^Call them: /, "a person with no name of their own is 'them', never their number");
+  // Who it is no longer for leaves, as a message step's would: the team is never asked to call someone who booked.
+  assert.deepEqual(
+    f
+      .of("leave")
+      .map((l) => [l[1], l[2]])
+      .sort((x, y) => x[1].localeCompare(y[1])),
+    [
+      [["e-c"], "booked"],
+      [["e-d"], "gone"],
+    ],
+  );
+  // Nothing is sent: no message read, no batch assembled, nothing held for a channel.
+  assert.deepEqual([f.of("message").length, f.of("assemble").length], [0, 0]);
+  const [[, , , , recorded]] = f.of("record");
+  assert.deepEqual([recorded.hand, recorded.eligible, recorded.broadcast_id], ["call", 2, runId]);
+});
+
+test("a customer's note is handed over as its own words, with the person's name before them where there is one", async () => {
+  const words = "Send the aftercare sheet";
+  const due = ["a", "b"].map((id) => ({ enrollment_id: `e-${id}`, contact_id: id, sent_at: SENT }));
+  const f = fakes(due);
+  const r = await runPlaybook(f.ports, {
+    playbook: handStep("note", words),
+    ctx: context([
+      customer("a", { name: "Ana Reyes", givenName: "Ana Reyes" }),
+      // Known only by an address, as personName falls back to it: the note is its own words, never "ana@example.com: …".
+      customer("b", { name: "ana@example.com", givenName: null, waName: "" }),
+    ]),
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(r.outcome, "sent", JSON.stringify(r));
+  const [[, run]] = f.of("handRun");
+  assert.deepEqual(
+    run.items.map((i) => i.words),
+    [personHandWords("note", "Ana Reyes", words), personHandWords("note", "", words)],
+  );
+  assert.equal(run.items[1].words, words, "nameless, a note is its words alone");
+  assert.deepEqual([f.of("message").length, f.of("assemble").length], [0, 0]);
+  // Nobody due: an empty run, recorded as the call's or the note's, with nothing handed over.
+  const empty = fakes([]);
+  const none = await runPlaybook(empty.ports, {
+    playbook: handStep("note", words),
+    ctx: context([]),
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(none.outcome, "empty");
+  assert.equal(empty.of("handRun").length, 0);
+  assert.equal(empty.of("record")[0][4].hand, "note");
+});
+
+test("someone with no name of their own but their WhatsApp one is called by it, never by their number", async () => {
+  const words = "ask how the cut held up";
+  const due = ["a"].map((id) => ({ enrollment_id: `e-${id}`, contact_id: id, sent_at: SENT }));
+  const f = fakes(due);
+  const r = await runPlaybook(f.ports, {
+    playbook: handStep("call", words),
+    // As the row comes: no name given, their WhatsApp profile's name, and the row's own fallback their number.
+    ctx: context([customer("a", { name: "+1 (555) 010-0101", givenName: null, waName: "Dani" })]),
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(r.outcome, "sent", JSON.stringify(r));
+  const [[, run]] = f.of("handRun");
+  assert.deepEqual(
+    run.items.map((i) => i.words),
+    [personHandWords("call", "Dani", words)],
+  );
+  assert.match(run.items[0].words, /^Call Dani: /);
 });

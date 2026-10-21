@@ -75,6 +75,7 @@ export {
   peopleListAction,
   savedListAction,
   noNumberWords,
+  noYesWords,
   noChannelWords,
   cannotBeSentWords,
   saidYesWords,

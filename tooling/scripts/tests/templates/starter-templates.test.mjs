@@ -451,7 +451,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.equal(Object.hasOwn(refreshMap, "HOOKS"), false, "no window hook is called behind a write any more");
 });
 
-test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the message as the customer sees it", () => {
+test("the pages: titles not names, the starter set in Settings, the message as the customer sees it", () => {
   // The Templates page is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one.
   const s = ["page-parts", "message-row-parts", "message-row", "group", "words"]
     .map((f) =>
@@ -488,23 +488,15 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
   );
   assert.ok(s.includes("tplTitle(") && s.includes('"Made here"'), "a title, with where it was made under it");
-  // Broadcasts' send screen and its slot choices (moved from broadcasts.jsx), read as one.
-  const b = ["page/send-screen.tsx", "page/reach.ts"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/broadcasts/${f}`))
-    .join(" ");
-  assert.ok(b.includes('data-testid="bc-add-starters"'));
+  // Broadcasts' slot choices (moved from broadcasts.jsx), which the run's hook still works out. The send screen that drew
+  // them, with its starter set's button and its preview, went with decision 0065's step 7: New writes a first message.
+  const b = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts");
   assert.ok(
     b.includes("const c = choices[i] || BC_TEXT;") &&
       b.includes("const s = (sources[tplId] || BC_NONE)[i];") &&
       b.includes("return c.includes(s) ? s : c[0];"),
     "a starter's slots come filled in, each with what it may take",
   );
-  assert.ok(
-    b.includes("<MessagePreview") && b.includes('data-testid="bc-preview"'),
-    "the preview is the message as the customer sees it",
-  );
-  assert.ok(b.includes("<PreviewStepper"), "and it walks the real people the count is a length of, not an example");
-  assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
   // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.
   const t = ["composer-forms.tsx", "composer.tsx"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))

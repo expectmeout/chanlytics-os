@@ -664,8 +664,9 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 // The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
-// The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015).
-const { BcWhenPick, bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+// The schedule box and the receipt's words, and the ledger's numbers: TSX modules of Broadcasts (decision 0015). The box
+// is the day and time New's When sheet draws (decision 0065 step 7: the send screen that drew it after its "now or later" left).
+const { WhenDayTime, bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
 const { bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
 const { DatePicker } = await import(`${SRC}/surfaces/kit/datepicker/datepicker.tsx`);
@@ -703,7 +704,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     cells = [];
     frames.begin();
     // The box is a sentence of the kit's pickers now (a day and a time), opened here on 1 PM today in Tokyo.
-    const sentence = BcWhenPick({
+    const sentence = WhenDayTime({
       at: Date.parse("2026-12-15T04:00:00Z"),
       maxDays: 30,
       onChange: (v) => {
@@ -723,7 +724,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
     day.props.onValueChange("2026-12-01");
     assert.equal(picked, Date.parse("2026-12-15T04:00:00Z"), "and no day that has passed");
     // Today at an hour that has passed gives way to the first quarter hour still ahead (noon in Tokyo now).
-    const earlier = BcWhenPick({
+    const earlier = WhenDayTime({
       at: Date.parse("2026-12-15T02:00:00Z"),
       maxDays: 30,
       onChange: (v) => {

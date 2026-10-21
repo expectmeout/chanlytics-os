@@ -7,9 +7,11 @@
  * Hookless; the sheets each press opens are the draft view's.
  */
 import {
+  HAND_WORDS_MAX,
   NEW_STEPS_MAX,
   NEW_WORDS as W,
   SCHEDULE_WORDS as SW,
+  handTitleOf,
   scheduleChannels,
   type NewDraftDto,
   type NewStep,
@@ -51,8 +53,7 @@ function stepDaysOf(steps: readonly NewStep[]): number[] {
  */
 function stepTitleOf(step: NewStep, d: Pick<NewDraftDto, "audience" | "kind" | "name">, i: number): string {
   if (step.name.trim() && !(i === 0 && step.name.trim() === d.name.trim())) return step.name;
-  if (step.does === "call") return W.hand.callTitle;
-  if (step.does === "note") return W.hand.noteTitle;
+  if (step.does !== "message") return handTitleOf(step.does);
   // A one-off is one message, so it has no steps to count.
   if (d.audience === "leads")
     return d.kind === "once" ? W.draft.theEmail : i === 0 ? W.sheets.firstEmail : W.sheets.laterEmail;
@@ -156,7 +157,7 @@ function HandParts({ step, i, acts, asked }: { step: NewStep; i: number; acts: R
         rows={2}
         value={step.hand}
         onValueChange={(v) => acts.hand(i, v)}
-        maxLength={280}
+        maxLength={HAND_WORDS_MAX}
         data-testid={`sq-nw-hand-${i + 1}`}
       />
     </>

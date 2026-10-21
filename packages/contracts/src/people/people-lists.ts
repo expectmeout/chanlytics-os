@@ -127,6 +127,15 @@ export function noNumberWords(who: string, purpose: AskedPurpose): string {
 }
 
 /**
+ * Nobody on a list has said the yes a message needs: what New says of a one-off with no one to send it to (decision 0065
+ * step 7, the send screen's sentence moved here), beside the door to getting their yes. `who` is a list's name in quotes.
+ * Said only where nobody said it: where somebody did, what they lack is said (`noNumberWords`, `noChannelWords`).
+ */
+export function noYesWords(who: string, purpose: AskedPurpose): string {
+  return `Nobody on ${who} has said yes to ${purpose === "marketing" ? "offers" : "messages"} yet.`;
+}
+
+/**
  * Why nobody can be sent a thing when somebody said the yes it needs and the workspace has no channel to send it on
  * now (its WhatsApp number is not connected or not allowed to send, for an offer): reachFor's "no_channel". The reason
  * in `noChannelWords`, and the arithmetic under Today's reach row, in one spelling.
