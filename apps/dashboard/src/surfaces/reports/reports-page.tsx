@@ -52,7 +52,7 @@ import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
 import { useAdsLens, type AdsDraw } from "./lenses/ads-load";
 import { CampaignsLens, useCampaignsFold } from "./lenses/campaigns";
-import { useCampaignsScope, type CampaignsScopeHere } from "./lenses/campaigns-one";
+import { useCampaignsScope, type CampaignsScopeHere } from "./lenses/campaigns-scope";
 import { OverviewLens } from "./lenses/overview";
 import { PeopleLens, usePeopleFold } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";

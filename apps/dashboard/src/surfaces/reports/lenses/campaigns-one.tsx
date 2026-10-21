@@ -1,33 +1,29 @@
 /**
- * Reports › Campaigns, narrowed (Ruben, 21 Oct 2026: separate each campaign as Reports › Ads separates each ad): the picker
- * over the lens, every campaign or one sequence, written into the address (`reports/campaigns:<days>:seq:<id>`, contracts
- * campaignReportRoute), and one sequence's own cards over the days shown. Its numbers are counted from the batches its History
- * counts (contracts campaignOneOf over GET sequences/:id/history), read as far back as the days reach, so a day of History and
- * its report agree. A run's own report screen left for this: a day of History that went opens here, over that day; a send still
- * waiting for an OK is decided where it waits, and its row here opens that. The workspace's waits, what is stuck and the
- * reach-outs are every campaign's, so one campaign's cards leave them out.
+ * Reports › Campaigns, narrowed (Ruben, 21 Oct 2026: separate each campaign as Reports › Ads separates each ad): a chunk of its
+ * own, fetched only where the Campaigns lens is drawn (campaigns-scope.ts holds the scope and asks this for the rest). The
+ * picker over the lens, every campaign or one sequence; one sequence's own cards over the days shown; and the reads they draw
+ * from. Its numbers are counted from the batches its History counts (contracts campaignOneOf over GET sequences/:id/history),
+ * read as far back as the days reach, so a day of History and its report agree. A run's own report screen left for this: a day
+ * of History that went opens here, over that day; a send still waiting for an OK is decided where it waits, and its row here
+ * opens that. The workspace's waits, what is stuck and the reach-outs are every campaign's, so one campaign's cards leave them
+ * out.
  */
-import { useEffect, useReducer, useState } from "react";
 import {
   CAMPAIGN_CHOICE_GROUPS,
-  CAMPAIGN_SCOPE_ALL,
   CAMPAIGN_SCOPE_WORDS as W,
   campaignChoicesOf,
   campaignOneOf,
-  campaignReportRoute,
   campaignScopeKey,
   campaignScopeOfKey,
   historyCovers,
   runRoute,
   type CampaignOneVM,
   type CampaignScope,
-  type LensId,
-  type ReportsParts,
   type SequenceBatchDto,
   type SequenceRecordDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { reportWindowOf } from "@chanlytics/contracts/report-window";
+import { api } from "@/legacy-bridge/api";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard } from "../../kit/charts/card";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -35,15 +31,15 @@ import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Picker } from "../../kit/picker/picker";
-import { navigate, routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../legacy-verbs";
 import { cmChevron, cmGroups } from "../../campaigns/parts/picks";
-import { sequenceVerbs } from "../../campaigns/sequences/verbs";
 import { RptSection } from "../blocks";
 import { RPT_SENT } from "../series";
 import type { ReportsSurface } from "../surface";
+import type { CampaignsScopeHere, OneState } from "./campaigns-scope";
 
-/** One sequence's read: its record and its batches, as far back as they have been read; null before the first lands. */
-interface OneRead {
+/** One sequence's read: its record and its batches, as far back as they have been read. */
+export interface OneRead {
   key: string;
   rec: SequenceRecordDto | null;
   batches: SequenceBatchDto[];
@@ -52,121 +48,81 @@ interface OneRead {
   failed: "failed" | "gone" | null;
 }
 
-/** The sequences the picker lists: the list's own read, kept for the tab; none until it lands. */
-function useSequenceRows(on: boolean): readonly SequenceRowDto[] {
-  const held = sequenceVerbs.peekList();
-  const [rows, setRows] = useState<readonly SequenceRowDto[]>(held && held.ok ? held.data.sequences : []);
-  useEffect(() => {
-    if (!on) return undefined;
-    let live = true;
-    void sequenceVerbs.list().then((r) => {
-      if (live && r.ok) setRows(r.data.sequences);
-    });
-    return () => {
-      live = false;
-    };
-  }, [on]);
-  return rows;
+/** The workspace's sequences, as Sequences' list reads them (GET sequences); null where the read failed. */
+export async function readRows(): Promise<readonly SequenceRowDto[] | null> {
+  const r = await api()("GET sequences");
+  return r.ok ? r.data.sequences : null;
 }
 
 /**
  * One sequence's record and its batches over the days shown: the first page, then a page further back at a time, until the
- * pages reach past the first day (contracts historyCovers) or there are no more. A page further back that fails stops there,
- * and the days are said from what was read.
+ * pages reach past the first day (contracts historyCovers) or there are no more, each said as it lands. A page further back
+ * that fails stops there, and the days are said from what was read.
  */
-function useOneRead(id: string | null, from: string, again: number): OneRead | null {
-  const [read, setRead] = useState<OneRead | null>(null);
-  const key = `${id ?? ""}|${from}|${again}`;
-  useEffect(() => {
-    if (!id) return undefined;
-    let live = true;
-    void (async () => {
-      const [rec, first] = await Promise.all([sequenceVerbs.record(id), sequenceVerbs.history(id)]);
-      if (!live) return;
-      if (!rec.ok || !first.ok) {
-        const gone = !rec.ok && (rec.status === 404 || rec.status === 400);
-        setRead({ key, rec: null, batches: [], more: false, failed: gone ? "gone" : "failed" });
-        return;
-      }
-      const tz = rec.data.timezone;
-      let batches = first.data.batches;
-      let more = first.data.more;
-      setRead({ key, rec: rec.data, batches, more, failed: null });
-      while (live && !historyCovers({ batches, more }, from, tz)) {
-        const last = batches.at(-1);
-        if (!last) break;
-        const page = await sequenceVerbs.history(id, last.at);
-        if (!live) return;
-        if (!page.ok) {
-          more = false;
-          break;
-        }
-        batches = [...batches, ...page.data.batches];
-        more = page.data.more;
-        setRead({ key, rec: rec.data, batches, more, failed: null });
-      }
-      if (live) setRead({ key, rec: rec.data, batches, more, failed: null });
-    })();
-    return () => {
-      live = false;
-    };
-  }, [id, from, key]);
-  return read && read.key === key ? read : null;
+export async function readOne(
+  id: string,
+  from: string,
+  said: (read: Omit<OneRead, "key">) => void,
+  live: () => boolean,
+): Promise<void> {
+  const history = (before?: string) =>
+    api()("GET sequences/[id]/history", { params: { id }, ...(before ? { query: { before } } : {}) });
+  const [rec, first] = await Promise.all([api()("GET sequences/[id]", { params: { id } }), history()]);
+  if (!live()) return;
+  if (!rec.ok || !first.ok) {
+    const gone = !rec.ok && (rec.status === 404 || rec.status === 400);
+    said({ rec: null, batches: [], more: false, failed: gone ? "gone" : "failed" });
+    return;
+  }
+  let batches = first.data.batches;
+  let more = first.data.more;
+  said({ rec: rec.data, batches, more, failed: null });
+  while (live() && !historyCovers({ batches, more }, from, rec.data.timezone)) {
+    const last = batches.at(-1);
+    if (!last) break;
+    const page = await history(last.at);
+    if (!live()) return;
+    if (!page.ok) {
+      more = false;
+      break;
+    }
+    batches = [...batches, ...page.data.batches];
+    more = page.data.more;
+    said({ rec: rec.data, batches, more, failed: null });
+  }
+  if (live()) said({ rec: rec.data, batches, more, failed: null });
 }
 
-/** What one campaign's read draws: reading, failed (with its Retry), gone, or its fold. */
-type OneState =
-  | { state: "reading" }
-  | { state: "failed"; retry: () => void }
-  | { state: "gone" }
-  | { state: "read"; vm: CampaignOneVM; counting: boolean };
-
-/** What Reports asks of the Campaigns lens's scope: the picker's choices and its write, and one campaign's read where it names one. */
-export interface CampaignsScopeHere {
-  scope: CampaignScope;
-  choices: ReturnType<typeof campaignChoicesOf>;
-  onScope: (scope: CampaignScope) => void;
-  /** One campaign's read; null for every campaign. */
-  one: OneState | null;
-  /** The frame's sentence for one campaign, once read; null for every campaign, which says the lens's own. */
-  head: string | null;
-}
-
-/**
- * The scope the address says and what it draws: every campaign, or one sequence over the days shown. Narrowing replaces the
- * entry, as Ads' does: a scope is a setting of the page, and the days stay.
- */
-export function useCampaignsScope(lens: LensId, at: ReportsParts, R: ReportsSurface | null): CampaignsScopeHere {
-  const on = lens === "campaigns" && R !== null;
-  const scope: CampaignScope = at.scope && at.scope.kind === "sequence" ? at.scope : CAMPAIGN_SCOPE_ALL;
-  const id = on && scope.kind === "sequence" ? scope.id : null;
-  const rows = useSequenceRows(on);
-  const window = R ? reportWindowOf(R.range, R.vm.today) : null;
-  const [again, retry] = useReducer((n: number) => n + 1, 0);
-  const read = useOneRead(id, window?.from ?? "", again);
-  const onScope = (next: CampaignScope) =>
-    navigate(campaignReportRoute(at.days, next.kind === "all" ? CAMPAIGN_SCOPE_ALL : next), { replace: true });
-  const choices = campaignChoicesOf(rows, scope);
-  if (!id || !window) return { scope, choices, onScope, one: null, head: null };
-  if (!read) return { scope, choices, onScope, one: { state: "reading" }, head: null };
-  if (read.failed === "gone") return { scope, choices, onScope, one: { state: "gone" }, head: null };
-  if (read.failed || !read.rec) return { scope, choices, onScope, one: { state: "failed", retry }, head: null };
+/** What one campaign's read draws: reading until it lands, failed with its Retry, gone, or its fold over the days shown. */
+export function oneStateOf(
+  read: OneRead | null,
+  at: { id: string; from: string; to: string },
+  retry: () => void,
+): OneState {
+  if (!read) return { state: "reading" };
+  if (read.failed === "gone") return { state: "gone" };
+  if (read.failed || !read.rec) return { state: "failed", retry };
   const rec = read.rec;
   const vm = campaignOneOf({
-    id,
+    id: at.id,
     name: rec.sequence.name,
     timezone: rec.timezone,
     steps: rec.steps.length,
     batches: read.batches,
-    from: window.from,
-    to: window.to,
+    from: at.from,
+    to: at.to,
     nowMs: Date.now(),
   });
-  const counting = !historyCovers(read, window.from, rec.timezone);
-  return { scope, choices, onScope, one: { state: "read", vm, counting }, head: vm.head };
+  return { state: "read", vm, counting: !historyCovers(read, at.from, rec.timezone) };
 }
 
-/** Which campaign: every one, then each sequence that has sent, under how it starts. */
+/** The picker's choices: every campaign, then each sequence that has sent (contracts campaignChoicesOf). */
+export const choicesOf = (rows: readonly SequenceRowDto[], scope: CampaignScope) => campaignChoicesOf(rows, scope);
+
+/**
+ * Which campaign: every one, then each sequence that has sent, under how it starts. The list is read as the picker is
+ * reached for (a pointer over it, its focus, a press), so a lens that is only passed through reads nothing.
+ */
 function CampaignScopePicker({ here }: { here: CampaignsScopeHere }) {
   const groups = cmGroups(
     here.choices.map((c) => ({ id: c.key, label: c.label, group: c.group })),
@@ -176,18 +132,20 @@ function CampaignScopePicker({ here }: { here: CampaignsScopeHere }) {
   const face =
     here.choices.find((c) => c.key === value)?.label ?? (here.one?.state === "read" ? here.one.vm.name : W.all);
   return (
-    <Picker
-      label={W.label}
-      value={value}
-      onValueChange={(key) => {
-        const next = campaignScopeOfKey(key);
-        if (next) here.onScope(next);
-      }}
-      groups={groups}
-      chevron={cmChevron()}
-      face={face}
-      data-testid="rpt-cmp-scope"
-    />
+    <span className="rpt-cmp-pick" onPointerEnter={here.warm} onFocus={here.warm} onPointerDown={here.warm}>
+      <Picker
+        label={W.label}
+        value={value}
+        onValueChange={(key) => {
+          const next = campaignScopeOfKey(key);
+          if (next) here.onScope(next);
+        }}
+        groups={groups}
+        chevron={cmChevron()}
+        face={face}
+        data-testid="rpt-cmp-scope"
+      />
+    </span>
   );
 }
 
