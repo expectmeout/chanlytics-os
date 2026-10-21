@@ -30779,6 +30779,9 @@ declare const PIPELINE_WORDS: {
         readonly more: (what: string) => string;
         readonly message: "Message";
         readonly others: "Also with them";
+        /** The proposal's own box, raised: its link and the link's copy. */
+        readonly proposal: "The proposal";
+        readonly link: "Link";
         /** A consultation over with no proposal since, once its step says when and how it went. */
         readonly noProposal: "No proposal yet";
         readonly walk: {
@@ -31915,6 +31918,8 @@ interface PipelinePeekReachVM {
     id: "phone" | "email" | "replies";
     label: string;
     words: string;
+    /** A line under it in the warn ink: an address that stopped accepting mail. */
+    warn: string | null;
     copy: string | null;
 }
 interface PipelinePeekDetailVM {
@@ -31924,7 +31929,7 @@ interface PipelinePeekDetailVM {
  * How to reach them once they are read (0008, "the row carries the deal"): the number and the address, each with its
  * Copy, and what a reply may be now (repliesWords, the person page's own sentence). Calling them is the foot's (the
  * person page's Call, which rings and asks how it went), never a link here. Each fact once: an address that stopped
- * accepting mail says so on its own row, and Replies says it again for nobody.
+ * accepting mail says so under itself, in the warn ink, and Replies says it again for nobody.
  */
 declare function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM;
 /** An act of the sheet and the deal it moves (a pass proposed again names its deal; a new proposal names none). */
@@ -31934,6 +31939,8 @@ interface PipelineSheetAct {
 }
 /** The row's own deal, as the sheet says it once the person is read; before, its steps and its stand from the row alone. */
 interface PipelineSheetVM {
+    /** The head's line once the person is read, where it says more than the row could: a consultation's service. */
+    sub: string | null;
     /** The row's steps (its own track, in the one rule's tones), each with its day and word once the person is read. */
     steps: DealStepVM[];
     /** The row's deal as the person page's card says it: its line, its flags, its step; null without an open deal. */

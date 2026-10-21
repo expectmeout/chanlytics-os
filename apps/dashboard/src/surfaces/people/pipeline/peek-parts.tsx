@@ -1,14 +1,15 @@
 /**
  * The deal sheet's body (the canvas "Pipeline deal sheet", 20 Oct 2026), part by part, each a plain function of what the
- * sheet holds (`DealSheetCtx`): where the deal stands (its steps in the row's tones, then the card's flags and line, or a
- * row's stand where it has no card), the read still on its way or failed, the question a proposal waiting asks, its next
- * step (the ring is Done, the words Change), the facts the row carries, their last words (the person page's own), how to
- * reach them, their other deals and the door to their page. Every word is contracts'.
+ * sheet holds (`DealSheetCtx`): where the deal stands (its steps in the row's tones, then one line of the card's flags
+ * and facts, or a row's stand where it has no card), the read still on its way or failed, the question a proposal
+ * waiting asks, its next step (the ring is Done, the words Change), the facts the row carries, their last words (the
+ * person page's own), the proposal's link, how to reach them, their other deals and the door to their page. A record is
+ * a box of rows, a label, the thing and its one act, on the kit's inset ground. Every word is contracts'.
  *
  * What a press does is the house's own door: Done is step-done.tsx's, Change and Set the one step sheet, Yes the one
  * deal sheet, a copy the kit's, another deal the Pipeline's own row.
  */
-import { useId } from "react";
+import { Fragment, useId } from "react";
 import { DEAL_CARD_WORDS, NOTE_WORDS } from "@chanlytics/contracts";
 import type {
   DealCardStepVM,
@@ -22,11 +23,10 @@ import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { gate } from "../../legacy-verbs";
 import { completeStep } from "../../step-done";
-import { dealLine, dealSteps, pdRun } from "../deal/person-deal";
+import { dealSteps, pdRun } from "../deal/person-deal";
 import { openStepSheet, stepSheetOffered } from "../deal/deal-verbs";
 import { markStepDone } from "../people-detail";
 import { LastWords } from "../person/overview";
@@ -61,27 +61,39 @@ export interface DealSheetCtx {
 
 const S = P.words.sheet;
 
-/** Where the deal stands: its steps, then the card's flags and its line (the link copies), or the row's stand. */
+/**
+ * Where the deal stands: its steps, then one line: what wants a look (the card's flags, a state in its tone) and the
+ * plain facts beside it, whether it went, the day it stands until, the pace; or the row's stand where it has no card.
+ */
 function DealStand({ c }: { c: DealSheetCtx }) {
   const { card, stand, steps } = c.sheet;
+  const flags = card ? card.flags : stand ? [stand] : [];
+  const facts = card ? [...card.facts, ...(card.pace ? [card.pace] : [])] : [];
   return (
     <div className="pipe-deal-stand" data-testid="pipeline-peek-stand">
       {steps.length ? dealSteps(steps) : null}
-      {card ? (
-        <>
-          {card.flags.length ? (
-            <div className="cl-prof-deal-flags">
-              {card.flags.map((f) => (
-                <StatePill key={f.words} kind="tone" value={f.tone} label={f.words} testid="pipeline-peek-flag" />
-              ))}
-            </div>
-          ) : null}
-          {card.link || card.facts.length || card.pace ? dealLine(card, DEAL_CARD_WORDS, true) : null}
-        </>
-      ) : stand ? (
-        <div className="cl-prof-deal-flags">
-          <StatePill kind="tone" value={stand.tone} label={stand.words} testid="pipeline-peek-stand-word" />
-        </div>
+      {flags.length || facts.length ? (
+        <p className="pipe-deal-state">
+          {flags.map((f) => (
+            <StatePill
+              key={f.words}
+              kind="tone"
+              value={f.tone}
+              label={f.words}
+              testid={card ? "pipeline-peek-flag" : "pipeline-peek-stand-word"}
+            />
+          ))}
+          {facts.map((f, i) => (
+            <Fragment key={f}>
+              {i > 0 ? (
+                <span className="pipe-deal-sep" aria-hidden="true">
+                  ·
+                </span>
+              ) : null}
+              <span data-testid="pipeline-peek-fact">{f}</span>
+            </Fragment>
+          ))}
+        </p>
       ) : null}
     </div>
   );
@@ -177,47 +189,52 @@ function DealNextStep({ c }: { c: DealSheetCtx }) {
       <h3 className="cl-prof-section-title" id={titleId}>
         {S.next}
       </h3>
-      {s ? (
-        <div className="pipe-deal-step" data-due={s.day.due} data-testid="pipeline-peek-step">
-          {c.canRecord && done ? (
-            <Button
-              variant="quiet"
-              iconOnly
-              className="pipe-deal-done"
-              aria-label={S.done(s.words)}
-              title={S.done(s.words)}
-              onClick={done}
-              data-testid="pipeline-peek-step-done"
-            >
-              <span className="pipe-deal-ring" aria-hidden="true" />
-            </Button>
-          ) : (
-            <span className="pipe-deal-dot" aria-hidden="true" />
-          )}
-          {change ? (
-            <Button
-              variant="quiet"
-              className="pipe-deal-step-change"
-              aria-label={S.change(s.words)}
-              onClick={change}
-              data-testid="pipeline-peek-step-change"
-            >
-              {stepSay(s)}
-            </Button>
-          ) : (
-            stepSay(s)
-          )}
-        </div>
-      ) : (
-        <Button
-          variant="quiet"
-          className="pipe-deal-set"
-          onClick={() => openStepSheet({ personId: p.id, dealId: card.id })}
-          data-testid="pipeline-peek-step-set"
-        >
-          <Icon name="plus" size={14} /> {NOTE_WORDS.setNext}
-        </Button>
-      )}
+      <div className="pipe-deal-group">
+        {s ? (
+          <div className="pipe-deal-step" data-due={s.day.due} data-testid="pipeline-peek-step">
+            {c.canRecord && done ? (
+              <Button
+                variant="quiet"
+                iconOnly
+                className="pipe-deal-done"
+                aria-label={S.done(s.words)}
+                title={S.done(s.words)}
+                onClick={done}
+                data-testid="pipeline-peek-step-done"
+              >
+                <span className="pipe-deal-ring" aria-hidden="true" />
+              </Button>
+            ) : (
+              <span className="pipe-deal-dot" aria-hidden="true" />
+            )}
+            {change ? (
+              <Button
+                variant="quiet"
+                className="pipe-deal-step-change"
+                aria-label={S.change(s.words)}
+                onClick={change}
+                data-testid="pipeline-peek-step-change"
+              >
+                {stepSay(s)}
+              </Button>
+            ) : (
+              stepSay(s)
+            )}
+          </div>
+        ) : (
+          <Button
+            variant="quiet"
+            className="pipe-deal-set"
+            onClick={() => openStepSheet({ personId: p.id, dealId: card.id })}
+            data-testid="pipeline-peek-step-set"
+          >
+            <span className="pipe-deal-plus" aria-hidden="true">
+              <Icon name="plus" size={16} />
+            </span>
+            {NOTE_WORDS.setNext}
+          </Button>
+        )}
+      </div>
     </section>
   );
 }
@@ -244,6 +261,47 @@ function DealWords({ c }: { c: DealSheetCtx }) {
   return <LastWords c={{ p, canRecord: c.canRecord, flash: c.flash, load: c.onRetry }} />;
 }
 
+/** The proposal's own box: its link, opened where it lives, and the link's copy. */
+function DealProposal({ c }: { c: DealSheetCtx }) {
+  const titleId = useId();
+  const link = c.sheet.card ? c.sheet.card.link : null;
+  if (!link) return null;
+  const W = P.words.peek.reach;
+  return (
+    <section className="pipe-deal-sec" aria-labelledby={titleId} data-testid="pipeline-peek-proposal">
+      <h3 className="cl-prof-section-title" id={titleId}>
+        {S.proposal}
+      </h3>
+      <dl className="pipe-deal-group">
+        <div className="pipe-deal-row">
+          <dt>{S.link}</dt>
+          <dd>
+            <a
+              className="pipe-deal-link"
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={link.url}
+              aria-label={`${DEAL_CARD_WORDS.openLink}: ${link.host}`}
+              data-testid="person-deal-link"
+            >
+              {link.host}
+              <Icon name="external" size={12} />
+            </a>
+          </dd>
+          <CopyButton
+            text={link.url}
+            label={W.copy}
+            said={W.copied}
+            className="pipe-deal-copy"
+            testid="person-deal-copy-link"
+          />
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 /** How to reach them: the number and the address, each with its Copy, and what a reply may be now. */
 function DealReach({ c }: { c: DealSheetCtx }) {
   const titleId = useId();
@@ -255,11 +313,14 @@ function DealReach({ c }: { c: DealSheetCtx }) {
       <h3 className="cl-prof-section-title" id={titleId}>
         {W.title}
       </h3>
-      <dl className="pipe-deal-reach">
+      <dl className="pipe-deal-group">
         {rows.map((r) => (
-          <div key={r.id} className="pipe-deal-reach-row" data-testid={`pipeline-peek-reach-${r.id}`}>
+          <div key={r.id} className="pipe-deal-row" data-testid={`pipeline-peek-reach-${r.id}`}>
             <dt>{r.label}</dt>
-            <dd className={r.id === "phone" ? "tabular" : undefined}>{r.words}</dd>
+            <dd className={r.id === "phone" ? "tabular" : undefined}>
+              {r.words}
+              {r.warn ? <span className="pipe-deal-warn">{r.warn}</span> : null}
+            </dd>
             {r.copy ? (
               <CopyButton
                 text={r.copy}
@@ -286,37 +347,42 @@ function DealOthers({ c }: { c: DealSheetCtx }) {
       <h3 className="cl-prof-section-title" id={titleId}>
         {S.others}
       </h3>
-      {others.map((o) => (
-        <Button
-          key={o.dealId}
-          variant="quiet"
-          className="pipe-deal-other"
-          onClick={() => c.onOpenDeal(o.dealId)}
-          data-testid="pipeline-peek-other"
-        >
-          <span className="pipe-deal-other-say">
-            <span className="pipe-deal-other-title">{o.title}</span>
-            <span className="pipe-deal-other-words">{o.words}</span>
-          </span>
-          <Icon name="chevron" size={12} />
-        </Button>
-      ))}
+      <div className="pipe-deal-group">
+        {others.map((o) => (
+          <Button
+            key={o.dealId}
+            variant="quiet"
+            className="pipe-deal-other"
+            onClick={() => c.onOpenDeal(o.dealId)}
+            data-testid="pipeline-peek-other"
+          >
+            <span className="pipe-deal-other-say">
+              <span className="pipe-deal-other-title">{o.title}</span>
+              <span className="pipe-deal-other-words">{o.words}</span>
+            </span>
+            <Icon name="chevron" size={14} />
+          </Button>
+        ))}
+      </div>
     </section>
   );
 }
 
-/** The door to their page, at the sheet's end. */
+/** The door to their page, at the sheet's end: a thumb's height, in the quiet ink. */
 function DealPageDoor({ c }: { c: DealSheetCtx }) {
   return (
     <p className="pipe-deal-door">
-      <LinkButton onClick={c.onOpenPage} data-testid="pipeline-peek-page">
-        {P.words.peek.page} <Icon name="chevron" size={10} />
-      </LinkButton>
+      <Button variant="quiet" size="touch" onClick={c.onOpenPage} data-testid="pipeline-peek-page">
+        {P.words.peek.page} <Icon name="chevron" size={12} />
+      </Button>
     </p>
   );
 }
 
-/** The body, in its order: where it stands, the read, the question, the next step, the facts, their words, reach, others, their page. */
+/**
+ * The body, in its order: where it stands, the read, the question, the next step, the facts, their words, the proposal,
+ * reach, others, their page.
+ */
 export function dealBody(c: DealSheetCtx) {
   return (
     <>
@@ -326,6 +392,7 @@ export function dealBody(c: DealSheetCtx) {
       <DealNextStep c={c} />
       <DealFacts c={c} />
       <DealWords c={c} />
+      <DealProposal c={c} />
       <DealReach c={c} />
       <DealOthers c={c} />
       {c.person ? <DealPageDoor c={c} /> : null}

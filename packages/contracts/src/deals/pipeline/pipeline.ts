@@ -59,7 +59,9 @@ const followUpOfRow = (r: PipelineSource, d: DealVM): PipelineSource["followUp"]
   d === r.deal || (d.id !== null && d.id === r.deal?.id) ? r.followUp : null;
 
 /**
- * A proposal out's one chip, the first that holds: nothing back in a week, heard back since, its day, no link to it.
+ * A proposal out's one chip, the first that holds: past its day, nothing back in a week, heard back since, its day, no
+ * link to it. Past its day is first: it is the owner's whatever came back since, and the chip says who a deal waits on
+ * as its steps do (deal-waits.ts proposalTone), so a lapsed proposal is never said in the info tone.
  * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
  * The wait is said once: its number is the row's In stage, so the chip says "Nothing back" and no figure.
  */
@@ -73,13 +75,14 @@ function proposalChip(
   // Judged against this row's deal (0029): the person's other proposal has its own row and its own wait.
   const mine = { deal: d, askedMs: r.askedMs };
   const followUp = followUpOfRow(r, d);
+  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will"
       ? { words: followUpWords(followUp, tz, nowMs), tone: "info" }
       : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
   // Recorded with no link: an honest one (a PDF sent by email, a meeting), so a fact at rest, never a warning (0008);
   // the deal card's own words for it.
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };

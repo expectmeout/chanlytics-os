@@ -12892,6 +12892,9 @@ var PIPELINE_WORDS = {
     more: (what) => `More for ${what}`,
     message: "Message",
     others: "Also with them",
+    /** The proposal's own box, raised: its link and the link's copy. */
+    proposal: "The proposal",
+    link: "Link",
     /** A consultation over with no proposal since, once its step says when and how it went. */
     noProposal: "No proposal yet",
     walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
@@ -30634,6 +30637,7 @@ function daysWithAppointments(days, rows2, tz, people) {
 
 // src/people/person-reach.ts
 var EMAIL_STOPPED_TAG = "stopped accepting mail";
+var EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 var NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 function bookingLinkAction(reach, stop) {
@@ -36501,11 +36505,12 @@ var followUpOfRow = (r2, d) => d === r2.deal || d.id !== null && d.id === r2.dea
 function proposalChip(r2, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r2.askedMs };
   const followUp = followUpOfRow(r2, d);
+  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r2.askedMs !== null)
     return { words: `Heard back ${clockNear(r2.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
   return null;
 }
@@ -36737,12 +36742,18 @@ function pipelinePeekDetail(p) {
   const W = PIPELINE_WORDS.peek.reach;
   const reach = [];
   if (p.phone && !(p.consent && p.consent.dnc))
-    reach.push({ id: "phone", label: W.phone, words: p.phone, copy: p.phone });
+    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
   if (p.email)
-    reach.push({ id: "email", label: W.email, words: emailFactWords(p.email, p.emailSuppressed), copy: p.email });
+    reach.push({
+      id: "email",
+      label: W.email,
+      words: p.email,
+      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
+      copy: p.email
+    });
   const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
   if (replies && !(p.email && replies === EMAIL_CANT_REACH))
-    reach.push({ id: "replies", label: W.replies, words: replies, copy: null });
+    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
   return { reach };
 }
 function stepsOf2(track, card, held) {
@@ -36764,16 +36775,19 @@ function stepsOf2(track, card, held) {
     };
   });
 }
-function closedStand(d, chip) {
+function closedStand(d, chip, tz, nowMs) {
   if (!chip) return null;
-  return d.reason ? { words: `${d.word} \xB7 ${chip.words}`, tone: chip.tone } : chip;
+  const when = d.sinceMs === null ? d.word : `${d.word} ${clockDate(d.sinceMs, tz, nowMs)}`;
+  return { words: d.reason ? `${when} \xB7 ${d.reason.words}` : when, tone: chip.tone };
 }
 function pipelineSheetOf(row2, p, nowMs, tz) {
   const d = row2.deal;
   const held = p ? consultationStepOf(p, nowMs, tz) : null;
   const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
   const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
-  const base = { steps: stepsOf2(row2.track, card, held), others };
+  const consulted = !d && p ? consultedService(p) : null;
+  const sub = consulted ? `${DEAL_CARD_WORDS.consultation} \xB7 ${consulted}` : null;
+  const base = { sub, steps: stepsOf2(row2.track, card, held), others };
   if (card) {
     const asks = card.next?.id === "follow-up";
     const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
@@ -36791,9 +36805,9 @@ function pipelineSheetOf(row2, p, nowMs, tz) {
   }
   const ahead = !d && row2.track[0]?.key === "consultation" && row2.track[0].at === "current";
   const over = !d && held && row2.chip ? { words: PIPELINE_WORDS.sheet.noProposal, tone: row2.chip.tone } : null;
-  const stand = ahead ? null : over ?? (d && !dealIsOpen(d) ? closedStand(d, row2.chip) : row2.chip);
+  const stand = ahead ? null : over ?? (d && !dealIsOpen(d) ? closedStand(d, row2.chip, tz, nowMs) : row2.chip);
   if (!p || d && dealIsOpen(d)) return { ...base, card: null, stand, ask: null, lead: null, more: [] };
-  const lead = d && d.stage === "lost" ? { act: act("again"), dealId: d.id } : { act: act("propose", { service: consultedService(p) }), dealId: null };
+  const lead = d && d.stage === "lost" ? { act: act("again"), dealId: d.id } : { act: act("propose", { service: consulted }), dealId: null };
   return { ...base, card: null, stand, ask: null, lead, more: [] };
 }
 
