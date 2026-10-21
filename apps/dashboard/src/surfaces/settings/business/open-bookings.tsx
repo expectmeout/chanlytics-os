@@ -22,7 +22,6 @@ import {
   BOOKS_BY_HAND,
   BOOKS_WITH_CALENDAR,
   GMAIL_FORWARD_NOTE,
-  bookingEmailsHeldWords,
   bookingToolName,
   bookingToolOfLink,
   booksWithName,
@@ -41,6 +40,7 @@ import { gate, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtFold } from "./gestures/fold";
 import type { CalendarDraft } from "./fold-shapes";
+import { HeldBookingEmails } from "./held-emails";
 import { BtoFeedBox, BtoFeedRead, btoFeedHost } from "./open-calendar";
 import type { BusinessTabSave } from "./saver";
 import { calendarNow } from "./shell";
@@ -256,66 +256,6 @@ const BtoBookingsForwarding = ({ forwarding }: { forwarding: NonNullable<Notices
   </p>
 );
 
-/** The notices held for a person, each with why and its two presses; the route's refusal, if any, under the list. */
-const BtoBookingsHeld = ({ notices }: { notices: Notices }) => {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  if (notices.heldList.length === 0) return null;
-  // Read again, or dismiss: the route answers, and the write re-reads the Calendar by the refresh map (refresh-map.ts,
-  // AFTER), as every write does, so the list says what is left when the press comes back.
-  const act = async (id: string, verb: "read-again" | "dismiss") => {
-    setBusy(id);
-    setProblem(null);
-    try {
-      const r =
-        verb === "read-again"
-          ? await api()("POST calendar/notices/[id]/read-again", { params: { id }, body: {} })
-          : await api()("POST calendar/notices/[id]/dismiss", { params: { id }, body: {} });
-      if (!r.ok) setProblem(r.message);
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <div className="bt-bookings-held" data-testid="bto-bookings-held">
-      <p className="bt-fold-note">
-        <b>{bookingEmailsHeldWords(notices.held)}</b>
-      </p>
-      {notices.heldList.map((h) => {
-        const meta = [h.tool, h.receivedAgo].filter(Boolean).join(" · ");
-        return (
-          <div key={h.id} className="bt-bookings-notice" data-testid="bto-bookings-held-row">
-            {/* The sender waits under a pointer: who it came from matters only when the subject is not enough. */}
-            <span className="bt-fold-note" title={h.from ?? undefined}>
-              <b>{h.subject ?? "(no subject)"}</b>
-              {meta ? ` · ${meta}` : ""}
-            </span>
-            <span className="bt-fold-note">{h.reason}</span>
-            <span className="bt-bookings-acts">
-              <button
-                type="button"
-                className={BTO_QUIET}
-                disabled={busy === h.id}
-                onClick={() => act(h.id, "read-again")}
-              >
-                Read again
-              </button>
-              <button type="button" className={BTO_QUIET} disabled={busy === h.id} onClick={() => act(h.id, "dismiss")}>
-                Dismiss
-              </button>
-            </span>
-          </div>
-        );
-      })}
-      {problem ? (
-        <p className="bt-fold-note bt-fold-refused" role="alert" data-testid="bto-bookings-refused">
-          {problem}
-        </p>
-      ) : null}
-    </div>
-  );
-};
-
 /** A part of the fold: what it is, and in a few words what it is for. */
 const BtoPartHead = ({ title, why }: { title: string; why: string }) => (
   <p className="bt-fold-head">
@@ -388,9 +328,19 @@ const BtoEmailsPart = ({ tool, name }: { tool: string; name: string }) => {
       {/* The steps name "the address above": drawn once there is one. */}
       {n?.address ? <BtoBookingsSteps tool={tool} working={n.state === "working"} /> : null}
       {n?.forwarding ? <BtoBookingsForwarding forwarding={n.forwarding} /> : null}
-      {n ? <BtoBookingsHeld notices={n} /> : null}
+      {n ? <HeldBookingEmails notices={n} /> : null}
     </div>
   );
+};
+
+/**
+ * Booking emails held for a look where the answer is no tool of the list, or none yet: they arrived all the same, and the
+ * Calendar's card counts them and lists them in its own sheet (held-emails.tsx), so the fold lists them too, whatever it
+ * says above (Ruben, 20 Oct 2026: seven held, and the fold drew none under an empty picker).
+ */
+const BtoHeldAlone = () => {
+  const n = useNotices();
+  return n ? <HeldBookingEmails notices={n} /> : null;
 };
 
 /**
@@ -423,7 +373,7 @@ const BtoSourceBody = ({ f, stored, offers, bookingLink, name }: PartProps & { b
         </p>
       ) : null}
       {d.with ? <BtoLinkPart f={f} stored={stored} offers={offers} /> : null}
-      {isBookingTool(d.with) ? <BtoEmailsPart tool={d.with} name={name} /> : null}
+      {isBookingTool(d.with) ? <BtoEmailsPart tool={d.with} name={name} /> : <BtoHeldAlone />}
     </>
   );
 };

@@ -14,7 +14,7 @@ import { useHeadUnder } from "../kit/head/standing";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
-import { LiveCallBar, ShellStatusBar } from "./topbar/status-bars";
+import { LiveCallBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
 import { PhoneTabs } from "./phone-tabs";
 import { ShortcutsSheet } from "./shortcuts";
 import { focusPage } from "./shell-hooks";
@@ -291,6 +291,8 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
       {/* A call happening right now outranks a newer build or a stale surface: it stops being true by itself. */}
       <Live />
       <Status />
+      {/* Yesterday's visits to mark, in the call's place while no call is up (the call outranks it: components.css). */}
+      <UnmarkedVisitsBar page={s.page} />
       {glassHead({
         glass,
         pane: s.pane,

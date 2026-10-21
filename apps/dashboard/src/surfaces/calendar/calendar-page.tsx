@@ -22,7 +22,6 @@ import {
   calendarRunMarksOf,
   clockInZone,
   runMarkShown,
-  todayVisitsAsked,
   type CalendarBlockVM,
   type CalendarRunMark,
   type CalendarRunsDto,
@@ -36,7 +35,7 @@ import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";
 import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
 import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks";
-import { calendarAct, calendarHead, noticeSlot, rulesSheet } from "./board-parts";
+import { calendarAct, calendarHead, heldEmailsSheet, noticeSlot, rulesSheet } from "./board-parts";
 import { crPhone } from "./board-dom";
 import { RunSheet } from "./marks";
 import { wantRuns } from "./runs-surface";
@@ -188,7 +187,7 @@ function CalendarReal({
   initialVisitId = null,
   C,
 }: CalendarAddress & { C: CalendarSurface }) {
-  const st = useCalendarState(initialDay);
+  const st = useCalendarState(initialDay, C.vm.feed.notices.heldList.length);
   // The view the address shows, by the rule the frame's strip lights its tab by (address.ts).
   const view = calendarViewOf(param);
   useKeptView(calendarViewNamed(param));
@@ -233,6 +232,7 @@ function CalendarReal({
   const fit = (w: { dur: number }) => show.open && (!service || !service.offerMinutes || w.dur >= service.offerMinutes);
   const move = (n: number) => setAnchorKey(crStep(view, anchor, n, calendar));
   const refreshNow = refreshAct({ refreshing, setRefreshing, flash });
+  const openHeld = () => st.setHeldOpen(true);
   const open = openOf(vm, openId);
   const phone = onAPhone();
   keys.current = {
@@ -272,9 +272,6 @@ function CalendarReal({
     setShow: st.setShow,
     offers: runs.offers,
     many: appointmentWords(word).Many,
-    word,
-    // Yesterday's visits nobody has marked, by Today's own rule (contracts todayVisitsAsked), over the days the board holds.
-    toMark: todayVisitsAsked({ days: vm.days, now: vm.now ?? 0, feed: vm.feed, stats: vm.stats }, nowMs, word),
     phone,
   };
   // The bar on a desk, and Settings on a phone, stand on the frame's row of views (board-parts.tsx calendarAct).
@@ -300,7 +297,7 @@ function CalendarReal({
         data-own-drag
         {...touchSwipeStaying({ pages: swipePagesOf(move), when: crPhone })}
       >
-        {noticeSlot({ vm, service, refreshing, refreshNow, covered, failedSpan, spanKey, read, pending })}
+        {noticeSlot({ vm, service, refreshing, refreshNow, covered, failedSpan, spanKey, read, pending, openHeld })}
         {/* The view: the element the deck moves when a tab of the strip is pressed (kit/motion/view-deck.ts), as Reports'
             lens body is, arriving from its tab's side. */}
         <div
@@ -367,6 +364,7 @@ function overlays(p: {
         refreshing: st.refreshing,
         refreshNow: p.refreshNow,
       })}
+      {heldEmailsSheet({ open: st.heldOpen, onClose: () => st.setHeldOpen(false), notices: vm.feed.notices })}
       {st.toastNode}
     </>
   );
