@@ -6612,28 +6612,14 @@ declare function billingAccountDto(r: {
 declare function pausedVoiceFacts(businessName: string | null | undefined): string;
 
 /**
- * A mailbox a business connected to write from (decision 0056): its states, its day (the cold ramp, its owner's cap,
- * the customer domain's ceiling), its health, its domain's records, and every sentence Connections, the reach-out
- * sheet, the bell and the Activity log say about it. Pure; the edge (lib/email/mailbox/) reads the facts and writes
- * the row (00423 mailbox_connections), the dashboard tells the page (server/connections/mailbox-connections.ts).
+ * What a connected mailbox may send in a day, and why its own mail may hold it (decision 0056, 4 and 8): the cold ramp,
+ * its owner's cap and the customer domain's ceiling, and the words for a hold. Its own module, apart from everything
+ * Connections says (mailbox-connections.ts), since the reach-out sheet, the Activity log and the Reports lens read only
+ * these, and a page that says a hold carries none of the rest.
  */
-
-/** Whose mailbox it is (00423 mailbox_connections.provider). */
-declare const MAILBOX_PROVIDERS: readonly ["google", "microsoft"];
-type MailboxProvider = (typeof MAILBOX_PROVIDERS)[number];
-/** Where a connected mailbox stands (00423 mailbox_connections.state): its column comment says each. */
-declare const MAILBOX_CONNECTION_STATES: readonly ["connected", "reconnect", "paused", "held", "removed"];
-type MailboxConnectionState = (typeof MAILBOX_CONNECTION_STATES)[number];
 /** Why a mailbox's own mail held it (00423 mailbox_connections.held_why): only its owner's Resume lifts one. */
 declare const MAILBOX_HOLDS: readonly ["bounces", "complaint", "unsubscribes"];
 type MailboxHold = (typeof MAILBOX_HOLDS)[number];
-/** What DNS can say of one of a domain's records. A record DNS could not be read for is left out: never "missing". */
-type DnsRecordState = "found" | "missing";
-/** The records a mailbox's domain is read for (the mailboxes clock, daily). */
-declare const MAILBOX_DNS_RECORDS: readonly ["spf", "dkim", "dmarc", "mx"];
-type MailboxDnsRecord = (typeof MAILBOX_DNS_RECORDS)[number];
-/** The most live mailboxes a workspace writes from, and on one domain (00423's trigger says them too). */
-declare const MAILBOX_CONNECTIONS_MAX = 10;
 /** The highest cap an owner may set: the ramp's top (MAILBOX_RAMP), so a cap above it is one the ramp never reaches. */
 declare const MAILBOX_DAILY_CAP_MAX = 40;
 /** A mailbox on the domain the business's customers write to never sends more than this a day (decision 0056, 4). */
@@ -6659,6 +6645,32 @@ declare function mailboxDailyCap(m: {
     daily_cap: number;
     customer_domain: boolean;
 }): number;
+/** Why a mailbox was held, as a clause: the row, the Activity log and the owner's notice say it alike. */
+declare function mailboxHoldWords(why: string | null | undefined): string;
+/** What to do about a hold: on the row, in the Resume confirm, and in the owner's notice. */
+declare function mailboxHoldFixWords(why: string | null | undefined): string | null;
+
+/**
+ * A mailbox a business connected to write from (decision 0056): its states, its health, its domain's records, and every
+ * sentence Connections says about it. Its day (the cold ramp, its owner's cap, the customer domain's ceiling) and the
+ * words for a hold are mailbox-standing.ts's, which the reach-out sheet, the bell and the Activity log read without
+ * this. Pure; the edge (lib/email/mailbox/) reads the facts and writes the row (00423 mailbox_connections), the
+ * dashboard tells the page (server/connections/mailbox-connections.ts).
+ */
+
+/** Whose mailbox it is (00423 mailbox_connections.provider). */
+declare const MAILBOX_PROVIDERS: readonly ["google", "microsoft"];
+type MailboxProvider = (typeof MAILBOX_PROVIDERS)[number];
+/** Where a connected mailbox stands (00423 mailbox_connections.state): its column comment says each. */
+declare const MAILBOX_CONNECTION_STATES: readonly ["connected", "reconnect", "paused", "held", "removed"];
+type MailboxConnectionState = (typeof MAILBOX_CONNECTION_STATES)[number];
+/** What DNS can say of one of a domain's records. A record DNS could not be read for is left out: never "missing". */
+type DnsRecordState = "found" | "missing";
+/** The records a mailbox's domain is read for (the mailboxes clock, daily). */
+declare const MAILBOX_DNS_RECORDS: readonly ["spf", "dkim", "dmarc", "mx"];
+type MailboxDnsRecord = (typeof MAILBOX_DNS_RECORDS)[number];
+/** The most live mailboxes a workspace writes from, and on one domain (00423's trigger says them too). */
+declare const MAILBOX_CONNECTIONS_MAX = 10;
 /** Whether a mailbox sends now: connected, and not resting for its provider's own day. */
 declare function mailboxSendsNow(m: {
     state: string;
@@ -6752,10 +6764,6 @@ interface MailboxCounts {
  * rows, is what a mailbox answers for.
  */
 declare function mailboxHoldOf(c: MailboxCounts | null): MailboxHold | null;
-/** Why a mailbox was held, as a clause: the row, the Activity log and the owner's notice say it alike. */
-declare function mailboxHoldWords(why: string | null | undefined): string;
-/** What to do about a hold: on the row, in the Resume confirm, and in the owner's notice. */
-declare function mailboxHoldFixWords(why: string | null | undefined): string | null;
 declare const MAILBOX_PROVIDER_WORDS: Record<MailboxProvider, string>;
 interface MailboxWords {
     pill: string;

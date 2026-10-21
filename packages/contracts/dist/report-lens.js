@@ -1031,10 +1031,7 @@ function toPeopleReportVM(dto) {
   };
 }
 
-// src/email/mailbox-connections.ts
-var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-var MAILBOX_CONNECTIONS_MAX = 10;
-var MAILBOXES_PER_DOMAIN_MAX = 3;
+// src/email/mailbox-standing.ts
 var HOLD_WORDS = {
   bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
@@ -1043,30 +1040,6 @@ var HOLD_WORDS = {
 function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
-var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
-var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
-var MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
-  reconnected: "Connected again: its emails go on where they waited.",
-  declined: "Nothing was connected: the sign-in was cancelled.",
-  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
-  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
-  taken: "Another workspace writes from this mailbox. Remove it there first.",
-  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
-  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
-  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
-  not_available: "Connecting a mailbox isn't switched on here yet.",
-  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
-  not_owner: "Only an owner can connect a mailbox.",
-  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
-  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
-  not_workspace: "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
-  no_mailbox: "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
-  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
-  admin_consent: "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
-  admin_approved: "Approved for your organisation. Connect the mailbox now.",
-  failed: CONNECT_FAILED
-};
 
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [

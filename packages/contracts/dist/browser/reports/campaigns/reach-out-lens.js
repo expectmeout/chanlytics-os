@@ -1,4 +1,4 @@
-import { mailboxHoldWords } from "../../email/mailbox-connections.js";
+import { mailboxHoldWords } from "../../email/mailbox-standing.js";
 import { stepLabelOf } from "../../reach-out/reach-out-sheet.js";
 import { clockDate, clockNear } from "../../shared/clock.js";
 import { pct, sumOf } from "../../shared/numbers.js";

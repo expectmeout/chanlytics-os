@@ -13,21 +13,24 @@ export {
 } from "./mailbox";
 export type { MailboxDto, EmailSetupDto } from "./mailbox";
 export {
-  MAILBOX_PROVIDERS,
-  MAILBOX_CONNECTION_STATES,
   MAILBOX_HOLDS,
-  MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DAILY_CAP_MAX,
   CUSTOMER_DOMAIN_DAILY_MAX,
   MAILBOX_RAMP,
   mailboxRampShare,
   mailboxDailyCap,
+  mailboxHoldWords,
+  mailboxHoldFixWords,
+} from "./mailbox-standing";
+export type { MailboxHold } from "./mailbox-standing";
+export {
+  MAILBOX_PROVIDERS,
+  MAILBOX_CONNECTION_STATES,
+  MAILBOX_CONNECTIONS_MAX,
   mailboxSendsNow,
   reachOutWritesFrom,
   mailboxConnectionDtoOf,
   mailboxHoldOf,
-  mailboxHoldWords,
-  mailboxHoldFixWords,
   MAILBOX_PROVIDER_WORDS,
   mailboxHealthWords,
   mailboxWords,
@@ -46,7 +49,6 @@ export {
 export type {
   MailboxProvider,
   MailboxConnectionState,
-  MailboxHold,
   DnsRecordState,
   MailboxDnsRecord,
   MailboxConnectionDto,

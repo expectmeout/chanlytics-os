@@ -8,7 +8,7 @@ import {
   LEAD_NOT_A_FIT_WORDS,
   LEAD_STAGE_WORDS
 } from "../leads/lead-words.js";
-import { mailboxHoldWords } from "../email/mailbox-connections.js";
+import { mailboxHoldWords } from "../email/mailbox-standing.js";
 import { reviewHeldWords } from "../google/review-reply.js";
 import { standingChangeWords } from "../lines/number-standing.js";
 import { businessFieldLabel } from "../lines/business-record.js";
