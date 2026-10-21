@@ -19,6 +19,8 @@ import {
   TO_SEND_ROUTE,
   GET_YES_ROUTE,
   sequenceGroupOf,
+  sequenceTypeOf,
+  sortedSequences,
   retiredRouteOf,
   sequenceNotice,
   sequenceRoute,
@@ -79,6 +81,43 @@ const row = (over = {}) => ({
   last: null,
   in_it: 0,
   ...over,
+});
+
+test("a sequence's type is what the list's Type keeps: a one-off on a date, cold email to leads, else a sequence to your customers", () => {
+  assert.equal(sequenceTypeOf(row()), "customers");
+  assert.equal(sequenceTypeOf(row({ starts: "list" })), "customers");
+  assert.equal(sequenceTypeOf(row({ starts: "leads" })), "leads");
+  assert.equal(sequenceTypeOf(row({ starts: "date" })), "once");
+});
+
+test("the list's sorts: newest made first, last sent first (one never sent last), most people in it, and by name; a copy", () => {
+  const rows = [
+    row({ id: "a", name: "beta", created_at: "2026-09-01T00:00:00Z", in_it: 3, last: null }),
+    row({
+      id: "b",
+      name: "Alpha",
+      created_at: "2026-10-01T00:00:00Z",
+      in_it: 9,
+      last: { id: "x", at: "2026-10-02T00:00:00Z", sent: 1, replied: 0 },
+    }),
+    row({
+      id: "c",
+      name: "gamma",
+      created_at: "2026-09-15T00:00:00Z",
+      in_it: 0,
+      last: { id: "y", at: "2026-10-09T00:00:00Z", sent: 1, replied: 0 },
+    }),
+  ];
+  const ids = (sort) => sortedSequences(rows, sort).map((r) => r.id);
+  assert.deepEqual(ids("newest"), ["b", "c", "a"]);
+  assert.deepEqual(ids("sent"), ["c", "b", "a"]);
+  assert.deepEqual(ids("people"), ["b", "a", "c"]);
+  assert.deepEqual(ids("name"), ["b", "a", "c"], "by name, whatever the case");
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["a", "b", "c"],
+    "the rows given are left as they were",
+  );
 });
 
 test("the list groups what needs you first, then by how each starts, and a draft under Drafts whatever it holds", () => {

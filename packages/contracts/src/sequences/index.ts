@@ -76,6 +76,8 @@ export {
   peopleTabWord,
 } from "./sequence-words";
 export type { SequenceGroup, SequenceNotice, SequenceTwin, SequenceNext } from "./sequence-words";
+export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequence-list";
+export type { SequenceSort, SequenceType } from "./sequence-list";
 export {
   SEQUENCE_EDIT_WORDS,
   SEQUENCE_NEEDS_WORDS,
