@@ -151,8 +151,12 @@ const worthKnowing = (vm: ReportVM, campaigns: CampaignLensVM | null, ads: Repor
 const campaignsHeadOf = (scope: CampaignsScopeHere, all: CampaignLensVM | null): { head: string | null } | null =>
   scope.scope.kind === "sequence" ? (scope.head ? { head: scope.head } : null) : all;
 
-/** Whether the lens waits on a read of its own for the period shown (one that failed is the lens's own card, not a dimming). */
-const waitsOnItsRead = (lens: LensId, own: OwnReads): boolean =>
+/**
+ * Whether the lens waits on a read of its own for the period shown (one that failed is the lens's own card, not a dimming): one
+ * campaign's too, while it is read or its pages further back are still counted.
+ */
+const waitsOnItsRead = (lens: LensId, own: OwnReads, scope: CampaignsScopeHere): boolean =>
+  (lens === "campaigns" && (scope.one?.state === "reading" || (scope.one?.state === "read" && scope.one.counting))) ||
   (lens === "reviews" && own.reviews.state === "coming") ||
   (lens === "receptionist" && own.receptionist.state === "coming") ||
   (lens === "people" && own.people.state === "coming") ||
@@ -334,7 +338,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
   // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming);
   // and so on the Receptionist lens, whose cards of its own wait on its read.
-  const busy = (comingKey !== null && comingKey !== R.key) || waitsOnItsRead(lens, own);
+  const busy = (comingKey !== null && comingKey !== R.key) || waitsOnItsRead(lens, own, scope);
   return (
     // A period on its way dims by the one rule every page uses (components.css [data-loading] [data-dims]).
     <div
