@@ -2953,6 +2953,7 @@ Decision 0060: anything that sends on its own. How it starts (moment: a moment o
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `mode` | text | yes |  | How its batches are decided (0064): auto, each sent; veto, each held thirty minutes for a stop; ask, each waits for an OK. A batch of a step whose words are new waits for an OK whatever this says (sequence_steps.words_ok_at). Null for a one-off alone, which pressing Send decided. Never auto for a sequence to leads. |
+| `once` | jsonb | yes |  | A message sent once, kept as a draft (00465, decision 0065): who it goes to, when (null: now), the channels and its step as New shaped it ({who, at, channels, step}). Only on a draft that starts on a date; it sends nothing until it is sent, and goes as it is sent. |
 
 Foreign keys:
 

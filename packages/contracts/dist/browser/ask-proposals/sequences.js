@@ -251,12 +251,29 @@ export const sequenceDraftSpec = {
     if (!words) return refuseWith("Say what it should do.");
     const before = rec(pl.previous);
     const previous = typeof before.name === "string" && typeof before.steps === "number" ? { previous: { name: before.name, steps: before.steps } } : {};
-    const on = rec(pl.list);
-    const list = typeof on.token === "string" && typeof on.label === "string" ? { list: { token: on.token, label: on.label } } : {};
-    return { route: "POST sequences/draft", body: { words, ...previous, ...list } };
+    const kept = Object.fromEntries(
+      ["kind", "audience", "who"].filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]])
+    );
+    return { route: "POST sequences/draft", body: { words, ...kept, ...previous } };
   },
   receipt: () => "Drafted",
   open: () => `${SEQUENCES_ROUTE}/new`
+};
+export const sequenceNewSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    if (!Array.isArray(pl.steps) || pl.steps.length === 0) return refuseWith("Add a step.");
+    return { route: "POST sequences/new", body: pl };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(pl.name).trim();
+    const state = rec(data).state;
+    if (state === "draft") return `\u201C${name}\u201D is a draft: nothing goes yet`;
+    return pl.kind === "once" && pl.audience !== "leads" ? `\u201C${name}\u201D is on its way` : `\u201C${name}\u201D is on`;
+  },
+  made: (_p, data) => asText(rec(data).made) || null,
+  open: (_p, outcome) => outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE
 };
 const openLeads = ({ payload }) => {
   const id = idIn(payload, "sequence_id");

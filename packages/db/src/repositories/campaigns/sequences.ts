@@ -523,6 +523,53 @@ export async function saveSequenceStep(
   return answer<SequenceDoorAnswer>(data, error);
 }
 
+/**
+ * A message sent once, kept as a draft (00465 sequence_once_keep, decision 0065): a sequence that starts on a date, held
+ * as a draft with New's {who, at, channels, step}; `id` keeps one already kept. It sends nothing.
+ */
+export async function keepOnceDraft(
+  db: Db,
+  p: { tenantId: string; id: string | null; name: string; once: Json } & DoorDecision,
+): Promise<DoorResult<SequenceDoorAnswer>> {
+  const { data, error } = await db.rpc("sequence_once_keep", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_once: p.once,
+    ...(p.id ? { p_id: p.id } : {}),
+    ...decided(p),
+  });
+  return answer<SequenceDoorAnswer>(data, error);
+}
+
+/** One person a customer's call or note step hands over, as the door takes it (00465 sequence_hand_run). */
+export type PeopleHandItem = {
+  send_id: string;
+  contact_id: string;
+  words: string;
+  source_id: string;
+};
+
+/**
+ * A customer's call or note step's run for its day, written whole (00465 sequence_hand_run): the run, a handed send for
+ * each person, each person's dated step for the team, and their place moved past the step. How many were made, and how
+ * many the run had already.
+ */
+export async function peopleHandRun(
+  db: Db,
+  p: { tenantId: string; stepId: string; runId: string; day: string; items: PeopleHandItem[] },
+): Promise<{ made: number; already: number }> {
+  const { data, error } = await db.rpc("sequence_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items,
+  });
+  if (error) throw new Error(`cannot write the call or note step's run: ${error.message}`);
+  const r = (data ?? {}) as { made?: number; already?: number };
+  return { made: r.made ?? 0, already: r.already ?? 0 };
+}
+
 /** A customer's step after the first taken away, with the steps after it (00442 sequence_step_remove). */
 export async function removeSequenceStep(
   db: Db,

@@ -12733,6 +12733,10 @@ function waitingOnProposal(r2, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r2);
 }
+function proposalTone(r2, nowMs, pace, followUpWill) {
+  if (r2.deal?.validUntil?.lapsed) return "warn";
+  return !followUpWill && waitingOnProposal(r2, nowMs, pace) ? "warn" : "info";
+}
 function eachOpenProposal(rows2) {
   return rows2.flatMap((r2) => {
     const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
@@ -12851,32 +12855,51 @@ var PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
   peek: {
     close: "Close",
-    page: "Open their page",
-    thread: "Open the thread",
+    page: "Their page",
     reading: "Reading\u2026",
     what: "this person",
-    /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
     reach: {
+      title: "How to reach them",
       phone: "Phone",
       email: "Email",
       replies: "Replies",
-      call: "Call",
       copy: "Copy",
       copied: "Copied",
       /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
       copyPhone: "Copy the number",
       copyEmail: "Copy the address"
-    },
-    /** What happened with their deals, newest first. */
-    history: "History"
+    }
+  },
+  /**
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
+   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   */
+  sheet: {
+    raise: "Show all of the deal",
+    lower: "Back to the quick look",
+    next: "Next step",
+    done: (step2) => `Done: ${step2}`,
+    change: (step2) => `Change: ${step2}`,
+    ask: (first) => `Did ${first} say yes?`,
+    yes: "Yes, a client",
+    no: "They passed",
+    passAsk: (first) => `Why did ${first} pass?`,
+    more: (what) => `More for ${what}`,
+    message: "Message",
+    others: "Also with them",
+    /** A consultation over with no proposal since, once its step says when and how it went. */
+    noProposal: "No proposal yet",
+    walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
   /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
-  row: { menu: "More for" },
+  row: { menu: "More for", thread: "Open the thread", page: "Open their page" },
   /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
   pass: {
     button: "Mark as passed",
@@ -13079,6 +13102,7 @@ function newPlaceOf(word) {
   if (kind === "moment" && rest[0]) return { view: "new", moment: rest[0] };
   if (kind === "leads") return { view: "new", who: "leads" };
   if (kind !== "once") return { view: "new" };
+  if (rest[0] === "draft" && rest[1]) return { view: "new", who: "once", draft: rest[1] };
   const to = rest[0] === "to" ? rest.slice(1).join(":") : "";
   return to ? { view: "new", who: "once", to } : { view: "new", who: "once" };
 }
@@ -13090,6 +13114,7 @@ var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}
 var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
 var runRoute = (id, sequenceId) => `${SEQUENCES_ROUTE}/${sequenceId || id}/runs/${id}`;
 var sendOnceRoute = (audience) => audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
+var onceDraftRoute = (id) => `${SEQUENCES_ROUTE}/new:once:draft:${id}`;
 var newForLeadsRoute = () => `${SEQUENCES_ROUTE}/new:leads`;
 var messageRoute = (name) => `campaigns/messages/${encodeURIComponent(name)}`;
 function messageOfRoute(route) {
@@ -28401,12 +28426,29 @@ var sequenceDraftSpec = {
     if (!words3) return refuseWith("Say what it should do.");
     const before = rec(pl.previous);
     const previous = typeof before.name === "string" && typeof before.steps === "number" ? { previous: { name: before.name, steps: before.steps } } : {};
-    const on = rec(pl.list);
-    const list2 = typeof on.token === "string" && typeof on.label === "string" ? { list: { token: on.token, label: on.label } } : {};
-    return { route: "POST sequences/draft", body: { words: words3, ...previous, ...list2 } };
+    const kept = Object.fromEntries(
+      ["kind", "audience", "who"].filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]])
+    );
+    return { route: "POST sequences/draft", body: { words: words3, ...kept, ...previous } };
   },
   receipt: () => "Drafted",
   open: () => `${SEQUENCES_ROUTE}/new`
+};
+var sequenceNewSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    if (!Array.isArray(pl.steps) || pl.steps.length === 0) return refuseWith("Add a step.");
+    return { route: "POST sequences/new", body: pl };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(pl.name).trim();
+    const state = rec(data).state;
+    if (state === "draft") return `\u201C${name}\u201D is a draft: nothing goes yet`;
+    return pl.kind === "once" && pl.audience !== "leads" ? `\u201C${name}\u201D is on its way` : `\u201C${name}\u201D is on`;
+  },
+  made: (_p, data) => asText(rec(data).made) || null,
+  open: (_p, outcome) => outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE
 };
 var openLeads = ({ payload }) => {
   const id = idIn(payload, "sequence_id");
@@ -28585,6 +28627,7 @@ var PAGE_SPECS = {
   sequence_send_said: sequenceSendSaidSpec,
   sequence_draft: sequenceDraftSpec,
   sequence_make: sequenceMakeSpec,
+  sequence_new: sequenceNewSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
   sequence_end: sequenceEndSpec,
@@ -28658,6 +28701,7 @@ var WHY = {
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings \u203A Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
+  made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
@@ -28770,12 +28814,14 @@ var ASK_GUIDE_PAGES = [
       "sequence_discard",
       "sequence_end",
       "sequence_draft",
+      "sequence_new",
       "sequence_test",
       "reach_out_make",
       "reach_out_add"
     ],
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
+      { what: "Keep or start what New drafted", why: WHY.made },
       { what: "Send yourself a test of a step's message", why: WHY.test },
       { what: "End a sequence for good", why: WHY.end }
     ]
@@ -28803,6 +28849,7 @@ var ASK_GUIDE_PAGES = [
 var ASK_PAGE_ONLY_VERBS = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
+  sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
   sequence_end: WHY.end,
@@ -36001,30 +36048,42 @@ function consultedDealOf(p, open) {
   const title = p.consultationTitle ?? "";
   return title && open.find((d) => !!d.service && namesService(title, d.service)) || open[0] || null;
 }
+function consultationStepOf(p, nowMs, tz) {
+  const consulted = p.consultedMs ?? null;
+  if (consulted === null || consulted > nowMs) return null;
+  return {
+    day: clockDate(consulted, tz, nowMs),
+    word: visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null
+  };
+}
 function stepsOf(p, deal, tz, nowMs, consultation) {
   const day = (ms2) => ms2 === null ? null : clockDate(ms2, tz, nowMs);
   const won = deal.stage === "won";
-  const tone = stateTone("deal", deal.stage);
   const steps = [];
-  const consulted = p.consultedMs ?? null;
   if (consultation) {
-    const done = consulted !== null && consulted <= nowMs;
+    const held = consultationStepOf(p, nowMs, tz);
     steps.push({
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
-      day: done ? day(consulted) : null,
-      word: done ? visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null : null,
-      at: done ? "done" : "ahead",
+      day: held ? held.day : null,
+      word: held ? held.word : null,
+      at: held ? "done" : "ahead",
       tone: null
     });
   }
+  const waits = won ? null : proposalTone(
+    { deal, askedMs: p.askedMs ?? null },
+    nowMs,
+    p.dealPace ?? null,
+    followUpOn(p, deal)?.kind === "will"
+  );
   steps.push({
     key: "proposal",
     label: DEAL_STAGE_WORDS.proposed,
     word: null,
     day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
     at: won ? "done" : "current",
-    tone: won ? null : tone
+    tone: waits
   });
   steps.push({
     key: "client",
@@ -36032,7 +36091,7 @@ function stepsOf(p, deal, tz, nowMs, consultation) {
     word: null,
     day: won ? day(deal.sinceMs) : null,
     at: won ? "current" : "ahead",
-    tone: won ? tone : null
+    tone: won ? stateTone("deal", "won") : null
   });
   return steps;
 }
@@ -36438,9 +36497,10 @@ function dealSheetRefusal(message) {
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 var daysWords2 = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r2, tz) => r2.calendarTz || tz;
+var followUpOfRow = (r2, d) => d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
 function proposalChip(r2, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r2.askedMs };
-  const followUp = d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
+  const followUp = followUpOfRow(r2, d);
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r2.askedMs !== null)
@@ -36459,10 +36519,12 @@ var step = (key, at3, tone = "plain") => ({
   at: at3,
   tone
 });
-function dealTrack(r2, d, chip) {
+function dealTrack(r2, d, nowMs, pace) {
   if (d.stage !== "proposed" && d.stage !== "won") return [];
   const held = r2.consultedMs !== null && Number.isFinite(r2.consultedMs) ? [step("consultation", "done")] : [];
-  return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
+  if (d.stage === "won") return [...held, step("proposal", "done"), step("client", "current", "ok")];
+  const tone = proposalTone({ deal: d, askedMs: r2.askedMs }, nowMs, pace, followUpOfRow(r2, d)?.kind === "will");
+  return [...held, step("proposal", "current", tone), step("client", "ahead")];
 }
 function nextOf(p, tz, nowMs) {
   const s = p.nextStep;
@@ -36476,7 +36538,7 @@ function stepOn(x, n) {
   const ownRow = !!n.dealId && openOf(x.person).some((d) => d.id === n.dealId);
   return (ownRow ? x.deal?.id === n.dealId : x.id === x.person.id) ? n : null;
 }
-function dealRow(x, chip, nowMs, group) {
+function dealRow(x, chip, nowMs, group, pace) {
   const { r: r2, d, id } = x;
   return {
     id,
@@ -36489,7 +36551,7 @@ function dealRow(x, chip, nowMs, group) {
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords2(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
-    track: dealTrack(r2, d, chip)
+    track: dealTrack(r2, d, nowMs, pace)
   };
 }
 function heldRow(r2, endMs, tz, nowMs) {
@@ -36603,19 +36665,19 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
+        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients")),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
       worth(shownClients)
     ),
     group(
       "closed",
       inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
-        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed")
+        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed", pace)
       ),
       null
     )
@@ -36653,13 +36715,12 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
 function pipelinePeekOf(row2, group, deals = null) {
   const p = row2.person;
   const facts = [];
-  if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
-  if (p.quote) facts.push({ id: "quote", words: `\u201C${p.quote}\u201D` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up \xB7 ${p.nextVisit}` });
   const n = row2.next;
   const known = deals ?? (p.deal ? [p.deal] : []);
   const onCard = !!n?.dealId && known.some((d) => d.id === n.dealId && dealIsOpen(d));
   if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
+  const deal = [row2.service, row2.value].filter(Boolean).join(" \xB7 ");
   return {
     id: row2.id,
     dealId: row2.deal?.id ?? null,
@@ -36667,30 +36728,73 @@ function pipelinePeekOf(row2, group, deals = null) {
     initials: p.initials,
     numeric: isIdentifierName(row2.name),
     stopped: p.stopped,
-    sub: row2.service ? `${GROUP_WORDS[group]} \xB7 ${row2.service}` : GROUP_WORDS[group],
-    facts,
-    thread: p.threadId
+    sub: deal || (group === "consultations" ? DEAL_CARD_WORDS.consultation : GROUP_WORDS[group]),
+    group,
+    facts
   };
 }
 function pipelinePeekDetail(p) {
   const W = PIPELINE_WORDS.peek.reach;
   const reach = [];
-  if (p.phone && !(p.consent && p.consent.dnc)) {
-    const dial = p.phone.replace(/[^\d+]/g, "");
-    reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
-  }
+  if (p.phone && !(p.consent && p.consent.dnc))
+    reach.push({ id: "phone", label: W.phone, words: p.phone, copy: p.phone });
   if (p.email)
-    reach.push({
-      id: "email",
-      label: W.email,
-      words: emailFactWords(p.email, p.emailSuppressed),
-      call: null,
-      copy: p.email
-    });
+    reach.push({ id: "email", label: W.email, words: emailFactWords(p.email, p.emailSuppressed), copy: p.email });
   const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
-  if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
-  const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
-  return { reach, history };
+  if (replies && !(p.email && replies === EMAIL_CANT_REACH))
+    reach.push({ id: "replies", label: W.replies, words: replies, copy: null });
+  return { reach };
+}
+function stepsOf2(track, card, held) {
+  const label = {
+    consultation: DEAL_CARD_WORDS.consultation,
+    proposal: DEAL_STAGE_WORDS.proposed,
+    client: DEAL_STAGE_WORDS.won
+  };
+  return track.map((s) => {
+    const said = card ? card.steps.find((c) => c.key === s.key) : null;
+    const own = !said && s.key === "consultation" && s.at === "done" ? held : null;
+    return {
+      key: s.key,
+      label: label[s.key],
+      day: said ? said.day : own ? own.day : null,
+      word: said ? said.word : own ? own.word : null,
+      at: s.at,
+      tone: s.tone === "plain" ? null : s.tone
+    };
+  });
+}
+function closedStand(d, chip) {
+  if (!chip) return null;
+  return d.reason ? { words: `${d.word} \xB7 ${chip.words}`, tone: chip.tone } : chip;
+}
+function pipelineSheetOf(row2, p, nowMs, tz) {
+  const d = row2.deal;
+  const held = p ? consultationStepOf(p, nowMs, tz) : null;
+  const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
+  const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
+  const base = { steps: stepsOf2(row2.track, card, held), others };
+  if (card) {
+    const asks = card.next?.id === "follow-up";
+    const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
+    return {
+      ...base,
+      card,
+      stand: null,
+      ask: asks ? { question: PIPELINE_WORDS.sheet.ask(shortName(row2.name)), yes: act("won"), no: act("lost") } : null,
+      lead: card.next ? { act: card.next, dealId: card.id } : null,
+      more: [
+        ...card.more.filter((m) => !asks || m.id !== "won" && m.id !== "lost").map((m) => ({ act: m, dealId: card.id })),
+        another
+      ]
+    };
+  }
+  const ahead = !d && row2.track[0]?.key === "consultation" && row2.track[0].at === "current";
+  const over = !d && held && row2.chip ? { words: PIPELINE_WORDS.sheet.noProposal, tone: row2.chip.tone } : null;
+  const stand = ahead ? null : over ?? (d && !dealIsOpen(d) ? closedStand(d, row2.chip) : row2.chip);
+  if (!p || d && dealIsOpen(d)) return { ...base, card: null, stand, ask: null, lead: null, more: [] };
+  const lead = d && d.stage === "lost" ? { act: act("again"), dealId: d.id } : { act: act("propose", { service: consultedService(p) }), dealId: null };
+  return { ...base, card: null, stand, ask: null, lead, more: [] };
 }
 
 // src/deals/pipeline/pipeline-board.ts
@@ -38796,19 +38900,6 @@ function reachOutCameWords(p) {
   if (c.booked) parts2.push(`${c.booked} booked`);
   if (c.won) parts2.push(`${c.won} won`);
   return parts2.join(" \xB7 ");
-}
-var REACH_OUT_SOURCE_WORDS = {
-  addTitle: "Leads you add",
-  addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once",
-  failed: "the searches and lists a sequence could start from",
-  none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
-  find: "Find businesses"
-};
-function reachOutSourceOf(s) {
-  const include = s.ready === 0;
-  const reach = include ? `${s.with_unconfirmed} unconfirmed` : `${s.ready} ready`;
-  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search on Leads";
-  return { title: `${s.name} \xB7 ${reach}`, sub: what, include };
 }
 
 // src/leads/lead-card.ts
@@ -48877,75 +48968,9 @@ function leadPreviewEmailOf(p) {
 }
 
 // src/sequences/sequence-draft.ts
-var SEQUENCE_DRAFT_WORDS_MAX = 500;
 var SEQUENCE_DRAFT_THEN_MAX = 3;
 var SEQUENCE_WAIT_DAYS = { min: 1, max: 90 };
-var SEQUENCE_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "moment", "hour", "first", "then", "cannot"],
-  properties: {
-    name: { type: "string" },
-    moment: { type: "string" },
-    hour: { type: "integer" },
-    first: {
-      type: "object",
-      additionalProperties: false,
-      required: ["message", "texts"],
-      properties: { message: { type: "string" }, texts: { type: "array", items: { type: "string" } } }
-    },
-    then: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["name", "after_days", "only_if", "message", "texts"],
-        properties: {
-          name: { type: "string" },
-          after_days: { type: "integer" },
-          only_if: { type: "array", items: { type: "string", enum: [...FOLLOW_UP_CONDITIONS] } },
-          message: { type: "string" },
-          texts: { type: "array", items: { type: "string" } }
-        }
-      }
-    },
-    cannot: { type: "string" }
-  }
-};
 var isListToken = (token2) => /^seg:[a-z0-9_]{1,40}$/.test(token2) || /^list:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token2);
-var SEQUENCE_NEW_WORDS = {
-  /** The one New (the Campaigns wiring review's rule F): every sequence, a message sent once among them, starts here. */
-  title: "New",
-  /** The head's act, its noun said where the row has room for it (kit/head/act-words.tsx: "New" where it has not). */
-  act: "New sequence",
-  ask: "What should it do?",
-  example: "After someone comes in, thank them the next day, and if they haven\u2019t booked again in 4 weeks, invite them back",
-  draft: "Draft it",
-  again: "Say it again",
-  drafting: "Ask is drafting it\u2026",
-  head: "Ask filled it in \xB7 nothing goes until you start it",
-  byAsk: "by Ask",
-  keep: "Keep as a draft",
-  start: "Start",
-  discard: "Discard",
-  startsWhen: "It starts with the next run of its moment",
-  first: "The first batch waits for your OK, as every batch of its kind does",
-  /** Who it is for and when it goes: the one question New asks first. */
-  starts: "Who and when",
-  startsOn: { moment: "A moment", list: "A list", date: "Once", leads: "Leads" },
-  startsHint: {
-    moment: "Before they come in, after they leave, or when they go quiet: Ask drafts the steps from your line",
-    list: "Everyone on a list, and whoever joins it later",
-    date: "One message to the people you pick, now or on a day you pick",
-    leads: "Emails to businesses a search found, written for each one"
-  },
-  whichList: "Which list",
-  noLists: "No list to start on yet. Make one in People.",
-  failed: "Ask couldn\u2019t draft it just now. Try again in a moment.",
-  /** A door's moment that a sequence already starts on: by its name, with the door to it. */
-  already: (name) => `\u201C${name}\u201D already starts on this moment`,
-  open: "Open it"
-};
 function newSequenceLine(trigger, word) {
   const a = appointmentWords(word);
   switch (trigger) {
@@ -48969,25 +48994,488 @@ function newSequenceLine(trigger, word) {
   }
 }
 
-// src/sequences/sequence-draft-schema.ts
+// src/sequences/new-draft.ts
+var NEW_KINDS = ["sequence", "once"];
+var NEW_AUDIENCES = ["people", "leads"];
+var NEW_STEP_DOES = ["message", "call", "note"];
+var NEW_STEPS_MAX = { people: 6, leads: REACH_OUT_STEPS_MAX };
+var NEW_WAIT_DAYS = {
+  people: SEQUENCE_WAIT_DAYS,
+  leads: { min: REACH_OUT_AFTER_DAYS.min, max: REACH_OUT_AFTER_DAYS.max }
+};
+var newWaitOf = (audience, days) => Math.min(NEW_WAIT_DAYS[audience].max, Math.max(NEW_WAIT_DAYS[audience].min, Math.round(days)));
+var newConditionsOf = (audience) => audience === "people" ? FOLLOW_UP_CONDITIONS : [];
+var NEW_ONCE_AHEAD_DAYS = 30;
+var NEW_WORDS_MAX = 500;
+function whoSuits(who, audience, kind) {
+  if (audience === "leads") return who.kind === "search" || who.kind === "leads";
+  if (kind === "sequence") return who.kind === "moment" || who.kind === "list";
+  return who.kind === "everyone" || who.kind === "list";
+}
+function handStepsHold(steps) {
+  return steps.every((s, i) => s.does === "message" || i > 0 && i === steps.length - 1);
+}
+var NEW_VALUES = [
+  { say: "first name", kind: "first_name", label: "First name", example: "Dani" },
+  { say: "business name", kind: "business_name", label: "Business name", example: "Maya Studio" },
+  { say: "booking link", kind: "booking_link", label: "Booking link", example: "https://example.com/book" },
+  { say: "review link", kind: "review_link", label: "Review link", example: "https://example.com/review" },
+  { say: "booked time", kind: "visit_when", label: "Booked time", example: "tomorrow at 2:30 PM" },
+  { say: "booked service", kind: "visit_service", label: "Booked service", example: "color" },
+  { say: "proposal link", kind: "proposal_link", label: "Proposal link", example: "https://example.com/proposal" }
+];
+function numberedValues(versions) {
+  const order = [];
+  for (const text of versions) {
+    if (/\{(?!\{)|(?<!\})\}/.test(text.replace(/\{\{[^{}]*\}\}/g, ""))) return null;
+    for (const m of text.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
+      const say2 = (m[1] ?? "").toLowerCase();
+      if (!NEW_VALUES.some((v) => v.say === say2)) return null;
+      if (!order.includes(say2)) order.push(say2);
+    }
+  }
+  const slots = order.map((say2, i) => {
+    const v = NEW_VALUES.find((x) => x.say === say2);
+    if (!v) throw new Error(`unknown value ${say2}`);
+    return { position: i + 1, label: v.label, example: v.example, kind: v.kind };
+  });
+  const rewrite = (text) => text.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, say2) => `{{${order.indexOf(say2.toLowerCase()) + 1}}}`);
+  return { rewrite, slots };
+}
+var NEW_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "audience", "who", "name", "hour", "when", "steps", "cannot"],
+  properties: {
+    kind: { type: "string", enum: [...NEW_KINDS] },
+    audience: { type: "string", enum: [...NEW_AUDIENCES] },
+    who: { type: "string" },
+    name: { type: "string" },
+    hour: { type: "integer" },
+    when: { type: "string" },
+    steps: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["does", "after_days", "only_if", "message", "texts", "write", "subject", "body", "words"],
+        properties: {
+          does: { type: "string", enum: [...NEW_STEP_DOES] },
+          after_days: { type: "integer" },
+          only_if: { type: "array", items: { type: "string", enum: [...FOLLOW_UP_CONDITIONS] } },
+          message: { type: "string" },
+          texts: { type: "array", items: { type: "string" } },
+          write: {
+            type: "object",
+            additionalProperties: false,
+            required: ["title", "offer", "whatsapp", "email_subject", "email_body", "text"],
+            properties: {
+              title: { type: "string" },
+              offer: { type: "boolean" },
+              whatsapp: { type: "string" },
+              email_subject: { type: "string" },
+              email_body: { type: "string" },
+              text: { type: "string" }
+            }
+          },
+          subject: { type: "string" },
+          body: { type: "string" },
+          words: { type: "string" }
+        }
+      }
+    },
+    cannot: { type: "string" }
+  }
+};
+
+// src/sequences/new-draft-schema.ts
 import { z as z25 } from "zod";
-var TEXTS = z25.array(z25.string().max(300)).max(10);
-var SequenceDraftAnswerSchema = z25.object({
-  name: z25.string().trim().max(80),
-  moment: z25.string().trim().max(40),
+var LONG_WORDS = z25.string().max(2e3);
+var NewDraftAnswerSchema = z25.object({
+  kind: z25.enum(NEW_KINDS),
+  audience: z25.enum(NEW_AUDIENCES),
+  who: z25.string().trim().max(60),
+  name: z25.string().trim().max(120),
   hour: z25.number().int(),
-  first: z25.object({ message: z25.string().trim().max(10), texts: TEXTS }),
-  then: z25.array(
+  when: z25.string().trim().max(40),
+  steps: z25.array(
     z25.object({
-      name: z25.string().trim().max(80),
+      does: z25.enum(NEW_STEP_DOES),
       after_days: z25.number().int(),
       only_if: z25.array(z25.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
       message: z25.string().trim().max(10),
-      texts: TEXTS
+      texts: z25.array(z25.string().max(300)).max(10),
+      write: z25.object({
+        title: z25.string().trim().max(80),
+        offer: z25.boolean(),
+        whatsapp: LONG_WORDS,
+        email_subject: z25.string().max(200),
+        email_body: LONG_WORDS,
+        text: z25.string().max(600)
+      }),
+      subject: z25.string().max(200),
+      body: LONG_WORDS,
+      words: z25.string().max(600)
     })
-  ).max(SEQUENCE_DRAFT_THEN_MAX + 2),
+  ).max(8),
   cannot: z25.string().trim().max(300)
 });
+
+// src/sequences/new-words.ts
+var NEW_WORDS = {
+  title: "New",
+  /** The head's act on Sequences, its noun said where the row has room for it. */
+  act: "New sequence",
+  say: {
+    label: "What should it do?",
+    placeholder: "What should it do? Say it in a line, as you\u2019d tell a person.",
+    hint: "Ask drafts it",
+    writes: "Ask writes the messages too",
+    draft: "Draft it",
+    drafting: "Ask is drafting it",
+    again: "Drafting it again",
+    stop: "Stop",
+    reading: "Reading your messages, your lists, and who can hear it",
+    asked: "Ask\u2019s draft",
+    sayAgain: "Say it again",
+    undo: "Undo",
+    againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" }
+  },
+  starts: {
+    cap: "Or start from what\u2019s happening",
+    setup: "Ready once one thing is set up",
+    running: "Runs already:",
+    andMore: (n) => `and ${n} more`,
+    see: "See them",
+    noMessages: "No messages yet. Ask writes the first with your sequence.",
+    kind: { sequence: "Sequence", once: "Once" },
+    thank: "Thank people after they come in",
+    thankSaid: (n) => `${n} this week, none thanked yet`,
+    winBack: (n) => `Win back ${n} who\u2019ve gone quiet`,
+    welcome: (n) => `Welcome ${n} new ${n === 1 ? "person" : "people"}`,
+    offer: "Send one offer to everyone",
+    offerSaid: (n) => `${n} can hear an offer`,
+    leads: (n) => `Write to ${n} ready ${n === 1 ? "lead" : "leads"}`,
+    leadsLine: (search) => `Email the ${search} we found, then follow up a week later`,
+    remind: "Remind people the day before",
+    needsCalendar: "Needs your calendar",
+    toEveryone: "Send one message to everyone",
+    noOneYet: "No one has said yes to messages yet",
+    nearYou: "Write to businesses near you",
+    findFirst: "Find some on Leads first",
+    connect: "Connect",
+    import: "Import",
+    find: "Find",
+    thankToo: "Thank people after they come in",
+    needsCalendarToo: "Needs your calendar too",
+    happening: "What\u2019s happening"
+  },
+  draft: {
+    sub: "Draft \xB7 nothing goes until you start it",
+    subOnce: "Draft \xB7 nothing goes until you send it",
+    subHand: "By hand \xB7 nothing goes until you start it",
+    discard: "Discard",
+    who: "Who and when",
+    audience: { people: "To people", leads: "To leads" },
+    kind: { sequence: "A sequence", once: "Once" },
+    toEveryone: "to everyone",
+    everyoneOffers: "everyone who said yes to offers",
+    everyoneNews: "everyone who said yes to messages",
+    toEveryoneWho: "to everyone who",
+    toBusinesses: "to the businesses in",
+    to: "to",
+    at: "at",
+    by: "by",
+    from: "from",
+    now: "now",
+    pickWhen: "pick when",
+    pickSearch: "pick a search",
+    pickWho: "pick who",
+    pickHow: "pick how",
+    message: "Message",
+    theMessage: "The message",
+    theEmail: "The email",
+    editWords: "Edit the words",
+    byAsk: "By Ask",
+    newByAsk: "New \xB7 by Ask",
+    fromLine: "From your line",
+    youDo: "You do",
+    addStep: "Add a step",
+    stopsReply: "stops if they reply",
+    checked: "Ask checked",
+    runs: "How it runs",
+    yourOk: "Your OK",
+    keep: "Keep as a draft",
+    start: "Start",
+    sendNow: "Send now",
+    send: "Send",
+    schedule: "Schedule",
+    joinsAsFound: "New leads the search finds join it",
+    pickWhenAndMessage: "Pick when, and a message",
+    thenItCanStart: "Then it can start",
+    sayIt: "Say it",
+    orSay: "Or say it in a line, and Ask fills it in.",
+    lineFirst: "The people on it now get step 1 at its first run; anyone who joins later, the day they join",
+    subSchedule: "Draft \xB7 nothing goes until you schedule it",
+    toWrite: "Its words are still to write",
+    pickMessage: "Pick a message for it",
+    pickOne: "Pick one",
+    writeOne: "Write one",
+    youAdd: "What you\u2019ll add",
+    takeAway: "Take away",
+    people: (n) => `${n} ${n === 1 ? "person" : "people"}`,
+    businesses: (n) => `${n} ${n === 1 ? "business" : "businesses"}`,
+    goesSoon: "Goes 10 minutes after you send",
+    goesAt: (when) => `${when} \xB7 Stop any time before`,
+    leadsWait: "They wait for your OK, then go in their hours",
+    joins: (list2) => `joins ${list2}`,
+    firstBatch: (when) => `Its first batch is ${when}`,
+    todayAt: (time) => `today at ${time}`,
+    tomorrowAt: (time) => `tomorrow at ${time}`,
+    whatToDo: "What to do",
+    yourMailbox: "your mailbox",
+    later: (n) => `${n} ${n === 1 ? "day" : "days"} later`,
+    /** What a later step waits on, as its rail says it. */
+    onlyIf: {
+      none: "either way",
+      no_booking: "if not booked",
+      no_reply: "if no reply",
+      both: "if not booked or replied"
+    }
+  },
+  /** To leads, said while Ask drafts it again for businesses (F1). */
+  toLeads: {
+    title: "What To leads changes",
+    rows: [
+      { lead: "Email only, from your own mailbox", sub: "They haven\u2019t said yes to you, so no WhatsApp or text" },
+      { lead: "Each email opens with a line for its business", sub: "And the lead check reads each before it goes" },
+      { lead: "Waits of 2 to 30 days, and a reply stops it", sub: "Every first email waits for your OK" }
+    ],
+    note: "The steps, the waits and a call or a note stay yours to change, as for people."
+  },
+  /** No search has found businesses yet (F6). */
+  leadsNone: {
+    title: "No search has found any yet",
+    head: "Find them on Leads first",
+    words: "Say what kind of business and where. Ask finds them and checks each address.",
+    find: "Find businesses"
+  },
+  /** A one-off sent, back on Sequences (E2). */
+  sent: {
+    goes: (name, time) => `\u201C${name}\u201D goes at ${time}`,
+    stop: "Stop"
+  },
+  /** Send now asks first (E1): who and how, and that it can still be stopped. */
+  confirm: {
+    title: (name, n) => `Send \u201C${name}\u201D to ${n} ${n === 1 ? "person" : "people"}?`,
+    at: (time) => `It goes at ${time}, in 10 minutes. Until then, Stop takes it back`,
+    opens: (time) => `It goes at ${time}, when your sending hours open. Until then, Stop takes it back`,
+    after: "Once delivered, it can\u2019t be taken back",
+    no: "Not yet",
+    yes: "Yes, send it"
+  },
+  /** A WhatsApp version Ask wrote goes to Meta first. */
+  review: {
+    title: "WhatsApp needs Meta\u2019s review first",
+    /** What can go now (its other versions, "email and text"), and who hears it only by WhatsApp. */
+    words: (others, only) => `Ask wrote this message new. ${others ? `Its ${others} can go now; WhatsApp\u2019s` : "WhatsApp\u2019s version"} takes about a day${only > 0 ? `, and ${only} ${only === 1 ? "person hears" : "people hear"} only WhatsApp` : ""}.`,
+    tomorrow: "Send it tomorrow instead",
+    goes: (n, by) => `${n} ${n === 1 ? "person" : "people"}, by ${by}`,
+    leftOut: (n) => `${n} who ${n === 1 ? "hears" : "hear"} only WhatsApp ${n === 1 ? "is" : "are"} left out`
+  },
+  twin: { open: "Open it" },
+  reach: {
+    canHear: "can hear it",
+    ready: "ready to write to",
+    nobody: "No one to send to yet",
+    nobodyWords: "Pick a way they can hear it, or someone else to send it to.",
+    pickAWay: "Pick a way they can hear it",
+    of: (n) => `of ${n}`,
+    saidStop: (n) => `${n} said stop`,
+    neverYes: (n) => `${n} never said yes`,
+    noNumber: (n) => `${n} with no number or address`,
+    heldBack: (n) => `${n} held back this week`,
+    checking: (n) => `${n} ${n === 1 ? "address" : "addresses"} being checked`,
+    byChannel: (n, channel) => `${n} by ${channel}`
+  },
+  /** Your OK, as its sheet names each way and How it runs says the one picked. */
+  ok: {
+    ask: "Every batch waits for you",
+    veto: "Then 30 minutes to stop",
+    auto: "Then on its own"
+  },
+  okSaid: {
+    ask: "Every batch",
+    veto: "First batch, then 30 min to stop",
+    auto: "First batch, then on its own"
+  },
+  okLeads: "Every first email",
+  channels: {
+    whatsapp: "WhatsApp",
+    email: "Email",
+    sms: "Text",
+    can: "They can hear it this way",
+    noOffer: "A text can\u2019t carry an offer",
+    noVersion: "This message has no version for it",
+    notReady: "Not connected yet",
+    leads: "To leads it is email alone, from your mailbox.",
+    canHear: (n) => `${n} can hear it this way`,
+    more: (n, first) => `${n} more, who have no ${first}`
+  },
+  sheets: {
+    close: "Close",
+    done: "Done",
+    open: "Open",
+    or: "Or",
+    cancel: "Cancel",
+    save: "Save",
+    kind: "What kind",
+    kindSub: "Ask drafts it again as that kind, from your line",
+    sequenceSaid: "Steps over days, each one yours to change",
+    onceSaid: "One message, now or on a day you pick",
+    kindNote: "Both go to people or to leads: the toggle beside Who and when.",
+    startsFor: "Who it starts for",
+    goesTo: "Who it goes to",
+    countsAre: "Counts are who can hear it now",
+    readyMeans: "Ready means an address that was checked",
+    atAMoment: "At a moment",
+    runsAlready: (name) => `Runs already: ${name}`,
+    joinsAList: "When someone joins a list",
+    aList: "A list",
+    aSearch: "A search on Leads",
+    hasItsSequence: "Has its sequence already",
+    noneChecked: "None checked yet",
+    leadsYouPick: "Leads you pick",
+    leadsYouPickSaid: "Tick them on Leads, then come back",
+    findMore: "Find more businesses",
+    findMoreSaid: "A new search on Leads",
+    find: "Find",
+    peopleNote: "No one who said stop is ever counted.",
+    makeList: "Make a list in People",
+    countsOffer: "Counts are who can hear an offer",
+    onceWhoNote: "An offer reaches only those who said yes to offers; news, everyone who said yes to messages.",
+    listSaid: { rule: "A list, kept by a rule", hand: "A list, kept by hand" },
+    peoplePick: "People you pick",
+    peoplePickSaid: "Tick them in People, then come back",
+    checkingSaid: (n) => `${n} ${n === 1 ? "address" : "addresses"} still being checked`,
+    leadsNote: "Each address is checked before its first email.",
+    when: "When it goes",
+    whenNow: (now) => `Your time, ${now} now`,
+    laterToday: "Later today",
+    laterTodayAt: (time) => `At ${time}`,
+    nowSaid: "Goes in 10 minutes; Stop until then",
+    pickADay: "Pick a day and time",
+    pickADaySaid: "Up to 30 days ahead",
+    day: "Day",
+    time: "Time",
+    whenNote: "Late at night it waits for 9 the next morning. Stop it from its row any time before.",
+    hour: "The hour every step sends",
+    channels: "How it goes",
+    channelsSub: "Each person gets it once, the first way they can hear it",
+    whenStep: (n) => `When step ${n} goes`,
+    whenStepSub: "Counted from the step before, in their time",
+    sooner: "A day sooner",
+    later: "A day later",
+    daysAfter: (n) => `days after step ${n}`,
+    onlyIf: "Only if",
+    peopleTiming: "Anyone who books, or says stop, leaves it.",
+    leadsTiming: "To leads: 2 to 30 days, and a reply always stops it.",
+    addSub: "After the last step, for people and leads alike",
+    addMessage: "One of yours, or one Ask writes",
+    addCall: "A call for you",
+    okSub: "The first batch always waits for it",
+    okNote: "New words wait for your OK again. To leads, \u201Con its own\u201D isn\u2019t offered.",
+    from: "Sent from",
+    fromSub: "Your own mailbox, so replies come to you",
+    yourMailbox: "Your mailbox",
+    noMailbox: "No mailbox connected",
+    connectSaid: "Connect Gmail or Outlook in Settings",
+    connect: "Connect",
+    youSend: "You send each yourself",
+    youSendSaid: "From your mail app, then say Sent",
+    message: (n) => `Step ${n}\u2019s message`,
+    messageSub: "Yours, or one Ask writes for this step",
+    writeOne: "Write one yourself",
+    byAskNamed: (title) => `${title} \xB7 by Ask`,
+    yourMessages: "Your messages",
+    anOffer: "an offer, never a text",
+    firstStepOnly: "Names their booking, so step 1 only",
+    newMessage: "A new message",
+    askWrote: "Ask wrote it \xB7 yours once you save",
+    youWrite: "Yours \xB7 filed when you start it",
+    title: "Its name",
+    version: "Version",
+    subject: "Subject",
+    words: "Message",
+    valuesSaid: (values) => `A value goes in braces: ${values}`,
+    aValue: "A value",
+    warmer: "Warmer",
+    shorter: "Shorter",
+    asking: "Asking\u2026",
+    undo: "Undo",
+    offerNote: "An offer, so no text version. WhatsApp\u2019s goes to Meta when you start it.",
+    heldSub: "One of your messages",
+    heldWords: "Its words are changed in Messages, for every step that sends it.",
+    openMessages: "Open Messages",
+    firstEmail: "The first email",
+    firstEmailSub: "An opening is written for each business above these words",
+    laterEmail: "A later email",
+    laterEmailSub: "In the same thread, so no subject of its own"
+  },
+  /** A step by what it does, as its box names a step with no name of its own. */
+  does: { message: "A message", call: "A call", note: "A note" },
+  hand: {
+    call: "On your Today, with their number",
+    note: "A task on Today: what to do for them",
+    callTitle: "Call them",
+    noteTitle: "A note for the team",
+    last: "A call or a note is always the last step."
+  },
+  checks: {
+    noTwin: (what) => `Nothing else ${what}`,
+    twin: (name) => `${name} does this already`,
+    twinDetail: "Two would send twice.",
+    newMessage: (n) => `Step ${n} is a new message`,
+    newMessageDetail: "Email now, WhatsApp after Meta\u2019s review",
+    canGo: (n, by) => `Step ${n} can go by ${by} today`,
+    stops: "Stops when they book",
+    stopsDetail: "Never to anyone who said stop",
+    offersOnly: "Only people who said yes to offers",
+    breath: (n) => `${n} who heard from you this week wait`,
+    breathDetail: "A week between messages, as every send keeps",
+    byEmail: (n) => `${n} go by email`,
+    byEmailDetail: "A text can\u2019t carry an offer",
+    notCustomers: "None of them is a customer in People",
+    noFirstLink: "No link in the first email",
+    pace: (minutes) => `One email every ${minutes} minutes, in their hours`,
+    hand: (n) => `Step ${n} is yours: on your Today`,
+    oneEmail: "One email, no follow-up",
+    oneEmailDetail: "Add one any time: it becomes a sequence"
+  },
+  cannot: {
+    nothingFits: "Ask couldn\u2019t find who and what for this. Say it another way.",
+    noMessage: "Ask couldn\u2019t write a message that holds here. Pick one of yours, or write it.",
+    stepDropped: "A step couldn\u2019t be kept as Ask wrote it, so it is left out.",
+    handNotLast: "A call or a note ends a sequence, so it is the last step.",
+    leftOut: (what) => `Left out: \u201C${what}\u201D`
+  },
+  failed: {
+    title: "Ask couldn\u2019t draft it just now",
+    words: "Try again in a moment, or build it yourself: the same draft, picked by hand.",
+    again: "Try again",
+    byHand: "Build it yourself"
+  },
+  leaving: {
+    title: "Keep this draft?",
+    words: "It waits under Drafts and sends nothing.",
+    discard: "Discard",
+    keep: "Keep as a draft"
+  },
+  viewer: {
+    title: "Only an owner or operator can make one",
+    words: "You can see what\u2019s happening and what runs. Ask one of them to start it."
+  }
+};
 
 // src/sequences/sequence-evidence.ts
 var EVIDENCE_DAYS = 90;
@@ -55089,6 +55577,7 @@ var ROUTE_KEYS = [
   "POST sequences/[id]/steps/[step]/words",
   "POST sequences/draft",
   "POST sequences/draft-leads",
+  "POST sequences/new",
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
@@ -55194,22 +55683,11 @@ var PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; lane 6, where the composer over the list
-  // went): what Sequences opens on, and Send once, made of Sent's runs and who each audience reaches (People's book, its
-  // lists and the week's touches, their own read), the channels read and the settings read, which holds the messages it
-  // offers. Write to leads reads its searches as it is chosen. Each surface's first reads.
-  "campaigns/sequences/new": [
-    "sequences",
-    "channels",
-    "settings",
-    "broadcasts",
-    "broadcasts/touches",
-    "contacts",
-    "segments",
-    "team",
-    "policies",
-    "templates?all=1"
-  ],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; decision 0065, one New for every
+  // sequence): what Sequences opens on, and Campaigns' read of the moments, the lists and who each reaches (playbooks, with
+  // the channels read the counts are by), whose messages are the settings read's. The searches whose leads are ready are
+  // read as New opens. Each surface's first reads.
+  "campaigns/sequences/new": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
@@ -61498,12 +61976,22 @@ export {
   NEEDS_TITLE,
   NEEDS_YOU_WORD,
   NEW_AD,
+  NEW_AUDIENCES,
   NEW_CONVERSATION_WORDS,
+  NEW_DRAFT_JSON_SCHEMA,
+  NEW_KINDS,
   NEW_MESSAGE_WORDS,
+  NEW_ONCE_AHEAD_DAYS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
   NEW_REVIEW_NEWS,
   NEW_SINCE_WORDS,
+  NEW_STEPS_MAX,
+  NEW_STEP_DOES,
+  NEW_VALUES,
+  NEW_WAIT_DAYS,
   NEW_WINDOW_DAYS,
+  NEW_WORDS,
+  NEW_WORDS_MAX,
   NOTE_LINE_MAX,
   NOTE_MAX,
   NOTE_REFUSALS,
@@ -61530,6 +62018,7 @@ export {
   NO_TEMPLATE_WORDS,
   NO_USAGE,
   NO_WAY_TO_SEND_LINK,
+  NewDraftAnswerSchema,
   NoteSchema,
   NoteWriteBody,
   NotesAppendManyBody,
@@ -61787,7 +62276,6 @@ export {
   REACH_OUT_SHEET_WORDS,
   REACH_OUT_SLOTS,
   REACH_OUT_SLOT_SET,
-  REACH_OUT_SOURCE_WORDS,
   REACH_OUT_STEPS_MAX,
   REACH_OUT_STOP_WORDS,
   REACH_OUT_SUBJECT_MAX,
@@ -61916,9 +62404,7 @@ export {
   SENTENCE,
   SEQUENCES_ROUTE,
   SEQUENCE_ACT_WORDS,
-  SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_DRAFT_THEN_MAX,
-  SEQUENCE_DRAFT_WORDS_MAX,
   SEQUENCE_EDIT_WORDS,
   SEQUENCE_FLOW_WORDS,
   SEQUENCE_GROUPS,
@@ -61928,7 +62414,6 @@ export {
   SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
   SEQUENCE_NEEDS_WORDS,
-  SEQUENCE_NEW_WORDS,
   SEQUENCE_NEW_WORDS_ASK,
   SEQUENCE_PEOPLE_GROUPS,
   SEQUENCE_PEOPLE_WORDS,
@@ -62000,7 +62485,6 @@ export {
   SayItDealAnswerSchema,
   SayItInputSchema,
   SayItNoteAnswerSchema,
-  SequenceDraftAnswerSchema,
   ServiceSchema,
   SignupSchema,
   TEAM_INVITE_DAYS,
@@ -62680,6 +63164,7 @@ export {
   guideBlock,
   handOf,
   handStepWords,
+  handStepsHold,
   handoffCallRow,
   handoffChatRow,
   handoffChatWords,
@@ -63176,6 +63661,7 @@ export {
   newAdModel,
   newAdRoute,
   newCampaignChannels,
+  newConditionsOf,
   newConversationOf,
   newForLeadsRoute,
   newReceptionistDefaults,
@@ -63183,6 +63669,7 @@ export {
   newSequenceMode,
   newSequenceRoute,
   newSinceOf,
+  newWaitOf,
   newestPostFor,
   nextMonthStart,
   nextNotAsked,
@@ -63226,6 +63713,7 @@ export {
   numberHealthOfConfig,
   numberHealthWithStanding,
   numberedSlots,
+  numberedValues,
   offerFor,
   offerGate,
   offerLead,
@@ -63242,6 +63730,7 @@ export {
   ok,
   olderUnreadOf,
   onDomain,
+  onceDraftRoute,
   oneDoor,
   openAt,
   openDealsFromJson,
@@ -63401,6 +63890,7 @@ export {
   pipelineRoute,
   pipelineRowId,
   pipelineRowNow,
+  pipelineSheetOf,
   pipelineSorted,
   pipelineViewLabel,
   placeRailOf,
@@ -63570,7 +64060,6 @@ export {
   reachOutSheetPaceOf,
   reachOutSheetUnreadOf,
   reachOutSlotFault,
-  reachOutSourceOf,
   reachOutStandingOf,
   reachOutStepOf,
   reachOutStripOf,
@@ -64156,6 +64645,7 @@ export {
   whenItGoes,
   whenLabel,
   whisperText,
+  whoSuits,
   wholeDaysSince,
   whoseWords,
   whyCannotSpend,

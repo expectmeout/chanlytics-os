@@ -25000,7 +25000,7 @@ CREATE TABLE public.sequence_sends (
     CONSTRAINT sequence_sends_attempts_check CHECK (((attempts >= 0) AND ((lead_id IS NULL) OR (attempts <= 20)))),
     CONSTRAINT sequence_sends_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
     CONSTRAINT sequence_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
-    CONSTRAINT sequence_sends_customer_states CHECK (((lead_id IS NOT NULL) OR (state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text])))),
+    CONSTRAINT sequence_sends_customer_states CHECK (((lead_id IS NOT NULL) OR (state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))),
     CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
     CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
@@ -25218,6 +25218,7 @@ declare
   v_first public.sequence_steps%rowtype;
   v_t public.templates%rowtype;
   v_step jsonb;
+  v_at bigint;
   v_prev uuid;
   v_n int := 1;
 begin
@@ -25261,24 +25262,44 @@ begin
   if not p_start then
     update public.sequences set state = 'draft' where id = v_first.sequence_id;
   end if;
+  -- How its batches are decided, where New chose (0064's modes): the class's Autonomy row only defaulted it.
+  if p_first->>'mode' in ('auto', 'veto', 'ask') then
+    update public.sequences set mode = p_first->>'mode' where id = v_first.sequence_id;
+  end if;
   v_prev := v_first.id;
-  for v_step in select value from jsonb_array_elements(v_then) loop
-    select * into v_t from public.templates
-     where tenant_id = p_tenant_id and id = nullif(v_step->>'template_id', '')::uuid;
-    if v_t.id is null then
-      raise exception 'Message not found.' using errcode = 'P0002';
+  for v_step, v_at in select value, ordinality from jsonb_array_elements(v_then) with ordinality loop
+    if jsonb_typeof(v_step->'hand') = 'object' then
+      -- A call or a note for you (00465): no message, the last step, handed to the team on its day.
+      if v_at < jsonb_array_length(v_then) then
+        raise exception 'A call or a note is the last step.' using errcode = '23514';
+      end if;
+      insert into public.sequence_steps (tenant_id, kind, name, trigger, after_step_id, after_days, only_if, hand,
+                                         params, policy_class, state, run_hour, cap_per_run, channels, created_by)
+      values (p_tenant_id, 'moment', coalesce(nullif(btrim(v_step->>'name'), ''), v_first.name), 'after_step', v_prev,
+              (v_step->>'after_days')::int,
+              coalesce(array(select jsonb_array_elements_text(v_step->'only_if')), '{}'),
+              jsonb_build_object('kind', v_step->'hand'->>'kind', 'words', btrim(coalesce(v_step->'hand'->>'words', ''))),
+              '[]'::jsonb, v_first.policy_class, 'running', v_first.run_hour, v_first.cap_per_run, v_first.channels,
+              v_actor)
+      returning id into v_prev;
+    else
+      select * into v_t from public.templates
+       where tenant_id = p_tenant_id and id = nullif(v_step->>'template_id', '')::uuid;
+      if v_t.id is null then
+        raise exception 'Message not found.' using errcode = 'P0002';
+      end if;
+      insert into public.sequence_steps (tenant_id, kind, name, trigger, after_step_id, after_days, only_if, template_id,
+                                         template_name, template_language, params, policy_class, state, run_hour,
+                                         cap_per_run, channels, created_by)
+      values (p_tenant_id, 'moment', coalesce(nullif(btrim(v_step->>'name'), ''), v_first.name), 'after_step', v_prev,
+              (v_step->>'after_days')::int,
+              coalesce(array(select jsonb_array_elements_text(v_step->'only_if')), '{}'),
+              v_t.id, v_t.name, v_t.language, coalesce(v_step->'params', '[]'::jsonb), v_first.policy_class, 'running',
+              v_first.run_hour, v_first.cap_per_run,
+              coalesce(nullif(array(select jsonb_array_elements_text(v_step->'channels')), '{}'), v_first.channels),
+              v_actor)
+      returning id into v_prev;
     end if;
-    insert into public.sequence_steps (tenant_id, kind, name, trigger, after_step_id, after_days, only_if, template_id,
-                                       template_name, template_language, params, policy_class, state, run_hour,
-                                       cap_per_run, channels, created_by)
-    values (p_tenant_id, 'moment', coalesce(nullif(btrim(v_step->>'name'), ''), v_first.name), 'after_step', v_prev,
-            (v_step->>'after_days')::int,
-            coalesce(array(select jsonb_array_elements_text(v_step->'only_if')), '{}'),
-            v_t.id, v_t.name, v_t.language, coalesce(v_step->'params', '[]'::jsonb), v_first.policy_class, 'running',
-            v_first.run_hour, v_first.cap_per_run,
-            coalesce(nullif(array(select jsonb_array_elements_text(v_step->'channels')), '{}'), v_first.channels),
-            v_actor)
-    returning id into v_prev;
     v_n := v_n + 1;
   end loop;
   return jsonb_build_object('id', v_first.sequence_id, 'steps', v_n,
@@ -25292,7 +25313,7 @@ end $$;
 -- Name: FUNCTION sequence_create(p_tenant_id uuid, p_first jsonb, p_then jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_create(p_tenant_id uuid, p_first jsonb, p_then jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A new customer''s sequence made whole (0060, S4): its first step (a moment, as start_playbook takes it) and up to five steps after it, each a wait, what must still hold and a message of this workspace, under the first step''s class, hour and cap; kept as a draft (its first step paused, the sequence ''draft'', nothing sent) or started. By an acting member; the steps'' checks and keys judge each row; the make_sequence decision rides in the same transaction. Answers id, steps and state.';
+COMMENT ON FUNCTION public.sequence_create(p_tenant_id uuid, p_first jsonb, p_then jsonb, p_start boolean, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A new customer''s sequence made whole (0060, S4): its first step (a moment, as start_playbook takes it) and up to five steps after it, each a wait, what must still hold and a message of this workspace, or last a call or a note for the team (00465), under the first step''s class, hour and cap; how its batches are decided where New chose (p_first.mode, 00465); kept as a draft (its first step paused, the sequence ''draft'', nothing sent) or started. By an acting member; the steps'' checks and keys judge each row; the make_sequence decision rides in the same transaction. Answers id, steps and state.';
 
 
 --
@@ -25310,6 +25331,7 @@ declare
   v_list    uuid := nullif(p_first->>'list_id', '')::uuid;
   v_source  uuid := nullif(p_first->>'source_search_id', '')::uuid;
   v_aim     uuid := nullif(p_first->>'aim_search_id', '')::uuid;
+  v_search  uuid := nullif(p_first->>'search_id', '')::uuid;
   v_leads   uuid[] := coalesce(array(select x::uuid from jsonb_array_elements_text(coalesce(p_first->'lead_ids', '[]'::jsonb)) x), '{}');
   v_boxes   uuid[];
   v_chain   jsonb;
@@ -25338,16 +25360,27 @@ begin
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
   else
-    -- Sent from the workspace's connected mailboxes; with none, handed to the owner to send from their own inbox.
+    -- Sent from the workspace's connected mailboxes; with none, or where New said so, handed to the owner to send from
+    -- their own inbox (00465).
     select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
       from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
     v_chain := jsonb_build_object(
       'gap_minutes', 12,
       'mailbox_ids', to_jsonb(v_boxes),
-      'owner_sends', cardinality(v_boxes) = 0,
+      'owner_sends', cardinality(v_boxes) = 0 or coalesce((p_first->>'owner_sends')::boolean, false),
       'steps', case when jsonb_typeof(p_first->'steps') = 'array' and jsonb_array_length(p_first->'steps') > 0
                     then p_first->'steps'
                     else jsonb_build_array(jsonb_build_object('subject', '', 'body', '')) end);
+  end if;
+  -- A search's ready leads, copied to its list where it does not add from the search (00465): each the search counted
+  -- and qualified, not taken out, not put off.
+  if v_list is null and cardinality(v_leads) = 0 and v_search is not null and v_source is null then
+    v_leads := coalesce(array(
+      select m.lead_id from public.lead_search_members m
+        join public.lead_searches s on s.id = m.search_id
+       where m.search_id = v_search and s.tenant_id = p_tenant_id and s.removed_at is null
+         and m.class = 'qualified' and m.counted and m.blanked_at is null and m.later_at is null
+       order by m.lead_id), '{}');
   end if;
   if v_list is null then
     if cardinality(v_leads) > 0 then
@@ -25374,6 +25407,10 @@ begin
    where id = v_root;
   if not p_start then
     update public.sequences set state = 'draft' where id = v_root;
+  end if;
+  -- How its batches are decided, where New chose (00465): never on its own, which the table refuses.
+  if p_first->>'mode' in ('veto', 'ask') then
+    update public.sequences set mode = p_first->>'mode' where id = v_root;
   end if;
   if v_aim is not null then
     update public.lead_searches set adds_to = v_root
@@ -25407,7 +25444,8 @@ begin
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
   select * into v_q from public.sequences where tenant_id = p_tenant_id and id = p_sequence_id for update;
-  if v_q.id is null or v_q.starts not in ('moment', 'list') then
+  if v_q.id is null or not (v_q.starts in ('moment', 'list') or (v_q.starts = 'date' and v_q.state = 'draft'
+                                                                  and v_q.once is not null)) then
     raise exception 'Sequence not found.' using errcode = 'P0002';
   end if;
   -- What has sent keeps its history: a sequence that made a batch, or took anyone in, is paused, never taken away.
@@ -25416,8 +25454,13 @@ begin
     raise exception 'It has sent: pause it instead.' using errcode = 'P0001';
   end if;
   select count(*) into v_steps from public.sequence_steps where sequence_id = p_sequence_id;
-  -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
-  delete from public.sequence_steps where id = p_sequence_id;
+  if v_q.starts = 'date' then
+    -- A kept one-off (00465) has no step: the draft itself goes.
+    delete from public.sequences where id = p_sequence_id;
+  else
+    -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
+    delete from public.sequence_steps where id = p_sequence_id;
+  end if;
   return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('name', v_q.name, 'was', v_q.state), p_via,
@@ -25429,7 +25472,7 @@ end $$;
 -- Name: FUNCTION sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s sequence that never made a batch nor took anyone in, taken away whole by an acting member (0060, S4): a draft let go, or a new one undone. One that has sent is refused (P0001): it is paused, its history kept. The discard_sequence decision rides in the same transaction. Answers id and how many steps went.';
+COMMENT ON FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s sequence that never made a batch nor took anyone in, taken away whole by an acting member (0060, S4): a draft let go, or a new one undone; and a one-off kept as a draft (00465), let go or sent. One that has sent is refused (P0001): it is paused, its history kept. The discard_sequence decision rides in the same transaction. Answers id and how many steps went.';
 
 
 --
@@ -25544,6 +25587,91 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sequence_follow_ups_due(p_step_id uuid, p_run_for date) IS 'D6: the people a customer''s step after the first is due to on the business''s day p_run_for, each with when their step before it went, oldest wait first. Service role only (0060).';
+
+
+--
+-- Name: sequence_hand_run(uuid, uuid, uuid, date, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_step    public.sequence_steps%rowtype;
+  v_item    jsonb;
+  v_send    uuid;
+  v_next    public.sequence_steps%rowtype;
+  v_made    int := 0;
+  v_already int := 0;
+  v_handed  uuid[] := '{}';
+begin
+  if p_items is null or jsonb_typeof(p_items) <> 'array' then
+    raise exception 'The run''s people are a list.' using errcode = '22023';
+  end if;
+  select * into v_step from public.sequence_steps
+   where id = p_step_id and tenant_id = p_tenant_id and kind = 'moment' and trigger = 'after_step' and hand is not null;
+  if not found then raise exception 'Step not found.' using errcode = 'P0002'; end if;
+
+  insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
+                                       template_language, state, scheduled_for, recipient_count, audience)
+  values (p_run_id, p_tenant_id, p_step_id, p_day, left(v_step.name || ' · ' || p_day::text, 120), null, null, null,
+          'sent', now(), 0,
+          jsonb_build_object('kind', 'playbook', 'id', p_step_id, 'label', v_step.name, 'trigger', 'after_step',
+                             'hand', v_step.hand->>'kind'))
+  on conflict do nothing;
+  if not exists (select 1 from public.sequence_batches b where b.id = p_run_id and b.tenant_id = p_tenant_id
+                   and b.step_id = p_step_id) then
+    raise exception 'This step has another run for that day.' using errcode = '23505';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    -- The person is the workspace's; the send's row refuses anything else.
+    if not exists (select 1 from public.contacts c
+                    where c.id = (v_item->>'contact_id')::uuid and c.tenant_id = p_tenant_id) then
+      raise exception 'Person not found.' using errcode = 'P0002';
+    end if;
+    v_send := null;
+    insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, contact_id, state, sent_at)
+    values ((v_item->>'send_id')::uuid, p_tenant_id, p_run_id, p_step_id, v_step.sequence_id,
+            (v_item->>'contact_id')::uuid, 'handed', now())
+    on conflict do nothing
+    returning id into v_send;
+    if v_send is null then
+      v_already := v_already + 1;
+      continue;
+    end if;
+    perform public.person_step_from_playbook(p_tenant_id, (v_item->>'contact_id')::uuid, p_day, v_item->>'words',
+                                             null, (v_item->>'source_id')::uuid);
+    v_handed := v_handed || (v_item->>'contact_id')::uuid;
+    v_made := v_made + 1;
+  end loop;
+
+  -- Their place moves past the step, as a send's does (sequence_sends_move_enrollment): on to a step after it after its
+  -- wait, or done after the last.
+  select * into v_next from public.sequence_steps
+   where sequence_id = v_step.sequence_id and place = v_step.place + 1;
+  update public.sequence_enrollments e
+     set place = greatest(e.place, v_step.place), sent_at = now(),
+         state = case when v_next.id is null then 'done' else 'in' end,
+         ended_at = case when v_next.id is null then coalesce(e.ended_at, now()) else null end,
+         next_at = case when v_next.id is null then null
+                        else now() + make_interval(days => coalesce(v_next.after_days, 0)) end
+   where e.tenant_id = p_tenant_id and e.sequence_id = v_step.sequence_id and e.lead_id is null
+     and e.contact_id = any (v_handed) and e.state = 'in';
+
+  update public.sequence_batches b
+     set recipient_count = (select count(*) from public.sequence_sends s where s.batch_id = b.id)
+   where b.id = p_run_id;
+  return jsonb_build_object('run_id', p_run_id, 'made', v_made, 'already', v_already);
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) IS 'A customer''s call or note step''s run for a day (00465, decision 0065), written whole: the run (state sent, no message, audience.hand), a handed send per person, each person''s dated step for the team (person_step_from_playbook, once per step and person), and their place moved past the step. Items are {send_id, contact_id, words, source_id}. Answers {run_id, made, already}. Service role only.';
 
 
 --
@@ -25847,6 +25975,57 @@ end $$;
 
 
 --
+-- Name: sequence_once_keep(uuid, text, jsonb, uuid, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid DEFAULT NULL::uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_name  text := left(btrim(coalesce(p_name, '')), 80);
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_actor, p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if char_length(v_name) = 0 then
+    raise exception 'A message sent once is named.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_once) is distinct from 'object' then
+    raise exception 'A kept one-off says who, when and what.' using errcode = '22023';
+  end if;
+  if p_id is null then
+    insert into public.sequences (tenant_id, name, starts, state, created_by, mode, once)
+    values (p_tenant_id, v_name, 'date', 'draft', v_actor, null, p_once)
+    returning id into v_id;
+  else
+    update public.sequences set name = v_name, once = p_once, updated_at = now()
+     where tenant_id = p_tenant_id and id = p_id and starts = 'date' and state = 'draft'
+    returning id into v_id;
+    if v_id is null then
+      raise exception 'Draft not found.' using errcode = 'P0002';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_id, 'state', 'draft')
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', v_id, 'make_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('once', true, 'kept', p_id is not null), p_via,
+         p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A message sent once, kept as a draft (00465, decision 0065; Ruben''s pick of 20 Oct 2026): a sequence that starts on a date, its state draft, its once New''s {who, at, channels, step}; p_id keeps one already kept. Sends nothing: it goes as it is sent, through the send door, and its draft goes then (sequence_discard). By a member who may approve; the make_sequence decision rides in the same transaction. Answers id and state.';
+
+
+--
 -- Name: sequence_overview(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -25974,6 +26153,8 @@ CREATE FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid DE
              'words_ok_at', f.words_ok_at,
              'template_name', f.template_name,
              'template_language', f.template_language) end,
+           -- A one-off kept as a draft (00465): who, when, how and its message, as New shaped them.
+           'once', case when q.starts = 'date' and q.state = 'draft' then q.once end,
            'date', case when q.starts = 'date' then (
              select jsonb_build_object('batch_id', d.id, 'state', d.state, 'at', d.scheduled_for,
                                        'people', d.recipient_count)
@@ -26015,7 +26196,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date, or the once of one kept as a draft: 00465), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
 
 
 --
@@ -26730,6 +26911,10 @@ declare
   v_id uuid := nullif(v_step->>'id', '')::uuid;
   v_only text[] := coalesce(array(select jsonb_array_elements_text(v_step->'only_if')), '{}');
   v_channels text[] := array(select jsonb_array_elements_text(v_step->'channels'));
+  v_hand jsonb := case when jsonb_typeof(v_step->'hand') = 'object'
+                       then jsonb_build_object('kind', v_step->'hand'->>'kind',
+                                               'words', btrim(coalesce(v_step->'hand'->>'words', '')))
+                  end;
   v_out uuid;
   v_place int;
 begin
@@ -26745,21 +26930,27 @@ begin
     raise exception 'Sequence not found.' using errcode = 'P0002';
   end if;
   if v_id is null then
-    -- Its message is the workspace's own, named as the row names it, never as the body says.
-    select * into v_t from public.templates
-     where tenant_id = p_tenant_id and id = nullif(v_step->>'template_id', '')::uuid;
-    if v_t.id is null then
-      raise exception 'Message not found.' using errcode = 'P0002';
-    end if;
     select * into v_last from public.sequence_steps
      where tenant_id = p_tenant_id and sequence_id = p_sequence_id order by place desc limit 1;
+    -- A call or a note is the last step (00465): nothing is added after one.
+    if v_last.hand is not null then
+      raise exception 'A call or a note is the last step.' using errcode = '23514';
+    end if;
+    if v_hand is null then
+      -- Its message is the workspace's own, named as the row names it, never as the body says.
+      select * into v_t from public.templates
+       where tenant_id = p_tenant_id and id = nullif(v_step->>'template_id', '')::uuid;
+      if v_t.id is null then
+        raise exception 'Message not found.' using errcode = 'P0002';
+      end if;
+    end if;
     insert into public.sequence_steps (tenant_id, kind, name, trigger, after_step_id, after_days, only_if, template_id,
-                                       template_name, template_language, params, policy_class, state, run_hour,
+                                       template_name, template_language, hand, params, policy_class, state, run_hour,
                                        cap_per_run, until, channels, created_by)
     values (p_tenant_id, 'moment', coalesce(nullif(btrim(v_step->>'name'), ''), v_first.name), 'after_step', v_last.id,
-            (v_step->>'after_days')::int, v_only, v_t.id, v_t.name, v_t.language,
-            coalesce(v_step->'params', '[]'::jsonb), v_first.policy_class, 'running', v_first.run_hour,
-            v_first.cap_per_run, v_first.until,
+            (v_step->>'after_days')::int, v_only, v_t.id, v_t.name, v_t.language, v_hand,
+            case when v_hand is null then coalesce(v_step->'params', '[]'::jsonb) else '[]'::jsonb end,
+            v_first.policy_class, 'running', v_first.run_hour, v_first.cap_per_run, v_first.until,
             coalesce(nullif(v_channels, '{}'), v_first.channels), v_actor)
     returning id, place into v_out, v_place;
   else
@@ -26773,14 +26964,16 @@ begin
            only_if = case when v_step ? 'only_if' then v_only else only_if end,
            channels = coalesce(nullif(v_channels, '{}'), channels),
            name = coalesce(nullif(btrim(v_step->>'name'), ''), name),
-           params = coalesce(v_step->'params', params)
+           params = case when hand is null then coalesce(v_step->'params', params) else params end,
+           -- A call's or a note's words (00465), on a step that is one: a message's step stays a message's.
+           hand = case when hand is not null and v_hand is not null then v_hand else hand end
      where id = v_id
     returning id, place into v_out, v_place;
   end if;
   return jsonb_build_object('id', v_out, 'place', v_place,
     'was', case when v_was.id is null then null else jsonb_build_object(
       'after_days', v_was.after_days, 'only_if', to_jsonb(v_was.only_if), 'channels', to_jsonb(v_was.channels),
-      'name', v_was.name, 'params', v_was.params) end)
+      'name', v_was.name, 'params', v_was.params, 'hand', v_was.hand) end)
     || public.member_decision(p_tenant_id, 'sequence', p_sequence_id, 'change_step',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('step_id', v_out, 'added', v_was.id is null),
          p_via, p_undo_of);
@@ -26791,7 +26984,7 @@ end $$;
 -- Name: FUNCTION sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s step after the first (D6, 0060), added at the end of its sequence or changed (p_step.id): its wait (after_days), what must still hold (only_if), its message, channels and slots; a new one under the first step''s class, hour, cap and last day (00453), named as it unless given a name. On the member''s own rights (the steps'' policies and column grants); the change_step decision rides in the same transaction. Answers id, place, was and the decision''s.';
+COMMENT ON FUNCTION public.sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s step after the first (D6, 0060), added at the end of its sequence or changed (p_step.id): its wait (after_days), what must still hold (only_if), its message, channels and slots, or a call''s or a note''s words (hand, 00465: added last, and nothing after one); a new one under the first step''s class, hour, cap and last day (00453), named as it unless given a name. On the member''s own rights (the steps'' policies and column grants); the change_step decision rides in the same transaction. Answers id, place, was and the decision''s.';
 
 
 --
@@ -33593,7 +33786,7 @@ END),
     CONSTRAINT sequence_steps_template_or_hand CHECK (
 CASE
     WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
-    ELSE COALESCE(((kind = 'reach_out'::text) AND (trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
+    ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
 END),
     CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text])))
 );
@@ -33718,10 +33911,12 @@ CREATE TABLE public.sequences (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     mode text,
+    once jsonb,
     CONSTRAINT sequences_leads_never_send CHECK (((starts <> 'leads'::text) OR (mode <> 'auto'::text))),
     CONSTRAINT sequences_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text]))),
     CONSTRAINT sequences_mode_is_its_own CHECK (((starts = 'date'::text) = (mode IS NULL))),
     CONSTRAINT sequences_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 80))),
+    CONSTRAINT sequences_once_is_a_draft CHECK (((once IS NULL) OR ((starts = 'date'::text) AND (state = 'draft'::text) AND (jsonb_typeof(once) = 'object'::text) AND (octet_length((once)::text) <= 32000)))),
     CONSTRAINT sequences_starts_check CHECK ((starts = ANY (ARRAY['moment'::text, 'list'::text, 'leads'::text, 'date'::text]))),
     CONSTRAINT sequences_state_check CHECK ((state = ANY (ARRAY['draft'::text, 'on'::text, 'paused'::text, 'ended'::text])))
 );
@@ -33746,6 +33941,13 @@ COMMENT ON COLUMN public.sequences.state IS 'draft: not started; on: it runs; pa
 --
 
 COMMENT ON COLUMN public.sequences.mode IS 'How its batches are decided (0064): auto, each sent; veto, each held thirty minutes for a stop; ask, each waits for an OK. A batch of a step whose words are new waits for an OK whatever this says (sequence_steps.words_ok_at). Null for a one-off alone, which pressing Send decided. Never auto for a sequence to leads.';
+
+
+--
+-- Name: COLUMN sequences.once; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft (00465, decision 0065): who it goes to, when (null: now), the channels and its step as New shaped it ({who, at, channels, step}). Only on a draft that starts on a date; it sends nothing until it is sent, and goes as it is sent.';
 
 
 --
@@ -45445,6 +45647,14 @@ GRANT ALL ON FUNCTION public.sequence_follow_ups_due(p_step_id uuid, p_run_for d
 
 
 --
+-- Name: FUNCTION sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_held_stale(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -45493,6 +45703,15 @@ GRANT ALL ON FUNCTION public.sequence_mode_for(p_tenant_id uuid, p_class text, p
 REVOKE ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_to_root uuid, p_decision jsonb, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
 
 
 --
@@ -47695,6 +47914,13 @@ GRANT INSERT(after_step_id) ON TABLE public.sequence_steps TO authenticated;
 --
 
 GRANT INSERT(after_days),UPDATE(after_days) ON TABLE public.sequence_steps TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_steps.hand; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(hand),UPDATE(hand) ON TABLE public.sequence_steps TO authenticated;
 
 
 --

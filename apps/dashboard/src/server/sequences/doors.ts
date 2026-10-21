@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   SEQUENCE_FLOW_WORDS,
+  isSequenceMode,
   takesFollowUps,
   validateReachOutWords,
   wordsIssueWords,
@@ -105,14 +106,19 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
   // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
   const twin = input.start ? await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger }) : null;
   if (twin) throw new AppError("conflict", twin, 409);
+  // A message step's values judged against its message; a call or a note (decision 0065) hands them over, the last step.
   const then = await Promise.all(
-    input.then.map(async (t) => ({
-      after_days: t.after_days,
-      template_id: t.template_id,
-      params: await valuesOf(ctx, tenantId, t.template_id, t.params),
-      only_if: t.only_if ?? [],
-      ...(t.name ? { name: t.name } : {}),
-    })),
+    input.then.map(async (t) =>
+      t.hand
+        ? { after_days: t.after_days, hand: t.hand, only_if: t.only_if ?? [], ...(t.name ? { name: t.name } : {}) }
+        : {
+            after_days: t.after_days,
+            template_id: t.template_id,
+            params: await valuesOf(ctx, tenantId, t.template_id ?? "", t.params),
+            only_if: t.only_if ?? [],
+            ...(t.name ? { name: t.name } : {}),
+          },
+    ),
   );
   return doorAnswer(
     await makeSequence(ctx.supabase, {
@@ -130,6 +136,8 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input
         gap_days: v.gap_days,
         cadence_days: v.cadence_days,
         channels: v.channels,
+        // How its batches are decided, where New chose (decision 0064's modes; the door holds a leads sequence off auto).
+        ...(isSequenceMode(input.first.mode) ? { mode: input.first.mode } : {}),
       },
       then,
       start: input.start,

@@ -13,6 +13,7 @@ import {
   SEQUENCE_GROUPS,
   SEQUENCE_WORDS,
   sequenceGroupOf,
+  onceDraftRoute,
   sequenceRoute,
   sequenceRowLine,
   sequenceRowState,
@@ -68,7 +69,8 @@ function SequenceRow(p: {
       )}
       aria-current={open ? "true" : undefined}
       data-testid={`sq-row-${row.id}`}
-      {...routeDoor(sequenceRoute(row.id))}
+      // A one-off kept as a draft (00465) opens in New, where it is sent; every other row, its record.
+      {...routeDoor(row.once ? onceDraftRoute(row.id) : sequenceRoute(row.id))}
     />
   );
 }

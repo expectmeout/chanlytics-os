@@ -39,6 +39,10 @@ export function waitingOnProposal(r, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r);
 }
+export function proposalTone(r, nowMs, pace, followUpWill) {
+  if (r.deal?.validUntil?.lapsed) return "warn";
+  return !followUpWill && waitingOnProposal(r, nowMs, pace) ? "warn" : "info";
+}
 export function eachOpenProposal(rows) {
   return rows.flatMap((r) => {
     const open = r.openDeals && r.openDeals.length ? r.openDeals : r.deal ? [r.deal] : [];

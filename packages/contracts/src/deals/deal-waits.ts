@@ -1,7 +1,8 @@
 /**
  * A workspace's pace and a proposal's wait (0006, 0008 amended): how long its proposals usually take to become a
- * yes (dealPaceOf), how long one goes with nothing back before it waits on the owner (waitAfterDays), and the one
- * rule for a proposal waiting (waitingOnProposal). The pace itself is worked out from the deals in pace.ts.
+ * yes (dealPaceOf), how long one goes with nothing back before it waits on the owner (waitAfterDays), the one rule
+ * for a proposal waiting (waitingOnProposal), and who it waits on (proposalTone). The pace itself is worked out from
+ * the deals in pace.ts.
  */
 import { DAY_MS } from "../shared/time";
 import type { DealVM } from "./deal-vm";
@@ -100,6 +101,22 @@ export function waitingOnProposal(
   const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r);
+}
+
+/**
+ * Who a proposal out waits on, in the tone its step is drawn in (shell/tone.ts: warn wants the owner, info waits on
+ * someone else): the owner once the day it stood until has lapsed, or once it has waited with nothing back
+ * (waitingOnProposal) and no follow-up of the house's has them in hand (0006); them otherwise. The Pipeline's row and
+ * its deal sheet, and the person page's deal card, draw a proposal in this tone, so one deal is one colour everywhere.
+ */
+export function proposalTone(
+  r: { deal: Pick<DealVM, "stage" | "sinceMs" | "validUntil"> | null; askedMs: number | null },
+  nowMs: number,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
+  followUpWill: boolean,
+): "warn" | "info" {
+  if (r.deal?.validUntil?.lapsed) return "warn";
+  return !followUpWill && waitingOnProposal(r, nowMs, pace) ? "warn" : "info";
 }
 
 /**

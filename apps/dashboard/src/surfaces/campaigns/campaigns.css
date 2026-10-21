@@ -4753,10 +4753,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
   margin: 0;
   padding: 14px 22px;
 }
-/* A read that failed, the kit's failed read as a line: at the tile's gutter. */
-.cmh-failed {
-  margin: 0 22px;
-}
 
 /* The rail: five moments on a line, each a column. A workspace without deals has four. */
 /* Three rows the moments share, their figures, their nodes on the line and their cards, each moment a subgrid of them, so

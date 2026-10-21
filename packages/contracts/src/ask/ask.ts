@@ -261,6 +261,7 @@ export interface AskProposal {
     | "sequence_send_said"
     | "sequence_draft"
     | "sequence_make"
+    | "sequence_new"
     | "sequence_start"
     | "sequence_discard"
     | "sequence_end"

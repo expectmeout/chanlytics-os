@@ -40,7 +40,7 @@ directories over 20 modules           3
 window globals                       54   names
 window publishers                    67   sites in 25 files
 copies                               67   of 19 names
-as unknown as                       121
+as unknown as                       120
 as never                             12
 non-null assertions, x!              93
 index reads the compiler lets pass  422   in 113 files
@@ -50,15 +50,15 @@ edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     60   473 writers among them
-doors writing a record with no event   94   writing 108 tables (invariant 2)
+tables with more than one writer     60   478 writers among them
+doors writing a record with no event   95   writing 110 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          31   in 11 files
-literal style values                820   in 22 stylesheets
-primitives outside the kit         1554   selectors naming 666 classes
+literal style values                817   in 22 stylesheets
+primitives outside the kit         1531   selectors naming 650 classes
 inline style props                   68   in 38 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     257
+dead exports, types and modules     258
 source-text reads in tests          735
 lint warnings                       278   in 125 files, 33 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included

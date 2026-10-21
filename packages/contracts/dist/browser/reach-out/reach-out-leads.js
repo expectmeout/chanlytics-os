@@ -336,16 +336,3 @@ export function reachOutCameWords(p) {
   if (c.won) parts.push(`${c.won} won`);
   return parts.join(" \xB7 ");
 }
-export const REACH_OUT_SOURCE_WORDS = {
-  addTitle: "Leads you add",
-  addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once",
-  failed: "the searches and lists a sequence could start from",
-  none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
-  find: "Find businesses"
-};
-export function reachOutSourceOf(s) {
-  const include = s.ready === 0;
-  const reach = include ? `${s.with_unconfirmed} unconfirmed` : `${s.ready} ready`;
-  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search on Leads";
-  return { title: `${s.name} \xB7 ${reach}`, sub: what, include };
-}

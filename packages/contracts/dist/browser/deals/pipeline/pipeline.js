@@ -4,7 +4,7 @@ import { plural } from "../../shared/words.js";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card.js";
 import { amountTotalsWords } from "../deal-amount.js";
 import { dealIsOpen, wholeDaysSince } from "../deal-vm.js";
-import { heardSinceProposal, waitingOnProposal } from "../deal-waits.js";
+import { heardSinceProposal, proposalTone, waitingOnProposal } from "../deal-waits.js";
 import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations.js";
 import { stepDayOf } from "../../notes/steps.js";
 import { followUpWords } from "../../playbooks/playbooks.js";
@@ -14,9 +14,10 @@ import { serviceOf, stepDue } from "./pipeline-views.js";
 const upper = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 const daysWords = (days) => days === null ? "" : `${days} d`;
 const zoneOf = (r, tz) => r.calendarTz || tz;
+const followUpOfRow = (r, d) => d === r.deal || d.id !== null && d.id === r.deal?.id ? r.followUp : null;
 function proposalChip(r, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r.askedMs };
-  const followUp = d === r.deal || d.id !== null && d.id === r.deal?.id ? r.followUp : null;
+  const followUp = followUpOfRow(r, d);
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r.askedMs !== null)
@@ -35,10 +36,12 @@ const step = (key, at, tone = "plain") => ({
   at,
   tone
 });
-function dealTrack(r, d, chip) {
+function dealTrack(r, d, nowMs, pace) {
   if (d.stage !== "proposed" && d.stage !== "won") return [];
   const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
-  return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
+  if (d.stage === "won") return [...held, step("proposal", "done"), step("client", "current", "ok")];
+  const tone = proposalTone({ deal: d, askedMs: r.askedMs }, nowMs, pace, followUpOfRow(r, d)?.kind === "will");
+  return [...held, step("proposal", "current", tone), step("client", "ahead")];
 }
 function nextOf(p, tz, nowMs) {
   const s = p.nextStep;
@@ -52,7 +55,7 @@ function stepOn(x, n) {
   const ownRow = !!n.dealId && openOf(x.person).some((d) => d.id === n.dealId);
   return (ownRow ? x.deal?.id === n.dealId : x.id === x.person.id) ? n : null;
 }
-function dealRow(x, chip, nowMs, group) {
+function dealRow(x, chip, nowMs, group, pace) {
   const { r, d, id } = x;
   return {
     id,
@@ -65,7 +68,7 @@ function dealRow(x, chip, nowMs, group) {
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
-    track: dealTrack(r, d, chip)
+    track: dealTrack(r, d, nowMs, pace)
   };
 }
 function heldRow(r, endMs, tz, nowMs) {
@@ -179,19 +182,19 @@ export function pipelineOf(rows, nowMs, tz, pace, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
+        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients")),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
       worth(shownClients)
     ),
     group(
       "closed",
       inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
-        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed")
+        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed", pace)
       ),
       null
     )

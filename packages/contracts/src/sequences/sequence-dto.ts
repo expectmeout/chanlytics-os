@@ -6,6 +6,7 @@
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
+import type { NewOnceKept } from "./new-draft";
 import type { SequenceMode, SequenceStart, SequenceState } from "./sequence";
 import type { SequenceEvidence } from "./sequence-evidence";
 
@@ -94,6 +95,8 @@ export interface SequenceRowDto {
   created_at: string;
   first: SequenceFirstStepDto | null;
   date: SequenceDateDto | null;
+  /** A message sent once, kept as a draft (00465): who, when, how and its step, as New shaped them; absent before it. */
+  once?: NewOnceKept | null;
   steps: number;
   /** The days its steps span: each wait after the first (00459); absent from a server before it. */
   days?: number;

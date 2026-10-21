@@ -24,14 +24,14 @@ import { noteWhose, type SeenReading } from "@chanlytics/contracts";
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "@/legacy-bridge/api";
 import type { BellApi } from "@/legacy-bridge/notifications";
-import { resnapshotSurface } from "@/legacy-bridge/surface-cache";
+import { resnapshotHere } from "@/legacy-bridge/surface-cache";
 import { carryMark, keepsCarried } from "./seen-carry";
 import { object } from "./shell-doors";
 
-// A surface a mark changed is kept in the tab's cache as a saved view is (surface-cache.ts resnapshotSurface), under the
+// A surface a mark changed is kept in the tab's cache as a saved view is (surface-cache.ts resnapshotHere), under the
 // workspace the server resolved, which the cache keys its rows by (surface-runner.ts viewedWorkspace). Installed here, not
 // in seen-carry.ts, which imports nothing that could reach a surface (its header says why).
-keepsCarried((of) => resnapshotSurface(of.key, of.globals ?? [], window.__ACTIVE_WORKSPACE ?? null, of.value));
+keepsCarried((of) => resnapshotHere(of.key, of.globals ?? [], of.value));
 
 /** Whose row it is: the person, and their conversation where the row knows it. */
 interface RowOf {

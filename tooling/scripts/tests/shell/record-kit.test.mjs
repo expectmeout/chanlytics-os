@@ -3238,7 +3238,8 @@ test("Tab stays inside a sheet, and wraps round both ways", () => {
 test("a sheet takes focus as it opens, gives it back to what opened it, and opens inside the app", () => {
   const focused = [];
   const opener = { focus: () => focused.push("opener") };
-  const panel = { focus: () => focused.push("sheet") };
+  // An element as the sheet reads it as it mounts: what it focuses, and its data attributes (a steady sheet, #1762).
+  const panel = { focus: () => focused.push("sheet"), dataset: {} };
   const appRoot = { app: "root" };
   const portals = [];
   const doc = globalThis.document;
@@ -3333,6 +3334,7 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   const row = { querySelectorAll: () => [stop("name"), stop("minutes"), stop("remove")] };
   const panel = {
     focus: () => focused.push("sheet"),
+    dataset: {},
     contains: () => true,
     querySelector: (sel) =>
       sel === ".rec-sheet-tools, .rec-sheet-body" ? tools : sel === '[data-rec-row="service-3"]' ? row : null,
@@ -3552,7 +3554,7 @@ test("a sheet React lets go of leaves the way it came, with the wash that stood 
   try {
     const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
     const wash = { className: "rec-sheet-backdrop" };
-    const el = { previousElementSibling: wash, focus() {} };
+    const el = { previousElementSibling: wash, focus() {}, dataset: {} };
     sheet.props.ref(el);
     sheet.props.ref(null);
     assert.deepEqual(left, [], "not from a frame mounted and let go of at once (StrictMode's check)");

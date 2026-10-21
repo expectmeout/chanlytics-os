@@ -1,233 +1,75 @@
 /**
- * Ask drafts a new sequence (POST sequences/draft; decision 0060, S4: New): the owner says in a line what it should do,
- * and one model call fills the flow every sequence has, from what this workspace offers and holds -- the moments it may
- * start on (contracts momentOffered, as the composer and the check read them) and the messages it can send now (their
- * versions held, contracts messageHolds). The model names each by a key of the request, never an id, and each pick is
- * judged here, in code, against the same lists: a moment not offered, a message not held, a wait past the steps' bounds or
- * a value a step's run cannot fill is never put in the draft. Typed words that name a price are left blank for the owner.
- * A message's words are data to the model (contracts ai/fence.ts). A sequence on a list starts on the list the owner
- * picked, the one start the model is handed. Nothing is written (decision 0017): the owner keeps it as a draft or starts it
- * (POST sequences), where the check every campaign meets judges it again, the list's being the workspace's among it.
+ * Ask drafts what New makes (POST sequences/draft; decision 0065, One New for every sequence): the owner says in a line
+ * what it should do, and one model call picks what it is (a sequence or a message sent once), who it is for (people or
+ * leads) and drafts the whole of it, from what this workspace offers and holds: the moments it may start on and the lists
+ * it keeps, each with who can hear it now (the Playbooks page's pools, counted as a run counts them), the messages it can
+ * send now, the searches whose leads are ready, and what already runs. Where none of its messages fits a person's step,
+ * Ask writes one, filed only when the draft is kept or started; a lead's emails are always its own words. The model names
+ * each choice by a key of the request, never an id, and every answer is judged in code against the same lists
+ * (draft-judge.ts). A message's words are data to the model (contracts ai/fence.ts). Nothing is written (decision 0017).
  */
 import "server-only";
 import {
-  AppError,
   DATA_NOT_INSTRUCTIONS,
   MOMENT_TRIGGERS,
+  NEW_DRAFT_JSON_SCHEMA,
+  NEW_ONCE_AHEAD_DAYS,
+  NEW_STEPS_MAX,
+  NEW_WAIT_DAYS,
+  NewDraftAnswerSchema,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
-  SEQUENCE_DRAFT_JSON_SCHEMA,
-  SEQUENCE_DRAFT_THEN_MAX,
-  SEQUENCE_WAIT_DAYS,
-  SequenceDraftAnswerSchema,
   defaultSlotKinds,
   fenced,
   messageHolds,
   momentOffered,
   triggerWords,
-  violatesNoPrices,
+  zonedInputValue,
   type CampaignMessage,
-  type FollowUpCondition,
-  type ParamSpec,
-  type SequenceDraftAnswer,
-  type SequenceDraftDto,
-  type SequenceDraftListDto,
-  type SequenceDraftStepDto,
+  type ConsentChannel,
+  type NewDraftAsk,
+  type NewDraftDto,
 } from "@chanlytics/contracts";
+import { listPolicies, mailboxConnectionsOf } from "@chanlytics/db";
+import type { PoolRead } from "@/lib/campaign-channels";
 import { calendarOf } from "../calendar/calendar-settings";
+import { reachOutSourcesOf } from "../leads/lead-workbench";
+import { log } from "../log";
 import { askForJson } from "../model-json";
 import { load, type ReaderContext } from "../readers";
 import * as facts from "../readers/facts";
+import { playbooks } from "../readers/playbooks";
+import { sequences } from "../readers/sequences";
 import { templates } from "../readers/templates";
+import { draftKept, type DraftKnown, type KnownMessage } from "./draft-judge";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
-/** A slot's kinds the model is told, in words: what each value is filled with. */
-const SLOT_WORDS: Record<string, string> = {
-  first_name: "their first name",
-  business_name: "the business's name",
-  booking_link: "the booking link",
-  review_link: "the review link",
-  visit_when: "the booked time",
-  visit_service: "the booked service",
-  proposal_link: "a proposal's link",
-  text: "typed words",
-};
-
-/** A moment this workspace may start a sequence on, as the model is handed it. */
-interface Moment {
-  key: string;
-  label: string;
-  hint: string;
-  cls: string;
-  /** A visit moment: its run knows each visit, so a step on it may say the booked time or service. */
-  visits: boolean;
-  proposal: boolean;
-  /** The list a sequence on one starts on: its trigger is then `saved_list`. */
-  list?: SequenceDraftListDto;
-}
-
-/** A message this workspace can send now, as the model is handed it and the draft shows it. */
-interface Offered {
-  key: string;
-  templateId: string;
-  title: string;
-  body: string;
-  purpose: string;
-  channels: string[];
-  slots: string[];
-}
-
-/** What a draft is written from: the business, its moments and its messages, and whose budget the call is counted in. */
-interface DraftKnown {
-  business: string;
-  moments: Moment[];
-  messages: Offered[];
-  tenantId: string;
-  userId: string;
-}
 
 const RULES = [
-  "You set up an automatic sequence of messages for a small business, from what its owner says it should do.",
-  "A sequence starts at one moment and sends its first message then; up to three more steps may follow, each a whole number of days after the one before (1 to 90). A later step may go only if the person has not booked since (no_booking), or has not written back since (no_reply), or both.",
-  "Use only the moments and the messages listed, by their keys. Never invent a moment, a message or what a message says.",
-  "If the owner asks for something no listed moment or message can do, build the closest part you can and say in `cannot`, in one short sentence, what is missing and where it is made (a message is written in Messages). Leave `cannot` empty when everything fit.",
-  "If no listed moment fits at all, leave `moment` and `first.message` empty and say why in `cannot`.",
-  "`name`: what the sequence is, in two to four words, as the owner would call it.",
-  `\`hour\`: the hour of the day it sends, ${PLAYBOOK_HOURS.min} to ${PLAYBOOK_HOURS.max}; ${PLAYBOOK_DEFAULTS.runHour} unless the owner says otherwise.`,
-  "`texts`: for a message with typed-words slots, the words for each of those slots in order, short and plain, in the business's voice, never a price, a discount or a date; [] when it has none.",
-  "Each later step's `name` says what it does in two to four words.",
+  "You set up what a small business sends on its own, from what its owner says in a line.",
+  "Choose `kind`: sequence (steps over days, each a wait after the one before) or once (one message, now or on a day).",
+  "Choose `audience`: people (the business's own customers, in People) or leads (other businesses a search found, which never said yes to it: you only email them).",
+  "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
+  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. A text never carries an offer: leave `text` empty for one. Leave `message` empty when you write one, and every `write` field empty when you don't.",
+  "A step to leads is an email in the business's own words: `subject` on the first only; `body` at most 80 words on the first, starting with {{opening}} on a line of its own (one line about them, written for each business later), and at most 50 on a later one, which answers in the same thread. Use only {{opening}}, {{business}}, {{first name}}, {{city}}, {{your name}}, {{your business}}, and {{booking link}} after the first only. No link, price or exclamation mark in the first.",
+  "Never a price, a discount or a date in any words you write.",
+  `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
+  "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
+  `Up to ${NEW_STEPS_MAX.people} steps to people and ${NEW_STEPS_MAX.leads} to leads, the first included. A message sent once is one step.`,
+  "`name`: what it is, in two to four words, as the owner would call it.",
+  `\`hour\`: the hour a sequence sends, ${PLAYBOOK_HOURS.min} to ${PLAYBOOK_HOURS.max}; ${PLAYBOOK_DEFAULTS.runHour} unless the owner says otherwise. \`when\`: for a message sent once, "now", or "YYYY-MM-DD HH:MM" in the business's time, within ${NEW_ONCE_AHEAD_DAYS} days; empty for a sequence.`,
+  "If the owner asks for something nothing here can do, build the closest part you can and say in `cannot` what is left out, in two short sentences: “Left out: “<their words>”.”, then why, and what the draft does instead. Leave `cannot` empty when everything fit.",
   DATA_NOT_INSTRUCTIONS,
 ];
-
-/** The draft the owner had before saying it again: its name, and how many steps it had. */
-type DraftBefore = { name: string; steps: number } | null;
-
-function sequenceAsked(known: DraftKnown, words: string, previous: DraftBefore): string {
-  const moments = known.moments.map((m) => `- ${m.key}: ${m.label} (${m.hint})`).join("\n");
-  const messages = known.messages
-    .map(
-      (m) =>
-        `- ${m.key}: "${m.title}", ${m.purpose}, goes by ${m.channels.join(" or ")}; its values: ${
-          m.slots.length ? m.slots.map((s) => SLOT_WORDS[s] ?? s).join(", ") : "none"
-        }\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
-    )
-    .join("\n");
-  const again = previous
-    ? [`The last draft was "${previous.name}", ${previous.steps} steps. Draft it again from what the owner says now.`]
-    : [];
-  return [
-    `The business: ${known.business}.`,
-    `The moments it may start on:\n${moments}`,
-    known.messages.length ? `The messages it can send:\n${messages}` : "It has no message it can send yet.",
-    `What the owner says it should do: ${words}`,
-    ...again,
-  ].join("\n\n");
-}
-
-/** A step's values from its message's slots: typed words from the model's, unless they name a price; the rest the run's. */
-function paramsOf(m: Offered, texts: readonly string[]): ParamSpec[] {
-  let t = 0;
-  return m.slots.map((kind) => {
-    if (kind !== "text") return { kind } as ParamSpec;
-    const said = (texts[t++] ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
-    return { kind: "text", value: violatesNoPrices(said) ? "" : said };
-  });
-}
-
-/** Whether a step's run can fill each of its message's values: a visit's only on a visit moment's first step, a proposal's on the follow-up's. */
-function fillable(m: Offered, first: boolean, moment: Moment): boolean {
-  return m.slots.every((s) =>
-    s === "visit_when" || s === "visit_service"
-      ? first && moment.visits
-      : s === "proposal_link"
-        ? first && moment.proposal
-        : true,
-  );
-}
-
-const asStep = (
-  m: Offered,
-  p: { name: string; after: number | null; onlyIf: FollowUpCondition[]; texts: readonly string[] },
-): SequenceDraftStepDto => ({
-  name: p.name,
-  after_days: p.after,
-  only_if: p.onlyIf,
-  template_id: m.templateId,
-  message: { title: m.title, body: m.body, channels: m.channels },
-  params: paramsOf(m, p.texts),
-});
-
-/** What is kept of the model's answer: only what this workspace offers and holds, within the steps' bounds. */
-function draftKept(answer: SequenceDraftAnswer, known: DraftKnown, said: string): SequenceDraftDto {
-  const moment = known.moments.find((m) => m.key === answer.moment);
-  const byKey = new Map(known.messages.map((m) => [m.key, m]));
-  const first = byKey.get(answer.first.message);
-  const cannot = answer.cannot.trim() || null;
-  if (!moment || !first || !fillable(first, true, moment))
-    throw new AppError(
-      "validation",
-      cannot ?? "Ask couldn’t find a moment and a message of yours that do this. Say it another way.",
-      422,
-    );
-  const name = answer.name.trim() || moment.label;
-  const steps: SequenceDraftStepDto[] = [asStep(first, { name, after: null, onlyIf: [], texts: answer.first.texts })];
-  let dropped = false;
-  for (const t of answer.then.slice(0, SEQUENCE_DRAFT_THEN_MAX)) {
-    const m = byKey.get(t.message);
-    if (!m || !fillable(m, false, moment)) {
-      dropped = true;
-      continue;
-    }
-    steps.push(
-      asStep(m, {
-        name: t.name.trim() || name,
-        after: Math.min(SEQUENCE_WAIT_DAYS.max, Math.max(SEQUENCE_WAIT_DAYS.min, t.after_days)),
-        onlyIf: [...new Set(t.only_if)],
-        texts: t.texts,
-      }),
-    );
-  }
-  return {
-    said,
-    business: known.business,
-    name: name.slice(0, 80),
-    trigger: moment.list ? "saved_list" : moment.key,
-    list: moment.list ?? null,
-    run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour)),
-    policy_class: moment.cls,
-    steps,
-    cannot: cannot ?? (dropped ? "A step needed a message you can’t send yet, so it is left out." : null),
-  };
-}
-
-/** The draft from what is known: one model call, and what is kept of its answer. */
-export async function draftFrom(known: DraftKnown, words: string, previous: DraftBefore): Promise<SequenceDraftDto> {
-  const answer = await askForJson(
-    {
-      tenantId: known.tenantId,
-      userId: known.userId,
-      purpose: "sequence_draft",
-      request: {
-        max_tokens: 900,
-        system: RULES.join("\n"),
-        schema: SEQUENCE_DRAFT_JSON_SCHEMA,
-        messages: [{ role: "user", content: sequenceAsked(known, words, previous) }],
-      },
-    },
-    SequenceDraftAnswerSchema,
-    "draft",
-  );
-  return draftKept(answer, known, words);
-}
 
 /** The messages a step may send now, each keyed for the model: offered, with a channel it can go by. */
 function offeredOf(read: {
   templates: { id: string; name: string; variables: unknown; body_preview?: string | null }[];
   messages: CampaignMessage[];
-}): Offered[] {
+}): KnownMessage[] {
   const rows = new Map(read.templates.map((t) => [t.id, t]));
-  const out: Offered[] = [];
+  const out: KnownMessage[] = [];
   for (const m of read.messages) {
     if (!m.offered) continue;
     const holds = messageHolds(m);
@@ -236,11 +78,11 @@ function offeredOf(read: {
     const row = rows.get(id) ?? rows.get(m.anchor.id);
     if (!row || channels.length === 0) continue;
     out.push({
-      key: `m${out.length + 1}`,
+      key: `k${out.length + 1}`,
       templateId: row.id,
       title: m.title,
       body: (row.body_preview ?? "").trim(),
-      purpose: m.purpose === "marketing" ? "an offer" : "a message about their booking or account",
+      offer: m.purpose === "marketing",
       channels,
       slots: defaultSlotKinds(row),
     });
@@ -248,52 +90,162 @@ function offeredOf(read: {
   return out;
 }
 
-/** A list as the one start a sequence on it is drafted from: everyone on it, under the class a list's campaign runs as. */
-const listMoment = (list: SequenceDraftListDto): Moment => ({
-  key: "list",
-  label: list.label,
-  hint: "everyone on this list, and whoever joins it later",
-  cls: "campaign",
-  visits: false,
-  proposal: false,
-  list,
-});
+/** What the model is told: the business, its moments, lists, searches and messages, the choices made, and the line. */
+function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
+  const count = (n: number | null) => (n === null ? "" : `, ${n} now`);
+  const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${rows.join("\n")}` : `${title}: none.`);
+  const chosen = [
+    ask.kind ? `kind ${ask.kind}` : null,
+    ask.audience ? `audience ${ask.audience}` : null,
+    ask.who ? `who: ${ask.who.label}` : null,
+  ].filter(Boolean);
+  return [
+    `The business: ${known.business}. Its day and time now: ${known.localNow.replace("T", " ")}.`,
+    lines(
+      "Moments a sequence to people may start on",
+      known.moments.map((m) => `- ${m.key}: ${m.label} (${m.hint}${count(m.count)})`),
+    ),
+    lines(
+      "Lists of people",
+      known.lists.map((l) => `- ${l.key}: ${l.label}${count(l.count)}`),
+    ),
+    `- everyone: everyone who can hear a message sent once${count(known.everyone)}`,
+    lines(
+      "Searches whose leads are ready",
+      known.searches.map((s) => `- ${s.key}: ${s.label}, ${s.ready} ready`),
+    ),
+    known.messages.length
+      ? lines(
+          "The business's messages",
+          known.messages.map(
+            (m) =>
+              `- ${m.key}: "${m.title}", ${m.offer ? "an offer" : "news or about their booking"}, goes by ${m.channels.join(" or ")}; its values: ${m.slots.join(", ") || "none"}\n${fenced("record", m.body.slice(0, BODY_CHARS))}`,
+          ),
+        )
+      : "The business has no message it can send yet: write the ones its steps need.",
+    chosen.length ? `The owner already chose: ${chosen.join("; ")}. Keep these.` : null,
+    `What the owner says it should do: ${ask.words.trim()}`,
+    ask.previous
+      ? `The last draft was "${ask.previous.name}", ${ask.previous.steps} steps. Draft it again from what the owner says now.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
 
-/** The route's handle: the workspace's moments (or the list picked) and messages as its pages read them, then the draft. */
-export async function draftSequence(
-  rc: ReaderContext,
-  words: string,
-  previous: DraftBefore,
-  list: SequenceDraftListDto | null,
-): Promise<SequenceDraftDto> {
-  const [library, shape, names, calendar] = await Promise.all([
+/** The draft from what is known: one model call, and what is kept of its answer. */
+export async function draftFrom(
+  known: DraftKnown,
+  ask: NewDraftAsk,
+  who: { tenantId: string; userId: string },
+): Promise<NewDraftDto> {
+  const answer = await askForJson(
+    {
+      tenantId: who.tenantId,
+      userId: who.userId,
+      purpose: "sequence_draft",
+      request: {
+        max_tokens: 2400,
+        system: RULES.join("\n"),
+        schema: NEW_DRAFT_JSON_SCHEMA,
+        messages: [{ role: "user", content: draftAsked(known, ask) }],
+      },
+    },
+    NewDraftAnswerSchema,
+    "draft",
+  );
+  return draftKept(answer, known, ask);
+}
+
+/** A read the draft can do without: logged once, and the draft drafted from what was read. */
+async function orNull<T>(read: Promise<T>, what: string, tenantId: string): Promise<T | null> {
+  try {
+    return await read;
+  } catch (e) {
+    log.error("sequence_draft_read_failed", { tenant_id: tenantId, read: what, error: e });
+    return null;
+  }
+}
+
+/** The moments this workspace may start a sequence on, keyed, each with who can hear it now. */
+function momentsOf(
+  word: Parameters<typeof triggerWords>[1],
+  calendarOn: boolean,
+  pools: Record<string, PoolRead | null> | null,
+): DraftKnown["moments"] {
+  return MOMENT_TRIGGERS.filter((t) => t.kind !== "saved" && momentOffered(t, { calendarOn })).map((t, i) => ({
+    key: `m${i + 1}`,
+    trigger: t.id,
+    ...triggerWords(t, word),
+    cls: t.cls,
+    visits: t.kind === "visit",
+    proposal: t.kind === "deal",
+    count: pools?.[t.id]?.candidates ?? null,
+    pool: pools?.[t.id] ?? null,
+  }));
+}
+
+/** The route's handle: everything a draft is judged against, read at once, then the draft. */
+export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftDto> {
+  const { ctx, tenantId } = rc;
+  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes] = await Promise.all([
     load(rc, templates, { all: false }),
     load(rc, facts.businessShape, undefined),
     load(rc, facts.facts, undefined),
-    calendarOf(rc.ctx, rc.tenantId).then(
+    calendarOf(ctx, tenantId).then(
       (c) => !!c.url || c.lostCalendar,
       () => false,
     ),
+    orNull(load(rc, playbooks, undefined), "playbooks", tenantId),
+    orNull(load(rc, sequences, undefined), "sequences", tenantId),
+    orNull(reachOutSourcesOf(ctx, tenantId), "sources", tenantId),
+    orNull(listPolicies(ctx.supabase, tenantId), "policies", tenantId),
+    orNull(mailboxConnectionsOf(ctx.supabase, tenantId), "mailboxes", tenantId),
   ]);
-  const offered = { calendarOn: calendar };
-  const moments: Moment[] = list
-    ? [listMoment(list)]
-    : MOMENT_TRIGGERS.filter((t) => t.kind !== "saved" && momentOffered(t, offered)).map((t) => ({
-        key: t.id,
-        ...triggerWords(t, shape.data.word),
-        cls: t.cls,
-        visits: t.kind === "visit",
-        proposal: t.kind === "deal",
-      }));
-  return draftFrom(
-    {
-      business: names.data.name,
-      moments,
-      messages: offeredOf(library.data),
-      tenantId: rc.tenantId,
-      userId: rc.userId,
-    },
-    words,
-    previous,
-  );
+  const pools = pb?.data.pools ?? null;
+  const ready = pb?.data.ready ?? null;
+  const live = (mailboxes ?? []).filter((m) => m.state !== "removed");
+  const known: DraftKnown = {
+    business: named.data.name,
+    localNow: zonedInputValue(rc.now.getTime(), named.data.timezone),
+    moments: momentsOf(shape.data.word, calendarOn, pools),
+    lists: [
+      ...(pb?.data.people_lists ?? []).map((l) => ({ token: `seg:${l.key}`, label: l.label })),
+      ...(pb?.data.lists ?? []).filter((l) => !l.archived).map((l) => ({ token: `list:${l.id}`, label: l.name })),
+    ].map((l, i) => ({
+      ...l,
+      key: `l${i + 1}`,
+      count: pools?.[l.token]?.candidates ?? null,
+      pool: pools?.[l.token] ?? null,
+    })),
+    everyone: pools?.everyone_monthly?.candidates ?? null,
+    everyonePool: pools?.everyone_monthly ?? null,
+    searches: (sources?.sources ?? [])
+      .filter((s) => s.ready > 0)
+      .map((s, i) => ({
+        key: `s${i + 1}`,
+        id: s.id,
+        label: s.name,
+        ready: s.ready,
+        checking: Math.max(0, s.with_unconfirmed - s.ready),
+      })),
+    messages: offeredOf(library.data),
+    running: (seqs?.data.sequences ?? [])
+      .filter((r) => r.state !== "ended")
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        starts: r.starts,
+        trigger: r.first?.trigger ?? null,
+        list: r.first?.list_key ? `seg:${r.first.list_key}` : r.first?.list_id ? `list:${r.first.list_id}` : null,
+        search: r.first?.source_search_id ?? r.first?.search_id ?? null,
+      })),
+    ready: ready
+      ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
+      : [],
+    classModes: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
+    // None named is every connected mailbox (00424): the draft names none, and says the first.
+    mailbox: live.length ? { ids: [], label: live[0]?.address ?? "" } : null,
+  };
+  return draftFrom(known, ask, { tenantId, userId: rc.userId });
 }

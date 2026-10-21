@@ -1443,6 +1443,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     sequence_leave: "approve",
     sequence_add: "approve",
     sequence_move: "approve",
+    sequence_new: "approve",
     lead_search_aim: "approve",
     sequence_send_decide: "approve",
     sequence_send_said: "approve",
