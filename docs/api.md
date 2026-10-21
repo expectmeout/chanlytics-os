@@ -1763,7 +1763,7 @@ Reads; for platform staff; no rate bucket; spends nothing.
 | --- | --- | --- | --- |
 | `view` | one of `"needs"`, `"waiting"`, `"done"` | no |  |
 | `kind` | one of `"all"`, `"question"`, `"ask"` | no |  |
-| `topic` | one of `"whatsapp"`, `"forwarding"`, `"line"`, `"calendar"`, `"billing"`, `"language"`, `"facts"`, `"team"`, `"other"` | no |  |
+| `topic` | one of `"whatsapp"`, `"forwarding"`, `"line"`, `"email"`, `"calendar"`, `"conversations"`, `"answers"`, `"facts"`, `"language"`, `"campaigns"`, `"leads"`, `"people"`, `"reviews"`, `"team"`, `"billing"`, `"other"` | no |  |
 | `workspace` | string | no | matches `^[A-Za-z0-9][A-Za-z0-9-]{0,63}$` |
 | `q` | string | no | at most 80 characters |
 | `page` | integer | no | ≥ 1; ≤ 20 |
