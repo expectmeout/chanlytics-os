@@ -2329,10 +2329,15 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   const card = byTestId(page(), "cal-notice-feed");
   assert.deepEqual(
     all(card, (n) => n.type === "button").map(textOf),
-    ["Connect your calendar"],
-    "REGRESSION: 'Paste the address', to a business that may have no address to paste: the one answer's own press",
+    ["Connect"],
+    "REGRESSION: 'Paste the address', to a business that may have no address to paste: the one answer's own press, in its one word beside the sentence (Ruben, 21 Oct 2026)",
   );
   assert.match(textOf(card), /No calendar connected\./);
+  assert.doesNotMatch(
+    textOf(card),
+    /Say what you book with/,
+    "the card says its first sentence alone; Settings' row says the rest",
+  );
   // Bookings arriving by email and no calendar (00345): the card says so in the one answer's words, and asks for a
   // press only where something is the owner's to do -- the emails held for a look.
   const feedNone = {
@@ -2565,13 +2570,15 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   }
   assert.deepEqual(
     barMenu(tree, "Calendar settings").props.groups.map((g) => [g.header, g.items.map((i) => i.label)]),
-    [
-      ["Booking link", ["Open the booking page", "Copy the link"]],
-      ["Calendar", ["Read it again now", "Hours and rules", "Booking tool"]],
-    ],
-    "what the calendar offers its owner, in one menu at the bar's end",
+    [["Calendar settings", ["Copy booking link", "Hours and rules", "Booking tool", "Read it again now"]]],
+    "what the calendar offers its owner, in one group at the bar's end, the booking link one row (Ruben, 21 Oct 2026)",
   );
-  assert.ok(settingsItem(tree, "Copy the link").copy, "the link copied in place, the menu held open (CAL-23)");
+  assert.ok(settingsItem(tree, "Copy booking link").copy, "the link copied in place, the menu held open (CAL-23)");
+  assert.equal(
+    settingsItem(tree, "Booking tool").hint,
+    undefined,
+    "a calendar that reads says nothing beside its tool",
+  );
   settingsItem(tree, "Hours and rules").onSelect();
   tree = page();
   assert.equal(rules().props.open, true, "one tap shows them");
