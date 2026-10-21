@@ -16,6 +16,7 @@ import {
   askCode,
   askDoneOf,
   businessMsBetween,
+  firstNameOfAddress,
   inboxHomeUrl,
   inboxSearchUrl,
   playbookOf,
@@ -101,6 +102,16 @@ test("a question's topic is read from its words, forwarding before a line, the p
     ["How do I change our opening hours and prices", "facts"],
     ["How do I invite someone to the team?", "team"],
     ["Hello", "other"],
+    ["How do I send a follow-up to everyone who booked last month?", "campaigns"],
+    ["Our texting campaign registration was rejected", "line"],
+    ["How do I connect my Gmail so replies come from my address?", "email"],
+    ["Can I see it in my Outlook calendar?", "calendar"],
+    ["Where are the leads Claude found?", "leads"],
+    ["Can I reply to Google reviews from here?", "reviews"],
+    ["How do I import my customer list from a spreadsheet?", "people"],
+    ["How do I take over a conversation from the receptionist?", "conversations"],
+    ["I want it to sound friendlier", "answers"],
+    ["It told a customer the wrong price", "facts"],
   ];
   for (const [words, topic] of cases) assert.equal(supportTopicOf(words, null), topic, words);
   assert.equal(
@@ -219,12 +230,23 @@ test("a question is new, then taken (the workspace's claim), then done once answ
   assert.equal(row.state, "new", "the latest mark wins: open again is open");
 });
 
+test("someone who gave no name is named by an address that starts with one, never by a desk's", () => {
+  assert.equal(firstNameOfAddress("ruben@example.com"), "Ruben");
+  assert.equal(firstNameOfAddress("dana.kim@example.com"), "Dana");
+  for (const desk of ["info@example.com", "hello@example.com", "j@example.com", "x92@example.com", null])
+    assert.equal(firstNameOfAddress(desk), null, String(desk));
+  const [row] = queue(book({ reports: [report({ who: { name: null, role: "owner", since: iso(NOW - DAY) } })] }));
+  assert.deepEqual([row.name, row.first, row.who], [null, "Dana", "dana@example.com, Owner"]);
+  assert.match(row.since, /^Member since /);
+});
+
 test("an ask answered waits on the workspace, and is done when the workspace shows it, or by hand where nothing can", () => {
   const a = ask();
   const answered = act("ask_answered", a.id, "ask", NOW - DAY);
   let [row] = queue(book({ asks: [a], acts: [answered] }));
   assert.deepEqual([row.code, row.state, row.title], ["A-3f9c2a", "waiting", "Atlas Plumbing asked for a phone line"]);
   assert.equal(row.doneWhen, "Done when the workspace has a line");
+  assert.equal(row.doneNow, false, "the panel says it is not done yet");
   const lined = book({
     asks: [a],
     acts: [answered],
@@ -232,6 +254,7 @@ test("an ask answered waits on the workspace, and is done when the workspace sho
   });
   [row] = queue(lined);
   assert.equal(row.state, "done", "the line exists");
+  assert.equal(row.doneNow, true);
   const port = ask({ what: "port" });
   [row] = queue(book({ asks: [port], acts: [act("ask_answered", port.id, "ask", NOW - DAY)] }));
   assert.deepEqual([row.state, row.byHand], ["waiting", true]);

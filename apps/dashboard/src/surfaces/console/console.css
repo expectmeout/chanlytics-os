@@ -153,7 +153,7 @@
   align-items: start;
 }
 .cs-desk[data-beside="true"] {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
 }
 .cs-desk-list,
 .cs-desk-side {
@@ -267,7 +267,6 @@
   padding-top: var(--space-4);
   border-top: 1px solid var(--line);
 }
-.cs-a-head,
 .cs-a-line {
   display: flex;
   flex-wrap: wrap;
@@ -310,45 +309,274 @@
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.cs-a-check {
+.cs-a-acts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Support's one opened (support-answer.tsx): a pane of its own that scrolls inside the window's height, its acts fixed
+   at its foot; then what it is, where it stands, who, the workspace, how to help and the reply, a section each, apart
+   by space rather than rules. */
+.cs-answer {
+  gap: 0;
+  max-height: calc(100dvh - var(--space-8));
+}
+.cs-a-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+}
+.cs-a-foot {
+  flex: none;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.cs-a-open {
+  gap: var(--space-6);
+}
+.cs-a-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.cs-a-labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cs-a-labels-end {
+  margin-left: auto;
+}
+.cs-a-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.cs-a-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cs-a-meta-words {
+  min-width: 0;
+}
+.cs-a-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.cs-a-status-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.cs-a-status-line > svg {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--ink-dim);
+}
+.cs-a-status-line[data-tone="danger"] {
+  color: var(--danger-ink);
+}
+.cs-a-status-line[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.cs-a-status-line[data-tone="ok"] {
+  color: var(--ok-ink);
+}
+.cs-a-status-line[data-tone] > svg {
+  color: currentColor;
+}
+.cs-a-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.cs-a-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.cs-a-section-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cs-a-person {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cs-a-person-words,
+.cs-a-ws {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.cs-a-strong-sm {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
-.cs-a-steps {
+.cs-a-facts-grid {
   margin: 0;
-  padding-left: var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.cs-a-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.cs-a-fact dt {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cs-a-fact dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cs-a-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.cs-a-setup-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+.cs-a-claim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.cs-a-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+.cs-a-check {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--ink);
-  overflow-wrap: anywhere;
-  /* A step names flags (--apply) as they are typed. */
-  font-variant-ligatures: none;
 }
-.cs-a-cmd {
-  font-family: var(--font-mono);
+.cs-a-check-head {
   font-size: var(--text-xs);
-  font-variant-ligatures: none;
-  overflow-wrap: anywhere;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
 }
-.cs-a-reply {
+/* The steps, numbered in a round of their own; a step names flags (--apply) as they are typed. */
+.cs-a-steps {
   margin: 0;
-  padding: var(--space-3);
-  white-space: pre-wrap;
+  padding: 0;
+  list-style: none;
+  counter-reset: cs-step;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--ink);
-  background: var(--bg-hover);
-  border-radius: var(--surface-row-radius);
   overflow-wrap: anywhere;
+  font-variant-ligatures: none;
 }
-.cs-a-acts {
+.cs-a-steps > li {
+  position: relative;
+  counter-increment: cs-step;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding-left: var(--space-8);
+}
+.cs-a-steps > li::before {
+  content: counter(cs-step);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  border: 1px solid var(--surface-inset-edge);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+.cs-a-cmd {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  background: var(--surface-inset-fill);
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--surface-inset-radius);
+}
+.cs-a-cmd code {
+  flex: 1;
+  min-width: 0;
+  padding-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-variant-ligatures: none;
+}
+.cs-a-reply {
+  white-space: pre-wrap;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cs-a-note {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.cs-a-acts-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cs-a-acts-quiet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
 }
 
 /* A request filed, and Find: what their sheets hold. */
