@@ -44656,6 +44656,11 @@ declare const SEQUENCE_WORDS: {
     /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
     readonly backToLeadsLabel: "Back to Leads";
     readonly search: "Search sequences";
+    /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
+    readonly views: {
+        readonly label: "Which sequences";
+        readonly all: "All sequences";
+    };
     readonly empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.";
     readonly failed: "The sequences couldn’t be loaded right now";
     readonly filters: {

@@ -23,6 +23,8 @@ export const SEQUENCE_WORDS = {
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
   backToLeadsLabel: "Back to Leads",
   search: "Search sequences",
+  /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
+  views: { label: "Which sequences", all: "All sequences" },
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
