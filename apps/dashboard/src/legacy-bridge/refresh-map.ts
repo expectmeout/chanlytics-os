@@ -386,6 +386,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST sequences/[id]/return": () => [sequencesOverride],
   // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
   "POST sequences": () => [...savedAndChains(), sequencesOverride],
+  // New's draft made (decision 0065): a sequence, as POST sequences makes one; a one-off, a run of Sent's; and a message Ask
+  // wrote, filed in the Library, which every picker is made of.
+  "POST sequences/new": () => [...savedAndChains(), sequencesOverride, ...runs(), ...templates()],
   // A sequence to leads (00459): leads added are each row's place on Leads and its record's people and count, with nothing
   // planned until its run is made; one moved here leaves the sequence it stood in, whose planned email is skipped; its
   // chain saved on the record is its steps' words and pace, which Templates' email rows are drawn from, and new words send

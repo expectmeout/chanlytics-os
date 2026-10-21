@@ -40,14 +40,13 @@ function keysOn(hash, route) {
  */
 const COMPOSERS = ["audiences", "playbooks"];
 /**
- * The page that draws each of them whole: who each audience reaches in New's Send once (Send once), the playbooks on
- * Campaigns' old address, since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G); and Sent's runs, whose
- * Send by ticks the composer draws too.
+ * The page that draws each of them whole: who each audience reaches and Sent's runs on Sent's page, and the playbooks on
+ * Campaigns' old address (New counts with them too: decision 0065).
  */
 const PAGE_OF = {
-  audiences: "#/campaigns/sequences/new:once",
+  audiences: "#/broadcasts",
   playbooks: "#/outbound",
-  broadcasts: "#/campaigns/sequences/new:once",
+  broadcasts: "#/broadcasts",
 };
 /** Pages each row's surfaces are drawn on: a row whose surfaces are all read where they are drawn names one on some page. */
 const PAGES = [
@@ -55,6 +54,7 @@ const PAGES = [
   "#/today",
   "#/clients",
   "#/campaigns/sequences/new:once",
+  "#/broadcasts",
   "#/outbound",
   "#/calendar",
   "#/admin/workspace",
@@ -145,7 +145,8 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
       assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
     }
     const keys = keysOn("#/campaigns/sequences/new:once", route);
-    assert.equal(keys.includes("playbooks"), false, `${route}: New's Send once draws no playbook`);
+    assert.ok(keys.includes("playbooks"), `${route}: New counts with the playbooks (decision 0065)`);
+    assert.equal(keys.includes("audiences"), false, `${route}: New draws no audience`);
     const landing = keysOn("#/campaigns", route);
     for (const key of counted)
       assert.equal(landing.includes(key), false, `${route} on Campaigns' landing: ${key} is left for its pages`);

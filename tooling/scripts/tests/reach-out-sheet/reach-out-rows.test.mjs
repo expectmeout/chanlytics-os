@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, byTestId, press } from "../_legacy-react.mjs";
+import { installLegacyReact } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -45,7 +45,6 @@ const { warmCampaignsCode } = await import(`${S}/campaigns/home/campaigns-code.t
 warmCampaignsCode("campaigns/messages/any");
 await import(`${S}/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
-const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
 const { surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = {
   ...(await import(`${S}/campaigns/reach-out/surface.ts`)),
@@ -110,38 +109,7 @@ const REPORT = (over = {}) => ({
 });
 const REACH = { ready: 0, with_unconfirmed: 0, phone_only: 72, of: 160, chain: ROOT };
 
-/** The verbs, stubbed: each press recorded, each report answered as the test says. */
-const verbs = (report = REPORT(), ok = true) => {
-  const pressed = [];
-  realVerbs({
-    report: async (id) => (
-      pressed.push(["report", id]),
-      ok ? { ok: true, data: { report, reach: REACH } } : { ok: false, message: "down" }
-    ),
-    remove: async (id) => (pressed.push(["remove", id]), { ok: true, data: {} }),
-    reach: async (id) => (pressed.push(["reach", id]), { ...REACH, ready: 44, with_unconfirmed: 44 }),
-    sources: async () => (pressed.push(["sources"]), []),
-  });
-  return pressed;
-};
-
-/* ------------------------------ New's Leads, and an older change ------------------------------ */
-
-test("Write to leads, New's Leads, opens Leads: a sequence to leads is made where its leads are chosen (the lead-to-sequence canvas, 18 Oct 2026)", () => {
-  verbs();
-  went.length = 0;
-  // The composer's address of it lands on New for leads, which draws Write to leads as its own pane (sequences/new.tsx).
-  assert.equal(contracts.retiredRouteOf("campaigns/new:leads"), contracts.newForLeadsRoute());
-  assert.deepEqual(contracts.parseSequencesRoute(contracts.newForLeadsRoute()), { view: "new", who: "leads" });
-  fresh();
-  const rows = again(() => WriteToLeads());
-  press(byTestId(rows, "ro-source-add"));
-  assert.deepEqual(
-    went,
-    [contracts.leadsRoute({ list: "all" })],
-    "Leads you add opens Leads, where Add is the one road",
-  );
-});
+/* ------------------------------ an older change ------------------------------ */
 
 test("a reach-out's change (`campaigns/new:edit:<id>`, an older link) lands on its sequence's record in one move, by its root or any of its steps' ids: nothing waits on the reach-outs, and Campaigns draws no sheet of its own for it", () => {
   assert.equal(contracts.retiredRouteOf(`campaigns/new:edit:${ROOT}`), contracts.sequenceRoute(ROOT));

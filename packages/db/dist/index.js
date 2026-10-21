@@ -1945,6 +1945,28 @@ async function saveSequenceStep(db, p) {
   });
   return answer(data, error);
 }
+async function keepOnceDraft(db, p) {
+  const { data, error } = await db.rpc("sequence_once_keep", {
+    p_tenant_id: p.tenantId,
+    p_name: p.name,
+    p_once: p.once,
+    ...p.id ? { p_id: p.id } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function peopleHandRun(db, p) {
+  const { data, error } = await db.rpc("sequence_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the call or note step's run: ${error.message}`);
+  const r = data ?? {};
+  return { made: r.made ?? 0, already: r.already ?? 0 };
+}
 async function removeSequenceStep(db, p) {
   const { data, error } = await db.rpc("sequence_step_remove", {
     p_tenant_id: p.tenantId,
@@ -7210,6 +7232,7 @@ export {
   keepMailboxWatch,
   keepMessageCost,
   keepModelTurn,
+  keepOnceDraft,
   keepProviderEvent,
   keptPersonOf,
   knownThreads,
@@ -7321,6 +7344,7 @@ export {
   pauseEmailOffers,
   peopleAtLead,
   peopleCursorOf,
+  peopleHandRun,
   peopleOnTheirOwnMode,
   peoplePage,
   peopleSeries,

@@ -4,7 +4,7 @@
  *
  * `tenant_channels`, `lines` and `billing_accounts` are on the live feed (Setup and Connections have heard them since 00117), and the
  * pages that speak of a line or of the workspace's pause did not: Today's chips and its red band come from one metrics read nothing
- * re-read for a channel or a status, Live draws the line's number and switch from the channels, and New's Send onces word Send by
+ * re-read for a channel or a status, Live draws the line's number and switch from the channels, and the composers word Send by
  * and Send from the channels and the pause. And two writes left a page behind in their own tab: a mode saved on Autonomy (Campaigns'
  * Resume question says "It sends on its own" for a class that is Auto, from the modes the playbooks read held) was announced twice where
  * it was made and told nothing of the composers, and a new name left the Team list on the old one.
@@ -128,7 +128,7 @@ test("Live hears the calls, and the line's number and switch are the channels re
 test("the composers hear the channel, the line and the billing account on their own page, and read what they missed as it comes on screen", () => {
   for (const [o, home, away] of [
     [playbooksOverride, "#/outbound", "#/inbox"],
-    // New's Send once hears the channels for Sent's runs too (who can hear you, Send by): away is the Inbox.
+    // Sent's runs hear the channels for who can hear you and Send by: away is the Inbox.
     [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
     for (const table of LINE_TABLES) {
@@ -166,17 +166,13 @@ test("the composers hear the channel, the line and the billing account on their 
     assert.deepEqual(read, [], "nothing is read from the Inbox");
     at("#/campaigns/sequences/new:once");
     win.on?.();
-    assert.deepEqual(
-      read,
-      ["broadcasts"],
-      "New's Send once reads Sent's runs it draws once (who can hear you); its playbook composer went (the closed-loop audit of 17 Oct 2026, G)",
-    );
+    assert.deepEqual(read, ["playbooks"], "New reads the playbooks it counts with, once (decision 0065)");
     at("#/broadcasts");
     win.on?.();
-    assert.deepEqual(read, ["broadcasts"], "and Sent owes nothing more: it was read");
+    assert.deepEqual(read, ["playbooks", "broadcasts"], "and Sent its runs, once");
     at("#/outbound");
     win.on?.();
-    assert.deepEqual(read, ["broadcasts", "playbooks"], "the playbooks once, on their own page");
+    assert.deepEqual(read, ["playbooks", "broadcasts"], "and the playbooks' own page owes nothing more");
   } finally {
     stop();
     at("#/today");
@@ -223,10 +219,14 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   );
   assert.deepEqual(
     owedOn("#/campaigns/sequences/new:once"),
-    ["audiences"],
-    "who each audience reaches is read as New's Send once comes on screen: the audiences it draws hear the rules there",
+    ["playbooks"],
+    "the playbooks as New comes on screen, whose modes its Your OK starts from (decision 0065)",
   );
-  assert.deepEqual(owedOn("#/broadcasts"), ["playbooks"], "and Sent the playbooks, which name its runs' campaigns");
+  assert.deepEqual(
+    owedOn("#/broadcasts"),
+    ["audiences"],
+    "and Sent who each audience reaches, which count by the rules",
+  );
   assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
   assert.deepEqual(
     owedOn("#/clients", [peopleOverride]),
@@ -241,20 +241,20 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     ["settings"],
     "from the Inbox, the rules' own read alone: the runs waiting for your word it draws read no mode",
   );
-  assert.deepEqual(owedOn("#/campaigns/sequences/new:once"), ["audiences"], "New's Send once, the audiences it draws");
-  assert.deepEqual(owedOn("#/outbound"), ["playbooks"], "the playbooks as their own page comes on screen");
+  assert.deepEqual(owedOn("#/campaigns/sequences/new:once"), ["playbooks"], "New, the playbooks it counts with");
+  assert.deepEqual(owedOn("#/broadcasts"), ["audiences"], "Sent, who each audience reaches");
   settle();
 
   at("#/campaigns/sequences/new:once");
   assert.deepEqual(
     keysOf("PUT policies"),
-    ["settings", "audiences"],
-    "on New's Send once who each audience reaches is read at once",
+    ["settings", "playbooks"],
+    "on New the playbooks it counts with are read at once",
   );
   assert.deepEqual(
     owedOn("#/broadcasts"),
-    ["playbooks"],
-    "Sent owes the playbooks alone, which name its runs' campaigns: the audiences were read in the composer",
+    ["audiences"],
+    "Sent owes who each audience reaches alone: the playbooks were read on New",
   );
   assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
   settle();

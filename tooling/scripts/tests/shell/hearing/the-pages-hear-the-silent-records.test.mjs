@@ -187,8 +187,7 @@ const ON_ITS_PAGE = [
   // 17 Oct 2026, G).
   [playbooksOverride, "#/outbound", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
   // Who each audience Sent's composer offers reaches (audiences-surface.ts), with the settings read's messages (offered-templates.ts):
-  // it hears every other table the playbooks do. Away is the Inbox: New's Send once hears these for the audiences too
-  // (PAGE_HEARS, a cell of kinds; the test below).
+  // it hears every other table the playbooks do. Away is the Inbox.
   [audiencesOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
   [reportsOverride, "#/reports", "#/inbox", ["contacts"]],
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
@@ -330,40 +329,23 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   }
 });
 
-test("in New's Send once the audiences hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
-  // The composer draws who each audience reaches for who can hear you and the send-once composer, and Sent's runs for the pause on
-  // offers and the Send by ticks (the wiring's second audit, W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved
-  // moved them nowhere while it was open. A message moves a run's replies, which the composer reads from Campaigns' own 30 days: it
-  // is Sent's, as it was. Campaigns' landing, Sequences' list, draws neither: there they are kept for the pages that draw them.
-  assert.equal(
-    ownsTable("audiences", "contacts", "campaigns"),
-    false,
-    "Campaigns' landing keeps a person for Sent's pages",
-  );
+test("in New the playbooks hear what moves who can hear them, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Campaigns' own page; what passed is read where it is owned", () => {
+  // New counts who each moment and list reaches with the playbooks read (decision 0065), as the send screen's audiences
+  // counted there before it: a STOP, a number Meta flagged or a rule saved moves its counts while it is open. A message moves
+  // a run's replies, which New draws none of: it is Campaigns' own page's. Campaigns' landing, Sequences' list, draws no
+  // playbook: there it is kept for the pages that draw it. Who each audience reaches and Sent's runs are Sent's page's alone.
+  assert.equal(ownsTable("playbooks", "contacts", "campaigns"), false, "Campaigns' landing keeps a person for New");
   at("#/campaigns/sequences/new:once");
-  for (const table of [
-    "contacts",
-    "tenant_channels",
-    "lines",
-    "mailboxes",
-    "billing_accounts",
-    "policies",
-    "tenant_config",
-    "appointments",
-  ])
-    assert.equal(hears(audiencesOverride, table), true, `audiences: ${table} in the composer`);
-  // Sent's runs, there, hear what their Send by ticks and the month are worded from, and nothing of People.
-  for (const table of ["tenant_channels", "lines", "mailboxes", "billing_accounts", "tenant_config"])
-    assert.equal(hears(broadcastsOverride, table), true, `broadcasts: ${table} in the composer`);
-  assert.equal(hears(broadcastsOverride, "contacts"), false, "Sent's runs read no one");
+  for (const table of ["contacts", "mailboxes", "policies", "tenant_config", "appointments"])
+    assert.equal(hears(playbooksOverride, table), true, `playbooks: ${table} in New`);
   for (const [table, event] of [
     ["messages", "INSERT"],
     ["conversations", "UPDATE"],
     ["escalations", "INSERT"],
-  ]) {
-    assert.equal(hears(audiencesOverride, table, event), false, `audiences: ${table} waits for Sent`);
-    assert.equal(hears(broadcastsOverride, table, event), false, `broadcasts: ${table} waits for Sent`);
-  }
+  ])
+    assert.equal(hears(playbooksOverride, table, event), false, `playbooks: ${table} waits for Campaigns' own page`);
+  for (const o of [audiencesOverride, broadcastsOverride])
+    assert.equal(hears(o, "contacts"), false, `${o.key}: not drawn in New, kept for Sent`);
   const win = {
     location: globalThis.location,
     addEventListener(_t, fn) {
@@ -372,29 +354,25 @@ test("in New's Send once the audiences hear what moves them there, a person, a c
     removeEventListener() {},
   };
   const read = [];
-  const stop = readWhatWasMissed([audiencesOverride], (keys) => read.push(...keys), win);
+  const stop = readWhatWasMissed([playbooksOverride], (keys) => read.push(...keys), win);
   try {
-    hears(audiencesOverride, "messages", "INSERT");
+    hears(playbooksOverride, "messages", "INSERT");
     at("#/inbox");
     win.on?.();
     at("#/campaigns/sequences/new:once");
     win.on?.();
-    assert.deepEqual(
-      read,
-      [],
-      "a message the composer let pass is not read as it comes back: it moves nothing drawn there",
-    );
-    at("#/broadcasts");
+    assert.deepEqual(read, [], "a message New let pass is not read as it comes back: it moves nothing drawn there");
+    at("#/outbound");
     win.on?.();
-    assert.deepEqual(read, ["audiences"], "it is read once as Sent comes on screen");
+    assert.deepEqual(read, ["playbooks"], "it is read once as Campaigns' own page comes on screen");
     at("#/inbox");
-    hears(audiencesOverride, "contacts");
+    hears(playbooksOverride, "contacts");
     at("#/campaigns/sequences/new:once");
     win.on?.();
     assert.deepEqual(
       read,
-      ["audiences", "audiences"],
-      "a person's answer passed on the Inbox is read as the composer comes back",
+      ["playbooks", "playbooks"],
+      "a person's answer passed on the Inbox is read as New comes back",
     );
   } finally {
     stop();

@@ -17,7 +17,7 @@ import {
   LIST_GROUP_WORDS,
   NO_TEMPLATE_WORDS,
   PREVIEW_WORDS,
-  SEQUENCE_NEW_WORDS,
+  NEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heardTooWords,
@@ -636,7 +636,7 @@ function bcTitleField({ name, setName, tpl }: BcV, inNew: boolean) {
         className="pb-title-box"
         shape="title"
         aria-label="Name this send"
-        placeholder={inNew ? SEQUENCE_NEW_WORDS.title : tpl ? bcTitle(tpl.name) : CAMPAIGN_ROOMS.newMessage}
+        placeholder={inNew ? NEW_WORDS.title : tpl ? bcTitle(tpl.name) : CAMPAIGN_ROOMS.newMessage}
         value={name}
         onValueChange={setName}
         maxLength={80}

@@ -340,15 +340,35 @@ export const sequenceDraftSpec: ProposalSpec = {
       typeof before.name === "string" && typeof before.steps === "number"
         ? { previous: { name: before.name, steps: before.steps } }
         : {};
-    const on = rec(pl.list);
-    const list =
-      typeof on.token === "string" && typeof on.label === "string"
-        ? { list: { token: on.token, label: on.label } }
-        : {};
-    return { route: "POST sequences/draft", body: { words, ...previous, ...list } };
+    // The choices already made, which Ask keeps (decision 0065): the kind, the audience, and who.
+    const kept = Object.fromEntries(
+      ["kind", "audience", "who"].filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]),
+    );
+    return { route: "POST sequences/draft", body: { words, ...kept, ...previous } };
   },
   receipt: () => "Drafted",
   open: () => `${SEQUENCES_ROUTE}/new`,
+};
+
+/**
+ * New's draft, kept or started (POST sequences/new, decision 0065): a sequence or a message sent once, to people or to
+ * leads. Its receipt says what it is now: a draft that sends nothing, a sequence on, or a one-off on its way.
+ */
+export const sequenceNewSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    if (!Array.isArray(pl.steps) || pl.steps.length === 0) return refuseWith("Add a step.");
+    return { route: "POST sequences/new", body: pl };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(pl.name).trim();
+    const state = rec(data).state;
+    if (state === "draft") return `“${name}” is a draft: nothing goes yet`;
+    return pl.kind === "once" && pl.audience !== "leads" ? `“${name}” is on its way` : `“${name}” is on`;
+  },
+  made: (_p, data) => asText(rec(data).made) || null,
+  open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),
 };
 
 /** Where a lead verb's Open goes: the sequence's Leads tab. */

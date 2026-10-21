@@ -175,15 +175,15 @@ const ANNOUNCES = {
   },
   // The people the hourly calendar read made: People's list, on its page.
   calendar_people: { change: ["contacts", "INSERT"], heard: [["people", ["#/clients"]]] },
-  // A stop by the unsubscribe link, a complaint or a carrier: the Inbox's composer, People's Offers column, the composers' audiences,
-  // and the board's "Text the link".
+  // A stop by the unsubscribe link, a complaint or a carrier: the Inbox's composer, People's Offers column, the composer's audiences,
+  // New's counts (the playbooks read, decision 0065), and the board's "Text the link".
   opted_out: {
     change: ["contacts", "UPDATE"],
     heard: [
       ["inbox", ["#/inbox", "#/today"]],
       ["people", ["#/clients"]],
-      ["audiences", ["#/broadcasts", "#/campaigns/sequences/new:once"]],
-      ["playbooks", ["#/outbound"]],
+      ["audiences", ["#/broadcasts"]],
+      ["playbooks", ["#/outbound", "#/campaigns/sequences/new:once"]],
       ["calendar", ["#/calendar", "#/today"]],
       // The person's own page, where the row's button may open: their surface hears them changed there.
       ["person", ["#/clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f"]],
@@ -194,8 +194,8 @@ const ANNOUNCES = {
   sweep: {
     change: ["mailboxes", "UPDATE"],
     heard: [
-      ["broadcasts", ["#/broadcasts", "#/campaigns/sequences/new:once"]],
-      ["playbooks", ["#/outbound"]],
+      ["broadcasts", ["#/broadcasts"]],
+      ["playbooks", ["#/outbound", "#/campaigns/sequences/new:once"]],
     ],
   },
   handoff: "The Inbox, which the row opens, hears the escalation and the message.",
@@ -289,16 +289,16 @@ test("heard while the owner is elsewhere, it is kept for the page that draws it 
     assert.equal(wantsRefresh(peopleOverride, "contacts", change), false, `${event}: People is not read on the Inbox`);
     assert.deepEqual(owedOnArrival(["#/clients", "#/broadcasts"]), { "#/clients": ["people"], "#/broadcasts": [] });
   }
-  // The gates' pause heard on Today: the composer is read as a page that draws it comes on screen, once, and the
-  // playbooks where their page is.
+  // The gates' pause heard on Today: Sent's runs are read as a page that draws them comes on screen, once, and the
+  // playbooks where a page draws them: New (decision 0065), then Campaigns' own, which owes nothing more.
   drain();
   at("#/today");
   const pause = { table: "mailboxes", event: "UPDATE", row: {} };
   for (const o of [playbooksOverride, broadcastsOverride])
     assert.equal(wantsRefresh(o, "mailboxes", pause), false, o.key);
   assert.deepEqual(owedOnArrival(["#/campaigns/sequences/new:once", "#/broadcasts", "#/outbound"]), {
-    "#/campaigns/sequences/new:once": ["broadcasts"],
-    "#/broadcasts": [],
-    "#/outbound": ["playbooks"],
+    "#/campaigns/sequences/new:once": ["playbooks"],
+    "#/broadcasts": ["broadcasts"],
+    "#/outbound": [],
   });
 });

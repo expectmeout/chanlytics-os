@@ -22,6 +22,7 @@ function newPlaceOf(word) {
   if (kind === "moment" && rest[0]) return { view: "new", moment: rest[0] };
   if (kind === "leads") return { view: "new", who: "leads" };
   if (kind !== "once") return { view: "new" };
+  if (rest[0] === "draft" && rest[1]) return { view: "new", who: "once", draft: rest[1] };
   const to = rest[0] === "to" ? rest.slice(1).join(":") : "";
   return to ? { view: "new", who: "once", to } : { view: "new", who: "once" };
 }
@@ -33,6 +34,7 @@ export const sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENC
 export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 export const runRoute = (id, sequenceId) => `${SEQUENCES_ROUTE}/${sequenceId || id}/runs/${id}`;
 export const sendOnceRoute = (audience) => audience ? `${SEQUENCES_ROUTE}/new:once:to:${audience}` : `${SEQUENCES_ROUTE}/new:once`;
+export const onceDraftRoute = (id) => `${SEQUENCES_ROUTE}/new:once:draft:${id}`;
 export const newForLeadsRoute = () => `${SEQUENCES_ROUTE}/new:leads`;
 export const messageRoute = (name) => `campaigns/messages/${encodeURIComponent(name)}`;
 export function messageOfRoute(route) {

@@ -4,7 +4,8 @@
  * reach-out's own words (its ten slots, the opening written for each business when its batch is planned), from what the
  * workspace is, its goal (config `ask.goal`) and the search the leads came from (its name and what was asked). Every word
  * the model gives is judged here as every email is (contracts validateReachOutWords: the slots it may name, no link in a
- * first email, its length), a step that does not hold is left for the owner to write, and the call step always closes it.
+ * first email, its length), and a step that does not hold is left for the owner to write. A call or a note is the owner's
+ * to add (decision 0065: nothing in a draft is fixed in code).
  * Nothing is written (decision 0017): New makes the draft with these steps (POST sequences, starts 'leads').
  */
 import "server-only";
@@ -84,7 +85,7 @@ function draftAskedOf(p: {
 const keptEmail = (w: { subject: string | null; body: string }, first: boolean) =>
   validateReachOutWords(w, first).length === 0 && !violatesNoPrices(`${w.subject ?? ""} ${w.body}`) ? w : null;
 
-/** The route's handle: what is known, one model call, what is kept of it, and the call step after it. */
+/** The route's handle: what is known, one model call, and what is kept of it. */
 export async function draftLeadSteps(rc: ReaderContext, input: { name: string; search_id?: string }) {
   const [names, config, search] = await Promise.all([
     load(rc, facts.facts, undefined).then((r) => r.data),
@@ -124,7 +125,6 @@ export async function draftLeadSteps(rc: ReaderContext, input: { name: string; s
     steps: [
       { subject: first.subject, body: first.body, after_days: null },
       { subject: null, body: follow ? follow.body : "", after_days: wait },
-      { subject: null, body: "", after_days: 3, hand: { kind: "call" as const, words: "Call them" } },
     ],
   };
 }

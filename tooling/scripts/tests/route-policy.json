@@ -1810,6 +1810,13 @@
       "rate": "ask",
       "spend": false
     },
+    "POST sequences/new": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "POST settings/receptionist": {
       "kind": "write",
       "scope": "workspace",

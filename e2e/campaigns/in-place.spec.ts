@@ -133,18 +133,17 @@ test.describe("Campaigns opens in place on a real workspace", () => {
     await expect(page.getByTestId("bc-optin")).toHaveCount(0);
   });
 
-  test("New's choices replace the address, never stack it: Close leaves New in one Back", async ({ page }) => {
-    await page.goto("/#/campaigns/sequences/new");
+  test("New opens beside the list and closes to it: with nothing drafted, Close asks nothing", async ({ page }) => {
+    await page.goto("/#/campaigns/sequences");
+    await page.getByTestId("sq-new-open").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new$/));
     const pane = page.getByTestId("sq-new");
     await expect(pane).toBeVisible();
-    const before = await entries(page);
-    await pane.getByTestId("sq-new-on-date").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:once$/));
-    await page.getByTestId("sq-new-on-leads").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:leads$/));
-    await page.getByTestId("sq-new-on-moment").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new(:moment(:[^/]+)?)?$/));
-    expect(await entries(page), "three choices, no new entry").toBe(before);
+    // A line typed is no draft: nothing is kept, so leaving asks nothing (decision 0065; a draft's leaving asks first).
+    await pane.getByTestId("sq-nw-line").fill("Thank them the next day");
+    await pane.getByTestId("cm-pane-close").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
+    await expect(page.getByTestId("sq-new")).toHaveCount(0);
   });
 });
 

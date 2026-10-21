@@ -8,6 +8,7 @@ const WHY = {
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings \u203A Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
+  made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
@@ -120,12 +121,14 @@ export const ASK_GUIDE_PAGES = [
       "sequence_discard",
       "sequence_end",
       "sequence_draft",
+      "sequence_new",
       "sequence_test",
       "reach_out_make",
       "reach_out_add"
     ],
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
+      { what: "Keep or start what New drafted", why: WHY.made },
       { what: "Send yourself a test of a step's message", why: WHY.test },
       { what: "End a sequence for good", why: WHY.end }
     ]
@@ -153,6 +156,7 @@ export const ASK_GUIDE_PAGES = [
 export const ASK_PAGE_ONLY_VERBS = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
+  sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
   sequence_end: WHY.end,

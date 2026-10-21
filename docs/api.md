@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-291 handlers in 50 domains.
+292 handlers in 50 domains.
 
 ## activity
 
@@ -2196,8 +2196,10 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `words` | string | yes | at least 8 characters; at most 500 characters |
+| `kind` | one of `"sequence"`, `"once"` | no |  |
+| `audience` | one of `"people"`, `"leads"` | no |  |
+| `who` | object or object or object or object or object | no |  |
 | `previous` | object | no |  |
-| `list` | object | no |  |
 
 ### `POST /api/v1/sequences/draft-leads`
 
@@ -2207,6 +2209,26 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `name` | string | yes | at least 1 characters; at most 80 characters |
 | `search_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/v1/sequences/new`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"sequence"`, `"once"` | yes |  |
+| `audience` | one of `"people"`, `"leads"` | yes |  |
+| `name` | string | yes | at least 1 characters; at most 80 characters |
+| `who` | object or object or object or object or object | yes |  |
+| `run_hour` | integer | yes | ≥ 9; ≤ 20 |
+| `at` | string or null | yes |  |
+| `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | yes | at most 3 |
+| `mode` | one of `"auto"`, `"veto"`, `"ask"` or null | yes |  |
+| `adds_new` | boolean | yes |  |
+| `owner_sends` | boolean | no |  |
+| `draft_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `steps` | array of object | yes | at least 1; at most 6 |
+| `start` | boolean | yes |  |
 
 ## settings
 

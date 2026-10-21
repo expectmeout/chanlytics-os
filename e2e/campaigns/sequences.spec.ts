@@ -166,30 +166,24 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(page.getByTestId("bc-sheet")).toBeVisible();
   });
 
-  test("New asks who and when; Once is the send screen and Leads the searches, in New, and nothing is drafted here", async ({
+  test("New is one line to Ask, or a start from what's happening, for every kind; nothing is drafted here", async ({
     page,
   }) => {
     await page.goto("/#/campaigns/sequences/new");
     const pane = page.getByTestId("sq-new");
     await expect(pane).toBeVisible();
-    // A moment is the default: the owner's line, and Draft it waits for one.
-    await expect(pane.getByTestId("sq-new-words")).toBeVisible();
-    await expect(pane.getByTestId("sq-new-draft")).toBeDisabled();
-    // Once is the send screen, as New's own pane with who and when over it (the Campaigns wiring review's lane 6); the choice
-    // is the address's, replaced, beside Sequences' list.
-    await pane.getByTestId("sq-new-on-date").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:once$/));
-    const once = page.getByTestId("bc-composer");
-    await expect(once).toBeVisible();
-    await expect(page.getByTestId("sq-page")).toBeVisible();
-    // Leads are the searches a sequence to leads is written to, in New.
-    await once.getByTestId("sq-new-on-leads").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new:leads$/));
-    await expect(pane.getByTestId("sq-new-part-leads")).toBeVisible();
-    // A list asks which list before the line can be drafted (its picker sits in the pane's body: the first of the two).
-    await pane.getByTestId("sq-new-on-list").click();
-    await expect(pane.getByTestId("sq-new-list").or(pane.locator(".sq-new-body")).first()).toBeVisible();
-    await pane.getByTestId("sq-new-words").fill("Thank them and invite them back in a month");
-    await expect(pane.getByTestId("sq-new-draft")).toBeDisabled();
+    // The owner's line, and Draft it waits for one (decision 0065: one New for every sequence). Pressing it asks Ask,
+    // which spends: never here.
+    const line = pane.getByTestId("sq-nw-line");
+    await expect(line).toBeVisible();
+    await expect(pane.getByTestId("sq-nw-draft")).toBeDisabled();
+    await line.fill("Thank them and invite them back in a month");
+    await expect(pane.getByTestId("sq-nw-draft")).toBeEnabled();
+    // A door's address opens the same New, beside Sequences' list: a one-off, and a sequence to leads.
+    for (const at of ["new:once", "new:leads"]) {
+      await page.goto(`/#/campaigns/sequences/${at}`);
+      await expect(page.getByTestId("sq-new").getByTestId("sq-nw-line")).toBeVisible();
+      await expect(page.getByTestId("sq-page")).toBeVisible();
+    }
   });
 });
