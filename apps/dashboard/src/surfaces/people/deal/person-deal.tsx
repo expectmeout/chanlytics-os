@@ -16,8 +16,8 @@
  * with the words in its box where free text can go; where only an approved message can, it opens the thread with
  * nothing in the box, which offers those, and its hover says so. Every other act opens the one deal sheet
  * (components/deal-sheet.jsx, the `openDealSheet` verb). On the person page each
- * deal is a row that folds the card open (canvas A); the Pipeline's deal sheet draws the card's parts (dealSteps,
- * dealLine) and leads with its act from the sheet's own foot (pipeline/peek-foot.tsx).
+ * deal is a row that folds the card open (canvas A); the Pipeline's deal sheet draws the card's steps (dealSteps) and
+ * leads with its act from the sheet's own foot (pipeline/peek-foot.tsx).
  *
  * Under its acts, a card says its next step (0007, amended): Next, what, when and for whom, with Done and, for the
  * one who wrote it, Change; with none, a quiet dashed "Set a next step". The step is the earliest open one that
@@ -156,18 +156,19 @@ const PersonDealStep = ({
   );
 };
 
-/** A step's words: its name, how a consultation that ended stands, and its day. */
+/** A step's words: its name, then on one line how a consultation that ended stands and its day ("Kept · Oct 16"). */
 function stepWords(s: DealStepVM) {
   return (
     <>
       <span className="cl-prof-deal-step-label">{s.label}</span>
-      {/* A consultation that has ended says how the visit stands, as every page does: Kept, or Past while nobody has said. */}
-      {s.word ? (
-        <span className="cl-prof-deal-step-day" data-testid="person-deal-step-word">
-          {s.word}
+      {s.word || s.day ? (
+        <span className="cl-prof-deal-step-day">
+          {/* A consultation that has ended says how the visit stands, as every page does: Kept, or Past while nobody has said. */}
+          {s.word ? <span data-testid="person-deal-step-word">{s.word}</span> : null}
+          {s.word && s.day ? DOT : null}
+          {s.day}
         </span>
       ) : null}
-      {s.day ? <span className="cl-prof-deal-step-day">{s.day}</span> : null}
     </>
   );
 }
@@ -196,8 +197,8 @@ export function dealSteps(steps: readonly DealStepVM[], row = false) {
   );
 }
 
-/** The proposal's link, and the facts beside it; with `copy`, the link copies too (the opened row, the Pipeline's sheet). */
-export function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
+/** The proposal's link, and the facts beside it; with `copy`, the link copies too (the opened row). */
+function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
   return (
     <p className="cl-prof-deal-line" data-testid="person-deal-line">
       {c.link ? (

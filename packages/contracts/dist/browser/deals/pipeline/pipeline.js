@@ -18,11 +18,12 @@ const followUpOfRow = (r, d) => d === r.deal || d.id !== null && d.id === r.deal
 function proposalChip(r, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r.askedMs };
   const followUp = followUpOfRow(r, d);
+  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
   return null;
 }

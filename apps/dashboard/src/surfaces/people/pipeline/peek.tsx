@@ -173,7 +173,7 @@ function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typ
         <div className="pk-titles">
           <h2 className="pk-name">{nameOf(vm)}</h2>
           <div className="pk-sub" data-testid="pipeline-peek-sub">
-            {vm.sub}
+            {c.sheet.sub ?? vm.sub}
           </div>
         </div>
         {walk ? <PersonWalkNav walk={walk} step={onStep} words={WALK_WORDS} /> : null}
@@ -222,7 +222,7 @@ function PhoneSheet(
       open={p.open}
       onClose={p.onClose}
       title={nameOf(vm)}
-      sub={<span data-testid="pipeline-peek-sub">{vm.sub}</span>}
+      sub={<span data-testid="pipeline-peek-sub">{c.sheet.sub ?? vm.sub}</span>}
       mark={<Face person={{ name: vm.name, initials: vm.initials }} size="lg" />}
       close={{ label: P.words.peek.close, glyph: <Icon name="x" size={13} /> }}
       rest={{ at: p.at, onRest: p.onRest, turn: { up: P.words.sheet.raise, down: P.words.sheet.lower } }}
