@@ -83,6 +83,9 @@ export const PIPELINE_WORDS = {
     more: (what: string) => `More for ${what}`,
     message: "Message",
     others: "Also with them",
+    /** The proposal's own box, raised: its link and the link's copy. */
+    proposal: "The proposal",
+    link: "Link",
     /** A consultation over with no proposal since, once its step says when and how it went. */
     noProposal: "No proposal yet",
     walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" },

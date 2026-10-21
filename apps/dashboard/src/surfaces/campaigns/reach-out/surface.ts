@@ -9,6 +9,7 @@
  * through the typed client, and the refresh map reads the surfaces again behind it.
  */
 import {
+  NEW_WORDS,
   HOLD_DOOR_WORDS,
   REACH_OUT_RUN_REREAD_MS,
   REACH_OUT_GAP_MINUTES,
@@ -84,6 +85,7 @@ import {
   type ReachOutReachDto,
   type ReachOutSourceDto,
   type BroadcastDetailDto,
+  leadChainStepOf,
 } from "@chanlytics/contracts";
 import type { Input } from "@/client/api";
 import { api, read } from "@/legacy-bridge/api";
@@ -150,8 +152,20 @@ const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UT
 export const reachOuts = {
   /** The business's clock: what a lead's day and time are said in, off the page that read it. */
   zone: businessZone,
-  /** Ask's draft of a new sequence to leads' emails, from the goal and the search (New's "A draft by Ask"). */
-  draftLeads: (body: { name: string; search_id?: string }) => api()("POST sequences/draft-leads", { body, once: true }),
+  /**
+   * Ask's draft of a new sequence to the leads picked (Leads' "A draft by Ask"), from New's one engine (POST sequences/draft,
+   * decision 0065): the line a search's leads are drafted from, the workspace's goal and its messages, as New drafts one;
+   * its steps as a sequence to leads holds them.
+   */
+  draftLeads: async (body: { name: string; lead_ids: string[]; search_name?: string | null }) => {
+    const words = body.search_name ? NEW_WORDS.starts.leadsLine(body.search_name) : NEW_WORDS.starts.leadsPicked;
+    const who = { kind: "leads" as const, ids: body.lead_ids, label: body.name };
+    const r = await api()("POST sequences/draft", {
+      body: { words, kind: "sequence", audience: "leads", who },
+      once: true,
+    });
+    return r.ok ? { ...r, data: { steps: r.data.steps.map(leadChainStepOf) } } : r;
+  },
   /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
   report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),

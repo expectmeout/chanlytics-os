@@ -303,7 +303,18 @@ function CallDial({ c, vm }: { c: CallCtx; vm: PersonCallVM }) {
  * The head's Call, and the phone dock's circle: on a desk the popover hangs from it, the dial first and the question
  * once it is rung; on a phone it rings at once and the sheet asks once the app is back. A viewer rings and is never asked.
  */
-export function CallAct({ c, dock = false, round = false }: { c: CallCtx; dock?: boolean; round?: boolean }) {
+export function CallAct({
+  c,
+  dock = false,
+  round = false,
+  className,
+}: {
+  c: CallCtx;
+  dock?: boolean;
+  round?: boolean;
+  /** A dock's own circle (the Pipeline's deal sheet fills its circles, as the Calendar's visit does). */
+  className?: string;
+}) {
   const { vm } = c.call;
   // Nothing to ring, or someone on do-not-contact: no Call (their More still logs a call already made).
   if (!vm?.rings) return null;
@@ -314,6 +325,7 @@ export function CallAct({ c, dock = false, round = false }: { c: CallCtx; dock?:
         iconOnly
         size="touch"
         variant={dock ? "quiet" : "glass"}
+        className={className}
         aria-label={W.call}
         title={W.call}
         href={vm.tel}
@@ -325,7 +337,15 @@ export function CallAct({ c, dock = false, round = false }: { c: CallCtx; dock?:
     );
   // A desk's dock draws it as its circles are drawn (the Pipeline's deal sheet), the popover hanging from it as from the head's.
   const trigger: ReactElement = round ? (
-    <Button iconOnly variant="quiet" aria-label={W.call} title={W.call} data-testid="person-call">
+    <Button
+      iconOnly
+      size="touch"
+      variant="quiet"
+      className={className}
+      aria-label={W.call}
+      title={W.call}
+      data-testid="person-call"
+    >
       <Icon name="phone" size={16} />
     </Button>
   ) : (

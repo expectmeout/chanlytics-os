@@ -10,7 +10,8 @@ import { isIdentifierName, shortName } from "../../conversations/thread-contact"
 import { dealIsOpen } from "../deal-vm";
 import type { DealVM } from "../deal-vm";
 import { DEAL_STAGE_WORDS } from "../deal-words";
-import { EMAIL_CANT_REACH, emailFactWords, repliesWords } from "../../people/person-reach";
+import { clockDate } from "../../shared/clock";
+import { EMAIL_CANT_REACH, EMAIL_STOPPED_LINE, repliesWords } from "../../people/person-reach";
 import type { PersonVM } from "../../people/person-profile";
 import { act, consultedService, type DealAct, type DealPerson } from "../sheet/deal-acts";
 import { DEAL_CARD_WORDS, consultationStepOf, dealCardsOf, type DealCardVM, type DealStepVM } from "../sheet/deal-card";
@@ -84,6 +85,8 @@ export interface PipelinePeekReachVM {
   id: "phone" | "email" | "replies";
   label: string;
   words: string;
+  /** A line under it in the warn ink: an address that stopped accepting mail. */
+  warn: string | null;
   copy: string | null;
 }
 
@@ -95,21 +98,27 @@ export interface PipelinePeekDetailVM {
  * How to reach them once they are read (0008, "the row carries the deal"): the number and the address, each with its
  * Copy, and what a reply may be now (repliesWords, the person page's own sentence). Calling them is the foot's (the
  * person page's Call, which rings and asks how it went), never a link here. Each fact once: an address that stopped
- * accepting mail says so on its own row, and Replies says it again for nobody.
+ * accepting mail says so under itself, in the warn ink, and Replies says it again for nobody.
  */
 export function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM {
   const W = PIPELINE_WORDS.peek.reach;
   const reach: PipelinePeekReachVM[] = [];
   // Not for someone on do-not-contact: the person page's own menu offers neither the call nor the copy (personActs).
   if (p.phone && !(p.consent && p.consent.dnc))
-    reach.push({ id: "phone", label: W.phone, words: p.phone, copy: p.phone });
+    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
   if (p.email)
-    reach.push({ id: "email", label: W.email, words: emailFactWords(p.email, p.emailSuppressed), copy: p.email });
+    reach.push({
+      id: "email",
+      label: W.email,
+      words: p.email,
+      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
+      copy: p.email,
+    });
   const replies = p.hasChat
     ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed })
     : null;
   if (replies && !(p.email && replies === EMAIL_CANT_REACH))
-    reach.push({ id: "replies", label: W.replies, words: replies, copy: null });
+    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
   return { reach };
 }
 
@@ -121,6 +130,8 @@ export interface PipelineSheetAct {
 
 /** The row's own deal, as the sheet says it once the person is read; before, its steps and its stand from the row alone. */
 export interface PipelineSheetVM {
+  /** The head's line once the person is read, where it says more than the row could: a consultation's service. */
+  sub: string | null;
   /** The row's steps (its own track, in the one rule's tones), each with its day and word once the person is read. */
   steps: DealStepVM[];
   /** The row's deal as the person page's card says it: its line, its flags, its step; null without an open deal. */
@@ -165,10 +176,11 @@ function stepsOf(
   });
 }
 
-/** A deal that closed, said as its sheet stands: the stage's word with the chip's reason and day ("Passed · Price · Sep 30"). */
-function closedStand(d: DealVM, chip: PipelineChip | null): PipelineChip | null {
+/** A deal that closed, said as its sheet stands: when, then why ("Passed Sep 30 · Price", "Ended Oct 2"). */
+function closedStand(d: DealVM, chip: PipelineChip | null, tz: string, nowMs: number): PipelineChip | null {
   if (!chip) return null;
-  return d.reason ? { words: `${d.word} · ${chip.words}`, tone: chip.tone } : chip;
+  const when = d.sinceMs === null ? d.word : `${d.word} ${clockDate(d.sinceMs, tz, nowMs)}`;
+  return { words: d.reason ? `${when} · ${d.reason.words}` : when, tone: chip.tone };
 }
 
 /**
@@ -187,7 +199,10 @@ export function pipelineSheetOf(row: PipelineRowVM, p: DealPerson | null, nowMs:
           .filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o))
           .map((o) => ({ dealId: o.id as string, title: o.service ?? o.word, words: o.said }))
       : [];
-  const base = { steps: stepsOf(row.track, card, held), others };
+  // A consultation's head names the service it was for, once the person read says which (consultedService).
+  const consulted = !d && p ? consultedService(p) : null;
+  const sub = consulted ? `${DEAL_CARD_WORDS.consultation} · ${consulted}` : null;
+  const base = { sub, steps: stepsOf(row.track, card, held), others };
   if (card) {
     const asks = card.next?.id === "follow-up";
     const another: PipelineSheetAct = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
@@ -210,13 +225,13 @@ export function pipelineSheetOf(row: PipelineRowVM, p: DealPerson | null, nowMs:
   // keeps only the step not taken.
   const ahead = !d && row.track[0]?.key === "consultation" && row.track[0].at === "current";
   const over = !d && held && row.chip ? { words: PIPELINE_WORDS.sheet.noProposal, tone: row.chip.tone } : null;
-  const stand = ahead ? null : (over ?? (d && !dealIsOpen(d) ? closedStand(d, row.chip) : row.chip));
+  const stand = ahead ? null : (over ?? (d && !dealIsOpen(d) ? closedStand(d, row.chip, tz, nowMs) : row.chip));
   // Not read yet, or an open deal their read does not hold (it moved meanwhile): the row's words, and no act to press.
   if (!p || (d && dealIsOpen(d))) return { ...base, card: null, stand, ask: null, lead: null, more: [] };
   // A pass is proposed again (the same deal, back to a proposal); an end, a consultation or a deal not read starts one.
   const lead: PipelineSheetAct =
     d && d.stage === "lost"
       ? { act: act("again"), dealId: d.id }
-      : { act: act("propose", { service: consultedService(p) }), dealId: null };
+      : { act: act("propose", { service: consulted }), dealId: null };
   return { ...base, card: null, stand, ask: null, lead, more: [] };
 }

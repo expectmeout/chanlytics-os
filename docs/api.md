@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-292 handlers in 50 domains.
+291 handlers in 50 domains.
 
 ## activity
 
@@ -2203,18 +2203,9 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `who` | object or object or object or object or object | no |  |
 | `previous` | object | no |  |
 
-### `POST /api/v1/sequences/draft-leads`
-
-Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `name` | string | yes | at least 1 characters; at most 80 characters |
-| `search_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
-
 ### `POST /api/v1/sequences/new`
 
-Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
+Writes; for a member of the workspace the request names, operator or above; counts against the `broadcast` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |

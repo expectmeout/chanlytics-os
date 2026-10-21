@@ -432,16 +432,21 @@ none (their page's More still logs a call already made).
 
 A row opens its deal sheet (amended 20 Oct 2026, the canvas "Pipeline deal
 sheet"; contracts `pipelineSheetOf`): on a phone the kit's Sheet with two
-rests over the rows, the row it is of brought above it, as the lead sheet and
-the Calendar's visit open; on a desk the pane beside the rows. At half it says
-the row's steps, in the tone of who each waits on by one rule for the row, the
-sheet and the person page's card (`proposalTone`: a proposal out the owner
-should chase is warn, one the follow-up has in hand or that is still young is
-info, a client is good), the card's line, the next step and their last words;
-raised, how to reach them -- the number and the address with Copy, and what a
-reply may be now, the person page's own sentence (`repliesWords`,
-`pipelinePeekDetail`) -- their other open deals, each opening its own row, and
-their page. Its foot leads with one act, the card's `dealNextAct`, the deal's
+rests over the rows, the row it is of brought above it and lit, as the lead
+sheet and the Calendar's visit open; on a desk the pane beside the rows. At
+half it says the row's steps, in the tone of who each waits on by one rule for
+the row's steps and its chip, the sheet and the person page's card
+(`proposalTone`: a proposal out the owner should chase is warn, one past its
+day before anything else, one the follow-up has in hand or that is still young
+is info, a client is good), then one line of what wants a look and the facts
+beside it, the next step and their last words; raised, the proposal's link in
+a box of its own, how to reach them -- the number and the address with Copy, an
+address that stopped accepting mail said under itself, and what a reply may be
+now, the person page's own sentence (`repliesWords`, `pipelinePeekDetail`) --
+their other open deals, each opening its own row, and their page. A record is
+a box of rows on the kit's inset ground, under a quiet label (amended 21 Oct
+2026, the canvas's look). A consultation's head names the service it was for
+once the person is read (`consultedService`). Its foot leads with one act, the card's `dealNextAct`, the deal's
 other moves in the caret on the same pill, then Message and Call; a client's
 leads with Message. While a proposal waits with nothing back and Follow up
 leads, the sheet asks whether they said yes, its two answers the yes and the

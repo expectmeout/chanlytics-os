@@ -133,12 +133,6 @@ export const LEAD_CHAIN_BODY = ReachOutChainSchema.omit({ search_id: true }).ext
   source_search_id: anId("Which search?").nullable().optional(),
 });
 
-/** POST sequences/draft-leads: the new sequence's name, and the search its leads came from, which Ask writes from. */
-export const DRAFT_LEADS_BODY = z.strictObject({
-  name: z.string().trim().min(1, "Name it.").max(REACH_OUT_NAME_MAX, `At most ${REACH_OUT_NAME_MAX} characters.`),
-  search_id: anId("Which search?").optional(),
-});
-
 /** POST sequences/:id/move: the lead that moves here, out of the sequence it stands in. */
 export const MOVE_BODY = z.strictObject({ lead_id: anId("Which lead?") });
 export type MoveBody = z.infer<typeof MOVE_BODY>;

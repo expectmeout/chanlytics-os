@@ -445,7 +445,8 @@ export function pipelineScreen(s: PipelineState) {
           <PipelineRailRows sections={s.r.rail} view={s.r.view} onPick={s.pickView} />
         </aside>
       )}
-      <div className={`cl-main${pk.compact ? " has-peek" : ""}`}>
+      {/* A phone's open deal lights its row, brought above the sheet (clients.css .has-deal): a tap is no cursor else. */}
+      <div className={`cl-main${pk.compact ? " has-peek" : ""}${phone && pk.peekVm ? " has-deal" : ""}`}>
         {phone && phoneBar(s)}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {phone ? phoneFilters(s) : standingLine(s)}

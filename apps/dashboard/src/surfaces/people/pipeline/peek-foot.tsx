@@ -59,23 +59,27 @@ function messageThem(c: DealSheetCtx): void {
   else openNewConversation(c.person.id);
 }
 
-/** The caret's menu: the moves the lead does not hold, each with its glyph; on a phone the kit's sheet, headed by the deal. */
+/**
+ * The caret's menu: the moves the lead does not hold, each with its glyph, and a new proposal apart under a hairline (it
+ * moves no deal of these); on a phone the kit's sheet, headed by what it is about: the service and who.
+ */
 function caretOf(c: DealSheetCtx, trigger: ReactElement): ReactElement | null {
   const { more } = c.sheet;
   if (!more.length) return null;
-  const items: MenuItem[] = more.map((m) => ({
+  const item = (m: PipelineSheetAct): MenuItem => ({
     label: m.act.label,
     glyph: GLYPH[m.act.id],
     onSelect: () => runAct(c, m),
     gate: m.act.id === "lost" ? gate("approve", "mark a deal as passed") : DEAL_GATE,
-  }));
-  return (
-    <Menu
-      label={S.more(c.vm.sub)}
-      groups={[{ header: c.phone ? `${c.vm.sub} · ${c.vm.name}` : undefined, items }]}
-      trigger={trigger}
-    />
-  );
+  });
+  const fresh = (m: PipelineSheetAct) => m.act.id === "propose" && m.dealId === null;
+  const moves = more.filter((m) => !fresh(m)).map(item);
+  const another = more.filter(fresh).map(item);
+  const header = c.phone ? `${c.row.service ?? c.vm.sub} · ${c.vm.name}` : undefined;
+  const groups = moves.length
+    ? [{ header, items: moves }, ...(another.length ? [{ items: another }] : [])]
+    : [{ header, items: another }];
+  return <Menu label={S.more(c.vm.sub)} groups={groups} trigger={trigger} />;
 }
 
 /** The one act, its caret beside it in the same pill; a client's is Message; with neither, the caret alone as More. */
@@ -86,6 +90,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
     <Button
       variant="primary"
       iconOnly
+      size="touch"
       className="pipe-deal-lead-more"
       aria-label={more}
       data-testid="pipeline-peek-more"
@@ -97,7 +102,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
   if (!lead && !message) {
     return caretOf(
       c,
-      <Button className="pipe-deal-lead-alone" data-testid="pipeline-peek-more">
+      <Button size="touch" className="pipe-deal-lead-alone" data-testid="pipeline-peek-more">
         {more} <Icon name="chevron-down" size={14} />
       </Button>,
     );
@@ -108,6 +113,7 @@ function leadPill(c: DealSheetCtx): ReactElement | null {
     <span className="pipe-deal-lead" data-testid="pipeline-peek-lead">
       <Button
         variant="primary"
+        size="touch"
         className="pipe-deal-lead-act"
         title={lead?.act.hint || undefined}
         onClick={press}
@@ -176,6 +182,7 @@ export function dealFoot(c: DealSheetCtx, call: CallCtx, passing: boolean, endPa
           iconOnly
           size="touch"
           variant="quiet"
+          className="pipe-deal-circle"
           aria-label={S.message}
           title={S.message}
           onClick={() => messageThem(c)}
@@ -185,7 +192,7 @@ export function dealFoot(c: DealSheetCtx, call: CallCtx, passing: boolean, endPa
           <Icon name="chat" size={17} />
         </Button>
       ) : null}
-      <CallAct c={call} dock round={!c.phone} />
+      <CallAct c={call} dock round={!c.phone} className="pipe-deal-circle" />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { CONSENT_LIST_IDS } from "../broadcasts/broadcast-audience.js";
 import { REACH_OUT_AFTER_DAYS, REACH_OUT_STEPS_MAX } from "../reach-out/reach-out-words.js";
 import { FOLLOW_UP_CONDITIONS } from "./follow-up.js";
 import { SEQUENCE_WAIT_DAYS } from "./sequence-draft.js";
@@ -17,6 +18,21 @@ export function whoSuits(who, audience, kind) {
   if (audience === "leads") return who.kind === "search" || who.kind === "leads";
   if (kind === "sequence") return who.kind === "moment" || who.kind === "list";
   return who.kind === "everyone" || who.kind === "list";
+}
+export function newListOf(token, kind) {
+  const id = token.startsWith("seg:") ? token.slice(4) : null;
+  if (id === "opted_out") return "never";
+  if (kind === "once" && id !== null && CONSENT_LIST_IDS.includes(id)) return "everyone";
+  return "list";
+}
+export function leadChainStepOf(s, i) {
+  if (s.does !== "message")
+    return { subject: null, body: "", after_days: s.after_days, hand: { kind: s.does, words: s.hand } };
+  return {
+    subject: i === 0 ? s.email?.subject ?? "" : null,
+    body: s.email?.body ?? "",
+    after_days: i === 0 ? null : s.after_days
+  };
 }
 export function handStepsHold(steps) {
   return steps.every((s, i) => s.does === "message" || i > 0 && i === steps.length - 1);

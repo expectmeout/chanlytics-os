@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { routeOf } from "../address";
+import { openDraftedOnce } from "../campaigns/new-draft";
 import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals";
 
 /**
@@ -21,40 +22,17 @@ import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals"
  */
 
 /**
- * The send screen says it too: nobody on the audience it opens on has said yes
- * to offers. The send has been its own screen since #758 and the QR is a sheet of
- * its own (clients/get-yes), so its "the phrase and QR below" pointed at
- * nothing. Its door closes the send and lands on the QR. Where no channel ticked
- * can carry the message at all, the line says that and is no door.
+ * New's Once says it too (decision 0065): a one-off nobody it is for can hear holds its Send now, and its card offers the
+ * ways it could be heard, the yes nobody gave among them, a door to People's Get their yes that closes New and lands on
+ * the QR. Ask's answer is given (campaigns/new-draft.ts), so a nightly asks no model.
  */
-async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
-  // The send is New's Once (`campaigns/sequences/new:once`).
-  await page.goto("/#/campaigns/sequences/new:once");
-  await page.waitForLoadState("networkidle");
-  const nobody = page.getByTestId("bc-nobody");
-  const foot = page.getByTestId("bc-foot-say");
-  await expect(nobody.or(foot).first()).toBeVisible();
-  if (!(await nobody.count())) {
-    // Since a message goes by the channels it ticks, the screen says first when none of them can carry this message
-    // (an offer to US numbers while Meta holds marketing there, a text, which carries no offers, email before its
-    // campaigns domain): a yes would change nothing, so there is no door, and each channel says why beside its tick.
-    // The foot says it, once, by the act it stops (Ruben, 10 Oct 2026: said in the line too, it was the same sentence
-    // twice in one screen). The suite's workspace is in that state while Meta's hold lasts; the door itself is run in
-    // the node suite (broadcasts.test.mjs), and Today's and People's doors to the same QR are pressed above.
-    await expect(foot).toHaveText(/None of the channels ticked can carry this message yet/);
-    // Each channel that cannot carry it says why, under its switch in the channels' list the sentence's word opens
-    // (#1556: the drawers read as one sentence).
-    await page.getByTestId("bc-via-word").click();
-    const whys = page.getByTestId("bc-via").locator('[data-warn="true"]');
-    await expect(whys.first()).toBeVisible();
-    await expect(whys.first()).not.toBeEmpty();
-    return;
-  }
-  await expect(nobody).not.toContainText("below");
-  const door = nobody.getByTestId("bc-nobody-door");
+async function newsDoorLandsOnTheQr(page: Page): Promise<void> {
+  const pane = await openDraftedOnce(page);
+  await expect(pane.getByTestId("sq-nw-send-now")).toBeDisabled();
+  const door = pane.getByTestId("sq-nw-nobody-yes");
   await expect(door).toHaveText(/get their yes/i);
   await door.click();
-  await expect(page.getByTestId("bc-composer")).toHaveCount(0);
+  await expect(page.getByTestId("sq-new")).toHaveCount(0);
   await expectQrInView(page);
 }
 
@@ -112,10 +90,8 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     await expectQrInView(page);
   });
 
-  test("the send screen's 'nobody' line is a door that lands on the QR, or says no channel can carry the message", async ({
-    page,
-  }) => {
-    await sendScreenDoorLandsOnTheQr(page);
+  test("New's 'no one to send to' card is a door that lands on the QR", async ({ page }) => {
+    await newsDoorLandsOnTheQr(page);
   });
 
   test.describe("on a phone", () => {
@@ -129,10 +105,8 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
       await expectQrInView(page);
     });
 
-    test("the send screen's line does the same on a phone: the QR on its screen, or why nothing can be sent", async ({
-      page,
-    }) => {
-      await sendScreenDoorLandsOnTheQr(page);
+    test("New's card does the same on a phone: the QR on its screen", async ({ page }) => {
+      await newsDoorLandsOnTheQr(page);
     });
   });
 });

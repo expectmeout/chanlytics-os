@@ -86,7 +86,7 @@ export function useBulkAdd(p: BulkAddProps) {
     run(async () => {
       let steps: unknown = null;
       if (start.kind === "ask") {
-        const d = await reachOuts.draftLeads({ name, search_id: p.search ? p.search.id : undefined });
+        const d = await reachOuts.draftLeads({ name, lead_ids: p.ids, search_name: p.search?.name ?? null });
         if (!d.ok) return p.flash(refusalToast(d, "Ask could not write a draft"));
         steps = d.data.steps;
       }
