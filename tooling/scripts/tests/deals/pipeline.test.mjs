@@ -1127,6 +1127,9 @@ const { PeopleTable } = await import("../../../../apps/dashboard/src/surfaces/pe
 const { PeopleColumnsMenu } = await import("../../../../apps/dashboard/src/surfaces/people/table/columns-menu.tsx");
 const { plLoadedWords } = await import("../../../../apps/dashboard/src/surfaces/people/words.ts");
 const { PipelineScope } = await import("../../../../apps/dashboard/src/surfaces/people/pipeline/scope.tsx");
+// The deal sheet is a chunk of its own (pipeline/peek-code.tsx), fetched once the list is idle: in before the first draw,
+// as a pick finds it, so a row opens it in the same draw.
+await (await import("../../../../apps/dashboard/src/surfaces/people/pipeline/peek-code.tsx")).dealSheetCode();
 // The kit's Menu, which a row and a card draw their acts with.
 const { Menu } = await import("../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const { Sheet } = await import("../../../../apps/dashboard/src/surfaces/kit/sheet/sheet.tsx");

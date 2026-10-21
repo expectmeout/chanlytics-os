@@ -36,6 +36,7 @@ import { PipelineScope } from "./pipeline/scope";
 import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
 import { peekCode } from "./peek/peek-code";
+import { dealSheetCode } from "./pipeline/peek-code";
 import { peekPerson, profileCode, warmPerson } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
@@ -163,15 +164,17 @@ if (typeof window !== "undefined") {
 const PROFILE_AHEAD_MS = 3000;
 
 /**
- * A person's page and the peek beside the rows (peek/peek-code.tsx) loaded ahead, once People's list (or the Pipeline) is
- * drawn and the page is idle: a pick or a press on a person finds them in.
+ * A person's page, the peek beside the rows (peek/peek-code.tsx) and the Pipeline's deal sheet (pipeline/peek-code.tsx)
+ * loaded ahead, once People's list (or the Pipeline) is drawn and the page is idle: a pick or a press on a person finds
+ * them in.
  */
 function useProfileAhead(ready: boolean): void {
   useEffect(() => {
-    if (!ready || (profileCode.now() && peekCode.now())) return undefined;
+    if (!ready || (profileCode.now() && peekCode.now() && dealSheetCode.now())) return undefined;
     return aheadWhenIdle(() => {
       profileCode.warm();
       peekCode.warm();
+      dealSheetCode.warm();
     }, PROFILE_AHEAD_MS);
   }, [ready]);
 }

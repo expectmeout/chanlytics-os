@@ -22,7 +22,7 @@ import { PipelineBoard } from "./board";
 import { PL_FILE_COLUMNS } from "../cells/columns";
 import { pipeCardRow } from "./columns";
 import { PipelineNew } from "./new";
-import { PipelinePeek } from "./peek";
+import { PipelinePeekWhenRead } from "./peek-code";
 import { P } from "./pipe";
 import { PipelineRailRows } from "./rail";
 import { PipelinePassDock, PipelinePassMany } from "./row";
@@ -334,7 +334,7 @@ function peekBlock(s: PipelineState) {
     if (row) doors.openPeek(row.id);
   };
   return (
-    <PipelinePeek
+    <PipelinePeekWhenRead
       vm={vm}
       row={pk.peekRow.row}
       person={person}

@@ -47,7 +47,7 @@ const hearFolds = (hear: () => void) => recFolds.subscribe(hear);
 /** The words a desk's walk says: deals in this view, as People's peek says people. */
 const WALK_WORDS = { ...P.words.sheet.walk, at: (at: number, of: number) => `${at} of ${of}` };
 
-interface PipelinePeekProps {
+export interface PipelinePeekProps {
   vm: PipelinePeekVM | null;
   /** The row the sheet is of, as the Pipeline draws it now: its deal, its steps, its chip. */
   row: PipelineRowVM | null;
