@@ -597,8 +597,17 @@ function noteAct(c: PageCtx) {
  * on a phone (the page's standing, person-real.tsx; components.css). J and K step too, on a desk. The page turns toward
  * the side it steps (walk.ts noteStep).
  */
-export function PersonWalkNav({ walk: w, step }: { walk: PersonWalk; step: (to: string) => void }) {
-  const W = PERSON_WALK_WORDS;
+export function PersonWalkNav({
+  walk: w,
+  step,
+  words = PERSON_WALK_WORDS,
+}: {
+  walk: PersonWalk;
+  step: (to: string) => void;
+  /** What it walks, where it is not people: the Pipeline's deal sheet walks deals. */
+  words?: { label: string; at: (at: number, of: number) => string; next: string; previous: string };
+}) {
+  const W = words;
   const go = (to: string | null) => () => {
     if (to) step(to);
   };

@@ -1,360 +1,315 @@
 /**
- * The Pipeline's peek (docs/decisions/0008-a-proposal-is-part-of-the-deal.md, "the Pipeline is a workspace"), moved
- * from legacy/pages/pipeline-peek.jsx (decision 0015): one person's deal beside the rows -- on a desk the 408px pane the
- * lead's peek uses (leads.css .pk), on a phone the whole screen -- so a row is worked without leaving the Pipeline.
- * Hookless, as the lead's is: who is open and what was read of them are PipelineScope's, handed down, so the page's one
- * keyboard listener closes it on Esc and it follows the row cursor.
+ * The Pipeline's deal sheet (docs/decisions/0008-a-proposal-is-part-of-the-deal.md, "the Pipeline is a workspace"; the
+ * canvas "Pipeline deal sheet", 20 Oct 2026): one row's deal, opened over the rows. On a phone the kit's Sheet with two
+ * rests, as the lead sheet and the Calendar's visit open (it was the last pane of the house's own that took the whole
+ * screen, under the frame's head, which drew over its name and its Close); at half, who and where the deal stands, its
+ * next step and their last words, and raised, how to reach them, their other deals and their page, in one scroll. On a
+ * desk the peek beside the rows (the 408px `.pk` pane People's and the Calendar's peeks are), walked with ‹ › as J and K
+ * walk it. Both draw the same parts (peek-parts.tsx) and the same foot (peek-foot.tsx).
  *
- * It says nothing of its own. The head is contracts' pipelinePeekOf over the row (who, the group and the service),
- * there the moment it opens. The deal is the person page's own card (deal/person-deal.tsx PersonDealOne and
- * PersonDealQuiet over contracts dealCardsOf), drawn once the person lands -- the tab's copy at once, else read -- with
- * every act the card offers: a send opens their thread with the words in the box, and every other act opens the one
- * deal sheet. Under it, once the person is read, how to reach them (the number with Call and Copy, the address with
- * Copy, what a reply may be now) and what happened with their deals, from contracts' pipelinePeekDetail in the person
- * page's own words; the quiet facts People's row already says (when they were last heard, their words, what is coming
- * up); and the two doors, their page and their thread. On a phone, where the peek is the whole screen, the deal's next
- * act and Call are pinned under it (`pipe-peek-bar`), in a thumb's reach.
+ * It says nothing of its own. The head is contracts' pipelinePeekOf over the row, there the moment it opens; the deal is
+ * pipelineSheetOf over the row and the person once read (the person page's own card, dealCardsOf, for an open deal), and
+ * how to reach them pipelinePeekDetail. Who is open and what was read of them are PipelineScope's, handed down, so the
+ * page's one keyboard listener closes it on Esc and it follows the row cursor.
  *
- * What the JSX read off the window is an import: the deal kit (`window.__deal`: contracts' dealCardsOf and
- * dealNextAct), the card's own parts and `pdRun` (`window.PersonDealOne`, `PersonDealQuiet`, `pdRun`), the house's
- * FailedRead, the business's clock and the Pipeline's words and rules.
+ * A sheet it opens takes over and hands it back: the one deal sheet, the step sheet, a new conversation and the call's
+ * question stand on the page, so while one is up a phone's modal sheet steps out of their way, and comes back as it was
+ * when they close (the visit closed itself for good; here the address still names the deal).
  */
-import { useState } from "react";
-import { DEAL_CARD_WORDS, dealCardsOf, dealNextAct } from "@chanlytics/contracts";
-import type { DealAct, PersonVM, PipelinePeekFact, PipelinePeekReachVM, PipelinePeekVM } from "@chanlytics/contracts";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { PersonVM, PipelinePeekVM, PipelineRowVM, PipelineSheetVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
+import { recFolds } from "../../kit/record/registry";
+import { Sheet } from "../../kit/sheet/sheet";
+import type { SheetRest } from "../../kit/sheet/rests";
+import { useNewConversation } from "../../inbox/new-conversation/store";
 import { touchSwipe } from "../../legacy-verbs";
-import { PersonDealOne, PersonDealQuiet, pdRun } from "../deal/person-deal";
+import { CallSheet, usePersonCall, type CallCtx } from "../person/call";
+import { dealPersonOf } from "../person/ctx";
+import { PersonWalkNav } from "../person/hero";
+import type { PersonWalk } from "../walk";
+import { dealFoot } from "./peek-foot";
+import { dealBody, type Compose, type DealSheetCtx } from "./peek-parts";
 import { P } from "./pipe";
 import type { Flash } from "../types";
 
-/** Open their thread with the words in its box (or nothing, where only an approved message can go). */
-type Compose = ((text: string | null) => void) | null | undefined;
+/** The record sheets a press here opens (deal-sheet.tsx, step-sheet.tsx): while one is up, a phone's sheet stands aside. */
+const TAKES_OVER = new Set<unknown>(["deal-sheet", "step-sheet"]);
+const recordUp = () => TAKES_OVER.has(recFolds.open());
+const neverUp = () => false;
+const hearFolds = (hear: () => void) => recFolds.subscribe(hear);
 
-/** How long a copy says so on the button it was pressed on. */
-const COPIED_MS = 1600;
+/** The words a desk's walk says: deals in this view, as People's peek says people. */
+const WALK_WORDS = { ...P.words.sheet.walk, at: (at: number, of: number) => `${at} of ${of}` };
 
-// How to reach them. A copy says so on the button it was pressed on, for a moment.
-const PipelinePeekReach = ({ rows }: { rows: readonly PipelinePeekReachVM[] | null | undefined }) => {
-  const [copied, setCopied] = useState<string | null>(null);
-  const W = P.words.peek.reach;
-  if (!rows || !rows.length) return null;
-  const copy = (r: PipelinePeekReachVM) => {
-    const done = () => {
-      setCopied(r.id);
-      setTimeout(() => setCopied((c) => (c === r.id ? null : c)), COPIED_MS);
-    };
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText && r.copy !== null)
-        void navigator.clipboard.writeText(r.copy).then(done, () => {});
-    } catch {
-      /* no clipboard here */
-    }
-  };
+interface PipelinePeekProps {
+  vm: PipelinePeekVM | null;
+  /** The row the sheet is of, as the Pipeline draws it now: its deal, its steps, its chip. */
+  row: PipelineRowVM | null;
+  person?: PersonVM | null;
+  failed?: string | null;
+  canRecord?: boolean;
+  phone?: boolean;
+  /** Where the row stands among the rows shown, and who is either side: the desk's ‹ › and a phone's sideways swipe. */
+  walk?: PersonWalk | null;
+  /** Open another row in this sheet: a step of the walk. */
+  onStep: (rowId: string) => void;
+  /** Open another deal of theirs in this sheet: its own row. */
+  onOpenDeal: (dealId: string) => void;
+  onClose: () => void;
+  onRetry: () => void;
+  onOpenPage: () => void;
+  onCompose: Compose;
+  flash: Flash;
+}
+
+/** Who, as the head says them: the name (in figures for a number or an address) and a stop beside it. */
+function nameOf(vm: PipelinePeekVM) {
   return (
-    <dl className="pipe-peek-reach" data-testid="pipeline-peek-reach">
-      {rows.map((r) => (
-        <div key={r.id} className="pipe-peek-reach-row" data-testid={`pipeline-peek-reach-${r.id}`}>
-          <dt className="pipe-peek-reach-label">{r.label}</dt>
-          <dd className="pipe-peek-reach-what">
-            <span className={`pipe-peek-reach-words${r.id === "phone" ? " tabular" : ""}`}>{r.words}</span>
-            {r.call ? (
-              <a className="cl-prof-deal-act" href={r.call} data-testid="pipeline-peek-call">
-                {W.call}
-              </a>
-            ) : null}
-            {r.copy ? (
-              <button
-                type="button"
-                className="cl-prof-deal-act"
-                aria-label={r.id === "phone" ? W.copyPhone : W.copyEmail}
-                onClick={() => copy(r)}
-                data-testid={`pipeline-peek-copy-${r.id}`}
-              >
-                {copied === r.id ? W.copied : W.copy}
-              </button>
-            ) : null}
-          </dd>
-        </div>
-      ))}
-      {/* A copy is said once to a screen reader too: the button's own words change where it was pressed. */}
-      <span className="rec-sr" role="status" aria-live="polite">
-        {copied ? W.copied : ""}
+    <>
+      <span className={vm.numeric ? "tabular" : undefined} data-testid="pipeline-peek-name">
+        {vm.name}
       </span>
-    </dl>
+      {/* They asked to stop: a sheet is where a person is picked up to answer, so it says it (D1-stop-unseen). */}
+      {vm.stopped ? <StoppedMark className="pipe-stop-said" testid="pipeline-peek-stopped" /> : null}
+    </>
   );
-};
+}
 
-// What happened with their deals, newest first: the person page's own lines from their timeline.
-const PipelinePeekHistory = ({
-  items,
-}: {
-  items: readonly { id: string; words: string; when: string }[] | null | undefined;
-}) => {
-  const W = P.words.peek;
-  if (!items || !items.length) return null;
-  return (
-    <section className="pipe-peek-history" aria-label={W.history} data-testid="pipeline-peek-history">
-      <h3 className="pipe-peek-head">{W.history}</h3>
-      <ul className="pipe-peek-history-list">
-        {items.map((h) => (
-          <li key={h.id} className="pipe-peek-history-row">
-            <span className="pipe-peek-history-words">{h.words}</span>
-            <span className="pipe-peek-when">{h.when}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-};
-
-// The deal's next act (the card's own, contracts dealNextAct, through the deal kit) for a member who may record one: on a
-// phone it is pinned under the peek, and the card's own copy of it leaves the body (clients.css, data-act-pinned).
-function peekBarAct(person: PersonVM, deal: PersonVM["deal"], canRecord: boolean): DealAct | null {
-  if (!canRecord) return null;
+/** The deal as the sheet says it, worked out tried: a deal it cannot say is said as a read that failed, never a throw. */
+function sheetOf(row: PipelineRowVM | null, person: PersonVM | null): PipelineSheetVM | null {
+  if (!row) return null;
   try {
-    return dealNextAct(person, Date.now(), deal);
+    const p = person ? dealPersonOf(person, row.person) : null;
+    return P.sheet(row, p, Date.now(), pageClock().zone());
+  } catch (err) {
+    console.error("The deal sheet could not say this deal.", err);
+    return null;
+  }
+}
+
+/** The room left over a row brought above the sheet, so it does not sit on the sheet's edge. */
+const ROW_CLEAR_PX = 12;
+
+/** The room a phone's sheet gave the rows' scroller at its foot: the scroller, its padding before, and what was added. */
+interface SheetRoom {
+  box: HTMLElement;
+  inline: string;
+  own: number;
+  extra: number;
+}
+
+/** What scrolls the rows: the nearest box that scrolls, else the page (on a phone the window scrolls: mobile.css). */
+function rowScroller(from: Element): HTMLElement | null {
+  for (let n = from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    const over = getComputedStyle(n).overflowY;
+    if (over === "auto" || over === "scroll") return n;
+  }
+  return document.scrollingElement instanceof HTMLElement ? document.scrollingElement : null;
+}
+
+/**
+ * On a phone the sheet stands over the rows' lower half at its first rest: the row it is of is brought above it, so the
+ * page still says whose deal is open (lit, as the cursor's row is). Where the sheet stands is read from the sheet as it
+ * is laid out (its place before its rest's transform, and the rest's length, kit.css `--sheet-rest`), never assumed.
+ * Where the rows end before the row can rise that far (a view of a few deals), the scroller is given the difference as
+ * room at its foot, as a switch holding still is (kit/motion/hold-still.ts), until the sheet closes (giveRoomBack).
+ */
+function keepRowAboveSheet(rowId: string, room: { current: SheetRoom | null }): void {
+  const row = document.getElementById(`person-${rowId}`);
+  const scroller = row ? rowScroller(row) : null;
+  const sheet = document.querySelector<HTMLElement>('[data-testid="pipeline-peek"]');
+  if (!row || !scroller || !sheet) return;
+  const rest = parseFloat(getComputedStyle(sheet).getPropertyValue("--sheet-rest")) || 0;
+  const above = sheet.offsetTop + rest - ROW_CLEAR_PX;
+  const under = row.getBoundingClientRect().bottom - above;
+  if (under <= 0) return;
+  const short = under - (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
+  if (short > 0) {
+    const had = room.current && room.current.box === scroller ? room.current : null;
+    const r = had ?? {
+      box: scroller,
+      inline: scroller.style.paddingBottom,
+      own: parseFloat(getComputedStyle(scroller).paddingBottom) || 0,
+      extra: 0,
+    };
+    r.extra += Math.ceil(short);
+    scroller.style.paddingBottom = `${r.own + r.extra}px`;
+    room.current = r;
+  }
+  scroller.scrollBy({ top: under, behavior: "smooth" });
+}
+
+/** The room given back as the sheet closes: the scroller's own padding again. */
+function giveRoomBack(room: { current: SheetRoom | null }): void {
+  if (!room.current) return;
+  room.current.box.style.paddingBottom = room.current.inline;
+  room.current = null;
+}
+
+/** How to reach them, worked out tried, as the deal is. */
+function howToReach(person: PersonVM | null) {
+  if (!person) return null;
+  try {
+    return P.detail(person);
   } catch {
     return null;
   }
 }
 
-// A phone's one act, pinned under the peek: the deal's next act, and Call where there is a number.
-const PipelinePeekBar = ({
-  person,
-  deal,
-  act,
-  call,
-  onCompose,
-}: {
-  person: PersonVM;
-  /** The row's own deal (0029), of the person read; null for a consultation's row, which starts a proposal. */
-  deal: PersonVM["deal"];
-  act: DealAct | null;
-  call: string | null;
-  onCompose: Compose;
-}) => {
-  if (!act && !call) return null;
-  const W = P.words.peek.reach;
+/** The desk's peek: its head (who, the deal, the walk, Close), its body, and its foot in the glass a sheet's foot is. */
+function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typeof dealFoot> }) {
+  const { c, foot, walk, onStep, onClose } = p;
+  const { vm } = c;
   return (
-    <div className="pipe-peek-bar" data-testid="pipeline-peek-bar">
-      {act ? (
-        <Button
-          variant="primary"
-          className="pipe-peek-bar-act"
-          onClick={() => pdRun(person, act, deal ? deal.id : null, onCompose)}
-          data-testid="pipeline-peek-bar-act"
-        >
-          {act.label}
-        </Button>
-      ) : null}
-      {call ? (
-        <Button className="pipe-peek-bar-call" href={call} data-testid="pipeline-peek-bar-call">
-          <Icon name="phone" size={14} /> {W.call}
-        </Button>
-      ) : null}
-    </div>
-  );
-};
-
-const PipelinePeekFacts = ({ facts }: { facts: readonly PipelinePeekFact[] }) =>
-  facts.length ? (
-    <ul className="pipe-peek-facts" data-testid="pipeline-peek-facts">
-      {facts.map((f) => (
-        <li key={f.id} className={`pipe-peek-fact pipe-peek-fact-${f.id}`} data-testid={`pipeline-peek-${f.id}`}>
-          {f.words}
-        </li>
-      ))}
-    </ul>
-  ) : null;
-
-// The deal as the person page says it, once the person has landed: their card per open deal, or the quiet line. A
-// person still on their way is said after the standard's beat (route-reading); one that could not be read, by the
-// house's FailedRead with its Retry.
-const PipelinePeekDeal = ({
-  person,
-  failed,
-  canRecord,
-  onRetry,
-  onCompose,
-  flash = null,
-}: {
-  person: PersonVM | null;
-  failed: string | null;
-  canRecord: boolean;
-  onRetry: () => void;
-  onCompose: Compose;
-  flash?: Flash | null;
-}) => {
-  const W = P.words.peek;
-  if (failed !== null && !person)
-    return (
-      <FailedRead kind="card" what={W.what} why={failed || null} onRetry={onRetry} testid="pipeline-peek-failed" />
-    );
-  if (!person)
-    return (
-      <div className="route-reading pipe-peek-reading" role="status" data-testid="pipeline-peek-reading">
-        {W.reading}
-      </div>
-    );
-  // Worked out as it draws, tried: the peek is drawn inside the page's boundary, but a person it cannot say is said
-  // as a read that failed, never a throw that takes the rows with it (the deal sheet's own rule, dsWorked).
-  let vm: ReturnType<typeof dealCardsOf> | null = null;
-  try {
-    vm = dealCardsOf(person, Date.now(), pageClock().zone());
-  } catch (err) {
-    console.error("The peek could not say this deal.", err);
-  }
-  if (!vm) return <FailedRead kind="card" what={W.what} testid="pipeline-peek-failed" />;
-  return vm.quiet ? (
-    <PersonDealQuiet p={person} q={vm.quiet} canRecord={canRecord} onCompose={onCompose} />
-  ) : (
-    <div className="cl-prof-deal-list">
-      {vm.cards.map((c) => (
-        <PersonDealOne
-          key={c.id || c.title}
-          p={person}
-          c={c}
-          W={DEAL_CARD_WORDS}
-          canRecord={canRecord}
-          onCompose={onCompose}
-          flash={flash}
-        />
-      ))}
-    </div>
-  );
-};
-
-/** The peek's head: their face, their name and where they stand, and its Close. */
-function peekHead(vm: PipelinePeekVM, onClose: () => void) {
-  const W = P.words.peek;
-  return (
-    <div className="pk-head">
-      <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
-      <div className="pk-titles">
-        <h2 className={`pk-name${vm.numeric ? " tabular" : ""}`} data-testid="pipeline-peek-name">
-          {vm.name}
-        </h2>
-        <div className="pk-sub" data-testid="pipeline-peek-sub">
-          {vm.sub}
-          {/* They asked to stop: a peek is where a person is picked up to answer, so it says it (D1-stop-unseen). */}
-          {vm.stopped && <StoppedMark className="pipe-stop-said" testid="pipeline-peek-stopped" />}
+    <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek">
+      <div className="pk-head">
+        <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
+        <div className="pk-titles">
+          <h2 className="pk-name">{nameOf(vm)}</h2>
+          <div className="pk-sub" data-testid="pipeline-peek-sub">
+            {vm.sub}
+          </div>
         </div>
-      </div>
-      <button
-        type="button"
-        className="pk-x"
-        id="pipeline-peek-close"
-        aria-label={W.close}
-        data-testid="pipeline-peek-close"
-        onClick={onClose}
-      >
-        <Icon name="x" size={16} />
-      </button>
-    </div>
-  );
-}
-
-/** The doors are quiet words, as the card's other moves are: the card's one next act keeps the outline button. */
-function peekDoors(vm: PipelinePeekVM, onOpenPage: () => void, onOpenThread: () => void) {
-  const W = P.words.peek;
-  return (
-    <div className="pipe-peek-doors">
-      <button
-        type="button"
-        className="cl-prof-deal-act pipe-peek-door"
-        onClick={onOpenPage}
-        data-testid="pipeline-peek-page"
-      >
-        {W.page}
-        <Icon name="arrow-right" size={11} />
-      </button>
-      {vm.thread ? (
-        <button
-          type="button"
-          className="cl-prof-deal-act pipe-peek-door"
-          onClick={onOpenThread}
-          data-testid="pipeline-peek-thread"
+        {walk ? <PersonWalkNav walk={walk} step={onStep} words={WALK_WORDS} /> : null}
+        {/* The pane's Close is the 34px glass circle every sheet's is (clients.css `.pipe-scope .pk-x`). */}
+        <Button
+          iconOnly
+          size="sm"
+          variant="quiet"
+          className="pk-x"
+          id="pipeline-peek-close"
+          aria-label={P.words.peek.close}
+          title={P.words.peek.close}
+          onClick={onClose}
+          data-testid="pipeline-peek-close"
         >
-          {W.thread}
-          <Icon name="arrow-right" size={11} />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-export const PipelinePeek = ({
-  vm,
-  person = null,
-  failed = null,
-  canRecord = false,
-  phone = false,
-  onClose,
-  onRetry,
-  onOpenPage,
-  onOpenThread,
-  onCompose,
-  flash = null,
-}: {
-  vm: PipelinePeekVM | null;
-  person?: PersonVM | null;
-  failed?: string | null;
-  canRecord?: boolean;
-  phone?: boolean;
-  onClose: () => void;
-  onRetry: () => void;
-  onOpenPage: () => void;
-  onOpenThread: () => void;
-  onCompose: Compose;
-  flash?: Flash | null;
-}) => {
-  if (!vm) return null;
-  // On a phone, where the peek is the whole screen, a pull down from the top of what it shows is its Close (kit/motion
-  // touchSwipe, the lead peek's rule).
-  const swipe = phone ? touchSwipe({ onDown: onClose }) : {};
-  // What the peek says once the person is read; worked out tried, as the card is: a person it cannot say is not a throw.
-  let detail: ReturnType<typeof P.detail> | null = null;
-  if (person) {
-    try {
-      detail = P.detail(person);
-    } catch {
-      detail = null;
-    }
-  }
-  const call = detail ? (detail.reach.find((r) => r.call) || { call: null }).call || null : null;
-  const deal =
-    phone && person
-      ? vm.dealId === null
-        ? null
-        : ((person.deals ?? []).find((d) => d.id === vm.dealId) ?? person.deal)
-      : null;
-  const barAct = phone && person ? peekBarAct(person, deal, canRecord) : null;
-  return (
-    <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek" {...swipe}>
-      {peekHead(vm, onClose)}
-      <div className="pk-body pipe-peek-body" data-act-pinned={barAct ? "true" : undefined}>
-        <PipelinePeekDeal
-          person={person}
-          failed={failed}
-          canRecord={canRecord}
-          onRetry={onRetry}
-          onCompose={onCompose}
-          flash={flash}
-        />
-        {detail ? <PipelinePeekReach rows={detail.reach} /> : null}
-        <PipelinePeekFacts facts={vm.facts} />
-        {detail ? <PipelinePeekHistory items={detail.history} /> : null}
-        {peekDoors(vm, onOpenPage, onOpenThread)}
+          <Icon name="x" size={13} />
+        </Button>
       </div>
-      {phone && person ? (
-        <PipelinePeekBar person={person} deal={deal} act={barAct} call={call} onCompose={onCompose} />
-      ) : null}
+      <div className="pk-body pipe-deal-pane">{dealBody(c)}</div>
+      {foot ? <footer className="rec-sheet-foot">{foot}</footer> : null}
     </aside>
   );
-};
+}
+
+/** A phone's sheet: the kit's, with two rests; a sideways swipe walks the rows shown, as the lead sheet's does. */
+function PhoneSheet(
+  p: PipelinePeekProps & {
+    c: DealSheetCtx;
+    foot: ReturnType<typeof dealFoot>;
+    open: boolean;
+    at: SheetRest;
+    onRest: (at: SheetRest) => void;
+  },
+) {
+  const { c, foot, walk, onStep } = p;
+  const { vm } = c;
+  const swipe = walk
+    ? touchSwipe({
+        onLeft: walk.next ? () => walk.next && onStep(walk.next) : null,
+        onRight: walk.prev ? () => walk.prev && onStep(walk.prev) : null,
+        onDown: null,
+      })
+    : {};
+  return (
+    <Sheet
+      open={p.open}
+      onClose={p.onClose}
+      title={nameOf(vm)}
+      sub={<span data-testid="pipeline-peek-sub">{vm.sub}</span>}
+      mark={<Face person={{ name: vm.name, initials: vm.initials }} size="lg" />}
+      close={{ label: P.words.peek.close, glyph: <Icon name="x" size={13} /> }}
+      rest={{ at: p.at, onRest: p.onRest, turn: { up: P.words.sheet.raise, down: P.words.sheet.lower } }}
+      foot={foot ?? undefined}
+      className="pipe-deal"
+      testid="pipeline-peek"
+    >
+      <div className="pipe-deal-body" {...swipe}>
+        {dealBody(c)}
+      </div>
+    </Sheet>
+  );
+}
+
+export function PipelinePeek(props: PipelinePeekProps) {
+  const { vm, row, person = null, failed = null, canRecord = false, phone = false, flash } = props;
+  const call = usePersonCall(person, phone);
+  const id = vm ? vm.id : null;
+  // Where a phone's sheet stands and whether a pass is asked, each the deal's own: another deal opens at half, asked nothing.
+  const [rest, setRest] = useState<{ id: string | null; at: SheetRest }>({ id: null, at: "half" });
+  const [pass, setPass] = useState<string | null>(null);
+  const recordOpen = useSyncExternalStore(hearFolds, recordUp, neverUp);
+  const conversation = useNewConversation();
+  // A deal opened, or walked to, on a phone: its row comes up above the sheet, once the sheet is laid out; the room it
+  // took at the rows' foot is theirs again once the sheet closes.
+  const room = useRef<SheetRoom | null>(null);
+  useEffect(() => {
+    if (!phone || !id) return undefined;
+    const frame = window.requestAnimationFrame(() => keepRowAboveSheet(id, room));
+    return () => window.cancelAnimationFrame(frame);
+  }, [phone, id]);
+  const sheetUp = phone && !!id;
+  useEffect(() => (sheetUp ? () => giveRoomBack(room) : undefined), [sheetUp]);
+  // A sheet it opened stands on the page: this one steps aside while it is up, and is back as it was once it closes,
+  // a frame later, so the Esc that closed that sheet has finished before this one listens for its own.
+  const away = recordOpen || conversation.open || (call.open && call.asking);
+  const [back, setBack] = useState(true);
+  useEffect(() => {
+    if (away) {
+      setBack(false);
+      return undefined;
+    }
+    if (back) return undefined;
+    const frame = window.requestAnimationFrame(() => setBack(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [away, back]);
+  if (!vm) return null;
+  const sheet = sheetOf(row, person);
+  if (!row || !sheet) {
+    return (
+      <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek">
+        <FailedRead kind="card" what={P.words.peek.what} onRetry={props.onRetry} testid="pipeline-peek-failed" />
+      </aside>
+    );
+  }
+  const c: DealSheetCtx = {
+    vm,
+    row,
+    person,
+    sheet,
+    detail: howToReach(person),
+    failed,
+    canRecord,
+    phone,
+    flash,
+    onCompose: props.onCompose,
+    onRetry: props.onRetry,
+    onOpenPage: props.onOpenPage,
+    onOpenDeal: props.onOpenDeal,
+    onPass: () => setPass(vm.id),
+    passing: pass === vm.id,
+  };
+  const callCtx: CallCtx | null = person ? { p: person, call, phone, canRecord, flash, load: props.onRetry } : null;
+  const foot = callCtx ? dealFoot(c, callCtx, pass === vm.id, () => setPass(null)) : null;
+  if (!phone) return <DeskPeek {...props} c={c} foot={foot} />;
+  const at: SheetRest = rest.id === vm.id ? rest.at : "half";
+  return (
+    <>
+      <PhoneSheet
+        {...props}
+        c={c}
+        foot={foot}
+        open={!away && back}
+        at={at}
+        onRest={(to) => setRest({ id: vm.id, at: to })}
+      />
+      {callCtx ? <CallSheet c={callCtx} /> : null}
+    </>
+  );
+}

@@ -16,7 +16,8 @@
  * with the words in its box where free text can go; where only an approved message can, it opens the thread with
  * nothing in the box, which offers those, and its hover says so. Every other act opens the one deal sheet
  * (components/deal-sheet.jsx, the `openDealSheet` verb). On the person page each
- * deal is a row that folds the card open (canvas A); the Pipeline's peek draws the card itself.
+ * deal is a row that folds the card open (canvas A); the Pipeline's deal sheet draws the card's parts (dealSteps,
+ * dealLine) and leads with its act from the sheet's own foot (pipeline/peek-foot.tsx).
  *
  * Under its acts, a card says its next step (0007, amended): Next, what, when and for whom, with Done and, for the
  * one who wrote it, Change; with none, a quiet dashed "Set a next step". The step is the earliest open one that
@@ -30,7 +31,7 @@
  */
 import { Fragment, useId, useState } from "react";
 import { DEAL_CARD_WORDS, NOTE_WORDS, dealCardsOf } from "@chanlytics/contracts";
-import type { DealAct, DealCardVM, DealQuietVM, PersonVM } from "@chanlytics/contracts";
+import type { DealAct, DealCardVM, DealQuietVM, DealStepVM, PersonVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Icon } from "../../kit/icon/icon";
@@ -156,7 +157,7 @@ const PersonDealStep = ({
 };
 
 /** A step's words: its name, how a consultation that ended stands, and its day. */
-function stepWords(s: DealCardVM["steps"][number]) {
+function stepWords(s: DealStepVM) {
   return (
     <>
       <span className="cl-prof-deal-step-label">{s.label}</span>
@@ -171,11 +172,14 @@ function stepWords(s: DealCardVM["steps"][number]) {
   );
 }
 
-/** The card's three quiet steps, one bar each; in a row, a step's name and its day on one line under its bar. */
-function dealSteps(c: DealCardVM, row = false) {
+/**
+ * The card's three quiet steps, one bar each; in a row, a step's name and its day on one line under its bar. The
+ * Pipeline's deal sheet draws its row's steps with it too.
+ */
+export function dealSteps(steps: readonly DealStepVM[], row = false) {
   return (
     <ol className="cl-prof-deal-steps" data-testid="person-deal-steps">
-      {c.steps.map((s) => (
+      {steps.map((s) => (
         <li
           key={s.key}
           className="cl-prof-deal-step"
@@ -192,8 +196,8 @@ function dealSteps(c: DealCardVM, row = false) {
   );
 }
 
-/** The proposal's link, and the facts beside it. */
-function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
+/** The proposal's link, and the facts beside it; with `copy`, the link copies too (the opened row, the Pipeline's sheet). */
+export function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS, copy = false) {
   return (
     <p className="cl-prof-deal-line" data-testid="person-deal-line">
       {c.link ? (
@@ -265,53 +269,9 @@ function dealActs(p: Pick<PersonVM, "id">, c: DealCardVM, onCompose: ComposeFn, 
   );
 }
 
-// One open deal. `W` is contracts' DEAL_CARD_WORDS.
-export const PersonDealOne = ({
-  p,
-  c,
-  W,
-  canRecord,
-  onCompose,
-  flash = null,
-  rung = false,
-}: {
-  p: PersonVM;
-  c: DealCardVM;
-  W: typeof DEAL_CARD_WORDS;
-  canRecord: boolean;
-  onCompose: ComposeFn;
-  flash?: FlashFn | null;
-  /** Up next holds the card's next act (the person page's Overview). */
-  rung?: boolean;
-}) => (
-  <article className="cl-prof-deal-card" data-stage={c.stage} data-testid="person-deal-card">
-    <div className="cl-prof-deal-head">
-      <span className="cl-prof-deal-title" data-testid="person-deal-title">
-        {c.title}
-      </span>
-      {c.value ? (
-        <span className="cl-prof-deal-value" data-testid="person-deal-value">
-          {c.value}
-        </span>
-      ) : null}
-    </div>
-    {dealSteps(c)}
-    {c.link || c.facts.length || c.pace ? dealLine(c, W) : null}
-    {c.flags.length ? (
-      <div className="cl-prof-deal-flags">
-        {c.flags.map((f) => (
-          <StatePill key={f.words} kind="tone" value={f.tone} label={f.words} testid="person-deal-flag" />
-        ))}
-      </div>
-    ) : null}
-    {canRecord && ((c.next && !rung) || c.more.length) ? dealActs(p, c, onCompose, rung) : null}
-    <PersonDealStep p={p} c={c} canRecord={canRecord} flash={flash} />
-  </article>
-);
-
 // No deal open: the one line, and its act. The act is the outline button only where it is the next step nobody has
 // taken (a consultation with no proposal after it); otherwise it is quiet words, like the card's other moves.
-export const PersonDealQuiet = ({
+const PersonDealQuiet = ({
   p,
   q,
   canRecord,
@@ -395,7 +355,7 @@ function PersonDealRow({
         >
           {c.title}
         </Button>
-        {dealSteps(c, true)}
+        {dealSteps(c.steps, true)}
         <span className="cl-prof-deal-value" data-testid="person-deal-value">
           {c.value ?? ""}
         </span>

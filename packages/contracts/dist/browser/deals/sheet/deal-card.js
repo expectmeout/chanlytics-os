@@ -3,7 +3,7 @@ import { visitDay } from "../../calendar/calendar-people.js";
 import { visitStateOf } from "../../calendar/calendar-words.js";
 import { clockDate } from "../../shared/clock.js";
 import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words.js";
-import { waitingOnProposal } from "../deal-waits.js";
+import { proposalTone, waitingOnProposal } from "../deal-waits.js";
 import { consultationsWithoutProposal } from "../deal-consultations.js";
 import { stateTone } from "../../shell/tone.js";
 import { followUpWords } from "../../playbooks/playbooks.js";
@@ -46,30 +46,42 @@ function consultedDealOf(p, open) {
   const title = p.consultationTitle ?? "";
   return title && open.find((d) => !!d.service && namesService(title, d.service)) || open[0] || null;
 }
+export function consultationStepOf(p, nowMs, tz) {
+  const consulted = p.consultedMs ?? null;
+  if (consulted === null || consulted > nowMs) return null;
+  return {
+    day: clockDate(consulted, tz, nowMs),
+    word: visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null
+  };
+}
 function stepsOf(p, deal, tz, nowMs, consultation) {
   const day = (ms) => ms === null ? null : clockDate(ms, tz, nowMs);
   const won = deal.stage === "won";
-  const tone = stateTone("deal", deal.stage);
   const steps = [];
-  const consulted = p.consultedMs ?? null;
   if (consultation) {
-    const done = consulted !== null && consulted <= nowMs;
+    const held = consultationStepOf(p, nowMs, tz);
     steps.push({
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
-      day: done ? day(consulted) : null,
-      word: done ? visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null : null,
-      at: done ? "done" : "ahead",
+      day: held ? held.day : null,
+      word: held ? held.word : null,
+      at: held ? "done" : "ahead",
       tone: null
     });
   }
+  const waits = won ? null : proposalTone(
+    { deal, askedMs: p.askedMs ?? null },
+    nowMs,
+    p.dealPace ?? null,
+    followUpOn(p, deal)?.kind === "will"
+  );
   steps.push({
     key: "proposal",
     label: DEAL_STAGE_WORDS.proposed,
     word: null,
     day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
     at: won ? "done" : "current",
-    tone: won ? null : tone
+    tone: waits
   });
   steps.push({
     key: "client",
@@ -77,7 +89,7 @@ function stepsOf(p, deal, tz, nowMs, consultation) {
     word: null,
     day: won ? day(deal.sinceMs) : null,
     at: won ? "current" : "ahead",
-    tone: won ? tone : null
+    tone: won ? stateTone("deal", "won") : null
   });
   return steps;
 }
