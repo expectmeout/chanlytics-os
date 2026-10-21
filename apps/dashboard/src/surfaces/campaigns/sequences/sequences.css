@@ -14,6 +14,7 @@
 .sq-view-bar {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: 34px;
 }
 /* A thumb's 44px to press, standing in Pipeline's 34 (its ::after reaches the same 5px over and under): the words 4px in
@@ -43,6 +44,24 @@
 .sq-view-pick .icon {
   flex: none;
   color: var(--ink-dim);
+}
+/* Its right: quiet words, as Pipeline's Select, Sort and Export stand at its bar's end (clients.css .pp-bar-acts), each a
+   thumb's 44px in the row's 34; Type says the type it keeps in the ink of a word that is on. */
+.sq-view-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.sq-view-act {
+  margin-block: -5px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.sq-view-act[data-on] {
+  color: var(--ink);
 }
 .sq-list-rows {
   display: flex;

@@ -353,6 +353,7 @@ export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
 export { EVIDENCE_DAYS, classEvidenceLine, evidenceOf, evidenceWords } from "./sequences/sequence-evidence";
 export { HELD_TAKE_OUT, heldAnswersOf, heldChoicesOf, heldWhyOf } from "./sequences/sequence-held";
 export { LEAD_BUILD_WORDS, leadBuildStepsOf, leadDraftChainOf, leadDraftDockOf, leadFirstUnwritten, leadInsertRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadStartOf, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep } from "./sequences/sequence-lead-build";
+export { SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./sequences/sequence-list";
 export { PLACE_WORDS, PLACE_RAIL_WORDS, placeStands, placeToneOf, placeWordOf, placeRailOf, placeSpanOf } from "./sequences/sequence-place";
 export { SCHEDULE_WORDS, scheduleDays, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule";
 export { SEQUENCE_EDIT_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_REPLIES_WORDS, historySince, historyIn, historyCovers, historyFigures, historyDays, historyDayWords, historyStamp, historyUpcomingWords, batchWent, peopleNeedsOf } from "./sequences/sequence-tab-words";

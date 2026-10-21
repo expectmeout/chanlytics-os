@@ -52409,6 +52409,36 @@ var SEQUENCE_PEOPLE_GROUPS = [
   "left"
 ];
 
+// src/sequences/sequence-list.ts
+var SEQUENCE_LIST_WORDS = {
+  types: {
+    label: "Type",
+    all: "All types",
+    customers: "Sequences",
+    leads: "Cold email",
+    once: "One-off sends"
+  },
+  sorts: {
+    label: "Sort",
+    newest: "Newest first",
+    sent: "Last sent",
+    people: "Most people in it",
+    name: "Name, A to Z"
+  }
+};
+var SEQUENCE_TYPES = ["customers", "leads", "once"];
+var sequenceTypeOf = (row2) => row2.starts === "date" ? "once" : row2.starts === "leads" ? "leads" : "customers";
+var SEQUENCE_SORTS = ["newest", "sent", "people", "name"];
+function sortedSequences(rows2, sort) {
+  const by = {
+    newest: (a, b) => b.created_at.localeCompare(a.created_at),
+    sent: (a, b) => (b.last?.at ?? "").localeCompare(a.last?.at ?? ""),
+    people: (a, b) => b.in_it - a.in_it,
+    name: (a, b) => a.name.localeCompare(b.name, void 0, { sensitivity: "base" })
+  };
+  return [...rows2].sort(by[sort]);
+}
+
 // src/sequences/sequence-tab-words.ts
 var SEQUENCE_EDIT_WORDS = {
   after: "After the step before",
@@ -65681,6 +65711,7 @@ export {
   SEQUENCE_GROUPS,
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS,
+  SEQUENCE_LIST_WORDS,
   SEQUENCE_MODES,
   SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
@@ -65689,10 +65720,12 @@ export {
   SEQUENCE_PEOPLE_GROUPS,
   SEQUENCE_PEOPLE_WORDS,
   SEQUENCE_REPLIES_WORDS,
+  SEQUENCE_SORTS,
   SEQUENCE_STARTS,
   SEQUENCE_STATES,
   SEQUENCE_TEST_LIMITS,
   SEQUENCE_TEST_WORDS,
+  SEQUENCE_TYPES,
   SEQUENCE_WAIT_DAYS,
   SEQUENCE_WORDS,
   SERVED_AT_HEADER,
@@ -67650,6 +67683,7 @@ export {
   sequenceStopsSentence,
   sequenceSubLine,
   sequenceTwinOf,
+  sequenceTypeOf,
   sequenceWaitWords,
   sequenceWaitsNow,
   sequenceWhoApprovesHint,
@@ -67715,6 +67749,7 @@ export {
   smsVersionSegments,
   snoozedThreadWords,
   soleProprietorLimits,
+  sortedSequences,
   spanForView,
   spanLabel,
   spanUnits,
