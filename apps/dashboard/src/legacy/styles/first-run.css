@@ -16,9 +16,11 @@
 /* On a phone the window is the page's scroll, as on every page there (mobile.css, "The window scrolls"): the document is
    held to the screen only wider than a phone, and Safari floats its glass toolbar over the document's own scroll alone, so
    in a box of its own the step stood on a flat band under the toolbar at its full size (Ruben, 21 Oct 2026). The head
-   sticks to the window and the foot floats over the page, as they did over the box. */
+   sticks to the window and the foot floats over the page, as they did over the box. It is at least the screen at its
+   largest, as the frame is (mobile.css, .app-root), so a short step scrolls far enough for Safari to tuck its bar away. */
 @media (max-width: 720px) {
-  .fr-shell { height: auto; min-height: 100dvh; overflow: visible; }
+  .fr-shell { height: auto; min-height: 100vh; min-height: 100lvh; overflow: visible; }
+  .fr-root { min-height: 100vh; min-height: 100lvh; }
 }
 .fr-waiting { align-items: center; justify-content: center; padding: 32px var(--gutter-page); }
 .fr-reading { margin: 0; color: var(--ink-dim); font-size: var(--text-base); }

@@ -892,11 +892,16 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .pg-light > span {
     display: none;
   }
-  /* At least the screen, and as long as the page. Clipped across only: nothing a page holds widens the window. */
+  /* At least the screen at its largest (100lvh: as the browser shows it with its own bar tucked away), and as long as the
+     page. A page that held less than the screen it showed (100dvh) had nothing to scroll, so Safari never tucked its
+     toolbar away and it stood at full size on a strip of the page's ground; now every page scrolls by the toolbar's
+     height at least, and a short swipe tucks it into its small pill, as a long page's does (Ruben, 21 Oct 2026). An app
+     on the home screen has no browser bar: there the largest screen is the screen. Clipped across only: nothing a page
+     holds widens the window. */
   .app-root {
     height: auto;
     min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 100lvh;
     overflow: visible;
     overflow-x: clip;
   }
