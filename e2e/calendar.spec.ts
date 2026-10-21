@@ -211,13 +211,12 @@ test.describe("Calendar on a real workspace", () => {
         // Asked until the view has slid in: measured mid-slide on a phone, the month's last row was still on its way.
         const reached = () =>
           board.evaluate((cal) => {
-            // Whatever scrolls: the grid, the body, and on a phone the window (mobile.css, "The window scrolls").
+            // Whatever scrolls: the grid, the body, and on a phone the Calendar's pane (.cal-pane).
             const scrolls = (el: Element | null) => !!el && el.scrollHeight > el.clientHeight + 1;
             const grid = cal.querySelector(".cal-scroll");
             const body = cal.querySelector(".cal-body");
             const pane = cal.querySelector(".cal-pane");
             for (const el of [grid, body, pane, cal]) if (el) el.scrollTop = el.scrollHeight;
-            window.scrollTo(0, document.scrollingElement!.scrollHeight);
             const scroller = [grid, body, pane].find(scrolls) ?? grid ?? body ?? cal;
             const bottom = (el: Element) => el.getBoundingClientRect().bottom;
             const days = scroller.querySelectorAll(

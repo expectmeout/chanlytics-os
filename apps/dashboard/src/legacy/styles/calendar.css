@@ -650,13 +650,12 @@
 }
 
 /* ---- A phone ----
-   The page fits the screen (Ruben, 8 Oct 2026: it could be held and swiped around, and nothing fit the screen): the
-   bar, then a notice as one line, then the board in the room that is left, down to the screen's foot with the tab bar
-   floating over it. The week's seven days share the width as the month's do, the day heads stacked and the blocks
-   lozenges whose words wait for Day view; the hours share the board's height (blocks.tsx sets --cal-hour to what
-   fits), so a day scrolls only when its hours cannot fit at the floor. The window scrolls the days, the agenda's list
-   among them, under the bar, which sticks (mobile.css, "The window scrolls": 21 Oct 2026, so Safari's toolbar floats
-   as glass over them). */
+   The page holds still (Ruben, 8 Oct 2026: it could be held and swiped around, and nothing fit the screen): the bar,
+   then a notice as one line, then the board in the room that is left, down to the screen's foot with the tab bar
+   floating over it, and nothing under the bar to scroll to. The week's seven days share the width as the month's
+   do, the day heads stacked and the blocks lozenges whose words wait for Day view; the hours share the board's height
+   (blocks.tsx sets --cal-hour to what fits), so a day scrolls inside its pane only when its hours cannot fit at the
+   floor. The agenda is the one list and scrolls inside the body; the pane itself moves only for the rules sheet. */
 @media (max-width: 720px) {
   /* Under the frame's row of views (Settings at its right, the act's rules), the bar is one row: the range, then the
      steps at the right, where a thumb finds them wherever the range's words end; then the first day. */
@@ -667,9 +666,9 @@
   .main-scroll > .calendar .cal-when {
     flex: 1 0 auto;
   }
-  /* The pane is the column the page leaves (mobile.css): it never pulls, and the body takes the room under the notices
-     down to the screen's foot, under the tab bar as every page's rows run (the room for the bar is the end of what
-     holds the days, mobile.css). */
+  /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room under the notices down
+     to the screen's foot, under the tab bar as every page's rows run (the room for the bar is the end of what scrolls,
+     mobile.css), and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
   .main-scroll > .calendar {
     padding-bottom: 0;
   }

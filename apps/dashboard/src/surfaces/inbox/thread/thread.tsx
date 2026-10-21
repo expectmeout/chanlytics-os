@@ -30,8 +30,6 @@ import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { ThreadBar, ThreadStatus, type Stale, type StatusProps } from "./status";
 import { useEarlierAsScrolled } from "./earlier";
-import { threadScroller, threadShown } from "./scroller";
-import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
@@ -175,12 +173,9 @@ interface EndRefs {
  * A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to read.
  * Opened at a message -- a call, from Conversations -- or at the start of a call that is the newest thing said, it
  * opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs, which
- * is when it first arrives, not when the pane first drew. The conversation `el` scrolls itself on a desk, and the window
- * scrolls it on a phone (scroller.ts). Answers what lets it go.
+ * is when it first arrives, not when the pane first drew. Answers what lets it go.
  */
 function followTheEnd(el: HTMLElement, refs: EndRefs) {
-  const box = threadScroller(el);
-  const windowScrolls = isDocumentScroller(box);
   let aim = ixOpensAt(refs.thread.current, refs.focus.current);
   if (aim) refs.stuck.current = false;
   const toEnd = () => {
@@ -189,29 +184,26 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
       const at = el.querySelector(`[data-mid="${aim}"]`);
       aim = null;
       if (at) {
-        box.scrollTop += at.getBoundingClientRect().top - threadShown(el, box).top - 16;
+        el.scrollTop += at.getBoundingClientRect().top - el.getBoundingClientRect().top - 16;
         return;
       }
       refs.stuck.current = true; // not in this thread after all: its newest, as ever
     }
-    if (refs.stuck.current) box.scrollTop = box.scrollHeight;
+    if (refs.stuck.current) el.scrollTop = el.scrollHeight;
   };
   const onScroll = () => {
-    refs.stuck.current = box.scrollHeight - box.scrollTop - shownHeight(box) < 40;
+    refs.stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
   toEnd();
-  const heard: EventTarget = windowScrolls ? window : el;
-  heard.addEventListener("scroll", onScroll, { passive: true });
-  // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there. Where the
-  // window scrolls it, the pane grows round it too: its foot, and the room the keyboard takes under the foot (mobile.css).
+  el.addEventListener("scroll", onScroll, { passive: true });
+  // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there.
   const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
   if (seen) {
     seen.observe(el);
     if (el.lastElementChild) seen.observe(el.lastElementChild);
-    if (windowScrolls && el.parentElement) seen.observe(el.parentElement);
   }
   return () => {
-    heard.removeEventListener("scroll", onScroll);
+    el.removeEventListener("scroll", onScroll);
     if (seen) seen.disconnect();
   };
 }
@@ -416,9 +408,7 @@ export const InboxThread = (props: InboxThreadProps) => {
   }, [real]);
   useEffect(() => {
     const el = scrollRef.current;
-    if (!real || !el || !stuckRef.current) return;
-    const box = threadScroller(el);
-    box.scrollTop = box.scrollHeight;
+    if (real && el && stuckRef.current) el.scrollTop = el.scrollHeight;
   }, [real, entries]);
   // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
   const earlier = useEarlierAsScrolled(thread, focusMessageId, scrollRef);
@@ -467,24 +457,19 @@ export const InboxThread = (props: InboxThreadProps) => {
       )}
 
       {scrollBody(held, thread, { scrollRef, statusProps, rowsAt: { newestSaid, seenAt, ...earlier } })}
-      {/* The foot: what the thread needs from you and the reply box. One box on a phone, standing over the screen's foot
-          as the window scrolls the conversation under it (mobile.css); on a desk no box at all (display: contents). */}
-      <div className="ix-th-foot">
-        {thread.real && (
-          <div className="ix-th-status" data-testid="ix-th-status">
-            <ThreadStatus {...statusProps} />
-          </div>
-        )}
+      {thread.real && (
+        <div className="ix-th-status" data-testid="ix-th-status">
+          <ThreadStatus {...statusProps} />
+        </div>
+      )}
 
-        {approvalBox(held, thread, decided)}
-        {/* P0: the mockup hid the composer on "done" ("decided, nothing left to do"). On real threads "handled" is the
-            NORMAL resting state, so hiding it left the operator no way to follow up with their own customer. Real threads
-            always get a reply path; the closed-window branch inside Composer downgrades it to approved templates past the
-            24h window. A reply to a reach-out, read, draws its strip above it, and the receptionist's draft seeds it
-            (reply-strip.tsx). */}
-        <ReplyStrip thread={thread} />
-        {replyBox(held, thread, decided)}
-      </div>
+      {approvalBox(held, thread, decided)}
+      {/* P0: the mockup hid the composer on "done" ("decided, nothing left to do"). On real threads "handled" is the NORMAL
+          resting state, so hiding it left the operator no way to follow up with their own customer. Real threads always get
+          a reply path; the closed-window branch inside Composer downgrades it to approved templates past the 24h window.
+          A reply to a reach-out, read, draws its strip above it, and the receptionist's draft seeds it (reply-strip.tsx). */}
+      <ReplyStrip thread={thread} />
+      {replyBox(held, thread, decided)}
     </div>
   );
 };
