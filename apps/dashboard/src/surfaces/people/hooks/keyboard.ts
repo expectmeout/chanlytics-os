@@ -8,6 +8,12 @@
 import { LEAD_PILE_UNDO_KEY } from "@chanlytics/contracts";
 import { PL_CONTROL, PL_OVERLAY, plTyping } from "../words";
 
+/**
+ * A sheet or a menu that is not one of the page's own overlays (its peek, Leads' plan panel, which this listener closes):
+ * where an Esc is pressed in one, it is that one's own.
+ */
+const OVER_THE_PEEK = '[role="dialog"]:not(.pl-peek):not(.pl-plan), [role="menu"]';
+
 /** What the listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and the view's own. */
 export interface KeyDoors {
   ids: readonly string[];
@@ -115,6 +121,9 @@ export function onPageKey(k: KeyDoors | null, e: KeyboardEvent): void {
   const from = e.target && (e.target as Node).nodeType === 1 ? (e.target as Element) : document.activeElement;
   // A key an earlier listener took (the ? sheet's Esc) is not the page's.
   if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
+  // An Esc pressed inside a sheet or a menu over the page is that one's own (the deal sheet a row's peek opened, a row's
+  // menu): it has closed itself, often before this hears the key, and the peek under it stays open.
+  if (e.key === "Escape" && from && from.closest && from.closest(OVER_THE_PEEK)) return;
   if (ownOverlayKey(k, e)) return;
   // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
   // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.

@@ -486,8 +486,8 @@ function pipeline(name, nowMs) {
       decisions: [],
       receptionist_mode: null,
       workspace_reply_mode: "auto",
-      // The feed's own visits, unmarked, as personVisits reads them, with every one of theirs for the timeline.
-      visits: { ...feed, next, last, all: [last, next].filter(Boolean) },
+      // The feed's own visits, marked as personVisits marks its next and last, with every one of theirs for the timeline.
+      visits: { ...feed, next: marked(next), last: marked(last), all: [last, next].filter(Boolean) },
       notes: null,
       person_notes: step ? [step] : [],
       // The team a note can be for: the one signed in, as the notes read names them.

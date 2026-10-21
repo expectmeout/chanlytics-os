@@ -139,12 +139,13 @@ test("their page says it twice, in its Replies row and on the address itself, an
   }
 });
 
-test("the Pipeline peek says the same of the same person: the address flagged, the copy still the bare address", () => {
+test("the Pipeline's deal sheet says the same of the same person, once: the address flagged, the copy still the bare address", () => {
   const reach = (p) => Object.fromEntries(pipelinePeekDetail(p).reach.map((r) => [r.id, r]));
   const stopped = reach(personFor({ email_suppressed_at: "2026-09-10T00:00:00Z" }));
   assert.equal(stopped.email.words, `${ADDRESS} · stopped accepting mail`);
   assert.equal(stopped.email.copy, ADDRESS, "what a copy puts on the clipboard is the address, never the tag");
-  assert.equal(stopped.replies.words, STOPPED_REPLIES);
+  // The address's own row says it stopped; Replies would only say email cannot reach them under it, so it is left out.
+  assert.equal(stopped.replies, undefined);
   const fine = reach(personFor());
   assert.equal(fine.email.words, ADDRESS);
   assert.equal(fine.replies.words, "Any time, by email");

@@ -32,6 +32,12 @@ import { logCallOn } from "../people-detail";
 import { NoteDay } from "./notes";
 import type { PageCtx } from "./ctx";
 
+/**
+ * What the Call reads of the page it stands on: who, their Call's state, the width, the member's right to log, the
+ * page's toast and its read again. Their page hands its own context; the Pipeline's deal sheet hands these alone.
+ */
+export type CallCtx = Pick<PageCtx, "p" | "call" | "phone" | "canRecord" | "flash" | "load">;
+
 /** The call on a person's page: the number Call rings, and where the question is asked. */
 export interface PersonCallCtl {
   /** Nothing to ring: no number of their own and no listing's. */
@@ -146,7 +152,7 @@ type Day = { picking: boolean; day: string | null };
  * every outcome but Wrong number (Call back later starts on Tomorrow, so the whole job is three presses), what was said,
  * whether the receptionist should know, and Save, which names what it saves, with the line beside it saying where it goes.
  */
-function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () => void }) {
+function CallAsk({ c, vm, onDone }: { c: CallCtx; vm: PersonCallVM; onDone: () => void }) {
   const [outcome, setOutcome] = useState<PersonCallOutcome | null>(null);
   const [day, setDay] = useState<Day>({ picking: false, day: null });
   const [said, setSaid] = useState("");
@@ -277,7 +283,7 @@ function CallAsk({ c, vm, onDone }: { c: PageCtx; vm: PersonCallVM; onDone: () =
 }
 
 /** The dial, in the desk's popover: the number and where it is rung from, then the press that rings it. */
-function CallDial({ c, vm }: { c: PageCtx; vm: PersonCallVM }) {
+function CallDial({ c, vm }: { c: CallCtx; vm: PersonCallVM }) {
   return (
     <div className="cl-prof-call-dial" data-testid="person-call-dial">
       <Button href={vm.tel} onClick={c.call.dialled} data-testid="person-call-dial-go">
@@ -297,7 +303,7 @@ function CallDial({ c, vm }: { c: PageCtx; vm: PersonCallVM }) {
  * The head's Call, and the phone dock's circle: on a desk the popover hangs from it, the dial first and the question
  * once it is rung; on a phone it rings at once and the sheet asks once the app is back. A viewer rings and is never asked.
  */
-export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
+export function CallAct({ c, dock = false, round = false }: { c: CallCtx; dock?: boolean; round?: boolean }) {
   const { vm } = c.call;
   // Nothing to ring, or someone on do-not-contact: no Call (their More still logs a call already made).
   if (!vm?.rings) return null;
@@ -317,7 +323,12 @@ export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
         <Icon name="phone" size={16} />
       </Button>
     );
-  const trigger: ReactElement = (
+  // A desk's dock draws it as its circles are drawn (the Pipeline's deal sheet), the popover hanging from it as from the head's.
+  const trigger: ReactElement = round ? (
+    <Button iconOnly variant="quiet" aria-label={W.call} title={W.call} data-testid="person-call">
+      <Icon name="phone" size={16} />
+    </Button>
+  ) : (
     <Button size="sm" data-testid="person-call">
       {W.call}
     </Button>
@@ -347,7 +358,7 @@ export function CallAct({ c, dock = false }: { c: PageCtx; dock?: boolean }) {
 }
 
 /** The phone's question, risen once the app is back from the call (or from More's "Log a call you already made"). */
-export function CallSheet({ c }: { c: PageCtx }) {
+export function CallSheet({ c }: { c: CallCtx }) {
   const { vm } = c.call;
   if (!c.phone || !vm || !c.canRecord) return null;
   return (

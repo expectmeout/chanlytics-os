@@ -301,8 +301,8 @@ test.describe("People on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await expect(page.getByTestId("pipeline")).toBeVisible();
     await expect(page.getByTestId("scope-pipeline")).toHaveAttribute("aria-current", "page");
-    // Its rows are People's, grouped; a row opens its person's deal in a peek beside the rows, whose door opens their
-    // page. Nothing is recorded: the peek is read.
+    // Its rows are People's, grouped; a row opens its deal sheet beside the rows, whose door opens their page.
+    // Nothing is recorded: the sheet is read.
     const rows = page.locator('[data-testid="pipeline"] .pl-table tbody tr[id^="person-"]');
     if ((await rows.count()) > 0) {
       await rows.first().click();

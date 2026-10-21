@@ -6,6 +6,7 @@ import "server-only";
 import {
   earlierVisitsOf,
   indexFeed,
+  isConsultationTitle,
   seasonHorizon,
   toVisitDto,
   type PersonLike,
@@ -54,7 +55,7 @@ export async function personVisits(
   // The record beside the feed (0002's readers): a booking's visits join theirs, a cancelled one leaves, a word rides.
   const recordRead = calendar.then(({ url }) => (url ? poolRecordOf(ctx, tenantId, now) : null));
   const earlierRead = earlierRowsOf(ctx, tenantId, calendar, who, now);
-  const [{ url, lostCalendar, timezone, source, own }, feed, person, record, earlierRows] = await Promise.all([
+  const [{ url, lostCalendar, timezone, source, own, profile }, feed, person, record, earlierRows] = await Promise.all([
     calendar,
     feedRead,
     who,
@@ -77,13 +78,18 @@ export async function personVisits(
   const earlier = earlierRows
     ? earlierVisitsOf(earlierRows, new Set(all.flatMap((x) => (x.record_id ? [x.record_id] : []))))
     : null;
+  // Which is a consultation, by the rule the list's are marked by (contracts peopleVisitsOf): the person's page, its deal
+  // card and the Pipeline's deal sheet read their consultation off these, and a proposal started after one names its
+  // service (consultedService). Unmarked, the page knew of none, though their People row said so.
+  const mark = (x: VisitDto | null): VisitDto | null =>
+    x && { ...x, consultation: isConsultationTitle(x.title, profile?.services ?? [], profile?.booking_rules ?? null) };
   return {
     timezone,
     source,
     state: "ok",
-    next: toVisitDto(v.next),
-    last: toVisitDto(v.last),
-    missed: toVisitDto(v.missed ?? null),
+    next: mark(toVisitDto(v.next)),
+    last: mark(toVisitDto(v.last)),
+    missed: mark(toVisitDto(v.missed ?? null)),
     all,
     ...(earlier ? { earlier } : {}),
   };

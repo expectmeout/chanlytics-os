@@ -426,17 +426,30 @@ the door moves any stage to any when the version matches. People is read again
 once after the last, whatever it answered; what it came to is said once
 (`pipelinePassDone`: passed, changed since, could not be marked), and only
 those who passed leave the selection. Of People's own acts the Pipeline keeps
-its lists and its export. The peek offers no Call and no copy of the number
-for someone on do-not-contact, as their page's own menu does not.
+its lists and its export. The sheet offers no Call and no copy of the number
+for someone on do-not-contact: its Call is their page's own, which offers
+none (their page's More still logs a call already made).
 
-The peek says, once the person is read, how to reach them -- the number with
-Call and Copy, the address with Copy, and what a reply may be now, the person
-page's own sentence (`repliesWords`) -- and the last three moves of their
-deals from their timeline (`pipelinePeekDetail`). On a phone the deal's next
-act and Call are pinned under it. Beside an open peek on a desk the table
-makes room for it and keeps who and where they stand: at 1280, beside the
-sidebar and the rail, some 350px is left, which holds two columns; the peek's
-card says the value at its head.
+A row opens its deal sheet (amended 20 Oct 2026, the canvas "Pipeline deal
+sheet"; contracts `pipelineSheetOf`): on a phone the kit's Sheet with two
+rests over the rows, the row it is of brought above it, as the lead sheet and
+the Calendar's visit open; on a desk the pane beside the rows. At half it says
+the row's steps, in the tone of who each waits on by one rule for the row, the
+sheet and the person page's card (`proposalTone`: a proposal out the owner
+should chase is warn, one the follow-up has in hand or that is still young is
+info, a client is good), the card's line, the next step and their last words;
+raised, how to reach them -- the number and the address with Copy, and what a
+reply may be now, the person page's own sentence (`repliesWords`,
+`pipelinePeekDetail`) -- their other open deals, each opening its own row, and
+their page. Its foot leads with one act, the card's `dealNextAct`, the deal's
+other moves in the caret on the same pill, then Message and Call; a client's
+leads with Message. While a proposal waits with nothing back and Follow up
+leads, the sheet asks whether they said yes, its two answers the yes and the
+pass; a pass asks why in the foot, the selection's reasons. The last moves of
+their deals it once listed are their page's, a press away. Beside an open peek
+on a desk the table makes room for it and keeps who and where they stand: at
+1280, beside the sidebar and the rail, some 350px is left, which holds two
+columns; the sheet's head says the service and the value.
 
 On the board each card wears its steps, and a Move to menu beside it (never
 inside the card, which is a button itself) asks for the same sheet a drop

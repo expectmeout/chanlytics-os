@@ -111,12 +111,14 @@ export {
   PIPELINE_RAIL_SERVICES,
 } from "./pipeline/pipeline-views";
 export type { PipelineView, PipelineRailRow, PipelineRailSection } from "./pipeline/pipeline-views";
-export { pipelinePeekOf, pipelinePeekDetail } from "./pipeline/pipeline-peek";
+export { pipelinePeekOf, pipelinePeekDetail, pipelineSheetOf } from "./pipeline/pipeline-peek";
 export type {
   PipelinePeekFact,
   PipelinePeekVM,
   PipelinePeekReachVM,
   PipelinePeekDetailVM,
+  PipelineSheetAct,
+  PipelineSheetVM,
 } from "./pipeline/pipeline-peek";
 export {
   pipelineMove,
