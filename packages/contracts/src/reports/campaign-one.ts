@@ -35,7 +35,7 @@ export const CAMPAIGN_SCOPE_WORDS = {
   byStep: { title: "By step", line: "What each step sent, and what came of it." },
   sends: { title: "Each send", line: "Newest first, with what came of each." },
   heads: { when: "When", what: "What came of it", sent: "Sent" },
-  nothing: (name: string) => `Nothing went out from ${name} in these days`,
+  nothing: (name: string) => `Nothing went out from “${name}” in these days`,
   nothingBody: "Its History says what it sent before, and what goes next.",
 } as const;
 const SAID = CAMPAIGN_SCOPE_WORDS;
@@ -79,6 +79,8 @@ export interface CampaignOneStepVM {
 /** One send of the days: when, which step, and what came of it in History's own words. */
 export interface CampaignOneSendVM {
   id: string;
+  /** What it is (sent, going out, failed, waiting for an OK, to come, canceled): its mark, as History's day marks it. */
+  state: string;
   when: string;
   end: string;
   said: string;
@@ -165,7 +167,13 @@ export function campaignOneOf(input: CampaignOneInput): CampaignOneVM {
   const sends = inDays.map((b) => {
     const place = b.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(b.place) : null;
     const said = historyDayWords(b, place);
-    return { id: b.id, when: historyStamp(Date.parse(b.at), tz, input.nowMs), ...said, went: batchWent(b) };
+    return {
+      id: b.id,
+      state: b.state,
+      when: historyStamp(Date.parse(b.at), tz, input.nowMs),
+      ...said,
+      went: batchWent(b),
+    };
   });
   return {
     name,

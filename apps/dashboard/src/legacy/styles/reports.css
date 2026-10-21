@@ -241,7 +241,14 @@ a.rpt-fact-row { text-decoration: none; }
    to its own pages at the row's end; Ads' row has the same shape (results.css .rpt-ads-scope). */
 .rpt-cmp-scope { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
 .rpt-cmp-pane { font-size: var(--text-sm); color: var(--ink-dim); }
-.rpt-cmp-door { margin-left: auto; }
+/* One campaign's door to its own pages wears Reports' door (the Overview fact's .rpt-fact-door): quiet words in a chip that
+   answers a hover, never the browser's underline, which drew a stray mark at the words' start on some screens. */
+.rpt-cmp-door { margin-left: auto; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); text-decoration: none; transition: background var(--duration-fast), color var(--duration-fast); }
+@media (hover: hover) { .rpt-cmp-door:hover { background: var(--bg-hover); color: var(--ink); } }
+/* Each send: History's day rows in the card, a hairline between them; a row still to decide is a link, never underlined. */
+.rpt-cmp-sends { display: flex; flex-direction: column; margin-inline: calc(var(--row-pad-x) * -1); }
+.rpt-cmp-send + .rpt-cmp-send { border-top: 1px solid var(--line); }
+a.rpt-cmp-send { text-decoration: none; color: inherit; }
 
 /* ---------- widths ---------- */
 @media (max-width: 1180px) {

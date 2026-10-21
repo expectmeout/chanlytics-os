@@ -117,6 +117,101 @@ const TOPIC_PLAYBOOKS = {
     ),
     meanwhile: "People are added from Settings \u203A Team."
   },
+  email: {
+    title: "Email",
+    check: "Their Setup's Email row: whether customers have an address to write to.",
+    steps: () => [
+      "Customers' emails arrive in the Inbox once the workspace has an address: Setup's Email row, Choose the address.",
+      "Replies go out from that address, from the Inbox.",
+      "Connecting their own Gmail or Outlook mailbox isn't open yet: say so rather than promise it."
+    ],
+    reply: (p) => letter(
+      p,
+      "you choose the address customers write to from Setup's Email row; their emails then arrive in your Inbox and you reply from there. Want me to set it up with you?"
+    ),
+    meanwhile: "The address customers write to is chosen on Setup's Email row."
+  },
+  conversations: {
+    title: "Inbox and handing over",
+    check: "Their Inbox: what waits for a person, and whether the receptionist is paused on a thread.",
+    steps: () => [
+      "A conversation the receptionist hands over waits in the Inbox under Needs you, and the bell says so.",
+      "Take over a thread to answer it yourself; Hand back lets the receptionist carry on.",
+      "What it may do alone is set in Settings \u203A Autonomy."
+    ],
+    reply: (p) => letter(
+      p,
+      "a conversation the receptionist can't finish waits for you in the Inbox, under Needs you. Open it to answer yourself, and press Hand back when you're done so the receptionist carries on. What it may do on its own is in Settings \u203A Autonomy."
+    ),
+    meanwhile: "Conversations waiting for you are in the Inbox, under Needs you."
+  },
+  answers: {
+    title: "How it answers",
+    check: "Settings \u203A How it answers and Settings \u203A Autonomy.",
+    steps: () => [
+      "Its voice, its greeting and notes in their own words are in Settings \u203A How it answers.",
+      "What it may do without asking (book, reply, follow up) is in Settings \u203A Autonomy.",
+      "A wrong answer is most often a missing fact: check their business facts first."
+    ],
+    reply: (p) => letter(
+      p,
+      "how the receptionist sounds, and the notes it reads in your own words, are in Settings \u203A How it answers; what it may do without asking you is in Settings \u203A Autonomy. If it said something wrong, tell me what and I'll check its facts with you."
+    ),
+    meanwhile: "How it sounds is set in Settings \u203A How it answers."
+  },
+  campaigns: {
+    title: "Campaigns",
+    check: "Their Campaigns \u203A Sequences: what is on, and what waits for their approval.",
+    steps: () => [
+      "Everything that sends on its own is a sequence: Campaigns \u203A Sequences \u203A New.",
+      "Its wording lives in Campaigns \u203A Messages; a new sequence is approved once, then runs.",
+      "A one-off message to a list is a sequence that runs once."
+    ],
+    reply: (p) => letter(
+      p,
+      "messages that go out on their own are set up under Campaigns: press New, choose who it's for and what it says, and approve it once. The wording lives in Campaigns \u203A Messages. Want me to build the first one with you on a short call?"
+    ),
+    meanwhile: "Campaigns \u203A Sequences \u203A New starts one."
+  },
+  leads: {
+    title: "Leads",
+    check: "Their People \u203A Leads: what the searches found, and what was added to a sequence.",
+    steps: () => [
+      "Leads are the businesses Claude found for them: People \u203A Leads.",
+      "A search runs from Leads; a lead added to a sequence is written to by it."
+    ],
+    reply: (p) => letter(
+      p,
+      "the businesses Claude finds for you are under People \u203A Leads, and from there you can add them to a sequence that writes to them for you. Tell me the kind of business and the area you want, and I'll check the search with you."
+    ),
+    meanwhile: "Leads are under People \u203A Leads."
+  },
+  people: {
+    title: "People and lists",
+    check: "Their People page: who is in it, and the lists they keep.",
+    steps: () => [
+      "People are added from People \u203A Add people: one at a time, or many at once from a spreadsheet.",
+      "Lists keep people together; the Pipeline holds their deals by stage."
+    ],
+    reply: (p) => letter(
+      p,
+      "you add people from People \u203A Add people, one at a time or from a spreadsheet, and keep them together in lists. Want me to walk you through an import on a short call?"
+    ),
+    meanwhile: "People are added from People \u203A Add people."
+  },
+  reviews: {
+    title: "Reviews",
+    check: "Their Reports \u203A Reviews: whether reviews arrive from their Google Business Profile.",
+    steps: () => [
+      "Reviews from their Google Business Profile are counted in Reports \u203A Reviews.",
+      "Where reviews aren't available yet, that page says so: don't promise what it can't show."
+    ],
+    reply: (p) => letter(
+      p,
+      "your Google reviews show under Reports \u203A Reviews, from your Business Profile. Tell me what you'd like to do with them and I'll check what's possible today."
+    ),
+    meanwhile: "Your Google reviews are under Reports \u203A Reviews."
+  },
   other: {
     title: "A question",
     check: "Their workspace's card, and the page they wrote from.",

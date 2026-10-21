@@ -10,7 +10,7 @@
  * Keys on a desk: ↑↓ move, Enter opens, Esc closes, T takes the workspace, A copies the reply, M marks it answered. On
  * a phone the queue is rows and the one opened is a sheet. Every sentence is contracts'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SUPPORT_KIND_FILTERS,
   SUPPORT_KIND_FILTER_WORDS,
@@ -19,25 +19,21 @@ import {
   SUPPORT_WORDS,
   consolePathOf,
   inboxHomeUrl,
-  inboxSearchUrl,
   playbookOf,
-  staffMay,
   staffName,
   supportQueueOf,
   supportSentence,
-  supportWorkspaceOf,
-  verdictPill,
   type SupportKindFilter,
   type SupportRowVM,
   type SupportTopic,
   type SupportView,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
-import { CopyButton } from "../kit/copy-button/copy-button";
 import { PageHead } from "../kit/head/page-head";
 import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { Meter } from "../kit/meter/meter";
+import { Panel } from "../kit/panel/panel";
 import { StatePill } from "../kit/pill/state-pill";
 import { Search } from "../kit/search/search";
 import { Segmented } from "../kit/segmented/segmented";
@@ -55,6 +51,7 @@ import {
   type Flash,
   type Go,
 } from "./parts";
+import { Answer, AnswerActs, type Acts } from "./support-answer";
 import { consoleVerbs, type ConsoleMe, type ConsoleSupport, type SupportAsk } from "./verbs";
 
 /** How long the search waits for typing to stop before it reads again. */
@@ -152,244 +149,6 @@ function Queue({
 }
 
 /* ------------------------------------------------------------------------------------------- the one opened */
-
-/** One block of the one opened: its small heading and what it holds. */
-function Part({ head, aside = null, children }: { head?: ReactNode; aside?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="cs-a-part">
-      {head ? (
-        <div className="cs-a-head">
-          <span className="cs-a-label">{head}</span>
-          {aside}
-        </div>
-      ) : null}
-      {children}
-    </section>
-  );
-}
-
-/** What the one opened can do, as the page wires it. */
-interface Acts {
-  take: (r: SupportRowVM, take: boolean) => void;
-  mark: (r: SupportRowVM, mark: "answered" | "done" | "reopened") => void;
-  resend: (r: SupportRowVM) => void;
-  move: (r: SupportRowVM) => void;
-  busy: boolean;
-}
-
-/** Who they are, their workspace as Home judges it, who has it, and its two doors. */
-function WhoAndWhere({
-  r,
-  data,
-  me,
-  go,
-  acts,
-}: {
-  r: SupportRowVM;
-  data: ConsoleSupport;
-  me: ConsoleMe;
-  go: Go;
-  acts: Acts;
-}) {
-  const ws = supportWorkspaceOf(data.book.tenants, r.tenantId, Date.now());
-  const mine = r.claim === "You have it";
-  return (
-    <>
-      <Part head={SUPPORT_WORDS.from}>
-        <span className="cs-a-strong">{r.who}</span>
-        {r.since && <span className="cs-a-dim">{r.since}</span>}
-        {r.email && (
-          <span className="cs-a-line">
-            <span className="cs-a-dim">{r.email}</span>
-            <CopyButton text={r.email} label="Copy" testid="console-support-copy-email" />
-          </span>
-        )}
-      </Part>
-      <Part
-        head={SUPPORT_WORDS.workspaceCard}
-        aside={
-          ws ? (
-            <StatePill kind="tone" value={verdictPill(ws.verdict).tone} label={verdictPill(ws.verdict).label} />
-          ) : null
-        }
-      >
-        <span className="cs-a-strong">{r.workspace}</span>
-        {ws && <span className="cs-a-dim">{ws.sentence}</span>}
-        {ws && (
-          <span className="cs-a-dim">
-            {[
-              `Plan: ${ws.facts.paying}`,
-              `Answering: ${ws.facts.answering}`,
-              `Texting: ${ws.facts.texting}`,
-              `Heard from: ${ws.facts.heard}`,
-            ].join(" · ")}
-          </span>
-        )}
-        {r.tenantId && (
-          <span className="cs-a-line">
-            <span className="cs-a-dim">{r.claim ?? SUPPORT_WORDS.nobodyHasIt}</span>
-            {(!r.claim || mine) && staffMay(me.role, "report_answered") && (
-              <Button
-                size="sm"
-                variant={mine ? "quiet" : undefined}
-                onClick={() => acts.take(r, !mine)}
-                disabled={acts.busy}
-                data-testid="console-support-take"
-              >
-                {mine ? "Let go" : "Take it"}
-              </Button>
-            )}
-          </span>
-        )}
-        {r.slug && (
-          <span className="cs-a-line">
-            <LinkButton onClick={() => go(consolePathOf("workspaces", r.slug))} data-testid="console-support-workspace">
-              {SUPPORT_WORDS.openWorkspace}
-            </LinkButton>
-            <LinkButton
-              onClick={() => go(consolePathOf("workspaces", r.slug, "lines"))}
-              data-testid="console-support-setup"
-            >
-              {SUPPORT_WORDS.openSetup}
-            </LinkButton>
-          </span>
-        )}
-      </Part>
-    </>
-  );
-}
-
-/** The one opened: their words, who and where, how to help, the reply, and what to do. */
-function Answer({
-  r,
-  data,
-  me,
-  go,
-  acts,
-  inSheet = false,
-}: {
-  r: SupportRowVM;
-  data: ConsoleSupport;
-  me: ConsoleMe;
-  go: Go;
-  acts: Acts;
-  /** In a phone's sheet, whose title says the code already. */
-  inSheet?: boolean;
-}) {
-  const book = playbookOf(r);
-  const fill = { first: r.first, workspace: r.workspace, me: staffName(me.email), tenantId: r.tenantId };
-  return (
-    <div className="cs-a" data-testid="console-support-open">
-      <Part>
-        <span className="cs-a-line">
-          {!inSheet && <span className="cs-a-code">{r.code}</span>}
-          <CopyButton text={r.code} label="Copy" said={SUPPORT_WORDS.copied} testid="console-support-copy-code" />
-          <span className="cs-a-dim">{r.sent}</span>
-        </span>
-        <p className="cs-a-words">{r.quoted ? `“${r.title}”` : r.title}</p>
-        {r.page && <span className="cs-a-dim">{`From ${r.page}`}</span>}
-        {r.doneWhen && <span className="cs-a-dim">{r.doneWhen}</span>}
-        {r.answered && <span className="cs-a-dim">{r.answered}</span>}
-        {r.unmailed && <span className="cs-a-warn">{r.unmailed}</span>}
-        {r.error && <span className="cs-a-dim">{`${SUPPORT_WORDS.alsoSent}: ${r.error}`}</span>}
-      </Part>
-      <WhoAndWhere r={r} data={data} me={me} go={go} acts={acts} />
-      <Part head={`${SUPPORT_WORDS.howToHelp} · ${book.title}`}>
-        <span className="cs-a-check">{`${SUPPORT_WORDS.checkFirst}: ${book.check}`}</span>
-        <ol className="cs-a-steps">
-          {book.steps(fill).map((s) => (
-            // A step indented as a command is one to run as it is: drawn as code, its dashes never joined.
-            <li key={s}>{s.startsWith("  ") ? <code className="cs-a-cmd">{s.trim()}</code> : s}</li>
-          ))}
-        </ol>
-      </Part>
-      <Part head={SUPPORT_WORDS.reply} aside={<span className="cs-a-dim">{SUPPORT_WORDS.replyNote}</span>}>
-        <p className="cs-a-reply" data-testid="console-support-reply">
-          {book.reply(fill)}
-        </p>
-      </Part>
-    </div>
-  );
-}
-
-/** What the one opened can do: Answer in the inbox, coral; copy the reply; mark it; and the rest, quiet. */
-function AnswerActs({ r, data, me, acts }: { r: SupportRowVM; data: ConsoleSupport; me: ConsoleMe; acts: Acts }) {
-  const may = staffMay(me.role, "report_answered");
-  const book = playbookOf(r);
-  const reply = book.reply({ first: r.first, workspace: r.workspace, me: staffName(me.email), tenantId: r.tenantId });
-  const inbox = inboxSearchUrl(data.inbox, r.kind === "ask" ? (r.email ?? r.workspace) : r.code);
-  const open = r.state === "new" || r.state === "taken";
-  return (
-    <div className="cs-a-acts">
-      <div className="cs-acts">
-        {inbox ? (
-          <Button
-            variant="primary"
-            href={inbox}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="console-support-inbox"
-          >
-            {r.kind === "ask" ? SUPPORT_WORDS.writeInInbox : SUPPORT_WORDS.answerInInbox}
-          </Button>
-        ) : (
-          <CopyButton
-            text={r.code}
-            label={`Copy ${r.code}`}
-            said={SUPPORT_WORDS.copied}
-            testid="console-support-copy"
-          />
-        )}
-        <CopyButton
-          text={reply}
-          label={SUPPORT_WORDS.copyReply}
-          said={SUPPORT_WORDS.replyCopied}
-          testid="console-support-copy-reply"
-        />
-        {may && open && (
-          <Button
-            variant="quiet"
-            onClick={() => acts.mark(r, "answered")}
-            disabled={acts.busy}
-            data-testid="console-support-answered"
-          >
-            {SUPPORT_WORDS.markAnswered}
-          </Button>
-        )}
-        {may && r.state === "waiting" && r.byHand && (
-          <Button
-            variant="quiet"
-            onClick={() => acts.mark(r, "done")}
-            disabled={acts.busy}
-            data-testid="console-support-done"
-          >
-            {SUPPORT_WORDS.markDone}
-          </Button>
-        )}
-      </div>
-      {!inbox && <span className="cs-a-dim">{SUPPORT_WORDS.noInbox}</span>}
-      {may && (
-        <div className="cs-acts">
-          {!open && (
-            <LinkButton onClick={() => acts.mark(r, "reopened")} data-testid="console-support-reopen">
-              {SUPPORT_WORDS.reopen}
-            </LinkButton>
-          )}
-          {r.unmailed && (
-            <LinkButton onClick={() => acts.resend(r)} data-testid="console-support-resend">
-              {SUPPORT_WORDS.sendAgain}
-            </LinkButton>
-          )}
-          {r.kind === "question" && (
-            <LinkButton onClick={() => acts.move(r)} data-testid="console-support-move">
-              {SUPPORT_WORDS.moveToHealth}
-            </LinkButton>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* -------------------------------------------------------------------------------------------------- the screen */
 
@@ -719,10 +478,14 @@ export function SupportScreen({ me, go, flash }: { me: ConsoleMe; go: Go; flash:
         <div className="cs-desk" data-beside={beside && row ? "true" : undefined}>
           <QueueCard rows={rows} data={data} ask={ask} set={set} busy={read.busy} beside={beside} p={p} />
           {beside && row && (
-            <aside className="rec-card set-card cs-desk-side" aria-label={row.code}>
-              <Answer r={row} data={data} me={me} go={go} acts={acts} />
-              <AnswerActs r={row} data={data} me={me} acts={acts} />
-            </aside>
+            <Panel as="aside" size="flush" className="cs-desk-side cs-answer" aria-label={row.code}>
+              <div className="cs-a-scroll">
+                <Answer r={row} data={data} me={me} go={go} acts={acts} />
+              </div>
+              <footer className="cs-a-foot">
+                <AnswerActs r={row} data={data} me={me} acts={acts} />
+              </footer>
+            </Panel>
           )}
         </div>
       )}

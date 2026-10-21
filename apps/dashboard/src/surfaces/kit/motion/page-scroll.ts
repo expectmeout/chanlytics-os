@@ -66,6 +66,24 @@ export function inHeldList(el: Element | null | undefined): boolean {
   return !!el?.closest?.("[data-held]");
 }
 
+/**
+ * A box's height, kept as a custom property on another (`name` on `on`) as the box changes: where something sticks under
+ * a bar that sticks itself as the window scrolls a page (a week's day heads under the Calendar's bar), it sticks that far
+ * further down, as the frame's top is measured for what sticks under it (kit/head/frame-top.ts). Answers how to stop,
+ * which takes the property away.
+ */
+export function keepHeightOn(box: HTMLElement, on: HTMLElement, name: string): () => void {
+  if (typeof ResizeObserver !== "function") return () => {};
+  const size = () => on.style.setProperty(name, `${box.offsetHeight}px`);
+  const seen = new ResizeObserver(size);
+  seen.observe(box);
+  size();
+  return () => {
+    seen.disconnect();
+    on.style.removeProperty(name);
+  };
+}
+
 /** How tall the screen a box shows is: the window's for the document's scroller (its clientHeight is the window's too). */
 export function shownHeight(box: Element): number {
   return isDocumentScroller(box) ? document.documentElement.clientHeight : box.clientHeight;

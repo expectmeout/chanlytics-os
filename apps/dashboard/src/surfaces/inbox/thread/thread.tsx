@@ -203,7 +203,7 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   const heard: EventTarget = windowScrolls ? window : el;
   heard.addEventListener("scroll", onScroll, { passive: true });
   // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there. Where the
-  // window scrolls it, the pane grows round it too: its foot, and the room the keyboard takes under the foot (mobile.css).
+  // window scrolls it, the pane grows round it too: its foot, standing over the screen's foot (mobile.css).
   const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
   if (seen) {
     seen.observe(el);

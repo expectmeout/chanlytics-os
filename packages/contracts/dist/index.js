@@ -28050,6 +28050,8 @@ var SEQUENCE_WORDS = {
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
   backToLeadsLabel: "Back to Leads",
   search: "Search sequences",
+  /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
+  views: { label: "Which sequences", all: "All sequences" },
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn\u2019t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
@@ -35891,22 +35893,36 @@ var SUPPORT_TOPICS = [
   "whatsapp",
   "forwarding",
   "line",
+  "email",
   "calendar",
-  "billing",
-  "language",
+  "conversations",
+  "answers",
   "facts",
+  "language",
+  "campaigns",
+  "leads",
+  "people",
+  "reviews",
   "team",
+  "billing",
   "other"
 ];
 var SUPPORT_TOPIC_WORDS = {
   whatsapp: "WhatsApp",
   forwarding: "Forwarding",
   line: "A line or number",
+  email: "Email",
   calendar: "Calendar",
-  billing: "Billing",
-  language: "Language",
+  conversations: "Inbox and handing over",
+  answers: "How it answers",
   facts: "Hours and prices",
+  language: "Language",
+  campaigns: "Campaigns",
+  leads: "Leads",
+  people: "People and lists",
+  reviews: "Reviews",
   team: "Team and alerts",
+  billing: "Billing",
   other: "Other"
 };
 var TOPIC_MATCH = [
@@ -35920,13 +35936,26 @@ var TOPIC_MATCH = [
     /forward|ring\s?central|vonage|8x8|phone system|voicemail|calls? (go|ring|come)|keep my (own |current )?number/i
   ],
   ["language", /spanish|español|espanol|french|portuguese|chinese|language|translat|bilingual|english/i],
-  ["line", /\bline\b|phone number|\bnumber\b|\bport(ing)?\b|carrier|\bsms\b|\btext(s|ing)?\b|10dlc|a2p|campaign/i],
-  ["calendar", /calendar|appointment|\bbook(ing|ed|s)?\b|schedul|availability|google cal|outlook/i],
+  [
+    "campaigns",
+    /campaign(?! (registration|approval|vetting))|sequence|broadcast|follow[- ]?ups?|\bdrip\b|newsletter|\bblast\b/i
+  ],
+  ["line", /\bline\b|phone number|\bnumber\b|\bport(ing)?\b|carrier|\bsms\b|\btext(s|ing)?\b|10dlc|a2p|registration/i],
+  ["calendar", /calendar|appointment|\bbook(ing|ed|s)?\b|schedul|availability|google cal/i],
+  ["team", /\bteam\b|staff|invite|member|alert|notif|\bbell\b|hand ?off|escalat|who gets/i],
+  ["email", /\bemails?\b|mailbox|gmail|outlook|smtp|\bdomain\b/i],
+  ["leads", /\bleads?\b|finder|prospect|find (new )?(businesses|customers|clients)/i],
+  ["reviews", /\breviews\b|review (link|request)|\bratings?\b|\bstars?\b|business profile/i],
+  ["people", /\bpeople\b|contacts?\b|\bimport|\bcsv\b|spreadsheet|\blists?\b|pipeline|\bdeals?\b/i],
+  ["conversations", /\binbox\b|conversation|\bthread|take (it )?over|took over|hand(ed)? (it )?back|\bheld\b|on hold/i],
   [
     "facts",
     /\bhours\b|\bopen(ing)?\b|\bclosed?\b|price|pricing|\bcost|services?\b|\bmenu\b|address|location|\bfaq|facts/i
   ],
-  ["team", /\bteam\b|staff|invite|member|alert|notif|\bbell\b|hand ?off|escalat|who gets/i]
+  [
+    "answers",
+    /autonomy|greeting|\bvoice\b|\btone\b|personality|on its own|without asking|approv|\bsounds?\b|how it (answers|replies|talks)/i
+  ]
 ];
 var TOPIC_OF_PAGE = { calendar: "calendar" };
 function supportTopicOf(words3, page2, kind) {
@@ -36041,14 +36070,23 @@ var SUPPORT_WORDS = {
   failed: "the queue",
   pick: "Open a row to answer it.",
   from: "From",
-  workspaceCard: "Their workspace",
+  workspaceCard: "Workspace",
+  facts: { plan: "Plan", answering: "Answering", texting: "Texting", heard: "Heard from" },
+  setupDone: (done, total) => `Setup ${done} of ${total} done`,
+  setupNext: (step2) => `Next: ${step2}`,
+  setupAll: "Every step of their Setup is done.",
+  setupFailed: "Their Setup couldn't be read just now.",
+  notYet: "not yet",
+  sentFrom: (page2) => `Sent from ${page2}`,
+  copy: "Copy",
+  copyAddress: "Copy address",
   nobodyHasIt: "Nobody has it",
   openSetup: "Open its Setup",
   openWorkspace: "Open the workspace",
   howToHelp: "How to help",
   checkFirst: "Check first",
-  reply: "Reply, filled in",
-  replyNote: "Copied, never sent from here",
+  reply: "Reply",
+  replyNote: "Their name is filled in. Copy it into the inbox: nothing is sent from the Console.",
   alsoSent: "Also sent",
   doneWhen: "Done when",
   answerInInbox: "Answer in the inbox",
@@ -36180,8 +36218,41 @@ function firstAnswers(acts) {
 }
 function whoLine(who, email) {
   const role = who?.role ? roleWords(who.role) ?? null : null;
-  if (who?.name) return role ? `${who.name}, ${role}` : who.name;
-  return email ?? "Someone signed out";
+  const named = who?.name || email;
+  if (!named) return "Someone signed out";
+  return role ? `${named}, ${role}` : named;
+}
+var DESK_WORDS = /* @__PURE__ */ new Set([
+  "info",
+  "hello",
+  "hi",
+  "hey",
+  "contact",
+  "admin",
+  "support",
+  "team",
+  "office",
+  "sales",
+  "booking",
+  "bookings",
+  "frontdesk",
+  "reception",
+  "mail",
+  "email",
+  "enquiries",
+  "inquiries",
+  "help",
+  "service",
+  "billing",
+  "accounts",
+  "owner",
+  "manager",
+  "noreply"
+]);
+function firstNameOfAddress(email) {
+  const word = ((email ?? "").split("@")[0] ?? "").split(/[._+-]/)[0] ?? "";
+  if (!/^[a-z]{2,}$/i.test(word) || DESK_WORDS.has(word.toLowerCase())) return null;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 var roleWords = (role) => ROLES.includes(role) ? ROLE_SAYS[role].label : void 0;
 var firstName2 = (name) => (name ?? "").trim().split(/\s+/)[0] || null;
@@ -36193,7 +36264,7 @@ function sentWords(atMs, nowMs, zone, theirs3) {
 }
 var sinceWords = (iso, zone, nowMs) => {
   const at3 = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(at3) ? `In it since ${clockDate(at3, zone, nowMs)}` : null;
+  return Number.isFinite(at3) ? `Member since ${clockDate(at3, zone, nowMs)}` : null;
 };
 function supportQueueOf(book, p) {
   const marks = lastMarks(book.acts);
@@ -36232,7 +36303,8 @@ function supportQueueOf(book, p) {
       slug: r2.slug,
       workspace: r2.name ?? "No workspace",
       who: whoLine(r2.who, r2.email),
-      first: firstName2(r2.who?.name),
+      name: r2.who?.name || null,
+      first: firstName2(r2.who?.name) ?? firstNameOfAddress(r2.email),
       role: r2.who?.role ? roleWords(r2.who.role) ?? null : null,
       since: sinceWords(r2.who?.since ?? null, p.zone, p.nowMs),
       email: r2.email,
@@ -36247,6 +36319,7 @@ function supportQueueOf(book, p) {
       answeredAtMs: s.at,
       answered: answeredLine(r2.id, at3),
       doneWhen: null,
+      doneNow: null,
       byHand: false,
       unmailed: unmailedOf(r2),
       error: errorWordsOf(r2)
@@ -36275,7 +36348,8 @@ function supportQueueOf(book, p) {
       slug: a.slug,
       workspace: a.name,
       who: whoLine(a.who, a.email),
-      first: firstName2(a.who?.name),
+      name: a.who?.name || null,
+      first: firstName2(a.who?.name) ?? firstNameOfAddress(a.email),
       role: a.who?.role ? roleWords(a.who.role) ?? null : null,
       since: sinceWords(a.who?.since ?? null, p.zone, p.nowMs),
       email: a.email,
@@ -36290,6 +36364,7 @@ function supportQueueOf(book, p) {
       answeredAtMs: s.at,
       answered: answeredLine(a.id, at3),
       doneWhen: sign.words,
+      doneNow: sign.done,
       byHand: sign.byHand,
       unmailed: null,
       error: null
@@ -38107,6 +38182,101 @@ var TOPIC_PLAYBOOKS = {
       `you add someone from Settings \u203A Team: they get an invite at their address and sign in with it. Who is told when the receptionist hands a conversation over is set on Setup's "A person to hand off to" row and in Settings \u203A Notifications.`
     ),
     meanwhile: "People are added from Settings \u203A Team."
+  },
+  email: {
+    title: "Email",
+    check: "Their Setup's Email row: whether customers have an address to write to.",
+    steps: () => [
+      "Customers' emails arrive in the Inbox once the workspace has an address: Setup's Email row, Choose the address.",
+      "Replies go out from that address, from the Inbox.",
+      "Connecting their own Gmail or Outlook mailbox isn't open yet: say so rather than promise it."
+    ],
+    reply: (p) => letter(
+      p,
+      "you choose the address customers write to from Setup's Email row; their emails then arrive in your Inbox and you reply from there. Want me to set it up with you?"
+    ),
+    meanwhile: "The address customers write to is chosen on Setup's Email row."
+  },
+  conversations: {
+    title: "Inbox and handing over",
+    check: "Their Inbox: what waits for a person, and whether the receptionist is paused on a thread.",
+    steps: () => [
+      "A conversation the receptionist hands over waits in the Inbox under Needs you, and the bell says so.",
+      "Take over a thread to answer it yourself; Hand back lets the receptionist carry on.",
+      "What it may do alone is set in Settings \u203A Autonomy."
+    ],
+    reply: (p) => letter(
+      p,
+      "a conversation the receptionist can't finish waits for you in the Inbox, under Needs you. Open it to answer yourself, and press Hand back when you're done so the receptionist carries on. What it may do on its own is in Settings \u203A Autonomy."
+    ),
+    meanwhile: "Conversations waiting for you are in the Inbox, under Needs you."
+  },
+  answers: {
+    title: "How it answers",
+    check: "Settings \u203A How it answers and Settings \u203A Autonomy.",
+    steps: () => [
+      "Its voice, its greeting and notes in their own words are in Settings \u203A How it answers.",
+      "What it may do without asking (book, reply, follow up) is in Settings \u203A Autonomy.",
+      "A wrong answer is most often a missing fact: check their business facts first."
+    ],
+    reply: (p) => letter(
+      p,
+      "how the receptionist sounds, and the notes it reads in your own words, are in Settings \u203A How it answers; what it may do without asking you is in Settings \u203A Autonomy. If it said something wrong, tell me what and I'll check its facts with you."
+    ),
+    meanwhile: "How it sounds is set in Settings \u203A How it answers."
+  },
+  campaigns: {
+    title: "Campaigns",
+    check: "Their Campaigns \u203A Sequences: what is on, and what waits for their approval.",
+    steps: () => [
+      "Everything that sends on its own is a sequence: Campaigns \u203A Sequences \u203A New.",
+      "Its wording lives in Campaigns \u203A Messages; a new sequence is approved once, then runs.",
+      "A one-off message to a list is a sequence that runs once."
+    ],
+    reply: (p) => letter(
+      p,
+      "messages that go out on their own are set up under Campaigns: press New, choose who it's for and what it says, and approve it once. The wording lives in Campaigns \u203A Messages. Want me to build the first one with you on a short call?"
+    ),
+    meanwhile: "Campaigns \u203A Sequences \u203A New starts one."
+  },
+  leads: {
+    title: "Leads",
+    check: "Their People \u203A Leads: what the searches found, and what was added to a sequence.",
+    steps: () => [
+      "Leads are the businesses Claude found for them: People \u203A Leads.",
+      "A search runs from Leads; a lead added to a sequence is written to by it."
+    ],
+    reply: (p) => letter(
+      p,
+      "the businesses Claude finds for you are under People \u203A Leads, and from there you can add them to a sequence that writes to them for you. Tell me the kind of business and the area you want, and I'll check the search with you."
+    ),
+    meanwhile: "Leads are under People \u203A Leads."
+  },
+  people: {
+    title: "People and lists",
+    check: "Their People page: who is in it, and the lists they keep.",
+    steps: () => [
+      "People are added from People \u203A Add people: one at a time, or many at once from a spreadsheet.",
+      "Lists keep people together; the Pipeline holds their deals by stage."
+    ],
+    reply: (p) => letter(
+      p,
+      "you add people from People \u203A Add people, one at a time or from a spreadsheet, and keep them together in lists. Want me to walk you through an import on a short call?"
+    ),
+    meanwhile: "People are added from People \u203A Add people."
+  },
+  reviews: {
+    title: "Reviews",
+    check: "Their Reports \u203A Reviews: whether reviews arrive from their Google Business Profile.",
+    steps: () => [
+      "Reviews from their Google Business Profile are counted in Reports \u203A Reviews.",
+      "Where reviews aren't available yet, that page says so: don't promise what it can't show."
+    ],
+    reply: (p) => letter(
+      p,
+      "your Google reviews show under Reports \u203A Reviews, from your Business Profile. Tell me what you'd like to do with them and I'll check what's possible today."
+    ),
+    meanwhile: "Your Google reviews are under Reports \u203A Reviews."
   },
   other: {
     title: "A question",
@@ -53665,7 +53835,7 @@ var CAMPAIGN_SCOPE_WORDS = {
   byStep: { title: "By step", line: "What each step sent, and what came of it." },
   sends: { title: "Each send", line: "Newest first, with what came of each." },
   heads: { when: "When", what: "What came of it", sent: "Sent" },
-  nothing: (name) => `Nothing went out from ${name} in these days`,
+  nothing: (name) => `Nothing went out from \u201C${name}\u201D in these days`,
   nothingBody: "Its History says what it sent before, and what goes next."
 };
 var SAID2 = CAMPAIGN_SCOPE_WORDS;
@@ -53724,7 +53894,13 @@ function campaignOneOf(input) {
   const sends2 = inDays.map((b) => {
     const place = b.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(b.place) : null;
     const said = historyDayWords(b, place);
-    return { id: b.id, when: historyStamp(Date.parse(b.at), tz, input.nowMs), ...said, went: batchWent(b) };
+    return {
+      id: b.id,
+      state: b.state,
+      when: historyStamp(Date.parse(b.at), tz, input.nowMs),
+      ...said,
+      went: batchWent(b)
+    };
   });
   return {
     name,
@@ -66241,6 +66417,7 @@ export {
   firstLine,
   firstMissing,
   firstNameOf,
+  firstNameOfAddress,
   firstReadyDoor,
   firstReceptionistOf,
   firstRunKicker,

@@ -7,8 +7,8 @@
  * Every word of how a visit stands is the visit line's (contracts visitLineOf), judged at the board's own minute (the
  * page's useMinute), so a block, its dot and its sheet never disagree with each other or with the clock.
  */
-import { useRef } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import type {
   CalendarBlockVM,
   CalendarRunMark,
@@ -21,10 +21,10 @@ import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { calendar } from "./verbs";
-import { useHourFit } from "./board-dom";
+import { boardToNow, crPhone } from "./board-dom";
 import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
-import { crWhen } from "./words";
+import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
@@ -399,6 +399,47 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
       ))}
     </div>
   );
+}
+
+/**
+ * The board takes the room the page leaves and the day's hours share it: the hour's height is what fits them there, set on
+ * the grid before the first paint and again as the room changes. A phone's is words.ts fitHourPx; a desk's is
+ * fitDeskHourPx, the stylesheet's 64px where the day fits at it and never under 48, so a desk's day holds still where it
+ * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled
+ * past every time is above it, a scroll away. On a phone the window scrolls the board, which is as tall as its hours there
+ * (mobile.css, "The window scrolls"), and the hour before now is brought under its heads by the window (board-dom.ts).
+ */
+function useHourFit(
+  scroller: RefObject<HTMLDivElement | null>,
+  span: number,
+  nowAt: number | null,
+  /** The day lanes' rows: a lane that comes or goes moves the heads, and the hours share what is left again. */
+  laneRows: number,
+): void {
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const grid = el?.firstElementChild as HTMLElement | null | undefined;
+    if (!el || !grid) return undefined;
+    const fit = () => {
+      const box = getComputedStyle(el);
+      const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
+      const room = el.clientHeight - heads - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom);
+      grid.style.setProperty("--cal-hour", `${crPhone() ? fitHourPx(room, span) : fitDeskHourPx(room, span)}px`);
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const watch = new ResizeObserver(fit);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [scroller, span, laneRows]);
+  // Open at now, once for the view (board-dom.ts boardToNow).
+  const opened = useRef(false);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (opened.current || !el || nowAt === null) return;
+    opened.current = true;
+    boardToNow(el, nowAt);
+  }, [scroller, nowAt]);
 }
 
 /** The board: hours down, days across. Seven columns in Week, one in Day. */

@@ -1056,37 +1056,28 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     max-height: none;
     overflow: clip;
   }
-  /* No page holds still in a box of its own any more (21 Oct 2026). The Calendar, an open thread, Live and an open
-     sequence or message kept their own scroller under a page one screen tall, and there Safari's toolbar stood at its full
-     size on a flat band of the page, the days and the reply box cut straight across over it, where the Inbox's rows
-     passed under its glass and tucked it away (Ruben, 21 Oct 2026: "these pages still have like a static background on
-     the bottom of screen"). Each is now as long as what it holds and the window scrolls it. What must stay on the screen
-     stays by sticking: a head under the frame's top, a foot over the screen's foot, resting where the tab bar rests
-     (--bar-foot), where Safari's glass already floats under the tab bar on every other page. A page that is one screen by
-     design (the Calendar's board, its month) is one screen of the largest the browser shows, so at rest its foot runs on
-     under the toolbar's glass and a short scroll tucks the toolbar away. */
+  /* The pages that held still in a box of their own (the Calendar, an open thread, Live, an open sequence or message)
+     are as tall as what they hold too, and the window scrolls them, as every page above: in a box of their own Safari's
+     toolbar stood on a solid strip under them, where the Inbox's rows passed under its glass (Ruben, 21 Oct 2026). What
+     must stay on the screen stays as it does above. What heads the page sticks under the frame's top, as a person's strip
+     does, with the top's band as long as the gap over it. What stands at the foot (a reply box, a pane's foot, a call's
+     whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a person's dock is, since a
+     thread's pane is a size container (inbox.css), which a fixed child is pinned to instead of the screen. A capsule the
+     page passes under takes its blur on a layer of its own (a filter on it would hold its menu, kit.css). Only the rows
+     give under a pull (page-give.ts). */
 
-  /* An open thread is the conversation, at least a screen under the top so a short one keeps its reply box at the foot.
-     Its head (the person's capsule) sticks where it stands, 10px under the top, a pane of glass over what passes under
-     it; its foot (what it needs from you, the reply box; thread.tsx .ix-th-foot) stands where the tab bar rests, or on
-     the keyboard once a field is typed in, as a sheet does (kit/motion/keyboard.ts: --kb, and --kb-last from the moment
-     the field is focused, so the browser has no reason to move the page for it). The page ends that far under its last
-     message, so the newest stops over the foot. Conversations' call opened alone is the same pane. */
+  /* An open thread: the conversation as long as what was said, its capsule 10px under the top, its foot (what it needs
+     from you, the reply box; thread.tsx .ix-th-foot) over the screen's foot. */
   .main-scroll.pane > :is(.inbox, .conversations)[data-takeover] {
-    grid-template-rows: auto;
     overflow: visible;
     overflow-x: clip;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    --thread-keys: var(--kb, 0px);
-    --thread-foot: max(var(--bar-foot), calc(var(--thread-keys) + 8px));
-    padding-bottom: var(--thread-foot);
+    padding-bottom: var(--bar-foot);
     overflow: visible;
   }
-  html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    --thread-keys: var(--kb-last, 0px);
-  }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll {
+    --page-gives: rows;
     flex: 1 0 auto;
     overflow: visible;
   }
@@ -1095,18 +1086,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 10px);
     z-index: 3;
   }
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    backdrop-filter: var(--surface-control-blur);
-    pointer-events: none;
+  .main:has(> .main-scroll > :is(.inbox, .conversations)[data-takeover]) > .frame-top {
+    --frame-top-fade: 10px;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
     position: sticky;
-    bottom: var(--thread-foot);
+    bottom: var(--bar-foot);
     z-index: 3;
     display: flex;
     flex-direction: column;
@@ -1114,26 +1099,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   :is(.inbox, .conversations)[data-takeover] .ix-th-foot > .ix-composer.ix-composer-row {
     margin-bottom: 0;
   }
-  /* A pull past either end moves the conversation alone (page-give.ts), as the Inbox's rows give under its strip: the
-     head and the foot hold, as the frame's top does. The same for an open pane's body and a call's transcript, below. */
-  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll,
-  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body,
-  .main-scroll.pane > .live-monitor[data-takeover] .lm-scroll {
-    --page-gives: rows;
-  }
 
-  /* The Calendar: the window scrolls its days (the agenda's list, a month of dots and its day, the board), and its bar
-     (the range and the steps) sticks under the frame's top on the page's own ground and light, as the top stands, so a
-     scroll never takes them off the screen (25 Sep 2026); a week's and a day's heads stick under the bar (blocks.tsx
-     says where, --cal-heads-at). The bar takes the top's band for itself: the band lies under the bar once the page has
-     gone under it (data-under, kit/head/frame-top.ts), never over the range. The page is at least the screen at its
-     largest (100lvh, the browser's toolbar tucked away): the board's hours share what the window shows at rest
-     (blocks.tsx useHourFit) and its pane runs on to that foot, under the toolbar's glass, and a short scroll tucks the
-     toolbar away. The board's pane clips its rounded top without being a box that scrolls (clip), so its heads stick to
+  /* The Calendar: its days as long as they are (the agenda's list, a month of dots and its day, the board at its hours),
+     the window scrolling them. Its bar (the range and the steps) sticks under the frame's top on the page's own ground,
+     as the top stands, so no scroll takes them off the screen (25 Sep 2026), with the top's band under it once the page
+     has gone under (data-under); a week's and a day's heads stick under the bar, as far down as it is tall (--cal-bar-h,
+     calendar-page.tsx). The board's pane clips its rounded top without being a box that scrolls, so its heads stick to
      the window. */
-  .app-root:has(> .main > .main-scroll > .calendar) {
-    min-height: 100lvh;
-  }
   .main-scroll.pane > .calendar,
   .main-scroll.pane > .calendar .cal-pane,
   .main-scroll.pane > .calendar .cal-body {
@@ -1147,7 +1119,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow-x: clip;
   }
   .main-scroll.pane > .calendar :is(.cal-corner, .cal-dayhead) {
-    top: var(--cal-heads-at, 0px);
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + var(--cal-bar-h, 0px));
   }
   .main-scroll.pane > .calendar > .cal-head {
     position: sticky;
@@ -1175,8 +1147,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane > .calendar > .cal-head::after {
     top: 100%;
     height: 14px;
-    /* The light where the band stands on the screen, under a bar of its usual height. */
-    background-position: 0 calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px) + 50px));
+    background-position: 0 calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px) + var(--cal-bar-h, 0px)));
     opacity: 0;
     mask-image: linear-gradient(#000, transparent);
     transition: opacity var(--duration-fast) var(--ease-out);
@@ -1188,31 +1159,20 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: none;
   }
 
-  /* An open sequence or message (Campaigns' split, data-open) is its head, its body and its foot, as a thread is, and
-     the window scrolls it as it does a thread: the head's capsule sticks where it stands, 12px under the top, a pane of
-     glass over what passes under it; the foot (the composer's line and its acts) stands where the tab bar rests, or on
-     the keyboard; the body is as long as what it holds and ends that far over the foot. */
-  .main-scroll.pane > .cm-split[data-open] {
-    grid-template-rows: auto;
-  }
-  .main-scroll.pane > .cm-split[data-open] > .cm-pane {
-    --pane-keys: var(--kb, 0px);
-    --pane-foot: max(var(--bar-foot), calc(var(--pane-keys) + 8px));
-    overflow: visible;
-  }
-  html.kb-expected .main-scroll.pane > .cm-split[data-open] > .cm-pane {
-    --pane-keys: var(--kb-last, 0px);
-  }
-  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body {
-    flex: 1 0 auto;
-    overflow: visible;
-  }
-  .main-scroll.pane > .cm-split[data-open] > .cm-pane:not(:has(> .cm-pane-foot)) {
-    padding-bottom: var(--pane-foot);
-  }
+  /* An open sequence or message (Campaigns' split, data-open): its body as long as what it holds, its capsule 12px under
+     the top and a sequence's tabs 4px under that, its foot (the composer's line and its acts) over the screen's foot. */
   .main-scroll.pane > .cm-split[data-open] > .cm-pane {
     --cm-head-at: calc(var(--frame-top-at) + var(--frame-top, 0px) + 12px);
     --cm-head-h: 52px;
+    overflow: visible;
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane:not(:has(> .cm-pane-foot)) {
+    padding-bottom: var(--bar-foot);
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body {
+    --page-gives: rows;
+    flex: 1 0 auto;
+    overflow: visible;
   }
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-head {
     position: sticky;
@@ -1220,30 +1180,22 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 3;
     height: var(--cm-head-h);
   }
-  /* What sticks in the body (a sequence's tabs, sequences.css) sticks under the capsule, 4px under it as it stands. */
+  .main:has(> .main-scroll > .cm-split[data-open]) > .frame-top {
+    --frame-top-fade: 12px;
+  }
   .main-scroll.pane > .cm-split[data-open] .sq-strip-stand {
     top: calc(var(--cm-head-at) + var(--cm-head-h) + 4px);
   }
-  .main-scroll.pane > .cm-split[data-open] > .cm-pane > :is(.cm-pane-head, .cm-pane-foot)::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    backdrop-filter: var(--surface-control-blur);
-    pointer-events: none;
-  }
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-foot {
     position: sticky;
-    bottom: var(--pane-foot);
+    bottom: var(--bar-foot);
     z-index: 3;
-    margin-bottom: var(--pane-foot);
+    margin-bottom: var(--bar-foot);
   }
 
-  /* Live: the calls and the call are each as tall as what they say, their corners clipped without a box that scrolls,
-     and the window scrolls them. A call on the line, opened (data-takeover), is a thread: its capsule sticks where it
-     stands, 10px under the top, its transcript is as long as what was said, and its whisper stands where the tab bar
-     rests, or on the keyboard (panel.tsx follows the newest line in the window). */
+  /* Live: the calls and the call as tall as what they say, their corners clipped without a box that scrolls. A call on
+     the line, opened (data-takeover), is a thread: its capsule 10px under the top, its transcript as long as what was
+     said (panel.tsx follows the newest line in the window), its whisper over the screen's foot. */
   .main-scroll.pane > .live-monitor,
   .main-scroll.pane > .live-monitor > .lm-body {
     overflow: visible;
@@ -1253,15 +1205,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow: clip;
   }
   .main-scroll.pane > .live-monitor[data-takeover] > .lm-body > .lm-call {
-    --call-keys: var(--kb, 0px);
-    --call-foot: max(var(--bar-foot), calc(var(--call-keys) + 8px));
-    padding-bottom: var(--call-foot);
+    padding-bottom: var(--bar-foot);
     overflow: visible;
   }
-  html.kb-expected .main-scroll.pane > .live-monitor[data-takeover] > .lm-body > .lm-call {
-    --call-keys: var(--kb-last, 0px);
-  }
   .main-scroll.pane > .live-monitor[data-takeover] .lm-scroll {
+    --page-gives: rows;
     flex: 1 0 auto;
     overflow: visible;
   }
@@ -1270,12 +1218,19 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 10px);
     z-index: 3;
   }
+  .main:has(> .main-scroll > .live-monitor[data-takeover]) > .frame-top {
+    --frame-top-fade: 10px;
+  }
   .main-scroll.pane > .live-monitor[data-takeover] .lm-whisper {
     position: sticky;
-    bottom: var(--call-foot);
+    bottom: var(--bar-foot);
     z-index: 3;
     margin-bottom: 0;
   }
+
+  /* The capsules a page passes under, their blur on a layer of their own. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head::before,
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > :is(.cm-pane-head, .cm-pane-foot)::before,
   .main-scroll.pane > .live-monitor[data-takeover] :is(.lm-head, .lm-whisper-row)::before {
     content: "";
     position: absolute;
