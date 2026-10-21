@@ -1,18 +1,14 @@
 /**
  * The runs Sent's sheets open (moved from legacy/pages/broadcasts.jsx, decision 0015): the run the address opens and those
- * still to go out, the sheet of a run waiting on you, Send it again, and the run's own screen. Sent's list went to each
+ * still to go out, the sheet of a run waiting on you, and the run's own screen (Send it again is a one-off's record's own,
+ * sequences/record-acts.tsx, since a run that went is read in Reports). Sent's list went to each
  * sequence's History (decision 0060, D3): a run is opened from there, or from a link, a bell row or Ask's card.
  */
-import { runTooLate, sendOnceRoute, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
-import { Button } from "../../../kit/button/button";
-import { keepTabDraft } from "../../../kit/record/work";
-import { gate, navigate } from "../../../legacy-verbs";
+import { runTooLate, type BroadcastVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../../../surface-values";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
-import type { BcApproving, BcBase, BcKept, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
-import { cmOfferedBy } from "../../parts/channels";
+import type { BcApproving, BcBase, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
 import { approvalDaysNow } from "../when-words";
-import { BC_TEXT, bcKey, bcSlots } from "./words";
 
 /** What the acts on a run's card and sheet read of the page. */
 type RunActsIn = Pick<BcBase, "canSend" | "armId" | "setArmId" | "stopping" | "openRun"> &
@@ -95,57 +91,11 @@ export function bcSheetOf({
   return { sheetFor };
 }
 
-/** What Send it again reads of the page. */
-type AgainIn = Pick<BcBase, "canSend" | "templates" | "audiences" | "link" | "review">;
-
-// Send it again: New's Send once (sequence-address sendOnceRoute), filled with what this run sent -- its template, its list and its
-// values -- when all three can still go: kept as the tab keeps a send half-written, which the composer opens on
-// (state.tsx useBcList). A message with no version a broadcast can send or fill, a list since deleted, or a playbook's
-// run (whose playbook sends it again) offers no button rather than a composer quietly filled with something else.
-export function bcAgainOf({ canSend, templates, audiences, link, review }: AgainIn) {
-  const againFor = (b: BroadcastDto) => {
-    if (!canSend || b.playbook_id) return null;
-    // The message it sent, by its name and language: a WhatsApp version added since moves the id the picker lists it by.
-    const t = cmOfferedBy(templates, b.template_name, b.template_language);
-    const a = audiences.find((x) => bcKey(x) === bcKey(b.audience || {}));
-    if (!t || !a) return null;
-    // What filled each slot, where the slot may still take it; else its first choice. A run whose first name was
-    // filled by the booking link is sent again with each person's own.
-    const may = bcSlots(t, { bookingLink: link, reviewLink: review }) || BC_NONE;
-    const kinds = (b.params || []).map((p, i) => {
-      const c = may[i] || BC_TEXT;
-      return p && c.includes(p.kind) ? p.kind : c[0];
-    });
-    const typedBack = (b.params || []).map((p, i) => (kinds[i] === "text" && p && p.kind === "text" ? p.value : ""));
-    const send: BcKept = {
-      aud: bcKey(a),
-      tplId: t.id,
-      sources: { [t.id]: kinds },
-      params: { [t.id]: typedBack },
-      name: "",
-      whenAt: null,
-    };
-    return (
-      <Button
-        data-testid="bc-again"
-        onClick={() => {
-          keepTabDraft("broadcast", send);
-          navigate(sendOnceRoute());
-        }}
-        {...gate("approve", "send a message")}
-      >
-        Send it again
-      </Button>
-    );
-  };
-  return { againFor };
-}
-
 /** What the run's own screen reads of the page and of the acts above. */
 type SoloIn = Pick<BcBase, "openRun" | "flash"> &
   Pick<BcRunsOf, "openRow"> &
   RunActsIn &
-  Pick<BcV, "againFor" | "sheetFor"> & { openId: string };
+  Pick<BcV, "sheetFor"> & { openId: string };
 
 // The run's own pane beside Sequences' list (the report draws it, whatever state it is in): its verbs at its head while it is
 // still live, and the name its row has for it while the report is read.
@@ -161,7 +111,6 @@ export function bcRunSolo({
   approving,
   approve,
   cancel,
-  againFor,
   sheetFor,
 }: SoloIn) {
   return (
@@ -185,7 +134,6 @@ export function bcRunSolo({
           />
         ) : null
       }
-      again={againFor}
       sheet={sheetFor(openRow)}
       flash={flash}
     />

@@ -7477,13 +7477,27 @@ var REPORT_LENSES = [
     })
   }
 ];
+var CAMPAIGN_SCOPE_ALL = { kind: "all" };
+var campaignScopeKey = (scope) => scope.kind === "all" ? "all" : `seq:${scope.id}`;
+function campaignScopeOfKey(key) {
+  if (key === "all") return CAMPAIGN_SCOPE_ALL;
+  const id = key.startsWith("seq:") ? key.slice("seq:".length) : "";
+  return /^[0-9a-z-]{1,64}$/i.test(id) ? { kind: "sequence", id } : null;
+}
+var isAdsScope = (scope) => scope.kind !== "sequence";
+function narrowedKey(id, scope) {
+  if (scope === null || scope.kind === "all") return null;
+  if (id === "ads" && isAdsScope(scope)) return adsScopeKey(scope);
+  return id === "campaigns" && scope.kind === "sequence" ? campaignScopeKey(scope) : null;
+}
 var lensRoute = (id, days = null, scope = null) => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+  const narrowed = narrowedKey(id, scope);
   if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
   const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
   return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
 };
 var adsReportRoute = (days, scope = ADS_SCOPE_ALL) => lensRoute("ads", days, scope);
+var campaignReportRoute = (days, scope = CAMPAIGN_SCOPE_ALL) => lensRoute("campaigns", days, scope);
 var REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var reviewRoute = (id) => REVIEW_ID.test(id) ? `reports/reviews:${id}` : lensRoute("reviews");
 var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
@@ -7492,12 +7506,12 @@ var daysOfKey = (key) => {
   const range = reportRangeOfKey(key);
   return range !== null && typeof range !== "string" ? range : null;
 };
-function adsParts(rest) {
+function scopedParts(rest, scopeOf) {
   const at3 = rest.indexOf(":");
   const days = daysOfKey(at3 < 0 ? rest : rest.slice(0, at3));
   if (days && at3 < 0) return { days };
   const words3 = days ? rest.slice(at3 + 1) : rest;
-  const scope = words3 === "all" ? null : adsScopeOfKey(words3);
+  const scope = words3 === "all" ? null : scopeOf(words3);
   return scope ? { days, scope } : null;
 }
 function reportsParamParts(param) {
@@ -7509,9 +7523,9 @@ function reportsParamParts(param) {
   if (!isLensParam(word)) return null;
   if (at3 < 0) return { lens: word, days: null, review: null };
   const rest = param.slice(at3 + 1);
-  if (word === "ads") {
-    const ads = adsParts(rest);
-    return ads ? { lens: word, ...ads, review: null } : null;
+  if (word === "ads" || word === "campaigns") {
+    const scoped = scopedParts(rest, word === "ads" ? adsScopeOfKey : campaignScopeOfKey);
+    return scoped ? { lens: word, ...scoped, review: null } : null;
   }
   if (word === "reviews" && REVIEW_ID.test(rest)) return { lens: word, days: null, review: rest };
   const days = daysOfKey(rest);
@@ -28056,9 +28070,6 @@ var SEQUENCE_WORDS = {
   endAsk: (name) => `End \u201C${name}\u201D?`,
   endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
   endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
-  receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/receptionist",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
@@ -52469,6 +52480,7 @@ function historyUpcomingWords(people, mode) {
 function historyDays(batches2, tz) {
   return new Set(batches2.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
 }
+var failureSaid = (failure) => /^[a-z_]+(:[a-z]+)?$/.test(failure) ? `stopped: ${broadcastFailureWords(failure)}` : failure;
 function historyDayWords(b, place) {
   const c = b.counts;
   const forWhom = [b.people > 0 ? plural(b.people, "person", "people") : null, place].filter(Boolean).join(" \xB7 ");
@@ -52481,7 +52493,8 @@ function historyDayWords(b, place) {
   if ((c.failed ?? 0) > 0) parts2.push(`${c.failed} failed`);
   return {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
-    said: [place, parts2.join(" \xB7 "), b.failure].filter(Boolean).join(" \xB7 ")
+    // Why a batch stopped, in the owner's words (its run's report said it there; a day that went opens Reports now).
+    said: [place, parts2.join(" \xB7 "), b.failure ? failureSaid(b.failure) : null].filter(Boolean).join(" \xB7 ")
   };
 }
 
@@ -52494,6 +52507,9 @@ var SEQUENCE_ACT_WORDS = {
   runNow: "Run now",
   runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
   rename: "Rename",
+  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
+  sendAgain: "Send it again",
+  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
   name: "Name",
   save: "Save",
   cancel: "Cancel",
@@ -53616,6 +53632,109 @@ function toCampaignReportVM(dto) {
       channels: channelsLine(channels)
     }
   };
+}
+
+// src/reports/campaign-one.ts
+var CAMPAIGN_SCOPE_WORDS = {
+  label: "Which campaign",
+  all: "All campaigns",
+  /** The sequence's own pages, from its report. */
+  open: "Open it",
+  reading: "Reading what it sent\u2026",
+  /** What a failed read could not read: "Couldn't read what it sent". */
+  failed: "what it sent",
+  gone: "This campaign isn\u2019t in this workspace.",
+  days: { title: "Sent, day by day", aria: "Messages it sent per day. The arrow keys read each day." },
+  byStep: { title: "By step", line: "What each step sent, and what came of it." },
+  sends: { title: "Each send", line: "Newest first, with what came of each." },
+  heads: { when: "When", what: "What came of it", sent: "Sent" },
+  nothing: (name) => `Nothing went out from ${name} in these days`,
+  nothingBody: "Its History says what it sent before, and what goes next."
+};
+var SAID2 = CAMPAIGN_SCOPE_WORDS;
+var batchDayOf = (b, tz) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz);
+function daysFrom(from, to) {
+  const out = [];
+  for (let d = from; d <= to && out.length < 400; d = shiftKey(d, 1)) out.push(d);
+  return out;
+}
+var batchCount = (b, k) => b.counts[k] ?? 0;
+function byStepOf(went, steps) {
+  if (steps < 2) return null;
+  const places = [...new Set(went.map((b) => b.place ?? 1))].sort((a, b) => a - b);
+  return places.map((place) => {
+    const of = went.filter((b) => (b.place ?? 1) === place);
+    const sum3 = (k) => of.reduce((n, b) => n + batchCount(b, k), 0);
+    const label = SEQUENCE_HISTORY_WORDS.step(place);
+    return {
+      place,
+      label: label.charAt(0).toUpperCase() + label.slice(1),
+      sent: sum3("sent"),
+      delivered: sum3("delivered"),
+      read: sum3("read"),
+      replied: sum3("replied")
+    };
+  });
+}
+function oneHeadOf(name, sent, replied) {
+  if (sent === 0) return `${SAID2.nothing(name)}.`;
+  const back = replied === 0 ? "nobody has written back yet" : `${replied} drew a reply`;
+  return `${name} sent ${plural(sent, "message")}: ${back}.`;
+}
+function campaignOneOf(input) {
+  const { id, name, timezone: tz, from, to } = input;
+  const inDays = input.batches.filter((b) => {
+    const day = batchDayOf(b, tz);
+    return day >= from && day <= to;
+  });
+  const went = inDays.filter(batchWent);
+  const figures = historyFigures(went);
+  const points = daysFrom(from, to).map((day) => {
+    const of = went.filter((b) => batchDayOf(b, tz) === day);
+    const sent2 = of.reduce((n, b) => n + batchCount(b, "sent"), 0);
+    const replied2 = of.reduce((n, b) => n + batchCount(b, "replied"), 0);
+    const point = dayPointOf(day);
+    return {
+      ...point,
+      sent: sent2,
+      replied: replied2,
+      sentWords: `${point.label}: ${plural(sent2, "message")} sent`,
+      answeredWords: replied2 === 0 ? "No replies" : plural(replied2, "reply", "replies")
+    };
+  });
+  const sent = went.reduce((n, b) => n + batchCount(b, "sent"), 0);
+  const replied = went.reduce((n, b) => n + batchCount(b, "replied"), 0);
+  const sends2 = inDays.map((b) => {
+    const place = b.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(b.place) : null;
+    const said = historyDayWords(b, place);
+    return { id: b.id, when: historyStamp(Date.parse(b.at), tz, input.nowMs), ...said, went: batchWent(b) };
+  });
+  return {
+    name,
+    head: oneHeadOf(name, sent, replied),
+    figures,
+    points,
+    sentAny: sent > 0,
+    byStep: byStepOf(went, input.steps),
+    sends: sends2,
+    empty: went.length === 0 ? { title: SAID2.nothing(name), body: SAID2.nothingBody } : null,
+    door: { label: SAID2.open, to: sequenceRoute(id, "history") }
+  };
+}
+var groupOf = (row2) => row2.starts === "leads" ? "leads" : row2.starts === "date" ? "dates" : "customers";
+var CAMPAIGN_CHOICE_GROUPS = {
+  customers: SEQUENCE_WORDS.groups.customers,
+  leads: SEQUENCE_WORDS.groups.leads,
+  dates: SEQUENCE_WORDS.groups.dates
+};
+function campaignChoicesOf(rows2, scope) {
+  const named = scope.kind === "sequence" ? scope.id : null;
+  const sent = rows2.filter((r2) => r2.id === named || r2.state !== "draft" && r2.last !== null).sort((a, b) => (b.last?.at ?? "").localeCompare(a.last?.at ?? ""));
+  const order = ["customers", "leads", "dates"];
+  const choices = order.flatMap(
+    (group) => sent.filter((r2) => groupOf(r2) === group).map((r2) => ({ key: campaignScopeKey({ kind: "sequence", id: r2.id }), label: r2.name, group }))
+  );
+  return [{ key: campaignScopeKey(CAMPAIGN_SCOPE_ALL), label: SAID2.all, group: "all" }, ...choices];
 }
 
 // src/reports/lens-answer.ts
@@ -64395,10 +64514,13 @@ export {
   CALL_UNANSWERED_WORDS,
   CAMPAIGNS_PAUSED_WORDS,
   CAMPAIGNS_RESULTS_PERIOD,
+  CAMPAIGN_CHOICE_GROUPS,
   CAMPAIGN_EMAIL_TAG,
   CAMPAIGN_MONTH_ALLOWANCE,
   CAMPAIGN_NOT_FOUND,
   CAMPAIGN_ROOMS,
+  CAMPAIGN_SCOPE_ALL,
+  CAMPAIGN_SCOPE_WORDS,
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_CONSENT_SOURCE,
@@ -65792,13 +65914,18 @@ export {
   cameFromOf,
   cameInOf,
   campaignChannelsOf,
+  campaignChoicesOf,
   campaignDayWords,
   campaignEmailRules,
   campaignEnded,
   campaignLedgerDtoOf,
   campaignMessageOf,
   campaignMessagesOf,
+  campaignOneOf,
+  campaignReportRoute,
   campaignRunsOn,
+  campaignScopeKey,
+  campaignScopeOfKey,
   campaignsHomeOf,
   cannotBeSentWords,
   cannotFoldWords,
@@ -66275,6 +66402,7 @@ export {
   isActivityMoney,
   isActivityNoise,
   isAdsParam,
+  isAdsScope,
   isAppointmentWord,
   isAskSkillId,
   isAutomatedSend,

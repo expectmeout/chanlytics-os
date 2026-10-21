@@ -1,7 +1,8 @@
 /**
  * A thing open over the page it was pressed on (`?see=<kind>:<id>`, the Campaigns wiring review's rule C, lane 3, 19 Oct
  * 2026), in the kit's sheet from the side (Campaigns' PaneSheet): a run, its one screen, as it stands at its home (its
- * decision while it waits, its Stop while it goes, its report once it went), or a message of the Library, its pane. The
+ * decision while it waits, its Stop while it goes; once done, its report in Reports, where the sheet goes), or a message of
+ * the Library, its pane. The
  * page under it stays as it was left -- the Inbox's row, Today's queue, a person's campaigns -- and Back, Escape or the
  * sheet's Close put it away. Its strip holds the door to the thing's home, which goes there (`home`): the run under its
  * sequence, beside Sequences' list. To send, every email handed to its owner, opens so too, with no door home: it has no

@@ -88,11 +88,6 @@ const person = (over = {}) => ({
   ...over,
 });
 const detailOf = (broadcast, recipients = [person()]) => ({ broadcast, recipients });
-const healthyNumber = {
-  present: true,
-  display: "+1 305-555-0100",
-  health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
-};
 /** The Broadcasts surface as its override publishes it (surfaces/campaigns/broadcasts/surface.ts BroadcastsSurface). */
 const broadcastsSurface = (over = {}) => ({
   audiences: [
@@ -218,8 +213,10 @@ const { bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.t
 const { BroadcastDetail, BcRunVerbs } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
 const { bcWhenWords, bcOpensOnItsSheet } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
-// New's draft as the page holds it: what Send it again opens New's Send once on, from the send the run screen kept.
+// New's draft as the page holds it: what Send it again opens New's Send once on, from the send a one-off's record keeps
+// (sequences/record-acts.tsx, through new/kept-send.ts: a run that went is read in Reports, 21 Oct 2026).
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
+const { keptSendOf } = await import(`${SRC}/surfaces/campaigns/sequences/new/kept-send.ts`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
@@ -323,38 +320,17 @@ const page = (props) => {
   return screen(props);
 };
 const again = (props) => drawAgain(() => screen(props));
-/**
- * Send it again goes to New's Send once (`campaigns/sequences/new:once`), its send kept in the tab as a send half-written
- * is (page/runs.tsx bcAgainOf): the tab's memory, as the shell keeps it (legacy-bridge/tab-memory.ts), held for a test that
- * hands a send on and taken away after it, so no other test's New opens on what it kept.
- */
-const withTabMemory = async (fn) => {
-  const kept = new Map();
-  const at = (kind, key) => `${kind}:${key ?? ""}`;
-  globalThis.window.__tabMemory = {
-    place: () => null,
-    keepPlace() {},
-    draft: (kind, key) => kept.get(at(kind, key)) ?? null,
-    keepDraft: (kind, value, key) => void kept.set(at(kind, key), value),
-    dropDraft: (kind, key) => void kept.delete(at(kind, key)),
-  };
-  try {
-    await fn();
-  } finally {
-    delete globalThis.window.__tabMemory;
-  }
-};
-/** The send Send it again kept in the tab for New to open on (page/runs.tsx bcAgainOf). */
-const keptSend = () => globalThis.window.__tabMemory.draft("broadcast");
 /** The list a run by hand went to (audience saved:s1), as New lists the workspace's own lists: by its token. */
 const REGULARS = [{ id: "list:s1", name: "Regulars" }];
+/** Which links the workspace keeps: none, so a link's slot can only be typed. */
+const NO_LINKS = { bookingLink: false, reviewLink: false };
 /**
  * New's Send once as Send it again opens it (sequences/new/new-page.tsx useOpenedOn): the send the tab kept, made a
  * one-off by New's model (new-model.ts againOf) over the Library as New reads it -- the messages these rows make, and the
- * rows their values are read from -- and the lists.
+ * rows their values are read from -- the lists, and the links on file.
  */
-const openedAgain = (kept, rows, lists = REGULARS) =>
-  M.againOf(kept, { messages: contracts.campaignMessagesOf(rows), rows }, lists, "Northside Studio");
+const openedAgain = (kept, rows, lists = REGULARS, links = NO_LINKS) =>
+  M.againOf(kept, { messages: contracts.campaignMessagesOf(rows), rows }, { lists, links }, "Northside Studio");
 /**
  * What the settings surface holds of the workspace, as Templates reads it (surface.ts SettingsSurface): the record, the
  * channels, every template with what uses each and when each last went out. `__TEMPLATES_ALL` is the pages' name for
@@ -461,6 +437,8 @@ test("REGRESSION (C6): a run's values say what fills them -- the detail printed 
         dto({
           id: "b-visit",
           name: "Visit reminder · 2026-09-15",
+          // Going out: a run that is done is read in Reports, and its report here is a run's that can still change.
+          state: "sending",
           params: [{ kind: "visit_when" }, { kind: "first_name" }],
         }),
       ),
@@ -477,159 +455,129 @@ test("REGRESSION (C6): a run's values say what fills them -- the detail printed 
   assert.equal(textOf(values), "Values: their booked time · their first name", "REGRESSION: visit_when");
 });
 
-test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the send it opened took a run's sources as they were", () =>
-  withTabMemory(async () => {
-    // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
-    const wrong = dto({
-      id: "b-wrong",
-      name: "Win-back by hand",
-      playbook_id: null,
-      run_for: null,
-      template_id: "tpl-winback_offer",
-      template_name: "winback_offer",
-      audience: { kind: "saved", id: "s1", label: "Regulars" },
-      params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }],
-    });
-    setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({
-        templates: [starterTemplate("winback_offer")],
-        number: healthyNumber,
-        rows: [toBroadcastVM(wrong, ZONE)],
-      }),
-    );
-    answers.set("b-wrong", [{ ok: true, data: detailOf(wrong) }]);
-    const props = { initialRun: "b-wrong" };
-    page(props);
-    await settle();
-    press(byTestId(again(props), "bc-again"));
-    assert.equal(went.at(-1), "campaigns/sequences/new:once", "New's Send once, filled with what the run sent");
-    // What the tab keeps for New, and the one-off New opens on from it.
-    const kept = keptSend();
-    assert.deepEqual(
-      kept.sources["tpl-winback_offer"],
-      ["first_name", "text", "text"],
-      "each person's own name; the words it said, where words may go; a link with none on file can only be typed",
-    );
-    assert.deepEqual(
-      openedAgain(kept, [starterTemplate("winback_offer")]).steps[0].message.params,
-      [{ kind: "first_name" }, { kind: "text", value: "Northside" }, { kind: "text", value: "" }],
-      "the booking link that filled the first name put back to each person's own, and the words it typed kept",
-    );
-  }));
-
-/* ------------------------------ a broadcast's state ------------------------------ */
-
-test("REGRESSION (C12): a failed broadcast says why in its detail -- it read '· failed' with the reason on file", async () => {
-  const failed = dto({ id: "b-failed", name: "September offer", state: "failed", failure: "template_not_approved" });
-  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [toBroadcastVM(failed, ZONE)] }));
-  answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
-  const props = { initialRun: "b-failed" };
-  page(props);
-  await settle();
-  const tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-detail-failure")), "It stopped: its WhatsApp version is no longer approved.");
-  // And, opened, how to get past it -- never "something went wrong".
-  assert.ok(
-    textOf(byTestId(tree, "bc-stopped")).includes(
-      "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
-    ),
-    textOf(byTestId(tree, "bc-stopped")),
+test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the send it opened took a run's sources as they were", () => {
+  // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
+  const wrong = dto({
+    id: "b-wrong",
+    name: "Win-back by hand",
+    playbook_id: null,
+    run_for: null,
+    template_id: "tpl-winback_offer",
+    template_name: "winback_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" },
+    params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }],
+  });
+  // What the record keeps for New is what the run sent; New puts each value right as it opens, against what fills it now.
+  const kept = keptSendOf(wrong);
+  assert.deepEqual(kept.sources["tpl-winback_offer"], ["booking_link", "text", "booking_link"], "kept as it went");
+  assert.deepEqual(
+    openedAgain(kept, [starterTemplate("winback_offer")]).steps[0].message.params,
+    [{ kind: "first_name" }, { kind: "text", value: "Northside" }, { kind: "text", value: "" }],
+    "the booking link that filled the first name put back to each person's own, the words it typed kept, and a link with none on file can only be typed",
+  );
+  assert.deepEqual(
+    openedAgain(kept, [starterTemplate("winback_offer")], REGULARS, { bookingLink: true, reviewLink: false }).steps[0]
+      .message.params[2],
+    { kind: "booking_link" },
+    "with a booking link on file, its slot takes it again",
   );
 });
 
-test("an opened run is sent again from its own head: New's Send once, filled with its message, its list and its values -- and no button when one of them cannot go", () =>
-  withTabMemory(async () => {
-    const note = {
-      id: "tpl-note",
-      channel: "whatsapp",
-      name: "a_quick_note",
-      language: "en_US",
-      meta_status: "approved",
-      category: "utility",
-      purpose: "conversational",
-      body_preview: "Hi {{1}}",
-      variables: [{ position: 1, label: "First name", example: "Dani" }],
-    };
-    const offer = {
-      id: "tpl-offer",
-      channel: "whatsapp",
-      name: "autumn_offer",
-      language: "en_US",
-      meta_status: "approved",
-      category: "marketing",
-      purpose: "marketing",
-      body_preview: "Hi {{1}}, {{2}}",
-      variables: [
-        { position: 1, label: "First name", example: "Dani" },
-        { position: 2, label: "The offer", example: "20% off" },
-      ],
-    };
-    const byHand = dto({
-      id: "b-hand",
-      name: "Autumn colour",
-      playbook_id: null,
-      run_for: null,
-      template_id: "tpl-offer",
-      template_name: "autumn_offer",
-      audience: { kind: "saved", id: "s1", label: "Regulars" },
-      params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
-    });
-    setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({
-        templates: [note, offer],
-        number: healthyNumber,
-        rows: [byHand, dto()].map((b) => toBroadcastVM(b, ZONE)),
-      }),
-    );
-    answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
-    const props = { initialRun: "b-hand" };
-    page(props);
-    await settle();
-    press(byTestId(again(props), "bc-again"));
-    assert.equal(
-      went.at(-1),
-      "campaigns/sequences/new:once",
-      "onto New's Send once, pushed, so Back returns to the run",
-    );
-    // New opens on what the tab kept: a one-off to people, named for its message, as a send by hand is.
-    const draft = openedAgain(keptSend(), [note, offer]);
-    assert.deepEqual([draft.kind, draft.audience], ["once", "people"]);
-    assert.equal(draft.name, contracts.templateTitle("autumn_offer", null));
-    assert.deepEqual(draft.who, { kind: "list", token: "list:s1", label: "Regulars" }, "its list");
-    assert.equal(draft.steps[0].message.template_id, "tpl-offer", "its message, not the one New would open on");
-    assert.deepEqual(
-      draft.steps[0].message.params,
-      [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
-      "its values, by what fills them, and the words it said",
-    );
+/* ------------------------------ a broadcast's state ------------------------------ */
 
-    // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
-    answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
-    page({ initialRun: "b-sent" });
-    await settle();
-    assert.equal(
-      byTestId(again({ initialRun: "b-sent" }), "bc-again"),
-      null,
-      "a playbook's run is sent again by its playbook",
-    );
-    setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({
-        templates: [note],
-        number: healthyNumber,
-        rows: [byHand].map((b) => toBroadcastVM(b, ZONE)),
-      }),
-    );
+test("REGRESSION (C12): a failed run says why in the owner's words -- its day in History and its report in Reports, never '· failed' alone", async () => {
+  const failed = dto({ id: "b-failed", name: "September offer", state: "failed", failure: "template_not_approved" });
+  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [toBroadcastVM(failed, ZONE)] }));
+  answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
+  const calls = [];
+  const keep = globalThis.appNavigate;
+  globalThis.appNavigate = (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]);
+  try {
+    const props = { initialRun: "b-failed" };
     page(props);
     await settle();
-    assert.equal(
-      byTestId(again(props), "bc-again"),
-      null,
-      "REGRESSION-IN-WAITING: a Send once quietly filled with another message",
-    );
-  }));
+    again(props);
+    await settle();
+    // Done, it is read in Reports: its campaign, over the day it ran for, in the run's place (Back never lands on it again).
+    assert.deepEqual(calls.at(-1), ["reports/campaigns:2026-09-10~2026-09-10:seq:pb-1", "replace"]);
+  } finally {
+    globalThis.appNavigate = keep;
+  }
+  // Why, where its day is said: History's row, and Reports' Each send, which says History's words.
+  const day = contracts.historyDayWords(
+    {
+      id: "b-failed",
+      state: "failed",
+      run_for: "2026-09-10",
+      at: iso(-5 * D),
+      scheduled_for: iso(-5 * D),
+      finished_at: null,
+      people: 3,
+      failure: "template_not_approved",
+      place: null,
+      counts: { sent: 0, read: 0, replied: 0 },
+    },
+    null,
+  );
+  assert.equal(day.end, "Failed");
+  assert.match(day.said, /stopped: its WhatsApp version is no longer approved$/, day.said);
+});
+
+test("a one-off that went is sent again from its record: New's Send once, filled with its message, its list and its values -- and New opens on its line when one of them cannot go", () => {
+  const note = {
+    id: "tpl-note",
+    channel: "whatsapp",
+    name: "a_quick_note",
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    purpose: "conversational",
+    body_preview: "Hi {{1}}",
+    variables: [{ position: 1, label: "First name", example: "Dani" }],
+  };
+  const offer = {
+    id: "tpl-offer",
+    channel: "whatsapp",
+    name: "autumn_offer",
+    language: "en_US",
+    meta_status: "approved",
+    category: "marketing",
+    purpose: "marketing",
+    body_preview: "Hi {{1}}, {{2}}",
+    variables: [
+      { position: 1, label: "First name", example: "Dani" },
+      { position: 2, label: "The offer", example: "20% off" },
+    ],
+  };
+  const byHand = dto({
+    id: "b-hand",
+    name: "Autumn colour",
+    playbook_id: null,
+    run_for: null,
+    template_id: "tpl-offer",
+    template_name: "autumn_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" },
+    params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+  });
+  // New opens on what its record kept (record-acts.tsx sendAgain): a one-off to people, named for its message, as a send by hand is.
+  const draft = openedAgain(keptSendOf(byHand), [note, offer]);
+  assert.deepEqual([draft.kind, draft.audience], ["once", "people"]);
+  assert.equal(draft.name, contracts.templateTitle("autumn_offer", null));
+  assert.deepEqual(draft.who, { kind: "list", token: "list:s1", label: "Regulars" }, "its list");
+  assert.equal(draft.steps[0].message.template_id, "tpl-offer", "its message, not the one New would open on");
+  assert.deepEqual(
+    draft.steps[0].message.params,
+    [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+    "its values, by what fills them, and the words it said",
+  );
+  // Its message gone from the Library, or its list gone: nothing quietly filled with something else.
+  assert.equal(
+    openedAgain(keptSendOf(byHand), [note]),
+    null,
+    "REGRESSION-IN-WAITING: a Send once filled with another message",
+  );
+  assert.equal(openedAgain(keptSendOf(byHand), [note, offer], []), null, "a list since deleted");
+});
 
 test("a run waiting on you opens as the sheet the canvas draws -- where it sits in the queue, who it reaches by the rules that made it, the words, and Approve alone at the foot -- and approving opens the next one", async () => {
   const today = globalThis.window.__clock.dayKey(Date.now());
@@ -1227,7 +1175,8 @@ test("each run opens on a pane of its own: the open run's filter and expanded ro
 
 test("the run open at its home is the address's: closing it goes back to where it was opened from, else onto its sequence's History, and a link out pushes one", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
-  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  // Going out, so its screen stands: a run that is done moves to Reports (the C12 test above).
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto({ state: "sending" })) }]);
   const calls = [];
   const keep = globalThis.appNavigate;
   globalThis.appNavigate = (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]);
@@ -1270,7 +1219,8 @@ test("a run's report: who it touched is filtered by the kit's sub-tabs, and a pe
     replied_at: iso(-4 * D),
     reply_words: "Yes please, Saturday?",
   });
-  answers.set("b-sent", [{ ok: true, data: detailOf(dto(), [person(), replied]) }]);
+  // Going out: the report of a run that can still change (one that is done is read in Reports).
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto({ state: "sending" }), [person(), replied]) }]);
   const props = { initialRun: "b-sent" };
   page(props);
   await settle();
@@ -2771,73 +2721,51 @@ const offeredOf = (...rows) =>
     messages: contracts.campaignMessagesOf(rows),
   });
 
-test("Send it again finds the message a run sent by its name and language: a WhatsApp version added since moved the id the picker lists it by", () =>
-  withTabMemory(async () => {
-    // The run went out when the message had an email version alone, so its template_id is that row's. A WhatsApp version added
-    // since is the message's anchor: the surface offers the message by that row's id.
-    const rows = [
-      versionRow("whatsapp", {
-        id: "tpl-offer-whatsapp",
-        name: "autumn_offer",
-        category: "marketing",
-        body_preview: "Hi {{1}}, {{2}}",
-        variables: [
-          { position: 1, label: "First name", example: "Dani" },
-          { position: 2, label: "The offer", example: "20% off" },
-        ],
-      }),
-      versionRow("email", {
-        id: "tpl-offer-email",
-        name: "autumn_offer",
-        category: "marketing",
-        header: "Autumn",
-        body_preview: "Hi {{1}}, {{2}}",
-        variables: [
-          { position: 1, label: "First name", example: "Dani" },
-          { position: 2, label: "The offer", example: "20% off" },
-        ],
-      }),
-    ];
-    const offered = offeredOf(...rows);
-    assert.equal(offered[0].id, "tpl-offer-whatsapp", "the picker's id is the WhatsApp version's");
-    const byHand = dto({
-      id: "b-hand",
-      name: "Autumn colour",
-      playbook_id: null,
-      run_for: null,
-      template_id: "tpl-offer-email",
-      template_name: "autumn_offer",
-      audience: { kind: "saved", id: "s1", label: "Regulars" },
-      params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
-    });
-    setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({ templates: offered, number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
-    );
-    answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
-    const props = { initialRun: "b-hand" };
-    page(props);
-    await settle();
-    const tree = again(props);
-    assert.ok(byTestId(tree, "bc-again"), "the run can be sent again: its message is still there, by name");
-    press(byTestId(tree, "bc-again"));
-    assert.equal(went.at(-1), "campaigns/sequences/new:once", "onto New's Send once");
-    // The send kept for New names the message by the id it is offered by, and New opens on it with the words it said.
-    const kept = keptSend();
-    assert.equal(kept.tplId, "tpl-offer-whatsapp", "the id it is offered by, not the one the run went out on");
-    const { message } = openedAgain(kept, rows).steps[0];
-    assert.equal(message.template_id, "tpl-offer-whatsapp", "on its message");
-    assert.deepEqual(
-      message.params[1],
-      { kind: "text", value: "20% off colour" },
-      "and the words it said, under the id it is offered by",
-    );
-    // The message gone from the picker (no version left a broadcast can send): no button, as before.
-    setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({ templates: [], number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
-    );
-    page(props);
-    await settle();
-    assert.equal(byTestId(again(props), "bc-again"), null, "no Send once quietly filled with something else");
-  }));
+test("Send it again finds the message a run sent by its name and language: a WhatsApp version added since moved the id the picker lists it by", () => {
+  // The run went out when the message had an email version alone, so its template_id is that row's. A WhatsApp version added
+  // since is the message's anchor: the surface offers the message by that row's id.
+  const rows = [
+    versionRow("whatsapp", {
+      id: "tpl-offer-whatsapp",
+      name: "autumn_offer",
+      category: "marketing",
+      body_preview: "Hi {{1}}, {{2}}",
+      variables: [
+        { position: 1, label: "First name", example: "Dani" },
+        { position: 2, label: "The offer", example: "20% off" },
+      ],
+    }),
+    versionRow("email", {
+      id: "tpl-offer-email",
+      name: "autumn_offer",
+      category: "marketing",
+      header: "Autumn",
+      body_preview: "Hi {{1}}, {{2}}",
+      variables: [
+        { position: 1, label: "First name", example: "Dani" },
+        { position: 2, label: "The offer", example: "20% off" },
+      ],
+    }),
+  ];
+  const offered = offeredOf(...rows);
+  assert.equal(offered[0].id, "tpl-offer-whatsapp", "the picker's id is the WhatsApp version's");
+  const byHand = dto({
+    id: "b-hand",
+    name: "Autumn colour",
+    playbook_id: null,
+    run_for: null,
+    template_id: "tpl-offer-email",
+    template_name: "autumn_offer",
+    audience: { kind: "saved", id: "s1", label: "Regulars" },
+    params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+  });
+  // The send its record keeps names the message by the id the run went out on; New finds the message by any of its
+  // versions, and opens on it with the words it said.
+  const kept = keptSendOf(byHand);
+  assert.equal(kept.tplId, "tpl-offer-email", "the id the run went out on");
+  const { message } = openedAgain(kept, rows).steps[0];
+  assert.equal(message.template_id, "tpl-offer-whatsapp", "on its message, by the id it is offered by now");
+  assert.deepEqual(message.params[1], { kind: "text", value: "20% off colour" }, "and the words it said");
+  // The message gone from the Library: New opens on its line, never a Send once quietly filled with something else.
+  assert.equal(openedAgain(kept, []), null);
+});

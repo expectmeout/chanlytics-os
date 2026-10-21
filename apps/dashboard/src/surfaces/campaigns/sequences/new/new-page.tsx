@@ -41,6 +41,7 @@ import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
 import { DraftView, type DraftReads } from "./new-draft";
+import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
 import { StartView, type StartReads } from "./new-start";
 import "./new.css";
@@ -68,9 +69,12 @@ const tokenOf = (to: string | null): string | null =>
   !to ? null : to.startsWith("seg:") || to.startsWith("list:") ? to : `seg:${to}`;
 
 /** What New reads, in the shapes its parts take; null until Campaigns' read is in. */
-function useNewReads(
-  sources: ReachOutSourceDto[] | null,
-): { start: StartReads; draft: DraftReads; business: string } | null {
+function useNewReads(sources: ReachOutSourceDto[] | null): {
+  start: StartReads;
+  draft: DraftReads;
+  business: string;
+  links: { bookingLink: boolean; reviewLink: boolean };
+} | null {
   useReadsHere(READS);
   const pb = useSurface("playbooks");
   const seq = useSurface("sequences");
@@ -93,6 +97,8 @@ function useNewReads(
   const ready: ConsentChannel[] = pb.ready ? CONSENT_CHANNELS.filter((c) => pb.ready?.[c]?.ready) : ["whatsapp"];
   return {
     business: pb.businessName,
+    // Which links a value may be filled with: Send it again puts right a slot it filled with a link no longer on file.
+    links: { bookingLink: !!pb.bookingLink, reviewLink: !!pb.reviewLink },
     start: {
       ...who,
       calendarOn: pb.calendar === "ok",
@@ -153,7 +159,7 @@ function useDoor(moment: string | null, who: NewWho | null, to: string | null, r
  * run's Send it again (the send it kept for the tab), each a one-off by hand until it is changed or let go.
  */
 function useOpenedOn(who: NewWho | null, keptId: string | null, reads: Reads | null) {
-  const [again] = useState(() => (who === "once" && !keptId ? (tabDraft("broadcast") as M.KeptSend | null) : null));
+  const [again] = useState(() => (who === "once" && !keptId ? (tabDraft("broadcast") as KeptSend | null) : null));
   const [gone, setGone] = useState(false);
   const seq = useSurface("sequences");
   const library = reads?.draft.library ?? null;
@@ -164,7 +170,7 @@ function useOpenedOn(who: NewWho | null, keptId: string | null, reads: Reads | n
       : row
         ? M.onceKeptOf(row, library, reads.business)
         : again
-          ? M.againOf(again, library, reads.start.lists, reads.business)
+          ? M.againOf(again, library, { lists: reads.start.lists, links: reads.links }, reads.business)
           : null;
   const letGo = () => {
     setGone(true);

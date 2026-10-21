@@ -6,7 +6,8 @@
  * (Calendar, Usage and Leads each in phase C), so no row stands for a lens that is not there. A lens that exists and is not
  * shown to a workspace draws its `empty` at its address, never a not-found: Ask and ⌘K may link it. Ads (11 Oct 2026) is shown
  * where the workspace has ads (`ads_on`: a demo session until the wiring lane reads the workspace's connected ad accounts,
- * decision 0049), and its address says what it is narrowed to after the days (`reports/ads:2026-09-11~2026-10-10:ad:<id>`).
+ * decision 0049), and its address says what it is narrowed to after the days (`reports/ads:2026-09-11~2026-10-10:ad:<id>`);
+ * so does Campaigns', to one sequence (`reports/campaigns:2026-09-11~2026-10-10:seq:<id>`, below; its cards campaign-one.ts).
  */
 import { ADS_ROUTE, ADS_SCOPE_ALL, adsScopeKey, adsScopeOfKey } from "../ads/address";
 import type { AdsScope } from "../ads/address";
@@ -134,15 +135,49 @@ export type LensId = (typeof REPORT_LENSES)[number]["id"];
 /** A row of the table, with its id as the literal it is. */
 export type LensRow = (typeof REPORT_LENSES)[number];
 
+// ---------------------------------------------------------------------------------------------------------------------
+// What Reports › Campaigns is narrowed to (Ruben, 21 Oct 2026: separate each campaign as Reports › Ads separates each ad):
+// every campaign, or one sequence, a one-off among them, said after the days as Ads' scope is. A sequence's History is the
+// end of its own pages: what it sent on a day, and over its period, is read in Reports (campaign-one.ts).
+
+/** What the Campaigns lens is narrowed to: every campaign, or one sequence. */
+export type CampaignScope = { kind: "all" } | { kind: "sequence"; id: string };
+
+export const CAMPAIGN_SCOPE_ALL: CampaignScope = { kind: "all" };
+
+/** A scope as one word, for an address and a list's value: `all`, `seq:<id>`. */
+export const campaignScopeKey = (scope: CampaignScope): string => (scope.kind === "all" ? "all" : `seq:${scope.id}`);
+
+/** The scope a word names; null for a word that is none. */
+export function campaignScopeOfKey(key: string): CampaignScope | null {
+  if (key === "all") return CAMPAIGN_SCOPE_ALL;
+  const id = key.startsWith("seq:") ? key.slice("seq:".length) : "";
+  return /^[0-9a-z-]{1,64}$/i.test(id) ? { kind: "sequence", id } : null;
+}
+
+/** What a lens is narrowed to, where its address says one: Ads' scope, or Campaigns'. */
+export type LensScope = AdsScope | CampaignScope;
+
+/** Whether a scope is Ads' (every ad, a platform, one ad): Campaigns' one sequence is not. */
+export const isAdsScope = (scope: LensScope): scope is AdsScope => scope.kind !== "sequence";
+
+/** The word a lens's address says it is narrowed to: none for every one, or for a scope that is not the lens's. */
+function narrowedKey(id: LensId, scope: LensScope | null): string | null {
+  if (scope === null || scope.kind === "all") return null;
+  if (id === "ads" && isAdsScope(scope)) return adsScopeKey(scope);
+  return id === "campaigns" && scope.kind === "sequence" ? campaignScopeKey(scope) : null;
+}
+
 /**
  * The route a lens is at: the Overview is `reports`, every other `reports/<lens>`. Over days a member picked the address
  * says them too, after the lens in the shell's own grammar (`clients/leads:…`): `reports/receptionist:2026-09-01~2026-09-20`,
  * and for the Overview the days alone, `reports/2026-09-01~2026-09-20`. A period by name is never in the address: it is
  * the device's, and a link to a lens opens on whatever period its reader keeps. The Ads lens alone also says what it is
- * narrowed to, after the days: `reports/ads:2026-09-01~2026-09-20:ad:<id>`, `…:platform:meta` (every ad is no word at all).
+ * narrowed to, after the days: `reports/ads:2026-09-01~2026-09-20:ad:<id>`, `…:platform:meta` (every ad is no word at all),
+ * and Campaigns its one sequence: `reports/campaigns:2026-09-01~2026-09-20:seq:<id>`.
  */
-export const lensRoute = (id: LensId, days: ReportDays | null = null, scope: AdsScope | null = null): string => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+export const lensRoute = (id: LensId, days: ReportDays | null = null, scope: LensScope | null = null): string => {
+  const narrowed = narrowedKey(id, scope);
   if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
   const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
   return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
@@ -151,6 +186,10 @@ export const lensRoute = (id: LensId, days: ReportDays | null = null, scope: Ads
 /** Reports › Ads over these days, narrowed to a scope: what the Results sheet's "Full report" and an ad's drawer open. */
 export const adsReportRoute = (days: ReportDays | null, scope: AdsScope = ADS_SCOPE_ALL): string =>
   lensRoute("ads", days, scope);
+
+/** Reports › Campaigns over these days, narrowed to one sequence: where a day of its History, and its report, open. */
+export const campaignReportRoute = (days: ReportDays | null, scope: CampaignScope = CAMPAIGN_SCOPE_ALL): string =>
+  lensRoute("campaigns", days, scope);
 
 /** A review's id as its address spells it: the row's uuid. Anything else after `reviews:` is no review's address. */
 const REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -179,13 +218,13 @@ const daysOfKey = (key: string): ReportDays | null => {
 };
 
 /**
- * What an address of Reports says: the lens, the days a member picked, for Ads alone what it is narrowed to (none: every ad),
+ * What an address of Reports says: the lens, the days a member picked, for Ads and Campaigns what each is narrowed to (none: all),
  * and for Reviews alone the one review it opens (null: none).
  */
 export interface ReportsParts {
   lens: LensId;
   days: ReportDays | null;
-  scope?: AdsScope;
+  scope?: LensScope;
   review: string | null;
 }
 
@@ -193,19 +232,22 @@ export interface ReportsParts {
  * What follows `ads:` in an address: the days, then a scope (`2026-09-01~2026-09-20:ad:<id>`), or either alone. A scope that
  * names every ad is no word of an address, so it is not read; the days come first because a scope's words never look like them.
  */
-function adsParts(rest: string): { days: ReportDays | null; scope?: AdsScope } | null {
+function scopedParts(
+  rest: string,
+  scopeOf: (key: string) => LensScope | null,
+): { days: ReportDays | null; scope?: LensScope } | null {
   const at = rest.indexOf(":");
   const days = daysOfKey(at < 0 ? rest : rest.slice(0, at));
   if (days && at < 0) return { days };
   const words = days ? rest.slice(at + 1) : rest;
-  const scope = words === "all" ? null : adsScopeOfKey(words);
+  const scope = words === "all" ? null : scopeOf(words);
   return scope ? { days, scope } : null;
 }
 
 /**
  * What follows `reports` in an address, read: the lens, and the days a member picked where the address says them
  * (lensRoute). Nothing is the Overview; a lens is that lens; days alone are the Overview over them; `<lens>:<days>` both;
- * Ads also `ads:<days>:<scope>` or `ads:<scope>`; and Reviews also the one review it is to open (`reviews:<id>`, reviewRoute).
+ * Ads and Campaigns also `<lens>:<days>:<scope>` or `<lens>:<scope>`; and Reviews also the one review it is to open (`reviews:<id>`, reviewRoute).
  * Null for anything else, which is no address of Reports'. Whether the days may be read (not to come, not too many) is not
  * asked here: the address is read before the workspace's today is known, and the report's own read refuses them.
  */
@@ -218,9 +260,9 @@ export function reportsParamParts(param: string): ReportsParts | null {
   if (!isLensParam(word)) return null;
   if (at < 0) return { lens: word, days: null, review: null };
   const rest = param.slice(at + 1);
-  if (word === "ads") {
-    const ads = adsParts(rest);
-    return ads ? { lens: word, ...ads, review: null } : null;
+  if (word === "ads" || word === "campaigns") {
+    const scoped = scopedParts(rest, word === "ads" ? adsScopeOfKey : campaignScopeOfKey);
+    return scoped ? { lens: word, ...scoped, review: null } : null;
   }
   if (word === "reviews" && REVIEW_ID.test(rest)) return { lens: word, days: null, review: rest };
   const days = daysOfKey(rest);

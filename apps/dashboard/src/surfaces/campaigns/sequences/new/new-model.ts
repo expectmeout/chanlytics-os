@@ -47,7 +47,9 @@ import {
   type ParamSpec,
   type SequenceMode,
   type SequenceRowDto,
+  templateSlots,
 } from "@chanlytics/contracts";
+import type { KeptSend } from "./kept-send";
 import {
   carriersOf,
   messagePurposeOf,
@@ -189,16 +191,6 @@ export function redraftShapeOf(d: NewDraftDto, to: { kind: NewKind; audience: Ne
   };
 }
 
-/** A send kept for Send it again (broadcasts/page/runs.tsx bcAgainOf): its audience's key, its message and its values. */
-export interface KeptSend {
-  aud: string;
-  tplId?: string;
-  params?: Record<string, string[]>;
-  sources?: Record<string, string[]>;
-  name?: string;
-  channels?: ConsentChannel[];
-}
-
 /** Everyone, as the first message says who hears it: what a yes to offers hears (an offer or news), or a yes to messages. */
 export const everyoneOf = (offer: boolean): DraftWho => ({
   kind: "everyone",
@@ -276,27 +268,43 @@ export function onceKeptOf(
   };
 }
 
+/** What Send it again opens against: the lists a send may go to, and which links the workspace keeps now. */
+interface AgainAt {
+  lists: readonly { id: string; name: string }[];
+  links: { bookingLink: boolean; reviewLink: boolean };
+}
+
 /**
- * Send it again: a one-off by hand, filled with what the run sent -- its message, its audience and its values -- where all
- * three can still go; null otherwise, and New opens on its line.
+ * Each value as a one-off may fill it now: what the send filled it with where its slot still takes that, else the slot's
+ * first choice (contracts templateSlots: a one-off has no visit and no proposal, and a link only where one is on file); the
+ * words it typed kept where words still go. A send made with the old free choice (the first name filled by the booking link)
+ * is put right, as Sent's Send it again put it right.
  */
-export function againOf(
-  kept: KeptSend,
-  library: Library,
-  lists: readonly { id: string; name: string }[],
-  business: string,
-): NewDraftDto | null {
+function againKinds(kept: KeptSend, id: string, row: Library["rows"][number] | null, links: AgainAt["links"]) {
+  const may = row ? templateSlots(row, { visits: false, proposal: false, ...links }) : null;
+  const kinds = kept.sources?.[id] ?? [];
+  const typed = kept.params?.[id] ?? [];
+  return (p: ParamSpec, i: number): ParamSpec => {
+    const choices: readonly string[] = may?.[i] ?? ["text"];
+    const was = kinds[i] ?? p.kind;
+    const kind = choices.includes(was) ? was : (choices[0] ?? "text");
+    return kind === "text" ? { kind: "text", value: was === "text" ? (typed[i] ?? "") : "" } : ({ kind } as ParamSpec);
+  };
+}
+
+/**
+ * Send it again: a one-off by hand, filled with what the run sent -- its message, its audience and its values (each as a
+ * one-off may fill it now: againKinds) -- where its message and its audience can still go; null otherwise, and New opens on
+ * its line.
+ */
+export function againOf(kept: KeptSend, library: Library, at: AgainAt, business: string): NewDraftDto | null {
   const id = kept.tplId;
   const held = id ? libraryMessageOf(library, id) : null;
   if (!held || !id) return null;
-  const who = keptWho(kept.aud, lists, held.offer);
+  const who = keptWho(kept.aud, at.lists, held.offer);
   if (!who) return null;
-  const kinds = kept.sources?.[id] ?? [];
-  const typed = kept.params?.[id] ?? [];
-  const params: ParamSpec[] = held.params.map((p, i) => {
-    const kind = kinds[i] ?? p.kind;
-    return kind === "text" ? { kind: "text", value: typed[i] ?? "" } : ({ kind } as ParamSpec);
-  });
+  const row = library.rows.find((r) => r.id === id) ?? library.rows.find((r) => r.id === held.template_id) ?? null;
+  const params: ParamSpec[] = held.params.map(againKinds(kept, id, row, at.links));
   const base = draftByHand("once", "people", business);
   const message = { ...held, params };
   return {

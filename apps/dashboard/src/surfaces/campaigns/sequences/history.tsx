@@ -3,13 +3,13 @@
  * Oct 2026): what it sent over a period, then day by day. One card over the period picked (the last 30 days, 90, or all of
  * it): what it sent, the one large number, and what came of it on a line under a hairline, each with what it counts on its label,
  * counted from the same batches Reports counts (contracts historyFigures over 00442 sequence_batch_counts), with the door
- * to Reports over the same days, and Replied a door to the Inbox over them (contracts sequenceRepliesRoute: the threads that
- * answered it, and nothing else), as is "All N replies in the Inbox" beside Day by day. Then a row a batch, newest first:
- * when, what it went to and what came of it, each a door to its run's one screen at its home (contracts runRoute, the
- * Campaigns wiring review's lane 2), in one pane under its caption, each marked by what it is (went, waits, to come,
- * canceled): its decision while it waits, its report once it went, where the replies it drew,
- * everyone it went to and its figures are. A day opened in place said the report a second time, and went. Older batches are
- * read a page at a time, and as far back as the period asks.
+ * to its own report in Reports over the same days (contracts campaignReportRoute: Reports › Campaigns narrowed to it), and
+ * Replied a door to the Inbox over them (contracts sequenceRepliesRoute: the threads that answered it, and nothing else), as is
+ * "All N replies in the Inbox" beside Day by day. Then a row a batch, newest first: when, what it went to and what came of it,
+ * in one pane under its caption, each marked by what it is (went, waits, to come, canceled). History is the end of a
+ * sequence's own pages (Ruben, 21 Oct 2026): a day that went opens its report in Reports, over that day; one still to decide
+ * (waiting for an OK, to come, going out) opens its run where it is decided or stopped; a canceled one opens nothing. Older
+ * batches are read a page at a time, and as far back as the period asks.
  */
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
@@ -28,7 +28,7 @@ import {
   historyUpcomingWords,
   sequenceNextOf,
   sequenceRoute,
-  lensRoute,
+  campaignReportRoute,
   runRoute,
   sequenceRepliesRoute,
   zoneDayKey,
@@ -64,9 +64,19 @@ const dayMark = (state: SequenceBatchDto["state"]): ReactElement => (
 );
 
 /**
- * One batch's row: when, and what came of it; pressed, it opens its run's one screen at its home, whatever the run is: a
- * day that went says what came back there, and one that has not (waiting for your OK, or still to go) is decided there.
+ * Where a batch's row opens: a day that went (or stopped), its report in Reports over that day; one still to decide or going
+ * out, its run, where it is approved, skipped or stopped; a canceled one, nothing.
  */
+function dayDoor(b: SequenceBatchDto, rec: SequenceRecordDto) {
+  if (b.state === "canceled") return {};
+  if (b.state === "sent" || b.state === "failed") {
+    const day = b.run_for ?? zoneDayKey(Date.parse(b.at), rec.timezone);
+    return routeDoor(campaignReportRoute({ from: day, to: day }, { kind: "sequence", id: rec.sequence.id }));
+  }
+  return routeDoor(runRoute(b.id, rec.sequence.id));
+}
+
+/** One batch's row: when, and what came of it; pressed, it opens what dayDoor says. */
 function DayRow(p: { b: SequenceBatchDto; rec: SequenceRecordDto; nowMs: number }) {
   const { b, rec, nowMs } = p;
   const place = b.place && rec.steps.length > 1 ? H.step(b.place) : null;
@@ -83,7 +93,7 @@ function DayRow(p: { b: SequenceBatchDto; rec: SequenceRecordDto; nowMs: number 
       name={historyStamp(Date.parse(b.at), rec.timezone, nowMs)}
       end={end}
       said={said.said}
-      {...routeDoor(runRoute(b.id, rec.sequence.id))}
+      {...dayDoor(b, rec)}
       className="sq-day"
       data-testid={`sq-batch-${b.id}`}
     />
@@ -184,7 +194,11 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
     );
   const inPeriod = historyIn(batches, since, tz);
   const figures = historyFigures(inPeriod);
-  const reports = lensRoute("campaigns", since ? { from: since, to: zoneDayKey(nowMs, tz) } : null);
+  // Its own report over the same days: Reports › Campaigns narrowed to it (All opens on the period Reports keeps).
+  const reports = campaignReportRoute(since ? { from: since, to: zoneDayKey(nowMs, tz) } : null, {
+    kind: "sequence",
+    id: rec.sequence.id,
+  });
   // The replies over the same days, in the Inbox: a door only where somebody wrote back.
   const replied = Number(figures.find((f) => f.id === "replied")?.value ?? 0);
   const inbox = replied > 0 ? routeDoor(sequenceRepliesRoute(rec.sequence.id, period)) : null;

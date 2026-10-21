@@ -48,6 +48,8 @@ export {
   REPORT_LENSES,
   LENS_ROUTES,
   adsReportRoute,
+  campaignReportRoute,
+  isAdsScope,
   lensRoute,
   reviewRoute,
   isLensParam,
@@ -59,7 +61,18 @@ export {
   lensIsShown,
   lensEmpty,
 } from "./lenses";
-export type { LensId, LensRow, LensRange, LensEmpty, LensWho, ReportsParts } from "./lenses";
+export type { LensId, LensRow, LensRange, LensEmpty, LensWho, LensScope, ReportsParts } from "./lenses";
+export { CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./lenses";
+export type { CampaignScope } from "./lenses";
+export { CAMPAIGN_CHOICE_GROUPS, CAMPAIGN_SCOPE_WORDS, campaignChoicesOf, campaignOneOf } from "./campaign-one";
+export type {
+  CampaignChoice,
+  CampaignOneInput,
+  CampaignOnePointVM,
+  CampaignOneSendVM,
+  CampaignOneStepVM,
+  CampaignOneVM,
+} from "./campaign-one";
 export { lensAnswerOf } from "./lens-answer";
 export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./review-report";
 export type { ReviewsReportDto, ReviewWaitingVM, ReviewsReportVM } from "./review-report";
