@@ -2204,12 +2204,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    back (a person's ‹ People, a pane's ‹ Settings), or a phone's thread or call has taken the screen with its own head,
    the island stands under the top bar instead, as it did everywhere before: the way back is never covered. One call says
    its caller and clock, two their first names and clocks, three or more the count alone (contracts liveBar). Still the
-   one door to Live, and a focus draws its ring over its depth. */
-.live-bar {
-  --ink: var(--surface-island-ink);
-  --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
-  --accent: var(--surface-island-accent);
-  --accent-ink: var(--surface-island-accent);
+   one door to Live, and a focus draws its ring over its depth.
+   Yesterday's visits nobody has marked stand in the same place while no call is up (frame/topbar/status-bars.tsx
+   UnmarkedVisitsBar; Ruben, 20 Oct 2026: off the Calendar's page, into the header, as the call is), and the call outranks
+   them. Where the place is, below, is said once for the two. */
+:is(.live-bar, .unmarked-bar) {
   position: absolute;
   top: 30px;
   left: var(--gutter-page);
@@ -2223,9 +2222,15 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   padding: 0 4px 0 13px;
   border: 0;
   border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.live-bar {
+  --ink: var(--surface-island-ink);
+  --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
+  --accent: var(--surface-island-accent);
+  --accent-ink: var(--surface-island-accent);
   background: var(--surface-island-fill);
   box-shadow: var(--surface-island-depth);
-  white-space: nowrap;
 }
 @media (hover: hover) {
   .live-bar:hover {
@@ -2322,45 +2327,107 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   0%, 100% { transform: scaleY(0.3); }
   50% { transform: scaleY(1); }
 }
-/* In the date's place, the date stands down while the call is up. */
-.main:has(> .frame-top > .live-bar) > .frame-top > .pg-dateline-slot:not(:has(> :is(.pg-back, .pg-back-after))) {
+/* Yesterday's visits to mark: a capsule of the control layer's glass, never the dark island, which is a call's alone; the
+   ring the Calendar marks a visit nobody has marked with, the count in the semibold, and "Did they come?" as a capsule
+   inside it, a desk's words (a phone keeps the arrow). The one door to the first of them, its focus ring over its depth. */
+.unmarked-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.unmarked-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+.unmarked-bar-ring {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-full);
+}
+.unmarked-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
+}
+.unmarked-bar-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 9px 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+  font-weight: var(--weight-medium);
+}
+@media (hover: hover) {
+  .unmarked-bar:hover .unmarked-bar-act {
+    background: var(--selected-fill);
+    color: var(--ink);
+  }
+}
+/* A call going on outranks them: the call has the place while it lasts, and they come back as it ends. */
+.frame-top:has(> .live-bar) > .unmarked-bar {
+  display: none;
+}
+/* In the date's place, the date stands down while the call, or the visits to mark, are up. */
+.main:has(> .frame-top > :is(.live-bar, .unmarked-bar)) > .frame-top > .pg-dateline-slot:not(:has(> :is(.pg-back, .pg-back-after))) {
   visibility: hidden;
 }
 @media (min-width: 1281px) {
-  .live-bar {
+  :is(.live-bar, .unmarked-bar) {
     top: 14px;
     left: 50%;
     max-width: 36%;
     translate: -50% 0;
   }
-  .main:has(> .frame-top > .live-bar) > .frame-top > .pg-dateline-slot {
+  .main:has(> .frame-top > :is(.live-bar, .unmarked-bar)) > .frame-top > .pg-dateline-slot {
     visibility: visible;
   }
 }
-/* Where the date's place holds a way back: under the top bar, in the middle of the page's width, as it stood before. */
+/* Where the date's place holds a way back: under the top bar, in the middle of the page's width, as it stood before. The
+   visits to mark stand down there instead: they wait for a page with room for them, and never push one down. */
 .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
   position: static;
   max-width: calc(100% - 32px);
   margin: 2px 0 6px;
   translate: none;
 }
+.main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .unmarked-bar {
+  display: none;
+}
 /* A phone (and a tablet, which wears the phone's head): the date's place is on the bell's line, 10px down, and the island
    is the bell's height there. It says the least that tells the call: the name or the count, the clock (or each of two),
    the bars and the arrow; "On the line", "on your line" and Open Live's words are a desk's. A thread or a call that has
    taken the screen has its own head and stands the header row down, so there the island stands over it, in the flow, as
-   before. Named under .frame-top, for its weight over mobile.css's older padding. */
+   before. Named under .frame-top, for its weight over mobile.css's older padding. The visits to mark the same, their count
+   and the arrow; under a thread's own head they stand down. */
 @media (max-width: 900px) {
-  .frame-top > .live-bar {
+  .frame-top > :is(.live-bar, .unmarked-bar) {
     top: 10px;
     min-height: 32px;
     gap: 7px;
     padding: 0 10px 0 12px;
     max-width: calc(100% - 2 * var(--gutter-page) - 44px);
   }
-  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking) {
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
+  .frame-top > .unmarked-bar .unmarked-bar-act-words {
     display: none;
   }
-  .frame-top > .live-bar .live-bar-act {
+  .frame-top > .live-bar .live-bar-act,
+  .frame-top > .unmarked-bar .unmarked-bar-act {
     height: auto;
     padding: 0;
     background: none;
@@ -2371,6 +2438,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     max-width: calc(100% - 2 * var(--gutter-page));
     margin: 2px var(--gutter-page) 6px;
   }
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .unmarked-bar {
+    display: none;
+  }
   /* Under a way back it stands at the page's gutter, as the way back does: a phone's top is a block, not the desk's column. */
   .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar {
     max-width: calc(100% - 2 * var(--gutter-page));
@@ -2378,7 +2448,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 @media (min-width: 721px) and (max-width: 900px) {
-  .frame-top > .live-bar {
+  .frame-top > :is(.live-bar, .unmarked-bar) {
     left: calc(var(--gutter-page) + 40px);
     max-width: calc(100% - 2 * var(--gutter-page) - 124px);
   }

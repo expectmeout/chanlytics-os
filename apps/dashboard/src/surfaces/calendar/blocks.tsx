@@ -444,7 +444,10 @@ function useHourFit(
     const grid = el.firstElementChild as HTMLElement;
     const hour = parseFloat(getComputedStyle(grid).getPropertyValue("--cal-hour")) || 64;
     const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
-    if (nowAt * hour + CR_NOW_CLEAR <= el.clientHeight - heads) return;
+    // A phone's board runs on under the tab bar, the room kept for it at the scroller's foot (mobile.css): a now line
+    // under the bar is not shown.
+    const bar = crPhone() ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
+    if (nowAt * hour + CR_NOW_CLEAR <= el.clientHeight - heads - bar) return;
     el.scrollTop = Math.max(0, (nowAt - 1) * hour);
   }, [scroller, nowAt]);
 }

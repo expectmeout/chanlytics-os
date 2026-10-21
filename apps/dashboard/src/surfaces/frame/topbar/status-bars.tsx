@@ -1,9 +1,13 @@
 /**
  * The two lines under the top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): a call going
  * on, and the shell's one status. The frame's JSX draws them by their old names (`LiveCallBar`, `ShellStatusBar`,
- * frame-globals.ts) until the frame itself is TypeScript (step 7e).
+ * frame-globals.ts) until the frame itself is TypeScript (step 7e). And yesterday's visits nobody has marked, in the
+ * call's place while no call is up (`UnmarkedVisitsBar`).
  */
 import { useEffect, useReducer, useState } from "react";
+import { VISIT_ASK_WORDS, todayVisitsAsked, todayVisitsSub, type CalendarLike } from "@chanlytics/contracts";
+import { surfaceValue } from "../../surface-values";
+import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
 
 const CLOCK_SECOND_MS = 1000;
@@ -80,6 +84,49 @@ export function LiveCallBar() {
       </span>
       <span className="live-bar-act">
         <span className="live-bar-act-words">{bar.act}</span>
+        <Glyph name="chevron" size={11} />
+      </span>
+    </button>
+  );
+}
+
+/** The Calendar's hook, where the frame has one: drawn again when its weeks are read again, or the day turns. */
+const useCalendarRead = () => {
+  const useSurface = frameSurfaceHook() ?? useNoSurface;
+  useSurface("calendar");
+};
+
+/**
+ * Yesterday's visits nobody has marked, in the header (Ruben, 20 Oct 2026: off the Calendar's page, into the header, as
+ * the live call is): the island's place, on every page but Today, whose queue asks each one by name with Kept and Missed. A
+ * call going on outranks it and has the place while it lasts (components.css), and where the date's place holds a way back,
+ * or a thread has taken the screen, it stands down rather than push the page. Counted by Today's own rule (contracts
+ * todayVisitsAsked) over the Calendar's weeks as the tab holds them: nothing is read for it, and nothing is claimed while
+ * those weeks are unread or could not be. A press opens the first, asking "Did they come?", as the Calendar's line did.
+ */
+export function UnmarkedVisitsBar({ page }: { page: string }) {
+  const Glyph = frameGlyph();
+  useCalendarRead();
+  if (page === "today") return null;
+  const cal = surfaceValue("calendar");
+  const word = visitWordHere();
+  const asked =
+    cal && cal.vm && cal.vm.feed.state === "ok" ? todayVisitsAsked(cal.vm as CalendarLike, Date.now(), word) : null;
+  const first = asked?.items.at(0);
+  if (!asked || !first) return null;
+  const lead = todayVisitsSub(asked.count, word);
+  return (
+    <button
+      type="button"
+      className="unmarked-bar"
+      onClick={() => window.CHANLY?.nav?.(first.to)}
+      aria-label={`${lead}. ${VISIT_ASK_WORDS.question}`}
+      data-testid="unmarked-bar"
+    >
+      <span className="unmarked-bar-ring" aria-hidden="true" />
+      <span className="unmarked-bar-text">{lead}</span>
+      <span className="unmarked-bar-act">
+        <span className="unmarked-bar-act-words">{VISIT_ASK_WORDS.question}</span>
         <Glyph name="chevron" size={11} />
       </span>
     </button>
