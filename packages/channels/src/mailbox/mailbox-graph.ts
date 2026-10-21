@@ -382,7 +382,10 @@ export async function graphFindSent(
     !!subject &&
     typeof m.subject === "string" &&
     m.subject.trim().toLowerCase() === subject &&
-    (m.toRecipients ?? []).some((r) => String(r.emailAddress?.address ?? "").toLowerCase() === to);
+    (m.toRecipients ?? []).some((r) => {
+      const address = r.emailAddress?.address;
+      return typeof address === "string" && address.toLowerCase() === to;
+    });
   const recent = (field: string) => `$filter=${encodeURIComponent(`${field} ge ${since}`)}&$top=25&${select}`;
   const fromSent = (await graphList(token, `/me/mailFolders/sentitems/messages?${recent("sentDateTime")}`, deps)).find(
     same,

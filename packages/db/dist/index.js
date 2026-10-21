@@ -3246,14 +3246,13 @@ async function knownThreads(db, tenantId, threadIds) {
 // src/repositories/mailboxes/reconcile.ts
 import { MIN_MS } from "../../contracts/dist/index.js";
 var UNKNOWN_PAGE = 10;
-var IDS_PER_READ3 = 100;
 async function unknownMailboxEmails(db, mailboxId, span) {
   const sends = await db.from("sequence_sends").select("message_id").eq("mailbox_id", mailboxId).eq("state", "queued").not("message_id", "is", null).limit(500);
   if (sends.error) throw new Error(`cannot read the mailbox's sends: ${sends.error.message}`);
   const ids = (sends.data ?? []).flatMap((s) => s.message_id ? [s.message_id] : []);
   const rows = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ3) {
-    const { data, error } = await db.from("messages").select("id, tenant_id, meta, created_at").in("id", ids.slice(i, i + IDS_PER_READ3)).eq("status", "failed").eq("error->>outcome", "unknown").gte("created_at", span.since.toISOString()).lte("created_at", span.before.toISOString());
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, tenant_id, meta, created_at").in("id", ids.slice(i, i + IDS_PER_READ2)).eq("status", "failed").eq("error->>outcome", "unknown").gte("created_at", span.since.toISOString()).lte("created_at", span.before.toISOString());
     if (error) throw new Error(`cannot read the mailbox's unsettled emails: ${error.message}`);
     rows.push(...data ?? []);
   }

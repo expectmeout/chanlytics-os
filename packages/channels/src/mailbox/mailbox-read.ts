@@ -280,6 +280,17 @@ const REPORT_WORDS_MAX = 256_000;
 /** Where a report's own words end and its copy of the original begins (Exchange's, a forwarded copy, raw headers). */
 const ORIGINAL_BEGINS = /^(?:original message headers|-{2,} ?(?:original|forwarded) message|received: )/im;
 
+/** Whom a report says the email failed for: its Final-Recipient, its Original-Recipient, or the header Gmail writes. */
+function reportRecipientOf(field: (name: string) => string | null, headers: MailboxEmail["headers"]): string | null {
+  const named = field("Final-Recipient") ?? field("Original-Recipient") ?? headers["x-failed-recipients"] ?? "";
+  return (
+    named
+      .replace(/^rfc822;\s*/i, "")
+      .trim()
+      .toLowerCase() || null
+  );
+}
+
 /**
  * A delivery report, read (RFC 3464, and Exchange's own words where it writes none): null for an email that is not
  * one. The original is found by the Message-ID the report quotes; ours are minted so that the row is in the id itself.
@@ -301,11 +312,7 @@ export function deliveryReportOf(
   const quoted = /message-id:\s*(<[^<>\s@]+@[^<>\s]+>)/i.exec(words)?.[1] ?? null;
   const ours = /<cl\.[0-9a-f]{32}@[^<>\s]+>/i.exec(words)?.[0] ?? null;
   const original = messageIdHeader(ours ?? quoted);
-  const recipient =
-    (field("Final-Recipient") ?? field("Original-Recipient") ?? e.headers["x-failed-recipients"] ?? "")
-      .replace(/^rfc822;\s*/i, "")
-      .trim()
-      .toLowerCase() || null;
+  const recipient = reportRecipientOf(field, e.headers);
   const action = (field("Action") ?? "").toLowerCase();
   const diagnostic = (field("Diagnostic-Code") ?? "").replace(/^smtp;\s*/i, "").slice(0, 300) || null;
   const text = (e.text ?? "").slice(0, REPORT_WORDS_MAX);

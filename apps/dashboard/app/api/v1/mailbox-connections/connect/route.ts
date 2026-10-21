@@ -4,7 +4,7 @@ import { startMailboxConnect } from "@/server/connections/mailbox-connections";
 
 const Query = z.object({
   provider: z.enum(["google", "microsoft"]),
-  mailbox_id: z.string().uuid().optional(),
+  mailbox_id: z.uuid().optional(),
   admin: z.enum(["1"]).optional(),
 });
 

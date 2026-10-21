@@ -4049,6 +4049,10 @@ function bounceClassOf(status, said) {
 }
 var REPORT_WORDS_MAX = 256e3;
 var ORIGINAL_BEGINS = /^(?:original message headers|-{2,} ?(?:original|forwarded) message|received: )/im;
+function reportRecipientOf(field, headers2) {
+  const named = field("Final-Recipient") ?? field("Original-Recipient") ?? headers2["x-failed-recipients"] ?? "";
+  return named.replace(/^rfc822;\s*/i, "").trim().toLowerCase() || null;
+}
 function deliveryReportOf(e) {
   const local = e.from?.address.split("@")[0] ?? "";
   const isReport = /multipart\/report/i.test(e.headers["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/i.test(local);
@@ -4058,7 +4062,7 @@ function deliveryReportOf(e) {
   const quoted = /message-id:\s*(<[^<>\s@]+@[^<>\s]+>)/i.exec(words)?.[1] ?? null;
   const ours = /<cl\.[0-9a-f]{32}@[^<>\s]+>/i.exec(words)?.[0] ?? null;
   const original = messageIdHeader(ours ?? quoted);
-  const recipient = (field("Final-Recipient") ?? field("Original-Recipient") ?? e.headers["x-failed-recipients"] ?? "").replace(/^rfc822;\s*/i, "").trim().toLowerCase() || null;
+  const recipient = reportRecipientOf(field, e.headers);
   const action = (field("Action") ?? "").toLowerCase();
   const diagnostic = (field("Diagnostic-Code") ?? "").replace(/^smtp;\s*/i, "").slice(0, 300) || null;
   const text = (e.text ?? "").slice(0, REPORT_WORDS_MAX);
@@ -4524,7 +4528,10 @@ async function graphFindSent(token, want, deps) {
   const since = new Date(want.sinceMs - FIND_SENT_SLACK_MS).toISOString();
   const to = want.to.toLowerCase();
   const subject = (want.subject ?? "").trim().toLowerCase();
-  const same = (m) => typeof m.id === "string" && !!subject && typeof m.subject === "string" && m.subject.trim().toLowerCase() === subject && (m.toRecipients ?? []).some((r) => String(r.emailAddress?.address ?? "").toLowerCase() === to);
+  const same = (m) => typeof m.id === "string" && !!subject && typeof m.subject === "string" && m.subject.trim().toLowerCase() === subject && (m.toRecipients ?? []).some((r) => {
+    const address = r.emailAddress?.address;
+    return typeof address === "string" && address.toLowerCase() === to;
+  });
   const recent = (field) => `$filter=${encodeURIComponent(`${field} ge ${since}`)}&$top=25&${select}`;
   const fromSent = (await graphList(token, `/me/mailFolders/sentitems/messages?${recent("sentDateTime")}`, deps)).find(
     same

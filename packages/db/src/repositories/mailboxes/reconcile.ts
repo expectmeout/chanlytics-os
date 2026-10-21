@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MIN_MS } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
+import { IDS_PER_READ } from "../people";
 
 type Db = SupabaseClient<Database>;
 
@@ -23,9 +24,6 @@ export interface UnknownMailboxEmail {
 
 /** The most a mailbox's look reads in one tick: each is a provider read or a few. */
 const UNKNOWN_PAGE = 10;
-/** How many ids one statement names: a request line past the gateway's 8 KiB is refused. */
-const IDS_PER_READ = 100;
-
 type UnknownRow = { id: string; tenant_id: string; meta: unknown; created_at: string };
 
 /**

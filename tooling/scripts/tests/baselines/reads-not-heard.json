@@ -365,6 +365,20 @@
     },
     {
       "kind": "unfed",
+      "why": "A mailbox's sent today and its recent mail's health on Setup's email step (mailbox_capacity and mailbox_connection_counts over sequence_sends, 00466). A statement for each send would be a notice for each email, so the feed tells none: the numbers ride with their mailbox's row, which Setup hears, and are read again as the mailbox changes or the page is reached for.",
+      "reads": {
+        "setup": [
+          "sequence_sends"
+        ]
+      },
+      "heardWith": {
+        "setup": [
+          "mailbox_connections"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "The place a lead was found at (leads_page joins lead_places) and the ideas for a new search (lead_suggestions: written when a read asks the model for them, kept until a round ends or the line is saved). Neither is told by the feed: a round commits the lead, which Leads hears (heardWith), and saving the business line (PUT lead-suggestions) re-reads Leads.",
       "reads": {
         "leads": [
