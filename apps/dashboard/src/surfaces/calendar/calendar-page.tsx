@@ -15,7 +15,7 @@
  * A real workspace draws what the seam gives (`useSurface("calendar")`); a demo session draws the same page from the sample
  * (sample.ts); before either, the board's frame, still, so the page has its shape while the weeks are read (CAL-25).
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   MIN_MS,
   appointmentWords,
@@ -27,6 +27,7 @@ import {
   type CalendarRunsDto,
 } from "@chanlytics/contracts";
 import { useStanding } from "../kit/head/standing";
+import { keepHeightOn } from "../kit/motion/page-scroll";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { canDo, navigate, onAPhone } from "../legacy-verbs";
@@ -276,19 +277,28 @@ function CalendarReal({
   };
   // The bar on a desk, and Settings on a phone, stand on the frame's row of views (board-parts.tsx calendarAct).
   useStanding({ act: calendarAct(bar) });
+  // On a phone the bar sticks under the frame's top as the window scrolls the days, and a week's or a day's heads stick
+  // under it: as far down as it is tall (mobile.css, --cal-bar-h).
+  const root = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const page = root.current;
+    const head = page ? page.querySelector<HTMLElement>(":scope > .cal-head") : null;
+    return page && head ? keepHeightOn(head, page, "--cal-bar-h") : undefined;
+  }, []);
 
   return (
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
     // so a window the tab holds, painted at once, never flickers.
     <div
+      ref={root}
       className="calendar"
       data-testid="calendar-real"
       data-loading={pending ? "" : undefined}
       data-peek={open && !phone ? "" : undefined}
     >
       {calendarHead(bar)}
-      {/* On a phone the bar stands over the days, under the frame's strip of views, and the pane under it holds still
-          (mobile.css .cal-pane); a swipe across the days walks to the next or previous days. It is the pane's own touch
+      {/* On a phone the bar sticks over the days, under the frame's strip of views, and the window scrolls them
+          (mobile.css, "The window scrolls"); a swipe across the days walks to the next or previous days. It is the pane's own touch
           (data-own-drag), so the strip's pager never walks the views under the same finger. On a desk this box is display:
           contents and the page scrolls as one. */}
       <div

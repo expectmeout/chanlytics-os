@@ -5,8 +5,9 @@
  * a page of panes scrolls in. On a phone the window scrolls (mobile.css, "The window scrolls"): Safari draws its
  * toolbar as glass over the page and tucks it away as the page moves, and it does both only for the document's own
  * scroll, never for a box inside it. So there a page's list is as tall as what it holds, and what reads or moves a
- * page's scroll reads and moves the document's. A page that holds still on a phone (the Calendar's board, an open
- * thread, Live's cockpit) keeps its own scroller, and is found as one.
+ * page's scroll reads and moves the document's. Since 21 Oct 2026 that is every page on a phone, the Calendar's board, an
+ * open thread and Live among them, which kept scrollers of their own until then; a box that still scrolls itself (a
+ * sheet's, a desk's pane) is found as one.
  *
  * Nothing here knows a page: it asks the styles. A box scrolls itself where its overflow says so; the document scrolls
  * what no box does.
@@ -63,6 +64,24 @@ export function movingScrollerOf(node: Element): HTMLElement {
  */
 export function inHeldList(el: Element | null | undefined): boolean {
   return !!el?.closest?.("[data-held]");
+}
+
+/**
+ * A box's height, kept as a custom property on another (`name` on `on`) as the box changes: where something sticks under
+ * a bar that sticks itself as the window scrolls a page (a week's day heads under the Calendar's bar), it sticks that far
+ * further down, as the frame's top is measured for what sticks under it (kit/head/frame-top.ts). Answers how to stop,
+ * which takes the property away.
+ */
+export function keepHeightOn(box: HTMLElement, on: HTMLElement, name: string): () => void {
+  if (typeof ResizeObserver !== "function") return () => {};
+  const size = () => on.style.setProperty(name, `${box.offsetHeight}px`);
+  const seen = new ResizeObserver(size);
+  seen.observe(box);
+  size();
+  return () => {
+    seen.disconnect();
+    on.style.removeProperty(name);
+  };
 }
 
 /** How tall the screen a box shows is: the window's for the document's scroller (its clientHeight is the window's too). */
