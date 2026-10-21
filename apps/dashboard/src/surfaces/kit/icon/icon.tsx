@@ -97,6 +97,11 @@ const GLYPHS: Record<string, Drawing> = {
       <path d="M8 3v10M3 8h10" />
     </svg>
   ),
+  minus: (p) => (
+    <svg {...p}>
+      <path d="M3 8h10" />
+    </svg>
+  ),
   filter: (p) => (
     <svg {...p}>
       <path d="M2 4h12M4 8h8M6 12h4" />

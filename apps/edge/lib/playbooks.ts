@@ -16,6 +16,7 @@ import {
   followUpsDue,
   holdRecipients,
   leaveSequence,
+  peopleHandRun,
   sequenceReached,
   mailboxOfTenant,
   messageVersionRowsOf,
@@ -388,6 +389,8 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       // will not reach.
       followUpsDue: (stepId, runFor) => followUpsDue(db, stepId, runFor),
       leave: (enrollmentIds, why) => leaveSequence(db, { tenantId, enrollmentIds, why }),
+      // A customer's call or note step (00465): each person handed to the team, whole.
+      handRun: (h) => peopleHandRun(db, { tenantId, ...h }),
       // Who a list's sequence already reached: its run goes once to each person (the loop review's item 6).
       reached: (sequenceId) => sequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {

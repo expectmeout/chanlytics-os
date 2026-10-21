@@ -79,12 +79,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // and its template's message (the playbooks and settings reads), the channels read its sheet names the number by, and who
   // each audience reaches (Send it again), last and never waited for.
   "campaigns/sequences/runs": ["sequences", "settings", "broadcasts", "playbooks", "channels", "audiences"],
-  // The one New beside Sequences' list (`campaigns/sequences/new…`, lane 6, where the composer over the list at
-  // `campaigns/new…` went): its own list and the settings read, as Sequences draws; Send once, made of Sent's runs (the
-  // broadcasts) and who each audience reaches (the audiences, counted over everyone in People); its messages of the
-  // templates, which are the settings read's, the one read of them (surfaces/offered-templates.ts); and the number they go
-  // out on, the channels read. Write to leads reads its searches itself, as it is chosen.
-  "campaigns/sequences/new": ["sequences", "settings", "broadcasts", "audiences", "channels"],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, decision 0065): its own list and the settings read, as
+  // Sequences draws, and Campaigns' moments, lists and their counts (the playbooks read, made with the channels read), which
+  // its who sheet and its starts offer. It reads the searches whose leads are ready itself, as it opens.
+  "campaigns/sequences/new": ["sequences", "settings", "playbooks", "channels"],
   // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's.
   messages: ["reach_outs", "playbooks", "channels"],
   "campaigns/messages": ["reach_outs", "playbooks", "channels"],

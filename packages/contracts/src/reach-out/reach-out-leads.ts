@@ -758,28 +758,6 @@ export interface ReachOutSourceDto {
   with_unconfirmed: number;
 }
 
-/** Write to leads, New message's third choice (canvas B's Campaigns), in words. */
-export const REACH_OUT_SOURCE_WORDS = {
-  addTitle: "Leads you add",
-  addSub: "Pick them on Leads and add them to a sequence, one at a time or many at once",
-  failed: "the searches and lists a sequence could start from",
-  none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
-  find: "Find businesses",
-} as const;
-
-/** One source as its row says it: its name and who it would write to, then what it is. */
-export function reachOutSourceOf(s: ReachOutSourceDto): { title: string; sub: string; include: boolean } {
-  const include = s.ready === 0;
-  const reach = include ? `${s.with_unconfirmed} unconfirmed` : `${s.ready} ready`;
-  const what =
-    s.via === "chosen"
-      ? "A list you made on the Leads table"
-      : s.via === "import"
-        ? "A list you imported"
-        : "A search on Leads";
-  return { title: `${s.name} · ${reach}`, sub: what, include };
-}
-
 /** Who is in a reach-out, as its drawer lists them (00426 reach_out_chain_people). */
 export interface ReachOutChainPeopleDto {
   root_id: string;

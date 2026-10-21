@@ -102,8 +102,10 @@ const PAGES = [
   "reports/campaigns",
   "reports/reviews",
   "campaigns",
-  // New's Send once, where Campaigns' own 30 days and the playbooks' moments are drawn: its landing is Sequences' list.
+  // New, where the playbooks' moments, lists and counts are drawn (decision 0065): its landing is Sequences' list.
   "campaigns/sequences/new:once",
+  // Sent's page, where its runs and who each audience reaches are drawn.
+  "broadcasts",
   "campaigns/sequences",
   "clients",
   "calendar",

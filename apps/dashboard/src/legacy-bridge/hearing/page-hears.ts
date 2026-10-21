@@ -63,18 +63,14 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): what Sent's run sheet heard, whole, beside
   // the list.
   "campaigns/sequences/runs": { broadcasts: true, sequences: true, settings: ["review"], audiences: true },
-  // The one New beside Sequences' list (`campaigns/sequences/new…`, lane 6, where the composer over the list went): the
-  // list and the settings read's templates, Sent's runs and who each audience reaches, drawn in Send once: the pause on
-  // offers, its Send by ticks and the month (the runs' read), and who can hear you (the audiences'). It hears here what
-  // moves those (a person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a
-  // list To offers, a run that went to some of them this week), and leaves to a run's screen what moves a run's replies (a
-  // message, a thread, a hold), so a message here never re-reads every page of People behind the audiences
-  // (W-review-facts-rules-2).
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, decision 0065): the list, the settings read's messages,
+  // and Campaigns' moments and lists with who each reaches, as the playbooks read counts them. It hears what moves who can
+  // hear one (a person's answer, the business's facts, the rules, a channel, the plan, a visit, a list, a send this week), as
+  // the send screen's audiences did here, and leaves to Campaigns' own page what moves a run's replies (a message, a receipt).
   "campaigns/sequences/new": {
     sequences: true,
     settings: true,
-    broadcasts: ["facts", "channel", "billing"],
-    audiences: ["person", "facts", "rules", "channel", "billing", "visit", "list", "send"],
+    playbooks: ["person", "facts", "rules", "channel", "billing", "visit", "list", "send"],
   },
   messages: { settings: true },
   // Messages as the view of Campaigns it is (19 Oct 2026): what the Library heard, at its address now.

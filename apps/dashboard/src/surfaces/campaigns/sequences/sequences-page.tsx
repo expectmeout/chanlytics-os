@@ -15,7 +15,7 @@
 import {
   CAMPAIGN_ROOMS,
   LIFECYCLE_WORDS,
-  SEQUENCE_NEW_WORDS,
+  NEW_WORDS,
   SEQUENCE_WORDS,
   newSequenceRoute,
   parseSequencesRoute,
@@ -29,7 +29,7 @@ import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmSplit, type CmView } from "../parts/split";
 import { SequencesList } from "./list";
-import { NewSequence } from "./new";
+import { NewSequence } from "./new/new-page";
 import { SequenceRecord } from "./record";
 import { SequenceRun } from "./run-pane";
 import { recordBackOf, tripNow } from "./trip";
@@ -54,7 +54,7 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
       title={SEQUENCE_WORDS.title}
       body={SEQUENCE_WORDS.empty}
       action={{
-        label: SEQUENCE_NEW_WORDS.title,
+        label: NEW_WORDS.title,
         to: newSequenceRoute(),
         testid: "sq-empty-new",
         gate: gate("approve"),
@@ -73,7 +73,7 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
  */
 const newAct = () => (
   <Button variant="primary" {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
-    <ActWords icon={<Icon name="plus" size={14} />} words={SEQUENCE_NEW_WORDS.act} />
+    <ActWords icon={<Icon name="plus" size={14} />} words={NEW_WORDS.act} />
   </Button>
 );
 
@@ -105,10 +105,11 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
     ) : place.view === "new" ? (
       // A door's moment opens its own New, so the line it wrote in is never another moment's.
       <NewSequence
-        key={place.moment ?? "new"}
+        key={place.draft ?? place.moment ?? "new"}
         moment={place.moment ?? null}
         who={place.who ?? null}
         to={place.to ?? null}
+        kept={place.draft ?? null}
       />
     ) : null;
   return (

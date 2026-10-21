@@ -109,16 +109,34 @@ test("a draft is asked for, never made; keeping it makes the sequence whole, and
     body: { words: "Thank them", previous: { name: "Win-back", steps: 2 } },
   });
   assert.deepEqual(commit("sequence_draft", { words: "" }), { refused: "Say what it should do." });
-  // A sequence on a list is drafted on the list picked; a list said by half is no list.
-  const list = { token: "seg:clients", label: "Clients" };
-  assert.deepEqual(commit("sequence_draft", { words: "Tell them", list }), {
+  // The choices already made, which Ask keeps (decision 0065): the kind, the audience and who; nothing else rides.
+  const who = { kind: "list", token: "seg:clients", label: "Clients" };
+  assert.deepEqual(commit("sequence_draft", { words: "Tell them", kind: "once", audience: "people", who, list: who }), {
     route: "POST sequences/draft",
-    body: { words: "Tell them", list },
+    body: { words: "Tell them", kind: "once", audience: "people", who },
   });
-  assert.deepEqual(commit("sequence_draft", { words: "Tell them", list: { token: "seg:clients" } }), {
-    route: "POST sequences/draft",
-    body: { words: "Tell them" },
-  });
+
+  // New's draft is made through its one door, whole; one with no step is refused before it is sent.
+  const made = verbSpec("sequence_new");
+  const body = {
+    kind: "once",
+    audience: "people",
+    name: "Spring offer",
+    who,
+    steps: [{ does: "message" }],
+    start: true,
+  };
+  assert.deepEqual(made.commit(card("sequence_new", body).card, TAB), { route: "POST sequences/new", body });
+  assert.deepEqual(commit("sequence_new", { ...body, steps: [] }), { refused: "Add a step." });
+  assert.equal(
+    made.receipt(card("sequence_new", body).card, { made: SEQ, state: "on" }),
+    "“Spring offer” is on its way",
+  );
+  assert.equal(
+    made.receipt(card("sequence_new", { ...body, start: false }).card, { made: SEQ, state: "draft" }),
+    "“Spring offer” is a draft: nothing goes yet",
+  );
+  assert.equal(made.made(card("sequence_new", body).card, { made: SEQ }), SEQ);
   assert.equal(verbSpec("sequence_draft").undo, undefined);
 
   const make = verbSpec("sequence_make");

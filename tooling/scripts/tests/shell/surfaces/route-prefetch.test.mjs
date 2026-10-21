@@ -718,19 +718,18 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
   // Campaigns, Sequences' list, draws the settings read beside it as Sequences does, and the screens beside the list draw
-  // theirs at their own addresses: the one New Sent's runs and the settings read, which holds the templates (the one read of
-  // them, task 3.3), a run at its home Sent's runs, a message the playbooks' read and the settings read (the Campaigns wiring
-  // review's lanes 2 and 6); and the Calendar's campaign marks are their own span's read, started beside the board's (the
-  // Calendar's lane C). And the channels read (surfaces/channels/surface.ts), which Live, New, a run and the Library are made
-  // of: the one read of the numbers, started with the page's own. New's Send once is made of who each audience reaches too
-  // (the audiences), which a run reads only once its own are in. The Inbox draws Sent's runs, waiting ones as rows of Needs
-  // you: their own read, nothing of People (the Inbox's run review, 18 Oct 2026). And Get their yes, over People's list,
-  // draws the opt-in Sent's read carries (lane 7).
+  // theirs at their own addresses: the one New the playbooks' moments, lists and counts and the settings read, which holds
+  // the templates (the one read of them, task 3.3; decision 0065), a run at its home Sent's runs, a message the playbooks'
+  // read and the settings read (the Campaigns wiring review's lanes 2 and 6); and the Calendar's campaign marks are their
+  // own span's read, started beside the board's (the Calendar's lane C). And the channels read (surfaces/channels/
+  // surface.ts), which Live, New, a run and the Library are made of: the one read of the numbers, started with the page's
+  // own. The Inbox draws Sent's runs, waiting ones as rows of Needs you: their own read, nothing of People (the Inbox's
+  // run review, 18 Oct 2026). And Get their yes, over People's list, draws the opt-in Sent's read carries (lane 7).
   const alsoDrawn = {
     today: ["calendar"],
     inbox: ["broadcasts"],
     campaigns: ["settings"],
-    "campaigns/sequences/new": ["broadcasts", "audiences", "settings", "channels"],
+    "campaigns/sequences/new": ["playbooks", "settings", "channels"],
     "campaigns/sequences/runs": ["broadcasts", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     "clients/get-yes": ["broadcasts"],
@@ -755,8 +754,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       assert.ok(registry.routeDrawsFor(page, param).includes(k), `${route} draws ${k} beside its own`);
   }
   // Campaigns' landing draws none of its screens' surfaces: a landing reads Sequences' alone (the phone review's Reads on
-  // landing). And New draws no moment's since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G).
-  for (const k of ["playbooks", "campaign_results", "reach_outs"])
+  // landing). And New draws no campaign's results nor a chain's: its moments and lists are the playbooks read's (decision 0065).
+  for (const k of ["broadcasts", "audiences", "campaign_results", "reach_outs"])
     for (const param of ["sequences/new", "sequences/new:leads", "sequences/new:once:to:list-1"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param} draws no ${k}`);
   for (const k of ["playbooks", "broadcasts", "reach_outs"])

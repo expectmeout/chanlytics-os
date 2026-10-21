@@ -701,7 +701,6 @@ const SRC = "../../../../apps/dashboard/src";
 (await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { BroadcastSend, BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
-const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
@@ -887,20 +886,6 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
-
-  // The demo keeps the send screen: a session that declared itself a demo draws the sample through New's Send once; a
-  // real workspace that has read nothing says it is reading, never the sample.
-  setSurfaceValue("broadcasts", undefined);
-  const once = () => NewOnce({ to: null, flash() {}, onDone() {}, onYes() {}, above: null, pane: (body) => body });
-  freshTree();
-  assert.ok(byTestId(once(), "cmh-composer-reading"), "nothing read: reading, never the sample");
-  globalThis.__DEMO_MODE = true;
-  try {
-    freshTree();
-    assert.ok(byTestId(once(), "bc-composer"), "the demo draws the send screen, over the sample");
-  } finally {
-    globalThis.__DEMO_MODE = false;
-  }
 
   const composer = compose();
   for (const id of ["bc-composer", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
