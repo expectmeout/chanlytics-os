@@ -194,13 +194,14 @@ export type {
   NewMessage,
   NewOnceKept,
   NewReach,
+  NewNobody,
   NewStep,
   NewStepDoes,
   NewWrittenMessage,
 } from "./new-draft";
 export { NewDraftAnswerSchema } from "./new-draft-schema";
 export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
-export { NEW_WORDS } from "./new-words";
+export { NEW_WORDS, handTitleOf } from "./new-words";
 export {
   SCHEDULE_WORDS,
   scheduleDays,

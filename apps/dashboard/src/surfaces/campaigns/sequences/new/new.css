@@ -440,10 +440,14 @@
 .sq-nw-switchrow[data-off="true"] > span {
   opacity: 0.55;
 }
-.sq-nw-when-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
+/* A day picked (WhenSheet): its day and its time as words of one sentence, each the kit's picker ("[tomorrow] at
+   [9:00 AM]"), under the row that picked it. */
+.sq-nw-when-daytime {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  line-height: 1.8;
+  color: var(--ink);
 }
 .sq-nw-stepper {
   display: flex;

@@ -174,7 +174,6 @@ const broadcastsSurface = (over = {}) => ({
   audiences: [
     { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, utility: 3 } },
     { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, utility: 1 } },
-    { kind: "saved", id: "s2", label: "Walk-ins", counts: { marketing: 1, utility: 1 } },
   ],
   templates: [],
   rows: [toBroadcastVM(SENDING, ZONE), toBroadcastVM(dto(), ZONE)],
@@ -260,10 +259,7 @@ const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
 const { TodayGoing } = await import(`${S}/surfaces/today/pages/going-today.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
-const { BroadcastSend, BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
-/** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
-const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
+const { BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 // The broadcasts surface's module declares where its value is mirrored (`window.__BROADCASTS`, which Today's queue reads);
@@ -298,20 +294,10 @@ broadcasts.detail = async (id) => {
   );
 };
 /**
- * A run's one screen at its home (`initialRun`: BroadcastRun, the Campaigns wiring review's lane 2), else the send screen as
- * New's Send once hosts it, on the list named (lane 6): Sent's page, which held both beside Sequences' list, went with its
- * mount.
+ * A run's one screen at its home (`initialRun`: BroadcastRun, the Campaigns wiring review's lane 2): Sent's page, which held
+ * it beside Sequences' list, went with its mount, and the send screen beside it with decision 0065's step 7.
  */
-const screen = (props) =>
-  props.initialRun
-    ? BroadcastRun({ id: props.initialRun })
-    : BroadcastSend({
-        data: surfaceValue("broadcasts"),
-        initialSegment: props.initialSegment ?? null,
-        flash() {},
-        onDone() {},
-        onYes() {},
-      });
+const screen = (props) => BroadcastRun({ id: props.initialRun });
 const page = (props) => {
   fresh();
   return screen(props);
@@ -324,7 +310,7 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   // A run is opened from its sequence's History, a bell row, Today or Ask's card, each a link to its home under its
   // sequence (contracts runRoute, the Campaigns wiring review's lane 2).
-  const listed = { initialSegment: null, initialRun: "b-sent" };
+  const listed = { initialRun: "b-sent" };
   page(listed);
   await settle();
   let tree = again(listed);
@@ -337,7 +323,6 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   );
   // The report is a pane (Sequences draws it beside its list at the run's home), its head (a CmPane's) saying the run's
   // name and state.
-  assert.equal(byTestId(tree, "bc-composer"), null);
   const solo0 = byTestId(tree, "bc-run-solo");
   assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
   assert.ok(
@@ -353,7 +338,7 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   );
 
   answers.set("b-old", [{ ok: true, data: detailOf(dto({ id: "b-old", name: "Win-back · 2026-06-01" })) }]);
-  const older = { initialSegment: null, initialRun: "b-old" };
+  const older = { initialRun: "b-old" };
   page(older);
   await settle();
   tree = again(older);
@@ -368,28 +353,6 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   );
 });
 
-test("the send screen follows its link rather than starting again: a later link to a list picks it, and a re-read keeps a choice made", () => {
-  setSurfaceValue("broadcasts", broadcastsSurface());
-  // The list the send is for is the kit's picker's token (the chips are gone): the label of the option chosen.
-  const chosen = (tree) => {
-    const p = pickerOf(tree, "bc-audience");
-    return p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value).label;
-  };
-  let tree = page({ initialSegment: "s1", initialRun: null });
-  assert.ok(chosen(tree).startsWith("Regulars"));
-  again({ initialSegment: "s2", initialRun: null });
-  tree = again({ initialSegment: "s2", initialRun: null });
-  assert.ok(chosen(tree).startsWith("Walk-ins"), "a later link to another list picks that list");
-  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
-  setSurfaceValue("broadcasts", broadcastsSurface());
-  again({ initialSegment: "s2", initialRun: null });
-  tree = again({ initialSegment: "s2", initialRun: null });
-  assert.ok(
-    chosen(tree).startsWith("Regulars"),
-    "while the surface re-reading its lists does not undo a choice made on the page",
-  );
-});
-
 test("a run opened before opens at once from what the tab holds, and is read again behind -- every open was a read first (~250ms of 'Reading who got it…', measured)", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
@@ -399,7 +362,7 @@ test("a run opened before opens at once from what the tab holds, and is read aga
   broadcasts.peekDetail = (id) => (id === "b-sent" ? { ok: true, data: detailOf(dto()) } : null);
   asked.length = 0;
   try {
-    const first = page({ initialSegment: null, initialRun: "b-sent" });
+    const first = page({ initialRun: "b-sent" });
     const seen = byTestId(first, "bc-detail");
     assert.ok(
       !textOf(seen).includes("Reading who got it"),
@@ -407,13 +370,13 @@ test("a run opened before opens at once from what the tab holds, and is read aga
     );
     assert.equal(paneTitle(first), "Win-back · 2026-09-10", "its report, on the first paint");
     assert.deepEqual(asked, ["b-sent"], "and it is read again behind");
-    const coldPage = page({ initialSegment: null, initialRun: "b-new" });
+    const coldPage = page({ initialRun: "b-new" });
     const cold = byTestId(coldPage, "bc-detail");
     assert.ok(textOf(cold).includes("Reading who got it"), "a run never opened still says it is reading");
     assert.equal(paneTitle(coldPage), "Run", "and has no name to say yet when the list has none for it");
     // The list's row has a name for it (b-sending is on the ledger), which the pane's head says while it reads.
     assert.equal(
-      paneTitle(page({ initialSegment: null, initialRun: "b-sending" })),
+      paneTitle(page({ initialRun: "b-sending" })),
       "Offers · 2026-09-15",
       "the name its row has, until the report says its own",
     );
@@ -429,7 +392,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
     { ok: false, code: "network", status: 0, message: "offline" },
     { ok: true, data: detailOf(dto()) },
   ]);
-  const props = { initialSegment: null, initialRun: "b-sent" };
+  const props = { initialRun: "b-sent" };
   page(props);
   await settle();
   let tree = again(props);
@@ -442,7 +405,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
   assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Rosa Díaz"), "and draws what it read");
 
   answers.set("b-elsewhere", [{ ok: false, code: "not_found", status: 404, message: "Run not found." }]);
-  const gone = { initialSegment: null, initialRun: "b-elsewhere" };
+  const gone = { initialRun: "b-elsewhere" };
   page(gone);
   await settle();
   tree = again(gone);
@@ -475,7 +438,7 @@ test("REGRESSION (C23, X2-2): an open detail keeps up while its broadcast is sen
       ),
     },
   ]);
-  const props = { initialSegment: null, initialRun: "b-sending" };
+  const props = { initialRun: "b-sending" };
   const onSurfaceRead = async () => {
     globalThis.window.dispatchEvent({ type: "surface:broadcasts" });
     again(props);
@@ -520,7 +483,7 @@ test("REGRESSION (C23, X2-2): an open detail keeps up while its broadcast is sen
 
   // A run that ended longer ago than the reply window has nothing left to change: it is not read again.
   answers.set("b-sent", [{ ok: true, data: detailOf(dto(), [person()]) }]);
-  const old = { initialSegment: null, initialRun: "b-sent" };
+  const old = { initialRun: "b-sent" };
   page(old);
   await settle();
   again(old);

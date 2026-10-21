@@ -9,11 +9,14 @@
  */
 import { useState, type ReactNode } from "react";
 import {
+  CAMPAIGNS_PAUSED_WORDS,
+  CHANNELS_DOOR,
   GET_YES_ROUTE,
   NEW_WORDS as W,
   clockHour,
   localHour,
   sequenceRoute,
+  zonedInputValue,
   type ConsentChannel,
   type NewAudience,
   type NewDraftDto,
@@ -30,8 +33,8 @@ import { MessageSheet, WordsSheet, type LibraryReads } from "./new-message-sheet
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote, ChecksList, ReachLine, SaidLine, WhoCaption, WordPick } from "./new-parts";
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
+import { AddStepSheet } from "./add-step";
 import {
-  AddStepSheet,
   ChannelsSheet,
   Choice,
   FromSheet,
@@ -51,11 +54,22 @@ export interface DraftReads {
   who: WhoReads;
   library: LibraryReads | null;
   ready: readonly ConsentChannel[];
+  /** The workspace is paused for billing: nothing sends, so Send and Start wait and say why first. */
+  paused: boolean;
   /** Today by the business's clock ("YYYY-MM-DD"), where a one-off's day starts. */
   today: string;
   /** The business's zone: when a sequence's first batch is, and when a one-off sent now goes. */
   timezone: string;
+  /** What a changed draft is counted again against (decision 0065 step 7): Campaigns' counts and what runs. */
+  recount: M.RecountReads;
 }
+
+/** What the foot reads of the workspace now: whether it's paused, the business's day and time, what it sends on. */
+const footReadsOf = (reads: DraftReads): M.FootReads => ({
+  paused: reads.paused,
+  localNow: zonedInputValue(Date.now(), reads.timezone),
+  ready: reads.ready,
+});
 
 /** What the draft's parts ask of the page. */
 interface DraftActs {
@@ -126,37 +140,42 @@ function WhoSentence({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) 
   );
 }
 
+/** The one door that cures why nobody can hear it (M.nobodyOf): their yes, a channel to connect, or how it goes. */
+function NobodyDoor({ door, open }: { door: M.NobodyDoor; open: (s: NewSheet) => void }) {
+  if (!door) return null;
+  if (door.kind === "yes")
+    return (
+      <Button size="sm" {...routeDoor(GET_YES_ROUTE)} data-testid="sq-nw-nobody-yes">
+        {W.reach.getYes}
+      </Button>
+    );
+  if (door.kind === "connect")
+    return (
+      <Button size="sm" {...routeDoor(CHANNELS_DOOR)} data-testid="sq-nw-nobody-connect">
+        {W.reach.connect(door.channel)}
+      </Button>
+    );
+  return (
+    <Button size="sm" onClick={() => open({ kind: "channels" })} data-testid="sq-nw-nobody-how">
+      {W.sheets.channels}
+    </Button>
+  );
+}
+
 /**
- * No one to send a one-off to yet (D4): the ways it might be heard -- the channels it goes by, a channel its message holds
- * that is not connected, the yes nobody has given (People's Get their yes, where the send screen sent the owner) -- and
- * someone else to send it to.
+ * No one to send a one-off to yet (D4), said by why (decision 0065 step 7, the send screen's sentences): nobody said the
+ * yes it needs, those who did can't be reached, no channel it goes by can carry it, or everyone heard from you this week.
+ * One door that cures it at most, and who it goes to beside it: never Get their yes for people who already gave it.
  */
-function NobodyCase(p: { draft: NewDraftDto; ready: readonly ConsentChannel[]; open: (s: NewSheet) => void }) {
-  const { draft } = p;
-  const people = draft.audience === "people";
-  const unconnected = (draft.steps[0]?.message?.channels ?? []).find((c) => !p.ready.includes(c)) ?? null;
+function NobodyCase(p: { said: NonNullable<ReturnType<typeof M.nobodyOf>>; open: (s: NewSheet) => void }) {
   return (
     <CaseNote
       tone="warn"
       title={W.reach.nobody}
-      words={W.reach.nobodyWords}
+      words={p.said.words}
       acts={
         <>
-          {people ? (
-            <Button size="sm" onClick={() => p.open({ kind: "channels" })} data-testid="sq-nw-nobody-how">
-              {W.sheets.channels}
-            </Button>
-          ) : null}
-          {people && unconnected ? (
-            <Button size="sm" {...routeDoor("settings")} data-testid="sq-nw-nobody-connect">
-              {W.reach.connect(unconnected)}
-            </Button>
-          ) : null}
-          {people ? (
-            <Button size="sm" {...routeDoor(GET_YES_ROUTE)} data-testid="sq-nw-nobody-yes">
-              {W.reach.getYes}
-            </Button>
-          ) : null}
+          <NobodyDoor door={p.said.door} open={p.open} />
           <Button size="sm" onClick={() => p.open({ kind: "who" })} data-testid="sq-nw-nobody-who">
             {W.sheets.goesTo}
           </Button>
@@ -167,16 +186,25 @@ function NobodyCase(p: { draft: NewDraftDto; ready: readonly ConsentChannel[]; o
   );
 }
 
-/** What stops or bends the draft, over its sentence: a part left out, a twin, no one to hear it, Meta's review. */
+/**
+ * What stops or bends the draft, over its sentence: a paused workspace, a part left out, a twin, no one to hear it,
+ * Meta's review.
+ */
 function DraftCases(p: {
   draft: NewDraftDto;
   ready: readonly ConsentChannel[];
+  paused: boolean;
   busy: boolean;
   open: (s: NewSheet) => void;
   keep: () => void;
 }) {
   const { draft } = p;
   const cards: ReactNode[] = [];
+  // Paused for billing, nothing sends whatever the draft says: said first, as the send screen's foot did.
+  if (p.paused)
+    cards.push(
+      <CaseNote key="paused" tone="warn" title={W.paused.lead} words={CAMPAIGNS_PAUSED_WORDS} testid="sq-nw-paused" />,
+    );
   if (draft.cannot) {
     const c = M.cannotParts(draft.cannot);
     cards.push(<CaseNote key="cannot" tone="warn" title={c.title} words={c.words} testid="sq-nw-cannot" />);
@@ -197,8 +225,8 @@ function DraftCases(p: {
       />,
     );
   // A one-off goes to whoever can hear it now, so with nobody there is nothing to send (D4); a sequence runs on.
-  if (draft.kind === "once" && draft.who && draft.reach?.can === 0)
-    cards.push(<NobodyCase key="nobody" draft={draft} ready={p.ready} open={p.open} />);
+  const nobody = M.nobodyOf(draft, p.ready);
+  if (nobody) cards.push(<NobodyCase key="nobody" said={nobody} open={p.open} />);
   // A WhatsApp version Ask wrote goes to Meta as it is filed (D5): sent before Meta approves it, it goes by the rest; kept,
   // it is filed now and waits under Drafts while Meta reviews it.
   const review = M.reviewOf(draft);
@@ -263,8 +291,8 @@ function ToLeadsNote() {
 }
 
 /** What the foot says before its act: what still stops it, or who it reaches and when. */
-function footLineOf(d: NewDraftDto, tz: string): { lead: string; sub: string | null; quiet: boolean } {
-  const stop = M.notReady(d);
+function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string; sub: string | null; quiet: boolean } {
+  const stop = M.notReady(d, at);
   if (stop) return { ...stop, quiet: false };
   // A sequence's line only says when it begins, which a phone's foot leaves to its two acts (the canvas's phone boards).
   if (d.kind === "sequence")
@@ -300,11 +328,13 @@ function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () =
 /**
  * The foot: what it reaches and when, then its act. A sequence keeps Keep as a draft beside Start, the house's pair on a
  * phone; a one-off has its one act, and is kept as a draft by leaving it (the page's ask). A twin holds Start back: two
- * would send twice. While Ask drafts it again, the foot says so and its act waits.
+ * would send twice. While Ask drafts it again, the foot says so and its act waits. Paused, Start waits and Keep stays:
+ * keeping sends nothing.
  */
 function DraftFoot(p: {
   draft: NewDraftDto;
   tz: string;
+  at: M.FootReads;
   busy: boolean;
   doing: string | null;
   onMake: (start: boolean) => void;
@@ -312,10 +342,11 @@ function DraftFoot(p: {
 }) {
   const { draft } = p;
   const busy = p.busy || !!p.doing;
-  const stop = p.doing ? { lead: p.doing, sub: null } : M.notReady(draft);
-  const line = p.doing ? { lead: p.doing, sub: null, quiet: false } : footLineOf(draft, p.tz);
+  const stop = p.doing ? { lead: p.doing, sub: null } : M.notReady(draft, p.at);
+  const line = p.doing ? { lead: p.doing, sub: null, quiet: false } : footLineOf(draft, p.tz, p.at);
   const act = actOf(draft, p.onMake, p.onSendNow);
-  const pair = draft.kind === "sequence" && !stop;
+  // Keep beside Start once nothing but a pause stops it.
+  const pair = draft.kind === "sequence" && !p.doing && !M.notReady(draft, { ...p.at, paused: false });
   return (
     <div className="sq-nw-foot" data-foot-pair={pair ? "" : undefined}>
       <p className={line.quiet ? "sq-nw-foot-line is-quiet" : "sq-nw-foot-line"}>
@@ -354,13 +385,14 @@ function byWords(d: NewDraftDto): string {
 /** Send now asks first, where it was pressed: who and how, when it goes with its Stop, and that delivered is delivered. */
 function ConfirmSend(p: { draft: NewDraftDto; tz: string; busy: boolean; onYes: () => void; onNo: () => void }) {
   const review = M.reviewOf(p.draft);
-  const n = review ? review.can : (p.draft.reach?.can ?? 0);
+  // Who it reaches where the workspace counted it; asked without a number where nothing counts it (news to a list).
+  const n = review ? review.can : (p.draft.reach?.can ?? null);
   const goes = M.sendsAt(p.tz, Date.now());
   const when = goes.moved ? W.confirm.opens(goes.time) : W.confirm.at(goes.time);
   const detail = [byWords(p.draft), when, W.confirm.after].filter(Boolean).join(". ");
   return (
     <Confirm
-      question={W.confirm.title(p.draft.name, n)}
+      question={n === null ? W.confirm.titleNow(p.draft.name) : W.confirm.title(p.draft.name, n)}
       detail={`${detail}.`}
       yes={W.confirm.yes}
       no={W.confirm.no}
@@ -445,7 +477,7 @@ function DraftSheets(p: {
         i={i}
         library={reads.library}
         onMessage={(m) => {
-          change(M.setMessage(draft, i, m));
+          change(M.setMessage(draft, i, m, reads.ready));
           close();
         }}
         onWrite={() => p.write(i)}
@@ -457,7 +489,7 @@ function DraftSheets(p: {
         i={i}
         blank={p.blank}
         opens={p.opens}
-        onMessage={(m) => change(M.setMessage(draft, i, m))}
+        onMessage={(m) => change(M.setMessage(draft, i, m, reads.ready))}
         onEmail={(e) => change(M.setEmail(draft, i, e))}
         onClose={close}
       />
@@ -515,6 +547,7 @@ const subOf = (d: NewDraftDto): string =>
 function DraftBody(p: {
   draft: NewDraftDto;
   ready: readonly ConsentChannel[];
+  paused: boolean;
   busy: boolean;
   open: (s: NewSheet) => void;
   rail: RailActs;
@@ -524,7 +557,14 @@ function DraftBody(p: {
   const { draft, acts } = p;
   return (
     <>
-      <DraftCases draft={draft} ready={p.ready} busy={p.busy} open={p.open} keep={() => acts.make(false)} />
+      <DraftCases
+        draft={draft}
+        ready={p.ready}
+        paused={p.paused}
+        busy={p.busy}
+        open={p.open}
+        keep={() => acts.make(false)}
+      />
       <WhoCaption>
         <AudienceToggle audience={draft.audience} onAudience={(a) => acts.redraft({ audience: a })} />
       </WhoCaption>
@@ -585,9 +625,28 @@ export function DraftView(p: {
   // Each opening counted, so a sheet that edits words starts from the draft as it stands (it may be drafted again since).
   const [opens, setOpens] = useState(0);
   const [confirming, setConfirming] = useState(false);
-  const change = acts.change;
+  // Send now's question is about the draft as it was asked: any change, or a sheet opened to make one, puts it away, so
+  // it never asks about "now" over a time picked since, or a count that has moved.
+  const acted: DraftActs = {
+    ...acts,
+    change: (d) => {
+      setConfirming(false);
+      acts.change(d);
+    },
+    // Drafted again as the other kind or audience (the body's toggle), or Ask's drafting let go: asked again, or not at all.
+    redraft: (fixed) => {
+      setConfirming(false);
+      acts.redraft(fixed);
+    },
+    undo: () => {
+      setConfirming(false);
+      acts.undo();
+    },
+  };
+  const change = acted.change;
   const redrafting = !!p.doing;
   const open = (s: NewSheet) => {
+    setConfirming(false);
     setBlank(false);
     setOpens((n) => n + 1);
     setSheet(s);
@@ -633,6 +692,7 @@ export function DraftView(p: {
           <DraftFoot
             draft={draft}
             tz={reads.timezone}
+            at={footReadsOf(reads)}
             busy={p.busy}
             doing={p.doing}
             onMake={acts.make}
@@ -648,7 +708,7 @@ export function DraftView(p: {
               <SaidLine
                 said={draft.said}
                 doing={p.doing}
-                onAgain={redrafting ? acts.undo : acts.again}
+                onAgain={redrafting ? acted.undo : acts.again}
                 again={redrafting ? W.say.undo : undefined}
               />
             ) : null}
@@ -656,10 +716,11 @@ export function DraftView(p: {
               <DraftBody
                 draft={draft}
                 ready={reads.ready}
+                paused={reads.paused}
                 busy={p.busy}
                 open={open}
                 rail={rail}
-                acts={acts}
+                acts={acted}
                 redrafting={redrafting}
               />
             </div>
@@ -684,7 +745,7 @@ export function DraftView(p: {
         opens={opens}
         draft={draft}
         reads={reads}
-        acts={acts}
+        acts={acted}
         set={setSheet}
         write={write}
       />

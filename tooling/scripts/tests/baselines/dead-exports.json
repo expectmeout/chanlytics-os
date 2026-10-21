@@ -33,7 +33,6 @@
   "apps/dashboard/src/server/receptionist/prompt-preview.ts": 1,
   "apps/dashboard/src/server/service-db.ts": 1,
   "apps/dashboard/src/server/workspace/billing.ts": 2,
-  "apps/dashboard/src/surfaces/campaigns/broadcasts/broadcasts-page.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/parts/channels.ts": 1,
   "apps/dashboard/src/surfaces/frame/route-table.tsx": 2,
   "apps/dashboard/src/surfaces/kit/record/field.tsx": 1,

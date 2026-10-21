@@ -36,6 +36,7 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies, mailboxConnectionsOf } from "@chanlytics/db";
 import type { PoolRead } from "@/lib/campaign-channels";
+import { runningOf } from "@/lib/new-checks";
 import { calendarOf } from "../calendar/calendar-settings";
 import { reachOutSourcesOf } from "../leads/lead-workbench";
 import { log } from "../log";
@@ -244,16 +245,7 @@ export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promis
         checking: Math.max(0, s.with_unconfirmed - s.ready),
       })),
     messages: offeredOf(library.data),
-    running: (seqs?.data.sequences ?? [])
-      .filter((r) => r.state !== "ended")
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        starts: r.starts,
-        trigger: r.first?.trigger ?? null,
-        list: r.first?.list_key ? `seg:${r.first.list_key}` : r.first?.list_id ? `list:${r.first.list_id}` : null,
-        search: r.first?.source_search_id ?? r.first?.search_id ?? null,
-      })),
+    running: runningOf(seqs?.data.sequences ?? []),
     ready: ready
       ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
       : [],

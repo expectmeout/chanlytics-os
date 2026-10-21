@@ -10177,6 +10177,10 @@ function handStepWords(kind, business, words3) {
   const who = business.trim() || "This business";
   return kind === "call" ? `Call ${who}: ${words3.trim()}` : `${who}: ${words3.trim()}`;
 }
+function personHandWords(kind, name, words3) {
+  if (name.trim()) return handStepWords(kind, name, words3);
+  return kind === "call" ? `Call them: ${words3.trim()}` : words3.trim();
+}
 
 // src/reach-out/reach-out-words.ts
 var REACH_OUT_SLOTS = [
@@ -14669,10 +14673,6 @@ var CAMPAIGN_ROOMS = {
   newMessage: "New message"
 };
 var { library } = CAMPAIGN_ROOMS;
-var NO_TEMPLATE_WORDS = {
-  lead: "No message to send yet \u2014 add the starter set, or write one in",
-  link: library
-};
 var LIBRARY_WORDS = {
   title: library,
   demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
@@ -19536,6 +19536,9 @@ var NO_NUMBER_REACH = "a send reaches only a recorded yes with a number to send 
 function noNumberWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
 }
+function noYesWords(who, purpose) {
+  return `Nobody on ${who} has said yes to ${purpose === "marketing" ? "offers" : "messages"} yet.`;
+}
 var NO_CHANNEL_REACH = "a send needs a channel you can send on, and none can carry it right now";
 function noChannelWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_CHANNEL_REACH}.`;
@@ -20443,11 +20446,6 @@ function audienceTrigger(audience) {
 var EVERYONE_LABEL = "Everyone";
 var EVERYONE_HINT = "Everyone we can reach whose yes covers the message you pick, and by email whoever has dealt with you";
 var CONSENT_LIST_IDS = ["opted_in", "offers_ok", "opted_out"];
-var LISTS_THAT_MEAN_EVERYONE = CONSENT_LIST_IDS.filter((id) => id !== "opted_out");
-function doorNamesNoAudience(to, audiences) {
-  if (!to || !audiences || LISTS_THAT_MEAN_EVERYONE.includes(to)) return false;
-  return !audiences.some((a) => (a.kind === "saved" || a.kind === "list") && a.id === to);
-}
 var UNKNOWN_AUDIENCE_WORDS = "That list can't be messaged right now, so check who this is addressed to before you send.";
 function eligibleFor(rows2, kind, id, savedIds, purpose, how) {
   return enrolFor(rows2, kind, id, savedIds, purpose, how).map((e) => e.row);
@@ -20488,16 +20486,6 @@ function heldWords(held, purpose) {
       return unreachable;
     }
   }
-}
-var LACKS = {
-  whatsapp: "no phone number",
-  sms: "no phone number",
-  email: "no email address that works"
-};
-function heldBackWords(channels) {
-  const lacks = [...new Set(CONSENT_CHANNELS.filter((c) => channels.includes(c)).map((c) => LACKS[c]))];
-  const reach = lacks.length > 0 ? [`have ${lacks.join(" or ")}`] : [];
-  return `people who ${["asked to stop", ...reach].join(", ")}, or are mid-thread with a person are held back at the wire`;
 }
 function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "list") {
@@ -27994,9 +27982,576 @@ ${W.foot}`].filter((s) => !!s).join("\n\n\n").slice(0, SEQUENCE_TEST_LIMITS.text
   };
 }
 
+// src/sequences/sequence-run-off.ts
+var RUN_OFF_REASONS = [
+  "no_calendar",
+  "no_list",
+  "list_uncounted",
+  "template_not_approved",
+  "number_flagged",
+  "ended"
+];
+var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
+var RUN_OFF_WORDS = {
+  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
+  no_list: { said: "its list is gone", act: null, mends: null },
+  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
+  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
+  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
+  ended: { said: "its last day has passed", act: "End it", mends: "end" }
+};
+function sequenceRunOff(row2, lastRun, clock3) {
+  const why = lastRun.off;
+  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
+    return null;
+  const w = RUN_OFF_WORDS[why];
+  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
+  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
+  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
+  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
+  return {
+    reason: why,
+    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
+    line,
+    fact: fact2,
+    act: w.act,
+    mends: w.mends,
+    to
+  };
+}
+
+// src/sequences/sequence-words.ts
+var SEQUENCE_WORDS = {
+  title: "Sequences",
+  /** The head's way back to Leads, where a trip from a lead did not say its name. */
+  backToLeads: "Leads",
+  /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
+  backToLeadsLabel: "Back to Leads",
+  search: "Search sequences",
+  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
+  failed: "The sequences couldn\u2019t be loaded right now",
+  filters: { all: "All", needs: "Needs you", off: "Paused or off" },
+  groups: {
+    needs: "Needs you",
+    customers: "Your customers",
+    leads: "Leads",
+    dates: "Dates",
+    off: "Paused",
+    drafts: "Drafts",
+    ended: "Ended"
+  },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name) => `End \u201C${name}\u201D?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
+  receptionist: "First contact is your receptionist\u2019s",
+  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/receptionist",
+  tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
+  addFollowUp: "Add a follow-up",
+  approve: "Approve",
+  skip: "Skip",
+  skipAsk: "Skip this batch?",
+  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
+  lookFirst: "Look first",
+  pause: "Pause",
+  resume: "Turn on",
+  start: "Start",
+  discard: "Discard",
+  notStarted: "Not started \xB7 nothing goes yet",
+  /** A message sent once, kept as a draft (00465): it waits under Drafts until it is sent. */
+  keptOnce: "Kept as a draft \xB7 nothing goes until you send it",
+  change: "Change",
+  edit: "Edit",
+  you: "You approve",
+  /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
+  next: "Next",
+  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
+  untilTonight: "until tonight",
+  /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
+  waitsForOk: "Waits for your OK",
+  /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
+  whoApproves: "Who approves",
+  turnOff: "Turn this off",
+  /** A phone dock's Turn on: it asks first, so it says so. */
+  resumeAsk: "Turn on\u2026",
+  review: "Review",
+  answer: "Answer"
+};
+var sequenceApprovalWords = (mode) => SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
+var SEQUENCE_FLOW_WORDS = {
+  starts: "Starts",
+  stops: "Stops",
+  stopsAlways: "never to anyone who said stop",
+  from: "From",
+  noMessage: "No message yet",
+  sent: "sent",
+  replied: "replied",
+  last30: "last 30 days",
+  takeAway: "Take away",
+  hour: "Sends at",
+  saveHour: "Save",
+  cancel: "Cancel",
+  goingNow: "Going now",
+  done: "Done",
+  writtenEach: "Written for each business",
+  call: "A call for you, on Today",
+  sendsFrom: "Sends from",
+  fromYou: "You, from your own inbox",
+  fromMailboxes: "Your connected mailboxes",
+  connect: "Connect a mailbox",
+  mailboxes: "Mailboxes",
+  checked: "Each one is checked before it goes",
+  takeAwayAsk: (place) => `Take step ${place} away?`,
+  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  /** A call or a note asked away: it is always the last step, so nothing goes with it. */
+  takeAwayHandDetail: "Nobody still waiting for it lands on your Today.",
+  /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
+  newWords: (rejected) => rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
+  /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
+  keepsWords: "Keeps sending these words until new ones are approved",
+  /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
+  messageGone: "Its message isn\u2019t in Messages anymore.",
+  pickMessage: "Pick a message",
+  /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
+  cancelSend: "Cancel this send\u2026",
+  cancelAsk: "Cancel this send?",
+  cancelDetail: "Nobody gets it. To send it on another day, make it again.",
+  cancelYes: "Cancel the send",
+  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
+  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+  /** A step's change refused by the door (decision 0065 step 6): a message step keeps a message, a call or a note its words. */
+  handOnMessage: "This step sends a message. To call them instead, add a call as the last step.",
+  valuesOnHand: "A call or a note has no message to fill. Change what it says to do instead.",
+  channelsOnHand: "A call or a note lands on your Today, so it goes by no channel.",
+  /** A step added after a call or a note, refused by the door before the database would (00465). */
+  nothingAfterHand: "A call or a note is always the last step. Take it away to add another after it.",
+  /** A step's add with neither a message nor a call or a note (the step verb's refusal). */
+  sayWhatStepDoes: "Say which message the step sends, or what to do.",
+  sample: "The next one, as it reads",
+  addLeads: "Add leads",
+  /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
+  next: (people, when) => people > 0 ? `next ${people} ${when}` : `next ${when}`
+};
+function takesFollowUps(row2) {
+  if (row2.starts !== "moment" && row2.starts !== "list") return false;
+  return row2.first?.trigger !== "visit_tomorrow";
+}
+function stepApprovalOf(status) {
+  if (status === "approved") return { label: "Approved", tone: "ok" };
+  if (status === "pending") return { label: "In review", tone: "warn" };
+  if (status === "rejected") return { label: "Not approved", tone: "danger" };
+  if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
+  return null;
+}
+function leadStepStand(place, sent, now) {
+  if (now !== null && place === now) return "now";
+  if (now !== null ? place < now : sent > 0) return "done";
+  return "later";
+}
+var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
+function sequenceTwinOf(rows2, row2) {
+  const trigger = row2.first?.trigger ?? null;
+  if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  const made = Date.parse(row2.created_at);
+  const first = (r2) => {
+    const at3 = Date.parse(r2.created_at);
+    return at3 < made || at3 === made && r2.id < row2.id;
+  };
+  const twin = rows2.find(
+    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger && first(r2)
+  );
+  return twin ? { id: twin.id, name: twin.name } : null;
+}
+function twinLineOf(row2) {
+  const trigger = row2.first?.trigger;
+  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
+  if (trigger === "visited") return "Two thank-yous go to each person";
+  return "Two messages go to each person";
+}
+var visitTwinWords = (name) => `\u201C${name}\u201D already sends at this moment, so each person would get two. Turn it off first.`;
+function needsCount(n) {
+  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
+}
+function sequenceWaitsNow(row2, days) {
+  const batches2 = row2.needs.batches.filter(
+    (b) => runWaitsOnYou(
+      { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
+      days
+    )
+  );
+  if (batches2.length === row2.needs.batches.length && batches2.length === row2.needs.waiting) return row2;
+  return {
+    ...row2,
+    needs: {
+      ...row2.needs,
+      batches: batches2,
+      waiting: batches2.length,
+      waiting_people: batches2.reduce((n, b) => n + b.people, 0)
+    }
+  };
+}
+function sequenceGroupOf(row2, twin = null) {
+  if (row2.state === "draft") return "drafts";
+  if (needsCount(row2.needs) > 0 || twin) return "needs";
+  if (row2.starts === "date") return "dates";
+  if (row2.state === "ended") return "ended";
+  if (row2.state === "paused") return "off";
+  if (row2.starts === "leads") return "leads";
+  return "customers";
+}
+function needsWords(n) {
+  const parts2 = [];
+  if (n.waiting_people > 0) parts2.push(`${n.waiting_people} wait for your OK`);
+  else if (n.waiting > 0) parts2.push("waits for your OK");
+  if (n.held > 0) parts2.push(`${n.held} held`);
+  if (n.to_send > 0) parts2.push(`${n.to_send} for you to send`);
+  if (n.replies > 0) parts2.push(`${plural(n.replies, "wrote back", "wrote back")} \xB7 answer them`);
+  return parts2.join(" \xB7 ");
+}
+function sequenceStartWords(row2, word) {
+  const W = appointmentWords(word);
+  const f = row2.first;
+  if (row2.starts === "date") return "On a date";
+  if (row2.starts === "leads") return f?.search_name ? `Leads \xB7 ${f.search_name}` : "Leads";
+  if (row2.starts === "list") return f?.list_name ? `Joins ${f.list_name}` : "Joins a list";
+  switch (f?.trigger) {
+    case "visit_tomorrow":
+      return `Before ${W.a}`;
+    case "visited":
+      return `After ${W.a}`;
+    case "quiet_30":
+    case "lapsed":
+      return "Gone quiet";
+    case "new_week":
+      return "New this week";
+    case "phoned_only":
+      return "Only ever phoned";
+    case "everyone_monthly":
+      return "Each month";
+    case "proposal_waiting":
+      return "Proposal out";
+    default:
+      return "At a moment";
+  }
+}
+function sequenceStateWords(row2) {
+  if (row2.starts === "date" && row2.date) {
+    const DATE2 = {
+      pending_approval: RUN_WAITING_SHORT,
+      scheduled: "Scheduled",
+      sending: "Sending",
+      sent: "Sent",
+      canceled: "Canceled",
+      failed: "Failed"
+    };
+    return DATE2[row2.date.state] ?? "Scheduled";
+  }
+  return SEQUENCE_STATE_WORDS[row2.state];
+}
+var SEQUENCE_STATE_WORDS = {
+  draft: "Draft",
+  on: "On",
+  paused: "Paused",
+  ended: "Ended"
+};
+function sequenceStateTone(row2) {
+  if (row2.starts === "date" && row2.date?.state === "pending_approval") return "warn";
+  if (row2.starts === "date" && row2.date?.state === "failed") return "danger";
+  if (row2.state === "on") return "ok";
+  return "plain";
+}
+function sequenceRowState(row2) {
+  if (row2.starts === "date" && row2.date) {
+    const DATE2 = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
+    if (row2.date.state === "failed") return { label: "Failed", tone: "danger" };
+    const label = DATE2[row2.date.state];
+    return label ? { label, tone: "plain" } : null;
+  }
+  if (row2.state === "paused" || row2.state === "ended") return { label: SEQUENCE_STATE_WORDS[row2.state], tone: "plain" };
+  return null;
+}
+function sequenceRowLine(row2, tz, nowMs, twin = null) {
+  if (row2.state === "draft") return row2.once ? SEQUENCE_WORDS.keptOnce : SEQUENCE_WORDS.notStarted;
+  const needs2 = needsWords(row2.needs);
+  if (needs2) return needs2;
+  if (twin) return twinLineOf(row2);
+  if (row2.starts === "date" && row2.date) {
+    const at3 = Date.parse(row2.date.at);
+    if (row2.last)
+      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${plural(row2.last.sent, "person", "people")} \xB7 ${row2.last.replied} replied`;
+    const when = at3 > nowMs ? `Goes ${clockWhen(at3, tz, nowMs).replace(/^today /, "at ")}` : clockDate(at3, tz, nowMs);
+    return `${when} \xB7 ${plural(row2.date.people, "person", "people")}`;
+  }
+  if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
+  if (row2.next) return `next ${clockWhen(Date.parse(row2.next.at), tz, nowMs)}`;
+  if (row2.in_it > 0) return `${row2.in_it} in it`;
+  if (row2.last)
+    return `${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} sent \xB7 ${row2.last.replied} replied`;
+  return "Nobody yet";
+}
+function sequenceHeadLine(row2, word, tz, nowMs) {
+  const steps = row2.steps <= 1 ? "one message" : `${row2.steps} steps`;
+  return `${sequenceStartWords(row2, word)} \xB7 ${steps} \xB7 since ${clockDate(Date.parse(row2.created_at), tz, nowMs)}`;
+}
+function sequenceSubLine(row2, rec2, nowMs) {
+  if (row2.starts === "date" && row2.date) {
+    const at3 = Date.parse(row2.date.at);
+    const DATE2 = {
+      pending_approval: "waits for your OK",
+      scheduled: "goes on its own",
+      sending: "going out now",
+      sent: `went ${clockDate(row2.last ? Date.parse(row2.last.at) : at3, rec2.timezone, nowMs)}`,
+      canceled: "canceled",
+      failed: "didn\u2019t go"
+    };
+    return `One message \xB7 ${DATE2[row2.date.state] ?? "goes on its own"}`;
+  }
+  if (row2.starts === "leads") {
+    const from = row2.first?.search_name ? `Leads from \u201C${row2.first.search_name}\u201D` : "Leads";
+    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row2.mode)}`;
+  }
+  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(row2.mode)}`;
+}
+function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
+  if (row2.state !== "on" || row2.starts === "date") return null;
+  if (row2.next)
+    return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
+  const first = row2.first;
+  if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
+  const now = new Date(nowMs);
+  if (!campaignRunsOn(first, { tz, now })) return null;
+  const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
+  const today = zoneDayKey(nowMs, tz);
+  const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
+  return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
+}
+function sequenceNextWords(next, tz, nowMs) {
+  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
+  return next.people ? `${when} \xB7 ${plural(next.people, "person", "people")}` : when;
+}
+function sequencePausedDock(row2) {
+  if (row2.state !== "paused" || row2.starts === "date") return null;
+  return {
+    line: SEQUENCE_STATE_WORDS.paused,
+    fact: row2.in_it > 0 ? `${plural(row2.in_it, "person waits", "people wait")} for it` : null
+  };
+}
+function sequenceWhoApprovesHint(mode) {
+  const how = sequenceApprovalWords(mode);
+  return how.charAt(0).toUpperCase() + how.slice(1);
+}
+var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
+var noticeOf = (n) => ({
+  batchId: null,
+  stepId: null,
+  ...n
+});
+var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
+function waitingNotice(steps, batch) {
+  const people = batch.people;
+  const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
+  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
+  const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
+  return noticeOf({
+    kind: "waiting",
+    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
+    // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve · 6 people", where it said
+    // the count twice, "6 wait for your OK" beside it (the run review's item 12).
+    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
+    fact: fact2 || null,
+    // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
+    batchId: batch.id
+  });
+}
+function sequenceNotice(row2, steps, twin = null, lastRun = null) {
+  const n = row2.needs;
+  const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
+  if (batch) return waitingNotice(steps, batch);
+  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to }
+    });
+  if (twin)
+    return noticeOf({
+      kind: "twin",
+      words: `${twinLineOf(row2)}: \u201C${twin.name}\u201D sends one too`,
+      line: twinLineOf(row2),
+      fact: `\u201C${twin.name}\u201D sends one too`,
+      act: SEQUENCE_WORDS.turnOff
+    });
+  if (n.held > 0)
+    return noticeOf({
+      kind: "held",
+      words: `${plural(n.held, "email is", "emails are")} held by the check`,
+      line: `${n.held} held by the check`,
+      fact: null,
+      act: SEQUENCE_WORDS.review
+    });
+  if (n.to_send > 0)
+    return noticeOf({
+      kind: "to_send",
+      words: `${plural(n.to_send, "email waits", "emails wait")} for you to send`,
+      line: `${n.to_send} for you to send`,
+      fact: "From your own inbox",
+      act: SEQUENCE_WORDS.review
+    });
+  if (n.replies > 0)
+    return noticeOf({
+      kind: "replies",
+      words: `${plural(n.replies, "lead wrote back", "leads wrote back")} \xB7 answer them`,
+      line: `${n.replies} wrote back`,
+      fact: "Answer them in the Inbox",
+      act: SEQUENCE_WORDS.answer
+    });
+  const refused = steps.find((s) => s.next_words?.status === "rejected");
+  if (refused)
+    return noticeOf({
+      kind: "words",
+      words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
+      line: `Step ${refused.place}\u2019s new words turned down`,
+      fact: refused.next_words?.rejected_reason ? `WhatsApp: ${refused.next_words.rejected_reason}` : null,
+      act: `${SEQUENCE_WORDS.edit} step ${refused.place}`,
+      stepId: refused.id
+    });
+  return null;
+}
+function dateSentence(date, tz, nowMs) {
+  const at3 = Date.parse(date.at);
+  const who = plural(date.people, "person", "people");
+  if (date.state === "sent") return `Went ${clockDate(at3, tz, nowMs)} \xB7 ${clockTime(at3, tz)}, to ${who}`;
+  if (date.state === "canceled") return `Canceled \xB7 it was for ${clockWhen(at3, tz, nowMs)}`;
+  if (date.state === "failed") return `Didn\u2019t go \xB7 ${clockWhen(at3, tz, nowMs)}`;
+  return `${clockWhen(at3, tz, nowMs)}, to ${who}`;
+}
+function sequenceStartsSentence(row2, word, tz, nowMs) {
+  const f = row2.first;
+  if (row2.starts === "date" && row2.date) return dateSentence(row2.date, tz, nowMs);
+  if (row2.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
+  if (row2.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
+  return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
+}
+var atHour = (hour) => `, at ${clockTime(Date.UTC(2026, 0, 1, hour), "UTC")}`;
+function listStartsSentence(list2, hour) {
+  return `Someone joins ${list2 ?? "the list"}${hour === null ? "" : atHour(hour)}`;
+}
+function momentStartsSentence(trigger, hour, word) {
+  const W = appointmentWords(word);
+  const at3 = hour === null ? "" : atHour(hour);
+  switch (trigger) {
+    case "visit_tomorrow":
+      return `The day before each ${W.one}${at3}`;
+    case "visited":
+      return `The day after each ${W.one}${at3}`;
+    case "quiet_30":
+      return `When someone has gone quiet for 30 days${at3}`;
+    case "lapsed":
+      return `When someone has had no ${W.one} in 45 days, and nothing booked${at3}`;
+    case "new_week":
+      return `When someone first gets in touch this week${at3}`;
+    case "phoned_only":
+      return `When someone has only ever phoned${at3}`;
+    case "everyone_monthly":
+      return `Once a month, to everyone who said yes${at3}`;
+    case "proposal_waiting":
+      return `When a proposal waits with nothing back${at3}`;
+    default:
+      return `At its moment${at3}`;
+  }
+}
+function sequenceWaitWords(step2) {
+  const days = step2.after_days ?? 0;
+  const lead = step2.kind === "reach_out";
+  const when = `${plural(days, "day", "days")} later`;
+  const noBooking = step2.only_if.includes("no_booking");
+  const noReply = step2.only_if.includes("no_reply") || lead;
+  const unless = noBooking && noReply ? ", if they haven\u2019t booked or written back" : noBooking ? ", if they haven\u2019t booked" : noReply ? ", if they haven\u2019t written back" : "";
+  return `${when}${unless}`;
+}
+function sequenceChannelsWords(channels) {
+  const WORD2 = { whatsapp: "WhatsApp", sms: "text", email: "email" };
+  const named = channels.map((c) => WORD2[c] ?? c);
+  if (named.length <= 1) return named[0] ?? "";
+  return `${named.slice(0, -1).join(", ")} or ${named[named.length - 1]}, one each`;
+}
+function sequenceStopsSentence(row2, steps) {
+  if (row2.starts === "leads") return "A reply, a booking, a no, a bounce or a stop";
+  return stepsStopSentence(steps);
+}
+function stepsStopSentence(steps) {
+  const asks = new Set(steps.flatMap((s) => s.only_if));
+  if (steps.length <= 1) return "After this one message";
+  if (asks.has("no_booking") && asks.has("no_reply")) return "When they book or write back, or after the last step";
+  if (asks.has("no_booking")) return "When they book, or after the last step";
+  if (asks.has("no_reply")) return "When they write back, or after the last step";
+  return `After step ${steps.length}`;
+}
+var PEOPLE_GROUP_WORDS = {
+  waiting: "Waits for your OK",
+  held: "Held by the check",
+  to_send: "For you to send",
+  replied: "Wrote back",
+  next: "Up next",
+  /** Leads added that nothing has been planned for yet (00459): every lead of a draft. */
+  queued: "Added",
+  in: "In it",
+  done: "Done",
+  left: "Left"
+};
+function sequenceLeftWords(why) {
+  const WHY2 = {
+    booked: "booked",
+    replied: "wrote back",
+    removed: "taken out",
+    started_again: "started again",
+    gone: "no longer in People",
+    no_yes: "never said yes",
+    no_number: "no number",
+    stopped: "asked to stop",
+    unsubscribed: "unsubscribed",
+    no_address: "no address",
+    address_stopped: "address stopped",
+    no_channel: "no way to reach them",
+    outreach_wrote_back: "wrote back",
+    outreach_stopped: "you stopped writing",
+    outreach_lead_closed: "no longer a lead to write to",
+    outreach_suppressed: "unsubscribed",
+    outreach_bounced: "bounced",
+    outreach_not_a_lead: "no longer in Leads",
+    said_no: "said no",
+    owner_stopped: "you stopped writing",
+    owner_skipped: "you skipped it",
+    run_canceled: "its day was canceled",
+    owner_took_back: "taken back",
+    step_removed: "the step was removed",
+    kept_waiting: "kept waiting too long",
+    stale: "kept waiting too long",
+    bounced: "bounced"
+  };
+  return why ? WHY2[why] ?? why.replace(/_/g, " ") : "";
+}
+var peopleTabWord = (row2) => row2.starts === "leads" ? SEQUENCE_WORDS.tabs.leads : SEQUENCE_WORDS.tabs.people;
+
 // src/ask-proposals/sequences.ts
-var STEP_FIELDS = ["after_days", "only_if", "channels", "name", "params"];
-var stepFieldsOf = (pl) => Object.fromEntries(STEP_FIELDS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+var STEP_FIELDS = ["after_days", "only_if", "channels", "name"];
+function stepFieldsOf(pl) {
+  const hand = handOf(pl.hand);
+  const kept = STEP_FIELDS.filter((k) => pl[k] !== void 0 && !(hand && k === "channels"));
+  const fields2 = Object.fromEntries(kept.map((k) => [k, pl[k]]));
+  if (hand) return { ...fields2, hand };
+  return pl.params !== void 0 ? { ...fields2, params: pl.params } : fields2;
+}
 var openSequence = ({ payload }) => {
   const id = idIn(payload, "sequence_id");
   return id ? sequenceRoute(id) : null;
@@ -28009,8 +28564,9 @@ var sequenceStepSpec = {
     if (!id) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     const step2 = idIn(pl, "step_id");
     if (step2) return { route: "PUT sequences/[id]/steps/[step]", params: { id, step: step2 }, body: stepFieldsOf(pl) };
+    if (handOf(pl.hand)) return { route: "POST sequences/[id]/steps", params: { id }, body: stepFieldsOf(pl) };
     const template = idIn(pl, "template_id");
-    if (!template) return refuseWith("Say which message the step sends.");
+    if (!template) return refuseWith(SEQUENCE_FLOW_WORDS.sayWhatStepDoes);
     return { route: "POST sequences/[id]/steps", params: { id }, body: { ...stepFieldsOf(pl), template_id: template } };
   },
   receipt: ({ payload: pl }, data) => {
@@ -39265,557 +39821,6 @@ function leadCardMarksOf(vm) {
   return all.sort((a, b) => rank(a) - rank(b)).slice(0, LEAD_CARD_MARKS_MAX);
 }
 
-// src/sequences/sequence-run-off.ts
-var RUN_OFF_REASONS = [
-  "no_calendar",
-  "no_list",
-  "list_uncounted",
-  "template_not_approved",
-  "number_flagged",
-  "ended"
-];
-var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
-var RUN_OFF_WORDS = {
-  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
-  no_list: { said: "its list is gone", act: null, mends: null },
-  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
-  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
-  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  ended: { said: "its last day has passed", act: "End it", mends: "end" }
-};
-function sequenceRunOff(row2, lastRun, clock3) {
-  const why = lastRun.off;
-  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
-    return null;
-  const w = RUN_OFF_WORDS[why];
-  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
-  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
-  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
-  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
-  return {
-    reason: why,
-    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
-    line,
-    fact: fact2,
-    act: w.act,
-    mends: w.mends,
-    to
-  };
-}
-
-// src/sequences/sequence-words.ts
-var SEQUENCE_WORDS = {
-  title: "Sequences",
-  /** The head's way back to Leads, where a trip from a lead did not say its name. */
-  backToLeads: "Leads",
-  /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
-  backToLeadsLabel: "Back to Leads",
-  search: "Search sequences",
-  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
-  failed: "The sequences couldn\u2019t be loaded right now",
-  filters: { all: "All", needs: "Needs you", off: "Paused or off" },
-  groups: {
-    needs: "Needs you",
-    customers: "Your customers",
-    leads: "Leads",
-    dates: "Dates",
-    off: "Paused",
-    drafts: "Drafts",
-    ended: "Ended"
-  },
-  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
-  showEnded: (n) => `Show ${n} ended`,
-  hideEnded: "Hide ended",
-  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
-  end: "End it",
-  endAsk: (name) => `End \u201C${name}\u201D?`,
-  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
-  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
-  receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/receptionist",
-  tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
-  addFollowUp: "Add a follow-up",
-  approve: "Approve",
-  skip: "Skip",
-  skipAsk: "Skip this batch?",
-  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
-  lookFirst: "Look first",
-  pause: "Pause",
-  resume: "Turn on",
-  start: "Start",
-  discard: "Discard",
-  notStarted: "Not started \xB7 nothing goes yet",
-  /** A message sent once, kept as a draft (00465): it waits under Drafts until it is sent. */
-  keptOnce: "Kept as a draft \xB7 nothing goes until you send it",
-  change: "Change",
-  edit: "Edit",
-  you: "You approve",
-  /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
-  next: "Next",
-  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
-  untilTonight: "until tonight",
-  /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
-  waitsForOk: "Waits for your OK",
-  /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
-  whoApproves: "Who approves",
-  turnOff: "Turn this off",
-  /** A phone dock's Turn on: it asks first, so it says so. */
-  resumeAsk: "Turn on\u2026",
-  review: "Review",
-  answer: "Answer"
-};
-var sequenceApprovalWords = (mode) => SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
-var SEQUENCE_FLOW_WORDS = {
-  starts: "Starts",
-  stops: "Stops",
-  stopsAlways: "never to anyone who said stop",
-  from: "From",
-  noMessage: "No message yet",
-  sent: "sent",
-  replied: "replied",
-  last30: "last 30 days",
-  takeAway: "Take away",
-  hour: "Sends at",
-  saveHour: "Save",
-  cancel: "Cancel",
-  goingNow: "Going now",
-  done: "Done",
-  writtenEach: "Written for each business",
-  call: "A call for you, on Today",
-  sendsFrom: "Sends from",
-  fromYou: "You, from your own inbox",
-  fromMailboxes: "Your connected mailboxes",
-  connect: "Connect a mailbox",
-  mailboxes: "Mailboxes",
-  checked: "Each one is checked before it goes",
-  takeAwayAsk: (place) => `Take step ${place} away?`,
-  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
-  /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
-  newWords: (rejected) => rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
-  /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
-  keepsWords: "Keeps sending these words until new ones are approved",
-  /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
-  messageGone: "Its message isn\u2019t in Messages anymore.",
-  pickMessage: "Pick a message",
-  /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
-  cancelSend: "Cancel this send\u2026",
-  cancelAsk: "Cancel this send?",
-  cancelDetail: "Nobody gets it. To send it on another day, make it again.",
-  cancelYes: "Cancel the send",
-  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
-  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
-  sample: "The next one, as it reads",
-  addLeads: "Add leads",
-  /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
-  next: (people, when) => people > 0 ? `next ${people} ${when}` : `next ${when}`
-};
-function takesFollowUps(row2) {
-  if (row2.starts !== "moment" && row2.starts !== "list") return false;
-  return row2.first?.trigger !== "visit_tomorrow";
-}
-function stepApprovalOf(status) {
-  if (status === "approved") return { label: "Approved", tone: "ok" };
-  if (status === "pending") return { label: "In review", tone: "warn" };
-  if (status === "rejected") return { label: "Not approved", tone: "danger" };
-  if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
-  return null;
-}
-function leadStepStand(place, sent, now) {
-  if (now !== null && place === now) return "now";
-  if (now !== null ? place < now : sent > 0) return "done";
-  return "later";
-}
-var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
-function sequenceTwinOf(rows2, row2) {
-  const trigger = row2.first?.trigger ?? null;
-  if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
-  const made = Date.parse(row2.created_at);
-  const first = (r2) => {
-    const at3 = Date.parse(r2.created_at);
-    return at3 < made || at3 === made && r2.id < row2.id;
-  };
-  const twin = rows2.find(
-    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger && first(r2)
-  );
-  return twin ? { id: twin.id, name: twin.name } : null;
-}
-function twinLineOf(row2) {
-  const trigger = row2.first?.trigger;
-  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
-  if (trigger === "visited") return "Two thank-yous go to each person";
-  return "Two messages go to each person";
-}
-var visitTwinWords = (name) => `\u201C${name}\u201D already sends at this moment, so each person would get two. Turn it off first.`;
-function needsCount(n) {
-  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
-}
-function sequenceWaitsNow(row2, days) {
-  const batches2 = row2.needs.batches.filter(
-    (b) => runWaitsOnYou(
-      { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
-      days
-    )
-  );
-  if (batches2.length === row2.needs.batches.length && batches2.length === row2.needs.waiting) return row2;
-  return {
-    ...row2,
-    needs: {
-      ...row2.needs,
-      batches: batches2,
-      waiting: batches2.length,
-      waiting_people: batches2.reduce((n, b) => n + b.people, 0)
-    }
-  };
-}
-function sequenceGroupOf(row2, twin = null) {
-  if (row2.state === "draft") return "drafts";
-  if (needsCount(row2.needs) > 0 || twin) return "needs";
-  if (row2.starts === "date") return "dates";
-  if (row2.state === "ended") return "ended";
-  if (row2.state === "paused") return "off";
-  if (row2.starts === "leads") return "leads";
-  return "customers";
-}
-function needsWords(n) {
-  const parts2 = [];
-  if (n.waiting_people > 0) parts2.push(`${n.waiting_people} wait for your OK`);
-  else if (n.waiting > 0) parts2.push("waits for your OK");
-  if (n.held > 0) parts2.push(`${n.held} held`);
-  if (n.to_send > 0) parts2.push(`${n.to_send} for you to send`);
-  if (n.replies > 0) parts2.push(`${plural(n.replies, "wrote back", "wrote back")} \xB7 answer them`);
-  return parts2.join(" \xB7 ");
-}
-function sequenceStartWords(row2, word) {
-  const W = appointmentWords(word);
-  const f = row2.first;
-  if (row2.starts === "date") return "On a date";
-  if (row2.starts === "leads") return f?.search_name ? `Leads \xB7 ${f.search_name}` : "Leads";
-  if (row2.starts === "list") return f?.list_name ? `Joins ${f.list_name}` : "Joins a list";
-  switch (f?.trigger) {
-    case "visit_tomorrow":
-      return `Before ${W.a}`;
-    case "visited":
-      return `After ${W.a}`;
-    case "quiet_30":
-    case "lapsed":
-      return "Gone quiet";
-    case "new_week":
-      return "New this week";
-    case "phoned_only":
-      return "Only ever phoned";
-    case "everyone_monthly":
-      return "Each month";
-    case "proposal_waiting":
-      return "Proposal out";
-    default:
-      return "At a moment";
-  }
-}
-function sequenceStateWords(row2) {
-  if (row2.starts === "date" && row2.date) {
-    const DATE2 = {
-      pending_approval: RUN_WAITING_SHORT,
-      scheduled: "Scheduled",
-      sending: "Sending",
-      sent: "Sent",
-      canceled: "Canceled",
-      failed: "Failed"
-    };
-    return DATE2[row2.date.state] ?? "Scheduled";
-  }
-  return SEQUENCE_STATE_WORDS[row2.state];
-}
-var SEQUENCE_STATE_WORDS = {
-  draft: "Draft",
-  on: "On",
-  paused: "Paused",
-  ended: "Ended"
-};
-function sequenceStateTone(row2) {
-  if (row2.starts === "date" && row2.date?.state === "pending_approval") return "warn";
-  if (row2.starts === "date" && row2.date?.state === "failed") return "danger";
-  if (row2.state === "on") return "ok";
-  return "plain";
-}
-function sequenceRowState(row2) {
-  if (row2.starts === "date" && row2.date) {
-    const DATE2 = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
-    if (row2.date.state === "failed") return { label: "Failed", tone: "danger" };
-    const label = DATE2[row2.date.state];
-    return label ? { label, tone: "plain" } : null;
-  }
-  if (row2.state === "paused" || row2.state === "ended") return { label: SEQUENCE_STATE_WORDS[row2.state], tone: "plain" };
-  return null;
-}
-function sequenceRowLine(row2, tz, nowMs, twin = null) {
-  if (row2.state === "draft") return row2.once ? SEQUENCE_WORDS.keptOnce : SEQUENCE_WORDS.notStarted;
-  const needs2 = needsWords(row2.needs);
-  if (needs2) return needs2;
-  if (twin) return twinLineOf(row2);
-  if (row2.starts === "date" && row2.date) {
-    const at3 = Date.parse(row2.date.at);
-    if (row2.last)
-      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${plural(row2.last.sent, "person", "people")} \xB7 ${row2.last.replied} replied`;
-    const when = at3 > nowMs ? `Goes ${clockWhen(at3, tz, nowMs).replace(/^today /, "at ")}` : clockDate(at3, tz, nowMs);
-    return `${when} \xB7 ${plural(row2.date.people, "person", "people")}`;
-  }
-  if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
-  if (row2.next) return `next ${clockWhen(Date.parse(row2.next.at), tz, nowMs)}`;
-  if (row2.in_it > 0) return `${row2.in_it} in it`;
-  if (row2.last)
-    return `${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} sent \xB7 ${row2.last.replied} replied`;
-  return "Nobody yet";
-}
-function sequenceHeadLine(row2, word, tz, nowMs) {
-  const steps = row2.steps <= 1 ? "one message" : `${row2.steps} steps`;
-  return `${sequenceStartWords(row2, word)} \xB7 ${steps} \xB7 since ${clockDate(Date.parse(row2.created_at), tz, nowMs)}`;
-}
-function sequenceSubLine(row2, rec2, nowMs) {
-  if (row2.starts === "date" && row2.date) {
-    const at3 = Date.parse(row2.date.at);
-    const DATE2 = {
-      pending_approval: "waits for your OK",
-      scheduled: "goes on its own",
-      sending: "going out now",
-      sent: `went ${clockDate(row2.last ? Date.parse(row2.last.at) : at3, rec2.timezone, nowMs)}`,
-      canceled: "canceled",
-      failed: "didn\u2019t go"
-    };
-    return `One message \xB7 ${DATE2[row2.date.state] ?? "goes on its own"}`;
-  }
-  if (row2.starts === "leads") {
-    const from = row2.first?.search_name ? `Leads from \u201C${row2.first.search_name}\u201D` : "Leads";
-    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row2.mode)}`;
-  }
-  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(row2.mode)}`;
-}
-function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
-  if (row2.state !== "on" || row2.starts === "date") return null;
-  if (row2.next)
-    return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
-  const first = row2.first;
-  if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
-  const now = new Date(nowMs);
-  if (!campaignRunsOn(first, { tz, now })) return null;
-  const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
-  const today = zoneDayKey(nowMs, tz);
-  const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
-  return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
-}
-function sequenceNextWords(next, tz, nowMs) {
-  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
-  return next.people ? `${when} \xB7 ${plural(next.people, "person", "people")}` : when;
-}
-function sequencePausedDock(row2) {
-  if (row2.state !== "paused" || row2.starts === "date") return null;
-  return {
-    line: SEQUENCE_STATE_WORDS.paused,
-    fact: row2.in_it > 0 ? `${plural(row2.in_it, "person waits", "people wait")} for it` : null
-  };
-}
-function sequenceWhoApprovesHint(mode) {
-  const how = sequenceApprovalWords(mode);
-  return how.charAt(0).toUpperCase() + how.slice(1);
-}
-var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
-var noticeOf = (n) => ({
-  batchId: null,
-  stepId: null,
-  ...n
-});
-var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
-function waitingNotice(steps, batch) {
-  const people = batch.people;
-  const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
-  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
-  const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
-  return noticeOf({
-    kind: "waiting",
-    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
-    // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve · 6 people", where it said
-    // the count twice, "6 wait for your OK" beside it (the run review's item 12).
-    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
-    fact: fact2 || null,
-    // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
-    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
-    batchId: batch.id
-  });
-}
-function sequenceNotice(row2, steps, twin = null, lastRun = null) {
-  const n = row2.needs;
-  const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
-  if (batch) return waitingNotice(steps, batch);
-  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
-  if (off)
-    return noticeOf({
-      kind: "off",
-      words: off.words,
-      line: off.line,
-      fact: off.fact,
-      act: off.act,
-      off: { reason: off.reason, mends: off.mends, to: off.to }
-    });
-  if (twin)
-    return noticeOf({
-      kind: "twin",
-      words: `${twinLineOf(row2)}: \u201C${twin.name}\u201D sends one too`,
-      line: twinLineOf(row2),
-      fact: `\u201C${twin.name}\u201D sends one too`,
-      act: SEQUENCE_WORDS.turnOff
-    });
-  if (n.held > 0)
-    return noticeOf({
-      kind: "held",
-      words: `${plural(n.held, "email is", "emails are")} held by the check`,
-      line: `${n.held} held by the check`,
-      fact: null,
-      act: SEQUENCE_WORDS.review
-    });
-  if (n.to_send > 0)
-    return noticeOf({
-      kind: "to_send",
-      words: `${plural(n.to_send, "email waits", "emails wait")} for you to send`,
-      line: `${n.to_send} for you to send`,
-      fact: "From your own inbox",
-      act: SEQUENCE_WORDS.review
-    });
-  if (n.replies > 0)
-    return noticeOf({
-      kind: "replies",
-      words: `${plural(n.replies, "lead wrote back", "leads wrote back")} \xB7 answer them`,
-      line: `${n.replies} wrote back`,
-      fact: "Answer them in the Inbox",
-      act: SEQUENCE_WORDS.answer
-    });
-  const refused = steps.find((s) => s.next_words?.status === "rejected");
-  if (refused)
-    return noticeOf({
-      kind: "words",
-      words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
-      line: `Step ${refused.place}\u2019s new words turned down`,
-      fact: refused.next_words?.rejected_reason ? `WhatsApp: ${refused.next_words.rejected_reason}` : null,
-      act: `${SEQUENCE_WORDS.edit} step ${refused.place}`,
-      stepId: refused.id
-    });
-  return null;
-}
-function dateSentence(date, tz, nowMs) {
-  const at3 = Date.parse(date.at);
-  const who = plural(date.people, "person", "people");
-  if (date.state === "sent") return `Went ${clockDate(at3, tz, nowMs)} \xB7 ${clockTime(at3, tz)}, to ${who}`;
-  if (date.state === "canceled") return `Canceled \xB7 it was for ${clockWhen(at3, tz, nowMs)}`;
-  if (date.state === "failed") return `Didn\u2019t go \xB7 ${clockWhen(at3, tz, nowMs)}`;
-  return `${clockWhen(at3, tz, nowMs)}, to ${who}`;
-}
-function sequenceStartsSentence(row2, word, tz, nowMs) {
-  const f = row2.first;
-  if (row2.starts === "date" && row2.date) return dateSentence(row2.date, tz, nowMs);
-  if (row2.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
-  if (row2.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
-  return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
-}
-var atHour = (hour) => `, at ${clockTime(Date.UTC(2026, 0, 1, hour), "UTC")}`;
-function listStartsSentence(list2, hour) {
-  return `Someone joins ${list2 ?? "the list"}${hour === null ? "" : atHour(hour)}`;
-}
-function momentStartsSentence(trigger, hour, word) {
-  const W = appointmentWords(word);
-  const at3 = hour === null ? "" : atHour(hour);
-  switch (trigger) {
-    case "visit_tomorrow":
-      return `The day before each ${W.one}${at3}`;
-    case "visited":
-      return `The day after each ${W.one}${at3}`;
-    case "quiet_30":
-      return `When someone has gone quiet for 30 days${at3}`;
-    case "lapsed":
-      return `When someone has had no ${W.one} in 45 days, and nothing booked${at3}`;
-    case "new_week":
-      return `When someone first gets in touch this week${at3}`;
-    case "phoned_only":
-      return `When someone has only ever phoned${at3}`;
-    case "everyone_monthly":
-      return `Once a month, to everyone who said yes${at3}`;
-    case "proposal_waiting":
-      return `When a proposal waits with nothing back${at3}`;
-    default:
-      return `At its moment${at3}`;
-  }
-}
-function sequenceWaitWords(step2) {
-  const days = step2.after_days ?? 0;
-  const lead = step2.kind === "reach_out";
-  const when = `${plural(days, "day", "days")} later`;
-  const noBooking = step2.only_if.includes("no_booking");
-  const noReply = step2.only_if.includes("no_reply") || lead;
-  const unless = noBooking && noReply ? ", if they haven\u2019t booked or written back" : noBooking ? ", if they haven\u2019t booked" : noReply ? ", if they haven\u2019t written back" : "";
-  return `${when}${unless}`;
-}
-function sequenceChannelsWords(channels) {
-  const WORD2 = { whatsapp: "WhatsApp", sms: "text", email: "email" };
-  const named = channels.map((c) => WORD2[c] ?? c);
-  if (named.length <= 1) return named[0] ?? "";
-  return `${named.slice(0, -1).join(", ")} or ${named[named.length - 1]}, one each`;
-}
-function sequenceStopsSentence(row2, steps) {
-  if (row2.starts === "leads") return "A reply, a booking, a no, a bounce or a stop";
-  return stepsStopSentence(steps);
-}
-function stepsStopSentence(steps) {
-  const asks = new Set(steps.flatMap((s) => s.only_if));
-  if (steps.length <= 1) return "After this one message";
-  if (asks.has("no_booking") && asks.has("no_reply")) return "When they book or write back, or after the last step";
-  if (asks.has("no_booking")) return "When they book, or after the last step";
-  if (asks.has("no_reply")) return "When they write back, or after the last step";
-  return `After step ${steps.length}`;
-}
-var PEOPLE_GROUP_WORDS = {
-  waiting: "Waits for your OK",
-  held: "Held by the check",
-  to_send: "For you to send",
-  replied: "Wrote back",
-  next: "Up next",
-  /** Leads added that nothing has been planned for yet (00459): every lead of a draft. */
-  queued: "Added",
-  in: "In it",
-  done: "Done",
-  left: "Left"
-};
-function sequenceLeftWords(why) {
-  const WHY2 = {
-    booked: "booked",
-    replied: "wrote back",
-    removed: "taken out",
-    started_again: "started again",
-    gone: "no longer in People",
-    no_yes: "never said yes",
-    no_number: "no number",
-    stopped: "asked to stop",
-    unsubscribed: "unsubscribed",
-    no_address: "no address",
-    address_stopped: "address stopped",
-    no_channel: "no way to reach them",
-    outreach_wrote_back: "wrote back",
-    outreach_stopped: "you stopped writing",
-    outreach_lead_closed: "no longer a lead to write to",
-    outreach_suppressed: "unsubscribed",
-    outreach_bounced: "bounced",
-    outreach_not_a_lead: "no longer in Leads",
-    said_no: "said no",
-    owner_stopped: "you stopped writing",
-    owner_skipped: "you skipped it",
-    run_canceled: "its day was canceled",
-    owner_took_back: "taken back",
-    step_removed: "the step was removed",
-    kept_waiting: "kept waiting too long",
-    stale: "kept waiting too long",
-    bounced: "bounced"
-  };
-  return why ? WHY2[why] ?? why.replace(/_/g, " ") : "";
-}
-var peopleTabWord = (row2) => row2.starts === "leads" ? SEQUENCE_WORDS.tabs.leads : SEQUENCE_WORDS.tabs.people;
-
 // src/sequences/sequence-schedule.ts
 var SCHEDULE_WORDS = {
   start: "Start",
@@ -39828,6 +39833,8 @@ var SCHEDULE_WORDS = {
   /** What the figures on every box count, said once over their column. */
   per: "last 30 days",
   addStep: "Add a step",
+  /** Where Add a step stood on a customer's rail that a call or a note closes (00465: nothing goes after one). */
+  handLast: (kind) => kind === "note" ? "A note is always the last step. To add a message, take the note away first." : "A call is always the last step. To add a message, take the call away first.",
   /** A step to leads has no words of its own: each email is its business's. */
   leadPreview: "Written for each business, and checked before it goes.",
   gone: "Its message isn\u2019t in Messages anymore, so this step sends nothing until it has one.",
@@ -39878,7 +39885,8 @@ function scheduleSpan(row2, steps) {
   if (row2.starts === "date")
     return { count: "One message", over: row2.date ? `to ${plural(row2.date.people, "person", "people")}` : null };
   const n = steps.length;
-  const [one, many] = row2.starts === "leads" ? ["step", "steps"] : ["message", "messages"];
+  const notAllMessages = row2.starts === "leads" || steps.some((s) => s.hand);
+  const [one, many] = notAllMessages ? ["step", "steps"] : ["message", "messages"];
   const days = Math.max(1, ...scheduleDays(steps).values()) - 1;
   return {
     count: n === 1 ? `One ${one}` : `${n} ${many}`,
@@ -48518,7 +48526,14 @@ var SEQUENCE_EDIT_WORDS = {
   noMessages: "No message is ready to send yet. Write one in Messages first.",
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
   reaches: (first) => first ? "Your change reaches the next batch" : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
-  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now"
+  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now",
+  /**
+   * What a call's or a note's change reaches (decision 0065 step 6): its words are read the day it runs, so they reach
+   * everyone not on your Today yet; a new wait, only those who get the step before from now.
+   */
+  handReaches: "New words reach everyone not on your Today yet; a new wait, only those who get the step before from now",
+  /** A call or a note as it lands on Today for one person (the run's own sentence, personHandWords), for the example. */
+  onToday: (kind, words3) => personHandWords(kind, "Dani", words3)
 };
 var SEQUENCE_NEEDS_WORDS = {
   title: "Needs you",
@@ -49325,6 +49340,13 @@ var NEW_WORDS = {
     parts: { when: "when", who: "who", search: "a search", how: "how", message: "a message" },
     thenItCanStart: "Then it can start",
     thenItCanGo: "Then it can go",
+    /** A value the message leaves to be typed, still blank (the send screen's "Fill in"), by its name where it has one. */
+    fill: (what) => what ? `Fill in \u201C${what}\u201D` : "Fill in the message\u2019s blank",
+    /** A one-off set for a time that has gone by while the draft waited. */
+    passed: "That time has passed",
+    passedSub: "Pick a later one, or send it now",
+    /** A one-off set further ahead than a send may wait (the send door's BROADCAST_SCHEDULE_MAX_DAYS). */
+    tooFar: (days) => `Pick a time within ${days} days`,
     sayIt: "Say it",
     orSay: "Or say it in a line, and Ask fills it in.",
     lineFirst: (n) => `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
@@ -49391,6 +49413,8 @@ var NEW_WORDS = {
   /** Send now asks first (E1): who and how, and that it can still be stopped. */
   confirm: {
     title: (name, n) => `Send \u201C${name}\u201D to ${n} ${n === 1 ? "person" : "people"}?`,
+    /** Where the workspace counts nobody for it (news sent once to a list, to everyone): asked without a number. */
+    titleNow: (name) => `Send \u201C${name}\u201D now?`,
     at: (time) => `It goes at ${time}, in 10 minutes. Until then, Stop takes it back`,
     opens: (time) => `It goes at ${time}, when your sending hours open. Until then, Stop takes it back`,
     after: "Once delivered, it can\u2019t be taken back",
@@ -49424,8 +49448,17 @@ var NEW_WORDS = {
     noNumber: (n) => `${n} with no number or address`,
     heldBack: (n) => `${n} held back this week`,
     checking: (n) => `${n} ${n === 1 ? "address" : "addresses"} being checked`,
-    byChannel: (n, channel) => `${n} by ${channel}`
+    byChannel: (n, channel) => `${n} by ${channel}`,
+    /** Under "No one to send to yet" in the foot: why, by the cure each asks for (contracts NewNobody). */
+    why: {
+      breath: "Everyone heard from you this week",
+      no_channel: "Nothing it goes by can carry it",
+      no_reach: "No number or address to send to",
+      no_yes: "No one has said yes yet"
+    }
   },
+  /** A workspace paused for billing: said first, in the foot and over the draft, before anything else stops it. */
+  paused: { lead: "Sending is paused", sub: "Resume it from Settings \u203A Billing" },
   /** Your OK, as its sheet names each way and How it runs says the one picked. */
   ok: {
     ask: "Every batch waits for you",
@@ -49530,6 +49563,11 @@ var NEW_WORDS = {
     yourMessages: "Your messages",
     anOffer: "an offer, never a text",
     firstStepOnly: "Names their booking, so step 1 only",
+    /** A visit's message on a first step nothing about a visit starts (a one-off, a list): its run knows no booking. */
+    visitOnly: "Names their booking, so only where a booking starts it",
+    /** A proposal's message where no deal starts it, or after step 1: its run knows no proposal there. */
+    dealOnly: "Names their proposal, so only where a deal starts it",
+    proposalFirstOnly: "Names their proposal, so step 1 only",
     newMessage: "A new message",
     askWrote: "Ask wrote it \xB7 yours once you save",
     youWrite: "Yours \xB7 filed when you start it",
@@ -49620,6 +49658,7 @@ var NEW_WORDS = {
     welcome: (n) => `${n} new ${n === 1 ? "person" : "people"}`
   }
 };
+var handTitleOf = (kind) => kind === "note" ? NEW_WORDS.hand.noteTitle : NEW_WORDS.hand.callTitle;
 
 // src/sequences/sequence-evidence.ts
 var EVIDENCE_DAYS = 90;
@@ -62158,7 +62197,6 @@ export {
   NO_LINK_DETAILS,
   NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
-  NO_TEMPLATE_WORDS,
   NO_USAGE,
   NO_WAY_TO_SEND_LINK,
   NewDraftAnswerSchema,
@@ -63141,7 +63179,6 @@ export {
   deviceTimezone,
   disclosureFacts,
   divertedNumbers,
-  doorNamesNoAudience,
   doorNeeds,
   draftAd,
   draftExcerpt,
@@ -63310,6 +63347,7 @@ export {
   handOf,
   handStepWords,
   handStepsHold,
+  handTitleOf,
   handoffCallRow,
   handoffChatRow,
   handoffChatWords,
@@ -63331,7 +63369,6 @@ export {
   heardWords,
   heldAnswersOf,
   heldBackOfOneRun,
-  heldBackWords,
   heldByAllowance,
   heldChoicesOf,
   heldDraftOf,
@@ -63832,6 +63869,7 @@ export {
   noProposalSince,
   noTemplateWords,
   noVersionWords,
+  noYesWords,
   nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
@@ -63999,6 +64037,7 @@ export {
   personExportLeftOut,
   personFaceOf,
   personFiguresOf,
+  personHandWords,
   personHeadOf,
   personHeadStateOf,
   personInText,

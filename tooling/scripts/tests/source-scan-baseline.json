@@ -91,7 +91,7 @@
     "sms/sms.test.mjs": 11,
     "styles/kit-gallery.test.mjs": 1,
     "templates/starter-templates.test.mjs": 20,
-    "templates/templates-made-here.test.mjs": 15,
+    "templates/templates-made-here.test.mjs": 14,
     "templates/templates-truth.test.mjs": 7,
     "today/notifications-durable.test.mjs": 10,
     "today/notifications.test.mjs": 3,

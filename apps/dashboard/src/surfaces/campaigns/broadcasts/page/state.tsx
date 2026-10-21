@@ -1,18 +1,11 @@
 /**
  * The hooks the broadcasts page calls, each holding one concern (moved from legacy/pages/broadcasts.jsx, decision
  * 0015): what can be offered, who a send goes to, the words of the send, the question Send now asks, the clock, what is
- * open beside Sequences' list, and the yes. BroadcastsReal and Campaigns' composer (BroadcastSend) call them in the
- * order they always have.
+ * open beside Sequences' list, and the yes. A run's own screen (BroadcastRun) calls them in the order they always had;
+ * the send screen that shared them left in decision 0065's step 7, and with it a link's list and the door's own host.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  HOUR_MS,
-  SEQUENCES_ROUTE,
-  UNKNOWN_AUDIENCE_WORDS,
-  doorNamesNoAudience,
-  runRoute,
-  sequenceRoute,
-} from "@chanlytics/contracts";
+import { HOUR_MS, SEQUENCES_ROUTE, runRoute, sequenceRoute } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { backFrom, navigate, replaceRoute } from "../../../legacy-verbs";
@@ -21,7 +14,7 @@ import type { AudienceOption } from "../audiences-surface";
 import type { BroadcastTemplate } from "../surface";
 import { starters } from "../../templates/verbs";
 import { BC_NONE } from "../run";
-import type { BcData, BcKept, Flash, Params, Setter, Sources } from "./types";
+import type { BcData, BcKept, Params, Setter, Sources } from "./types";
 import { bcKey, bcOrder, bcSlots } from "./words";
 
 /** A row as `sendable` reads it: with the components Meta holds, which `TemplateDto` does not name. */
@@ -49,55 +42,17 @@ export function useBcOffered(data: BcData) {
   return { offered, link, review, templates };
 }
 
-// Who a send goes to, and whether the send screen is open: the send the tab kept, and the list a link names.
-export function useBcList(initialSegment: string | null, audiences: AudienceOption[], opened = false) {
-  // A send half-written when the page was left: the tab kept it (useUnsavedWork), and the screen opens again on it,
-  // with its list, its message and its words -- unless a link names a list, which wins the list.
-  // What the tab kept is what `useUnsavedWork` was given as its value (BroadcastsReal), so it has that shape.
+// Who a send goes to, and whether one is being written: the send the tab kept (useUnsavedWork), with its list.
+export function useBcList(audiences: AudienceOption[]) {
+  // What the tab kept is what `useUnsavedWork` was given as its value (useBroadcastsPage), so it has that shape.
   const [kept] = useState(() => tabDraft("broadcast") as BcKept | null);
   const [aud, setAud] = useState(() => {
-    const first =
-      audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
-    if (!initialSegment && kept && audiences.some((a) => bcKey(a) === kept.aud)) return kept.aud;
+    if (kept && audiences.some((a) => bcKey(a) === kept.aud)) return kept.aud;
+    const first = audiences[0];
     return first ? bcKey(first) : "everyone:";
   });
-  // The composer is its own screen, opened by New message (the home's sheet, which is the one door: `opened`) -- and by a link that
-  // names a list ("Message these people" on People), which is asking to write one.
-  // `opened`: Campaigns' home hosts the screen under New message and has it open from the first draw.
-  const [writing, setWriting] = useState(opened || !!initialSegment || !!kept);
-  // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
-  // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
-  // surface re-reading its audiences does not undo a choice made on the page.
-  const followed = useRef(initialSegment);
-  useEffect(() => {
-    if (followed.current === initialSegment) return;
-    followed.current = initialSegment;
-    const next =
-      initialSegment && audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment);
-    if (next) setAud(bcKey(next));
-    if (initialSegment) setWriting(true);
-  }, [initialSegment, audiences]);
+  const [writing, setWriting] = useState(!!kept);
   return { kept, aud, setAud, writing, setWriting };
-}
-
-/**
- * A door that names a list the composer does not offer leaves the composer on another audience (useBcList: Everyone on
- * a first draw, wherever it was on a page already open): said when the audiences are read, so a message meant for one
- * list is not one press from other people without a word. Each door is judged once, whatever it names, so the same
- * door opened again after another is said again.
- */
-export function useUnknownAudienceNotice(
-  initialSegment: string | null,
-  audiences: AudienceOption[] | null | undefined,
-  flash: Flash,
-) {
-  const told = useRef<string | null>(null);
-  useEffect(() => {
-    // Not read yet: judged when they are.
-    if (told.current === initialSegment || !audiences) return;
-    told.current = initialSegment;
-    if (doorNamesNoAudience(initialSegment, audiences)) flash({ tone: "warn", msg: UNKNOWN_AUDIENCE_WORDS });
-  }, [initialSegment, audiences, flash]);
 }
 
 // The words of the send, kept or fresh: the values typed into its slots and what fills each, the template it writes
@@ -244,14 +199,12 @@ export function useBcOpen(
   return { openId, openRun };
 }
 
-// The send screen's door to the yes, which is People's (`clients/get-yes`, its sheet over People's list: the Campaigns wiring
-// review's lane 7), where every "nobody has said yes to offers" door lands. `goes` is where the door's press goes where the
-// host of the screen moves the page itself (New: its address is replaced by the sheet's); anywhere else it goes there as
-// every link does.
-export function useBcYes(data: BcData, setWriting: Setter<boolean>, goes: (route: string) => void = navigate) {
+// The door to the yes, which is People's (`clients/get-yes`, its sheet over People's list: the Campaigns wiring review's
+// lane 7), where every "nobody has said yes to offers" door lands.
+export function useBcYes(data: BcData, setWriting: Setter<boolean>) {
   const toYes = () => {
     setWriting(false);
-    goes(data.getYes);
+    navigate(data.getYes);
   };
   // That door, in the sentence that says nobody has the yes: drawn when the
   // ledger draws the card, which takes a number to put in the QR. The sentence

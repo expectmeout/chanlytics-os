@@ -4,10 +4,6 @@ export const CAMPAIGN_ROOMS = {
   newMessage: "New message"
 };
 const { library } = CAMPAIGN_ROOMS;
-export const NO_TEMPLATE_WORDS = {
-  lead: "No message to send yet \u2014 add the starter set, or write one in",
-  link: library
-};
 export const LIBRARY_WORDS = {
   title: library,
   demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,

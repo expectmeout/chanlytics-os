@@ -19,7 +19,29 @@
     padding: 0 0 var(--space-2);
   }
   .cm-split:not([data-open]) .sq-list-rows {
+    gap: 0;
     padding: 0 0 var(--space-4);
+  }
+  /* A group's head as the Pipeline's section head is on a phone (clients.css, .pipe-scope .pl-sec-head; Ruben, 20 Oct
+     2026: "the different groups like proposal out and clients looks cleaner"): its name in ink at the base step and
+     semibold, its count beside it at the small step, a hairline under the head across the list, and the head's own
+     room above it parting one group from the next. */
+  .sq-list-rows > .sq-group > .sq-group-name {
+    align-items: baseline;
+    gap: 6px;
+    /* The hairline across the list as the Pipeline's spans its table, 8px past the rows at either side. */
+    margin-inline: -8px;
+    padding: 18px 16px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
+    line-height: 18px;
+    color: var(--ink-dim);
+  }
+  .sq-list-rows > .sq-group > .sq-group-name > .sq-group-label {
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--ink);
   }
 }
 .sq-group {
@@ -170,6 +192,56 @@
 }
 .sq-fact .sq-needs {
   color: var(--warn-ink);
+}
+/* A call's or a note's task as it lands on Today (step-words.tsx HandTask): its glyph, the sentence whole and wrapping,
+   and where it lands under it, on the pane's fill with a hairline round it, as a step's facts are. */
+.sq-hand {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface-pane-fill);
+}
+.sq-hand-glyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-control);
+  color: var(--ink-muted);
+}
+.sq-hand-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+}
+.sq-hand-words b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--row-name-line);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.sq-hand-words small {
+  font-size: var(--text-sm);
+  line-height: var(--row-said-line);
+  color: var(--ink-muted);
+}
+/* The call editor's "You do" (step-editor.tsx HandEditor): its caption over the choice, as a field's label reads. */
+.sq-ed-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sq-ed-cap {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
 }
 /* How it runs (settings-sheet.tsx, Start's Change): its fields one over another, and a list's once-each said under them. */
 .sq-settings-form {

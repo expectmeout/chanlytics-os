@@ -1,10 +1,11 @@
 /**
- * When a send goes, in the words every receipt and the send screen share (moved from legacy/pages/broadcasts.jsx,
- * decision 0015): the sentence for a receipt, the sentence that picks the time, and what the picked time means.
+ * When a send goes (moved from legacy/pages/broadcasts.jsx, decision 0015): the day and time a one-off is set for, picked
+ * as words of a sentence ("[tomorrow] at [9:15 AM]"), and what a picked time means (bcWhenNote, a run's acts).
  *
- * The time is picked as a sentence, as a playbook's hour is: "Now", or "On [a day] at [a time] Tokyo time", the day the
- * kit's date picker and the time the kit's picker of the sending hours in quarter hours. It was the browser's own
- * `datetime-local` box, which drew in the system's colours and let a person type any minute of any day.
+ * The day is the kit's date picker and the time the kit's picker of the sending hours in quarter hours, within the days
+ * the route keeps and never a time gone by. It was the browser's own `datetime-local` box, which drew in the system's
+ * colours and let a person type any minute of any day. The send screen drew it after its "now or later"; New's When
+ * sheet draws it under its own "Pick a day" (decision 0065 step 7, where that screen left).
  */
 import { DAY_MS, MIN_MS, SEND_WHEN_WORDS, sendsWaitWords } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -69,28 +70,19 @@ function putDay(at: number, day: string, maxDays: number): number {
   return next === null || next <= now ? firstSlot(now) : next;
 }
 
-/** The day and time a send goes at, or "now". */
-interface BcWhenPickProps {
-  /** The instant picked, in ms; null is "now". */
-  at: number | null;
+/** The day and time a send goes at. */
+interface WhenDayTimeProps {
+  /** The instant picked, in ms. */
+  at: number;
   /** How far ahead the route takes a send, in days. */
   maxDays: number;
-  onChange: (at: number | null) => void;
-}
-
-// The choices of when: now, or a day and a time. What each means is said under its words.
-function modeGroups(maxDays: number) {
-  const city = pageClock().city();
-  return cmGroups([
-    { id: "now", label: SEND_WHEN_WORDS.now, sub: SEND_WHEN_WORDS.nowSub },
-    { id: "later", label: SEND_WHEN_WORDS.later, sub: SEND_WHEN_WORDS.laterSub(city, maxDays) },
-  ]);
+  onChange: (at: number) => void;
 }
 
 // The day and the time of a time picked, words of the send's sentence: the kit's date picker opened from the word that says
 // the day, and the kit's picker of the sending hours, with the time already held (a send kept from before may sit off the
 // quarter hours). The zone is said by the line under the sentence, where the time is said in full.
-function dayAndTime({ at, maxDays, onChange }: BcWhenPickProps & { at: number }) {
+export function WhenDayTime({ at, maxDays, onChange }: WhenDayTimeProps) {
   const C = pageClock();
   const { day, time } = partsOf(at);
   const slots = timeSlots();
@@ -121,28 +113,6 @@ function dayAndTime({ at, maxDays, onChange }: BcWhenPickProps & { at: number })
   );
 }
 
-// When the send goes, the last words of its sentence ("…, [now]." or "…, [on] [Tue, Oct 6] at [9:15 AM]."), by the
-// business's clock (pageClock): 22:30 here is half past ten where the business is, whatever the device's zone. It holds
-// the instant, so what is sent is what the note says, and it stops at now and at the ceiling the route keeps.
-export function BcWhenPick(props: BcWhenPickProps) {
-  const { at, maxDays, onChange } = props;
-  return (
-    <span data-testid="bc-when">
-      <Picker
-        label={SEND_WHEN_WORDS.modeLabel}
-        value={at === null ? "now" : "later"}
-        onValueChange={(mode) => onChange(mode === "later" ? firstSlot(Date.now()) : null)}
-        groups={modeGroups(maxDays)}
-        chevron={cmChevron()}
-        face={(at === null ? SEND_WHEN_WORDS.now : SEND_WHEN_WORDS.on).toLowerCase()}
-        inline
-        data-testid="bc-when-mode"
-      />
-      {at === null ? null : <> {dayAndTime({ at, maxDays, onChange })}</>}
-    </span>
-  );
-}
-
 /** What the box's time means: whether Send can go, in which tone, and the sentence. */
 interface WhenNote {
   ok: boolean;
@@ -164,13 +134,4 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
   return open.moved
     ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — ${sendsWaitWords(C.hours)}` }
     : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
-}
-
-// What Send now does, where no time is picked: it goes when it is pressed, and outside the sending hours it waits for
-// the next nine o'clock, as the preview's stamp says. In the business's time, which the preview's stamp is in; the city
-// is said where a time is picked (bcWhenNote), not under Now too.
-export function bcNowNote(): string {
-  const C = pageClock();
-  const open = C.nextOpen(Date.now());
-  return open.moved ? `Goes out ${C.when(open.at)} — ${sendsWaitWords(C.hours)}` : "Goes out as soon as you press Send";
 }

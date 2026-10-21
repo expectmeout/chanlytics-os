@@ -6,6 +6,7 @@
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
 import { HELD_TAKE_OUT, heldAnswersOf, heldWhyOf, type HeldAnswer } from "./sequence-held";
 import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words";
+import { personHandWords, type HandKind } from "../reach-out/reach-out-hand";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { addressOf } from "../activity/record-address";
@@ -53,6 +54,14 @@ export const SEQUENCE_EDIT_WORDS = {
       ? "Your change reaches the next batch"
       : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
   whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now",
+  /**
+   * What a call's or a note's change reaches (decision 0065 step 6): its words are read the day it runs, so they reach
+   * everyone not on your Today yet; a new wait, only those who get the step before from now.
+   */
+  handReaches:
+    "New words reach everyone not on your Today yet; a new wait, only those who get the step before from now",
+  /** A call or a note as it lands on Today for one person (the run's own sentence, personHandWords), for the example. */
+  onToday: (kind: HandKind, words: string) => personHandWords(kind, "Dani", words),
 } as const;
 
 /** What needs you in a sequence, on its People tab: the emails the check held and those for you to send. */

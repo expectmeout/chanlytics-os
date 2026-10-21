@@ -21,7 +21,7 @@ import type { StepProps } from "./new-bits";
 /** The most checks a phone shows before "All 8", and the ones that need a look always show. */
 const PHONE_CHECKS = 3;
 
-/** The reach line (parts/reach.tsx CmReachLine's shape): a dot and what the account stands on, the rest in a popover. */
+/** The reach line (the drawer's AdReach shape): a dot and what the account stands on, the rest in a popover. */
 function ReadyLine({ ready }: { ready: NewAdVM["ready"] }) {
   return (
     <div className="cm-reach-line" data-tone={ready.tone} data-testid="ads-new-ready">

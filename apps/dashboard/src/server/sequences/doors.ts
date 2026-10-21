@@ -192,20 +192,31 @@ export async function discardSequenceNow(ctx: RouteContext, seq: Sequence) {
   return doorAnswer(r);
 }
 
-/** A step after the last (D6), where the sequence takes one (contracts takesFollowUps: never after a reminder). */
+/**
+ * A step after the last (D6), where the sequence takes one (contracts takesFollowUps: never after a reminder): a message,
+ * its values judged against it, or a call or a note for the team (decision 0065 step 6), which the door keeps last.
+ */
 export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: NewStepBody) {
   const [row] = await sequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
   // A customer's sequence that takes none is a reminder; any other kind is the door's own to refuse, in its words.
   const customers = row?.starts === "moment" || row?.starts === "list";
   if (row && customers && !takesFollowUps(row))
     throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder, 422);
-  const params = await valuesOf(ctx, seq.tenant_id, input.template_id, input.params);
+  // A call or a note closes it (00465): said here in the page's words, before the database refuses it in its own.
+  const steps = await sequenceStepsOf(ctx.supabase, seq.tenant_id, seq.id);
+  const last = steps.reduce<(typeof steps)[number] | null>((a, s) => (!a || s.place > a.place ? s : a), null);
+  if (last?.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.nothingAfterHand, 422);
+  const does = input.hand
+    ? { hand: input.hand }
+    : {
+        template_id: input.template_id,
+        params: await valuesOf(ctx, seq.tenant_id, input.template_id ?? "", input.params),
+        ...(input.channels ? { channels: input.channels } : {}),
+      };
   const step = {
     after_days: input.after_days,
-    template_id: input.template_id,
-    params,
+    ...does,
     ...(input.only_if ? { only_if: input.only_if } : {}),
-    ...(input.channels ? { channels: input.channels } : {}),
     ...(input.name ? { name: input.name } : {}),
   };
   return doorAnswer(
@@ -218,9 +229,15 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
   );
 }
 
-/** A step after the first, changed in place; new values are judged against the message it sends. */
+/**
+ * A step after the first, changed in place; new values are judged against the message it sends. A call's or a note's
+ * words change on a step that hands them over, never on one that sends a message (nor its values on a call).
+ */
 export async function changeSequenceStep(ctx: RouteContext, seq: Sequence, stepId: string, input: StepChangeBody) {
   const step = await laterStepOf(ctx, seq, stepId);
+  if (input.hand && !step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.handOnMessage, 422);
+  if (input.params !== undefined && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand, 422);
+  if (input.channels && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.channelsOnHand, 422);
   const params =
     input.params === undefined ? undefined : await valuesOf(ctx, seq.tenant_id, step.template_id ?? "", input.params);
   const change = {
@@ -230,6 +247,7 @@ export async function changeSequenceStep(ctx: RouteContext, seq: Sequence, stepI
     ...(input.channels ? { channels: input.channels } : {}),
     ...(input.name ? { name: input.name } : {}),
     ...(params ? { params } : {}),
+    ...(input.hand ? { hand: input.hand } : {}),
   };
   return doorAnswer(
     await saveSequenceStep(ctx.supabase, {
@@ -252,6 +270,8 @@ export async function dropSequenceStep(ctx: RouteContext, seq: Sequence, stepId:
 /** A step's message changed, with the values it takes: at once, or waiting for WhatsApp (`waits`). */
 export async function changeSequenceWords(ctx: RouteContext, seq: Sequence, stepId: string, input: StepWordsBody) {
   const step = await stepOfSequence(ctx, seq, stepId);
+  // A call or a note sends no message: its words are its own (the step door), never a message's.
+  if (step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand, 422);
   const params = await valuesOf(ctx, seq.tenant_id, input.template_id, input.params);
   return doorAnswer(
     await setSequenceStepWords(ctx.supabase, {

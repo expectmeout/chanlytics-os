@@ -14,18 +14,6 @@ export const CAMPAIGN_ROOMS = {
 
 const { library } = CAMPAIGN_ROOMS;
 
-/** A message picker with nothing to pick: what to do, and the Library, which opens as a link after the lead. */
-export interface NoMessageWords {
-  lead: string;
-  link: string;
-}
-
-/** The send screen's picker: no message it can send, whichever channel a message is written for. */
-export const NO_TEMPLATE_WORDS: NoMessageWords = {
-  lead: "No message to send yet — add the starter set, or write one in",
-  link: library,
-};
-
 /**
  * The Library page's own lines: the waiting line, the read that failed, what a workspace with no WhatsApp number is told
  * (a message needs none: only its WhatsApp version waits for one) and what writing a WhatsApp version asks of a number.

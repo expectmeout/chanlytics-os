@@ -16,6 +16,7 @@ import {
   HAND_WORDS_MAX,
   NEW_STEP_DOES,
   PARAM_SOURCES,
+  SEQUENCE_FLOW_WORDS,
   SEQUENCE_MODES,
 } from "@chanlytics/contracts";
 
@@ -34,18 +35,34 @@ const PARAMS = z.array(z.unknown()).max(20);
 /** An id, as every route reads one (contracts UUID). */
 const anId = (words: string) => z.string().regex(UUID, words);
 
-/** POST sequences/:id/steps: a step after the last, its wait and its message; what must still hold, its channels. */
-export const NEW_STEP_BODY = z.strictObject({
-  after_days: AFTER_DAYS,
-  template_id: anId("Which message?"),
-  params: PARAMS.optional(),
-  only_if: ONLY_IF.optional(),
-  channels: CHANNELS.optional(),
-  name: STEP_NAME.optional(),
-});
+/** A call or a note for the team in place of a message (decision 0065): what to do when the person comes up. */
+const HAND = z
+  .strictObject({
+    kind: z.enum(HAND_KINDS),
+    words: z.string().trim().min(1, "Say what to do when they come up.").max(HAND_WORDS_MAX),
+  })
+  .describe(`A call or a note for the team: { kind: call | note, words } (1 to ${HAND_WORDS_MAX} characters)`);
+
+/**
+ * POST sequences/:id/steps: a step after the last, its wait and its message with its values and channels, or a call or a
+ * note for the team (`hand`, decision 0065 step 6: the last step, judged by the door), which takes neither; what must
+ * still hold.
+ */
+export const NEW_STEP_BODY = z
+  .strictObject({
+    after_days: AFTER_DAYS,
+    template_id: anId("Which message?").optional(),
+    hand: HAND.optional(),
+    params: PARAMS.optional(),
+    only_if: ONLY_IF.optional(),
+    channels: CHANNELS.optional(),
+    name: STEP_NAME.optional(),
+  })
+  .refine((b) => !b.template_id !== !b.hand, SEQUENCE_FLOW_WORDS.sayWhatStepDoes)
+  .refine((b) => !b.hand || (b.params === undefined && b.channels === undefined), SEQUENCE_FLOW_WORDS.valuesOnHand);
 export type NewStepBody = z.infer<typeof NEW_STEP_BODY>;
 
-/** PUT sequences/:id/steps/:step: any of its wait, what must still hold, its channels, name and values. */
+/** PUT sequences/:id/steps/:step: any of its wait, what must still hold, its channels, name and values; a call's words. */
 export const STEP_CHANGE_BODY = z
   .strictObject({
     after_days: AFTER_DAYS.optional(),
@@ -53,14 +70,15 @@ export const STEP_CHANGE_BODY = z
     channels: CHANNELS.optional(),
     name: STEP_NAME.optional(),
     params: PARAMS.optional(),
+    hand: HAND.optional(),
   })
   .refine((b) => Object.keys(b).length > 0, "Say what changes.");
 export type StepChangeBody = z.infer<typeof STEP_CHANGE_BODY>;
 
-/** POST sequences/:id/steps/:step/words: the message the step sends from now, with the values it takes. */
 /** POST sequences/:id/steps/:step/test: a lead's step is filled for one lead in it (none: an example business). */
 export const STEP_TEST_BODY = z.strictObject({ lead_id: anId("Which lead?").optional() });
 
+/** POST sequences/:id/steps/:step/words: the message the step sends from now, with the values it takes. */
 export const STEP_WORDS_BODY = z.strictObject({ template_id: anId("Which message?"), params: PARAMS.optional() });
 export type StepWordsBody = z.infer<typeof STEP_WORDS_BODY>;
 
@@ -75,12 +93,6 @@ export const LEAVE_BODY = z
   })
   .refine((b) => b.enrollment_ids.length + b.lead_ids.length > 0, { message: "Who leaves?" });
 export type LeaveBody = z.infer<typeof LEAVE_BODY>;
-
-/** A call or a note for the team in place of a message (decision 0065): what to do when the person comes up. */
-const HAND = z.strictObject({
-  kind: z.enum(HAND_KINDS),
-  words: z.string().trim().min(1, "Say what to do when they come up.").max(HAND_WORDS_MAX),
-});
 
 /**
  * A step after the first, as a new sequence names it: its wait, what must still hold, and its message with its values,
