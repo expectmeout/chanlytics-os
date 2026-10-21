@@ -4,6 +4,7 @@ import { isReachOutHold } from "../reach-out/reach-out-words.js";
 import { personHandWords } from "../reach-out/reach-out-hand.js";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
+import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words.js";
 import { addressOf } from "../activity/record-address.js";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
 import { pct } from "../shared/numbers.js";
@@ -267,6 +268,7 @@ export function historyUpcomingWords(people, mode) {
 export function historyDays(batches, tz) {
   return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
 }
+const failureSaid = (failure) => /^[a-z_]+(:[a-z]+)?$/.test(failure) ? `stopped: ${broadcastFailureWords(failure)}` : failure;
 export function historyDayWords(b, place) {
   const c = b.counts;
   const forWhom = [b.people > 0 ? plural(b.people, "person", "people") : null, place].filter(Boolean).join(" \xB7 ");
@@ -279,6 +281,7 @@ export function historyDayWords(b, place) {
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);
   return {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
-    said: [place, parts.join(" \xB7 "), b.failure].filter(Boolean).join(" \xB7 ")
+    // Why a batch stopped, in the owner's words (its run's report said it there; a day that went opens Reports now).
+    said: [place, parts.join(" \xB7 "), b.failure ? failureSaid(b.failure) : null].filter(Boolean).join(" \xB7 ")
   };
 }

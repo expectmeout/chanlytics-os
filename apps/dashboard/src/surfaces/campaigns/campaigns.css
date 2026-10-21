@@ -1469,45 +1469,6 @@ html.legacy-on .tpl-fresh {
     text-underline-offset: 2px;
   }
 }
-.bc-stop-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 11px;
-  padding: 9px 11px;
-  border-radius: var(--radius-md);
-  background: var(--bg-sunken);
-}
-.bc-stop-dot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: var(--danger);
-}
-.bc-stop-box[data-tone="warn"] .bc-stop-dot {
-  background: var(--warn);
-}
-.bc-stop-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.bc-stop-line {
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  color: var(--ink-muted);
-}
-.bc-stop-line strong {
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
-.bc-stop-fix {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
 /* ---- A run waiting on you: its sheet (the canvas's "approving from the sofa") ----
    Its own screen at any width, one column: a back bar that says where it sits in
    the queue, the run, who it reaches, the words, and the act alone at the foot,

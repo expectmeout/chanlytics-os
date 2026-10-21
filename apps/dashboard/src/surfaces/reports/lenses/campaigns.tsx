@@ -14,7 +14,8 @@
  * and never the period it left under the new one's name. Every row of cards adds up to the grid's twelve columns.
  *
  * Four sections, in order: the lens (this file: the strip and the window's cards), the time between steps and what is stuck now
- * (campaigns-now.tsx), and the reach-outs, a part that names itself (campaigns-reach-outs.tsx).
+ * (campaigns-now.tsx), and the reach-outs, a part that names itself (campaigns-reach-outs.tsx). Over them, which campaign: every
+ * one, or one sequence, whose own cards stand in place of all four (campaigns-one.tsx).
  */
 import { useMemo } from "react";
 import type { CampaignReportVM } from "@chanlytics/contracts";
@@ -29,6 +30,7 @@ import { RPT_CHANNEL_COLORS, RPT_SENT } from "../series";
 import type { ReportsSurface } from "../surface";
 import { byMessageCard, failedWhyCard, heldCard, stoppedCard } from "./campaigns-mix";
 import { campaignsStuck, campaignsTime, failedRead } from "./campaigns-now";
+import { CampaignOneLens, CampaignScopeRow, type CampaignsScopeHere } from "./campaigns-one";
 import { reachOutsSection } from "./campaigns-reach-outs";
 import { LensEmpty, mixCard, type LensProps } from "./shared";
 
@@ -219,17 +221,22 @@ export function CampaignsLens({
   R,
   own,
   fold,
+  here,
 }: LensProps & {
   /** The lens's own read, and where it stands against the period shown. */
   own: Follower<CampaignsSurface>;
   /** Its fold (useCampaignsFold): drawn only while that is of the period shown. */
   fold: CampaignLensVM | null;
+  /** Which campaign the address names, and one sequence's read where it names one. */
+  here: CampaignsScopeHere;
 }) {
+  if (here.scope.kind === "sequence") return <CampaignOneLens here={here} R={R} />;
   const shown = shownFold(own, fold);
   if (shown === null) return null;
   return (
     <>
       <RptSection title="Campaigns" bare>
+        <CampaignScopeRow here={here} R={R} />
         {failedCards(shown)}
         {windowBody(R, shown)}
       </RptSection>

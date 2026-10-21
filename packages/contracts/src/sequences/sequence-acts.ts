@@ -19,6 +19,9 @@ export const SEQUENCE_ACT_WORDS = {
   runNowTip:
     "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
   rename: "Rename",
+  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
+  sendAgain: "Send it again",
+  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
   name: "Name",
   save: "Save",
   cancel: "Cancel",

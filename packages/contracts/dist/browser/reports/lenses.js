@@ -80,13 +80,27 @@ export const REPORT_LENSES = [
     })
   }
 ];
+export const CAMPAIGN_SCOPE_ALL = { kind: "all" };
+export const campaignScopeKey = (scope) => scope.kind === "all" ? "all" : `seq:${scope.id}`;
+export function campaignScopeOfKey(key) {
+  if (key === "all") return CAMPAIGN_SCOPE_ALL;
+  const id = key.startsWith("seq:") ? key.slice("seq:".length) : "";
+  return /^[0-9a-z-]{1,64}$/i.test(id) ? { kind: "sequence", id } : null;
+}
+export const isAdsScope = (scope) => scope.kind !== "sequence";
+function narrowedKey(id, scope) {
+  if (scope === null || scope.kind === "all") return null;
+  if (id === "ads" && isAdsScope(scope)) return adsScopeKey(scope);
+  return id === "campaigns" && scope.kind === "sequence" ? campaignScopeKey(scope) : null;
+}
 export const lensRoute = (id, days = null, scope = null) => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+  const narrowed = narrowedKey(id, scope);
   if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
   const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
   return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
 };
 export const adsReportRoute = (days, scope = ADS_SCOPE_ALL) => lensRoute("ads", days, scope);
+export const campaignReportRoute = (days, scope = CAMPAIGN_SCOPE_ALL) => lensRoute("campaigns", days, scope);
 const REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const reviewRoute = (id) => REVIEW_ID.test(id) ? `reports/reviews:${id}` : lensRoute("reviews");
 export const LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
@@ -95,12 +109,12 @@ const daysOfKey = (key) => {
   const range = reportRangeOfKey(key);
   return range !== null && typeof range !== "string" ? range : null;
 };
-function adsParts(rest) {
+function scopedParts(rest, scopeOf) {
   const at = rest.indexOf(":");
   const days = daysOfKey(at < 0 ? rest : rest.slice(0, at));
   if (days && at < 0) return { days };
   const words = days ? rest.slice(at + 1) : rest;
-  const scope = words === "all" ? null : adsScopeOfKey(words);
+  const scope = words === "all" ? null : scopeOf(words);
   return scope ? { days, scope } : null;
 }
 export function reportsParamParts(param) {
@@ -112,9 +126,9 @@ export function reportsParamParts(param) {
   if (!isLensParam(word)) return null;
   if (at < 0) return { lens: word, days: null, review: null };
   const rest = param.slice(at + 1);
-  if (word === "ads") {
-    const ads = adsParts(rest);
-    return ads ? { lens: word, ...ads, review: null } : null;
+  if (word === "ads" || word === "campaigns") {
+    const scoped = scopedParts(rest, word === "ads" ? adsScopeOfKey : campaignScopeOfKey);
+    return scoped ? { lens: word, ...scoped, review: null } : null;
   }
   if (word === "reviews" && REVIEW_ID.test(rest)) return { lens: word, days: null, review: rest };
   const days = daysOfKey(rest);

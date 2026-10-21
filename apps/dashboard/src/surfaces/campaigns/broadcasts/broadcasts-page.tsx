@@ -30,7 +30,7 @@ import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { cmDefaultChannels, cmReadyOf } from "../parts/channels";
-import { bcAgainOf, bcRunSolo, bcRunsOf, bcSheetOf } from "./page/runs";
+import { bcRunSolo, bcRunsOf, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import {
@@ -74,8 +74,7 @@ function bcWorked(base: BcBase, approving: BcApproving): BcV {
   const v7 = { ...v6, ...bcRunActs(v6) };
   const v8 = { ...v7, ...bcSendActs(v7) };
   const v9 = { ...v8, ...bcRunsOf(v8) };
-  const v10 = { ...v9, ...bcSheetOf(v9) };
-  return { ...v10, ...bcAgainOf(v10) };
+  return { ...v9, ...bcSheetOf(v9) };
 }
 
 /** What the page's state is opened with: what a link names, and where the run's screen stands. */
@@ -229,9 +228,10 @@ function BroadcastRunOf({ data, id, flash, over }: RunPlace & { data: BcData }) 
 /**
  * A run's own screen, at its home under its sequence (the Campaigns wiring review's lane 2, 19 Oct 2026): the one screen a
  * run has, which follows what it is -- its decision while it waits for an OK (a campaign run's sheet, a reach-out's block),
- * its Stop while it goes, its report once it went -- held by the same hook as Sent's sheets, so its Approve, its Skip,
- * the next run waiting it opens and Send it again are the page's. Sequences draws it in place of the record (sequences/
- * run-pane.tsx). Before Sent's runs are read it is the run's report alone, which reads itself, with no acts yet.
+ * its Stop while it goes, and once it is done its report in Reports (run.tsx RunToReport) -- held by the same hook as Sent's
+ * sheets, so its Approve, its Skip and the next run waiting it opens are the page's. Sequences draws it in place of the
+ * record (sequences/run-pane.tsx). Before Sent's runs are read it is the run's report alone, which reads itself, with no
+ * acts yet.
  */
 export function BroadcastRun({ id, flash, over }: RunPlace) {
   const data = useBroadcastsData();

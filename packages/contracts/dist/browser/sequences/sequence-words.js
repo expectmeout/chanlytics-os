@@ -35,9 +35,6 @@ export const SEQUENCE_WORDS = {
   endAsk: (name) => `End \u201C${name}\u201D?`,
   endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
   endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
-  receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/receptionist",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",

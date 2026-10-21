@@ -332,7 +332,7 @@ copies                               67   of 19 names
 as unknown as                       120
 as never                             12
 non-null assertions, x!              93
-index reads the compiler lets pass  422   in 113 files
+index reads the compiler lets pass  421   in 112 files
 table names outside packages/db     418
 SQL functions outside packages/db   116   called by .rpc
 edge statements naming no workspace   27   in 14 files
@@ -343,7 +343,7 @@ tables with more than one writer     60   478 writers among them
 doors writing a record with no event   95   writing 110 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          31   in 11 files
-literal style values                816   in 22 stylesheets
+literal style values                815   in 22 stylesheets
 primitives outside the kit         1528   selectors naming 649 classes
 inline style props                   67   in 37 files
 wire names not in snake_case         54   in 27 routes

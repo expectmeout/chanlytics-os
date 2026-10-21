@@ -315,10 +315,11 @@ export { sendWindowsOf, timetable, SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME, TIMET
 export { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, REACH_OUT_BODY_MAX, REACH_OUT_WORDS_MAX, OPENING_WORDS_MAX, OPENING_CHARS_MAX, ANGLE_WORDS_MAX, REACH_OUT_STEPS_MAX, REACH_OUT_NAME_MAX, SIGNED_BY_MAX, REACH_OUT_GAP_MINUTES, REACH_OUT_AFTER_DAYS, slotCount, reachOutSlotFault, reachOutRules, wordsNeedOpening, wordCount, emailWordCount, linksIn, linkCount, shoutingLine, validateReachOutWords, wordsIssueWords, validateReachOutChain, chainIssueWords, OPENING_FACT_KEYS, isOpeningFactKey, factValue, OPENING_PROBLEMS, isOpeningProblem, checkOpening, openingProblemWords, CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, REACH_OUT_HOLDS, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, reachOutCountryOf, isReachOutHold, holdWords, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, HOLD_DOOR_WORDS } from "./reach-out/reach-out-words";
 export { zoneOfRegion, US_STATE_ZONES } from "./reach-out/us-zones";
 export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./reports/booking-report";
+export { CAMPAIGN_CHOICE_GROUPS, CAMPAIGN_SCOPE_WORDS, campaignChoicesOf, campaignOneOf } from "./reports/campaign-one";
 export { toCampaignReportVM } from "./reports/campaign-report";
 export { isCampaignLedgerSeriesDto, isCampaignStuckRawDto, campaignLedgerDtoOf } from "./reports/campaigns/campaign-record";
 export { lensAnswerOf } from "./reports/lens-answer";
-export { REPORT_LENSES, LENS_ROUTES, adsReportRoute, lensRoute, reviewRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
+export { REPORT_LENSES, LENS_ROUTES, adsReportRoute, campaignReportRoute, isAdsScope, lensRoute, reviewRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty, CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./reports/lenses";
 export { peopleNowOf } from "./reports/people/people-now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/people-record";
 export { reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";

@@ -5,7 +5,7 @@
  * head's sentence, the Overview's one fact and what the lens draws, each none where the Ads are not on.
  */
 import { useEffect, useState } from "react";
-import { ADS_SCOPE_ALL, adsReportRoute } from "@chanlytics/contracts";
+import { ADS_SCOPE_ALL, adsReportRoute, isAdsScope } from "@chanlytics/contracts";
 import type { AdsScope, LensId, ReportFactVM, ReportsParts } from "@chanlytics/contracts";
 import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
 import { navigate } from "../../legacy-verbs";
@@ -68,7 +68,8 @@ const lensSentenceOf = (fold: AdsResultsVM): string | null =>
 export function useAdsLens(lens: LensId, at: ReportsParts, R: ReportsSurface | null): AdsHere {
   const parts = useAdsParts(adsAreOn());
   if (!parts || !R || (lens !== "ads" && lens !== "overview")) return LENS_NOTHING;
-  const fold = parts.fold(at.days ?? R.range, at.scope ?? ADS_SCOPE_ALL, R.vm.today);
+  const scope = at.scope && isAdsScope(at.scope) ? at.scope : ADS_SCOPE_ALL;
+  const fold = parts.fold(at.days ?? R.range, scope, R.vm.today);
   if (lens === "overview") return { ...LENS_NOTHING, fact: parts.fact(fold) };
   const onScope = (scope: AdsScope) => navigate(adsReportRoute(at.days, scope), { replace: true });
   return { head: { head: lensSentenceOf(fold) }, fact: null, draw: { parts, fold, onScope } };

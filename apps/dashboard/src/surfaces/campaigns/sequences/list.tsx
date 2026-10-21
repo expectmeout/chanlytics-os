@@ -5,8 +5,8 @@
  * where its state is not the ordinary one (contracts sequenceRowState: a green On on every row said nothing). A search
  * narrows it; the groups are its filter. A row opens its record beside the list. New is the head's act, beside the strip
  * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequence-words.ts); the list composes
- * them. First contact is no sequence (D7: the receptionist leaves the list): one line at the foot of Your customers says
- * so and opens its settings, with nothing searched, since it neither needs you nor pauses.
+ * them. First contact is no sequence (D7: the receptionist leaves the list), and the list says nothing of it (Ruben, 21 Oct
+ * 2026: its foot line broke the group).
  */
 import { useMemo, useState } from "react";
 import {
@@ -126,15 +126,6 @@ export function SequencesList({ page, openId }: SequencesListProps) {
                 open={row.id === openId}
               />
             ))}
-            {group === "customers" && words === "" ? (
-              <LinkButton
-                className="sq-foot-link"
-                {...routeDoor(SEQUENCE_WORDS.receptionistRoute)}
-                data-testid="sq-receptionist"
-              >
-                {SEQUENCE_WORDS.receptionist} <Icon name="chevron" size={11} />
-              </LinkButton>
-            ) : null}
           </section>
         ))}
       </div>

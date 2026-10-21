@@ -52,6 +52,7 @@ import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
 import { useAdsLens, type AdsDraw } from "./lenses/ads-load";
 import { CampaignsLens, useCampaignsFold } from "./lenses/campaigns";
+import { useCampaignsScope, type CampaignsScopeHere } from "./lenses/campaigns-one";
 import { OverviewLens } from "./lenses/overview";
 import { PeopleLens, usePeopleFold } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
@@ -143,6 +144,13 @@ const whileCurrent = <V,>(read: Follower<unknown>, fold: V | null): V | null =>
 const worthKnowing = (vm: ReportVM, campaigns: CampaignLensVM | null, ads: ReportFactVM | null): ReportFactVM[] =>
   reportFacts(vm, campaigns?.report ?? null, ads);
 
+/**
+ * The Campaigns lens's sentence: one campaign says its own once read, and nothing before; every campaign the lens's own read's
+ * (campaigns-one.tsx says which the address names).
+ */
+const campaignsHeadOf = (scope: CampaignsScopeHere, all: CampaignLensVM | null): { head: string | null } | null =>
+  scope.scope.kind === "sequence" ? (scope.head ? { head: scope.head } : null) : all;
+
 /** Whether the lens waits on a read of its own for the period shown (one that failed is the lens's own card, not a dimming). */
 const waitsOnItsRead = (lens: LensId, own: OwnReads): boolean =>
   (lens === "reviews" && own.reviews.state === "coming") ||
@@ -171,6 +179,8 @@ interface LensReads {
   campaigns: CampaignLensVM | null;
   facts: ReportFactVM[];
   ads: AdsDraw | null;
+  /** Which campaign the Campaigns lens is narrowed to, and one sequence's read where the address names one. */
+  scope: CampaignsScopeHere;
   /** The review the address names (reports/reviews:<id>, contracts reviewRoute), which the Reviews lens opens with its reply box. */
   review: string | null;
 }
@@ -180,7 +190,7 @@ function lensBody(
   lens: LensId,
   props: LensProps,
   shown: boolean | null,
-  { own, people, campaigns, facts, ads, review }: LensReads,
+  { own, people, campaigns, facts, ads, scope, review }: LensReads,
 ) {
   if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
@@ -194,7 +204,7 @@ function lensBody(
     case "pipeline":
       return <PipelineLens {...props} />;
     case "campaigns":
-      return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} />;
+      return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} here={scope} />;
     case "ads":
       return ads ? <ads.parts.Lens fold={ads.fold} onScope={ads.onScope} /> : null;
     case "reviews":
@@ -238,6 +248,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const own = useOwnReads(live, R, demo);
   // The Ads (a demo session's): the lens's head, the Overview's one fact, and what the lens draws, from a chunk fetched on demand.
   const adsHere = useAdsLens(lens, at, R);
+  const scope = useCampaignsScope(lens, at, R);
   const desk = useRptDesk();
   const slide = useSlide(LENS_ORDER, lens);
   const pendingKey = pending ? reportRangeKey(pending) : null;
@@ -311,7 +322,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
     {
       reviews: own.reviews.state === "failed" ? null : (own.reviews.value?.vm ?? null),
       people: own.people.state === "failed" ? null : people,
-      campaigns: campaignsNow,
+      campaigns: campaignsHeadOf(scope, campaignsNow),
       ads: adsHere.head,
     },
     act,
@@ -350,6 +361,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
             campaigns,
             facts,
             ads: adsHere.draw,
+            scope,
             review: at.review,
           })}
         </div>
