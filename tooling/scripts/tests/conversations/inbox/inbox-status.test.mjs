@@ -147,10 +147,16 @@ const paneOf = (thread, over = {}) => {
   fresh();
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text" }, ...over });
 };
-/** The pane's own rows, top to bottom, by the class each draws. */
+/**
+ * The pane's own rows, top to bottom, by the class each draws. The foot (what it needs from you and the reply box) is one
+ * box on a phone and none on a desk (inbox.css `.ix-th-foot`, display: contents): its parts are the pane's rows.
+ */
 const rowsOf = (pane) =>
   (pane.props.children || [])
     .filter((k) => k && typeof k === "object")
+    .flatMap((k) =>
+      classOf(k) === "ix-th-foot" ? [k.props.children].flat(Infinity).filter((f) => f && typeof f === "object") : [k],
+    )
     .map((k) => classOf(k).split(" ")[0])
     .filter(Boolean);
 
