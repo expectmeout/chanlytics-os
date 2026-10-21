@@ -116,6 +116,9 @@ export const env = {
   get LEAD_FROM() {
     return trimmedEnv(process.env.LEAD_FROM);
   },
+  get SUPPORT_TO() {
+    return trimmedEnv(process.env.SUPPORT_TO);
+  },
   get EMAIL_DOMAIN() {
     return trimmedEnv(process.env.EMAIL_DOMAIN);
   },

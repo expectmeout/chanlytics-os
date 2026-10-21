@@ -1,7 +1,6 @@
 import { write, platform } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { PartnerStandingSchema } from "@chanlytics/contracts";
 import { platformPartnerStanding } from "@/server/platform/platform";
-import { AppError, PARTNER_STANDINGS } from "@chanlytics/contracts";
 
 /**
  * POST /api/v1/platform/partners/standing — a person decides the standing of a workspace a partner brought
@@ -18,14 +17,9 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_partner_standing",
-  handle: async ({ req, office }) => {
-    const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; standing?: unknown; why?: unknown };
-    const tenantId = requireUuid(body.tenant_id, "workspace");
-    const standing = typeof body.standing === "string" ? body.standing : "";
-    if (!(PARTNER_STANDINGS as readonly string[]).includes(standing))
-      throw new AppError("validation", "Choose qualified, review or disqualified.", 400);
-    const why = typeof body.why === "string" ? body.why.trim() : "";
-    if (!why) throw new AppError("validation", "Say why: the partner is written to about it.", 400);
-    return { result: await platformPartnerStanding(office, tenantId, standing, why) };
-  },
+  act: "partner_standing",
+  input: PartnerStandingSchema,
+  handle: async ({ office, input }) => ({
+    result: await platformPartnerStanding(office, input.tenant_id, input.standing, input.why),
+  }),
 });

@@ -646,6 +646,24 @@ export type {
   PartnerJoined,
   PartnerInviteMail,
 } from "./repositories/partner";
+// The Console (decision 0066, 00466): its staff, Find, claims, the Admin log, reports, requests.
+export {
+  staffStateOf,
+  findAcross,
+  modelSpend,
+  tenantBySlug,
+  tenantNames,
+  liveClaims,
+  takeClaim,
+  letClaimGo,
+  claimOf,
+} from "./repositories/console/staff";
+export { startAct, finishAct, listActs } from "./repositories/console/acts";
+export type { PlatformActInsert } from "./repositories/console/acts";
+export { fileReport, markReportMailed, listReports, reportToMail, setupAsks } from "./repositories/console/support";
+export type { SupportReportInsert } from "./repositories/console/support";
+export { fileRequest, requestById, setRequestSteps, listRequests } from "./repositories/console/requests";
+export type { PrivacyRequestInsert } from "./repositories/console/requests";
 export {
   readLeadOne,
   readIdeaHistory,

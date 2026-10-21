@@ -431,6 +431,38 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
+  // The Console (00466, decision 0066): what the team did in A, who has it, what its owner reported, a request about it.
+  await seed(
+    "platform_acts",
+    {
+      actor_id: ctx.ownerId,
+      actor_role: "support",
+      act: "line_retry",
+      tenant_id: A,
+      target_kind: "workspace",
+      reason_kind: "found",
+    },
+    null,
+  );
+  await seed(
+    "platform_claims",
+    { tenant_id: A, user_id: ctx.ownerId, until: new Date(Date.now() + 3_600_000).toISOString() },
+    null,
+  );
+  await seed("support_reports", { tenant_id: A, user_id: ctx.ownerId, words: "The calendar will not open." }, null);
+  await seed(
+    "privacy_requests",
+    {
+      kind: "copy",
+      tenant_id: A,
+      slug: "tenancy",
+      name: "Tenancy",
+      asked_by: "owner@example.com",
+      asked_at: "2026-10-01T00:00:00Z",
+      due_at: "2026-10-31T00:00:00Z",
+    },
+    null,
+  );
   // A capacity row of this suite's own (00335), so "a member reads nothing" is not proved on an empty table.
   const cap = await db.from("job_capacity").upsert({ scope: "provider", key: "tenancy-suite", max_in_flight: 1 });
   assert.equal(cap.error, null, `capacity: ${cap.error?.message}`);
@@ -893,6 +925,26 @@ const TENANT_TABLES = {
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
   partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
+  // The Console (00466, decision 0066): the platform's own tables about a workspace, the service role's alone; a member,
+  // the workspace's owner included, reads none of them and writes none.
+  platform_acts: [
+    "none",
+    () => ({ actor_role: "owner", act: "line_retry", tenant_id: A, target_kind: "workspace", reason_kind: "found" }),
+  ],
+  platform_claims: ["none", () => ({ tenant_id: A, user_id: ctx.strangerId, until: "2099-01-01T00:00:00Z" })],
+  support_reports: ["none", () => ({ tenant_id: A, user_id: ctx.strangerId, words: "A stranger's report." })],
+  privacy_requests: [
+    "none",
+    () => ({
+      kind: "copy",
+      tenant_id: A,
+      slug: "stranger",
+      name: "Stranger",
+      asked_by: "stranger@example.com",
+      asked_at: "2026-10-01T00:00:00Z",
+      due_at: "2026-10-31T00:00:00Z",
+    }),
+  ],
   // The spine (00334, decision 0032): an event's outbox row and its deliveries follow their workspace; the service role
   // alone writes and reads them.
   event_outbox: [

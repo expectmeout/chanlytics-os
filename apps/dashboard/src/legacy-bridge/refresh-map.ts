@@ -687,6 +687,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",
+  "POST support/report": "a report of a problem, kept and mailed to the support inbox; the sheet says its number",
   // The partner's own pane and the team's partner card read their rows themselves, again after each act.
   "POST partner": "the partner's account, published from the answer at once (settings/partner/surface.ts become)",
   "PATCH partner": "the partner's letters, published from the answer at once (settings/partner/surface.ts setLetters)",
@@ -697,7 +698,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "DELETE team/partner": "the team's partner card reads the workspace's partner again (settings/partner/team-card.tsx)",
   // The member who left is no longer in the workspace: the page takes them out of it, and nothing of it is read again.
   "POST team/leave": "the leaver goes to their workspaces (settings/team), where this one is no longer listed",
-  // The back office reads its own lists on demand (platform.ts): no surface holds them.
+  // The Console (decision 0066, once the back office) reads its own screens on demand (platform.ts, console.ts): no
+  // surface holds them, and each screen reads again after its own act.
   "POST platform/jobs/requeue":
     "no pane shows the ledger: a support session asks, and the job runs on the next heartbeat",
   "POST platform/lines/refile": "the back office's lines, read again by its pane",
@@ -709,6 +711,9 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/partners/standing": "the back office's partners, read again by its pane",
   "POST platform/partners/status": "the back office's partners, read again by its pane",
   "POST platform/waitlist/invited": "the back office's waitlist, read again by its pane",
+  "POST platform/requests": "the Console's requests, read again by its screen",
+  "POST platform/requests/step": "the Console's requests, read again by its screen",
+  "POST platform/claims": "who has a workspace, read again by the Console's screen",
 };
 
 /** The keys the table names, for the test that holds them to writes. */

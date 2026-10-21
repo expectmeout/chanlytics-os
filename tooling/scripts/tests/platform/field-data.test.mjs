@@ -251,7 +251,7 @@ test("the back office's read asks for the bounded window, says unread as null, a
 
 test("the timings ride on the overview, and a read that fails takes nothing else with it", async () => {
   const session = {
-    is_platform_admin: () => true,
+    platform_staff_state: () => "owner",
     platform_overview: () => [],
     platform_partner_balances: () => [],
     platform_partner_workspaces: () => [],

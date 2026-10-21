@@ -34,7 +34,6 @@
   "apps/dashboard/src/surfaces/people/person/frame.tsx": 1,
   "apps/dashboard/src/surfaces/people/pipeline/board.tsx": 1,
   "apps/dashboard/src/surfaces/settings/frame/workspace.tsx": 1,
-  "apps/dashboard/src/surfaces/settings/platform/detail.tsx": 1,
   "apps/dashboard/src/surfaces/setup/first-run/page.tsx": 1,
   "apps/dashboard/src/surfaces/today/pages/card.tsx": 2
 }

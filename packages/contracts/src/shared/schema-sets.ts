@@ -85,6 +85,8 @@ import type {
   LEAD_SUPPRESSION_WHATS,
 } from "../leads/search/sets";
 import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/lead-kind";
+import type { ACT_OUTCOMES, ACT_TARGETS, REASON_KINDS, STAFF_ROLES } from "../console/console";
+import type { REQUEST_KINDS } from "../console/requests";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
@@ -240,4 +242,12 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PAGE_DEVICES>, SchemaSet<"page_vitals.device">>>,
   // How a voice session ended (00300, 00302): the browser's word, kept on the row.
   Holds<Exactly<Of<typeof VOICE_END_REASONS>, SchemaSet<"ask_voice_sessions.end_reason">>>,
+  // The Console (00466, decision 0066): the staff's three roles, an act's target, its reason and what came of it, and
+  // the requests the data-deletion page promises an answer to.
+  Holds<Exactly<Of<typeof STAFF_ROLES>, SchemaSet<"platform_admins.role">>>,
+  Holds<Exactly<Of<typeof STAFF_ROLES>, SchemaSet<"platform_acts.actor_role">>>,
+  Holds<Exactly<Of<typeof ACT_TARGETS>, SchemaSet<"platform_acts.target_kind">>>,
+  Holds<Exactly<Of<typeof REASON_KINDS>, SchemaSet<"platform_acts.reason_kind">>>,
+  Holds<Exactly<Of<typeof ACT_OUTCOMES>, SchemaSet<"platform_acts.outcome">>>,
+  Holds<Exactly<Of<typeof REQUEST_KINDS>, SchemaSet<"privacy_requests.kind">>>,
 ];

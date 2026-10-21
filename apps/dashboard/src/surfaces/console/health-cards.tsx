@@ -1,14 +1,22 @@
 /**
- * The back office's platform-wide cards (moved from legacy/pages/platform.jsx, decision 0015 step 11): who is waiting
- * to get in, whether the machinery is running, how fast the pages are, and each workspace's day. Every word is the view
- * model's, from contracts.
+ * The platform-wide cards, moved from the back office (surfaces/settings/platform/cards.tsx) to the Console (decision
+ * 0066): who is waiting to get in (Home), whether the machinery is running, how fast the pages are, and each
+ * workspace's day (Health). Every word is the view model's, from contracts.
  */
 import { useState } from "react";
-import type { PageVitalsRowDto, PlatformHealth, PlatformQueueVM, Tone } from "@chanlytics/contracts";
+import {
+  staffMay,
+  type ConsoleWhy,
+  type PageVitalsRowDto,
+  type PlatformHealth,
+  type PlatformQueueVM,
+  type StaffRole,
+  type Tone,
+} from "@chanlytics/contracts";
 import type { PlatformApi } from "@/legacy-bridge/platform";
-import { Button } from "../../kit/button/button";
-import { Confirm } from "../../kit/confirm/confirm";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { Button } from "../kit/button/button";
+import type { LegacyFlash } from "../legacy-verbs";
+import { WhyAsk } from "./why";
 
 type Flash = (f: LegacyFlash) => void;
 type WaitingRowVM = PlatformQueueVM["rows"][number];
@@ -20,20 +28,22 @@ type WaitingRowVM = PlatformQueueVM["rows"][number];
 export function WaitingRow({
   row,
   P,
+  role,
   onDone,
   flash,
 }: {
   row: WaitingRowVM;
   P: PlatformApi;
+  role: StaffRole;
   onDone: () => void;
   flash: Flash;
 }) {
   const [arm, setArm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const run = async () => {
+  const run = async (why: ConsoleWhy) => {
     setBusy(true);
     const r: { ok: boolean; message: string } = await Promise.resolve()
-      .then(() => P.markInvited(row.id))
+      .then(() => P.markInvited(row.id, why))
       .catch(() => ({ ok: false, message: "That did not go through." }));
     setBusy(false);
     setArm(false);
@@ -46,20 +56,18 @@ export function WaitingRow({
         <span className="set-row-label">{row.email}</span>
         <span className="set-row-hint">{[row.detail, row.waited].filter(Boolean).join(" · ")}</span>
         {arm && (
-          <Confirm
-            block
+          <WhyAsk
             question="Mark them as invited?"
             detail="Nothing is sent. This only records that somebody wrote to them, and takes them off the list."
             yes="Yes, mark them"
-            no="Not now"
             busy={busy}
-            onYes={() => void run()}
+            onYes={(why) => void run(why)}
             onNo={() => setArm(false)}
             testid="platform-queue-invited"
           />
         )}
       </div>
-      {!arm && (
+      {!arm && staffMay(role, "waitlist_invited") && (
         <Button size="sm" onClick={() => setArm(true)} disabled={busy} data-testid="platform-queue-mark">
           Mark as invited
         </Button>
@@ -72,11 +80,13 @@ export function WaitingRow({
 export function PlatformQueueCard({
   waiting,
   P,
+  role,
   onDone,
   flash,
 }: {
   waiting: PlatformQueueVM;
   P: PlatformApi;
+  role: StaffRole;
   onDone: () => void;
   flash: Flash;
 }) {
@@ -99,7 +109,7 @@ export function PlatformQueueCard({
           </div>
           <div className="cl-attn-list" data-testid="platform-queue-rows">
             {waiting.rows.map((w) => (
-              <WaitingRow key={w.id} row={w} P={P} onDone={onDone} flash={flash} />
+              <WaitingRow key={w.id} row={w} P={P} role={role} onDone={onDone} flash={flash} />
             ))}
           </div>
         </>

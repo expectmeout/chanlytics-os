@@ -10,7 +10,7 @@
  * The shell is script-mode JSX with no imports, so its boundary says what it caught as an event on the window
  * (SHELL_ERROR_EVENT), and the bridge's host listens (listenForShellErrors) and sends it.
  */
-import { clientErrorOf, type ClientErrorBoundary } from "@chanlytics/contracts";
+import { clientErrorOf, errorIdOf, type ClientErrorBoundary, type ReportedError } from "@chanlytics/contracts";
 
 /** The event the shell's pane boundary dispatches on window: `detail` is `{ error, page }`. */
 export const SHELL_ERROR_EVENT = "chanlytics:shell-error";
@@ -27,11 +27,35 @@ const MOST_PER_LOAD = 5;
 
 type Beacon = { sendBeacon?: (url: string, data: Blob) => boolean } | undefined;
 
+/**
+ * The last error this page load caught, as Report a problem sends it (decision 0066): its short id, its name and its
+ * first line, and the page it was on. Kept in the page, never stored: a report is about what just happened.
+ */
+let lastCaught: (ReportedError & { page: string | null }) | null = null;
+
+/** The last error this page load caught, or null. */
+export function lastClientError(): (ReportedError & { page: string | null }) | null {
+  return lastCaught;
+}
+
+/**
+ * Where an error screen leaves the error it showed for Report a problem, across the reload that heals it: the frame's
+ * host opens the sheet with it once the page is back (surfaces/frame/report-problem.tsx), and forgets it.
+ */
+export const REPORT_AFTER_KEY = "chanlytics.report-after";
+
 /** A reporter for one page load: what it sent, so the same error twice is sent once. */
 export function clientErrorReporter(nav: Beacon, workspace: () => string | null = () => null) {
   const sent = new Set<string>();
   return (boundary: ClientErrorBoundary, error: unknown, page: string | null, digest?: string | null): boolean => {
     const body = clientErrorOf(boundary, error, page, digest, workspace());
+    const firstLine = body.message.split(/\r?\n/)[0] ?? "";
+    lastCaught = {
+      id: errorIdOf(body.page, body.name, body.message),
+      name: body.name,
+      message: firstLine,
+      page: body.page,
+    };
     const key = `${body.boundary}|${body.name}|${body.message}`;
     if (sent.has(key) || sent.size >= MOST_PER_LOAD) return false;
     sent.add(key);

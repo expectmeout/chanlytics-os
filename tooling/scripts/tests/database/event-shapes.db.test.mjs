@@ -193,7 +193,8 @@ before(async () => {
   );
   w.tp = brought.id;
   made.tenants.push(w.tp);
-  w.admin = await person("admin");
+  // Staff show their second factor every session (00466, decision 0066).
+  w.admin = await person("admin", { factor: true });
   ok(await db.from("platform_admins").insert({ user_id: w.admin.id }), "platform admin");
   made.admins.push(w.admin.id);
 });

@@ -97,7 +97,7 @@ before(async () => {
   );
   ok(await db.from("memberships").insert({ tenant_id: fresh, user_id: operator.userId, role: "operator" }));
   coOwner = await person("coowner");
-  admin = await person("admin");
+  admin = await person("admin", { factor: true });
   sleeper = await person("sleeper", { factor: true });
   sleeper.code = `iz-${Math.random().toString(36).slice(2, 8)}`;
   sleeper.id = ok(await sleeper.client.rpc("partner_become", { p_code: sleeper.code })).id;

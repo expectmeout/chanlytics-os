@@ -1932,6 +1932,18 @@
       }
     },
     {
+      "table": "platform_acts",
+      "name": "platform_acts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "platform_admins",
       "name": "platform_admins_pkey",
       "primary": true,
@@ -1939,6 +1951,18 @@
       "keys": [
         {
           "column": "user_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "platform_claims",
+      "name": "platform_claims_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
         }
       ],
       "where": null
@@ -1987,6 +2011,30 @@
         },
         {
           "column": "subject_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "privacy_requests",
+      "name": "privacy_requests_number_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "number"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "privacy_requests",
+      "name": "privacy_requests_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
         }
       ],
       "where": null
@@ -2616,6 +2664,30 @@
         {
           "column": "tenant_id"
         },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "support_reports",
+      "name": "support_reports_number_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "number"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "support_reports",
+      "name": "support_reports_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
         {
           "column": "id"
         }

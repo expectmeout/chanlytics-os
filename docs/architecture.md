@@ -710,6 +710,7 @@ packages/contracts/src/
   calendar/
   config/
   consent/
+  console/
   conversations/
   deals/
   email/

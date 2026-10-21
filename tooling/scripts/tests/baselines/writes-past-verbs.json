@@ -12,6 +12,8 @@
   "apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts": 3,
   "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts": 10,
   "apps/dashboard/src/surfaces/campaigns/templates/verbs.ts": 11,
+  "apps/dashboard/src/surfaces/console/verbs.ts": 3,
+  "apps/dashboard/src/surfaces/frame/report-problem.tsx": 1,
   "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts": 5,
   "apps/dashboard/src/surfaces/inbox/verbs.ts": 10,
   "apps/dashboard/src/surfaces/leads/finder/people-sheet.tsx": 1,

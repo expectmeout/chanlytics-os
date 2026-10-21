@@ -20,6 +20,7 @@
  */
 import { Field as BaseField } from "@base-ui/react/field";
 import type { KeyboardEvent, ReactElement, ReactNode, Ref } from "react";
+import { Icon } from "../icon/icon";
 import { cx } from "../variants";
 
 /** What is wrong with it, in the page's words, and the glyph beside them; or nothing. */
@@ -109,6 +110,11 @@ export type FieldProps = {
   hintId?: string;
 } & FieldProblem &
   (FieldBox | FieldControl);
+
+/** What a box says is wrong with it, with the kit's glyph, or nothing: the props a field takes for it. */
+export function fieldProblem(problem: string | null | undefined): FieldProblem {
+  return problem ? { problem, problemGlyph: <Icon name="alert" size={12} /> } : {};
+}
 
 /** The field's own box, with its unit, or the box of sentences. */
 function Box({ box, invalid }: { box: FieldBox; invalid: boolean }) {

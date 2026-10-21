@@ -222,7 +222,9 @@ export {
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
+  SECOND_FACTOR_STAFF_PATH,
   SECOND_FACTOR_WORDS,
+  secondFactorAsked,
   cleanFactorCode,
   enrolRefusalWords,
   factorCodeWords,
@@ -231,7 +233,6 @@ export {
   secondFactorResetWords,
   secondFactorShown,
 } from "./second-factor";
-export { PartnerSecondFactorResetSchema } from "./second-factor-schema";
 export type { AssuranceLevels } from "./second-factor";
 export {
   PARTNER_INVITE_DAYS,

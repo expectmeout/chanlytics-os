@@ -1,5 +1,6 @@
 /**
- * The back office's reads and verbs (the pane is surfaces/settings/platform, decision 0015 step 11).
+ * The back office's reads and verbs, now the Console's (decision 0066; its screens are surfaces/console). Every verb
+ * takes the reason the Console asked for (`why`), which the server writes down before it acts.
  *
  * Read ON DEMAND rather than published as a surface, for the same reason the
  * business-record form is: this is opened by one person, rarely, and a surface
@@ -39,7 +40,6 @@ import {
   clockDayLabel,
   zoneDayKey,
   type PlatformTenantDto,
-  type SetupDto,
   type PlatformLineAction,
   type PlatformHealth,
   type PlatformQueue,
@@ -49,26 +49,15 @@ import {
   type PageSpeedRowDto,
   type PageSpotRowDto,
   type PlatformDayRowDto,
+  type ConsoleWhy,
+  type PARTNER_STANDINGS,
+  type PARTNER_STATUSES,
 } from "@chanlytics/contracts";
+
+type Standing = (typeof PARTNER_STANDINGS)[number];
+type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 import { api } from "./api";
 import { readCache } from "./read-cache";
-
-export interface PlatformEventVM {
-  kind: string;
-  category: string;
-  subject_type: string | null;
-  created_at: string;
-  // No `data`. The payload is unbounded -- emitEvent writes numbers, addresses
-  // and provider ids from every corner of the product -- and the page renders
-  // none of it. Shipping another business's payloads to a browser to be thrown
-  // away is not a thing a cross-tenant surface gets to do by accident.
-}
-
-export interface PlatformTenantDetail {
-  tenant: { id: string; slug: string; name: string; status: string; timezone: string; created_at: string };
-  setup: SetupDto;
-  events: PlatformEventVM[];
-}
 
 type OverviewAnswer = {
   ok: boolean;
@@ -91,10 +80,8 @@ type OverviewAnswer = {
   days?: PlatformDayRowDto[] | null;
   message: string;
 };
-type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
-/** Both reads, kept for the tab: the list is re-read on every visit, and a workspace on every Open. */
+/** The overview, kept for the tab: read again on every visit, painted from what the tab holds meanwhile. */
 const overviews = readCache<OverviewAnswer>("platform-overview", (r) => r.ok);
-const details = readCache<DetailAnswer>("platform-detail", (r) => r.ok);
 
 export interface PlatformApi {
   /** Every workspace, as facts, whether the machinery under them is running, and who is waiting to get in. `ok: false` is the ordinary answer for anybody who is not an admin. */
@@ -114,15 +101,11 @@ export interface PlatformApi {
    * one shared sign-up code, so the invitation is a mail a person writes, and
    * this is the stamp that takes them out of the queue.
    */
-  markInvited(id: string): Promise<{ ok: boolean; message: string }>;
-  /** One workspace: its identity, the Setup its owner sees, and what has happened lately. */
-  one(tenantId: string): Promise<DetailAnswer>;
+  markInvited(id: string, why: ConsoleWhy): Promise<{ ok: boolean; message: string }>;
   /** What this tab already holds, if anything: what the first paint draws. A stand-in may hold nothing. */
   peekList?(): OverviewAnswer | null;
-  peekOne?(tenantId: string): DetailAnswer | null;
-  /** Read ahead of the click -- the rail's tab, and a row's Open under the pointer. */
+  /** Read ahead of the click. */
   warmList?(): void;
-  warmOne?(tenantId: string): void;
   /**
    * An event kind in an owner's words (the same function the activity log
    * runs). The trail selects no payload, so this is called with none: the
@@ -156,13 +139,18 @@ export interface PlatformApi {
    * Do one of them. Named actions only -- the routes each carry one operation,
    * and this passes the name rather than anything the edge would execute.
    */
-  act(action: PlatformLineAction, tenantId: string, lineId: string): Promise<{ ok: boolean; message: string }>;
+  act(
+    action: PlatformLineAction,
+    tenantId: string,
+    lineId: string,
+    why: ConsoleWhy,
+  ): Promise<{ ok: boolean; message: string }>;
   /** The partners, as rows and a sentence, and a workspace's partner as its row says it. Pure, from contracts. */
   partnerRows: typeof platformPartnerRows;
   partnerSummary: typeof platformPartnerSummary;
   partnerStanding: typeof platformPartnerStanding;
   /** A person's decision on a workspace a partner brought, with why. Recorded against the caller. */
-  setStanding(tenantId: string, standing: string, why: string): Promise<{ ok: boolean; message: string }>;
+  setStanding(tenantId: string, standing: Standing, why: ConsoleWhy): Promise<{ ok: boolean; message: string }>;
   /**
    * Record a payout sent by hand. IT SENDS NOTHING: the money leaves from the bank, and this records that it did,
    * with the reference to find it by.
@@ -174,11 +162,17 @@ export interface PlatformApi {
     reference: string,
     /** The total the card showed: nothing is recorded when what is payable has moved since. */
     expectedCents: number,
+    why: ConsoleWhy,
   ): Promise<{ ok: boolean; message: string }>;
   /** Pause, close or restore a partner, with why. A pause takes their seat on every workspace they brought. */
-  setStatus(partnerId: string, code: string, status: string, why: string): Promise<{ ok: boolean; message: string }>;
+  setStatus(
+    partnerId: string,
+    code: string,
+    status: PartnerStatus,
+    why: ConsoleWhy,
+  ): Promise<{ ok: boolean; message: string }>;
   /** Remove a partner's authenticator after checking it is them (0013), with why; they set up a new one at sign-in. */
-  resetSecondFactor(partnerId: string, code: string, why: string): Promise<{ ok: boolean; message: string }>;
+  resetSecondFactor(partnerId: string, code: string, why: ConsoleWhy): Promise<{ ok: boolean; message: string }>;
   /** Absent from a stand-in that has no partners' second factor to reset. */
   secondFactorWords?: typeof SECOND_FACTOR_WORDS;
 }
@@ -215,20 +209,10 @@ const platformVerbs: PlatformApi = {
         message: "",
       };
     }),
-  one: (tenantId) =>
-    details.through(tenantId, async () => {
-      const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
-      if (!r.ok) return { ok: false, detail: null, message: r.message };
-      return { ok: true, detail: r.data, message: "" };
-    }),
   peekList: () => overviews.peek("all"),
-  peekOne: (tenantId) => details.peek(tenantId),
   warmList: () => void overviews.warm("all", () => platformVerbs.list()),
-  // A pointer resting on a row's Open is the whole warning you get that it is
-  // about to be pressed, and this read is the one that makes that click wait.
-  warmOne: (tenantId) => void details.warm(tenantId, () => platformVerbs.one(tenantId)),
-  async act(action, tenantId, lineId) {
-    const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId } });
+  async act(action, tenantId, lineId, why) {
+    const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId, why } });
     // Both caches are already dropped by the write itself: every write
     // clears every on-demand answer, in one place (legacy-bridge/api.ts).
     if (!r.ok) return { ok: false, message: r.message };
@@ -259,8 +243,8 @@ const platformVerbs: PlatformApi = {
     }
     return { ok: true, message: "Done. This page will show it on the next read." };
   },
-  async markInvited(id) {
-    const r = await api()("POST platform/waitlist/invited", { body: { id } });
+  async markInvited(id, why) {
+    const r = await api()("POST platform/waitlist/invited", { body: { id, why } });
     // Whether it was this press or somebody else's, the queue on screen is
     // now one row out of date.
     overviews.clear();
@@ -277,9 +261,9 @@ const platformVerbs: PlatformApi = {
     if (!r.ok) return { ok: false, message: r.message };
     return { ok: true, message: partnerStandingOutcomeWords(r.data.result) };
   },
-  async markPaid(partnerId, code, currency, reference, expectedCents) {
+  async markPaid(partnerId, code, currency, reference, expectedCents, why) {
     const r = await api()("POST platform/partners/payout", {
-      body: { partner_id: partnerId, currency, reference, expected_cents: expectedCents },
+      body: { partner_id: partnerId, currency, reference, expected_cents: expectedCents, why },
     });
     overviews.clear();
     if (!r.ok) return { ok: false, message: r.message };

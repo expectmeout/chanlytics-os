@@ -721,7 +721,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   win.__ME = { platform_admin: true };
   assert.equal(
     mount("#/admin/platform").title,
-    "Back office · Settings · Chanlytics",
+    "The Console · Settings · Chanlytics",
     "and for the people it is for, the crumb names it",
   );
   delete win.__ME;

@@ -118,7 +118,7 @@ test("an open invitation, run: the list read seats nobody, whoever asks; the acc
   };
   setServiceClient(fakeDb(world));
   const ctx = {
-    supabase: fakeDb(world, {}, { is_platform_admin: () => false }),
+    supabase: fakeDb(world, {}, { platform_staff_state: () => "none" }),
     userId: USER,
     email: "Ada@Example.com",
     aal: "aal2",

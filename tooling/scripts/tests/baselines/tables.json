@@ -70,7 +70,7 @@
   "apps/dashboard/src/server/people/person-notes.ts::rpc": 1,
   "apps/dashboard/src/server/platform/day-counts.ts::rpc": 1,
   "apps/dashboard/src/server/platform/platform.ts": 2,
-  "apps/dashboard/src/server/platform/platform.ts::rpc": 4,
+  "apps/dashboard/src/server/platform/platform.ts::rpc": 3,
   "apps/dashboard/src/server/ports/core-ports.ts": 8,
   "apps/dashboard/src/server/public/unsubscribe.ts": 2,
   "apps/dashboard/src/server/rate-limit.ts::rpc": 1,

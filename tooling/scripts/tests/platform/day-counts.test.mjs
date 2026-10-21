@@ -126,7 +126,7 @@ test("a read that fails is unread (null), and a database the migration has not r
 
 test("the days ride on the overview beside the workspaces, and a read that fails takes nothing else with it", async () => {
   const session = {
-    is_platform_admin: () => true,
+    platform_staff_state: () => "owner",
     platform_overview: () => [],
     platform_partner_balances: () => [],
     platform_partner_workspaces: () => [],

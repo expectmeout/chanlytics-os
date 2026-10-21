@@ -6466,7 +6466,8 @@ CREATE FUNCTION public.is_platform_admin() RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select exists (select 1 from public.platform_admins a where a.user_id = auth.uid());
+  select exists (select 1 from public.platform_admins a where a.user_id = auth.uid())
+     and public.session_shows_second_factor();
 $$;
 
 
@@ -6474,7 +6475,7 @@ $$;
 -- Name: FUNCTION is_platform_admin(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.is_platform_admin() IS 'Whether the calling session is a Chanlytics platform admin. Answers only about the caller, which is why every session may ask; platform_overview() is what the answer unlocks.';
+COMMENT ON FUNCTION public.is_platform_admin() IS 'Whether the calling session is Chanlytics staff and showed its second factor (00466, decision 0066: no grace). Answers only about the caller, which is why every session may ask; platform_overview() and the Console''s doors are what the answer unlocks.';
 
 
 --
@@ -17374,30 +17375,73 @@ COMMENT ON FUNCTION public.person_step_from_playbook(p_tenant_id uuid, p_contact
 
 
 --
--- Name: platform_admin_add(text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: platform_acts_forward(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.platform_admin_add(p_email text) RETURNS text
+CREATE FUNCTION public.platform_acts_forward() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if TG_OP = 'DELETE' then
+    raise exception 'the Admin log keeps every row (platform_acts %)', OLD.id using errcode = 'check_violation';
+  end if;
+  if NEW.id is distinct from OLD.id or NEW.at is distinct from OLD.at
+     or NEW.actor_email is distinct from OLD.actor_email or NEW.actor_role is distinct from OLD.actor_role
+     or NEW.act is distinct from OLD.act or NEW.target_kind is distinct from OLD.target_kind
+     or NEW.target_id is distinct from OLD.target_id or NEW.reason_kind is distinct from OLD.reason_kind
+     or NEW.ticket is distinct from OLD.ticket or NEW.note is distinct from OLD.note
+     or (NEW.tenant_id is distinct from OLD.tenant_id and NEW.tenant_id is not null)
+     or (NEW.actor_id is distinct from OLD.actor_id and NEW.actor_id is not null) then
+    raise exception 'an Admin log row says who did what, where and why once (platform_acts %)', OLD.id
+      using errcode = 'check_violation';
+  end if;
+  if OLD.outcome <> 'running' and (NEW.outcome is distinct from OLD.outcome
+     or NEW.outcome_note is distinct from OLD.outcome_note or NEW.finished_at is distinct from OLD.finished_at) then
+    raise exception 'an Admin log row is finished once (platform_acts %: %)', OLD.id, OLD.outcome
+      using errcode = 'check_violation';
+  end if;
+  return NEW;
+end $$;
+
+
+--
+-- Name: platform_admin_add(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_admin_add(p_email text, p_role text DEFAULT 'support'::text) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_id uuid;
+  v_role text;
 begin
+  if p_role is null or p_role not in ('owner', 'support', 'billing') then
+    return format('%s is not a role: owner, support or billing', coalesce(p_role, 'nothing'));
+  end if;
   select u.id into v_id from auth.users u where lower(u.email) = lower(trim(p_email));
   if v_id is null then
     return format('no account for %s — nothing added', p_email);
   end if;
-  insert into public.platform_admins (user_id) values (v_id) on conflict (user_id) do nothing;
-  return format('%s may now open the back office', p_email);
+  select a.role into v_role from public.platform_admins a where a.user_id = v_id;
+  if v_role = p_role then
+    return format('%s is staff already, as %s — nothing changed', p_email, v_role);
+  end if;
+  insert into public.platform_admins (user_id, role) values (v_id, p_role)
+    on conflict (user_id) do update set role = excluded.role;
+  if v_role is not null then
+    return format('%s was %s, now %s', p_email, v_role, p_role);
+  end if;
+  return format('%s may now open the Console, as %s', p_email, p_role);
 end $$;
 
 
 --
--- Name: FUNCTION platform_admin_add(p_email text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION platform_admin_add(p_email text, p_role text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_admin_add(p_email text) IS 'Adds a Chanlytics platform admin by email. Service-role only, and deliberately not reachable from the app: who may read every workspace is a decision a person makes at a console, not a button. Answers in words rather than raising, so a typo is not an outage.';
+COMMENT ON FUNCTION public.platform_admin_add(p_email text, p_role text) IS 'Adds a person to the Console''s staff by email with a role, or changes the role of one who is staff already (00466). Service-role only, and deliberately not reachable from the app. Answers in words rather than raising, so a typo is not an outage. Removing someone is a delete from platform_admins at the same console.';
 
 
 --
@@ -17421,6 +17465,75 @@ $$;
 --
 
 COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active workspaces whose answer rate was zero on the day (00277): customers wrote, and nobody answered. The health sweep pages the platform with them.';
+
+
+--
+-- Name: platform_find(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_find(p_q text) RETURNS TABLE(kind text, tenant_id uuid, slug text, name text, label text, detail text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_q text := btrim(coalesce(p_q, ''));
+  v_like text;
+  v_digits text := regexp_replace(coalesce(p_q, ''), '\D', '', 'g');
+  v_number boolean;
+begin
+  if not public.is_platform_admin() then
+    raise exception 'staff only' using errcode = '42501';
+  end if;
+  if char_length(v_q) < 2 or char_length(v_q) > 80 then
+    return;
+  end if;
+  v_like := '%' || replace(replace(replace(lower(v_q), '\', '\\'), '%', '\%'), '_', '\_') || '%';
+  v_number := char_length(v_digits) >= 4 and v_q ~ '^[0-9\s()+.-]+$';
+
+  return query
+    (select 'workspace'::text, t.id, t.slug, t.name, t.name, t.slug
+       from public.tenants t
+      where lower(t.name) like v_like or t.slug like v_like
+      order by t.name
+      limit 8)
+    union all
+    (select 'owner'::text, t.id, t.slug, t.name, u.email::text, 'Owner of ' || t.name
+       from public.memberships m
+       join auth.users u on u.id = m.user_id
+       join public.tenants t on t.id = m.tenant_id
+      where m.role = 'owner' and lower(u.email) like v_like
+      order by u.email
+      limit 8)
+    union all
+    (select 'line'::text, t.id, t.slug, t.name, l.e164, t.name || '''s line'
+       from public.lines l
+       join public.tenants t on t.id = l.tenant_id
+      where v_number and l.e164 is not null and regexp_replace(l.e164, '\D', '', 'g') like '%' || v_digits || '%'
+      order by l.e164
+      limit 5)
+    union all
+    (select distinct on (t.id) 'caller'::text, t.id, t.slug, t.name, v_q, 'Called ' || t.name
+       from public.contacts c
+       join public.tenants t on t.id = c.tenant_id
+      where v_number and char_length(v_digits) >= 10 and c.erased_at is null and c.phone_e164 is not null
+        and right(regexp_replace(c.phone_e164, '\D', '', 'g'), 10) = right(v_digits, 10)
+      order by t.id
+      limit 5)
+    union all
+    (select 'report'::text, r.tenant_id, t.slug, t.name, 'R-' || r.number, left(r.words, 120)
+       from public.support_reports r
+       left join public.tenants t on t.id = r.tenant_id
+      where lower(r.words) like v_like or ('r-' || r.number) = lower(v_q)
+      order by r.created_at desc
+      limit 5);
+end $_$;
+
+
+--
+-- Name: FUNCTION platform_find(p_q text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (00466, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
 
 
 --
@@ -17848,6 +17961,28 @@ COMMENT ON FUNCTION public.platform_metrics_roll(p_day date) IS 'Counts one UTC 
 
 
 --
+-- Name: platform_model_spend(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_model_spend(p_days integer DEFAULT 30) RETURNS TABLE(tenant_id uuid, usd numeric)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select u.tenant_id, coalesce(sum(u.usd), 0)
+    from public.ai_usage u
+   where u.created_at >= now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 400)))
+   group by u.tenant_id;
+$$;
+
+
+--
+-- Name: FUNCTION platform_model_spend(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_model_spend(p_days integer) IS 'The Console (00466, decision 0066): what each workspace''s model calls cost over the last days (ai_usage.usd, list price). The service role alone.';
+
+
+--
 -- Name: platform_overview(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18048,6 +18183,53 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.platform_partner_workspaces() IS 'Who brought each workspace, how (link, handover or invite), and its standing with who decided it (the nightly check, a person, or the rule as the partner joined), for the back office (0012, P5; 0018). Platform admins only.';
+
+
+--
+-- Name: platform_role(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_role() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select a.role
+    from public.platform_admins a
+   where a.user_id = auth.uid()
+     and public.session_shows_second_factor();
+$$;
+
+
+--
+-- Name: FUNCTION platform_role(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_role() IS 'The calling session''s role in the Console (00466), on a session that showed its second factor; null otherwise. Answers about the caller alone.';
+
+
+--
+-- Name: platform_staff_state(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_staff_state() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select case
+           when a.user_id is null then 'none'
+           when not public.session_shows_second_factor() then 'needs_second_factor'
+           else a.role
+         end
+    from (select 1) as one
+    left join public.platform_admins a on a.user_id = auth.uid();
+$$;
+
+
+--
+-- Name: FUNCTION platform_staff_state(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_staff_state() IS 'The calling session in the Console (00466): its role once it showed its second factor, needs_second_factor before, none for everybody else. Answers about the caller alone, so every session may ask.';
 
 
 --
@@ -33071,13 +33253,85 @@ COMMENT ON COLUMN public.person_notes.for_seen_at IS 'When the member the note i
 
 
 --
+-- Name: platform_acts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.platform_acts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    actor_id uuid,
+    actor_email text,
+    actor_role text NOT NULL,
+    act text NOT NULL,
+    tenant_id uuid,
+    target_kind text NOT NULL,
+    target_id uuid,
+    reason_kind text NOT NULL,
+    ticket text,
+    note text,
+    outcome text DEFAULT 'running'::text NOT NULL,
+    outcome_note text,
+    finished_at timestamp with time zone,
+    CONSTRAINT platform_acts_act_check CHECK ((act ~ '^[a-z][a-z_]{1,39}$'::text)),
+    CONSTRAINT platform_acts_actor_email_check CHECK (((actor_email IS NULL) OR (char_length(actor_email) <= 320))),
+    CONSTRAINT platform_acts_actor_role_check CHECK ((actor_role = ANY (ARRAY['owner'::text, 'support'::text, 'billing'::text]))),
+    CONSTRAINT platform_acts_finished CHECK (((outcome = 'running'::text) = (finished_at IS NULL))),
+    CONSTRAINT platform_acts_note_check CHECK (((note IS NULL) OR ((char_length(note) >= 1) AND (char_length(note) <= 500)))),
+    CONSTRAINT platform_acts_outcome_check CHECK ((outcome = ANY (ARRAY['running'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
+    CONSTRAINT platform_acts_outcome_note_check CHECK (((outcome_note IS NULL) OR (char_length(outcome_note) <= 500))),
+    CONSTRAINT platform_acts_reason_kind_check CHECK ((reason_kind = ANY (ARRAY['ticket'::text, 'call'::text, 'found'::text, 'cleanup'::text]))),
+    CONSTRAINT platform_acts_target_kind_check CHECK ((target_kind = ANY (ARRAY['workspace'::text, 'line'::text, 'job'::text, 'waitlist'::text, 'partner'::text, 'request'::text, 'platform'::text]))),
+    CONSTRAINT platform_acts_ticket_check CHECK (((ticket IS NULL) OR ((char_length(ticket) >= 1) AND (char_length(ticket) <= 40)))),
+    CONSTRAINT platform_acts_ticket_named CHECK (((reason_kind <> 'ticket'::text) OR (ticket IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE platform_acts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.platform_acts IS 'Every act the Console''s staff take (00466, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.';
+
+
+--
 -- Name: platform_admins; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.platform_admins (
     user_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    role text DEFAULT 'owner'::text NOT NULL,
+    CONSTRAINT platform_admins_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'support'::text, 'billing'::text])))
 );
+
+
+--
+-- Name: COLUMN platform_admins.role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.platform_admins.role IS 'What the person may do in the Console (00466, decision 0066): owner (everything), support (the workspaces'' work), billing (the money). Set at the database alone (platform_admin_add).';
+
+
+--
+-- Name: platform_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.platform_claims (
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    email text,
+    claimed_at timestamp with time zone DEFAULT now() NOT NULL,
+    until timestamp with time zone NOT NULL,
+    CONSTRAINT platform_claims_email_check CHECK (((email IS NULL) OR (char_length(email) <= 320))),
+    CONSTRAINT platform_claims_until CHECK ((until > claimed_at))
+);
+
+
+--
+-- Name: TABLE platform_claims; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.platform_claims IS 'Who on the Console''s staff has taken a workspace, until when (00466, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.';
 
 
 --
@@ -33230,6 +33484,58 @@ CREATE TABLE public.policies (
     CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
     CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
     CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
+);
+
+
+--
+-- Name: privacy_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.privacy_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number integer NOT NULL,
+    kind text NOT NULL,
+    tenant_id uuid,
+    slug text NOT NULL,
+    name text NOT NULL,
+    asked_by text NOT NULL,
+    asked_at timestamp with time zone NOT NULL,
+    ticket text,
+    note text,
+    due_at timestamp with time zone NOT NULL,
+    steps jsonb DEFAULT '{}'::jsonb NOT NULL,
+    closed_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT privacy_requests_asked_by_check CHECK (((char_length(asked_by) >= 3) AND (char_length(asked_by) <= 200))),
+    CONSTRAINT privacy_requests_due_after_asked CHECK ((due_at > asked_at)),
+    CONSTRAINT privacy_requests_kind_check CHECK ((kind = ANY (ARRAY['delete_workspace'::text, 'delete_person'::text, 'copy'::text]))),
+    CONSTRAINT privacy_requests_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 200))),
+    CONSTRAINT privacy_requests_note_check CHECK (((note IS NULL) OR ((char_length(note) >= 1) AND (char_length(note) <= 500)))),
+    CONSTRAINT privacy_requests_slug_check CHECK (((char_length(slug) >= 1) AND (char_length(slug) <= 63))),
+    CONSTRAINT privacy_requests_steps_check CHECK (((jsonb_typeof(steps) = 'object'::text) AND (octet_length((steps)::text) <= 4000))),
+    CONSTRAINT privacy_requests_ticket_check CHECK (((ticket IS NULL) OR ((char_length(ticket) >= 1) AND (char_length(ticket) <= 40))))
+);
+
+
+--
+-- Name: TABLE privacy_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.privacy_requests IS 'A request the data-deletion page promises an answer to (00466, decision 0066): a workspace to delete within thirty days of its owner asking, a person''s request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.';
+
+
+--
+-- Name: privacy_requests_number_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.privacy_requests ALTER COLUMN number ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.privacy_requests_number_seq
+    START WITH 101
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -33942,6 +34248,55 @@ COMMENT ON COLUMN public.sequences.mode IS 'How its batches are decided (0064): 
 --
 
 COMMENT ON COLUMN public.sequences.once IS 'A message sent once, kept as a draft (00465, decision 0065): who it goes to, when (null: now), the channels and its step as New shaped it ({who, at, channels, step}). Only on a draft that starts on a date; it sends nothing until it is sent, and goes as it is sent.';
+
+
+--
+-- Name: support_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.support_reports (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number integer NOT NULL,
+    tenant_id uuid,
+    user_id uuid NOT NULL,
+    email text,
+    page text,
+    error_id text,
+    error_name text,
+    error_message text,
+    words text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    mailed_at timestamp with time zone,
+    mail_error text,
+    CONSTRAINT support_reports_email_check CHECK (((email IS NULL) OR (char_length(email) <= 320))),
+    CONSTRAINT support_reports_error_id_check CHECK (((error_id IS NULL) OR (error_id ~ '^[0-9a-f]{1,8}$'::text))),
+    CONSTRAINT support_reports_error_message_check CHECK (((error_message IS NULL) OR (char_length(error_message) <= 300))),
+    CONSTRAINT support_reports_error_name_check CHECK (((error_name IS NULL) OR (char_length(error_name) <= 60))),
+    CONSTRAINT support_reports_mail_error_check CHECK (((mail_error IS NULL) OR (char_length(mail_error) <= 300))),
+    CONSTRAINT support_reports_page_check CHECK (((page IS NULL) OR (page ~ '^[a-z][a-z0-9-]{0,31}$'::text))),
+    CONSTRAINT support_reports_words_check CHECK (((char_length(words) >= 1) AND (char_length(words) <= 2000)))
+);
+
+
+--
+-- Name: TABLE support_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.support_reports IS 'Report a problem (00466, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
+
+
+--
+-- Name: support_reports_number_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_reports ALTER COLUMN number ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.support_reports_number_seq
+    START WITH 1001
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -35130,11 +35485,27 @@ ALTER TABLE ONLY public.person_notes
 
 
 --
+-- Name: platform_acts platform_acts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_acts
+    ADD CONSTRAINT platform_acts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: platform_admins platform_admins_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.platform_admins
     ADD CONSTRAINT platform_admins_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: platform_claims platform_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_claims
+    ADD CONSTRAINT platform_claims_pkey PRIMARY KEY (tenant_id);
 
 
 --
@@ -35159,6 +35530,22 @@ ALTER TABLE ONLY public.policies
 
 ALTER TABLE ONLY public.policies
     ADD CONSTRAINT policies_tenant_id_class_subject_type_subject_id_key UNIQUE NULLS NOT DISTINCT (tenant_id, class, subject_type, subject_id);
+
+
+--
+-- Name: privacy_requests privacy_requests_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.privacy_requests
+    ADD CONSTRAINT privacy_requests_number_key UNIQUE (number);
+
+
+--
+-- Name: privacy_requests privacy_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.privacy_requests
+    ADD CONSTRAINT privacy_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -35351,6 +35738,22 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.sequences
     ADD CONSTRAINT sequences_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: support_reports support_reports_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_reports
+    ADD CONSTRAINT support_reports_number_key UNIQUE (number);
+
+
+--
+-- Name: support_reports support_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_reports
+    ADD CONSTRAINT support_reports_pkey PRIMARY KEY (id);
 
 
 --
@@ -36549,6 +36952,27 @@ CREATE INDEX person_notes_steps_open ON public.person_notes USING btree (tenant_
 
 
 --
+-- Name: platform_acts_actor_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_acts_actor_at ON public.platform_acts USING btree (actor_id, at DESC);
+
+
+--
+-- Name: platform_acts_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_acts_at ON public.platform_acts USING btree (at DESC);
+
+
+--
+-- Name: platform_acts_tenant_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_acts_tenant_at ON public.platform_acts USING btree (tenant_id, at DESC) WHERE (tenant_id IS NOT NULL);
+
+
+--
 -- Name: platform_metrics_day; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -36560,6 +36984,13 @@ CREATE INDEX platform_metrics_day ON public.platform_metrics USING btree (day);
 --
 
 CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id, subject_id) WHERE ((subject_type = 'contact'::text) AND (class = 'reply'::text));
+
+
+--
+-- Name: privacy_requests_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX privacy_requests_open ON public.privacy_requests USING btree (due_at) WHERE (closed_at IS NULL);
 
 
 --
@@ -36959,6 +37390,27 @@ CREATE UNIQUE INDEX sequence_steps_place ON public.sequence_steps USING btree (s
 --
 
 CREATE INDEX sequence_steps_tenant_state ON public.sequence_steps USING btree (tenant_id, state);
+
+
+--
+-- Name: support_reports_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_created ON public.support_reports USING btree (created_at DESC);
+
+
+--
+-- Name: support_reports_error; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_error ON public.support_reports USING btree (error_id, created_at DESC) WHERE (error_id IS NOT NULL);
+
+
+--
+-- Name: support_reports_tenant_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_tenant_created ON public.support_reports USING btree (tenant_id, created_at DESC) WHERE (tenant_id IS NOT NULL);
 
 
 --
@@ -37638,6 +38090,13 @@ CREATE TRIGGER person_moments_removed AFTER DELETE ON public.messages REFERENCIN
 --
 
 CREATE TRIGGER person_notes_set_updated_at BEFORE UPDATE ON public.person_notes FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: platform_acts platform_acts_forward; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER platform_acts_forward BEFORE DELETE OR UPDATE ON public.platform_acts FOR EACH ROW EXECUTE FUNCTION public.platform_acts_forward();
 
 
 --
@@ -39672,11 +40131,43 @@ ALTER TABLE ONLY public.person_notes
 
 
 --
+-- Name: platform_acts platform_acts_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_acts
+    ADD CONSTRAINT platform_acts_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: platform_acts platform_acts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_acts
+    ADD CONSTRAINT platform_acts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
 -- Name: platform_admins platform_admins_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.platform_admins
     ADD CONSTRAINT platform_admins_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: platform_claims platform_claims_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_claims
+    ADD CONSTRAINT platform_claims_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: platform_claims platform_claims_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.platform_claims
+    ADD CONSTRAINT platform_claims_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -39693,6 +40184,22 @@ ALTER TABLE ONLY public.platform_metrics
 
 ALTER TABLE ONLY public.policies
     ADD CONSTRAINT policies_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: privacy_requests privacy_requests_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.privacy_requests
+    ADD CONSTRAINT privacy_requests_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: privacy_requests privacy_requests_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.privacy_requests
+    ADD CONSTRAINT privacy_requests_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
 
 
 --
@@ -40141,6 +40648,22 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.sequences
     ADD CONSTRAINT sequences_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_reports support_reports_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_reports
+    ADD CONSTRAINT support_reports_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_reports support_reports_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.support_reports
+    ADD CONSTRAINT support_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -41220,10 +41743,22 @@ CREATE POLICY person_notes_member_select ON public.person_notes FOR SELECT TO au
 
 
 --
+-- Name: platform_acts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.platform_acts ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: platform_admins; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: platform_claims; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.platform_claims ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: platform_metrics; Type: ROW SECURITY; Schema: public; Owner: -
@@ -41283,6 +41818,12 @@ CREATE POLICY policies_owner_update ON public.policies FOR UPDATE TO authenticat
    FROM public.memberships m
   WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))));
 
+
+--
+-- Name: privacy_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.privacy_requests ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: profiles; Type: ROW SECURITY; Schema: public; Owner: -
@@ -41574,6 +42115,12 @@ CREATE POLICY sequences_member_select ON public.sequences FOR SELECT TO authenti
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
+
+--
+-- Name: support_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.support_reports ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: sweep_status; Type: ROW SECURITY; Schema: public; Owner: -
@@ -44486,11 +45033,19 @@ GRANT ALL ON FUNCTION public.person_step_from_playbook(p_tenant_id uuid, p_conta
 
 
 --
--- Name: FUNCTION platform_admin_add(p_email text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION platform_acts_forward(); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.platform_admin_add(p_email text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.platform_admin_add(p_email text) TO service_role;
+REVOKE ALL ON FUNCTION public.platform_acts_forward() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_acts_forward() TO service_role;
+
+
+--
+-- Name: FUNCTION platform_admin_add(p_email text, p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_admin_add(p_email text, p_role text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_admin_add(p_email text, p_role text) TO service_role;
 
 
 --
@@ -44499,6 +45054,15 @@ GRANT ALL ON FUNCTION public.platform_admin_add(p_email text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.platform_answer_silence(p_day date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_answer_silence(p_day date) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_find(p_q text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_find(p_q text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_find(p_q text) TO authenticated;
+GRANT ALL ON FUNCTION public.platform_find(p_q text) TO service_role;
 
 
 --
@@ -44515,6 +45079,14 @@ GRANT ALL ON FUNCTION public.platform_metrics_read(p_days integer) TO service_ro
 
 REVOKE ALL ON FUNCTION public.platform_metrics_roll(p_day date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_metrics_roll(p_day date) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_model_spend(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_model_spend(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_model_spend(p_days integer) TO service_role;
 
 
 --
@@ -44556,6 +45128,24 @@ GRANT ALL ON FUNCTION public.platform_partner_balances() TO service_role;
 REVOKE ALL ON FUNCTION public.platform_partner_workspaces() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_partner_workspaces() TO authenticated;
 GRANT ALL ON FUNCTION public.platform_partner_workspaces() TO service_role;
+
+
+--
+-- Name: FUNCTION platform_role(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_role() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_role() TO authenticated;
+GRANT ALL ON FUNCTION public.platform_role() TO service_role;
+
+
+--
+-- Name: FUNCTION platform_staff_state(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_staff_state() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_staff_state() TO authenticated;
+GRANT ALL ON FUNCTION public.platform_staff_state() TO service_role;
 
 
 --
@@ -47543,10 +48133,24 @@ GRANT ALL ON TABLE public.person_notes TO service_role;
 
 
 --
+-- Name: TABLE platform_acts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.platform_acts TO service_role;
+
+
+--
 -- Name: TABLE platform_admins; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT ALL ON TABLE public.platform_admins TO service_role;
+
+
+--
+-- Name: TABLE platform_claims; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.platform_claims TO service_role;
 
 
 --
@@ -47604,6 +48208,20 @@ GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
 --
 
 GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: TABLE privacy_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.privacy_requests TO service_role;
+
+
+--
+-- Name: SEQUENCE privacy_requests_number_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.privacy_requests_number_seq TO service_role;
 
 
 --
@@ -47979,6 +48597,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequences TO service_role;
 --
 
 GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
+
+
+--
+-- Name: TABLE support_reports; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.support_reports TO service_role;
+
+
+--
+-- Name: SEQUENCE support_reports_number_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.support_reports_number_seq TO service_role;
 
 
 --
