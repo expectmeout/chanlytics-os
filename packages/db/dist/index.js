@@ -488,6 +488,7 @@ var scrubbedBy = (...by) => ({ kind: "scrubbed", by });
 var byAge = (days) => ({ kind: "by_age", days });
 var DIGEST = { kind: "digest" };
 var WITH_WORKSPACE = { kind: "with_workspace" };
+var AS_RECORD = { kind: "as_record" };
 var NOT_PERSONAL = { kind: "not_personal" };
 var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strategy]));
 var ERASURE_STRATEGIES = {
@@ -806,6 +807,23 @@ var ERASURE_STRATEGIES = {
     ...all(NOT_PERSONAL, "checks", "code_used", "standing_why")
   },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
+  // The Console (00467, decision 0066). What the team did and why: the platform's staff, a ticket's number, and a reason
+  // the ask tells them to write without a customer's details (CONSOLE_WORDS.noteHint); kept as the log of the act.
+  platform_acts: all(NOT_PERSONAL, "actor_email", "act", "ticket", "note", "outcome_note"),
+  // Who on the team has a workspace taken: the platform's staff, gone in four hours or when let go.
+  platform_claims: { email: NOT_PERSONAL },
+  // A request the data-deletion page promises an answer to: who asked and the team's notes on it, kept as the answer's
+  // record; the workspace's name and address as it was filed.
+  privacy_requests: {
+    ...all(AS_RECORD, "asked_by", "ticket", "note", "steps"),
+    ...all(NOT_PERSONAL, "slug", "name")
+  },
+  // Report a problem: a member's address and words leave with the workspace (or their account), as its other records do;
+  // the page and the error are the app's own.
+  support_reports: {
+    ...all(WITH_WORKSPACE, "email", "words"),
+    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error")
+  },
   platform_metrics: all(
     NOT_PERSONAL,
     "messages_in",
@@ -6209,6 +6227,97 @@ async function getPartnerInviteMail(db, tenantId) {
   };
 }
 
+// src/repositories/console/staff.ts
+async function staffStateOf(db) {
+  return db.rpc("platform_staff_state");
+}
+async function findAcross(db, q) {
+  return db.rpc("platform_find", { p_q: q });
+}
+async function modelSpend(db, days) {
+  return db.rpc("platform_model_spend", { p_days: days });
+}
+async function tenantBySlug(db, slug) {
+  return db.from("tenants").select("id, slug, name, status, timezone, created_at").eq("slug", slug).maybeSingle();
+}
+async function tenantNames(db, ids) {
+  return db.from("tenants").select("id, slug, name").in("id", [...ids]);
+}
+async function liveClaims(db, nowIso) {
+  return db.from("platform_claims").select("tenant_id, user_id, email, until").gt("until", nowIso);
+}
+async function takeClaim(db, claim) {
+  const cleared = await db.from("platform_claims").delete().eq("tenant_id", claim.tenantId).or(`until.lt.${claim.nowIso},user_id.eq.${claim.userId}`);
+  if (cleared.error) return { data: null, error: cleared.error };
+  return db.from("platform_claims").insert({
+    tenant_id: claim.tenantId,
+    user_id: claim.userId,
+    email: claim.email,
+    claimed_at: claim.nowIso,
+    until: claim.untilIso
+  }).select("tenant_id, user_id, email, until").single();
+}
+async function letClaimGo(db, tenantId, userId) {
+  return db.from("platform_claims").delete().eq("tenant_id", tenantId).eq("user_id", userId);
+}
+async function claimOf(db, tenantId, nowIso) {
+  return db.from("platform_claims").select("tenant_id, user_id, email, until").eq("tenant_id", tenantId).gt("until", nowIso).maybeSingle();
+}
+
+// src/repositories/console/acts.ts
+var ACT_COLUMNS = "id, at, actor_id, actor_email, actor_role, act, tenant_id, target_kind, target_id, reason_kind, ticket, note, outcome, outcome_note, finished_at, tenant:tenants(slug, name)";
+async function startAct(db, row) {
+  return db.from("platform_acts").insert(row).select("id").single();
+}
+async function finishAct(db, id, outcome, note, atIso) {
+  return db.from("platform_acts").update({ outcome, outcome_note: note ? note.slice(0, 500) : null, finished_at: atIso }).eq("id", id).eq("outcome", "running");
+}
+async function listActs(db, q) {
+  let query = db.from("platform_acts").select(ACT_COLUMNS).order("at", { ascending: false }).limit(q.limit);
+  if (q.who) query = query.eq("actor_id", q.who);
+  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
+  if (q.before) query = query.lt("at", q.before);
+  return query;
+}
+
+// src/repositories/console/support.ts
+var REPORT_COLUMNS = "id, number, tenant_id, email, page, error_id, error_name, error_message, words, created_at, mailed_at, mail_error, tenant:tenants(slug, name)";
+async function fileReport(db, row) {
+  return db.from("support_reports").insert(row).select("id, number").single();
+}
+async function markReportMailed(db, id, outcome) {
+  return db.from("support_reports").update("at" in outcome ? { mailed_at: outcome.at, mail_error: null } : { mail_error: outcome.error.slice(0, 300) }).eq("id", id);
+}
+async function listReports(db, q) {
+  let query = db.from("support_reports").select(REPORT_COLUMNS).order("created_at", { ascending: false }).limit(q.limit);
+  if (q.sinceIso) query = query.gte("created_at", q.sinceIso);
+  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
+  return query;
+}
+async function reportToMail(db, id, userId) {
+  return db.from("support_reports").select(REPORT_COLUMNS).eq("id", id).eq("user_id", userId).maybeSingle();
+}
+async function setupAsks(db, q) {
+  let query = db.from("events").select("tenant_id, data, created_at").eq("kind", "setup.requested").gte("created_at", q.sinceIso).order("created_at", { ascending: false }).limit(q.limit);
+  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
+  return query;
+}
+
+// src/repositories/console/requests.ts
+var REQUEST_COLUMNS = "id, number, kind, tenant_id, slug, name, asked_by, asked_at, ticket, note, due_at, steps, closed_at, created_at";
+async function fileRequest(db, row) {
+  return db.from("privacy_requests").insert(row).select(REQUEST_COLUMNS).single();
+}
+async function requestById(db, id) {
+  return db.from("privacy_requests").select(REQUEST_COLUMNS).eq("id", id).maybeSingle();
+}
+async function setRequestSteps(db, id, was, steps, closedAt) {
+  return db.from("privacy_requests").update({ steps, ...closedAt ? { closed_at: closedAt } : {} }).eq("id", id).is("closed_at", null).filter("steps", "eq", JSON.stringify(was)).select(REQUEST_COLUMNS);
+}
+async function listRequests(db, closedSinceIso, limit) {
+  return db.from("privacy_requests").select(REQUEST_COLUMNS).or(`closed_at.is.null,closed_at.gte.${closedSinceIso}`).order("due_at", { ascending: true }).limit(limit);
+}
+
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 var jsonString = (v) => typeof v === "string" ? v : null;
@@ -7172,6 +7281,7 @@ export {
   claimDrafts,
   claimIdeas,
   claimIdempotencyKey,
+  claimOf,
   claimQueuedSend,
   claimReplyTell,
   claimReplyTurn,
@@ -7236,7 +7346,11 @@ export {
   failedMessageErrors,
   feedAdditionsWith,
   feedWordsOver,
+  fileReport,
+  fileRequest,
   filedNamesOf,
+  findAcross,
+  finishAct,
   finishableRuns,
   firstReplies,
   firstStepFacts,
@@ -7323,12 +7437,17 @@ export {
   leadsLeaveSequence,
   leavePersonLead,
   leaveSequence,
+  letClaimGo,
   lineForwardingSet,
   linkCallMessage,
+  listActs,
   listMemberIds,
   listPolicies,
+  listReports,
+  listRequests,
   listRow,
   listSecondFactors,
+  liveClaims,
   liveMailboxByAddress,
   logPersonCall,
   mailSent,
@@ -7350,6 +7469,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markReportMailed,
   markVisit,
   markWaitlistInvited,
   memberAlertsOf,
@@ -7367,6 +7487,7 @@ export {
   messageSlots,
   messageVersionRowsOf,
   migrationHead,
+  modelSpend,
   momentSchedules,
   monthSent,
   moveSend,
@@ -7502,6 +7623,8 @@ export {
   replyTokensSince,
   replyUndoableOf,
   reportSeries,
+  reportToMail,
+  requestById,
   requestMailboxesSweep,
   resendHandover,
   resolveChannel,
@@ -7570,12 +7693,15 @@ export {
   setPartnerStatus,
   setPersonReplyMode,
   setPolicyMode,
+  setRequestSteps,
   setSequenceStepWords,
   setTemplateQuality,
   setWorkspaceLogo,
   settleDelivery,
+  setupAsks,
   signUpOnPublicKey,
   signersOf,
+  staffStateOf,
   staleSends,
   stampEmailComplaint,
   stampEmailFromMailbox,
@@ -7585,6 +7711,7 @@ export {
   stampMailboxReceived,
   stampPlaybooksTried,
   stampReachOutStep,
+  startAct,
   startPlaybook,
   stopAllMessages,
   strandedRuns,
@@ -7596,6 +7723,7 @@ export {
   suppressEmailOf,
   syncFeedAppointments,
   takeCheckAttempt,
+  takeClaim,
   takeIdempotencyKey,
   takeMailboxSync,
   takeOutOfSequence,
@@ -7607,7 +7735,9 @@ export {
   templatesFor,
   templatesNamed,
   templatesToSend,
+  tenantBySlug,
   tenantDb,
+  tenantNames,
   tenantZoneOf,
   textLineFacts,
   textReached,

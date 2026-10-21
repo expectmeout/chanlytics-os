@@ -2,11 +2,11 @@
  * The back office and billing's three, run through route(): the real route
  * modules, their `run` called with a database in memory. What is proved is the
  * policy each declares and what the handler answers, not its text. The back
- * office's door is the database's answer to `is_platform_admin`, which the
+ * office's door is the database's answer to `platform_staff_state`, which the
  * double gives; what lies behind it reaches the service client or the edge,
  * so only the door and the words at it are run here.
  */
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,6 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const overview = await import(at("apps/dashboard/app/api/v1/platform/overview/route.ts"));
 const tenant = await import(at("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts"));
 const refile = await import(at("apps/dashboard/app/api/v1/platform/lines/refile/route.ts"));
@@ -31,6 +32,7 @@ const payout = await import(at("apps/dashboard/app/api/v1/platform/partners/payo
 const partnerStatus = await import(at("apps/dashboard/app/api/v1/platform/partners/status/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
+afterEach(() => setServiceClient(null));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -73,17 +75,25 @@ async function refused(p, code, status, words) {
 /** Every row the code under test wrote, changed or removed. */
 const writes = (ctx) => ctx.supabase.seen.filter((s) => ["insert", "update", "delete", "upsert"].includes(s.op)).length;
 /** The database's answer about this session, and everything else the back office reads through its own rpc. */
-const admin = (yes, more = {}) => ({ is_platform_admin: () => yes, ...more });
+const admin = (yes, more = {}) => ({ platform_staff_state: () => (yes ? "owner" : "none"), ...more });
+/** The Console's reason (decision 0066): every platform write takes one; a partner reads the note. */
+const why = (note = "Checked by hand.") => ({ kind: "call", ticket: null, note });
+/** The service role's tables an act writes its log row to, kept to read back (decision 0066). */
+function serviceWorld() {
+  const tables = { platform_acts: [] };
+  setServiceClient(fakeDb(tables));
+  return tables;
+}
 
 test("the eight declare their policy: the back office on the platform scope with no workspace role, its three actions on their own support ceilings; billing's two writes counted together, its read on its own ceiling", () => {
   const office = { kind: "read", scope: "platform", role: null, rate: null, spend: false };
   const act = (rate) => ({ kind: "write", scope: "platform", role: null, rate, spend: false });
   assert.deepEqual(overview.GET.policy, office);
   assert.deepEqual(tenant.GET.policy, office);
-  assert.deepEqual(refile.POST.policy, act("platform_line_refile"));
+  assert.deepEqual(refile.POST.policy, { ...act("platform_line_refile"), act: "line_refile" });
   // Releasing a number cannot be taken back: it asks the Auth server whether the session is still live.
-  assert.deepEqual(release.POST.policy, { ...act("platform_line_release"), fresh: true });
-  assert.deepEqual(retry.POST.policy, act("platform_line_retry"));
+  assert.deepEqual(release.POST.policy, { ...act("platform_line_release"), fresh: true, act: "line_release" });
+  assert.deepEqual(retry.POST.policy, { ...act("platform_line_retry"), act: "line_retry" });
   // A read of the invoices takes from its own ceiling: pressing Show invoices never locks an owner out of Checkout for the hour.
   assert.deepEqual(invoices.GET.policy, {
     kind: "read",
@@ -128,7 +138,7 @@ test("the back office's door: the database says who may look across workspaces, 
     tables,
     {},
     {
-      is_platform_admin: () => {
+      platform_staff_state: () => {
         throw new Error("connection reset");
       },
     },
@@ -163,16 +173,23 @@ test("behind the door: the overview is the database's own list; a workspace's pa
   );
   for (const route of [refile, release, retry]) {
     await refused(
-      route.POST.run(send("POST", { tenant_id: "x", line_id: L1 }), ctxFor(tables, {}, admin(true))),
-      "not_found",
-      404,
+      route.POST.run(send("POST", { tenant_id: "x", line_id: L1, why: why() }), ctxFor(tables, {}, admin(true))),
+      "validation",
+      400,
       "That workspace does not exist.",
     );
     await refused(
-      route.POST.run(send("POST", { tenant_id: A, line_id: "x" }), ctxFor(tables, {}, admin(true))),
-      "not_found",
-      404,
+      route.POST.run(send("POST", { tenant_id: A, line_id: "x", why: why() }), ctxFor(tables, {}, admin(true))),
+      "validation",
+      400,
       "That line does not exist.",
+    );
+    // A line act asks why before anything else is judged by the edge (decision 0066).
+    await refused(
+      route.POST.run(send("POST", { tenant_id: A, line_id: L1 }), ctxFor(tables, {}, admin(true))),
+      "validation",
+      400,
+      "why",
     );
   }
 });
@@ -242,7 +259,7 @@ test("partners: a customer who guessed the doors learns nothing, and nothing rea
   );
   assert.deepEqual(
     ctx.supabase.seen.filter((x) => x.rpc).map((x) => x.rpc),
-    ["is_platform_admin", "is_platform_admin"],
+    ["platform_staff_state", "platform_staff_state"],
   );
 });
 
@@ -255,39 +272,56 @@ test("partners: a decision names a workspace, a standing and why, and the functi
       return { tenant_id: A, standing: args.p_standing, from: "review", voided: 0, matured: 2 };
     },
   });
+  const service = serviceWorld();
   await refused(
-    standing.POST.run(send("POST", { tenant_id: "x", standing: "qualified", why: "y" }), ctxFor(tables, {}, ok)),
-    "not_found",
-    404,
+    standing.POST.run(send("POST", { tenant_id: "x", standing: "qualified", why: why() }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
     "That workspace does not exist.",
   );
   await refused(
-    standing.POST.run(send("POST", { tenant_id: A, standing: "maybe", why: "y" }), ctxFor(tables, {}, ok)),
+    standing.POST.run(send("POST", { tenant_id: A, standing: "maybe", why: why() }), ctxFor(tables, {}, ok)),
     "validation",
     400,
   );
   await refused(
-    standing.POST.run(send("POST", { tenant_id: A, standing: "qualified", why: "   " }), ctxFor(tables, {}, ok)),
+    standing.POST.run(send("POST", { tenant_id: A, standing: "qualified", why: why("   ") }), ctxFor(tables, {}, ok)),
     "validation",
     400,
     "Say why",
   );
   assert.deepEqual(asked, [], "nothing reached the function");
+  assert.equal(service.platform_acts.length, 0, "and nothing was written down for an act that was refused at the door");
   const out = await standing.POST.run(
-    send("POST", { tenant_id: A, standing: "qualified", why: "  Checked by hand.  " }),
+    send("POST", { tenant_id: A, standing: "qualified", why: why("  Checked by hand.  ") }),
     ctxFor(tables, {}, ok),
   );
   assert.deepEqual(asked, [{ p_tenant: A, p_standing: "qualified", p_why: "Checked by hand." }]);
   assert.equal(out.result.matured, 2);
+  // Written down before it ran, with who, their role, where and why; then what came of it (decision 0066).
+  assert.equal(service.platform_acts.length, 1);
+  const [row] = service.platform_acts;
+  assert.equal(row.act, "partner_standing");
+  assert.equal(row.actor_id, USER);
+  assert.equal(row.actor_email, "ada@example.com");
+  assert.equal(row.actor_role, "owner");
+  assert.equal(row.tenant_id, A);
+  assert.equal(row.reason_kind, "call");
+  assert.equal(row.note, "Checked by hand.");
+  assert.equal(row.outcome, "done");
+  assert.ok(row.finished_at);
   await refused(
     standing.POST.run(
-      send("POST", { tenant_id: A, standing: "qualified", why: "y" }),
+      send("POST", { tenant_id: A, standing: "qualified", why: why() }),
       ctxFor(tables, {}, admin(true, { partner_standing_set: raise("P0002", "No partner brought that workspace.") })),
     ),
     "not_found",
     404,
     "No partner brought that workspace.",
   );
+  assert.equal(service.platform_acts[1].outcome, "refused", "a refusal is the act's outcome too");
+  assert.equal(service.platform_acts[1].outcome_note, "No partner brought that workspace.");
+  setServiceClient(null);
 });
 
 test("partners: a payout names the partner, the currency and the reference; the function settles it, or says why not", async () => {
@@ -299,19 +333,29 @@ test("partners: a payout names the partner, the currency and the reference; the 
       return { paid: true, total_cents: "12500", currency: "usd", earnings: 2, payout_id: "p1" };
     },
   });
+  serviceWorld();
   await refused(
-    payout.POST.run(send("POST", { partner_id: "x", currency: "usd", reference: "r" }), ctxFor(tables, {}, ok)),
-    "not_found",
-    404,
+    payout.POST.run(
+      send("POST", { partner_id: "x", currency: "usd", reference: "r", why: why() }),
+      ctxFor(tables, {}, ok),
+    ),
+    "validation",
+    400,
     "That partner does not exist.",
   );
   await refused(
-    payout.POST.run(send("POST", { partner_id: P1, currency: "dollars", reference: "r" }), ctxFor(tables, {}, ok)),
+    payout.POST.run(
+      send("POST", { partner_id: P1, currency: "dollars", reference: "r", why: why() }),
+      ctxFor(tables, {}, ok),
+    ),
     "validation",
     400,
   );
   await refused(
-    payout.POST.run(send("POST", { partner_id: P1, currency: "usd", reference: " " }), ctxFor(tables, {}, ok)),
+    payout.POST.run(
+      send("POST", { partner_id: P1, currency: "usd", reference: " ", why: why() }),
+      ctxFor(tables, {}, ok),
+    ),
     "validation",
     400,
     "reference",
@@ -319,7 +363,7 @@ test("partners: a payout names the partner, the currency and the reference; the 
   assert.deepEqual(asked, []);
   await refused(
     payout.POST.run(
-      send("POST", { partner_id: P1, currency: "usd", reference: "r", expected_cents: "12500" }),
+      send("POST", { partner_id: P1, currency: "usd", reference: "r", expected_cents: "12500", why: why() }),
       ctxFor(tables, {}, ok),
     ),
     "validation",
@@ -327,20 +371,21 @@ test("partners: a payout names the partner, the currency and the reference; the 
     "whole number of cents",
   );
   const out = await payout.POST.run(
-    send("POST", { partner_id: P1, currency: "USD", reference: " bank-ref-1 ", expected_cents: 12500 }),
+    send("POST", { partner_id: P1, currency: "USD", reference: " bank-ref-1 ", expected_cents: 12500, why: why() }),
     ctxFor(tables, {}, ok),
   );
   assert.deepEqual(asked, [{ p_partner: P1, p_currency: "usd", p_reference: "bank-ref-1", p_expected_cents: 12500 }]);
   assert.equal(out.result.total_cents, 12500, "a bigint read as a number");
   await refused(
     payout.POST.run(
-      send("POST", { partner_id: P1, currency: "usd", reference: "r" }),
+      send("POST", { partner_id: P1, currency: "usd", reference: "r", why: why() }),
       ctxFor(tables, {}, admin(true, { partner_payout_mark: raise("22023", "Unknown currency: xyz") })),
     ),
     "validation",
     400,
     "Unknown currency",
   );
+  setServiceClient(null);
 });
 
 test("partners ride on the overview, and a partner list that cannot be read never takes the workspaces down", async () => {
@@ -428,21 +473,27 @@ test("partners: a pause names the partner, a status and why; a customer is refus
     },
   });
   await refused(
-    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "gone", why: "x" }), ctxFor(tables, {}, ok)),
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "gone", why: why() }), ctxFor(tables, {}, ok)),
     "validation",
     400,
   );
   await refused(
-    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: "" }), ctxFor(tables, {}, ok)),
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: why("") }), ctxFor(tables, {}, ok)),
     "validation",
     400,
     "Say why",
   );
   assert.deepEqual(asked, []);
+  const service = serviceWorld();
   const out = await partnerStatus.POST.run(
-    send("POST", { partner_id: P1, status: "paused", why: " Reported by an owner. " }),
+    send("POST", { partner_id: P1, status: "paused", why: why(" Reported by an owner. ") }),
     ctxFor(tables, {}, ok),
   );
   assert.deepEqual(asked, [{ p_partner: P1, p_status: "paused", p_why: "Reported by an owner." }]);
   assert.equal(out.result.seats, 3);
+  assert.deepEqual(
+    service.platform_acts.map((r) => [r.act, r.target_kind, r.target_id, r.outcome]),
+    [["partner_status", "partner", P1, "done"]],
+  );
+  setServiceClient(null);
 });

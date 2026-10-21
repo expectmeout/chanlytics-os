@@ -9,6 +9,15 @@ export const CLIENT_ERROR_LIMITS = {
 };
 export const PAGE = /^[a-z][a-z0-9-]{0,31}$/;
 export const WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+export function errorIdOf(page, name, message) {
+  const said = `${page ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
+  let h = 2166136261;
+  for (let i = 0; i < said.length; i++) {
+    h ^= said.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return (h >>> 16).toString(16).padStart(4, "0");
+}
 export function clientErrorOf(boundary, error, page, digest, workspace) {
   const e = error instanceof Error ? error : new Error(String(error));
   const first = (page ?? "").split(/[/?#]/)[0] ?? "";

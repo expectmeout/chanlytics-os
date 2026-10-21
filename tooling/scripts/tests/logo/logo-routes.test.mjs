@@ -261,7 +261,7 @@ test("where you are answers each workspace's logo as the address it is served at
     ],
     profiles: [],
   };
-  const rpcs = { is_platform_admin: () => false };
+  const rpcs = { platform_staff_state: () => "none" };
   const home = await workspaces.GET.run(new Request("http://localhost/api/v1/x"), ctxFor(tables, rpcs));
   assert.equal(home.workspaces[0].logo_url, `${PUBLIC}${OLD_A}`);
   assert.ok(!("logo_path" in home.workspaces[0]), "the storage path never reaches the browser");

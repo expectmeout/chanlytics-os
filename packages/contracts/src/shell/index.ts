@@ -170,7 +170,11 @@ export type {
   PageSpeedSpotVM,
   PageSpeedVM,
 } from "./page-speed";
-export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./client-error";
+export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf, errorIdOf } from "./client-error";
 export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorBoundary } from "./client-error";
 export type { ClientErrorInputDto } from "./client-error-schema";
+export { REPORT_LIMITS, REPORT_WORDS, reportProblemOf } from "./report-problem";
+export type { ReportedError } from "./report-problem";
+export { ReportProblemInput } from "./report-problem-schema";
+export type { ReportProblemInputDto } from "./report-problem-schema";

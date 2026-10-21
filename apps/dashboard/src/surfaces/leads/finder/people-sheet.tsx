@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { Button } from "../../kit/button/button";
-import { Field } from "../../kit/field/field";
+import { Field, fieldProblem } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { UnsavedAsk, useUnsavedWork } from "../../kit/record/work";
@@ -88,10 +88,6 @@ function Toggles<V extends string>(p: {
     />
   );
 }
-
-/** What a box says is wrong with it, with the kit's glyph, or nothing. */
-const problemOf = (problem: string | undefined) =>
-  problem ? { problem, problemGlyph: <Icon name="alert" size={12} /> } : {};
 
 /**
  * The sheet's foot: the one question while Cancel asks about what was typed, else the house's pair, which a phone draws
@@ -199,7 +195,7 @@ function FindPeopleSheet({
         onValueChange={setTitles}
         ref={first}
         data-testid="find-people-titles"
-        {...problemOf(shown.titles)}
+        {...fieldProblem(shown.titles)}
       />
       <Toggles
         label={PW.seniority}
@@ -219,7 +215,7 @@ function FindPeopleSheet({
           setIndustryRefused(null);
         }}
         data-testid="find-people-industries"
-        {...problemOf(shown.industries)}
+        {...fieldProblem(shown.industries)}
       />
       <Toggles
         label={PW.sizes}
@@ -236,7 +232,7 @@ function FindPeopleSheet({
         value={states}
         onValueChange={setStates}
         data-testid="find-people-states"
-        {...problemOf(shown.states)}
+        {...fieldProblem(shown.states)}
       />
       <Field
         label={PW.count}
@@ -246,7 +242,7 @@ function FindPeopleSheet({
         inputMode="numeric"
         maxLength={3}
         data-testid="find-people-count"
-        {...problemOf(shown.count)}
+        {...fieldProblem(shown.count)}
       />
       <p className="pk-alt-why" data-testid="find-people-plan">
         {plan.titles.length ? peoplePlanSentence(plan) : PW.needTitle}

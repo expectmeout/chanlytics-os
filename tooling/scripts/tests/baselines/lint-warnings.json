@@ -354,9 +354,6 @@
   "packages/contracts/src/templates/template-parts.ts": {
     "@typescript-eslint/no-base-to-string": 9
   },
-  "packages/contracts/src/workspace/second-factor-schema.ts": {
-    "@typescript-eslint/no-deprecated": 1
-  },
   "packages/contracts/src/workspace/second-factor.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },

@@ -481,7 +481,7 @@ test(
   "a payout recorded by hand settles every payable share into one row the partner reads; a second press pays nothing",
   { skip },
   async () => {
-    const admin = await person("admin");
+    const admin = await person("admin", { factor: true });
     ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
     try {
       const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
@@ -569,7 +569,7 @@ test(
   "a person's decision on a brought workspace: why is required, it is recorded against them, and a void share stays void",
   { skip },
   async () => {
-    const admin = await person("admin2");
+    const admin = await person("admin2", { factor: true });
     ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
     try {
       const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
@@ -643,7 +643,7 @@ test(
     });
     assert.equal(self.error?.code, "42501", "a partner cannot restore themselves");
 
-    const admin = await person("admin3");
+    const admin = await person("admin3", { factor: true });
     ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
     const roleOn = async (tenant) =>
       ok(await db.from("memberships").select("role").eq("tenant_id", tenant).eq("user_id", partner.userId)).map(
@@ -741,7 +741,7 @@ test("a partner who has become the workspace's owner earns nothing from it", { s
 });
 
 test("a payout records nothing when what is payable is not what the person saw", { skip }, async () => {
-  const admin = await person("admin4");
+  const admin = await person("admin4", { factor: true });
   ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
   try {
     const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
@@ -775,7 +775,7 @@ test("closing a partner takes them off every team, and a partner may still erase
     );
   assert.deepEqual(await seat(), ["partner"]);
 
-  const admin = await person("admin5");
+  const admin = await person("admin5", { factor: true });
   ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
   const [{ id: p3Id }] = ok(await p3.client.from("partners").select("id"));
   try {

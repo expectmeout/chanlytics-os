@@ -50,10 +50,45 @@
     "fresh": "Read as the back office opens, and kept for the tab (read-cache.ts).",
     "why": "The back office is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries; it is read again as it opens."
   },
-  "apps/dashboard/src/legacy-bridge/platform.ts GET platform/tenants/[id]": {
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/acts": {
     "kind": "on-open",
-    "fresh": "Read as one workspace's sheet opens in the back office, and kept for the tab (read-cache.ts).",
-    "why": "A workspace's sheet in the back office is read across workspaces, which no workspace's topic carries; it is read again as it opens."
+    "fresh": "Read as the Admin log opens, a page at a time, and again as whose log it is changes.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/find": {
+    "kind": "on-open",
+    "fresh": "Read as words are typed into Find, a pause after the last key.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/home": {
+    "kind": "on-open",
+    "fresh": "Read as Home or Workspaces opens, and again after an act taken there.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/me": {
+    "kind": "on-open",
+    "fresh": "Read as the Console opens: who is looking, their role and their second factor.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/requests": {
+    "kind": "on-open",
+    "fresh": "Read as Requests opens, and again after a request is filed or a step marked.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/support": {
+    "kind": "on-open",
+    "fresh": "Read as Support opens, and again as its view changes.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a workspace's Setup and lines tab opens in the Console, and again after a line's act.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/workspaces/[slug]": {
+    "kind": "on-open",
+    "fresh": "Read as a workspace opens in the Console, and again after an act taken on it.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
   },
   "apps/dashboard/src/surfaces/campaigns/broadcasts/detail-read.ts GET broadcasts/[id]": {
     "kind": "follows",

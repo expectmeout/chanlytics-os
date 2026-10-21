@@ -1,0 +1,201 @@
+/* ====================================================================
+   Chanlytics — the Console (decision 0066)
+   The platform's own place, at /console. Settings' frame (its rail and
+   pane, settings.css) holds it; this sheet lays out what the Console adds
+   around the kit's parts, and draws no part of its own. Layout and tokens
+   only: every size, colour and radius is tokens.css's.
+   ==================================================================== */
+
+/* The frame fills the window: the rail beside the screen, each scrolling on its own. */
+.cs-frame {
+  height: 100dvh;
+  background: var(--bg);
+}
+
+/* The rail: the brand at its head, Find under it, the screens, and who you are at its foot. */
+.cs-rail {
+  padding-top: var(--space-4);
+}
+.cs-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-4);
+}
+.cs-brand-name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cs-brand-kind {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cs-key {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+.cs-me {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.cs-me-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cs-me-role {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* A screen: its head, a line of tools, then its sections. */
+.cs-screen,
+.cs-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--measure-page);
+}
+.cs-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.cs-held {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* Home: the work on the left, the numbers and what is due beside it. */
+.cs-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: var(--space-5);
+  align-items: start;
+}
+.cs-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.cs-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* The reason ask, under the control that armed it. */
+.cs-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.cs-why-q {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cs-why-detail {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cs-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A report and the copy of its number beside it. */
+.cs-report {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A request filed, and Find: what their sheets hold. */
+.cs-filing,
+.cs-find-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.cs-find-group {
+  display: flex;
+  flex-direction: column;
+}
+.cs-find-at {
+  background: var(--bg-hover);
+  border-radius: var(--surface-row-radius);
+}
+.cs-find-keys {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+
+/* Nobody's Console: the one line, in the middle of the window. */
+.cs-nothing {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg);
+}
+
+@media (max-width: 900px) {
+  .cs-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A phone: the rail is a strip over the screen (the phone's own layout is a later tier's), the page scrolls whole. */
+@media (max-width: 720px) {
+  .cs-frame {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .settings.cs-frame .cs-rail {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: var(--space-2);
+  }
+  .cs-rail .set-nav-group,
+  .cs-rail .cs-key {
+    display: none;
+  }
+  .cs-rail .set-nav-row {
+    width: auto;
+    flex: none;
+  }
+  .cs-me {
+    margin-top: 0;
+    border-top: 0;
+    padding: 0 var(--space-2);
+    flex: none;
+  }
+  .cs-figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

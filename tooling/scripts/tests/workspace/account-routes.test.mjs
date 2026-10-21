@@ -135,7 +135,7 @@ test("where you are: every workspace with who is signed in; the active one by me
     tenants: tenants(),
     profiles: [{ user_id: USER, display_name: "Ada" }],
   };
-  const home = await workspaces.GET.run(get(), ctxFor(tables, {}, { is_platform_admin: () => false }));
+  const home = await workspaces.GET.run(get(), ctxFor(tables, {}, { platform_staff_state: () => "none" }));
   assert.deepEqual(
     home.workspaces.map((w) => w.name),
     ["Bayside", "Harbor"],
@@ -152,7 +152,7 @@ test("where you are: every workspace with who is signed in; the active one by me
     // No workspace handed to them (0016): handover.test.mjs proves one that is.
     handovers: [],
   });
-  const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { is_platform_admin: () => false }));
+  const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { platform_staff_state: () => "none" }));
   assert.deepEqual(
     [bayside.activeWorkspaceId, bayside.user.role],
     [B, "owner"],
@@ -160,7 +160,7 @@ test("where you are: every workspace with who is signed in; the active one by me
   );
   const stale = await workspaces.GET.run(
     get(`?workspace=${C}`),
-    ctxFor(tables, {}, { is_platform_admin: () => false }),
+    ctxFor(tables, {}, { platform_staff_state: () => "none" }),
   );
   assert.equal(stale.activeWorkspaceId, A, "a workspace this person was removed from degrades to their default");
   // ...and ONLY that. A memberships read that FAILED is not a stale preference:
@@ -178,11 +178,11 @@ test("where you are: every workspace with who is signed in; the active one by me
     /statement timeout/,
     'the real cause, not a fallback and not a bare "no workspace"',
   );
-  const admin = await workspaces.GET.run(get(), ctxFor(tables, {}, { is_platform_admin: () => true }));
+  const admin = await workspaces.GET.run(get(), ctxFor(tables, {}, { platform_staff_state: () => "owner" }));
   assert.equal(admin.user.platform_admin, true, "the nav's one bit rides along");
   const nowhere = await workspaces.GET.run(
     get(),
-    ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { is_platform_admin: () => false }),
+    ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { platform_staff_state: () => "none" }),
   );
   // "Nowhere yet" carries the door the first workspace meets: the sign-up
   // posture, open here because the test sets no SIGNUP_CODE.
@@ -326,7 +326,7 @@ test("where you are says each workspace's word, and a database 00458 has not rea
     tenants: [{ ...tenants()[0], appointment_word: "session" }, tenants()[1]],
     profiles: [],
   };
-  const rpcs = { is_platform_admin: () => false };
+  const rpcs = { platform_staff_state: () => "none" };
   const said = (home) => home.workspaces.map((w) => [w.slug, w.appointment_word]);
   const home = await workspaces.GET.run(get(), ctxFor(tables, {}, rpcs));
   assert.deepEqual(said(home), [
@@ -652,7 +652,7 @@ test("create once (F5): the invite code sign-up checked and kept opens the first
 
 test("the name Google gave stands in until the person gives one, and is never made from the email", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants(), profiles: [] };
-  const rpcs = { is_platform_admin: () => false };
+  const rpcs = { platform_staff_state: () => "none" };
   const fromGoogle = await workspaces.GET.run(get(), {
     ...ctxFor(tables, {}, rpcs),
     metadata: { full_name: "  Ada   Lovelace ", email: "ada@example.com" },

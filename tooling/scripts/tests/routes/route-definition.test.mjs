@@ -283,8 +283,8 @@ test("a read's query is parsed, without the workspace in it", async () => {
 
 test("platform: the database decides who is staff; account: nothing is resolved", async () => {
   const GET = read({ scope: platform, handle: echo });
-  await refused(GET.run(get(), ctxFor({}, { rpcs: { is_platform_admin: () => false } })), "not_found", 404);
-  assert.equal((await GET.run(get(), ctxFor({}, { rpcs: { is_platform_admin: () => true } }))).office, true);
+  await refused(GET.run(get(), ctxFor({}, { rpcs: { platform_staff_state: () => "none" } })), "not_found", 404);
+  assert.equal((await GET.run(get(), ctxFor({}, { rpcs: { platform_staff_state: () => "owner" } }))).office, true);
   // No memberships table at all: an account-scoped route never asks.
   const PUT = write({ scope: account, role: null, rate: null, handle: async ({ ctx }) => ctx.userId });
   assert.equal(await PUT.run(post(), ctxFor({})), USER);
@@ -429,7 +429,7 @@ test("the once-rule per route kind (0035 step 3): a row's write is keyed in the 
   const office = { n: 0 };
   const ACT = write({ scope: platform, rate: null, handle: async () => ({ run: ++office.n }) });
   const platformTables = { idempotency_keys: [] };
-  const staff = ctxFor(platformTables, { rpcs: { is_platform_admin: () => true } });
+  const staff = ctxFor(platformTables, { rpcs: { platform_staff_state: () => "owner" } });
   await ACT.run(keyed("", { text: "hi" }, "k-platform"), staff);
   await ACT.run(keyed("", { text: "hi" }, "k-platform"), staff);
   assert.equal(office.n, 2, "the platform's write has no workspace to key on (0035 names the 27)");

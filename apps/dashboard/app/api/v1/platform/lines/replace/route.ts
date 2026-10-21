@@ -1,5 +1,5 @@
 import { write, platform } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
 import { platformLineAct } from "@/server/platform/platform";
 
 /**
@@ -28,11 +28,10 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_line_refile",
-  handle: async ({ ctx, req, office }) => {
-    const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; line_id?: unknown };
-    const tenantId = requireUuid(body.tenant_id, "workspace");
-    const lineId = requireUuid(body.line_id, "line");
-    const r = await platformLineAct(office, ctx, "replace", tenantId, lineId);
+  act: LINE_ACTS.replace,
+  input: LineActSchema,
+  handle: async ({ office, input }) => {
+    const r = await platformLineAct(office, "replace", input.tenant_id, input.line_id, input.why);
     return { ok: r.ok, status: r.status, result: r.body };
   },
 });

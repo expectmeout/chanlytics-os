@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  REPORT_WORDS,
   ASK_STYLE_MAX,
   answerStyleOf,
   identityWords,
@@ -22,6 +23,7 @@ import {
 import { api } from "@/legacy-bridge/api";
 import { meVerbs } from "@/legacy-bridge/identity";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { reportDoor } from "../../kit/empty/report-door";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -354,6 +356,19 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
       {role && <RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />}
       <AnswerStyle flash={flash} />
       <PartnerOfferRow />
+      {/* Report a problem (decision 0066): to a person at Chanlytics, with this page; the frame's sheet takes it. */}
+      {reportDoor.open && (
+        <RecordRow
+          id="profile-report"
+          label={REPORT_WORDS.door}
+          value={REPORT_WORDS.sub}
+          act={{
+            label: REPORT_WORDS.door,
+            onClick: () => reportDoor.open?.(null),
+            testid: "set-profile-report",
+          }}
+        />
+      )}
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
       <RecordRow

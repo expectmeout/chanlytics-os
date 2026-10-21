@@ -141,7 +141,22 @@ export interface NotifyPorts {
   send?: typeof post;
 }
 
+/** One mail through Resend, from the platform's address. */
 export async function post(from: string, to: string[], subject: string, text: string): Promise<boolean> {
+  return postMail({ from, to, subject, text });
+}
+
+/** One mail as a whole: who it is from and to, its subject and words, and who a reply goes to when it is not `from`. */
+interface PlatformMail {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  replyTo?: string | null;
+}
+
+/** One mail through Resend; `replyTo` names who a reply goes to (Report a problem's member, decision 0066). */
+export async function postMail({ from, to, subject, text, replyTo = null }: PlatformMail): Promise<boolean> {
   const L = logger();
   const key = env.RESEND_API_KEY;
   if (!key) {
@@ -151,7 +166,7 @@ export async function post(from: string, to: string[], subject: string, text: st
   const r = await providerFetch("resend", RESEND, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to, subject, text }),
+    body: JSON.stringify({ from, to, subject, text, ...(replyTo ? { reply_to: replyTo } : {}) }),
     timeoutMs: NOTIFY_TIMEOUT_MS,
     // The alarm is always tried: an outage the breaker learned is exactly when it must go.
     breaker: "count",

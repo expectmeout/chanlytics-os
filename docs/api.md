@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-291 handlers in 50 domains.
+302 handlers in 51 domains.
 
 ## activity
 
@@ -1571,35 +1571,94 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 
 ## platform
 
+### `GET /api/v1/platform/acts`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `who` | string (uuid) | no |  |
+| `before` | string (date-time) | no |  |
+| `format` | one of `"rows"`, `"csv"` | no |  |
+
+### `POST /api/v1/platform/claims`
+
+Writes; for platform staff; counts against the `platform_claim` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `take` | boolean | yes |  |
+
+### `GET /api/v1/platform/find`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `q` | string | yes | at least 2 characters; at most 80 characters |
+
+### `GET /api/v1/platform/home`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/home/route.ts`).
+
 ### `POST /api/v1/platform/jobs/requeue`
 
 Writes; for platform staff; counts against the `platform_job_requeue` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/jobs/requeue/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `job_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/refile`
 
 Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/refile/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `line_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/release`
 
 Writes; for platform staff; counts against the `platform_line_release` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/release/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `line_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/replace`
 
 Writes; for platform staff; counts against the `platform_line_refile` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/replace/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `line_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/lines/retry`
 
 Writes; for platform staff; counts against the `platform_line_retry` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/lines/retry/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `line_id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
+
+### `GET /api/v1/platform/me`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/me/route.ts`).
 
 ### `GET /api/v1/platform/overview`
 
@@ -1611,7 +1670,13 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for platform staff; counts against the `platform_partner_payout` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/payout/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `partner_id` | string (uuid) | yes |  |
+| `currency` | string | yes | matches `^[a-z]{3}$` |
+| `reference` | string | yes | at least 1 characters; at most 200 characters |
+| `expected_cents` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/partners/second-factor`
 
@@ -1620,19 +1685,64 @@ Writes; for platform staff; counts against the `platform_partner_second_factor` 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `partner_id` | string (uuid) | yes |  |
-| `why` | string | yes | at least 1 characters; at most 500 characters |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/partners/standing`
 
 Writes; for platform staff; counts against the `platform_partner_standing` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/standing/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string (uuid) | yes |  |
+| `standing` | one of `"qualified"`, `"review"`, `"disqualified"` | yes |  |
+| `why` | object | yes |  |
 
 ### `POST /api/v1/platform/partners/status`
 
 Writes; for platform staff; counts against the `platform_partner_status` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/partners/status/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `partner_id` | string (uuid) | yes |  |
+| `status` | one of `"active"`, `"paused"`, `"closed"` | yes |  |
+| `why` | object | yes |  |
+
+### `GET /api/v1/platform/requests`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/requests/route.ts`).
+
+### `POST /api/v1/platform/requests`
+
+Writes; for platform staff; counts against the `platform_request` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"delete_workspace"`, `"delete_person"`, `"copy"` | yes |  |
+| `workspace` | string | yes | matches `^[a-z0-9][a-z0-9-]{0,62}$` |
+| `asked_by` | string | yes | at least 3 characters; at most 200 characters |
+| `asked_at` | string (date-time) | yes |  |
+| `why` | object | yes |  |
+
+### `POST /api/v1/platform/requests/step`
+
+Writes; for platform staff; counts against the `platform_request` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
+| `step` | one of `"confirmed"`, `"copy_sent"`, `"number_released"`, `"dry_run"`, `"deleted"`, `"passed_on"`, `"answered"`, `"sent"`, `"told"` or `"close"` | yes |  |
+| `done` | boolean | yes |  |
+| `why` | object | yes |  |
+
+### `GET /api/v1/platform/support`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `view` | one of `"week"`, `"all"` | no |  |
 
 ### `GET /api/v1/platform/tenants/[id]`
 
@@ -1644,7 +1754,16 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 Writes; for platform staff; counts against the `platform_waitlist_invited` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/platform/waitlist/invited/route.ts`).
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
+| `why` | object | yes |  |
+
+### `GET /api/v1/platform/workspaces/[slug]`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/workspaces/[slug]/route.ts`).
 
 ## playbooks
 
@@ -2260,6 +2379,19 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `what` | string | yes |  |
+
+## support
+
+### `POST /api/v1/support/report`
+
+Writes; for any signed-in person, for themselves; counts against the `support_report` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `words` | string | yes | at least 1 characters; at most 2000 characters |
+| `page` | string or null | yes |  |
+| `error` | object or null | yes |  |
+| `workspace` | string or null | yes |  |
 
 ## team
 

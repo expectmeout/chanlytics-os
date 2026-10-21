@@ -799,8 +799,10 @@ a.chip:focus-visible {
   color: var(--ink-dim);
 }
 /* A menu's switches as chips (the Menu's toggles, `chips`: what a board shows): rows on a desk, as any switches are; on a
-   phone a line of chips, each lit while it is on as a segmented control's choice is, its tick beside its word, so the
-   menu reads as what it shows over the doors under it (Ruben, 14 Oct 2026, the fitted sheets). */
+   phone one compact line of chips, each lit while it is on as a segmented control's choice is, its small tick beside its
+   word, the ones that are off in the muted ink on a hairline, so the menu reads as what it shows over the doors under it
+   (Ruben, 14 Oct 2026, the fitted sheets; 21 Oct 2026, quieter and compact). Named over the phone sheet's item rule
+   below (:is() with the sheet's own selectors), which drew each chip a 52px row's height and type before. */
 .more-chips {
   display: contents;
 }
@@ -808,31 +810,41 @@ a.chip:focus-visible {
   .more-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 2px 4px 10px;
-  }
-  .more-menu .more-chips > .more-item {
-    width: auto;
-    min-height: 40px;
-    padding: 0 14px;
     gap: 6px;
+    padding: 2px 2px 8px;
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item {
+    width: auto;
+    min-height: 34px;
+    padding: 0 12px;
+    gap: 5px;
     border: 1px solid var(--line);
     border-radius: var(--radius-full);
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
+    color: var(--ink-muted);
   }
-  .more-menu .more-chips > .more-item[aria-checked="true"] {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item[aria-checked="true"] {
     border-color: transparent;
     background: var(--selected-fill);
     box-shadow: var(--selected-depth);
+    color: var(--ink);
   }
-  .more-menu .more-chips > .more-item[aria-checked="false"] > .icon {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item > .icon {
+    width: 13px;
+    height: 13px;
+    color: inherit;
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu)
+    .more-chips
+    > .more-item[aria-checked="false"]
+    > .icon {
     display: none;
   }
   .more-menu .more-chips > .more-item > .more-item-label {
     flex: none;
   }
   /* A key's focus draws the house's ring over a lit chip's own depth, as a picked segment's does. */
-  .more-menu .more-chips > .more-item:focus-visible {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet], .more-menu) .more-chips > .more-item:focus-visible {
     box-shadow: var(--focus-ring);
   }
   /* What is said of them all, under the chips at their edge rather than at a row's words. */

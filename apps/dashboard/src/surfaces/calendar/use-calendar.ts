@@ -44,7 +44,7 @@ function keptShow(): CalendarShow {
  * service picked, what Show draws, the day the phone's month has picked, and the sheets of the rules and of a day's
  * campaigns. The view is not kept here: it is the address's (address.ts calendarViewOf), as every strip's view is.
  */
-export function useCalendarState(initialDay: string | null) {
+export function useCalendarState(initialDay: string | null, heldLeft: number) {
   // A link can name a day (calendar/<YYYY-MM-DD>), which the board opens on; a second door to a day while the page is open
   // (a day pressed in the month) moves it there, in the same draw as the address that names it, so Day view never draws
   // the day it was on first.
@@ -64,6 +64,12 @@ export function useCalendarState(initialDay: string | null) {
   // The hours, the booking rules and the calendar's source: a sheet Settings opens, its one door (D6). They were a fold
   // under the board, and on a phone its foot took the 40px an eleven-hour day needed to fit.
   const [rulesOpen, setRulesOpen] = useState(false);
+  // The booking emails held for a look, over the board: the card's "Look at them" (settings/business/held-emails.tsx).
+  // It lets go once none is left in it (`heldLeft`, the board's read), so an email held later never opens it by itself.
+  const [heldOpen, setHeldOpen] = useState(false);
+  useEffect(() => {
+    if (heldLeft === 0) setHeldOpen(false);
+  }, [heldLeft]);
   // What Show draws, kept for this tab under its own place (never the view's entry).
   const [show, setShowState] = useState<CalendarShow>(keptShow);
   const setShow = (next: CalendarShow) => {
@@ -90,6 +96,8 @@ export function useCalendarState(initialDay: string | null) {
     setRefreshing,
     rulesOpen,
     setRulesOpen,
+    heldOpen,
+    setHeldOpen,
     show,
     setShow,
     monthPick,

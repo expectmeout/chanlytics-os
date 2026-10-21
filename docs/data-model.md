@@ -40,7 +40,7 @@ what the script writes.
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -85,9 +85,12 @@ what the script writes.
 | [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
+| [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
+| [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | none | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
@@ -104,12 +107,13 @@ what the script writes.
 | [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 2 policies |
+| [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/mailboxes/reconcile.ts` | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -897,7 +901,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -2316,6 +2320,37 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `person_notes_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### platform_acts
+
+Every act the Console's staff take (00467, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.
+
+- Owned by: `packages/db/src/repositories/console/acts.ts`
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `at` | timestamp with time zone | no | `now()` |  |
+| `actor_id` | uuid | yes |  |  |
+| `actor_email` | text | yes |  |  |
+| `actor_role` | text | no |  |  |
+| `act` | text | no |  |  |
+| `tenant_id` | uuid | yes |  |  |
+| `target_kind` | text | no |  |  |
+| `target_id` | uuid | yes |  |  |
+| `reason_kind` | text | no |  |  |
+| `ticket` | text | yes |  |  |
+| `note` | text | yes |  |  |
+| `outcome` | text | no | `'running'::text` |  |
+| `outcome_note` | text | yes |  |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `actor_id` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete set null
+
 ### platform_admins
 
 - Owned by: none
@@ -2326,9 +2361,31 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `user_id` | uuid | no |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `role` | text | no | `'owner'::text` | What the person may do in the Console (00467, decision 0066): owner (everything), support (the workspaces' work), billing (the money). Set at the database alone (platform_admin_add). |
 
 Foreign keys:
 
+- `user_id` → `auth.users` (`id`), on delete cascade
+
+### platform_claims
+
+Who on the Console's staff has taken a workspace, until when (00467, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.
+
+- Owned by: `packages/db/src/repositories/console/staff.ts`
+- Primary key: `tenant_id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `email` | text | yes |  |  |
+| `claimed_at` | timestamp with time zone | no | `now()` |  |
+| `until` | timestamp with time zone | no |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 - `user_id` → `auth.users` (`id`), on delete cascade
 
 ### platform_metrics
@@ -2398,6 +2455,37 @@ Foreign keys:
 | `policies_owner_delete_person` | delete | authenticated | `((subject_type = 'contact'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text)))))` |  |
 | `policies_owner_insert_person` | insert | authenticated |  | `((subject_type = 'contact'::text) AND (subject_id IS NOT NULL) AND (class = 'reply'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.…` |
 | `policies_owner_update` | update | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |
+
+### privacy_requests
+
+A request the data-deletion page promises an answer to (00467, decision 0066): a workspace to delete within thirty days of its owner asking, a person's request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.
+
+- Owned by: `packages/db/src/repositories/console/requests.ts`
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `number` | integer | no | `identity (by default)` |  |
+| `kind` | text | no |  |  |
+| `tenant_id` | uuid | yes |  |  |
+| `slug` | text | no |  |  |
+| `name` | text | no |  |  |
+| `asked_by` | text | no |  |  |
+| `asked_at` | timestamp with time zone | no |  |  |
+| `ticket` | text | yes |  |  |
+| `note` | text | yes |  |  |
+| `due_at` | timestamp with time zone | no |  |  |
+| `steps` | jsonb | no | `'{}'::jsonb` |  |
+| `closed_at` | timestamp with time zone | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete set null
 
 ### profiles
 
@@ -2965,6 +3053,35 @@ Foreign keys:
 | `sequences_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `sequences_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### support_reports
+
+Report a problem (00467, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.
+
+- Owned by: `packages/db/src/repositories/console/support.ts`
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `number` | integer | no | `identity (by default)` |  |
+| `tenant_id` | uuid | yes |  |  |
+| `user_id` | uuid | no |  |  |
+| `email` | text | yes |  |  |
+| `page` | text | yes |  |  |
+| `error_id` | text | yes |  |  |
+| `error_name` | text | yes |  |  |
+| `error_message` | text | yes |  |  |
+| `words` | text | no |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `mailed_at` | timestamp with time zone | yes |  |  |
+| `mail_error` | text | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `user_id` → `auth.users` (`id`), on delete cascade
+
 ### sweep_status
 
 One row per pg_cron -> pg_net sweep: the last request id (joins net._http_response.id), when it was enqueued, why it could not be, and when we last emailed about it being broken.
@@ -3106,7 +3223,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

@@ -1,5 +1,5 @@
 import { write, platform } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { JobRequeueSchema } from "@chanlytics/contracts";
 import { platformJobRequeue } from "@/server/platform/platform";
 
 /**
@@ -16,10 +16,7 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_job_requeue",
-  handle: async ({ ctx, req, office }) => {
-    const body = (await req.json().catch(() => ({}))) as { tenant_id?: unknown; job_id?: unknown };
-    const tenantId = requireUuid(body.tenant_id, "workspace");
-    const jobId = requireUuid(body.job_id, "job");
-    return platformJobRequeue(office, ctx, tenantId, jobId);
-  },
+  act: "job_requeue",
+  input: JobRequeueSchema,
+  handle: async ({ office, input }) => platformJobRequeue(office, input.tenant_id, input.job_id, input.why),
 });

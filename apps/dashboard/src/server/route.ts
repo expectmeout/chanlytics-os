@@ -33,7 +33,17 @@
  * what, so it must load in a test without the build tool's aliases.
  */
 import type { ZodType } from "zod";
-import { AppError, MIN_MS, type SpendWords } from "@chanlytics/contracts";
+import {
+  AppError,
+  MIN_MS,
+  staffCannotSeeWords,
+  staffCannotWords,
+  staffMay,
+  staffSees,
+  type ConsoleAct,
+  type ConsoleSight,
+  type SpendWords,
+} from "@chanlytics/contracts";
 import {
   claimIdempotencyKey,
   keepIdempotencyReceipt,
@@ -115,6 +125,16 @@ interface Policy {
    * the Idempotency-Key header to it (decision 0035). Absent otherwise, so route-policy.json changes only where declared.
    */
   readonly idempotent?: "own";
+  /**
+   * Present on a platform write: the Console's act it is (decision 0066), whose roles may take it (contracts
+   * CONSOLE_ACTS). Absent otherwise, so route-policy.json changes only on the routes that declare it.
+   */
+  readonly act?: ConsoleAct;
+  /**
+   * Present on a platform read that only some roles may make: what it shows (contracts CONSOLE_SIGHTS, decision 0066),
+   * whose roles may read it. Absent otherwise: every role reads the workspaces, Health and the Admin log.
+   */
+  readonly sees?: ConsoleSight;
 }
 
 declare const shape: unique symbol;
@@ -135,6 +155,8 @@ interface ReadSpec<S extends Scope, Q, O> {
   fresh?: boolean;
   /** Every member may read unless this says otherwise. */
   role?: Role;
+  /** On a platform read, what it shows that only some roles may read: a role that may not is refused first (Policy.sees). */
+  sees?: ConsoleSight;
   rate?: RateBucket | null;
   query?: ZodType<Q>;
   handle: (call: Call<S, Q>) => Promise<O>;
@@ -153,6 +175,8 @@ interface WriteSpec<S extends Scope, I, O> {
   spendWords?: SpendWords;
   /** "own": this write keeps its Idempotency-Key itself, and route() does not (Policy.idempotent). */
   idempotent?: "own";
+  /** On a platform write, the Console's act it is: a role that may not take it is refused first (Policy.act). */
+  act?: ConsoleAct;
   input?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
 }
@@ -227,6 +251,8 @@ interface Spec<S extends Scope, I, O> {
   spend?: boolean;
   spendWords?: SpendWords;
   idempotent?: "own";
+  act?: ConsoleAct;
+  sees?: ConsoleSight;
   input?: ZodType<I>;
   query?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
@@ -342,6 +368,8 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     rate: spec.rate ?? null,
     spend: spec.spend === true,
     ...(spec.idempotent ? { idempotent: spec.idempotent } : {}),
+    ...(spec.act ? { act: spec.act } : {}),
+    ...(spec.sees ? { sees: spec.sees } : {}),
   });
 
   const run = async (req: Request, ctx: RouteCtx): Promise<O> => {
@@ -350,6 +378,20 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     if (spec.role) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot require a role`);
       requireRole(member, spec.role);
+    }
+    // A Console act a role may not take is refused before a token is spent or the body is judged, as a role is.
+    if (spec.act) {
+      const office = (given as { office?: BackOffice }).office;
+      if (!office) throw new Error(`a ${spec.scope.kind}-scoped route cannot name a Console act`);
+      if (!staffMay(office.role, spec.act))
+        throw new AppError("forbidden", staffCannotWords(office.role, spec.act), 403);
+    }
+    // So is a read of what a role may not see, before anything is read.
+    if (spec.sees) {
+      const office = (given as { office?: BackOffice }).office;
+      if (!office) throw new Error(`a ${spec.scope.kind}-scoped route cannot name a Console sight`);
+      if (!staffSees(office.role, spec.sees))
+        throw new AppError("forbidden", staffCannotSeeWords(office.role, spec.sees), 403);
     }
     // A workspace that may not spend is refused before a token is spent on a
     // request that cannot proceed: a 402 must not turn into a 429 on retry.

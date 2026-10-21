@@ -651,8 +651,8 @@
 
 /* ---- A phone ----
    The page holds still (Ruben, 8 Oct 2026: it could be held and swiped around, and nothing fit the screen): the bar,
-   then a notice as one line, then the board in the room that is left, then the legend's three words with Hours and
-   rules beside them, and nothing under the tab bar to scroll to. The week's seven days share the width as the month's
+   then a notice as one line, then the board in the room that is left, down to the screen's foot with the tab bar
+   floating over it, and nothing under the bar to scroll to. The week's seven days share the width as the month's
    do, the day heads stacked and the blocks lozenges whose words wait for Day view; the hours share the board's height
    (blocks.tsx sets --cal-hour to what fits), so a day scrolls inside its pane only when its hours cannot fit at the
    floor. The agenda is the one list and scrolls inside the body; the pane itself moves only for the rules sheet. */
@@ -666,10 +666,23 @@
   .main-scroll > .calendar .cal-when {
     flex: 1 0 auto;
   }
-  /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room between the notices
-     and the foot, and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
+  /* The pane is the column the page leaves (mobile.css): it never pulls, the body takes the room under the notices down
+     to the screen's foot, under the tab bar as every page's rows run (the room for the bar is the end of what scrolls,
+     mobile.css), and a scroll inside it (the agenda's list, a day too tall for its floor) never reaches the page. */
+  .main-scroll > .calendar {
+    padding-bottom: 0;
+  }
   .main-scroll > .calendar .cal-pane {
     overscroll-behavior-y: none;
+  }
+  /* The week and the day are one pane that runs on past the screen's foot, as the Inbox's list does before it is
+     scrolled: no corners at the foot and no rim along it, where the screen cuts it. */
+  .main-scroll > .calendar .cal-body:has(> .cal-scroll) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
+    bottom: -1px;
   }
   .main-scroll > .calendar .cal-body {
     overscroll-behavior: contain;
@@ -762,7 +775,7 @@
 
 /* ====================================================================
    The Calendar, evolved (13 Oct 2026; the canvas's lanes B, C, E and F): how a visit stands on its block, the campaigns
-   a day carries, Show and "to mark" in the bar, the month of dots, the open visit (the kit's sheet on a phone, the peek
+   a day carries, Show in the bar, the month of dots, the open visit (the kit's sheet on a phone, the peek
    on a desk) and the board's frame before its first read. Every value is a token's.
    ==================================================================== */
 
@@ -938,7 +951,7 @@
 .cal-run-items { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .cal-run-send { align-self: flex-start; margin-top: var(--space-3); }
 
-/* ---- The bar: Show, "to mark", and a read said in the range ---- */
+/* ---- The bar: Show, and a read said in the range (the visits to mark are the header's: components.css .unmarked-bar) ---- */
 .cal-act .cal-show {
   gap: var(--space-2);
   height: var(--control-h-lg);
@@ -952,10 +965,6 @@
 }
 .cal-show-key { color: var(--ink-dim); }
 .cal-show-value { font-weight: var(--weight-medium); }
-.cal-unmarked { gap: var(--space-2); color: var(--ink-muted); }
-.cal-unmarked-ring { width: 8px; height: 8px; border: 1px solid var(--ink-dim); border-radius: var(--radius-full); }
-/* A phone's line under the bar, for the visits to mark (board-parts.tsx calendarHead): the bar's row has no room for them. */
-.cal-head-line { display: flex; margin-top: var(--space-1); margin-left: calc(-1 * var(--space-2)); }
 .cal-title-reading { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
 .cal-title-range[data-reading] { color: var(--ink-muted); }
 .cal-feed-state { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }

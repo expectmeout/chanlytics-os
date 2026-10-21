@@ -1,5 +1,5 @@
 import { write, platform } from "@/server/route";
-import { PartnerSecondFactorResetSchema } from "@chanlytics/contracts";
+import { PartnerSecondFactorSchema } from "@chanlytics/contracts";
 import { platformPartnerSecondFactorReset } from "@/server/platform/platform";
 
 /**
@@ -12,7 +12,8 @@ export const POST = write({
   role: null,
   rate: "platform_partner_second_factor",
   fresh: true,
-  input: PartnerSecondFactorResetSchema,
+  act: "partner_second_factor",
+  input: PartnerSecondFactorSchema,
   handle: async ({ office, input }) => ({
     result: await platformPartnerSecondFactorReset(office, input.partner_id, input.why),
   }),

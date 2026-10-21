@@ -64,7 +64,7 @@ export const SET_TABS: readonly SetTab[] = [
 /** Routes that still answer but no longer earn a place in the rail. */
 const SET_TABS_UNLISTED: readonly SetTab[] = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
 /**
- * The back office. Not in SET_TABS: it exists for the two or three people who run Chanlytics and for nobody else, and a
+ * The Console (decision 0066, once the back office): a link to its own place. Not in SET_TABS: it exists for the two or three people who run Chanlytics and for nobody else, and a
  * customer who types the route lands on Profile rather than on a locked door they now know about.
  *
  * `platform_admin` rides on the workspace payload the seam already fetches at boot, so the rail knows synchronously and
@@ -72,7 +72,7 @@ const SET_TABS_UNLISTED: readonly SetTab[] = [{ id: "memory", label: "AI memory"
  * 404 to everyone else.
  */
 export const SET_TABS_PLATFORM: readonly SetTab[] = [
-  { id: "platform", label: "Back office", icon: "monitor", group: "Chanlytics" },
+  { id: "platform", label: "The Console", icon: "monitor", group: "Chanlytics" },
 ];
 export const isPlatformAdmin = (): boolean =>
   !!(Reflect.get(window, "__ME") as { platform_admin?: boolean } | null | undefined)?.platform_admin;

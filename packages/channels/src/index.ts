@@ -211,7 +211,7 @@ export {
   isEmailRequest,
 } from "./email/request";
 export type { EmailParent, EmailIdentity, EmailRequest, EmailCampaign, EmailRequestInput } from "./email/request";
-export { messageIdHeader, addressOf } from "./email/header-values";
+export { messageIdHeader, addressOf, oneLine } from "./email/header-values";
 export {
   hostedAddress,
   replyRouteAddress,

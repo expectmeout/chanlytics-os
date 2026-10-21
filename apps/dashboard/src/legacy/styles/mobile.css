@@ -821,8 +821,19 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane:has(:is(.ix-threads, .cv-rows, .cl-main-scroll, .cal-pane, .rpt-body, .set-pane)) {
     padding-bottom: 0;
   }
-  .main-scroll.pane :is(.ix-threads, .cv-rows, .cal-pane) {
+  .main-scroll.pane :is(.ix-threads, .cv-rows) {
     padding-bottom: var(--page-foot);
+  }
+  /* The Calendar holds still and scrolls inside its own boxes (calendar.css, the phone block), and they run to the
+     screen's foot: the room is the end of the one that scrolls, the agenda's and the month's body or the board's own
+     scroller. Kept on the pane around them, it stopped the days 90px up the screen and the bar stood on a band of the
+     page's light, cut straight across the day under it (Ruben, 20 Oct 2026). The board fits its hours over the room
+     (blocks.tsx useHourFit), so a day that fits still ends clear of the bar, and what a scroller brings into view stops
+     over it. */
+  .main-scroll.pane .cal-body:not(:has(> .cal-scroll)),
+  .main-scroll.pane .cal-body > .cal-scroll {
+    padding-bottom: var(--page-foot);
+    scroll-padding-bottom: var(--page-foot);
   }
   .main-scroll.pane :is(.cl-main-scroll, .rpt-body) {
     padding-bottom: max(var(--page-foot), 40px);
