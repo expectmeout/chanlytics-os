@@ -115,12 +115,14 @@ test("each verb is an owner's or the partner's, in the workspace, under the sett
   assert.deepEqual(callback.GET.policy, { kind: "read", scope: "account", role: null, rate: null, spend: false });
 });
 
+/** The way to the provider the connect door answered (as data, for the page to follow). */
+const wayTo = (answered) => new URL(answered.url);
+
 test("Connect: to the provider's own consent screen, with its client, its scopes and a state signed for this workspace, this person and this provider", async () => {
   const net = edge(() => [200, READY]);
   try {
     const res = await connect.GET.run(send("GET", null, "&provider=microsoft"), ctx());
-    assert.equal(res.status, 302);
-    const to = new URL(res.headers.get("location"));
+    const to = wayTo(res);
     assert.equal(to.origin + to.pathname, "https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
     assert.equal(to.searchParams.get("client_id"), "ms-client");
     assert.equal(to.searchParams.get("scope"), MAILBOX_SCOPES.microsoft.join(" "));
@@ -142,6 +144,68 @@ test("Connect: to the provider's own consent screen, with its client, its scopes
     );
   } finally {
     none.restore();
+  }
+});
+
+test("Reconnect asks the provider for its own mailbox's address, and the state carries which; the admin's link is Microsoft's alone", async () => {
+  const net = edge(() => [200, READY]);
+  const box = rows.mailboxConnection({ id: M1, tenant_id: A, provider: "google", address: "sam@getharbor.example" });
+  try {
+    const to = wayTo(
+      await connect.GET.run(
+        send("GET", null, `&provider=google&mailbox_id=${M1}`),
+        ctx("owner", { mailbox_connections: [box] }),
+      ),
+    );
+    assert.equal(to.searchParams.get("login_hint"), "sam@getharbor.example");
+    const proof = await verifyState(SECRET, to.searchParams.get("state"), Date.now());
+    assert.equal(proof.state.m, M1);
+    await refused(
+      connect.GET.run(
+        send("GET", null, `&provider=microsoft&mailbox_id=${M1}`),
+        ctx("owner", { mailbox_connections: [box] }),
+      ),
+      "not_found",
+    );
+    await refused(connect.GET.run(send("GET", null, `&provider=google&mailbox_id=${M1}`), ctx()), "not_found");
+
+    const admin = wayTo(await connect.GET.run(send("GET", null, "&provider=microsoft&admin=1"), ctx()));
+    assert.equal(admin.origin + admin.pathname, "https://login.microsoftonline.com/organizations/v2.0/adminconsent");
+    assert.equal(admin.searchParams.get("client_id"), "ms-client");
+    const signed = await verifyState(SECRET, admin.searchParams.get("state"), Date.now());
+    assert.deepEqual([signed.state.p, signed.state.a], ["microsoft", 1]);
+    assert.ok(signed.state.exp > Date.now() + 6 * 86_400_000, "an admin's link lasts the week it may take them");
+    await refused(connect.GET.run(send("GET", null, "&provider=google&admin=1"), ctx()), "validation");
+  } finally {
+    net.restore();
+  }
+});
+
+test("back from Microsoft: a sign-in its admin must approve says so; an admin's approval is good news; a Reconnect hands the edge its mailbox", async () => {
+  const net = edge((b) => [200, b.op === "connect" ? { ok: true, made: false, mailbox: DTO } : READY]);
+  const back = async (q) => {
+    const res = await callback.GET.run(
+      new Request(`https://app.example.test/api/v1/mailbox-connections/callback${q}`),
+      ctx(),
+    );
+    return new URL(res.headers.get("location"));
+  };
+  const state = (extra) =>
+    signState(SECRET, { t: A, u: USER, n: newNonce(), exp: Date.now() + STATE_TTL_MS, p: "microsoft", ...extra });
+  try {
+    const held = await back("?error=access_denied&error_description=AADSTS90094%3A+Administrator+consent+is+required.");
+    assert.deepEqual([held.searchParams.get("mailbox"), held.searchParams.get("why")], ["error", "admin_consent"]);
+    const approved = await back(`?admin_consent=True&tenant=t1&state=${await state({ a: 1 })}`);
+    assert.equal(approved.searchParams.get("mailbox"), "admin_approved");
+    const notApproved = await back(`?admin_consent=True&error=consent_required&state=${await state({ a: 1 })}`);
+    assert.equal(notApproved.searchParams.get("why"), "admin_consent");
+    assert.deepEqual(net.calls, [], "an admin's answer carries no code to the edge");
+
+    const again = await back(`?state=${await state({ m: M1 })}&code=c`);
+    assert.equal(again.searchParams.get("mailbox"), "reconnected");
+    assert.equal(net.calls.at(-1).body.mailbox_id, M1);
+  } finally {
+    net.restore();
   }
 });
 
@@ -241,7 +305,7 @@ test("the edge's refusals become the owner's words", async () => {
     [503, { ok: false, error: "no_oauth_client" }, "upstream_email", /isn't switched on here yet/],
     [409, { ok: false, error: "not_held" }, "conflict", /isn't held/],
     [409, { ok: false, error: "provider_unauthorized" }, "conflict", /connect it again/],
-    [400, { ok: false, error: "invalid", detail: "bad_cap" }, "validation", /between 1 and 50 a day/],
+    [400, { ok: false, error: "invalid", detail: "bad_cap" }, "validation", /between 1 and 40 a day/],
     [
       502,
       { ok: false, error: "provider_refused", detail: "Daily user sending limit exceeded" },

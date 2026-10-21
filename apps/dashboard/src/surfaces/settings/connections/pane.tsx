@@ -368,7 +368,8 @@ export const PaneIntegrationsReal = () => {
           onClose={() => setEmailOpen(false)}
         />
       )}
-      {r.body === "mailboxes" && S && email && (
+      {/* A Later row has no block, but what a connect came back with is still said under it. */}
+      {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
         <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
       )}
     </Fragment>

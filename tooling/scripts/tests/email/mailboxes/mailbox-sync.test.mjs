@@ -121,8 +121,12 @@ const gmailMessage = (id, threadId, { from = OWNER, text = "Sure, call me Thursd
   },
 });
 /** A delivery report about our email, from the receiving server's postmaster: `action` and `status` as RFC 3464 says them. */
-const report = (action, status) =>
-  gmailMessage("b1", "g-thread", {
+const report = (
+  action,
+  status,
+  { id = "b1", threadId = "g-thread", diagnostic = `550 ${status} no such user`, recipient = OWNER } = {},
+) =>
+  gmailMessage(id, threadId, {
     from: "Mail Delivery Subsystem <mailer-daemon@googlemail.com>",
     headers: [{ name: "Content-Type", value: 'multipart/report; report-type=delivery-status; boundary="x"' }],
     parts: [
@@ -131,7 +135,7 @@ const report = (action, status) =>
         mimeType: "message/delivery-status",
         body: {
           data: b64url(
-            `Final-Recipient: rfc822; ${OWNER}\nAction: ${action}\nStatus: ${status}\nDiagnostic-Code: smtp; 550 5.1.1 no such user`,
+            `Final-Recipient: rfc822; ${recipient}\nAction: ${action}\nStatus: ${status}\nDiagnostic-Code: smtp; ${diagnostic}`,
           ),
         },
       },
@@ -139,6 +143,10 @@ const report = (action, status) =>
     ],
   });
 const bounce = report("failed", "5.1.1");
+
+/** Gmail's list of the reports the mailbox received since the last read (gmailReports): these ids, else none. */
+const reportsList = (c, ids = []) =>
+  c.url.includes("/messages?q=from") ? { json: { messages: ids.map((id) => ({ id, threadId: `t-${id}` })) } } : null;
 
 test("a sync reads from its cursor only the threads a reach-out started: a reply becomes one intake job, a report the bounce it reports", async () => {
   const w = world();
@@ -154,6 +162,8 @@ test("a sync reads from its cursor only the threads a reach-out started: a reply
           historyId: "120",
         },
       };
+    const reports = reportsList(c, ["b1"]);
+    if (reports) return reports;
     if (c.url.includes("/messages/r1")) return { json: gmailMessage("r1", "g-thread") };
     if (c.url.includes("/messages/b1")) return { json: bounce };
     return { status: 404 };
@@ -195,6 +205,8 @@ test("a delay is nothing yet; a report that names no email of ours is left", asy
       return {
         json: { history: [{ messagesAdded: [{ message: { id: "b1", threadId: "g-thread" } }] }], historyId: "121" },
       };
+    const reports = reportsList(c, ["b1"]);
+    if (reports) return reports;
     if (c.url.includes("/messages/b1")) return { json: delayed };
     return { status: 404 };
   });
@@ -218,7 +230,9 @@ test("one sync at a time: a mailbox another sync holds is left; a lease that lap
     net.restore();
   }
   const lapsed = world({ box: { sync_lease_until: new Date(Date.now() - 60_000).toISOString() } });
-  const quiet = providers((c) => (c.url.includes("/history?") ? { json: { historyId: "101" } } : { status: 404 }));
+  const quiet = providers(
+    (c) => reportsList(c) ?? (c.url.includes("/history?") ? { json: { historyId: "101" } } : { status: 404 }),
+  );
   try {
     assert.equal((await syncMailbox(lapsed.db, lapsed.mailbox, logger())).outcome, "synced");
     assert.equal(lapsed.tables.mailbox_connections[0].sync_cursor, "101");
@@ -230,6 +244,8 @@ test("one sync at a time: a mailbox another sync holds is left; a lease that lap
 test("a cursor Gmail no longer keeps starts again from now; a mailbox with none starts there; a message that could not be read keeps the cursor", async () => {
   const lost = world();
   const net = providers((c) => {
+    const reports = reportsList(c);
+    if (reports) return reports;
     if (c.url.includes("/history?"))
       return { status: 404, json: { error: { code: 404, message: "Requested entity was not found." } } };
     if (c.url.endsWith("/profile")) return { json: { emailAddress: "sam@getharbor.example", historyId: "900" } };
@@ -271,6 +287,7 @@ test("a Graph mailbox reads its delta from its link, and a report from Exchange'
     cursor: "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=d1",
   });
   const net = providers((c) => {
+    if (c.url.includes("/mailFolders/junkemail/messages")) return { json: { value: [] } };
     if (c.url.includes("deltatoken=d1"))
       return {
         json: {
@@ -307,6 +324,123 @@ test("a Graph mailbox reads its delta from its link, and a report from Exchange'
     assert.equal(net.calls.filter((c) => c.url.includes("/me/messages/y1")).length, 0, "a newsletter is never read");
     assert.equal(w.tables.messages[0].status, "failed");
     assert.match(w.tables.mailbox_connections[0].sync_cursor, /deltatoken=d2$/);
+  } finally {
+    net.restore();
+  }
+});
+
+test("Gmail: a report outside the thread of the email it is about is found by who wrote it, and applied", async () => {
+  const w = world();
+  const net = providers((c) => {
+    if (c.url.includes("/history?"))
+      return {
+        json: { history: [{ messagesAdded: [{ message: { id: "b2", threadId: "dsn-thread" } }] }], historyId: "122" },
+      };
+    const reports = reportsList(c, ["b2"]);
+    if (reports) return reports;
+    if (c.url.includes("/messages/b2"))
+      return { json: report("failed", "5.1.1", { id: "b2", threadId: "dsn-thread" }) };
+    return { status: 404 };
+  });
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.read, out.bounced, out.replies], [1, 1, 0]);
+    assert.equal(w.tables.messages[0].status, "failed");
+    assert.equal(w.tables.mailbox_connections[0].sync_cursor, "122");
+  } finally {
+    net.restore();
+  }
+});
+
+test("whose fault a bounce is decides what follows: a refused sender stops no address, the sender's own quota rests the mailbox, a forward's dead address is not ours", async () => {
+  const sync = async (r) => {
+    const w = world();
+    const net = providers((c) => {
+      if (c.url.includes("/history?"))
+        return {
+          json: { history: [{ messagesAdded: [{ message: { id: "b1", threadId: "g-thread" } }] }], historyId: "123" },
+        };
+      const reports = reportsList(c, ["b1"]);
+      if (reports) return reports;
+      if (c.url.includes("/messages/b1")) return { json: r };
+      return { status: 404 };
+    });
+    try {
+      await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    } finally {
+      net.restore();
+    }
+    return w;
+  };
+  const blocked = await sync(
+    report("failed", "5.7.1", {
+      diagnostic: "550 5.7.1 Our system has detected that this message is likely unsolicited mail",
+    }),
+  );
+  assert.deepEqual([blocked.tables.messages[0].status, blocked.tables.messages[0].error?.kind], ["failed", "Blocked"]);
+  assert.equal(blocked.tables.contacts[0].email_suppressed_reason, null, "the address is not the one at fault");
+  assert.equal(blocked.tables.leads[0].email_state, "ok", "nor is its lead");
+
+  const before = Date.now();
+  const limited = await sync(report("failed", "5.4.5", { diagnostic: "550 5.4.5 Daily user sending limit exceeded." }));
+  assert.equal(limited.tables.messages[0].error?.kind, "Transient");
+  assert.equal(limited.tables.contacts[0].email_suppressed_reason, null);
+  const resting = Date.parse(limited.tables.mailbox_connections[0].resting_until ?? "");
+  assert.ok(resting >= before + 23 * 3_600_000, "the mailbox rests its provider's day");
+
+  const forwarded = await sync(report("failed", "5.1.1", { recipient: "old-office@elsewhere.example" }));
+  assert.equal(forwarded.tables.messages[0].error?.kind, "Transient", "a forward's dead address");
+  assert.equal(forwarded.tables.contacts[0].email_suppressed_reason, null, "stops nothing of ours");
+});
+
+test("Graph: a reply Exchange took for junk is read from Junk Email since the last read, when it is in a thread of ours", async () => {
+  const w = world({
+    box: { provider: "microsoft", address: "dana@getharbor.example", provider_account: "acct-dana" },
+    cursor: "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=d1",
+  });
+  w.tables.messages[0].meta.email.thread_id = "conv-ours";
+  const net = providers((c) => {
+    if (c.url.includes("/mailFolders/junkemail/messages"))
+      return {
+        json: {
+          value: [
+            { id: "j1", conversationId: "conv-ours", from: { emailAddress: { address: OWNER } } },
+            { id: "j2", conversationId: "conv-spam", from: { emailAddress: { address: "deals@spam.example" } } },
+          ],
+        },
+      };
+    if (c.url.includes("deltatoken=d1"))
+      return {
+        json: {
+          value: [],
+          "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=d3",
+        },
+      };
+    if (c.url.includes("/me/messages/j1"))
+      return {
+        json: {
+          id: "j1",
+          conversationId: "conv-ours",
+          subject: "Re: A quick one",
+          from: { emailAddress: { address: OWNER } },
+          body: { contentType: "text", content: "Yes, call me." },
+          internetMessageHeaders: [],
+        },
+      };
+    return { status: 404 };
+  });
+  try {
+    const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
+    assert.deepEqual([out.read, out.replies], [1, 1]);
+    assert.equal(
+      net.calls.filter((c) => c.url.includes("/me/messages/j2")).length,
+      0,
+      "junk that is not ours is never read",
+    );
+    assert.deepEqual(
+      w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
+      ["j1"],
+    );
   } finally {
     net.restore();
   }

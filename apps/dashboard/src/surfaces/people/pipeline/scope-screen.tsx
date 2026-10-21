@@ -22,11 +22,11 @@ import { PipelineBoard } from "./board";
 import { PL_FILE_COLUMNS } from "../cells/columns";
 import { pipeCardRow } from "./columns";
 import { PipelineNew } from "./new";
-import { PipelinePeek } from "./peek";
+import { PipelinePeekWhenRead } from "./peek-code";
 import { P } from "./pipe";
 import { PipelineRailRows } from "./rail";
 import { PipelinePassDock, PipelinePassMany } from "./row";
-import { PIPE_BULK_ACTS, PIPE_LAYOUTS, pipeComposeIn, pipeThreadRoute } from "./scope-bits";
+import { PIPE_BULK_ACTS, PIPE_LAYOUTS, pipeComposeIn } from "./scope-bits";
 import type { PipelineState } from "./scope-hook";
 
 type LinePart = PipelineState["line"][number];
@@ -315,24 +315,38 @@ function phoneBar(s: PipelineState) {
   );
 }
 
-/** The peek, beside the rows on a desk and the whole screen on a phone (leads.css .pl-peek). */
+/**
+ * The deal sheet: the peek beside the rows on a desk, the kit's sheet with two rests on a phone (peek.tsx). Its walk is
+ * the rows shown, in the order J and K step them; another deal of theirs opens its own row in the same sheet.
+ */
 function peekBlock(s: PipelineState) {
   const { f, ui, r, doors, d, pk, person } = s;
   const { phone, plFlash } = f.controls;
   const { peek, peekId } = ui;
-  if (!pk.peekVm) return null;
+  if (!pk.peekVm || !pk.peekRow) return null;
   const vm = pk.peekVm;
+  const at = r.ids.indexOf(vm.id);
+  const walk =
+    at < 0 ? null : { at: at + 1, of: r.ids.length, prev: r.ids[at - 1] ?? null, next: r.ids[at + 1] ?? null };
+  const who = P.personOf(vm.id);
+  const openDeal = (dealId: string) => {
+    const row = r.all.groups.flatMap((g) => g.rows).find((x) => x.person.id === who && x.deal?.id === dealId);
+    if (row) doors.openPeek(row.id);
+  };
   return (
-    <PipelinePeek
+    <PipelinePeekWhenRead
       vm={vm}
+      row={pk.peekRow.row}
       person={person}
       failed={peek && peek.id === peekId ? peek.failed : null}
       canRecord={r.canRecord}
       phone={phone}
+      walk={walk}
+      onStep={doors.openPeek}
+      onOpenDeal={openDeal}
       onClose={doors.closePeek}
       onRetry={() => ui.setPeekTry((n) => n + 1)}
-      onOpenPage={() => d.pageRef.current(P.personOf(vm.id))}
-      onOpenThread={() => f.nav(pipeThreadRoute(vm.thread))}
+      onOpenPage={() => d.pageRef.current(who)}
       onCompose={(text) => pipeComposeIn(person, text, f.nav)}
       flash={plFlash}
     />
@@ -431,7 +445,8 @@ export function pipelineScreen(s: PipelineState) {
           <PipelineRailRows sections={s.r.rail} view={s.r.view} onPick={s.pickView} />
         </aside>
       )}
-      <div className={`cl-main${pk.compact ? " has-peek" : ""}`}>
+      {/* A phone's open deal lights its row, brought above the sheet (clients.css .has-deal): a tap is no cursor else. */}
+      <div className={`cl-main${pk.compact ? " has-peek" : ""}${phone && pk.peekVm ? " has-deal" : ""}`}>
         {phone && phoneBar(s)}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {phone ? phoneFilters(s) : standingLine(s)}

@@ -226,6 +226,23 @@ test("the calendar's feed is fetched while their row is still out, and matched o
   assert.equal(p.visits.all.length, 1, "their appointment, found by the number in it");
 });
 
+test("their visits say which is a consultation, by the rule the People list marks its rows by: their page and the Pipeline's deal sheet read it", async () => {
+  // Read unmarked, the person page knew of no consultation their People row named, and a proposal started from the
+  // deal sheet after one could not name its service (contracts consultedService).
+  for (const [title, consultation] of [
+    ["Ada Lovelace · Consultation", true],
+    ["Ada Lovelace · Colour", false],
+  ]) {
+    feedBody = ICS.replace("SUMMARY:Ada Lovelace · Colour", `SUMMARY:${title}`);
+    forgetFeeds();
+    const db = heldDb(() => false);
+    const answer = open(db.supabase);
+    db.release();
+    const { person: p } = await answer;
+    assert.equal(p.visits.next.consultation, consultation, title);
+  }
+});
+
 test("a person not in the workspace is still a 404, with nothing read put together", async () => {
   const db = heldDb(() => false);
   await assert.rejects(

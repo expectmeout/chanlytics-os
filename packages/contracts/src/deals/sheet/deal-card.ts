@@ -9,7 +9,7 @@ import { visitStateOf } from "../../calendar/calendar-words";
 import { clockDate } from "../../shared/clock";
 import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words";
 import type { DealVM } from "../deal-vm";
-import { waitingOnProposal } from "../deal-waits";
+import { proposalTone, waitingOnProposal } from "../deal-waits";
 import { consultationsWithoutProposal } from "../deal-consultations";
 import type { StepDayVM } from "../../notes/steps";
 import { stateTone, type Tone } from "../../shell/tone";
@@ -153,32 +153,57 @@ function consultedDealOf(p: DealPerson, open: readonly DealVM[]): DealVM | null 
   return (title && open.find((d) => !!d.service && namesService(title, d.service))) || open[0] || null;
 }
 
+/**
+ * Their consultation as a step says it once it has ended: its day, and how the visit stands in the visit line's word
+ * (Kept, or Past while nobody has said). Null for one not over, or none. The deal card's step and the Pipeline's deal
+ * sheet, for a consultation with no proposal after it, read this one.
+ */
+export function consultationStepOf(
+  p: Pick<DealPerson, "consultedMs" | "lastVisitLine">,
+  nowMs: number,
+  tz: string,
+): { day: string; word: string | null } | null {
+  const consulted = p.consultedMs ?? null;
+  if (consulted === null || consulted > nowMs) return null;
+  return {
+    day: clockDate(consulted, tz, nowMs),
+    word: visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null,
+  };
+}
+
 function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consultation: boolean): DealStepVM[] {
   const day = (ms: number | null) => (ms === null ? null : clockDate(ms, tz, nowMs));
   const won = deal.stage === "won";
-  const tone = stateTone("deal", deal.stage);
   const steps: DealStepVM[] = [];
   // A consultation is a step only on the card of the deal it began: done once it ended, ahead while Coming up says
   // when.
-  const consulted = p.consultedMs ?? null;
   if (consultation) {
-    const done = consulted !== null && consulted <= nowMs;
+    const held = consultationStepOf(p, nowMs, tz);
     steps.push({
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
-      day: done ? day(consulted) : null,
-      word: done ? (visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null) : null,
-      at: done ? "done" : "ahead",
+      day: held ? held.day : null,
+      word: held ? held.word : null,
+      at: held ? "done" : "ahead",
       tone: null,
     });
   }
+  // A proposal out is drawn in the tone of who it waits on, the Pipeline row's own rule (deal-waits.ts proposalTone).
+  const waits = won
+    ? null
+    : proposalTone(
+        { deal, askedMs: p.askedMs ?? null },
+        nowMs,
+        p.dealPace ?? null,
+        followUpOn(p, deal)?.kind === "will",
+      );
   steps.push({
     key: "proposal",
     label: DEAL_STAGE_WORDS.proposed,
     word: null,
     day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
     at: won ? "done" : "current",
-    tone: won ? null : tone,
+    tone: waits,
   });
   steps.push({
     key: "client",
@@ -186,7 +211,7 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
     word: null,
     day: won ? day(deal.sinceMs) : null,
     at: won ? "current" : "ahead",
-    tone: won ? tone : null,
+    tone: won ? stateTone("deal", "won") : null,
   });
   return steps;
 }

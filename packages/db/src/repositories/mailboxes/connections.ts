@@ -48,18 +48,6 @@ export async function liveMailboxByAddress(db: Db, address: string): Promise<Mai
   return data;
 }
 
-/** The live mailbox a Graph subscription belongs to, by the subscription's id. */
-export async function liveMailboxByWatch(db: Db, watchId: string): Promise<MailboxConnectionRow | null> {
-  const { data, error } = await db
-    .from("mailbox_connections")
-    .select("*")
-    .eq("watch_id", watchId)
-    .neq("state", "removed")
-    .maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
-  return data;
-}
-
 /**
  * The mailboxes the clock looks after (connected, paused, held: a signed-out one cannot be read, a removed one is
  * gone), least lately synced first, past the ones it is done with.
@@ -172,20 +160,35 @@ export async function dropMailboxCredentials(db: Db, id: string): Promise<boolea
 /* -------------------------------------------------------------------------------------------- what it sent */
 
 /**
- * What a mailbox's own emails came to since it was counted clean (00424 mailbox_connection_counts): the mailboxes
- * clock judges its health by them (contracts mailboxHoldOf).
+ * What a mailbox's own emails came to since it was counted clean (00424 mailbox_connection_counts, 00466): the
+ * mailboxes clock judges its health by them (contracts mailboxHoldOf). A count a database before 00466 does not answer
+ * (blocked, said no) reads as none.
  */
 export async function mailboxCountsOf(
   db: Db,
   id: string,
   since: string,
-): Promise<{ sent: number; bounced: number; complained: number; unsubscribed: number }> {
+): Promise<{
+  sent: number;
+  bounced: number;
+  blocked: number;
+  complained: number;
+  unsubscribed: number;
+  said_no: number;
+}> {
   const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
   if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
   const c = (data ?? {}) as Record<string, unknown>;
   const n = (k: string): number => Math.max(0, Number(c[k] ?? 0) || 0);
   if (typeof c.sent !== "number") throw new Error("cannot count the mailbox's emails: the database answered no count");
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained"), unsubscribed: n("unsubscribed") };
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    blocked: n("blocked"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    said_no: n("said_no"),
+  };
 }
 
 /**

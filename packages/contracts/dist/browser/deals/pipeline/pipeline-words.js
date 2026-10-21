@@ -32,32 +32,54 @@ export const PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
   peek: {
     close: "Close",
-    page: "Open their page",
-    thread: "Open the thread",
+    page: "Their page",
     reading: "Reading\u2026",
     what: "this person",
-    /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
     reach: {
+      title: "How to reach them",
       phone: "Phone",
       email: "Email",
       replies: "Replies",
-      call: "Call",
       copy: "Copy",
       copied: "Copied",
       /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
       copyPhone: "Copy the number",
       copyEmail: "Copy the address"
-    },
-    /** What happened with their deals, newest first. */
-    history: "History"
+    }
+  },
+  /**
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
+   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   */
+  sheet: {
+    raise: "Show all of the deal",
+    lower: "Back to the quick look",
+    next: "Next step",
+    done: (step) => `Done: ${step}`,
+    change: (step) => `Change: ${step}`,
+    ask: (first) => `Did ${first} say yes?`,
+    yes: "Yes, a client",
+    no: "They passed",
+    passAsk: (first) => `Why did ${first} pass?`,
+    more: (what) => `More for ${what}`,
+    message: "Message",
+    others: "Also with them",
+    /** The proposal's own box, raised: its link and the link's copy. */
+    proposal: "The proposal",
+    link: "Link",
+    /** A consultation over with no proposal since, once its step says when and how it went. */
+    noProposal: "No proposal yet",
+    walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
   /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
-  row: { menu: "More for" },
+  row: { menu: "More for", thread: "Open the thread", page: "Open their page" },
   /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
   pass: {
     button: "Mark as passed",

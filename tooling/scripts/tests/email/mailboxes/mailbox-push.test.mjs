@@ -97,7 +97,7 @@ test("what a push says, read: Gmail's address and history id, Graph's subscripti
   assert.equal(clientStateMatches(null, "client-state-made-up"), false);
 });
 
-/** A Graph mailbox with its subscription, and a world whose provider has nothing new. */
+/** A Graph mailbox with its subscription, and the mailboxes clock's row and its door (00363 request_sweep), heard. */
 function graphWorld() {
   const box = rows.mailboxConnection({
     provider: "microsoft",
@@ -106,9 +106,17 @@ function graphWorld() {
     sync_cursor: "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=d1",
   });
   const v = vault({ [box.id]: liveCredentials("eyJ.dana") });
-  const tables = { mailbox_connections: [box], messages: [], jobs: [] };
-  setPg(fakeDb(tables, {}, { ...v.rpcs, mailbox_threads_known: () => [] }));
-  return { box, tables };
+  const asked = [];
+  const tables = { mailbox_connections: [box], messages: [], jobs: [], sweep_status: [] };
+  const request_sweep = (a) => {
+    asked.push(a);
+    const row = tables.sweep_status.find((r) => r.sweep === a.p_sweep);
+    if (row) row.requested_at = new Date().toISOString();
+    else tables.sweep_status.push({ sweep: a.p_sweep, requested_at: new Date().toISOString() });
+    return 1;
+  };
+  setPg(fakeDb(tables, {}, { ...v.rpcs, mailbox_threads_known: () => [], request_sweep }));
+  return { box, tables, asked };
 }
 const post = (door, url, body, headers = {}) =>
   door.POST(
@@ -119,7 +127,7 @@ const post = (door, url, body, headers = {}) =>
     }),
   );
 
-test("Graph's door: the validation token echoed as text; a notification whose clientState is not ours reads nothing; one that is reads its mailbox once", async () => {
+test("Graph's door: the validation token echoed as text; a notification whose clientState is not ours reads nothing; one that is asks the clock, once a minute, and is answered at once", async () => {
   graphWorld();
   const echo = await post(graphDoor, "https://edge.example.com/api/mailbox/graph?validationToken=abc%20123", "");
   assert.deepEqual([echo.status, echo.headers.get("content-type"), await echo.text()], [200, "text/plain", "abc 123"]);
@@ -141,20 +149,28 @@ test("Graph's door: the validation token echoed as text; a notification whose cl
     assert.equal(forged.status, 401);
     assert.deepEqual(net.calls, [], "nothing read for a notification that is not ours");
 
-    const { tables } = graphWorld();
-    const real = await post(graphDoor, "https://edge.example.com/api/mailbox/graph", {
+    const { tables, asked } = graphWorld();
+    const ours = {
       value: [
         { subscriptionId: "sub-1", clientState: "client-state-made-up" },
         { subscriptionId: "sub-1", clientState: "client-state-made-up" },
       ],
-    });
+    };
+    const real = await post(graphDoor, "https://edge.example.com/api/mailbox/graph", ours);
     assert.equal(real.status, 202);
-    assert.equal(
-      net.calls.filter((c) => c.url.includes("/delta")).length,
-      1,
-      "its mailbox read once, however often named",
+    assert.deepEqual(
+      asked.map((a) => [a.p_sweep, a.p_path]),
+      [["mailboxes", "/api/cron/mailboxes"]],
+      "the mailboxes clock asked to read now, once however often named",
     );
-    assert.match(tables.mailbox_connections[0].sync_cursor, /deltatoken=d2$/, "and its cursor moved on");
+    assert.equal(net.calls.length, 0, "the door reads nothing itself: Graph wants its answer inside three seconds");
+    assert.match(
+      tables.mailbox_connections[0].sync_cursor,
+      /deltatoken=d1$/,
+      "the clock moves the cursor, not the door",
+    );
+    assert.equal((await post(graphDoor, "https://edge.example.com/api/mailbox/graph", ours)).status, 202);
+    assert.equal(asked.length, 1, "a burst of pushes asks once a minute");
   } finally {
     net.restore();
   }
@@ -168,6 +184,7 @@ test("Gmail's door: a push without Google's token is refused and reads nothing; 
   const net = providers((c) => {
     if (c.url === "https://www.googleapis.com/oauth2/v3/certs") return { json: JWKS };
     if (c.url.includes("/history?")) return { json: { history: [], historyId: "105" } };
+    if (c.url.includes("/messages?q=from")) return { json: { messages: [] } };
     return { status: 404 };
   });
   const push = (address) => ({

@@ -9,6 +9,7 @@
  * as a draft or Start makes it (POST sequences). No zod here: the page reads these in the browser; what the routes parse
  * is the server's.
  */
+import { CONSENT_LIST_IDS } from "../broadcasts/broadcast-audience";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { REACH_OUT_AFTER_DAYS, REACH_OUT_STEPS_MAX } from "../reach-out/reach-out-words";
 import type { ParamSourceKind, ParamSpec } from "../templates/templates";
@@ -77,6 +78,32 @@ export function whoSuits(who: DraftWho, audience: NewAudience, kind: NewKind): b
   return who.kind === "everyone" || who.kind === "list";
 }
 
+/**
+ * What one of the lists is to New, by its token: a list to start on or send to; everyone, where a one-off names one of
+ * People's lists of who said yes, which every send already crosses its audience with (the send screen read them so,
+ * CONSENT_LIST_IDS); or never, for who said stop (the canvas's own word on the old New: "Opted out among them").
+ */
+export function newListOf(token: string, kind: NewKind): "list" | "everyone" | "never" {
+  const id = token.startsWith("seg:") ? token.slice(4) : null;
+  if (id === "opted_out") return "never";
+  if (kind === "once" && id !== null && CONSENT_LIST_IDS.includes(id)) return "everyone";
+  return "list";
+}
+
+/**
+ * A lead's step as a sequence to leads holds it (POST sequences' `first.steps`): its own email (a later one in the first's
+ * thread, so no subject), or a call or a note. New's make and Leads' "A draft by Ask" both send steps so.
+ */
+export function leadChainStepOf(s: Pick<NewStep, "does" | "email" | "after_days" | "hand">, i: number) {
+  if (s.does !== "message")
+    return { subject: null, body: "", after_days: s.after_days, hand: { kind: s.does, words: s.hand } };
+  return {
+    subject: i === 0 ? (s.email?.subject ?? "") : null,
+    body: s.email?.body ?? "",
+    after_days: i === 0 ? null : s.after_days,
+  };
+}
+
 /** A message Ask wrote for a person's step: filed on Keep or Start (POST templates/message's body), never before. */
 export interface NewWrittenMessage {
   name: string;
@@ -101,6 +128,8 @@ export interface NewMessage {
   /** An offer, which only people who said yes to offers hear, and never by text. */
   offer: boolean;
   written: NewWrittenMessage | null;
+  /** Its values' names in order, where the message names them ("When the openings are"): what a typed value is asked as. */
+  labels?: string[];
 }
 
 /** A lead's step's email, in its own words: a later one answers in the first's thread, with no subject. */

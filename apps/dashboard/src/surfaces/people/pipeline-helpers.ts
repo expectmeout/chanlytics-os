@@ -16,6 +16,7 @@ import {
   pipelinePassMany,
   pipelinePassDone,
   pipelinePeekDetail,
+  pipelineSheetOf,
   pipelineBoardMore,
   pipelinePersonOf,
   pipelineRowId,
@@ -44,6 +45,8 @@ export const pipelineHelpers = () => ({
   passMany: pipelinePassMany,
   passDone: pipelinePassDone,
   detail: pipelinePeekDetail,
+  // The row's own deal as its sheet says it: its steps, where it stands, its acts and their other deals.
+  sheet: pipelineSheetOf,
   boardCap: PIPELINE_BOARD_CAP,
   boardMore: pipelineBoardMore,
   words: PIPELINE_WORDS,

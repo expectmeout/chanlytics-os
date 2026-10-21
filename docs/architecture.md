@@ -251,7 +251,8 @@ The providers' pushes (`/api/mailbox/gmail`, a Pub/Sub OIDC token;
 `/api/mailbox/graph`, its clientState) only make a sync happen sooner, under
 the same lease. The clock also judges each mailbox's own mail once an hour
 (`mailbox_connection_counts`, contracts `mailboxHoldOf`: any complaint, or
-bounces or noes past 3% of at least 150 sent) and holds it until its owner's
+hard bounces and refusals, or unsubscribes, past 3% of at least 150 sent;
+never a reply's no) and holds it until its owner's
 Resume, keeps its ramp's days (10, 20, 30, 40 a day at 0, 7, 14 and 21 days
 sent, 20 at most on the business's customer domain, never past its owner's
 cap) and reads its DNS daily.

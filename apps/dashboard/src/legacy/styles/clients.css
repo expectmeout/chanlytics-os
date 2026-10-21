@@ -1450,6 +1450,8 @@
 .cl-prof-deal-step[data-at="done"] .cl-prof-deal-bar,
 .cl-prof-deal-step[data-at="current"] .cl-prof-deal-bar { background: var(--ink-dim); }
 .cl-prof-deal-step[data-tone="info"] .cl-prof-deal-bar { background: var(--info); }
+/* A proposal that waits on the owner (contracts deal-waits.ts proposalTone, the Pipeline row's own rule). */
+.cl-prof-deal-step[data-tone="warn"] .cl-prof-deal-bar { background: var(--warn); }
 .cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
 .cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
@@ -2741,24 +2743,11 @@
 .pipe-card-value { flex: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 
 /* ---- People › Pipeline as a workspace (surfaces/people/pipeline/: scope.tsx, peek.tsx, board.tsx) ---------------
-   The view switch is the house's small tab pair (cl-tabs) at the controls row's right. The peek is the lead peek's
-   pane (leads.css .pk: 408px beside the rows on a desk, the screen on a phone) with the person page's own deal card
-   inside it, frameless -- a box in a box said nothing -- then the row's quiet facts and the two doors as words. The
-   board is the four groups as columns in one row that scrolls sideways, the cards in the raised ground with a
-   hairline, as the deal card is; a column a card may drop into shows a dashed edge under it, and one it may not dims.
-   A desk's only: the phone keeps the list, and the switch is not drawn there. */
+   The view switch is the house's small tab pair (cl-tabs) at the controls row's right. A row opens its deal sheet (the
+   deal sheet's own block, below). The board is the four groups as columns in one row that scrolls sideways, the cards
+   in the raised ground with a hairline, as the deal card is; a column a card may drop into shows a dashed edge under
+   it, and one it may not dims. A desk's only: the phone keeps the list, and the switch is not drawn there. */
 .pipe-views .cl-tab { min-width: 52px; justify-content: center; }
-.pipe-peek .pk-head { align-items: center; }
-.pipe-peek .pk-name { font-size: 15px; }
-/* A stop, said once beside the line under the name (StoppedMark; contracts' STOP_WORDS.mark). */
-.pipe-stop-said { margin-left: 8px; }
-.pipe-peek-body { gap: 16px; }
-.pipe-peek .cl-prof-deal-card { max-width: none; padding: 0; background: transparent; border: 0; }
-.pipe-peek .cl-prof-deal-none { max-width: none; }
-.pipe-peek-facts { list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
-.pipe-peek-fact-quote { color: var(--ink); }
-.pipe-peek-doors { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-top: 12px; border-top: 1px solid var(--line); }
-.pipe-peek-door .icon { margin-left: 4px; color: var(--ink-dim); }
 .pipe-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 10px; padding: 14px 28px 24px; overflow-x: auto; align-items: start; }
 .pipe-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .pipe-col-head { display: flex; align-items: baseline; gap: 6px; padding: 0 4px; font-size: var(--text-xs); line-height: 18px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; }
@@ -2857,24 +2846,89 @@
 .pipe-pass { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pipe-pass-ask { font-size: var(--text-sm); color: var(--ink); }
 .pipe-pass-rest { font-size: 12px; color: var(--ink-dim); }
-.pipe-peek-reach { margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 8px 14px; font-size: var(--text-sm); }
-.pipe-peek-reach-row { display: contents; }
-.pipe-peek-reach-label { color: var(--ink-dim); }
-.pipe-peek-reach-what { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; }
-.pipe-peek-reach-words { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-.pipe-peek-history { padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
-.pipe-peek-head { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-dim); }
-.pipe-peek-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
-.pipe-peek-history-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ink-muted); }
-.pipe-peek-when { flex: none; color: var(--ink-dim); font-size: 12px; font-variant-numeric: tabular-nums; }
-.pipe-peek-bar { display: none; }
-@media (max-width: 900px) {
-  .pipe-peek-bar { display: flex; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); }
-  .pipe-peek-bar > .btn { flex: 1; min-height: 44px; justify-content: center; }
-}
-/* With the deal's next act pinned under the peek (peek.tsx PipelinePeekBar), the deal card's own copy of it leaves the body:
-   a phone said "Start a proposal" twice on one screen (7 Oct 2026). Reached by its test ids: its class is the kit's. */
-.pk-body[data-act-pinned] :is([data-testid="person-deal-next"], [data-testid="person-deal-start"]) { display: none; }
+
+/* ---- The deal sheet (surfaces/people/pipeline/: peek.tsx, peek-parts.tsx, peek-foot.tsx; the canvas "Pipeline deal
+   sheet", 20 Oct 2026) ------------------------------------------------------------------------------------------------
+   One row's deal: on a phone the kit's sheet with two rests, on a desk the peek's pane (leads.css .pk, 408px). The parts
+   are the house's own: the deal card's steps, the kit's pills, the person page's last words, the kit's buttons and its
+   sheet's glass foot. These rules set them out as the canvas draws them: quiet labels over the sections; the steps, then
+   one line of what wants a look and the plain facts; every record a box of rows on the kit's inset ground (a label, the
+   thing, its one act), the next step among them, its ring Done and its words Change; the question two equal answers, as
+   the Calendar's visit asks; the foot one pill split by a hairline (the act and its caret), the filled circles after it;
+   the pass, its question over its six reasons, two a line. */
+.pipe-peek .pk-head { align-items: center; }
+/* A stop, said once beside the name (StoppedMark; contracts' STOP_WORDS.mark). */
+.pipe-stop-said { margin-left: 8px; }
+.pipe-deal-pane { gap: 16px; }
+.pipe-deal-body { display: flex; flex-direction: column; gap: 16px; padding: 6px 0 16px; }
+.pipe-deal-stand { display: flex; flex-direction: column; gap: 14px; }
+/* The steps a step larger than a person's card, and what is ahead fainter, the row's own bar under each. */
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-deal-steps { gap: 4px; }
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-deal-step { gap: 0; }
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-deal-bar { margin-bottom: 6px; }
+:is(.pipe-deal-pane, .pipe-deal-body) :is(.cl-prof-deal-step-label, .cl-prof-deal-step-day) { font-size: var(--text-sm); line-height: 1.35; }
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-deal-step[data-at="ahead"] .cl-prof-deal-step-label { color: var(--ink-faint); }
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-deal-step[data-at="ahead"] .cl-prof-deal-bar { background: var(--line-strong); }
+/* What wants a look and the plain facts, on one line that breaks between them. */
+.pipe-deal-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--text-sm); color: var(--ink-muted); }
+.pipe-deal-sep { margin: 0 -4px; color: var(--ink-faint); }
+.pipe-deal-sec { display: flex; flex-direction: column; gap: 8px; }
+.pipe-deal-sec > .cl-prof-section-title { margin: 0; }
+/* A record: rows in one box on the kit's inset ground, a hairline between them. */
+.pipe-deal-group { margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: var(--surface-inset-radius); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
+.pipe-deal-group > * + * { border-top: 1px solid var(--line); }
+.pipe-deal-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 2px 6px 2px 14px; }
+.pipe-deal-row > dt { font-size: var(--text-sm); color: var(--ink-dim); }
+.pipe-deal-row > dd { margin: 0; min-width: 0; padding: 6px 0; font-size: var(--text-base); color: var(--ink); overflow-wrap: anywhere; }
+.pipe-deal-row > dd:last-child { grid-column: 2 / -1; padding-right: 8px; }
+.pipe-deal-warn { display: block; font-size: var(--text-sm); color: var(--warn-ink); }
+.pipe-deal-link { display: inline-flex; align-items: center; gap: 5px; font-weight: var(--weight-medium); color: var(--ink); text-decoration: none; border-radius: var(--radius-xs); }
+.pipe-deal-link .icon { color: var(--ink-dim); }
+@media (hover: hover) { .pipe-deal-link:hover { text-decoration: underline; text-underline-offset: 2px; } }
+.pipe-deal-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The question, as the Calendar's visit asks "Did Maria come?": two equal answers, 44 tall, their words centred. */
+.pipe-deal-ask { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--surface-inset-radius); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
+.pipe-deal-ask-q { margin: 0 2px; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--ink); }
+.pipe-deal-ask-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pipe-deal-ask-two > * { justify-content: center; min-height: 44px; }
+/* The next step, a row of its box: the ring is Done, the words are Change. */
+.pipe-deal-step { display: flex; align-items: center; gap: 2px; min-height: 56px; padding: 4px 12px 4px 0; }
+.pipe-deal-ring { display: block; width: 20px; height: 20px; border: 1.5px solid var(--line-strong); border-radius: var(--radius-circle); }
+@media (hover: hover) { .pipe-deal-done:hover .pipe-deal-ring { border-color: var(--ink-dim); } }
+.pipe-deal-dot { flex: none; display: grid; place-items: center; width: 44px; height: 44px; }
+.pipe-deal-dot::after { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ink-dim); }
+.pipe-deal-step-change { flex: 1 1 auto; min-width: 0; height: auto; min-height: 44px; padding: 4px 6px; justify-content: flex-start; text-align: left; }
+.pipe-deal-step-say { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+.pipe-deal-step-words { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--ink); white-space: normal; }
+.pipe-deal-step-when { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--ink-dim); }
+.pipe-deal-step[data-due]:not([data-due="ahead"]) .pipe-deal-step-when { color: var(--warn-ink); }
+/* Set a next step: the box's one row, its plus where the ring stands. */
+.pipe-deal-set { width: 100%; height: auto; min-height: 48px; padding: 0 12px 0 0; gap: 2px; justify-content: flex-start; border-radius: 0; font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--ink-muted); }
+.pipe-deal-plus { flex: none; display: grid; place-items: center; width: 44px; height: 44px; color: var(--ink-dim); }
+.pipe-deal-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--ink-muted); }
+/* Another deal of theirs: a row of its box, what it is over how it stands, and where it goes. */
+.pipe-deal-other { width: 100%; justify-content: space-between; gap: 10px; height: auto; min-height: 52px; padding: 6px 12px 6px 14px; border-radius: 0; text-align: left; color: var(--ink-dim); }
+.pipe-deal-other-say { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.pipe-deal-other-title { font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
+.pipe-deal-other-words { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--ink-dim); }
+.pipe-deal-door { margin: 0; display: flex; justify-content: center; }
+/* The foot: the one act and its caret in one pill, at a thumb's height, the act's words a size up; then the circles. */
+.pipe-deal-lead { display: flex; flex: 1 1 auto; min-width: 0; }
+.pipe-deal-lead > .pipe-deal-lead-act { flex: 1 1 auto; min-width: 0; justify-content: center; font-size: var(--text-md); }
+.pipe-deal-lead > .pipe-deal-lead-act:not(:only-child) { border-radius: var(--radius-full) 0 0 var(--radius-full); }
+.pipe-deal-lead > .pipe-deal-lead-more { flex: none; width: 46px; min-width: 46px; border-left: 1px solid var(--line-strong); border-radius: 0 var(--radius-full) var(--radius-full) 0; }
+.pipe-deal-lead-alone { flex: 1 1 auto; }
+/* Message and Call filled, as the Calendar's visit fills its circles (calendar.css .cal-visit-circle). */
+.pipe-deal-circle { flex: none; background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+/* While the caret's sheet stands over a phone's foot, the foot steps out from under its glass. */
+.pipe-deal .pipe-deal-acts:has([aria-expanded="true"]) { opacity: 0; }
+/* A phone's open deal lights its row above the sheet; a tap is no cursor otherwise (.pl-card-row.focused above). */
+.pipe-scope .cl-main.has-deal .pl-table tbody tr.focused { background: var(--bg-hover); }
+.pipe-deal-pass { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; }
+.pipe-deal-pass-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 10px; }
+.pipe-deal-pass-q { font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+.pipe-deal-pass-reasons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pipe-deal-pass-reasons > * { justify-content: center; }
 
 /* ====================================================================
    Glass: People (the plan's step 5.4, canvases P1 and P2)
@@ -4949,7 +5003,10 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
     font-size: var(--text-sm);
     color: var(--ink-dim);
   }
+  /* The row keeps the pane's height (min-height 0), so a peek longer than the pane scrolls in its body and its foot holds
+     still at the pane's foot, never past the window's edge. */
   .main-scroll :is(.pipe-scope, .pp-scope) .cl-main.has-peek {
+    min-height: 0;
     flex-direction: row;
     gap: 14px;
     border-radius: 0;
@@ -5076,39 +5133,18 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
 .pp-glance-foot > :last-child {
   margin-left: auto;
 }
-[data-testid="pipeline-peek-reach"] {
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 0 10px;
-  padding-top: 6px;
-}
-[data-testid="pipeline-peek-reach"] > * > dt,
-[data-testid="pipeline-peek-reach"] > * > dd {
-  padding: 7px 0;
-}
-[data-testid="pipeline-peek-facts"] {
-  font-size: var(--text-sm);
-}
-[data-testid="pipeline-peek-quote"] {
-  font-size: var(--text-base);
-  line-height: 1.45;
+/* The deal sheet's sections under quiet labels, the canvas's: the name and the deal are a sheet's loud lines. */
+:is(.pipe-deal-pane, .pipe-deal-body) .cl-prof-section-title {
+  margin: 0 2px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: normal;
+  color: var(--ink-dim);
 }
 @media (max-width: 900px) {
   /* A phone row says where a deal stands in words (D-phone-list); the three-step track under the name goes. */
   .pipe-scope .pipe-track {
     display: none;
-  }
-  /* The deal's foot on a phone (D-phone-deal): one capsule of the control layer's glass clear of the screen's edges,
-     its two acts inside it. */
-  [data-testid="pipeline-peek-bar"] {
-    gap: 8px;
-    margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
-    padding: 6px;
-    border-top: 0;
-    border-radius: var(--radius-full);
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    backdrop-filter: var(--surface-control-blur);
-    box-shadow: var(--surface-control-depth);
   }
 }
 

@@ -17,6 +17,8 @@
  *   what became of a sent  the provider's receipts, applied by apps/edge/lib/email/email-receipts.ts: stampEmailSent,
  *   email                  sentEmailOf, recordEmailStatus, stampEmailComplaint, recordEmailNo and suppressEmailOf.
  *                          stampEmailLeftAs is written by core's deliver() after an email leaves.
+ *   one of unknown outcome emailFoundSent and emailNeverLeft, a mailbox's sent mail looked in for an email whose send
+ *                          timed out (the edge's mailbox-reconcile.ts).
  *
  * Taking an email in goes through ingest_inbound, the atomic gate every channel uses (one advisory lock per identity,
  * one replay gate on the provider's id), with the sender's address as the identity; it is not recreated to learn a
@@ -39,6 +41,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
 import { ingestInbound, stoppedNow, type IngestResult } from "./ingest";
 import { setEmailOffersYes, setEmailUnsubscribed } from "./campaigns/email-offers";
+import { stampEmailFromMailbox } from "./mailboxes/connections";
 import { dbLog } from "../observe";
 
 type Db = SupabaseClient<Database>;
@@ -524,4 +527,55 @@ export async function suppressEmailOf(
     .select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
   return data?.[0]?.id ?? null;
+}
+
+/**
+ * An email a mailbox may have sent, settled (decision 0056; the edge's mailbox-reconcile.ts): a send whose provider
+ * call timed out is recorded failed with its outcome unknown (core deliver.ts), and no receipt comes from a mailbox.
+ * Each move is made only from failed with the outcome unknown, which messages_guard (00326) lets move to sent; a row a
+ * receipt settled meanwhile is not touched. True when it moved.
+ */
+async function settleUnknownEmail(
+  db: Db,
+  p: { tenantId: string; id: string },
+  patch: Database["public"]["Tables"]["messages"]["Update"],
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("messages")
+    .update(patch)
+    .eq("id", p.id)
+    .eq("tenant_id", p.tenantId)
+    .eq("status", "failed")
+    .eq("error->>outcome", "unknown")
+    .select("id");
+  if (error) throw new Error(`cannot settle the email ${p.id}: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+
+/** Found in what the mailbox sent: stamped with the id, Message-ID and thread it went under, then sent. */
+export async function emailFoundSent(
+  db: Db,
+  p: {
+    tenantId: string;
+    id: string;
+    mailboxId: string;
+    providerId: string;
+    rfcMessageId: string | null;
+    threadId: string | null;
+  },
+): Promise<boolean> {
+  await stampEmailFromMailbox(db, {
+    tenantId: p.tenantId,
+    messageId: p.id,
+    providerId: p.providerId,
+    rfcMessageId: p.rfcMessageId,
+    threadId: p.threadId,
+    mailboxId: p.mailboxId,
+  });
+  return settleUnknownEmail(db, p, { status: "sent", error: null });
+}
+
+/** Not in what the mailbox sent: it never left, so the reach-out clock plans its send again (clock.ts neverLeft). */
+export async function emailNeverLeft(db: Db, p: { tenantId: string; id: string; note: string }): Promise<boolean> {
+  return settleUnknownEmail(db, p, { error: { reason: "never_delivered", note: p.note.slice(0, 200) } });
 }

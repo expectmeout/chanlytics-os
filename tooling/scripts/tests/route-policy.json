@@ -1865,13 +1865,6 @@
       "rate": "playbook",
       "spend": false
     },
-    "POST sequences/draft-leads": {
-      "kind": "write",
-      "scope": "workspace",
-      "role": "operator",
-      "rate": "ask",
-      "spend": false
-    },
     "POST sequences/draft": {
       "kind": "write",
       "scope": "workspace",
@@ -1883,7 +1876,7 @@
       "kind": "write",
       "scope": "workspace",
       "role": "operator",
-      "rate": "playbook",
+      "rate": "broadcast",
       "spend": false
     },
     "GET sequences": {

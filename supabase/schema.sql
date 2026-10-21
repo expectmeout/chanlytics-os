@@ -6475,7 +6475,7 @@ $$;
 -- Name: FUNCTION is_platform_admin(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.is_platform_admin() IS 'Whether the calling session is Chanlytics staff and showed its second factor (00466, decision 0066: no grace). Answers only about the caller, which is why every session may ask; platform_overview() and the Console''s doors are what the answer unlocks.';
+COMMENT ON FUNCTION public.is_platform_admin() IS 'Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: no grace). Answers only about the caller, which is why every session may ask; platform_overview() and the Console''s doors are what the answer unlocks.';
 
 
 --
@@ -11652,29 +11652,38 @@ CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since time
        and public.email_left(o.status, o.error)
      order by o.created_at desc
      limit 500
+  ), noes as (
+    -- Each person's no in the window, by how they said it; a reply's no undone is no no.
+    select e.subject_id, e.data->>'source' as source from recent r
+      join public.events e
+        on e.tenant_id = r.tenant_id and e.kind = 'contact.consent_changed'
+       and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
+       and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
+       and e.data->>'message_id' = r.id::text
+       and not (e.data->>'source' = 'reply' and exists (
+         select 1 from public.events u
+          where u.tenant_id = r.tenant_id and u.kind = 'contact.consent_changed'
+            and u.created_at >= e.created_at and u.subject_id = e.subject_id
+            and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
+            and u.data->>'message_id' = e.data->>'message_id'))
   )
   select jsonb_build_object(
     'sent', (select count(*) from recent),
-    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the mailbox that wrote.
+    -- A hard bounce only: a full mailbox or a greylisting server says nothing about the mailbox that wrote.
     'bounced', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
                   and lower(coalesce(error->>'kind', '')) = 'permanent'),
+    -- A receiving server refusing the sender: the mailbox's own standing, never the address's.
+    'blocked', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
+                  and lower(coalesce(error->>'kind', '')) = 'blocked'),
     'complained', (
       select count(*) from ours
        where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
-    -- A person counts once, however many of the window's emails their noes name; a no undone is no no.
-    'unsubscribed', (
-      select count(distinct e.subject_id) from recent r
-        join public.events e
-          on e.tenant_id = r.tenant_id and e.kind = 'contact.consent_changed'
-         and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
-         and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
-         and e.data->>'message_id' = r.id::text
-         and not (e.data->>'source' = 'reply' and exists (
-           select 1 from public.events u
-            where u.tenant_id = r.tenant_id and u.kind = 'contact.consent_changed'
-              and u.created_at >= e.created_at and u.subject_id = e.subject_id
-              and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
-              and u.data->>'message_id' = e.data->>'message_id'))))
+    -- A person counts once, however many of the window's emails their noes name, and an unsubscribe of theirs makes
+    -- their no an unsubscribe: the door's own rule (set_email_marketing: a reply's no an unsubscribe follows is the
+    -- unsubscribe's), so a person who said no and then pressed the link counts toward the hold.
+    'unsubscribed', (select count(distinct subject_id) from noes where source = 'unsubscribe'),
+    'said_no', (select count(distinct n.subject_id) from noes n where n.source = 'reply'
+                  and not exists (select 1 from noes u where u.subject_id = n.subject_id and u.source = 'unsubscribe')))
 $$;
 
 
@@ -11682,7 +11691,7 @@ $$;
 -- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'What a connected mailbox''s reach-out emails came to since p_since (00424): sent (its last 500 that left), bounced (permanent bounces of them), complained, and unsubscribed (the people whose unsubscribe or reply no names one of them, a no undone excepted). The mailboxes clock judges its health by them (contracts mailboxHoldOf). Service role only.';
+COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
 
 
 --
@@ -17441,7 +17450,7 @@ end $$;
 -- Name: FUNCTION platform_admin_add(p_email text, p_role text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_admin_add(p_email text, p_role text) IS 'Adds a person to the Console''s staff by email with a role, or changes the role of one who is staff already (00466). Service-role only, and deliberately not reachable from the app. Answers in words rather than raising, so a typo is not an outage. Removing someone is a delete from platform_admins at the same console.';
+COMMENT ON FUNCTION public.platform_admin_add(p_email text, p_role text) IS 'Adds a person to the Console''s staff by email with a role, or changes the role of one who is staff already (00467). Service-role only, and deliberately not reachable from the app. Answers in words rather than raising, so a typo is not an outage. Removing someone is a delete from platform_admins at the same console.';
 
 
 --
@@ -17533,7 +17542,7 @@ end $_$;
 -- Name: FUNCTION platform_find(p_q text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (00466, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
+COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (00467, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
 
 
 --
@@ -17979,7 +17988,7 @@ $$;
 -- Name: FUNCTION platform_model_spend(p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_model_spend(p_days integer) IS 'The Console (00466, decision 0066): what each workspace''s model calls cost over the last days (ai_usage.usd, list price). The service role alone.';
+COMMENT ON FUNCTION public.platform_model_spend(p_days integer) IS 'The Console (00467, decision 0066): what each workspace''s model calls cost over the last days (ai_usage.usd, list price). The service role alone.';
 
 
 --
@@ -18204,7 +18213,7 @@ $$;
 -- Name: FUNCTION platform_role(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_role() IS 'The calling session''s role in the Console (00466), on a session that showed its second factor; null otherwise. Answers about the caller alone.';
+COMMENT ON FUNCTION public.platform_role() IS 'The calling session''s role in the Console (00467), on a session that showed its second factor; null otherwise. Answers about the caller alone.';
 
 
 --
@@ -18229,7 +18238,7 @@ $$;
 -- Name: FUNCTION platform_staff_state(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_staff_state() IS 'The calling session in the Console (00466): its role once it showed its second factor, needs_second_factor before, none for everybody else. Answers about the caller alone, so every session may ask.';
+COMMENT ON FUNCTION public.platform_staff_state() IS 'The calling session in the Console (00467): its role once it showed its second factor, needs_second_factor before, none for everybody else. Answers about the caller alone, so every session may ask.';
 
 
 --
@@ -33290,7 +33299,7 @@ CREATE TABLE public.platform_acts (
 -- Name: TABLE platform_acts; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.platform_acts IS 'Every act the Console''s staff take (00466, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.';
+COMMENT ON TABLE public.platform_acts IS 'Every act the Console''s staff take (00467, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.';
 
 
 --
@@ -33309,7 +33318,7 @@ CREATE TABLE public.platform_admins (
 -- Name: COLUMN platform_admins.role; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.platform_admins.role IS 'What the person may do in the Console (00466, decision 0066): owner (everything), support (the workspaces'' work), billing (the money). Set at the database alone (platform_admin_add).';
+COMMENT ON COLUMN public.platform_admins.role IS 'What the person may do in the Console (00467, decision 0066): owner (everything), support (the workspaces'' work), billing (the money). Set at the database alone (platform_admin_add).';
 
 
 --
@@ -33331,7 +33340,7 @@ CREATE TABLE public.platform_claims (
 -- Name: TABLE platform_claims; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.platform_claims IS 'Who on the Console''s staff has taken a workspace, until when (00466, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.';
+COMMENT ON TABLE public.platform_claims IS 'Who on the Console''s staff has taken a workspace, until when (00467, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.';
 
 
 --
@@ -33522,7 +33531,7 @@ CREATE TABLE public.privacy_requests (
 -- Name: TABLE privacy_requests; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.privacy_requests IS 'A request the data-deletion page promises an answer to (00466, decision 0066): a workspace to delete within thirty days of its owner asking, a person''s request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.';
+COMMENT ON TABLE public.privacy_requests IS 'A request the data-deletion page promises an answer to (00467, decision 0066): a workspace to delete within thirty days of its owner asking, a person''s request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.';
 
 
 --
@@ -34282,7 +34291,7 @@ CREATE TABLE public.support_reports (
 -- Name: TABLE support_reports; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.support_reports IS 'Report a problem (00466, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
+COMMENT ON TABLE public.support_reports IS 'Report a problem (00467, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
 
 
 --

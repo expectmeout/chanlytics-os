@@ -4,7 +4,7 @@
  * chainIssueWords), a slot put in at the caret, the pace its mailboxes allow, the preview's lines, and the Leads door.
  * Pure: the page draws these and says every sentence from here.
  */
-import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-connections";
+import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-standing";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
   type ReachOutChainDto,

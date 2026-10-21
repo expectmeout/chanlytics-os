@@ -69,7 +69,7 @@ const pipeRowItems = (
     onThread,
   }: { canRecord: boolean; onPage: (id: string) => void; onThread: (r: PipelineRowVM) => void },
 ): MoreItems => {
-  const W = P.words.peek;
+  const W = P.words.row;
   // A consultation's row starts a proposal, as dragging it into Proposal out does (contracts pipelineMove), whatever
   // deal of theirs closed before: its menu offered that old deal's Propose again. The sheet names the consultation's
   // service itself (dealSheetFor).

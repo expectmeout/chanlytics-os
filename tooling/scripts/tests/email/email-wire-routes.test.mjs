@@ -184,25 +184,36 @@ test("REGRESSION: a mailboxes read that fails is the wire not bound, so a reach-
   }
 });
 
-test("a provider's day used up rests the mailbox until the next UTC midnight, and the send comes back as not taken", async () => {
-  const v = vault({ [SENDING.id]: liveCredentials("ya29.sam") });
-  const tables = { mailboxes: [MAILBOX], mailbox_connections: [{ ...SENDING }] };
-  const net = providers(() => ({
+test("a provider's day used up rests the mailbox until it turns (Gmail's rolling day, Graph's next UTC midnight), and the send comes back as not taken", async () => {
+  const day = async (box, answer) => {
+    const v = vault({ [box.id]: liveCredentials("ya29.sam") });
+    const tables = { mailboxes: [MAILBOX], mailbox_connections: [{ ...box }] };
+    const net = providers(answer);
+    try {
+      const wire = await emailWireFor(fakeDb(tables, {}, v.rpcs), T);
+      const out = await wire("owner@example.com", { body: "x", email: own(box), purpose: "outreach" });
+      assert.equal(out.ok, false);
+      assert.equal(out.outcome, "retryable", "the outbox hands it to a fresh job, which meets the door's wait");
+      assert.equal(out.errorBody, "mailbox_day_used");
+      return tables.mailbox_connections[0].resting_until;
+    } finally {
+      net.restore();
+    }
+  };
+  const before = Date.now();
+  const gmail = await day(SENDING, () => ({
     status: 429,
     json: { error: { code: 429, message: "User-rate limit exceeded", errors: [{ reason: "dailyLimitExceeded" }] } },
   }));
-  try {
-    const wire = await emailWireFor(fakeDb(tables, {}, v.rpcs), T);
-    const out = await wire("owner@example.com", { body: "x", email: own(SENDING), purpose: "outreach" });
-    assert.equal(out.ok, false);
-    assert.equal(out.outcome, "retryable", "the outbox hands it to a fresh job, which meets the door's wait");
-    assert.equal(out.errorBody, "mailbox_day_used");
-    const rested = tables.mailbox_connections[0].resting_until;
-    assert.ok(rested && rested.endsWith("T00:00:00.000Z"), `rested until a UTC midnight (${rested})`);
-    assert.ok(Date.parse(rested) > Date.now());
-  } finally {
-    net.restore();
-  }
+  const rolled = Date.parse(gmail) - before;
+  assert.ok(rolled >= 24 * 3_600_000 && rolled < 24 * 3_600_000 + 60_000, `Gmail names no time: a day on (${gmail})`);
+  const graph = await day({ ...SENDING, provider: "microsoft" }, (c) =>
+    c.url.endsWith("/me/messages")
+      ? { status: 201, json: { id: "AAMk-1", internetMessageId: "<x@y>", conversationId: "c" } }
+      : { status: 403, json: { error: { code: "ErrorExceededMessageLimit" } } },
+  );
+  assert.ok(graph && graph.endsWith("T00:00:00.000Z"), `rested until a UTC midnight (${graph})`);
+  assert.ok(Date.parse(graph) > Date.now());
 });
 
 test("a grant gone (invalid_grant at the refresh) sets the mailbox to reconnect, says so once, and the send waits", async () => {

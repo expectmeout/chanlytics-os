@@ -245,6 +245,7 @@ export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email
 export {
   MAILBOX_SCOPES,
   mailboxAuthorizeUrl,
+  mailboxAdminConsentUrl,
   mailboxTokenRequest,
   mailboxRefreshRequest,
   mailboxRevokeRequest,
@@ -261,8 +262,11 @@ export {
   gmailThreadOf,
   gmailSentIds,
   gmailProfile,
+  gmailNoMailbox,
   gmailHistory,
   gmailMessage,
+  gmailReports,
+  gmailFindSent,
   gmailWatch,
   gmailStop,
 } from "./mailbox/mailbox-gmail";
@@ -271,7 +275,12 @@ export {
   graphDayUsed,
   graphSignedOut,
   graphMe,
+  graphInbox,
+  graphNoMailbox,
   graphSend,
+  graphDeleteMessage,
+  graphFindSent,
+  graphJunkSince,
   graphMessage,
   graphDelta,
   graphSubscribe,
@@ -280,10 +289,18 @@ export {
 } from "./mailbox/mailbox-graph";
 export type { GraphSent, GraphDelta } from "./mailbox/mailbox-graph";
 export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "./mailbox/mailbox-read";
-export type { MailboxEmail, DeliveryReport } from "./mailbox/mailbox-read";
+export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
-export { dmarcOf, spfOf, dkimOf, DKIM_SELECTORS } from "./mailbox/mailbox-dns";
+export {
+  dmarcOf,
+  spfRecordsOf,
+  spfNamesProvider,
+  spfTermsOf,
+  SPF_INCLUDES,
+  dkimOf,
+  DKIM_SELECTORS,
+} from "./mailbox/mailbox-dns";
 export type { TxtAnswer } from "./mailbox/mailbox-dns";
 export { verifyGooglePushToken, gmailPushOf, graphNotificationsOf, clientStateMatches } from "./mailbox/mailbox-push";
 export type { PushTokenRefusal } from "./mailbox/mailbox-push";

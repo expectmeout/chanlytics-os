@@ -1,8 +1,9 @@
 # 0065 · One New for every sequence
 
 **Status:** Decided 20 October 2026 (Ruben: "Approved with your picks", on the New canvas, artifact
-3eGjrhpQABiRHEgmiy27Kb v8, option 2 on the one model, with its three calls as recommended). Being built on the lane
-`campaigns/one-new` from main's `8e4bee882`; not yet merged. Where this note and the code disagree, the code wins.
+3eGjrhpQABiRHEgmiy27Kb v8, option 2 on the one model, with its three calls as recommended). Built: #1764 (00465 on
+production before its merge, 21 October 2026), completed against the canvas end to end on `campaigns/new-complete`.
+Steps 6 and 7 are still to do. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -32,7 +33,7 @@ Campaigns' New is four tabs over three engines, read against `8e4bee882`:
    audience changes only what each picker offers: who (moments and lists; searches and leads picked), the channels,
    the values the words may use, the wait's range, whether "if not booked" is offered, and Your OK's choices.
 3. **One draft engine.** `POST sequences/draft` takes the line (and any choice already made) and answers one draft
-   shape for every kind and audience. Every part of it is a choice the owner can change in place: the kind, who,
+   shape for every kind and audience; Leads' "A draft by Ask" asks it too (`draft-leads` is gone). Every part of it is a choice the owner can change in place: the kind, who,
    when, each step's wait, condition and message, and a call or a note. Nothing is fixed in code: a call is drafted
    only when the line asks for one.
 4. **Ask writes a missing message.** Where none of the workspace's messages fits a customer's step, Ask writes one
@@ -44,8 +45,10 @@ Campaigns' New is four tabs over three engines, read against `8e4bee882`:
    for the team, on Today with the person, its wait and its condition as any later step's; always the last step.
 7. **A one-off can be kept** (call 1). Keep as a draft puts it under Drafts, as a sequence's draft is; sending it makes
    the one-off and lets the draft go.
-8. **No send on approval** (call 3). A one-off whose new WhatsApp version is still with Meta goes now by email and
-   text to those who can hear it that way, or is sent another day; nothing waits for Meta on its own.
+8. **No send on approval** (call 3). A one-off whose new WhatsApp version is still with Meta goes by email and text to
+   those who can hear it that way (the send door refuses a version Meta has not approved, so the make leaves WhatsApp out),
+   or is kept: kept, its message is filed, so Meta reviews it while the draft waits under Drafts, and it is sent another
+   day. Nothing waits for Meta on its own.
 9. **Once to leads** is a sequence to leads of one email, started: its first email waits for an OK as every one does.
 
 ## Shape

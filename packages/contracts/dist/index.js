@@ -12733,6 +12733,10 @@ function waitingOnProposal(r2, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS) return false;
   return !heardSinceProposal(r2);
 }
+function proposalTone(r2, nowMs, pace, followUpWill) {
+  if (r2.deal?.validUntil?.lapsed) return "warn";
+  return !followUpWill && waitingOnProposal(r2, nowMs, pace) ? "warn" : "info";
+}
 function eachOpenProposal(rows2) {
   return rows2.flatMap((r2) => {
     const open = r2.openDeals && r2.openDeals.length ? r2.openDeals : r2.deal ? [r2.deal] : [];
@@ -12851,32 +12855,54 @@ var PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
   peek: {
     close: "Close",
-    page: "Open their page",
-    thread: "Open the thread",
+    page: "Their page",
     reading: "Reading\u2026",
     what: "this person",
-    /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
     reach: {
+      title: "How to reach them",
       phone: "Phone",
       email: "Email",
       replies: "Replies",
-      call: "Call",
       copy: "Copy",
       copied: "Copied",
       /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
       copyPhone: "Copy the number",
       copyEmail: "Copy the address"
-    },
-    /** What happened with their deals, newest first. */
-    history: "History"
+    }
+  },
+  /**
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
+   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   */
+  sheet: {
+    raise: "Show all of the deal",
+    lower: "Back to the quick look",
+    next: "Next step",
+    done: (step2) => `Done: ${step2}`,
+    change: (step2) => `Change: ${step2}`,
+    ask: (first) => `Did ${first} say yes?`,
+    yes: "Yes, a client",
+    no: "They passed",
+    passAsk: (first) => `Why did ${first} pass?`,
+    more: (what) => `More for ${what}`,
+    message: "Message",
+    others: "Also with them",
+    /** The proposal's own box, raised: its link and the link's copy. */
+    proposal: "The proposal",
+    link: "Link",
+    /** A consultation over with no proposal since, once its step says when and how it went. */
+    noProposal: "No proposal yet",
+    walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
   /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
-  row: { menu: "More for" },
+  row: { menu: "More for", thread: "Open the thread", page: "Open their page" },
   /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
   pass: {
     button: "Mark as passed",
@@ -26588,15 +26614,9 @@ function composeLinksOf(e) {
   };
 }
 
-// src/email/mailbox-connections.ts
-var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-var MAILBOX_PROVIDERS = ["google", "microsoft"];
-var MAILBOX_CONNECTION_STATES = ["connected", "reconnect", "paused", "held", "removed"];
+// src/email/mailbox-standing.ts
 var MAILBOX_HOLDS = ["bounces", "complaint", "unsubscribes"];
-var MAILBOX_DNS_RECORDS = ["spf", "dkim", "dmarc", "mx"];
-var MAILBOX_CONNECTIONS_MAX = 10;
-var MAILBOXES_PER_DOMAIN_MAX = 3;
-var MAILBOX_DAILY_CAP_MAX = 50;
+var MAILBOX_DAILY_CAP_MAX = 40;
 var CUSTOMER_DOMAIN_DAILY_MAX = 20;
 var MAILBOX_RAMP = [
   { days: 0, perDay: 10 },
@@ -26615,211 +26635,21 @@ function mailboxDailyCap(m) {
   const ceiling = m.customer_domain ? CUSTOMER_DOMAIN_DAILY_MAX : MAILBOX_DAILY_CAP_MAX;
   return Math.min(mailboxRampShare(m.sent_days), owner, ceiling);
 }
-function mailboxSendsNow(m, nowMs) {
-  return m.state === "connected" && (!m.resting_until || Date.parse(m.resting_until) <= nowMs);
-}
-function reachOutWritesFrom(m, named) {
-  return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
-}
-function mailboxConnectionDtoOf(r2) {
-  const dns = {};
-  if (r2.dns && typeof r2.dns === "object")
-    for (const k of MAILBOX_DNS_RECORDS) {
-      const v = r2.dns[k];
-      if (v === "found" || v === "missing") dns[k] = v;
-    }
-  return {
-    id: r2.id,
-    provider: r2.provider === "microsoft" ? "microsoft" : "google",
-    address: r2.address,
-    host: r2.host,
-    from_name: r2.from_name,
-    signature: r2.signature,
-    state: MAILBOX_CONNECTION_STATES.includes(r2.state) ? r2.state : "removed",
-    held_why: MAILBOX_HOLDS.includes(r2.held_why ?? "") ? r2.held_why : null,
-    held_at: r2.held_at,
-    resting_until: r2.resting_until,
-    daily_cap: r2.daily_cap,
-    customer_domain: r2.customer_domain,
-    sent_days: Math.max(0, Math.floor(Number(r2.sent_days) || 0)),
-    dns,
-    dns_checked_at: r2.dns_checked_at,
-    last_error: r2.last_error,
-    connected_at: r2.connected_at,
-    sent_at: r2.sent_at
-  };
-}
-var COUNT_FLOOR = 150;
-var HOLD_PERCENT = 3;
-function mailboxHoldOf(c) {
-  if (!c) return null;
-  const of = Math.max(c.sent, COUNT_FLOOR);
-  if (c.complained > 0) return "complaint";
-  if (c.bounced * 100 > HOLD_PERCENT * of) return "bounces";
-  if (c.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
-  return null;
-}
 var HOLD_WORDS = {
-  bounces: "more than 3% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
-  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to unsubscribed"
 };
 function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
 var HOLD_FIX_WORDS = {
-  bounces: "Check the addresses it writes to, then resume it.",
+  bounces: "Check the addresses it writes to and its domain's records below, then resume it.",
   complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it.",
   unsubscribes: "Write to fewer, and to the ones it fits best, then resume it."
 };
 function mailboxHoldFixWords(why) {
   return why && HOLD_FIX_WORDS[why] || null;
-}
-var MAILBOX_PROVIDER_WORDS = { google: "Google", microsoft: "Microsoft" };
-function mailboxHealthWords(c) {
-  if (!c || !c.sent) return null;
-  const pct2 = Math.round(c.bounced / c.sent * 1e3) / 10;
-  const no = c.unsubscribed ? `${c.unsubscribed} said no` : "nobody said no";
-  const spam = c.complained ? `${c.complained} marked as spam` : "none marked as spam";
-  return `${pct2}% bounced \xB7 ${no} \xB7 ${spam}`;
-}
-function mailboxWords(m, nowMs, sentToday = null) {
-  const cap2 = mailboxDailyCap(m);
-  const step2 = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
-  const left = step2 ? step2.days - m.sent_days : 0;
-  const ceiling = m.customer_domain && cap2 >= CUSTOMER_DOMAIN_DAILY_MAX;
-  const ramp = ceiling ? `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day` : `${m.sent_days ? `Day ${m.sent_days + 1} of its ramp` : "New: its ramp starts today"} \xB7 ${cap2} a day${step2 && cap2 < m.daily_cap ? `, ${step2.perDay} after ${left} more day${left === 1 ? "" : "s"} of sending` : ""}`;
-  if (m.state === "reconnect")
-    return {
-      pill: "Reconnect",
-      tone: "danger",
-      day: `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out, so nothing leaves from it.`,
-      ramp: null,
-      health: null,
-      fix: "Connect it again: its emails wait for it."
-    };
-  if (m.state === "paused")
-    return {
-      pill: "Paused",
-      tone: "plain",
-      day: "You paused it: nothing leaves from it.",
-      ramp,
-      health: null,
-      fix: null
-    };
-  if (m.state === "held") {
-    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
-    return {
-      pill: "Held",
-      tone: "warn",
-      day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
-      ramp: null,
-      health: null,
-      fix: mailboxHoldFixWords(m.held_why)
-    };
-  }
-  if (m.state === "removed")
-    return { pill: "Removed", tone: "plain", day: "Removed.", ramp: null, health: null, fix: null };
-  if (m.resting_until && Date.parse(m.resting_until) > nowMs)
-    return {
-      pill: "Done for today",
-      tone: "warn",
-      day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
-      ramp,
-      health: null,
-      fix: null
-    };
-  const missing = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx" && m.dns[k] === "missing");
-  return {
-    pill: sentToday !== null && sentToday >= cap2 ? "Done for today" : "Connected",
-    tone: sentToday !== null && sentToday >= cap2 ? "warn" : "ok",
-    day: sentToday === null ? `Up to ${cap2} a day` : `${sentToday} of ${cap2} today`,
-    ramp,
-    health: null,
-    fix: missing.length ? `Add its ${missing.map((k) => k.toUpperCase()).join(" and ")} record below.` : null
-  };
-}
-var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
-var clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
-function mailboxActs(m) {
-  return {
-    reconnect: m.state === "reconnect",
-    resume: m.state === "held",
-    pause: m.state === "connected",
-    unpause: m.state === "paused",
-    test: m.state === "connected" || m.state === "paused",
-    remove: m.state !== "removed"
-  };
-}
-var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
-var SPF_INCLUDE = {
-  google: "v=spf1 include:_spf.google.com ~all",
-  microsoft: "v=spf1 include:spf.protection.outlook.com -all"
-};
-var DKIM_WHERE = {
-  google: {
-    name: "google._domainkey",
-    value: "Made in the Google Admin console: Apps \u203A Google Workspace \u203A Gmail \u203A Authenticate email"
-  },
-  microsoft: {
-    name: "selector1._domainkey",
-    value: "Turned on in Microsoft Defender: Email authentication settings \u203A DKIM"
-  }
-};
-function mailboxRecordRows(m) {
-  return [
-    {
-      key: "spf",
-      kind: "Sender (SPF)",
-      type: "TXT",
-      name: "@",
-      value: SPF_INCLUDE[m.provider],
-      found: m.dns.spf === "found"
-    },
-    {
-      key: "dkim",
-      kind: "Signing (DKIM)",
-      type: m.provider === "microsoft" ? "CNAME" : "TXT",
-      name: DKIM_WHERE[m.provider].name,
-      value: DKIM_WHERE[m.provider].value,
-      found: m.dns.dkim === "found"
-    },
-    {
-      key: "dmarc",
-      kind: "Policy (DMARC)",
-      type: "TXT",
-      name: "_dmarc",
-      value: DMARC_RECOMMENDED,
-      found: m.dns.dmarc === "found"
-    }
-  ];
-}
-var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
-var MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
-  reconnected: "Connected again: its emails go on where they waited.",
-  declined: "Nothing was connected: the sign-in was cancelled.",
-  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
-  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
-  taken: "Another workspace writes from this mailbox. Remove it there first.",
-  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
-  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
-  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
-  not_available: "Connecting a mailbox isn't switched on here yet.",
-  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
-  failed: CONNECT_FAILED
-};
-function mailboxConnectWords(code2) {
-  return code2 && MAILBOX_CONNECT_WORDS[code2] || CONNECT_FAILED;
-}
-function mailboxesFootWords(count2) {
-  if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
-  if (count2 === 0)
-    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
-  return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
-}
-function customerDomainWords(host) {
-  return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
 }
 
 // src/reach-out/lead-hours.ts
@@ -30611,6 +30441,7 @@ function daysWithAppointments(days, rows2, tz, people) {
 
 // src/people/person-reach.ts
 var EMAIL_STOPPED_TAG = "stopped accepting mail";
+var EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 var NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 function bookingLinkAction(reach, stop) {
@@ -37299,30 +37130,42 @@ function consultedDealOf(p, open) {
   const title = p.consultationTitle ?? "";
   return title && open.find((d) => !!d.service && namesService(title, d.service)) || open[0] || null;
 }
+function consultationStepOf(p, nowMs, tz) {
+  const consulted = p.consultedMs ?? null;
+  if (consulted === null || consulted > nowMs) return null;
+  return {
+    day: clockDate(consulted, tz, nowMs),
+    word: visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null
+  };
+}
 function stepsOf(p, deal, tz, nowMs, consultation) {
   const day = (ms2) => ms2 === null ? null : clockDate(ms2, tz, nowMs);
   const won = deal.stage === "won";
-  const tone = stateTone("deal", deal.stage);
   const steps = [];
-  const consulted = p.consultedMs ?? null;
   if (consultation) {
-    const done = consulted !== null && consulted <= nowMs;
+    const held = consultationStepOf(p, nowMs, tz);
     steps.push({
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
-      day: done ? day(consulted) : null,
-      word: done ? visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null : null,
-      at: done ? "done" : "ahead",
+      day: held ? held.day : null,
+      word: held ? held.word : null,
+      at: held ? "done" : "ahead",
       tone: null
     });
   }
+  const waits = won ? null : proposalTone(
+    { deal, askedMs: p.askedMs ?? null },
+    nowMs,
+    p.dealPace ?? null,
+    followUpOn(p, deal)?.kind === "will"
+  );
   steps.push({
     key: "proposal",
     label: DEAL_STAGE_WORDS.proposed,
     word: null,
     day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
     at: won ? "done" : "current",
-    tone: won ? null : tone
+    tone: waits
   });
   steps.push({
     key: "client",
@@ -37330,7 +37173,7 @@ function stepsOf(p, deal, tz, nowMs, consultation) {
     word: null,
     day: won ? day(deal.sinceMs) : null,
     at: won ? "current" : "ahead",
-    tone: won ? tone : null
+    tone: won ? stateTone("deal", "won") : null
   });
   return steps;
 }
@@ -37736,14 +37579,16 @@ function dealSheetRefusal(message) {
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 var daysWords2 = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r2, tz) => r2.calendarTz || tz;
+var followUpOfRow = (r2, d) => d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
 function proposalChip(r2, d, tz, nowMs, pace) {
   const mine = { deal: d, askedMs: r2.askedMs };
-  const followUp = d === r2.deal || d.id !== null && d.id === r2.deal?.id ? r2.followUp : null;
+  const followUp = followUpOfRow(r2, d);
+  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will" ? { words: followUpWords(followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r2.askedMs !== null)
     return { words: `Heard back ${clockNear(r2.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
   return null;
 }
@@ -37757,10 +37602,12 @@ var step = (key, at3, tone = "plain") => ({
   at: at3,
   tone
 });
-function dealTrack(r2, d, chip) {
+function dealTrack(r2, d, nowMs, pace) {
   if (d.stage !== "proposed" && d.stage !== "won") return [];
   const held = r2.consultedMs !== null && Number.isFinite(r2.consultedMs) ? [step("consultation", "done")] : [];
-  return d.stage === "proposed" ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")] : [...held, step("proposal", "done"), step("client", "current", "ok")];
+  if (d.stage === "won") return [...held, step("proposal", "done"), step("client", "current", "ok")];
+  const tone = proposalTone({ deal: d, askedMs: r2.askedMs }, nowMs, pace, followUpOfRow(r2, d)?.kind === "will");
+  return [...held, step("proposal", "current", tone), step("client", "ahead")];
 }
 function nextOf(p, tz, nowMs) {
   const s = p.nextStep;
@@ -37774,7 +37621,7 @@ function stepOn(x, n) {
   const ownRow = !!n.dealId && openOf(x.person).some((d) => d.id === n.dealId);
   return (ownRow ? x.deal?.id === n.dealId : x.id === x.person.id) ? n : null;
 }
-function dealRow(x, chip, nowMs, group) {
+function dealRow(x, chip, nowMs, group, pace) {
   const { r: r2, d, id } = x;
   return {
     id,
@@ -37787,7 +37634,7 @@ function dealRow(x, chip, nowMs, group) {
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords2(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
-    track: dealTrack(r2, d, chip)
+    track: dealTrack(r2, d, nowMs, pace)
   };
 }
 function heldRow(r2, endMs, tz, nowMs) {
@@ -37901,19 +37748,19 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
-        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals")
+        (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
       worth(shownProposals)
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients")),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
       worth(shownClients)
     ),
     group(
       "closed",
       inOrder(shownClosed, (x) => x.d.sinceMs, true).map(
-        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed")
+        (x) => dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed", pace)
       ),
       null
     )
@@ -37951,13 +37798,12 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
 function pipelinePeekOf(row2, group, deals = null) {
   const p = row2.person;
   const facts = [];
-  if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
-  if (p.quote) facts.push({ id: "quote", words: `\u201C${p.quote}\u201D` });
   if (p.nextVisit) facts.push({ id: "next", words: `Coming up \xB7 ${p.nextVisit}` });
   const n = row2.next;
   const known = deals ?? (p.deal ? [p.deal] : []);
   const onCard = !!n?.dealId && known.some((d) => d.id === n.dealId && dealIsOpen(d));
   if (n && !onCard) facts.push({ id: "step", words: `${PIPELINE_WORDS.columns.next} \xB7 ${n.words} \xB7 ${n.when}` });
+  const deal = [row2.service, row2.value].filter(Boolean).join(" \xB7 ");
   return {
     id: row2.id,
     dealId: row2.deal?.id ?? null,
@@ -37965,30 +37811,82 @@ function pipelinePeekOf(row2, group, deals = null) {
     initials: p.initials,
     numeric: isIdentifierName(row2.name),
     stopped: p.stopped,
-    sub: row2.service ? `${GROUP_WORDS[group]} \xB7 ${row2.service}` : GROUP_WORDS[group],
-    facts,
-    thread: p.threadId
+    sub: deal || (group === "consultations" ? DEAL_CARD_WORDS.consultation : GROUP_WORDS[group]),
+    group,
+    facts
   };
 }
 function pipelinePeekDetail(p) {
   const W = PIPELINE_WORDS.peek.reach;
   const reach = [];
-  if (p.phone && !(p.consent && p.consent.dnc)) {
-    const dial = p.phone.replace(/[^\d+]/g, "");
-    reach.push({ id: "phone", label: W.phone, words: p.phone, call: dial ? `tel:${dial}` : null, copy: p.phone });
-  }
+  if (p.phone && !(p.consent && p.consent.dnc))
+    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
   if (p.email)
     reach.push({
       id: "email",
       label: W.email,
-      words: emailFactWords(p.email, p.emailSuppressed),
-      call: null,
+      words: p.email,
+      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
       copy: p.email
     });
   const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
-  if (replies) reach.push({ id: "replies", label: W.replies, words: replies, call: null, copy: null });
-  const history = p.timeline.filter((t) => t.kind === "deal" && !t.ahead).sort((a, b) => b.ts - a.ts).slice(0, 3).map((t) => ({ id: t.id, words: t.text, when: t.day }));
-  return { reach, history };
+  if (replies && !(p.email && replies === EMAIL_CANT_REACH))
+    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
+  return { reach };
+}
+function stepsOf2(track, card, held) {
+  const label = {
+    consultation: DEAL_CARD_WORDS.consultation,
+    proposal: DEAL_STAGE_WORDS.proposed,
+    client: DEAL_STAGE_WORDS.won
+  };
+  return track.map((s) => {
+    const said = card ? card.steps.find((c) => c.key === s.key) : null;
+    const own = !said && s.key === "consultation" && s.at === "done" ? held : null;
+    return {
+      key: s.key,
+      label: label[s.key],
+      day: said ? said.day : own ? own.day : null,
+      word: said ? said.word : own ? own.word : null,
+      at: s.at,
+      tone: s.tone === "plain" ? null : s.tone
+    };
+  });
+}
+function closedStand(d, chip, tz, nowMs) {
+  if (!chip) return null;
+  const when = d.sinceMs === null ? d.word : `${d.word} ${clockDate(d.sinceMs, tz, nowMs)}`;
+  return { words: d.reason ? `${when} \xB7 ${d.reason.words}` : when, tone: chip.tone };
+}
+function pipelineSheetOf(row2, p, nowMs, tz) {
+  const d = row2.deal;
+  const held = p ? consultationStepOf(p, nowMs, tz) : null;
+  const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
+  const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
+  const consulted = !d && p ? consultedService(p) : null;
+  const sub = consulted ? `${DEAL_CARD_WORDS.consultation} \xB7 ${consulted}` : null;
+  const base = { sub, steps: stepsOf2(row2.track, card, held), others };
+  if (card) {
+    const asks = card.next?.id === "follow-up";
+    const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
+    return {
+      ...base,
+      card,
+      stand: null,
+      ask: asks ? { question: PIPELINE_WORDS.sheet.ask(shortName(row2.name)), yes: act("won"), no: act("lost") } : null,
+      lead: card.next ? { act: card.next, dealId: card.id } : null,
+      more: [
+        ...card.more.filter((m) => !asks || m.id !== "won" && m.id !== "lost").map((m) => ({ act: m, dealId: card.id })),
+        another
+      ]
+    };
+  }
+  const ahead = !d && row2.track[0]?.key === "consultation" && row2.track[0].at === "current";
+  const over = !d && held && row2.chip ? { words: PIPELINE_WORDS.sheet.noProposal, tone: row2.chip.tone } : null;
+  const stand = ahead ? null : over ?? (d && !dealIsOpen(d) ? closedStand(d, row2.chip, tz, nowMs) : row2.chip);
+  if (!p || d && dealIsOpen(d)) return { ...base, card: null, stand, ask: null, lead: null, more: [] };
+  const lead = d && d.stage === "lost" ? { act: act("again"), dealId: d.id } : { act: act("propose", { service: consulted }), dealId: null };
+  return { ...base, card: null, stand, ask: null, lead, more: [] };
 }
 
 // src/deals/pipeline/pipeline-board.ts
@@ -38166,6 +38064,267 @@ function suggestLocalPart(businessName) {
 }
 var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
 var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
+
+// src/email/mailbox-connections.ts
+var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
+var MAILBOX_PROVIDERS = ["google", "microsoft"];
+var MAILBOX_CONNECTION_STATES = ["connected", "reconnect", "paused", "held", "removed"];
+var MAILBOX_DNS_RECORDS = ["spf", "dkim", "dmarc", "mx"];
+var MAILBOX_CONNECTIONS_MAX = 10;
+var MAILBOXES_PER_DOMAIN_MAX = 3;
+function mailboxSendsNow(m, nowMs) {
+  return m.state === "connected" && (!m.resting_until || Date.parse(m.resting_until) <= nowMs);
+}
+function reachOutWritesFrom(m, named) {
+  return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
+}
+var SPF_RECORD_MAX = 4096;
+var SPF_RECORDS_JOIN = " | ";
+function mailboxConnectionDtoOf(r2, day = null) {
+  const dns = {};
+  const raw = r2.dns && typeof r2.dns === "object" ? r2.dns : {};
+  for (const k of MAILBOX_DNS_RECORDS) {
+    const v = raw[k];
+    if (v === "found" || v === "missing") dns[k] = v;
+  }
+  const spfRecord = typeof raw.spf_record === "string" && raw.spf_record.trim() ? raw.spf_record.trim().slice(0, SPF_RECORD_MAX) : null;
+  const lookups = Number(raw.spf_lookups);
+  return {
+    id: r2.id,
+    provider: r2.provider === "microsoft" ? "microsoft" : "google",
+    address: r2.address,
+    host: r2.host,
+    from_name: r2.from_name,
+    signature: r2.signature,
+    state: MAILBOX_CONNECTION_STATES.includes(r2.state) ? r2.state : "removed",
+    held_why: MAILBOX_HOLDS.includes(r2.held_why ?? "") ? r2.held_why : null,
+    held_at: r2.held_at,
+    resting_until: r2.resting_until,
+    daily_cap: r2.daily_cap,
+    customer_domain: r2.customer_domain,
+    sent_days: Math.max(0, Math.floor(Number(r2.sent_days) || 0)),
+    dns,
+    spf_record: spfRecord,
+    spf_lookups: Number.isInteger(lookups) && lookups >= 0 ? lookups : null,
+    dns_checked_at: r2.dns_checked_at,
+    last_error: r2.last_error,
+    connected_at: r2.connected_at,
+    sent_at: r2.sent_at,
+    sent_today: day?.sent_today ?? null,
+    counts: day?.counts ?? null
+  };
+}
+var COUNT_FLOOR = 150;
+var HOLD_PERCENT = 3;
+function mailboxHoldOf(c) {
+  if (!c) return null;
+  const of = Math.max(c.sent, COUNT_FLOOR);
+  if (c.complained > 0) return "complaint";
+  if ((c.bounced + c.blocked) * 100 > HOLD_PERCENT * of) return "bounces";
+  if (c.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
+  return null;
+}
+var MAILBOX_PROVIDER_WORDS = { google: "Google", microsoft: "Microsoft" };
+function mailboxHealthWords(c) {
+  if (!c || !c.sent) return null;
+  const pct2 = Math.round(c.bounced / c.sent * 1e3) / 10;
+  const parts2 = [
+    `${pct2}% bounced`,
+    c.blocked ? `${c.blocked} refused by the server` : null,
+    c.unsubscribed ? `${c.unsubscribed} unsubscribed` : null,
+    c.said_no ? `${c.said_no} said no` : null,
+    c.complained ? `${c.complained} marked as spam` : "none marked as spam"
+  ];
+  return parts2.filter(Boolean).join(" \xB7 ");
+}
+function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
+  const health = mailboxHealthWords(m.counts ?? null);
+  const cap2 = mailboxDailyCap(m);
+  const step2 = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
+  const left = step2 ? step2.days - m.sent_days : 0;
+  const ceiling = m.customer_domain && cap2 >= CUSTOMER_DOMAIN_DAILY_MAX;
+  const ramp = ceiling ? `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day` : `${m.sent_days ? `Day ${m.sent_days + 1} of its ramp` : "New: its ramp starts today"} \xB7 ${cap2} a day${step2 && cap2 < m.daily_cap ? `, ${step2.perDay} after ${left} more day${left === 1 ? "" : "s"} of sending` : ""}`;
+  if (m.state === "reconnect")
+    return {
+      pill: "Reconnect",
+      tone: "danger",
+      day: `${MAILBOX_PROVIDER_WORDS[m.provider]} signed it out, so nothing leaves from it.`,
+      ramp: null,
+      health: null,
+      fix: "Connect it again: its emails wait for it."
+    };
+  if (m.state === "paused")
+    return {
+      pill: "Paused",
+      tone: "plain",
+      day: "You paused it: nothing leaves from it.",
+      ramp,
+      health,
+      fix: null
+    };
+  if (m.state === "held") {
+    const since = m.held_at ? DAY_FMT.format(new Date(m.held_at)) : null;
+    return {
+      pill: "Held",
+      tone: "warn",
+      day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
+      ramp: null,
+      health,
+      fix: mailboxHoldFixWords(m.held_why)
+    };
+  }
+  if (m.state === "removed")
+    return { pill: "Removed", tone: "plain", day: "Removed.", ramp: null, health: null, fix: null };
+  if (m.resting_until && Date.parse(m.resting_until) > nowMs)
+    return {
+      pill: "Done for today",
+      tone: "warn",
+      day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
+      ramp,
+      health,
+      fix: null
+    };
+  const named = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx");
+  const missing = named.filter((k) => m.dns[k] === "missing");
+  const add = missing.filter((k) => !(k === "spf" && m.spf_record));
+  const change = missing.includes("spf") && !!m.spf_record;
+  const unread = named.some((k) => !m.dns[k]);
+  const fix = [
+    add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
+    change ? "Change its SPF record below." : null,
+    !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null
+  ].filter(Boolean).join(" ") || null;
+  return {
+    pill: sentToday !== null && sentToday >= cap2 ? "Done for today" : "Connected",
+    tone: sentToday !== null && sentToday >= cap2 ? "warn" : "ok",
+    day: sentToday === null ? `Up to ${cap2} a day` : `${sentToday} of ${cap2} today`,
+    ramp,
+    health,
+    fix
+  };
+}
+var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+var clockOf = (iso) => CLOCK_FMT.format(new Date(iso));
+function mailboxActs(m) {
+  return {
+    reconnect: m.state === "reconnect",
+    resume: m.state === "held",
+    pause: m.state === "connected",
+    unpause: m.state === "paused",
+    test: m.state === "connected" || m.state === "paused",
+    remove: m.state !== "removed"
+  };
+}
+var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
+var SPF_INCLUDE = {
+  google: "include:_spf.google.com",
+  microsoft: "include:spf.protection.outlook.com"
+};
+var SPF_LOOKUPS_MAX = 10;
+var spfAll = (t) => /^[+\-~?]?all$/i.test(t);
+function spfRecordWith(existing, provider) {
+  const include = SPF_INCLUDE[provider];
+  const records = (existing ?? "").split(SPF_RECORDS_JOIN).map((r2) => r2.trim().split(/\s+/).filter(Boolean)).filter((terms2) => /^v=spf1$/i.test(terms2[0] ?? ""));
+  const has3 = (terms2) => terms2.some((t) => t.replace(/^\+/, "").toLowerCase() === include);
+  if (records.length > 1) {
+    const named = [
+      ...new Set(records.flatMap((terms2) => terms2.slice(1)).filter((t) => !spfAll(t) && !/^redirect=/i.test(t)))
+    ];
+    return ["v=spf1", ...named, ...has3(named) ? [] : [include], "~all"].join(" ");
+  }
+  const terms = records[0];
+  if (!terms) return `v=spf1 ${include} ~all`;
+  if (has3(terms)) return terms.join(" ");
+  const at3 = terms.findIndex((t, i) => i > 0 && (spfAll(t) || /^redirect=/i.test(t)));
+  if (at3 < 0) return [...terms, include].join(" ");
+  return [...terms.slice(0, at3), include, ...terms.slice(at3)].join(" ");
+}
+var DKIM_WHERE = {
+  google: {
+    name: "google._domainkey",
+    value: "Made in the Google Admin console: Apps \u203A Google Workspace \u203A Gmail \u203A Authenticate email"
+  },
+  microsoft: {
+    name: "selector1._domainkey",
+    value: "Turned on in Microsoft Defender: Email authentication settings \u203A DKIM"
+  }
+};
+function spfNote(m) {
+  if (!m.spf_record) return null;
+  const who = MAILBOX_PROVIDER_WORDS[m.provider];
+  const many = m.spf_record.split(SPF_RECORDS_JOIN).length;
+  const change = many > 1 ? `Your domain has ${many} SPF records, and with more than one none of them counts: replace them all with this one, which keeps every sender they name and adds ${who}.` : `Your domain has an SPF record already, and it may have only one: change it to this, which keeps every sender it names and adds ${who}.`;
+  const after = m.spf_lookups === null || many > 1 ? null : m.spf_lookups;
+  return after !== null && after > SPF_LOOKUPS_MAX ? `${change} It would then spend ${after} of SPF's ${SPF_LOOKUPS_MAX} lookups and fail: ask whoever manages your DNS to shorten it first.` : change;
+}
+function mailboxRecordRows(m) {
+  const stateOf2 = (k) => m.dns[k] ?? "unread";
+  const spf = { provider: m.provider, spf_record: m.spf_record ?? null, spf_lookups: m.spf_lookups ?? null };
+  const row2 = (key, r2, note) => ({
+    key,
+    ...r2,
+    found: stateOf2(key) === "found",
+    state: stateOf2(key),
+    note: stateOf2(key) === "found" ? null : note
+  });
+  return [
+    row2(
+      "spf",
+      { kind: "Sender (SPF)", type: "TXT", name: "@", value: spfRecordWith(spf.spf_record, m.provider) },
+      spfNote(spf)
+    ),
+    row2(
+      "dkim",
+      {
+        kind: "Signing (DKIM)",
+        type: m.provider === "microsoft" ? "CNAME" : "TXT",
+        name: DKIM_WHERE[m.provider].name,
+        value: DKIM_WHERE[m.provider].value
+      },
+      null
+    ),
+    row2("dmarc", { kind: "Policy (DMARC)", type: "TXT", name: "_dmarc", value: DMARC_RECOMMENDED }, null)
+  ];
+}
+var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
+var MAILBOX_CONNECT_WORDS = {
+  connected: "Connected. Its ramp starts at 10 a day.",
+  reconnected: "Connected again: its emails go on where they waited.",
+  declined: "Nothing was connected: the sign-in was cancelled.",
+  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
+  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
+  taken: "Another workspace writes from this mailbox. Remove it there first.",
+  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
+  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
+  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
+  not_available: "Connecting a mailbox isn't switched on here yet.",
+  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
+  not_owner: "Only an owner can connect a mailbox.",
+  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
+  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
+  not_workspace: "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
+  no_mailbox: "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
+  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
+  admin_consent: "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
+  admin_approved: "Approved for your organisation. Connect the mailbox now.",
+  failed: CONNECT_FAILED
+};
+var CONNECT_OK = /* @__PURE__ */ new Set(["connected", "reconnected", "admin_approved"]);
+function mailboxConnectOk(code2) {
+  return !!code2 && CONNECT_OK.has(code2);
+}
+function mailboxConnectWords(code2) {
+  return code2 && MAILBOX_CONNECT_WORDS[code2] || CONNECT_FAILED;
+}
+function mailboxesFootWords(count2) {
+  if (count2 >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
+  if (count2 === 0)
+    return `A sequence to leads writes from your own mailbox, through Google or Microsoft, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most; for more, use a second domain such as get<yourbusiness>.com.`;
+  return `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${Math.max(...MAILBOX_RAMP.map((s) => s.perDay))}. Replies come back to it, and to your Inbox here.`;
+}
+function customerDomainWords(host) {
+  return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
+}
 
 // src/journey/journey-guide.ts
 var STAGE_SENDS = {
@@ -40461,6 +40620,8 @@ var SEQUENCE_WORDS = {
   start: "Start",
   discard: "Discard",
   notStarted: "Not started \xB7 nothing goes yet",
+  /** A message sent once, kept as a draft (00465): it waits under Drafts until it is sent. */
+  keptOnce: "Kept as a draft \xB7 nothing goes until you send it",
   change: "Change",
   edit: "Edit",
   you: "You approve",
@@ -40662,7 +40823,7 @@ function sequenceRowState(row2) {
   return null;
 }
 function sequenceRowLine(row2, tz, nowMs, twin = null) {
-  if (row2.state === "draft") return SEQUENCE_WORDS.notStarted;
+  if (row2.state === "draft") return row2.once ? SEQUENCE_WORDS.keptOnce : SEQUENCE_WORDS.notStarted;
   const needs2 = needsWords(row2.needs);
   if (needs2) return needs2;
   if (twin) return twinLineOf(row2);
@@ -40670,7 +40831,8 @@ function sequenceRowLine(row2, tz, nowMs, twin = null) {
     const at3 = Date.parse(row2.date.at);
     if (row2.last)
       return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${plural(row2.last.sent, "person", "people")} \xB7 ${row2.last.replied} replied`;
-    return `${clockDate(at3, tz, nowMs)} \xB7 ${plural(row2.date.people, "person", "people")}`;
+    const when = at3 > nowMs ? `Goes ${clockWhen(at3, tz, nowMs).replace(/^today /, "at ")}` : clockDate(at3, tz, nowMs);
+    return `${when} \xB7 ${plural(row2.date.people, "person", "people")}`;
   }
   if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
   if (row2.next) return `next ${clockWhen(Date.parse(row2.next.at), tz, nowMs)}`;
@@ -49981,11 +50143,17 @@ var LEAD_BUILD_WORDS = {
     sending: "Sending",
     sendsFrom: "Sends from",
     inbox: "Your inbox \xB7 you send",
-    mailboxes: (n) => n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
+    mailboxes: (n) => n === 0 ? "Your mailboxes \xB7 none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
+    /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
+    noneSends: "No mailbox sends now, so nothing goes: choose Your inbox to send each yourself, or connect one.",
+    /** Saved for the owner to send, with a mailbox that could send for them now. */
+    canSwitch: (n) => `${n === 1 ? "Your mailbox is" : `Your ${n} mailboxes are`} connected: choose ${n === 1 ? "it" : "them"} to send these for you.`,
     connect: "Connect a mailbox",
     aDay: "A day, at most",
     every: (minutes) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
+    /** Saved to send from the mailboxes, with none sending now. */
+    noneDay: "None until a mailbox sends",
     approves: SEQUENCE_MODE_LABEL,
     newWordsAsk: "New words always ask first",
     signed: "Signed",
@@ -50206,6 +50374,21 @@ function whoSuits(who, audience, kind) {
   if (kind === "sequence") return who.kind === "moment" || who.kind === "list";
   return who.kind === "everyone" || who.kind === "list";
 }
+function newListOf(token2, kind) {
+  const id = token2.startsWith("seg:") ? token2.slice(4) : null;
+  if (id === "opted_out") return "never";
+  if (kind === "once" && id !== null && CONSENT_LIST_IDS.includes(id)) return "everyone";
+  return "list";
+}
+function leadChainStepOf(s, i) {
+  if (s.does !== "message")
+    return { subject: null, body: "", after_days: s.after_days, hand: { kind: s.does, words: s.hand } };
+  return {
+    subject: i === 0 ? s.email?.subject ?? "" : null,
+    body: s.email?.body ?? "",
+    after_days: i === 0 ? null : s.after_days
+  };
+}
 function handStepsHold(steps) {
   return steps.every((s, i) => s.does === "message" || i > 0 && i === steps.length - 1);
 }
@@ -50320,6 +50503,8 @@ var NEW_WORDS = {
   title: "New",
   /** The head's act on Sequences, its noun said where the row has room for it. */
   act: "New sequence",
+  /** A one-off built by hand, before it is named. */
+  actOnce: "New message",
   say: {
     label: "What should it do?",
     placeholder: "What should it do? Say it in a line, as you\u2019d tell a person.",
@@ -50331,6 +50516,8 @@ var NEW_WORDS = {
     stop: "Stop",
     reading: "Reading your messages, your lists, and who can hear it",
     asked: "Ask\u2019s draft",
+    /** Said where the line stays while Ask could not draft it. */
+    kept: "Your line is kept",
     sayAgain: "Say it again",
     undo: "Undo",
     againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" }
@@ -50351,6 +50538,8 @@ var NEW_WORDS = {
     offerSaid: (n) => `${n} can hear an offer`,
     leads: (n) => `Write to ${n} ready ${n === 1 ? "lead" : "leads"}`,
     leadsLine: (search) => `Email the ${search} we found, then follow up a week later`,
+    /** The line a draft for leads picked on Leads is asked from. */
+    leadsPicked: "Email these businesses, then follow up a week later",
     remind: "Remind people the day before",
     needsCalendar: "Needs your calendar",
     toEveryone: "Send one message to everyone",
@@ -50405,11 +50594,14 @@ var NEW_WORDS = {
     send: "Send",
     schedule: "Schedule",
     joinsAsFound: "New leads the search finds join it",
-    pickWhenAndMessage: "Pick when, and a message",
+    /** What the foot asks for before a draft can be made: "Pick when, and a message". */
+    pick: (parts2) => `Pick ${parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")}, and ${parts2[parts2.length - 1]}` : parts2[0]}`,
+    parts: { when: "when", who: "who", search: "a search", how: "how", message: "a message" },
     thenItCanStart: "Then it can start",
+    thenItCanGo: "Then it can go",
     sayIt: "Say it",
     orSay: "Or say it in a line, and Ask fills it in.",
-    lineFirst: "The people on it now get step 1 at its first run; anyone who joins later, the day they join",
+    lineFirst: (n) => `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
     subSchedule: "Draft \xB7 nothing goes until you schedule it",
     toWrite: "Its words are still to write",
     pickMessage: "Pick a message for it",
@@ -50420,6 +50612,10 @@ var NEW_WORDS = {
     people: (n) => `${n} ${n === 1 ? "person" : "people"}`,
     businesses: (n) => `${n} ${n === 1 ? "business" : "businesses"}`,
     goesSoon: "Goes 10 minutes after you send",
+    /** Sent late at night, it waits for the sending hours to open (as every send does). */
+    goesOpen: (time) => `Goes at ${time}, when your sending hours open`,
+    step: (n) => `Step ${n}`,
+    sameThread: "Email, in the same thread",
     goesAt: (when) => `${when} \xB7 Stop any time before`,
     leadsWait: "They wait for your OK, then go in their hours",
     joins: (list2) => `joins ${list2}`,
@@ -50455,8 +50651,15 @@ var NEW_WORDS = {
     find: "Find businesses"
   },
   /** A one-off sent, back on Sequences (E2). */
+  /** A sequence made, on its record (Started, LeadsStarted): when its first batch goes, and that it waits for the OK. */
+  started: {
+    people: (when) => `Started \xB7 its first batch waits for your OK ${when}`,
+    leads: "Started \xB7 its first emails wait for your OK",
+    kept: (name) => `\u201C${name}\u201D is kept under Drafts`
+  },
   sent: {
-    goes: (name, time) => `\u201C${name}\u201D goes at ${time}`,
+    /** When it goes, as clockWhen says it ("at 2:40 PM", "tomorrow 9:00 AM"). */
+    goes: (name, when) => `\u201C${name}\u201D goes ${when}`,
     stop: "Stop"
   },
   /** Send now asks first (E1): who and how, and that it can still be stopped. */
@@ -50472,8 +50675,10 @@ var NEW_WORDS = {
   review: {
     title: "WhatsApp needs Meta\u2019s review first",
     /** What can go now (its other versions, "email and text"), and who hears it only by WhatsApp. */
-    words: (others, only) => `Ask wrote this message new. ${others ? `Its ${others} can go now; WhatsApp\u2019s` : "WhatsApp\u2019s version"} takes about a day${only > 0 ? `, and ${only} ${only === 1 ? "person hears" : "people hear"} only WhatsApp` : ""}.`,
-    tomorrow: "Send it tomorrow instead",
+    words: (others, only) => `Ask wrote this message new, and Meta reviews its WhatsApp version first, in about a day. ${others ? `Sent before then, it goes by ${others}${only > 0 ? `, and the ${only} who ${only === 1 ? "hears" : "hear"} only WhatsApp ${only === 1 ? "is" : "are"} left out` : ""}` : "Nothing else carries it yet"}. Keep it, and it waits for you under Drafts.`,
+    /** None of its other channels can carry it: nothing goes until Meta approves WhatsApp's. */
+    noneYet: "WhatsApp\u2019s version is with Meta, and no other way carries this message yet. Keep it until it\u2019s approved.",
+    keep: "Keep it until it\u2019s approved",
     goes: (n, by) => `${n} ${n === 1 ? "person" : "people"}, by ${by}`,
     leftOut: (n) => `${n} who ${n === 1 ? "hears" : "hear"} only WhatsApp ${n === 1 ? "is" : "are"} left out`
   },
@@ -50485,6 +50690,9 @@ var NEW_WORDS = {
     nobodyWords: "Pick a way they can hear it, or someone else to send it to.",
     pickAWay: "Pick a way they can hear it",
     of: (n) => `of ${n}`,
+    ofList: (n) => `of ${n} on it`,
+    getYes: "Get their yes",
+    connect: (channel) => ({ whatsapp: "Connect WhatsApp", email: "Connect email", sms: "Connect texting" })[channel],
     saidStop: (n) => `${n} said stop`,
     neverYes: (n) => `${n} never said yes`,
     noNumber: (n) => `${n} with no number or address`,
@@ -50539,6 +50747,7 @@ var NEW_WORDS = {
     aSearch: "A search on Leads",
     hasItsSequence: "Has its sequence already",
     noneChecked: "None checked yet",
+    foundNone: (n) => `${n} found, none checked yet`,
     leadsYouPick: "Leads you pick",
     leadsYouPickSaid: "Tick them on Leads, then come back",
     findMore: "Find more businesses",
@@ -50558,6 +50767,7 @@ var NEW_WORDS = {
     laterToday: "Later today",
     laterTodayAt: (time) => `At ${time}`,
     nowSaid: "Goes in 10 minutes; Stop until then",
+    nowOpens: (time) => `Goes at ${time}, when your sending hours open; Stop until then`,
     pickADay: "Pick a day and time",
     pickADaySaid: "Up to 30 days ahead",
     day: "Day",
@@ -50574,7 +50784,7 @@ var NEW_WORDS = {
     onlyIf: "Only if",
     peopleTiming: "Anyone who books, or says stop, leaves it.",
     leadsTiming: "To leads: 2 to 30 days, and a reply always stops it.",
-    addSub: "After the last step, for people and leads alike",
+    addSub: (n) => `After step ${n}, for people and leads alike`,
     addMessage: "One of yours, or one Ask writes",
     addCall: "A call for you",
     okSub: "The first batch always waits for it",
@@ -50653,6 +50863,13 @@ var NEW_WORDS = {
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     leftOut: (what) => `Left out: \u201C${what}\u201D`
   },
+  /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
+  noFit: {
+    closest: "The closest Ask can do:",
+    list: { lead: "When someone joins a list", sub: "Keep a list for it in People, and start a sequence on it" },
+    once: { lead: "Once, to people you pick", sub: "One message, sent when it comes up" },
+    again: "Or change the line and draft it again."
+  },
   failed: {
     title: "Ask couldn\u2019t draft it just now",
     words: "Try again in a moment, or build it yourself: the same draft, picked by hand.",
@@ -50661,13 +50878,20 @@ var NEW_WORDS = {
   },
   leaving: {
     title: "Keep this draft?",
-    words: "It waits under Drafts and sends nothing.",
+    words: "It waits under Drafts and sends nothing. Leave it here, and it\u2019s still here when you come back.",
     discard: "Discard",
     keep: "Keep as a draft"
   },
   viewer: {
     title: "Only an owner or operator can make one",
-    words: "You can see what\u2019s happening and what runs. Ask one of them to start it."
+    words: "You can see what\u2019s happening and what runs. Ask one of them to start it.",
+    /** What is happening, as a viewer reads it: the facts each start is drawn from, with nothing to press. */
+    thank: (n) => `${n} came in this week`,
+    thankSaid: "Nothing thanks them yet",
+    winBack: (n) => `${n} have gone quiet`,
+    offer: (n) => `${n} can hear an offer`,
+    leads: (n) => `${n} ${n === 1 ? "lead" : "leads"} ready`,
+    welcome: (n) => `${n} new ${n === 1 ? "person" : "people"}`
   }
 };
 
@@ -56786,7 +57010,6 @@ var ROUTE_KEYS = [
   "POST sequences/[id]/steps/[step]/test",
   "POST sequences/[id]/steps/[step]/words",
   "POST sequences/draft",
-  "POST sequences/draft-leads",
   "POST sequences/new",
   "POST settings/receptionist",
   "POST setup/request",
@@ -63074,7 +63297,6 @@ export {
   SEQUENCE_REPLIES_WORDS,
   SEQUENCE_STARTS,
   SEQUENCE_STATES,
-  SEQUENCE_STATE_WORDS,
   SEQUENCE_TEST_LIMITS,
   SEQUENCE_TEST_WORDS,
   SEQUENCE_WAIT_DAYS,
@@ -63122,6 +63344,9 @@ export {
   SPEND_NUMBER,
   SPEND_TEXTING,
   SPEND_TRY,
+  SPF_LOOKUPS_MAX,
+  SPF_RECORDS_JOIN,
+  SPF_RECORD_MAX,
   STAFF_ROLES,
   STAFF_ROLE_WORDS,
   STAFF_STATES,
@@ -64074,6 +64299,7 @@ export {
   leadCardReasonOf,
   leadCardSlotsOf,
   leadCardStepsOf,
+  leadChainStepOf,
   leadCheckAgainCents,
   leadCheckWord,
   leadChooseAnswerWords,
@@ -64235,6 +64461,7 @@ export {
   logoLookupWords,
   lookPrefOf,
   mailboxActs,
+  mailboxConnectOk,
   mailboxConnectWords,
   mailboxConnectionDtoOf,
   mailboxDailyCap,
@@ -64341,6 +64568,7 @@ export {
   newConditionsOf,
   newConversationOf,
   newForLeadsRoute,
+  newListOf,
   newReceptionistDefaults,
   newSequenceLine,
   newSequenceMode,
@@ -64568,6 +64796,7 @@ export {
   pipelineRoute,
   pipelineRowId,
   pipelineRowNow,
+  pipelineSheetOf,
   pipelineSorted,
   pipelineViewLabel,
   placeRailOf,

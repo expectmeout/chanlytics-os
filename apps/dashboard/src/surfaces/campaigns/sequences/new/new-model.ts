@@ -10,13 +10,16 @@ import {
   MIN_MS,
   NEW_WORDS,
   PLAYBOOK_DEFAULTS,
+  clockHour,
   clockTime,
   defaultSlotKinds,
   messageHolds,
   newConditionsOf,
+  newListOf,
   newSequenceLine,
   newWaitOf,
   nextOpenMoment,
+  slotLabels,
   whoSuits,
   type AppointmentWord,
   type CampaignMessage,
@@ -57,26 +60,55 @@ export function atWords(at: string, weekday: "short" | "long" = "short"): string
  * When a one-off sent now goes, by the business's clock: ten minutes on, or, late at night, when its sending hours open
  * (nextOpenMoment, as every send keeps them).
  */
-export function sendsAt(tz: string, nowMs: number): { time: string; moved: boolean } {
+export function sendsAt(tz: string, nowMs: number): { time: string; moved: boolean; ms: number } {
   const { at, moved } = nextOpenMoment(tz, new Date(nowMs + 10 * MIN_MS));
-  return { time: clockTime(at.getTime(), tz), moved };
+  return { time: clockTime(at.getTime(), tz), moved, ms: at.getTime() };
+}
+
+/** When a one-off sent now goes, as a line says it: ten minutes after it is sent, or when the sending hours open. */
+export const goesSoonWords = (tz: string, nowMs: number): string => {
+  const goes = sendsAt(tz, nowMs);
+  return goes.moved ? NEW_WORDS.draft.goesOpen(goes.time) : NEW_WORDS.draft.goesSoon;
+};
+
+/** When a sequence's first batch is, by the business's clock: today at its hour while that is still ahead, else tomorrow. */
+export function firstBatchWords(hour: number, nowHour: number): string {
+  const at = clockHour(hour);
+  return nowHour < hour ? NEW_WORDS.draft.todayAt(at) : NEW_WORDS.draft.tomorrowAt(at);
+}
+
+/** What Ask could not do, as its card says it: its first sentence over the rest ("Left out: “if they loved it”"). */
+export function cannotParts(said: string): { title: string; words: string | null } {
+  const m = /^(.+?[.!?])\s+(\S[\s\S]*)$/.exec(said.trim());
+  if (!m?.[1] || !m[2]) return { title: said.trim(), words: null };
+  return { title: m[1].replace(/\.$/, ""), words: m[2] };
 }
 
 /** The line New starts on: the moment's own where a door named one, else none. */
 export const doorLineOf = (asked: NewAsked, word: AppointmentWord): string =>
   asked.moment ? (newSequenceLine(asked.moment, word) ?? "") : "";
 
-/** The choices a door made, which Ask keeps: a one-off, leads, or the audience it opened on. */
+/**
+ * The choices a door made, which Ask keeps: a one-off, leads, or the audience it opened on, as New's list rule reads it
+ * (contracts newListOf): a list of who said yes is everyone, who said stop no one, and a list New does not know (archived
+ * or gone since the link was made, `label` null) is left for the owner to pick.
+ */
 export function fixedOf(asked: NewAsked, label: string | null): Omit<NewDraftAsk, "words"> {
   if (asked.who === "leads") return { audience: "leads" };
-  if (asked.who === "once")
-    return {
-      kind: "once",
-      audience: "people",
-      ...(asked.to ? { who: { kind: "list", token: asked.to, label: label ?? asked.to } } : {}),
-    };
-  return {};
+  if (asked.who !== "once") return {};
+  const is = asked.to ? newListOf(asked.to, "once") : null;
+  const who: DraftWho | null =
+    is === "everyone"
+      ? everyoneOf(true)
+      : is === "list" && asked.to && label
+        ? { kind: "list", token: asked.to, label }
+        : null;
+  return { kind: "once", audience: "people", ...(who ? { who } : {}) };
 }
+
+/** Whether a door named a list New cannot send to now: unknown here, once the lists are read (the send screen's words). */
+export const doorListGone = (asked: NewAsked, label: string | null, read: boolean): boolean =>
+  read && asked.who === "once" && !!asked.to && newListOf(asked.to, "once") === "list" && label === null;
 
 /** A step with nothing in it yet: a message to pick, after the step before. */
 function blankStep(audience: NewAudience, first: boolean): NewStep {
@@ -99,7 +131,7 @@ export function draftByHand(kind: NewKind, audience: NewAudience, business: stri
     business,
     kind,
     audience,
-    name: NEW_WORDS.act,
+    name: kind === "once" ? NEW_WORDS.actOnce : NEW_WORDS.act,
     who: null,
     run_hour: PLAYBOOK_DEFAULTS.runHour,
     at: null,
@@ -282,7 +314,14 @@ export function heldMessageOf(
     params,
     offer: m.purpose === "marketing",
     written: null,
+    labels: slotLabels(row),
   };
+}
+
+/** What a typed value is asked as: its slot's own name, where the message gives one ("Value 2" is no name). */
+export function valueLabelOf(m: NewMessage, at: number): string | null {
+  const named = m.written?.slots[at]?.label ?? m.labels?.[at] ?? "";
+  return named.trim() && !/^Value \d+$/.test(named.trim()) ? named.trim() : null;
 }
 
 /** A step's message changed: one of the workspace's, or the one Ask wrote, kept. */
@@ -353,12 +392,13 @@ export const setOwnerSends = (d: NewDraftDto, on: boolean): NewDraftDto =>
 export const setName = (d: NewDraftDto, name: string): NewDraftDto => ({ ...d, name: name.slice(0, 80) });
 
 /**
- * A one-off sent now whose WhatsApp version Ask wrote new (D5): Meta reviews that version first, so it goes now by its
- * other channels, and who hears it only by WhatsApp is left out. Null where nothing waits on Meta.
+ * A one-off whose WhatsApp version Ask wrote new (D5): Meta reviews that version first, and the send is made as it is sent
+ * or scheduled, so it goes by its other channels (new-make.ts onceChannelsOf), and who hears it only by WhatsApp is left
+ * out. Kept instead, it is filed and waits while Meta reviews it. Null where nothing waits on Meta.
  */
 export function reviewOf(d: NewDraftDto): { others: string; only: number; can: number } | null {
   const first = d.steps[0]?.message;
-  if (d.kind !== "once" || d.audience !== "people" || d.at !== null) return null;
+  if (d.kind !== "once" || d.audience !== "people") return null;
   if (!first?.written?.versions.whatsapp || !d.channels.includes("whatsapp")) return null;
   const others = d.channels.filter((c) => c !== "whatsapp");
   // Counted for the channels Ask drafted it with; with WhatsApp the only one left on, everyone hears only WhatsApp.
@@ -371,7 +411,14 @@ export function notReady(d: NewDraftDto): { lead: string; sub: string } | null {
   const steps = d.steps.every((s) =>
     s.does !== "message" ? !!s.hand.trim() : d.audience === "leads" ? true : !!s.message,
   );
-  if (!d.who || !steps) return { lead: NEW_WORDS.draft.pickWhenAndMessage, sub: NEW_WORDS.draft.thenItCanStart };
+  // The parts still to pick, by what the empty part says on the page: a sequence's when, a one-off's who, a search.
+  const W = NEW_WORDS.draft;
+  const parts = [
+    ...(d.who ? [] : [d.audience === "leads" ? W.parts.search : d.kind === "once" ? W.parts.who : W.parts.when]),
+    ...(d.audience === "people" && d.channels.length === 0 ? [W.parts.how] : []),
+    ...(steps ? [] : [W.parts.message]),
+  ];
+  if (parts.length) return { lead: W.pick(parts), sub: d.kind === "once" ? W.thenItCanGo : W.thenItCanStart };
   // A one-off goes now to whoever can hear it: with nobody, there is nothing to send (D4). A sequence runs on, so a
   // moment with nobody today still starts.
   if (d.kind === "once" && d.reach?.can === 0) return { lead: NEW_WORDS.reach.nobody, sub: NEW_WORDS.reach.pickAWay };
@@ -386,7 +433,7 @@ export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | nul
   return {
     kind: d.kind,
     audience: d.audience,
-    name: d.name.trim() || NEW_WORDS.act,
+    name: d.name.trim() || (d.kind === "once" ? NEW_WORDS.actOnce : NEW_WORDS.act),
     who: d.who,
     run_hour: d.run_hour,
     at: d.at,

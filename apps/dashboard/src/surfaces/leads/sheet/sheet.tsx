@@ -306,9 +306,10 @@ async function pickAndAdd(d: SheetDraw, row: LeadPickerRowVM) {
   }
 }
 
-/** Ask's draft of the emails, from the workspace's goal and the search: its steps, or a refusal said. */
+/** Ask's draft of the emails, from New's one engine (the workspace's goal, the lead's search): its steps, or a refusal said. */
 async function askDraft(d: SheetDraw, name: string) {
-  const r = await reachOuts.draftLeads({ name, search_id: d.p.searchId ?? undefined });
+  if (!d.vm) return null;
+  const r = await reachOuts.draftLeads({ name, lead_ids: [d.vm.id], search_name: d.p.row?.searchName ?? null });
   if (!r.ok) {
     d.p.flash(refusalToast(r, "Ask could not write a draft"));
     return null;

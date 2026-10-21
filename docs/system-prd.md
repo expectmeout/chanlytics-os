@@ -1015,11 +1015,14 @@ chain end with a call or a note for the team.
   domain, connected from Connections' own row, Mailboxes you write from (Later while no provider is offered), with OAuth: the dashboard's `/api/v1/mailbox-connections` routes sign the
   round trip and hand the code to the edge's `/api/admin/mailboxes` (ops `readiness | connect | remove | pause | unpause
 | resume | settings | test | check`), which holds both providers' clients, refuses a free mailbox (Gmail.com,
-  Outlook.com and the like) and one without the scopes to send and read, and keeps the token in Vault
-  (`put_mailbox_credentials`, refreshed only over the grant it read). Its day is its ramp (10, 20, 30, 40 a day at 0, 7,
+  Outlook.com and the like), one without the scopes to send and read, a Google account that is not a verified Google
+  Workspace one, an account with no mailbox behind it, and on a Reconnect any account but the mailbox's own; it keeps the
+  token in Vault (`put_mailbox_credentials`, refreshed only over the grant it read), and a row whose token was not kept is
+  never left saying connected. A refusal at the connect door is said on the page; a Microsoft tenant that keeps consent
+  to its admin is handed the admin's link. Its day is its ramp (10, 20, 30, 40 a day at 0, 7,
   14 and 21 days it actually sent since it was clean, within the last 90; D15), 20 at most when it is the business's
-  customer domain, never past its owner's cap (at most 50), and nothing while its provider has rested it until its own day
-  turns (00424 `mailbox_capacity`, which the claim, the timetable, the door and Connections read). Each owner names its
+  customer domain, never past its owner's cap (at most 40, the ramp's top), and nothing while its provider has rested it
+  until its own day turns (00424 `mailbox_capacity`, which the claim, the timetable, the door and Connections read). Each owner names its
   signature and the name it sends as; a chain writes from the mailboxes its owner chose, or every live one.
 - **The `outreach` purpose at the door** (core `deliver.ts`, 00424's `outreach_mailbox_facts` in one call; spec §4.8). A
   cold email is always a broadcast. It is refused, in words, unless it goes to a lead still `ready` or `nurture`, off the
@@ -1030,8 +1033,10 @@ chain end with a call or a note for the team.
   (`emailSender`): hosted (the workspace's address, on the platform's account) for what a person or the receptionist
   answers, campaigns for the offers a customer asked for, and own (a connected mailbox, through its own provider's send)
   for outreach, and for a person's reply to a reach-out that carries its mailbox's twin (Part 5, below). What a send
-  learns about its mailbox is applied at once: a provider's day used up rests it until the next UTC midnight, a grant
-  gone sets it to reconnect; the send comes back as a wait. A sent email is stamped with the Message-ID and thread the
+  learns about its mailbox is applied at once: a provider's day used up rests it until the time the provider names
+  (Gmail's rolling day), else the next UTC midnight, a grant gone sets it to reconnect; the send comes back as a wait. A
+  send that timed out is looked for in the mailbox's sent mail, and settled sent or planned again
+  (`mailbox-reconcile.ts`). A sent email is stamped with the Message-ID and thread the
   mailbox kept (00424 `stamp_email_from_mailbox`).
 - **One account, one webhook.** `/api/resend-webhook` verifies the platform account's signature alone; a secret a
   variable once named for the cold account proves nothing. A complaint on any email is the person's no (source
@@ -1113,8 +1118,8 @@ chain end with a call or a note for the team.
 - **The allowance:** 2,000 cold emails per workspace per calendar month in its zone (contracts
   `REACH_OUT_MONTH_EMAILS`, 00187 `reach_out_month_sent`); a workspace at it claims nothing until the month turns.
 - **The holds** (00424). A permanent bounce marks its lead's address invalid (C11). A mailbox is held by its own
-  mail: any complaint, or permanent bounces or noes (an unsubscribe, or a reply read as no until it is undone, D18) past
-  3% of at least 150 sent. Only its owner's Resume lifts it, and its count starts again from then.
+  mail: any complaint, or hard bounces and servers' refusals of the sender, or unsubscribes, past 3% of at least 150
+  sent (00466); a reply read as no (D18) is counted and said, never held on. Only its owner's Resume lifts it, and its count starts again from then.
 - **A links domain, when it is set** (D17): `UNSUBSCRIBE_ORIGIN` moves the one-click links off the app's domain; the
   dashboard answers only `/u/` on the link host. A reply needs no domain of its own: it lands in the mailbox the email
   left from.

@@ -120,9 +120,9 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
   );
 }
 
-/** How a step goes, on its box: its channels, or a task for you (a call). */
+/** How a step goes, on its box: its channels, or a task for you (a call, or a note, each by its own glyph, as New's). */
 function stepBy(step: SequenceStepDto): { glyph: string; words: string } {
-  if (step.hand) return { glyph: "phone", words: SW.byTask };
+  if (step.hand) return { glyph: step.hand.kind === "note" ? "note" : "phone", words: SW.byTask };
   const channels = step.channels;
   return { glyph: channels[0] === "email" ? "mail" : "chat", words: scheduleChannels(channels) };
 }

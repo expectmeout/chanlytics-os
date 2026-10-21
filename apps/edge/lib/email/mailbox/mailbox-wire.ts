@@ -4,8 +4,9 @@
  * (signed out, paused, held, resting) as `held`, so a person's answer frozen with one says why it went from the hosted
  * mailbox. emailWireFor (../email.ts) binds them beside the hosted and campaigns routes.
  *
- * What a send learns about its mailbox, the mailbox learns at once: a provider's day used up rests it until the next
- * UTC midnight (the door then refuses its sends as not ready, a wait, and the clock plans them again); a grant gone
+ * What a send learns about its mailbox, the mailbox learns at once: a provider's day used up rests it until the time
+ * the provider names, else the next UTC midnight (the door then refuses its sends as not ready, a wait, and the clock
+ * plans them again); a grant gone
  * sets it to reconnect and tells its owner once. Either way the send comes back as not taken, so the outbox's fresh
  * job meets the door's wait rather than a failure.
  */
@@ -51,12 +52,15 @@ export async function markSignedOut(db: Db, row: MailboxConnectionRow, log: Logg
   await tellSignedOut(db, row, log, new Date(now));
 }
 
-/** The mailbox's own day, used up: it rests until its provider's day turns over. */
-async function rest(db: Db, row: MailboxConnectionRow, now: number): Promise<void> {
+/**
+ * The mailbox's own day, used up: it rests until the time its provider named (Gmail's "Retry after", its day being a
+ * rolling one), else until the next UTC midnight.
+ */
+async function rest(db: Db, row: MailboxConnectionRow, now: number, until?: number): Promise<void> {
   await patchMailboxConnection(db, {
     tenantId: row.tenant_id,
     id: row.id,
-    patch: { resting_until: nextMidnight(now) },
+    patch: { resting_until: until && until > now ? new Date(until).toISOString() : nextMidnight(now) },
   });
 }
 
@@ -96,7 +100,7 @@ async function sendFrom(
   });
   if (sent.ok) return sent;
   if (sent.cause === "day_used") {
-    await rest(db, row, now).catch((e: unknown) =>
+    await rest(db, row, now, sent.restUntil).catch((e: unknown) =>
       log.error("mailbox_rest_failed", { mailbox: row.id, error: errField(e) }),
     );
     return notTaken(sent.status, "mailbox_day_used");

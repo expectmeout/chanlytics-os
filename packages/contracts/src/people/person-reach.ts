@@ -17,6 +17,9 @@ import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
  */
 const EMAIL_STOPPED_TAG = "stopped accepting mail";
 
+/** The same fact on a line of its own under the address (the Pipeline's deal sheet), as a line starts it. */
+export const EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
+
 /**
  * Why email cannot go to them, in one sentence: the Replies row says it, and so does every button that would have sent
  * by email -- the booking link's, the proposal's and the deal card's send -- where the address has stopped.
@@ -202,7 +205,7 @@ export function proposalAction(
   return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
 }
 
-/** The person's address as the About rail and the Pipeline peek say it: the address, and that it stopped where it has. */
+/** The person's address as the About rail says it: the address, and that it stopped where it has. */
 export function emailFactWords(email: string, stopped: boolean): string {
   return stopped ? `${email} · ${EMAIL_STOPPED_TAG}` : email;
 }

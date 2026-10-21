@@ -7,6 +7,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { mailboxMessageId } from "@chanlytics/channels";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault as cronVault } from "../_cron-doors-world.mjs";
@@ -52,6 +53,7 @@ function world(boxes, { counts = {}, creds } = {}) {
     tenant_config: [{ tenant_id: T, config: {} }],
     mailbox_connections: boxes,
     messages: [],
+    sequence_sends: [],
     jobs: [],
     events: [],
     notifications: [],
@@ -64,6 +66,22 @@ function world(boxes, { counts = {}, creds } = {}) {
       ...cronVault,
       ...v.rpcs,
       mailbox_threads_known: () => [],
+      // 00424: an email the mailbox sent, stamped with what it went under.
+      stamp_email_from_mailbox: (a) => {
+        const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);
+        if (!m) return false;
+        m.external_id ??= a.p_provider_id;
+        m.meta = {
+          ...m.meta,
+          email: {
+            ...m.meta?.email,
+            message_id: a.p_rfc_message_id,
+            thread_id: a.p_thread_id,
+            mailbox_id: a.p_mailbox_id,
+          },
+        };
+        return true;
+      },
       mailbox_connection_counts: (a) =>
         counts[a.p_mailbox_id] ?? { sent: 0, bounced: 0, complained: 0, unsubscribed: 0 },
       mailbox_capacity: (a) => {
@@ -91,6 +109,7 @@ const quietGmail = () =>
   providers((c) => {
     if (c.url.endsWith("/profile")) return { json: { emailAddress: "x@getharbor.example", historyId: "500" } };
     if (c.url.includes("/history?")) return { json: { historyId: "501" } };
+    if (c.url.includes("/messages?q=from")) return { json: { messages: [] } };
     return { status: 404 };
   });
 
@@ -120,7 +139,8 @@ test("each mailbox is tended: its watch made and its cursor started, read back, 
       Date.parse(f.watch_expires_at) > Date.now(),
       "a week's watch with no push, so it is not asked every tick",
     );
-    assert.deepEqual(f.dns, { spf: "found", dkim: "missing", dmarc: "missing", mx: "found" });
+    assert.deepEqual([f.dns.spf, f.dns.dkim, f.dns.dmarc, f.dns.mx], ["found", "missing", "missing", "found"]);
+    assert.equal(f.dns.spf_record, "v=spf1 include:_spf.google.com ~all", "the record it has, kept to offer back");
     assert.ok(f.dns_checked_at);
     assert.equal(f.sent_days, 8, "its ramp's days, as its sends say them");
     assert.ok(f.judged_at, "judged");
@@ -207,4 +227,56 @@ test("a mailbox its provider signed out is set to reconnect, said once, and noth
 test("nothing to tend: a 200 that says so", async () => {
   world([]);
   assert.deepEqual(await answer(await knock(POST, "mailboxes")), [200, { ok: true, tended: 0 }]);
+});
+
+test("an email whose send's outcome was unknown is looked for in what the mailbox sent: found, it is sent with its thread; not there, it never left", async () => {
+  const box = rows.mailboxConnection({
+    tenant_id: T,
+    sync_cursor: "450",
+    watch_expires_at: iso(5 * 24 * HOUR),
+    host: "getharbor.example",
+    address: "sam@getharbor.example",
+  });
+  const tables = world([box]);
+  const email = (id) => ({
+    id,
+    tenant_id: T,
+    conversation_id: "c1",
+    contact_id: "k1",
+    channel: "email",
+    direction: "outbound",
+    status: "failed",
+    external_id: null,
+    error: { http_status: 0, body: null, outcome: "unknown" },
+    created_at: new Date(Date.now() - 30 * 60_000).toISOString(),
+    meta: { email: { request: { to: ["office@fixture-movers.example"], subject: "A quick one" } } },
+  });
+  const WENT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const NEVER = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  tables.messages.push(email(WENT), email(NEVER));
+  tables.sequence_sends.push(
+    { id: "s1", tenant_id: T, mailbox_id: box.id, state: "queued", message_id: WENT, lead_id: "l1" },
+    { id: "s2", tenant_id: T, mailbox_id: box.id, state: "queued", message_id: NEVER, lead_id: "l2" },
+  );
+  const went = mailboxMessageId(WENT, "getharbor.example");
+  const net = providers((c) => {
+    if (c.url.includes("/history?")) return { json: { historyId: "501" } };
+    const q = new URL(c.url).searchParams.get("q") ?? "";
+    if (q.startsWith("from:")) return { json: { messages: [] } };
+    if (q === `rfc822msgid:${went}`) return { json: { messages: [{ id: "gm-9", threadId: "gt-9" }] } };
+    if (q.startsWith("rfc822msgid:") || q.startsWith("in:sent")) return { json: { resultSizeEstimate: 0 } };
+    if (c.url.includes("/messages/gm-9?"))
+      return { json: { id: "gm-9", threadId: "gt-9", payload: { headers: [{ name: "Message-ID", value: went }] } } };
+    return { status: 404 };
+  });
+  try {
+    const [status, body] = await answer(await knock(POST, "mailboxes"));
+    assert.equal(status, 200);
+    assert.equal(body.settled, 2);
+    const [sent, never] = [WENT, NEVER].map((id) => tables.messages.find((m) => m.id === id));
+    assert.deepEqual([sent.status, sent.external_id, sent.meta.email.thread_id], ["sent", "gm-9", "gt-9"]);
+    assert.deepEqual([never.status, never.error.reason, never.error.outcome], ["failed", "never_delivered", undefined]);
+  } finally {
+    net.restore();
+  }
 });

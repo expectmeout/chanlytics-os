@@ -169,6 +169,10 @@ export interface OAuthState {
   exp: number;
   /** Which provider a mailbox is being connected at (decision 0056); absent for Google Business Profile's. */
   p?: string;
+  /** The mailbox being connected again, when it is a Reconnect: the account that comes back must be that one. */
+  m?: string;
+  /** 1 when the way out is a Microsoft admin's consent for their organisation, not a member's sign-in. */
+  a?: number;
 }
 
 async function hmac(secret: string, data: string): Promise<string> {

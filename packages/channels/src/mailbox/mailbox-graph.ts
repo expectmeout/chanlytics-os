@@ -6,7 +6,7 @@
  */
 import { DAY_MS } from "@chanlytics/contracts";
 import { providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import { MAILBOX_READ_MS } from "./mailbox-read";
+import { FIND_SENT_SLACK_MS, MAILBOX_READ_MS, type FoundSent } from "./mailbox-read";
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
 /** A send's bound, for each of its two calls. */
@@ -78,6 +78,29 @@ export async function graphMe(
   };
 }
 
+/** The account's inbox, read once at connect: an account with no Exchange mailbox answers it with a refusal. */
+export async function graphInbox(token: string, deps?: Deps): Promise<ProviderReply> {
+  return providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/mailFolders/inbox?$select=id`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+}
+
+/**
+ * Whether Graph said the account has no mailbox to send from: no Exchange Online mailbox or licence (404
+ * MailboxNotEnabledForRESTAPI), one held on-premises, or a 403 that refuses the mailbox itself to a grant that holds
+ * the mail scopes (a licence missing).
+ */
+export function graphNoMailbox(r: Pick<ProviderReply, "status" | "json">): boolean {
+  const code = graphReasonOf(r) ?? "";
+  return (
+    (r.status === 404 && /MailboxNotEnabledForRESTAPI|MailboxNotSupportedForRESTAPI|ResourceNotFound/i.test(code)) ||
+    (r.status === 403 && /ErrorAccessDenied/i.test(code))
+  );
+}
+
 export interface GraphSent {
   ok: boolean;
   status: number;
@@ -92,8 +115,8 @@ export interface GraphSent {
 
 /**
  * The MIME as a draft (POST /me/messages, text/plain, base64), then the draft sent (POST .../send). A draft that could
- * not be made sent nothing; one made and not sent is gone at the next try's draft, unsent. Only the second call may
- * leave an email whose outcome is unknown.
+ * not be made sent nothing; one made and refused is deleted, so the business's Drafts keep no half-sent email. Only the
+ * second call may leave an email whose outcome is unknown.
  */
 export async function graphSend(
   token: string,
@@ -134,6 +157,10 @@ export async function graphSend(
     { method: "POST", headers: auth(token), timeoutMs: bound, tries: 1, breaker: "count" },
     deps,
   );
+  // A send Graph refused left nothing but its draft, which would sit in the business's Drafts: it goes. One whose
+  // outcome is unknown may have left, so its draft is the reconciliation's to judge (graphFindSent), never deleted here.
+  if (sent.outcome !== "ok" && sent.outcome !== "unknown")
+    await graphDeleteMessage(token, d.id, deps).catch(() => null);
   return {
     ok: sent.outcome === "ok",
     status: sent.status,
@@ -281,6 +308,119 @@ export async function graphRenew(
   const exp = Date.parse((r.json as { expirationDateTime?: string } | null)?.expirationDateTime ?? "");
   if (r.outcome !== "ok" || !Number.isFinite(exp)) return { ok: false, gone: r.status === 404, reply: r };
   return { ok: true, expiresAt: exp };
+}
+
+/** A message deleted: a refused send's draft, or one the reconciliation found never left. */
+export async function graphDeleteMessage(token: string, id: string, deps?: Deps): Promise<ProviderReply> {
+  return providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/messages/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 1 },
+    deps,
+  );
+}
+
+type Listed = {
+  id?: unknown;
+  conversationId?: unknown;
+  internetMessageId?: unknown;
+  isDraft?: unknown;
+  subject?: unknown;
+  toRecipients?: Array<{ emailAddress?: { address?: unknown } }>;
+};
+
+/** A page of messages, as Graph lists them; throws when Graph could not be asked. */
+async function graphList(token: string, path: string, deps?: Deps): Promise<Listed[]> {
+  const r = await providerFetch(
+    "microsoft",
+    `${GRAPH_API}${path}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  if (r.outcome !== "ok") throw new Error(`graph list: ${graphReasonOf(r) ?? r.error ?? r.status}`);
+  const value = (r.json as { value?: unknown } | null)?.value;
+  return Array.isArray(value) ? (value as Listed[]) : [];
+}
+
+const odataString = (s: string): string => `'${s.replace(/'/g, "''")}'`;
+const bareId = (id: unknown): string => (typeof id === "string" ? id.trim().replace(/^<|>$/g, "").toLowerCase() : "");
+
+/**
+ * Whether the mailbox sent an email whose send's outcome was unknown (graphSend's second call timed out): by the
+ * Message-ID it was made under, anywhere in the mailbox; then among what Sent Items holds since, by its subject and its
+ * recipient. Our draft of it still a draft proves it never left (its id comes back to be deleted). Throws when Graph
+ * could not be asked, and the caller looks again later.
+ */
+export async function graphFindSent(
+  token: string,
+  want: { messageId: string; to: string; subject: string | null; sinceMs: number },
+  deps?: Deps,
+): Promise<FoundSent> {
+  const minted = bareId(want.messageId);
+  const select = "$select=id,conversationId,internetMessageId,isDraft,subject,toRecipients";
+  const sent = (m: Listed): FoundSent => ({
+    found: true,
+    id: String(m.id),
+    threadId: typeof m.conversationId === "string" ? m.conversationId : null,
+    messageId: typeof m.internetMessageId === "string" ? m.internetMessageId : null,
+  });
+  const byId = await graphList(
+    token,
+    `/me/messages?$filter=${encodeURIComponent(`internetMessageId eq ${odataString(`<${minted}>`)}`)}&${select}`,
+    deps,
+  );
+  const left = byId.find((m) => typeof m.id === "string" && m.isDraft !== true);
+  if (left) return sent(left);
+  const draft = byId.find((m) => typeof m.id === "string" && m.isDraft === true);
+  if (draft) return { found: false, draftId: String(draft.id) };
+  // Exchange may have written its own Message-ID: what was sent to the address since, by its subject.
+  const since = new Date(want.sinceMs - FIND_SENT_SLACK_MS).toISOString();
+  const to = want.to.toLowerCase();
+  const subject = (want.subject ?? "").trim().toLowerCase();
+  const same = (m: Listed) =>
+    typeof m.id === "string" &&
+    !!subject &&
+    typeof m.subject === "string" &&
+    m.subject.trim().toLowerCase() === subject &&
+    (m.toRecipients ?? []).some((r) => {
+      const address = r.emailAddress?.address;
+      return typeof address === "string" && address.toLowerCase() === to;
+    });
+  const recent = (field: string) => `$filter=${encodeURIComponent(`${field} ge ${since}`)}&$top=25&${select}`;
+  const fromSent = (await graphList(token, `/me/mailFolders/sentitems/messages?${recent("sentDateTime")}`, deps)).find(
+    same,
+  );
+  // Not in Sent Items: it never left. A draft of the same subject to the same address may be the owner's own, so only
+  // the one found by our Message-ID above is ever handed back to be deleted.
+  return fromSent ? sent(fromSent) : { found: false };
+}
+
+/**
+ * What arrived in Junk Email since `sinceIso`, as ids, conversations and senders alone: a reply Exchange took for junk
+ * is a reply all the same (the caller reads only threads a reach-out started). Graph keeps no delta of it here, so the
+ * sync asks from its last read. Throws when Graph could not be asked.
+ */
+export async function graphJunkSince(
+  token: string,
+  sinceIso: string,
+  deps?: Deps,
+): Promise<Array<{ id: string; threadId: string | null; from: string | null }>> {
+  const filter = encodeURIComponent(`receivedDateTime ge ${sinceIso}`);
+  const r = await providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/mailFolders/junkemail/messages?$filter=${filter}&$select=id,conversationId,from&$top=50`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  if (r.outcome !== "ok") throw new Error(`graph junk: ${graphReasonOf(r) ?? r.error ?? r.status}`);
+  const value = (r.json as { value?: unknown } | null)?.value;
+  return (Array.isArray(value) ? (value as Array<Listed & { from?: { emailAddress?: { address?: unknown } } }>) : [])
+    .filter((v) => typeof v.id === "string")
+    .map((v) => ({
+      id: v.id as string,
+      threadId: typeof v.conversationId === "string" ? v.conversationId : null,
+      from: typeof v.from?.emailAddress?.address === "string" ? v.from.emailAddress.address.toLowerCase() : null,
+    }));
 }
 
 export async function graphUnsubscribe(token: string, id: string, deps?: Deps): Promise<ProviderReply> {

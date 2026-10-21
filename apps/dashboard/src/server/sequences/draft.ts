@@ -21,8 +21,12 @@ import {
   PLAYBOOK_HOURS,
   defaultSlotKinds,
   fenced,
+  fencedInline,
+  parseTenantConfig,
   messageHolds,
   momentOffered,
+  newListOf,
+  slotLabels,
   triggerWords,
   zonedInputValue,
   type CampaignMessage,
@@ -41,6 +45,7 @@ import * as facts from "../readers/facts";
 import { playbooks } from "../readers/playbooks";
 import { sequences } from "../readers/sequences";
 import { templates } from "../readers/templates";
+import { storedConfigOf } from "../workspace/config-row";
 import { draftKept, type DraftKnown, type KnownMessage } from "./draft-judge";
 
 /** How much of a message's words the model is handed. */
@@ -85,6 +90,7 @@ function offeredOf(read: {
       offer: m.purpose === "marketing",
       channels,
       slots: defaultSlotKinds(row),
+      labels: slotLabels(row),
     });
   }
   return out;
@@ -101,6 +107,9 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
   ].filter(Boolean);
   return [
     `The business: ${known.business}. Its day and time now: ${known.localNow.replace("T", " ")}.`,
+    known.goal
+      ? `What it is working toward, which an email to leads offers: ${fencedInline("record", known.goal)}`
+      : null,
     lines(
       "Moments a sequence to people may start on",
       known.moments.map((m) => `- ${m.key}: ${m.label} (${m.hint}${count(m.count)})`),
@@ -188,7 +197,7 @@ function momentsOf(
 /** The route's handle: everything a draft is judged against, read at once, then the draft. */
 export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftDto> {
   const { ctx, tenantId } = rc;
-  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes] = await Promise.all([
+  const [library, shape, named, calendarOn, pb, seqs, sources, policies, mailboxes, config] = await Promise.all([
     load(rc, templates, { all: false }),
     load(rc, facts.businessShape, undefined),
     load(rc, facts.facts, undefined),
@@ -201,23 +210,28 @@ export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promis
     orNull(reachOutSourcesOf(ctx, tenantId), "sources", tenantId),
     orNull(listPolicies(ctx.supabase, tenantId), "policies", tenantId),
     orNull(mailboxConnectionsOf(ctx.supabase, tenantId), "mailboxes", tenantId),
+    orNull(storedConfigOf(ctx.supabase, tenantId).then(parseTenantConfig), "config", tenantId),
   ]);
   const pools = pb?.data.pools ?? null;
   const ready = pb?.data.ready ?? null;
   const live = (mailboxes ?? []).filter((m) => m.state !== "removed");
   const known: DraftKnown = {
     business: named.data.name,
+    goal: config?.ask?.goal ?? null,
     localNow: zonedInputValue(rc.now.getTime(), named.data.timezone),
     moments: momentsOf(shape.data.word, calendarOn, pools),
     lists: [
       ...(pb?.data.people_lists ?? []).map((l) => ({ token: `seg:${l.key}`, label: l.label })),
       ...(pb?.data.lists ?? []).filter((l) => !l.archived).map((l) => ({ token: `list:${l.id}`, label: l.name })),
-    ].map((l, i) => ({
-      ...l,
-      key: `l${i + 1}`,
-      count: pools?.[l.token]?.candidates ?? null,
-      pool: pools?.[l.token] ?? null,
-    })),
+    ]
+      // Never who said stop (contracts newListOf): no draft is offered it to start on or send to.
+      .filter((l) => newListOf(l.token, "sequence") !== "never")
+      .map((l, i) => ({
+        ...l,
+        key: `l${i + 1}`,
+        count: pools?.[l.token]?.candidates ?? null,
+        pool: pools?.[l.token] ?? null,
+      })),
     everyone: pools?.everyone_monthly?.candidates ?? null,
     everyonePool: pools?.everyone_monthly ?? null,
     searches: (sources?.sources ?? [])

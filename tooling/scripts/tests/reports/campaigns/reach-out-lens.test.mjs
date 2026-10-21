@@ -501,7 +501,7 @@ test("mailboxes, the days written and the handed line are the old fold's, said t
       [
         "sam@hi.example.com",
         "sam@hi.example.com",
-        "Held since Sat: more than 3% of its recent emails bounced",
+        "Held since Sat: more than 3% of its recent emails bounced or were refused",
         true,
         "80%",
         "20%",
@@ -681,7 +681,7 @@ test("no share of fewer than five is said anywhere in the vm, and nothing is a N
   const said = stringsOf({ ...small, ...exceptions })
     // The 3% a mailbox holds itself at is a limit, not a share: in the Mailboxes card's line and in a held mailbox's state.
     .filter((s) => s !== small.lines.mailboxes && s !== small.mailboxes[1].state);
-  assert.equal(small.mailboxes[1].state, "Held since Sat: more than 3% of its recent emails bounced");
+  assert.equal(small.mailboxes[1].state, "Held since Sat: more than 3% of its recent emails bounced or were refused");
   assert.ok(said.length > 40, "the whole vm was read");
   assert.deepEqual(
     said.filter((s) => /%|NaN|undefined|Infinity/.test(s)),

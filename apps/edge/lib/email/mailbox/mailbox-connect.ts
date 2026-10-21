@@ -4,8 +4,10 @@
  * tokens, and nothing of them leaves it.
  *
  *   mailboxConnect   the code traded for a grant; a grant without send and read access, without a lasting refresh
- *                    token, or on a free mail domain (gmail.com, outlook.com: not a business writing to businesses)
- *                    is given back and refused by name; the account is named (Google's id token, Graph's /me); its row
+ *                    token, on a free mail domain (gmail.com, outlook.com: not a business writing to businesses), a
+ *                    Google account that is not a verified Workspace one, an account with no mailbox behind it, or on
+ *                    a Reconnect another account than the mailbox's own, is given back and refused by name; a token
+ *                    Vault will not keep leaves no row saying connected; the account is named (Google's id token, Graph's /me); its row
  *                    made or found again (00423), its token stored, its domain's records read, its watch made, and the
  *                    event said. A mailbox on the domain the business's own website is on is its customer domain,
  *                    kept to 20 a day (decision 0056, 4); with no website on file, it is taken to be.
@@ -27,7 +29,11 @@ import {
 import {
   buildEmailRequest,
   connectedIdentity,
+  gmailNoMailbox,
+  gmailProfile,
+  graphInbox,
   graphMe,
+  graphNoMailbox,
   grantScopes,
   grantScopesMissing,
   mailboxRevokeRequest,
@@ -40,6 +46,7 @@ import {
   connectMailbox,
   dropMailboxCredentials,
   emitEvent,
+  mailboxConnectionOf,
   patchMailboxConnection,
   workspaceNameAndConfig,
   type Database,
@@ -69,21 +76,49 @@ export type ConnectError =
   | "no_refresh_token"
   | "free_mail"
   | "no_address"
+  | "unverified"
+  | "not_workspace"
+  | "no_mailbox"
+  | "wrong_account"
   | "taken"
   | "too_many"
   | "too_many_on_domain";
 
+interface Claims {
+  email: string | null;
+  sub: string | null;
+  name: string | null;
+  /** Google Workspace's domain: absent for a consumer Google account, whatever its address. */
+  hd: string | null;
+  verified: boolean;
+}
+
 /** An id token's claims, read without verification: it came in the token endpoint's own answer over TLS. */
-function claimsOf(idToken: string | null): { email: string | null; sub: string | null; name: string | null } {
+function claimsOf(idToken: string | null): Claims {
+  const none: Claims = { email: null, sub: null, name: null, hd: null, verified: false };
   try {
     const payload = (idToken ?? "").split(".")[1];
-    if (!payload) return { email: null, sub: null, name: null };
+    if (!payload) return none;
     const c = JSON.parse(new TextDecoder().decode(unb64url(payload))) as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === "string" && v ? v : null);
-    return { email: str(c.email), sub: str(c.sub), name: str(c.name) };
+    // Google's samples carry email_verified as a string as often as a boolean.
+    const verified = c.email_verified === true || c.email_verified === "true";
+    return { email: str(c.email), sub: str(c.sub), name: str(c.name), hd: str(c.hd), verified };
   } catch {
-    return { email: null, sub: null, name: null };
+    return none;
   }
+}
+
+/**
+ * Whether the account has a mailbox to send from, asked once before it is called connected: Gmail's profile (a Google
+ * account that is not a Gmail one answers failedPrecondition, which Gmail also says now and then of one that is, so it
+ * is asked twice), Graph's inbox (an account with no Exchange mailbox or licence is refused it). A provider that could
+ * not be asked is not taken for a no: the connect stands, and the clock reads the mailbox.
+ */
+async function hasMailbox(provider: MailboxProvider, token: string): Promise<boolean> {
+  if (provider === "microsoft") return !graphNoMailbox(await graphInbox(token));
+  for (let tries = 0; tries < 2; tries++) if (!gmailNoMailbox(await gmailProfile(token))) return true;
+  return false;
 }
 
 /** A grant given back is answered at once, or left to lapse with the token Vault no longer holds. */
@@ -111,9 +146,38 @@ async function isCustomerDomain(db: Db, tenantId: string, host: string): Promise
   return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
 }
 
+/**
+ * Who a grant is: Google's id token (openid email profile), which must be a verified address on a Google Workspace
+ * domain (a consumer Google account made with a business address has no Gmail behind it); Graph's /me.
+ */
+async function identityOf(
+  provider: MailboxProvider,
+  grant: { id_token: string | null; access_token: string },
+): Promise<{ ok: true; account: string; address: string; name: string | null } | { ok: false; why: ConnectError }> {
+  if (provider === "google") {
+    const c = claimsOf(grant.id_token);
+    if (!c.sub || !c.email) return { ok: false, why: "no_address" };
+    if (!c.verified) return { ok: false, why: "unverified" };
+    if (!c.hd) return { ok: false, why: isFreeMail(hostOf(c.email)) ? "free_mail" : "not_workspace" };
+    return { ok: true, account: c.sub, address: c.email, name: c.name };
+  }
+  const me = await graphMe(grant.access_token);
+  if (!me?.id || !me.address) return { ok: false, why: "no_address" };
+  return { ok: true, account: me.id, address: me.address, name: me.name };
+}
+
+const hostOf = (address: string): string => address.slice(address.lastIndexOf("@") + 1).toLowerCase();
+
 export async function mailboxConnect(
   p: MailboxPorts,
-  i: { tenantId: string; userId: string | null; provider: MailboxProvider; code: string },
+  i: {
+    tenantId: string;
+    userId: string | null;
+    provider: MailboxProvider;
+    code: string;
+    /** The mailbox a Reconnect is for: the account that comes back must be that one. */
+    mailboxId?: string | null;
+  },
 ): Promise<
   { ok: true; id: string; made: boolean; address: string } | { ok: false; why: ConnectError; detail?: string }
 > {
@@ -131,27 +195,22 @@ export async function mailboxConnect(
     await giveBack(i.provider, grant.access_token);
     return { ok: false, why: "no_refresh_token" };
   }
-  // Who the grant is: Google's id token (openid email profile), Graph's /me.
-  let account: string | null;
-  let address: string | null;
-  let name: string | null;
-  if (i.provider === "google") {
-    const c = claimsOf(grant.id_token);
-    [account, address, name] = [c.sub, c.email, c.name];
-  } else {
-    const me = await graphMe(grant.access_token);
-    [account, address, name] = [me?.id ?? null, me?.address ?? null, me?.name ?? null];
+  const refused = async (why: ConnectError) => {
+    await giveBack(i.provider, grant.refresh_token ?? grant.access_token);
+    return { ok: false as const, why };
+  };
+  const who = await identityOf(i.provider, grant);
+  if (!who.ok) return refused(who.why);
+  const { account, name } = who;
+  const address = who.address.trim().toLowerCase();
+  const host = hostOf(address);
+  if (isFreeMail(host)) return refused("free_mail");
+  // A Reconnect is for one mailbox: another account signed in connects nothing, and the one signed out stays to fix.
+  if (i.mailboxId) {
+    const was = await mailboxConnectionOf(p.db, i.tenantId, i.mailboxId);
+    if (was && (was.provider !== i.provider || was.provider_account !== account)) return refused("wrong_account");
   }
-  if (!account || !address) {
-    await giveBack(i.provider, grant.refresh_token);
-    return { ok: false, why: "no_address" };
-  }
-  address = address.trim().toLowerCase();
-  const host = address.slice(address.lastIndexOf("@") + 1);
-  if (isFreeMail(host)) {
-    await giveBack(i.provider, grant.refresh_token);
-    return { ok: false, why: "free_mail" };
-  }
+  if (!(await hasMailbox(i.provider, grant.access_token))) return refused("no_mailbox");
   const made = await connectMailbox(p.db, {
     tenantId: i.tenantId,
     userId: i.userId,
@@ -162,17 +221,36 @@ export async function mailboxConnect(
     scopes: grantScopes(grant.scope),
     customerDomain: await isCustomerDomain(p.db, i.tenantId, host),
   });
-  if (!made.ok) {
-    await giveBack(i.provider, grant.refresh_token);
-    return { ok: false, why: made.refused };
-  }
+  if (!made.ok) return refused(made.refused);
   const now = (p.now ?? Date.now)();
-  await storeMailboxCredentials(p.db, made.id, {
-    refresh_token: grant.refresh_token,
-    access_token: grant.access_token,
-    expires_at: now + grant.expires_in * 1000,
-    scope: grant.scope,
-  });
+  try {
+    await storeMailboxCredentials(p.db, made.id, {
+      refresh_token: grant.refresh_token,
+      access_token: grant.access_token,
+      expires_at: now + grant.expires_in * 1000,
+      scope: grant.scope,
+    });
+  } catch (e) {
+    // A row with no token would say connected and send nothing: a new one goes, one connected again waits to be.
+    p.log.error("mailbox_door_failed", { mailbox: made.id, stage: "store", error: errField(e) });
+    const at = new Date(now).toISOString();
+    await patchMailboxConnection(p.db, {
+      tenantId: i.tenantId,
+      id: made.id,
+      patch: made.made
+        ? { state: "removed", removed_at: at, held_why: null, held_at: null }
+        : {
+            state: "reconnect",
+            held_why: null,
+            held_at: null,
+            last_error: "Its sign-in wasn't kept: connect it again.",
+            last_error_at: at,
+          },
+    }).catch((cleanup: unknown) =>
+      p.log.error("mailbox_door_failed", { mailbox: made.id, stage: "store_cleanup", error: errField(cleanup) }),
+    );
+    return refused("failed");
+  }
   // Its domain's records and its watch: neither stops a connect that stands; the clock reads both again.
   const dns = await readMailboxDns(host, i.provider).catch(() => null);
   const row = await patchMailboxConnection(p.db, {

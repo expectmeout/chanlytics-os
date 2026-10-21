@@ -117,11 +117,19 @@ export const LEAD_BUILD_WORDS = {
     sending: "Sending",
     sendsFrom: "Sends from",
     inbox: "Your inbox · you send",
-    mailboxes: (n: number) => (n === 1 ? "Your mailbox" : `Your ${n} mailboxes`),
+    mailboxes: (n: number) =>
+      n === 0 ? "Your mailboxes · none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
+    /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
+    noneSends: "No mailbox sends now, so nothing goes: choose Your inbox to send each yourself, or connect one.",
+    /** Saved for the owner to send, with a mailbox that could send for them now. */
+    canSwitch: (n: number) =>
+      `${n === 1 ? "Your mailbox is" : `Your ${n} mailboxes are`} connected: choose ${n === 1 ? "it" : "them"} to send these for you.`,
     connect: "Connect a mailbox",
     aDay: "A day, at most",
     every: (minutes: number) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
+    /** Saved to send from the mailboxes, with none sending now. */
+    noneDay: "None until a mailbox sends",
     approves: SEQUENCE_MODE_LABEL,
     newWordsAsk: "New words always ask first",
     signed: "Signed",

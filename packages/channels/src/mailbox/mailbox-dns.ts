@@ -15,22 +15,40 @@ export function dmarcOf(txt: TxtAnswer): "found" | "missing" {
   return joined(txt).some((r) => /^v=DMARC1\s*(;|$)/i.test(r)) ? "found" : "missing";
 }
 
-/** The SPF include that names each provider's sending servers. */
-const SPF_INCLUDES: Record<MailboxProvider, readonly string[]> = {
+/** The SPF include that names each provider's sending servers: the first is the one a record is given. */
+export const SPF_INCLUDES: Record<MailboxProvider, readonly [string, ...string[]]> = {
   google: ["_spf.google.com"],
   microsoft: ["spf.protection.outlook.com"],
 };
 
-/** Whether the domain's SPF record names the provider's servers: a `v=spf1` record with its include. */
-export function spfOf(txt: TxtAnswer, provider: MailboxProvider): "found" | "missing" {
-  const spf = joined(txt).filter((r) => /^v=spf1(\s|$)/i.test(r));
-  return spf.some((r) =>
-    SPF_INCLUDES[provider].some((inc) =>
-      new RegExp(`(^|\\s)\\+?include:${inc.replace(/\./g, "\\.")}(\\s|$)`, "i").test(r),
-    ),
-  )
-    ? "found"
-    : "missing";
+/** The SPF records among a name's TXT answers: those that begin `v=spf1` (RFC 7208 4.5 discards the rest). */
+export function spfRecordsOf(txt: TxtAnswer): string[] {
+  return joined(txt).filter((r) => /^v=spf1(\s|$)/i.test(r));
+}
+
+/** Whether one SPF record names the provider's servers itself: its include, with no qualifier but a pass. */
+export function spfNamesProvider(record: string, provider: MailboxProvider): boolean {
+  return SPF_INCLUDES[provider].some((inc) =>
+    new RegExp(`(^|\\s)\\+?include:${inc.replace(/\./g, "\\.")}(\\s|$)`, "i").test(record),
+  );
+}
+
+/**
+ * What one SPF record spends of SPF's ten lookups by itself (RFC 7208 4.6.4: include, a, mx, ptr, exists, and the
+ * redirect modifier; all, ip4 and ip6 spend none), and the names its includes and redirect point at, to follow.
+ */
+export function spfTermsOf(record: string): { lookups: number; follow: string[] } {
+  let lookups = 0;
+  const follow: string[] = [];
+  for (const term of record.trim().split(/\s+/).slice(1)) {
+    const t = term.replace(/^[+\-~?]/, "").toLowerCase();
+    const include = /^include:(.+)$/.exec(t)?.[1] ?? /^redirect=(.+)$/.exec(t)?.[1];
+    if (include) {
+      lookups += 1;
+      follow.push(include);
+    } else if (/^(a|mx|ptr|exists)([:/]|$)/.test(t)) lookups += 1;
+  }
+  return { lookups, follow };
 }
 
 /** The selectors each provider signs under: Google's default, Microsoft's two (published as CNAMEs to its keys). */

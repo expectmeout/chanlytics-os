@@ -1375,7 +1375,10 @@ const emailSeam = (sending, mailbox = null) =>
 test("the mailboxes you write from: under their own row, each in contracts' words, and a Connect for each provider offered", () => {
   asRole("owner");
   const went = [];
-  Object.assign(connectedMailboxes, { connect: (p) => went.push(p) });
+  // The door gives a way to the provider (the real verb then leaves for it); the stub records who was asked for.
+  Object.assign(connectedMailboxes, {
+    connect: async (p, id) => (went.push([p, id ?? null]), { ok: true, data: { url: "https://provider.example/" } }),
+  });
   emailSeam({
     providers: ["google", "microsoft"],
     mailboxes: [
@@ -1412,13 +1415,21 @@ test("the mailboxes you write from: under their own row, each in contracts' word
   assert.ok(byTestId(tree, "mailbox-pause-sam@getharbor.com"));
   assert.match(textOf(byTestId(tree, "mailbox-dana@getharbor.com")), /Microsoft signed it out/);
   press(byTestId(tree, "mailbox-reconnect-dana@getharbor.com"));
-  assert.deepEqual(went, ["microsoft"], "Reconnect goes back to its own provider");
+  assert.deepEqual(went, [["microsoft", "m2"]], "Reconnect goes back to its own provider, for its own mailbox");
   assert.match(textOf(byTestId(tree, "mailbox-kim@getharbor.com")), /more than 3% of its recent emails bounced/);
   assert.ok(byTestId(tree, "mailbox-resume-kim@getharbor.com"), "the owner resumes a hold");
   assert.equal(byTestId(tree, "mailbox-test-kim@getharbor.com"), null, "a held mailbox sends nothing, not even a test");
   press(byTestId(tree, "mailbox-connect-google"));
   press(byTestId(tree, "mailbox-connect-microsoft"));
-  assert.deepEqual(went, ["microsoft", "google", "microsoft"]);
+  assert.deepEqual(went, [
+    ["microsoft", "m2"],
+    ["google", null],
+    ["microsoft", null],
+  ]);
+  assert.ok(
+    byTestId(tree, "mailbox-admin-link"),
+    "beside Microsoft, the link for an organisation whose admin approves",
+  );
   tree = settle(Connections);
   assert.equal(byTestId(tree, "mailbox-records-sam@getharbor.com"), null, "every record found: none to add");
 });
@@ -1495,7 +1506,7 @@ test("the owner's acts: pause at once, settings judged before they are sent, rem
   press(byTestId(tree, "mailbox-save"));
   await flush();
   tree = settle(Connections);
-  assert.match(textOf(byTestId(tree, "mailbox-cap")), /Between 1 and 50 a day/, "judged under its box");
+  assert.match(textOf(byTestId(tree, "mailbox-cap")), /Between 1 and 40 a day/, "judged under its box");
   assert.equal(set.length, 1, "nothing is sent that the rules already refuse");
   field("mailbox-cap").props.onChange({ target: { value: "25" } });
   field("mailbox-signature").props.onChange({ target: { value: "Sam · Harbor Moving" } });
@@ -1512,20 +1523,85 @@ test("the owner's acts: pause at once, settings judged before they are sent, rem
 
   asRole("operator");
   tree = render(Connections);
-  assert.match(textOf(byTestId(tree, "connected-mailboxes")), /connect, pause, resume or remove a mailbox/i);
+  assert.match(
+    textOf(byTestId(tree, "connected-mailboxes")),
+    /Only an owner can connect, pause, resume or remove a mailbox/,
+  );
   assert.equal(byTestId(tree, "mailbox-remove-sam@getharbor.com"), null);
+  // The partner sets the workspace up (ROLE_PERMS settings), as the doors' own role check admits them: nothing gated.
+  asRole("partner");
+  tree = render(Connections);
+  assert.ok(byTestId(tree, "mailbox-remove-sam@getharbor.com"));
+  assert.equal(byTestId(tree, "mailbox-pause-sam@getharbor.com").props["data-gated"], undefined);
   asRole("owner");
 });
 
-test("back from the provider: what it came to is said once under the mailboxes' row, in contracts' words", () => {
+test("a mailbox's row says its day and its health; an SPF record its domain has is offered back changed, never a second one", () => {
+  asRole("owner");
+  emailSeam({
+    providers: ["google"],
+    mailboxes: [
+      mbx({
+        sent_today: 12,
+        counts: { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 },
+        dns: { spf: "missing", dkim: "found", dmarc: "found" },
+        spf_record: "v=spf1 include:mailgun.org ~all",
+        spf_lookups: 2,
+      }),
+    ],
+  });
+  const tree = render(Connections);
+  const sam = byTestId(tree, "mailbox-sam@getharbor.com");
+  assert.match(textOf(sam), /12 of 20 today/);
+  assert.equal(
+    textOf(byTestId(tree, "mailbox-health-sam@getharbor.com")),
+    "0.4% bounced · 2 said no · none marked as spam",
+  );
+  assert.match(textOf(sam), /Change its SPF record below/);
+  const table = byTestId(tree, "mailbox-records-sam@getharbor.com");
+  assert.match(textOf(table), /v=spf1 include:mailgun\.org include:_spf\.google\.com ~all/);
+  assert.match(textOf(byTestId(tree, "mailbox-record-note-spf")), /may have only one/);
+});
+
+test("back from the provider: what it came to is said once under the mailboxes' row, in contracts' words, even a Later one", () => {
   asRole("owner");
   Object.assign(connectedMailboxes, {
-    outcome: () => ({ ok: false, words: "A free mailbox isn't for writing to businesses." }),
+    outcome: () => ({ ok: false, words: "A free mailbox isn't for writing to businesses.", code: "free_mail" }),
   });
   try {
     emailSeam({ providers: ["google"], mailboxes: [] });
-    const tree = render(Connections);
+    let tree = render(Connections);
     assert.equal(textOf(byTestId(tree, "mailbox-note")).includes("A free mailbox"), true);
+    // Nothing offered, so the row is Later and has no block: the word it came back with is still said under it.
+    emailSeam({ providers: [], mailboxes: [] });
+    tree = render(Connections);
+    assert.ok(byTestId(tree, "connected-mailboxes-note"));
+    assert.equal(byTestId(tree, "connected-mailboxes"), null);
+  } finally {
+    Object.assign(connectedMailboxes, { outcome: () => null });
+  }
+});
+
+test("a sign-in a Microsoft 365 admin must approve: the note hands the owner the link to send them", async () => {
+  asRole("owner");
+  const links = [];
+  Object.assign(connectedMailboxes, {
+    outcome: () => ({
+      ok: false,
+      words: "Your organisation's Microsoft 365 admin approves Chanlytics once.",
+      code: "admin_consent",
+    }),
+    adminLink: async () => (
+      links.push(1),
+      { ok: true, data: { url: "https://login.microsoftonline.com/organizations/v2.0/adminconsent?x" } }
+    ),
+  });
+  try {
+    emailSeam({ providers: ["microsoft"], mailboxes: [] });
+    const tree = render(Connections);
+    press(byTestId(tree, "mailbox-note-admin-link"));
+    await flush();
+    assert.equal(links.length, 1);
   } finally {
     Object.assign(connectedMailboxes, { outcome: () => null });
   }

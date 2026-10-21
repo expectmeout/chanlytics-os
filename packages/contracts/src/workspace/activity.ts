@@ -9,7 +9,7 @@ import {
   LEAD_NOT_A_FIT_WORDS,
   LEAD_STAGE_WORDS,
 } from "../leads/lead-words";
-import { mailboxHoldWords } from "../email/mailbox-connections";
+import { mailboxHoldWords } from "../email/mailbox-standing";
 import { reviewHeldWords } from "../google/review-reply";
 import { standingChangeWords } from "../lines/number-standing";
 import { businessFieldLabel } from "../lines/business-record";

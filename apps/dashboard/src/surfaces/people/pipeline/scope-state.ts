@@ -15,7 +15,7 @@ import { usePlControls } from "../hooks/use-controls";
 import { usePeople } from "../hooks/use-people";
 import { usePlPlace } from "../hooks/use-place";
 import { peekPerson, personDeletedHere, personDetail, warmPeople, warmPerson } from "../people-detail";
-import { plLoadedWords, plMatcher } from "../words";
+import { PL_NO_PEOPLE, plLoadedWords, plMatcher } from "../words";
 import { pipeGlassColumns, pipePhoneColumns } from "./columns";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
@@ -365,9 +365,12 @@ export function usePipelinePeekRow(r: PipelineRows, ui: PipelineUi, f: PipelineF
   }, [all, peekId]);
   // Someone who left the Pipeline (nothing to follow now) closes their peek. A further deal's row that became their
   // first, with their id, when another deal of theirs closed (0029) keeps it: the peek follows the deal (pipelineRowNow).
+  // Only once People has landed: a page drawn again by Back, before its rows are in, took everyone for gone and closed
+  // the deal the address names, writing the address over without it (use-controls.ts tells landed the same way).
+  const landed = f.people !== PL_NO_PEOPLE;
   useEffect(() => {
-    if (peekId && !peekRow) setPeekId(P.rowNow(all, peekId));
-  }, [peekId, peekRow]); // eslint-disable-line react-hooks/exhaustive-deps -- a row gone is what it answers, read against the rows it went from; the setter is React's own
+    if (peekId && !peekRow && landed) setPeekId(P.rowNow(all, peekId));
+  }, [peekId, peekRow, landed]); // eslint-disable-line react-hooks/exhaustive-deps -- a row gone is what it answers, read against the rows it went from; the setter is React's own
   // Once they are read, their deals say which step a deal card of theirs carries, so the peek says it once.
   // (A deal's id is a string or null here and a string in pipelinePeekOf, which only ever compares it: a null names no card.)
   const peekDeals = peek && peek.id === peekId && peek.person ? peek.person.deals || null : null;
@@ -445,11 +448,14 @@ export function usePipelineAddress(f: PipelineFrame, ui: PipelineUi, doors: Peek
     peek: string | null | undefined;
     asked: string | null;
     pushed: boolean;
+    /** The person the address asked for, until the page holds them: no write-back undoes them meanwhile. */
+    opening: string | null;
   }>({
     view: undefined,
     peek: undefined,
     asked: null,
     pushed: false,
+    opening: null,
   });
   useEffect(() => {
     const a = peekAddr.current;
@@ -466,12 +472,21 @@ export function usePipelineAddress(f: PipelineFrame, ui: PipelineUi, doors: Peek
       // The person the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
       // otherwise walk the peek, and the address, off them on the next draw.
       if (peekId !== addrPeek) {
-        if (addrPeek) openPeek(addrPeek);
-        else setPeekId(null);
+        if (addrPeek) {
+          a.opening = addrPeek;
+          openPeek(addrPeek);
+        } else setPeekId(null);
       }
       return;
     }
-    if (peekId === addrPeek) return;
+    if (peekId === addrPeek) {
+      a.opening = null;
+      return;
+    }
+    // The person the address just asked for, not held yet: the page is on its way to them, and the address stands. A page
+    // drawn again by Back ran this twice before they landed (React's effects, run twice in development), and wrote the
+    // address over without them.
+    if (!peekId && a.opening !== null && a.opening === addrPeek) return;
     const want = P.route({ view, peek: peekId });
     // Said once: the shell follows a push in its next draw, and every draw until then finds the address as it was.
     if (a.asked === want) return;

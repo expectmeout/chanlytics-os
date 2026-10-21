@@ -12,6 +12,7 @@ import {
   DMARC_RECOMMENDED,
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_CONNECT_WORDS,
+  MAILBOX_DAILY_CAP_MAX,
   MAILBOX_RAMP,
   REACH_OUT_COUNTRIES_FREE,
   REACH_OUT_COUNTRIES_REFUSED,
@@ -19,6 +20,7 @@ import {
   customerDomainWords,
   holdDoors,
   mailboxActs,
+  mailboxConnectOk,
   mailboxConnectWords,
   mailboxConnectionDtoOf,
   mailboxDailyCap,
@@ -116,21 +118,88 @@ test("a mailbox sends now only when connected and not resting for its provider's
   assert.equal(reachOutWritesFrom({ id: "m2", state: "connected" }, ["m2"]), true);
 });
 
-test("a mailbox's own mail holds it: any complaint, or bounces or noes past 3% of what it sent, of 150 at least", () => {
-  const c = (sent, bounced = 0, complained = 0, unsubscribed = 0) => ({ sent, bounced, complained, unsubscribed });
+test("a mailbox's own mail holds it: any complaint, or hard bounces and refusals, or unsubscribes past 3% of what it sent, of 150 at least; never a no", () => {
+  const c = (sent, bounced = 0, complained = 0, unsubscribed = 0, blocked = 0, said_no = 0) => ({
+    sent,
+    bounced,
+    blocked,
+    complained,
+    unsubscribed,
+    said_no,
+  });
   assert.equal(mailboxHoldOf(null), null);
   assert.equal(mailboxHoldOf(c(10, 0, 1)), "complaint", "one complaint, however few it sent");
   assert.equal(mailboxHoldOf(c(20, 4)), null, "four of its first emails: 3% of 150 is 4.5");
   assert.equal(mailboxHoldOf(c(20, 5)), "bounces", "five holds it");
   assert.equal(mailboxHoldOf(c(400, 12)), null, "3% of 400 is 12: not past it");
   assert.equal(mailboxHoldOf(c(400, 13)), "bounces");
+  assert.equal(
+    mailboxHoldOf(c(400, 6, 0, 0, 7)),
+    "bounces",
+    "a server refusing the sender counts beside a dead address",
+  );
   assert.equal(mailboxHoldOf(c(400, 0, 0, 13)), "unsubscribes");
+  assert.equal(mailboxHoldOf(c(400, 0, 0, 0, 0, 40)), null, "a polite no is a reply, never a hold");
   assert.equal(mailboxHoldOf(c(400, 13, 1, 13)), "complaint", "a complaint is said first");
-  assert.equal(mailboxHoldWords("bounces"), "more than 3% of its recent emails bounced");
+  assert.equal(mailboxHoldWords("bounces"), "more than 3% of its recent emails bounced or were refused");
+  assert.equal(mailboxHoldWords("unsubscribes"), "more than 3% of the businesses it wrote to unsubscribed");
   assert.equal(mailboxHoldWords(null), "it was held");
   assert.match(mailboxHoldFixWords("bounces"), /Check the addresses/);
   assert.equal(mailboxHealthWords(c(0)), null, "nothing to say before it sends");
-  assert.equal(mailboxHealthWords(c(250, 1, 0, 2)), "0.4% bounced · 2 said no · none marked as spam");
+  assert.equal(mailboxHealthWords(c(250, 1, 0, 2)), "0.4% bounced · 2 unsubscribed · none marked as spam");
+  assert.equal(
+    mailboxHealthWords(c(250, 1, 1, 2, 3, 4)),
+    "0.4% bounced · 3 refused by the server · 2 unsubscribed · 4 said no · 1 marked as spam",
+  );
+});
+
+test("a row says its day and its health from the counts its read carried, and a record DNS did not answer is never missing", () => {
+  const counts = { sent: 250, bounced: 1, blocked: 0, complained: 0, unsubscribed: 0, said_no: 2 };
+  const w = mailboxWords(row({ sent_days: 9, sent_today: 12, counts }), NOW);
+  assert.deepEqual([w.day, w.health], ["12 of 20 today", "0.4% bounced · 2 said no · none marked as spam"]);
+  assert.equal(mailboxWords(row({ sent_days: 9, sent_today: 20 }), NOW).pill, "Done for today");
+  assert.equal(mailboxWords(row({ counts: null }), NOW).health, null);
+  assert.equal(
+    mailboxWords(row({ dns: {} }), NOW).fix,
+    "Its records couldn't be read just now: Check reads them again.",
+  );
+  assert.equal(
+    mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW).fix,
+    "Add its DMARC record below. Change its SPF record below.",
+    "an SPF record the domain has is changed, never added beside",
+  );
+  const unread = mailboxRecordRows({ provider: "google", dns: { spf: "found" } });
+  assert.deepEqual(
+    unread.map((r) => [r.key, r.state, r.found]),
+    [
+      ["spf", "found", true],
+      ["dkim", "unread", false],
+      ["dmarc", "unread", false],
+    ],
+  );
+});
+
+test("SPF: the record the domain has, with the provider put in before its all; two records become one; none, a new one that ends ~all", () => {
+  const spf = (provider, spf_record, spf_lookups = null) =>
+    mailboxRecordRows({ provider, dns: { spf: "missing" }, spf_record, spf_lookups })[0];
+  assert.equal(spf("google", null).value, "v=spf1 include:_spf.google.com ~all");
+  assert.equal(spf("microsoft", null).value, "v=spf1 include:spf.protection.outlook.com ~all", "never -all");
+  assert.equal(spf("google", null).note, null);
+  const kept = spf("google", "v=spf1 include:mailgun.org ip4:192.0.2.1 -all", 3);
+  assert.equal(kept.value, "v=spf1 include:mailgun.org ip4:192.0.2.1 include:_spf.google.com -all", "its own all kept");
+  assert.match(kept.note, /may have only one: change it to this, which keeps every sender it names and adds Google/);
+  assert.equal(
+    spf("google", "v=spf1 a mx redirect=_spf.example.com").value,
+    "v=spf1 a mx include:_spf.google.com redirect=_spf.example.com",
+  );
+  assert.equal(spf("microsoft", "v=spf1 a").value, "v=spf1 a include:spf.protection.outlook.com");
+  const two = spf("google", "v=spf1 include:mailgun.org -all | v=spf1 a include:mailgun.org ~all");
+  assert.equal(two.value, "v=spf1 include:mailgun.org a include:_spf.google.com ~all");
+  assert.match(two.note, /2 SPF records, and with more than one none of them counts/);
+  // The edge counts the record with the provider in it (Google's include spends four: itself and three netblocks).
+  assert.match(spf("google", "v=spf1 a -all", 11).note, /spend 11 of SPF's 10 lookups and fail/);
+  assert.doesNotMatch(spf("google", "v=spf1 a -all", 10).note, /lookups/, "ten is SPF's own limit, not past it");
+  assert.equal(mailboxRecordRows({ provider: "google", dns: { spf: "found" }, spf_record: "v=spf1 a" })[0].note, null);
 });
 
 test("what each row says and offers, from its state: sending, done for the day, resting, paused, held, signed out", () => {
@@ -206,11 +275,47 @@ test("a row as either app reads it: its closed sets held, its records read as fo
   assert.deepEqual([dto.provider, dto.state, dto.held_why, dto.sent_days], ["google", "removed", null, 0]);
   assert.deepEqual(dto.dns, { spf: "found", dmarc: "missing" });
   assert.equal("credentials_ref" in dto, false);
+  assert.deepEqual([dto.spf_record, dto.spf_lookups, dto.sent_today, dto.counts], [null, null, null, null]);
+  const kept = mailboxConnectionDtoOf(
+    { ...row(), dns: { spf: "missing", spf_record: " v=spf1 a -all ", spf_lookups: 4 } },
+    { sent_today: 3, counts: null },
+  );
+  assert.deepEqual([kept.spf_record, kept.spf_lookups, kept.sent_today], ["v=spf1 a -all", 4, 3]);
+});
+
+test("the owner's cap stops where the ramp does: 40", () => {
+  assert.equal(MAILBOX_DAILY_CAP_MAX, 40);
+  assert.equal(MAILBOX_DAILY_CAP_MAX, Math.max(...MAILBOX_RAMP.map((s) => s.perDay)));
 });
 
 test("a connect come back, in words: each reason the edge answers, and the rule once in the block's foot", () => {
-  for (const code of ["connected", "reconnected", "declined", "scopes_missing", "taken", "too_many", "free_mail"])
+  for (const code of [
+    "connected",
+    "reconnected",
+    "declined",
+    "scopes_missing",
+    "taken",
+    "too_many",
+    "free_mail",
+    "no_address",
+    "unverified",
+    "not_workspace",
+    "no_mailbox",
+    "wrong_account",
+    "admin_consent",
+    "admin_approved",
+  ]) {
     assert.equal(mailboxConnectWords(code), MAILBOX_CONNECT_WORDS[code], code);
+    assert.notEqual(MAILBOX_CONNECT_WORDS[code], MAILBOX_CONNECT_WORDS.failed, `${code} has words of its own`);
+  }
+  assert.deepEqual(["connected", "reconnected", "admin_approved", "declined", null].map(mailboxConnectOk), [
+    true,
+    true,
+    true,
+    false,
+    false,
+  ]);
+  assert.equal(MAILBOX_CONNECT_WORDS.not_owner, "Only an owner can connect a mailbox.", "the page's own gate's words");
   assert.equal(mailboxConnectWords("something_new"), MAILBOX_CONNECT_WORDS.failed);
   assert.equal(mailboxConnectWords(null), MAILBOX_CONNECT_WORDS.failed);
   assert.match(mailboxesFootWords(0), /through Google or Microsoft/);

@@ -28,7 +28,7 @@ import { plural } from "../../shared/words";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card";
 import { amountTotalsWords } from "../deal-amount";
 import { dealIsOpen, wholeDaysSince, type DealVM } from "../deal-vm";
-import { heardSinceProposal, waitingOnProposal, type DealPaceVM } from "../deal-waits";
+import { heardSinceProposal, proposalTone, waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations";
 import { stepDayOf } from "../../notes/steps";
 import { followUpWords } from "../../playbooks/playbooks";
@@ -54,8 +54,14 @@ const daysWords = (days: number | null): string => (days === null ? "" : `${days
 /** A visit is said by the calendar's own clock, as People says it (PersonRowVM.nextVisit). */
 const zoneOf = (r: PipelineSource, tz: string): string => r.calendarTz || tz;
 
+/** The follow-up's stand where it is of this row's deal: People's row says it for the deal it shows, so only that deal's row does. */
+const followUpOfRow = (r: PipelineSource, d: DealVM): PipelineSource["followUp"] | null =>
+  d === r.deal || (d.id !== null && d.id === r.deal?.id) ? r.followUp : null;
+
 /**
- * A proposal out's one chip, the first that holds: nothing back in a week, heard back since, its day, no link to it.
+ * A proposal out's one chip, the first that holds: past its day, nothing back in a week, heard back since, its day, no
+ * link to it. Past its day is first: it is the owner's whatever came back since, and the chip says who a deal waits on
+ * as its steps do (deal-waits.ts proposalTone), so a lapsed proposal is never said in the info tone.
  * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
  * The wait is said once: its number is the row's In stage, so the chip says "Nothing back" and no figure.
  */
@@ -68,15 +74,15 @@ function proposalChip(
 ): PipelineChip | null {
   // Judged against this row's deal (0029): the person's other proposal has its own row and its own wait.
   const mine = { deal: d, askedMs: r.askedMs };
-  // People's row says the follow-up's stand for the deal it shows, so only that deal's row says it.
-  const followUp = d === r.deal || (d.id !== null && d.id === r.deal?.id) ? r.followUp : null;
+  const followUp = followUpOfRow(r, d);
+  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will"
       ? { words: followUpWords(followUp, tz, nowMs), tone: "info" }
       : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(mine) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
   // Recorded with no link: an honest one (a PDF sent by email, a meeting), so a fact at rest, never a warning (0008);
   // the deal card's own words for it.
   if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
@@ -104,14 +110,15 @@ const step = (
 
 /**
  * A deal's steps: the consultation where one was held, then the proposal and the client -- a proposal out is where it
- * stands, in its chip's warn when it waits on the owner; a client has come through both. A pass or an end has none.
+ * stands, in the tone of who it waits on (deal-waits.ts proposalTone, the one rule the deal sheet and the person page's
+ * card draw it in too); a client has come through both. A pass or an end has none.
  */
-function dealTrack(r: PipelineSource, d: DealVM, chip: PipelineChip | null): PipelineStep[] {
+function dealTrack(r: PipelineSource, d: DealVM, nowMs: number, pace: DealPaceVM | null): PipelineStep[] {
   if (d.stage !== "proposed" && d.stage !== "won") return [];
   const held = r.consultedMs !== null && Number.isFinite(r.consultedMs) ? [step("consultation", "done")] : [];
-  return d.stage === "proposed"
-    ? [...held, step("proposal", "current", chip?.tone === "warn" ? "warn" : "info"), step("client", "ahead")]
-    : [...held, step("proposal", "done"), step("client", "current", "ok")];
+  if (d.stage === "won") return [...held, step("proposal", "done"), step("client", "current", "ok")];
+  const tone = proposalTone({ deal: d, askedMs: r.askedMs }, nowMs, pace, followUpOfRow(r, d)?.kind === "will");
+  return [...held, step("proposal", "current", tone), step("client", "ahead")];
 }
 
 /** A row as its group's builder makes it; the group gives it its next step (pipelineOf). */
@@ -141,6 +148,7 @@ function dealRow<T extends PipelineSource>(
   chip: PipelineChip | null,
   nowMs: number,
   group: PipelineGroupKey,
+  pace: DealPaceVM | null,
 ): PipelineRowBody<T> {
   const { r, d, id } = x;
   return {
@@ -154,7 +162,7 @@ function dealRow<T extends PipelineSource>(
     // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
     inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
-    track: dealTrack(r, d, chip),
+    track: dealTrack(r, d, nowMs, pace),
   };
 }
 
@@ -345,19 +353,19 @@ export function pipelineOf<T extends PipelineSource>(
     group(
       "proposals",
       inOrder(shownProposals, (x) => x.d.sinceMs).map((x) =>
-        dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals"),
+        dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace),
       ),
       worth(shownProposals),
     ),
     group(
       "clients",
-      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients")),
+      inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
       worth(shownClients),
     ),
     group(
       "closed",
       inOrder(shownClosed, (x) => x.d.sinceMs, true).map((x) =>
-        dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed"),
+        dealRow(x, closedChip(x.d, tz, nowMs), nowMs, "closed", pace),
       ),
       null,
     ),
