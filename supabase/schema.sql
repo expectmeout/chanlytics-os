@@ -11677,9 +11677,12 @@ CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since time
     'complained', (
       select count(*) from ours
        where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
-    -- A person counts once, however many of the window's emails their unsubscribes name.
+    -- A person counts once, however many of the window's emails their noes name, and an unsubscribe of theirs makes
+    -- their no an unsubscribe: the door's own rule (set_email_marketing: a reply's no an unsubscribe follows is the
+    -- unsubscribe's), so a person who said no and then pressed the link counts toward the hold.
     'unsubscribed', (select count(distinct subject_id) from noes where source = 'unsubscribe'),
-    'said_no', (select count(distinct subject_id) from noes where source = 'reply'))
+    'said_no', (select count(distinct n.subject_id) from noes n where n.source = 'reply'
+                  and not exists (select 1 from noes u where u.subject_id = n.subject_id and u.source = 'unsubscribe')))
 $$;
 
 
@@ -11687,7 +11690,7 @@ $$;
 -- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
+COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
 
 
 --

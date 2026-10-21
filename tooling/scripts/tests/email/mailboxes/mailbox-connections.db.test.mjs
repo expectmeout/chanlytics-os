@@ -399,7 +399,7 @@ test(
 );
 
 test(
-  "D18 on a mailbox's count: a reply's no is said_no (never a hold), an unsubscribe is unsubscribed, and a no undone stops counting (00466)",
+  "D18 on a mailbox's count: a reply's no is said_no (never a hold), an unsubscribe is unsubscribed (and takes the person's no), and a no undone stops counting (00466)",
   { skip },
   async () => {
     const box = await mailboxRow();
@@ -444,9 +444,10 @@ test(
     assert.deepEqual(await noes(), [1, 0], "an unsubscribe counts as unsubscribed");
     ok(await marketing(p, "opted_out", "reply", { p_message_id: first }));
     assert.deepEqual(await noes(), [1, 1], "a no said again after its undo counts again");
-    // Already opted out, a person's unsubscribe writes no change (00220): they stay counted by the no they said.
+    // An unsubscribe after a reply's no makes the no the unsubscribe's (set_email_marketing): the person counts once,
+    // as unsubscribed, and so toward the hold.
     ok(await marketing(p, "opted_out", "unsubscribe", { p_message_id: third }));
-    assert.deepEqual(await noes(), [1, 1], "one person, counted once, by how they first said it");
+    assert.deepEqual(await noes(), [2, 0], "one person, counted once, by the unsubscribe that made their no its own");
   },
 );
 

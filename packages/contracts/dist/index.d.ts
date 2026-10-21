@@ -6753,7 +6753,7 @@ interface MailboxCounts {
     blocked: number;
     complained: number;
     unsubscribed: number;
-    /** People who replied no: told, never held on (a reply helps a mailbox's standing). */
+    /** Who replied no and unsubscribed from none of its emails: told, never held on (a reply helps its standing). */
     said_no: number;
 }
 /**

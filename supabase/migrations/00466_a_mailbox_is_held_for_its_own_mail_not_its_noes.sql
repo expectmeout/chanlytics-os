@@ -5,7 +5,8 @@
 --
 --   unsubscribed   counted a person who unsubscribed AND one who replied no. A polite "no thanks" is a reply, and a
 --                  reply helps a mailbox's standing; five of them held a working mailbox. It now counts unsubscribes
---                  alone, and the noes are `said_no`, said on the page and never held on.
+--                  alone, and the noes are `said_no`, said on the page and never held on. A person who said no and
+--                  then pressed the link is the unsubscribe's, as the door records it (set_email_marketing).
 --   bounced        counted a permanent bounce only, and every 5.x.x was permanent, so a receiving server refusing the
 --                  SENDER (5.7.x: spam, reputation, SPF, DKIM, DMARC, policy) suppressed a lead who did nothing wrong.
 --                  The edge now files such a refusal as kind 'blocked' (channels mailbox-read.ts bounceClassOf): it
@@ -61,12 +62,15 @@ as $$
     'complained', (
       select count(*) from ours
        where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
-    -- A person counts once, however many of the window's emails their unsubscribes name.
+    -- A person counts once, however many of the window's emails their noes name, and an unsubscribe of theirs makes
+    -- their no an unsubscribe: the door's own rule (set_email_marketing: a reply's no an unsubscribe follows is the
+    -- unsubscribe's), so a person who said no and then pressed the link counts toward the hold.
     'unsubscribed', (select count(distinct subject_id) from noes where source = 'unsubscribe'),
-    'said_no', (select count(distinct subject_id) from noes where source = 'reply'))
+    'said_no', (select count(distinct n.subject_id) from noes n where n.source = 'reply'
+                  and not exists (select 1 from noes u where u.subject_id = n.subject_id and u.source = 'unsubscribe')))
 $$;
 
 revoke all on function public.mailbox_connection_counts(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.mailbox_connection_counts(uuid, timestamptz) to service_role;
 comment on function public.mailbox_connection_counts(uuid, timestamptz) is
-  'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
+  'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
