@@ -124,6 +124,7 @@ export {
   supportSentence,
   supportQuietWords,
   supportWorkspaceOf,
+  firstNameOfAddress,
 } from "./support-queue";
 export type {
   SupportWaitVM,

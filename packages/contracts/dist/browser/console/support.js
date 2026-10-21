@@ -106,22 +106,36 @@ export const SUPPORT_TOPICS = [
   "whatsapp",
   "forwarding",
   "line",
+  "email",
   "calendar",
-  "billing",
-  "language",
+  "conversations",
+  "answers",
   "facts",
+  "language",
+  "campaigns",
+  "leads",
+  "people",
+  "reviews",
   "team",
+  "billing",
   "other"
 ];
 export const SUPPORT_TOPIC_WORDS = {
   whatsapp: "WhatsApp",
   forwarding: "Forwarding",
   line: "A line or number",
+  email: "Email",
   calendar: "Calendar",
-  billing: "Billing",
-  language: "Language",
+  conversations: "Inbox and handing over",
+  answers: "How it answers",
   facts: "Hours and prices",
+  language: "Language",
+  campaigns: "Campaigns",
+  leads: "Leads",
+  people: "People and lists",
+  reviews: "Reviews",
   team: "Team and alerts",
+  billing: "Billing",
   other: "Other"
 };
 const TOPIC_MATCH = [
@@ -135,13 +149,26 @@ const TOPIC_MATCH = [
     /forward|ring\s?central|vonage|8x8|phone system|voicemail|calls? (go|ring|come)|keep my (own |current )?number/i
   ],
   ["language", /spanish|español|espanol|french|portuguese|chinese|language|translat|bilingual|english/i],
-  ["line", /\bline\b|phone number|\bnumber\b|\bport(ing)?\b|carrier|\bsms\b|\btext(s|ing)?\b|10dlc|a2p|campaign/i],
-  ["calendar", /calendar|appointment|\bbook(ing|ed|s)?\b|schedul|availability|google cal|outlook/i],
+  [
+    "campaigns",
+    /campaign(?! (registration|approval|vetting))|sequence|broadcast|follow[- ]?ups?|\bdrip\b|newsletter|\bblast\b/i
+  ],
+  ["line", /\bline\b|phone number|\bnumber\b|\bport(ing)?\b|carrier|\bsms\b|\btext(s|ing)?\b|10dlc|a2p|registration/i],
+  ["calendar", /calendar|appointment|\bbook(ing|ed|s)?\b|schedul|availability|google cal/i],
+  ["team", /\bteam\b|staff|invite|member|alert|notif|\bbell\b|hand ?off|escalat|who gets/i],
+  ["email", /\bemails?\b|mailbox|gmail|outlook|smtp|\bdomain\b/i],
+  ["leads", /\bleads?\b|finder|prospect|find (new )?(businesses|customers|clients)/i],
+  ["reviews", /\breviews\b|review (link|request)|\bratings?\b|\bstars?\b|business profile/i],
+  ["people", /\bpeople\b|contacts?\b|\bimport|\bcsv\b|spreadsheet|\blists?\b|pipeline|\bdeals?\b/i],
+  ["conversations", /\binbox\b|conversation|\bthread|take (it )?over|took over|hand(ed)? (it )?back|\bheld\b|on hold/i],
   [
     "facts",
     /\bhours\b|\bopen(ing)?\b|\bclosed?\b|price|pricing|\bcost|services?\b|\bmenu\b|address|location|\bfaq|facts/i
   ],
-  ["team", /\bteam\b|staff|invite|member|alert|notif|\bbell\b|hand ?off|escalat|who gets/i]
+  [
+    "answers",
+    /autonomy|greeting|\bvoice\b|\btone\b|personality|on its own|without asking|approv|\bsounds?\b|how it (answers|replies|talks)/i
+  ]
 ];
 const TOPIC_OF_PAGE = { calendar: "calendar" };
 export function supportTopicOf(words, page, kind) {
@@ -256,14 +283,23 @@ export const SUPPORT_WORDS = {
   failed: "the queue",
   pick: "Open a row to answer it.",
   from: "From",
-  workspaceCard: "Their workspace",
+  workspaceCard: "Workspace",
+  facts: { plan: "Plan", answering: "Answering", texting: "Texting", heard: "Heard from" },
+  setupDone: (done, total) => `Setup ${done} of ${total} done`,
+  setupNext: (step) => `Next: ${step}`,
+  setupAll: "Every step of their Setup is done.",
+  setupFailed: "Their Setup couldn't be read just now.",
+  notYet: "not yet",
+  sentFrom: (page) => `Sent from ${page}`,
+  copy: "Copy",
+  copyAddress: "Copy address",
   nobodyHasIt: "Nobody has it",
   openSetup: "Open its Setup",
   openWorkspace: "Open the workspace",
   howToHelp: "How to help",
   checkFirst: "Check first",
-  reply: "Reply, filled in",
-  replyNote: "Copied, never sent from here",
+  reply: "Reply",
+  replyNote: "Their name is filled in. Copy it into the inbox: nothing is sent from the Console.",
   alsoSent: "Also sent",
   doneWhen: "Done when",
   answerInInbox: "Answer in the inbox",

@@ -215,11 +215,51 @@ function firstAnswers(acts: readonly SupportActDto[]): Map<string, number> {
   return out;
 }
 
-/** Who sent it, in one line: "Dana Kim, Owner", else their address, else that they were signed out. */
+/** Who sent it, in one line: "Dana Kim, Owner", else their address with their role, else that they were signed out. */
 function whoLine(who: SupportWhoDto | null, email: string | null): string {
   const role = who?.role ? (roleWords(who.role) ?? null) : null;
-  if (who?.name) return role ? `${who.name}, ${role}` : who.name;
-  return email ?? "Someone signed out";
+  const named = who?.name || email;
+  if (!named) return "Someone signed out";
+  return role ? `${named}, ${role}` : named;
+}
+
+/** The parts of an address that name a desk, not a person: "info@" is nobody's first name. */
+const DESK_WORDS = new Set([
+  "info",
+  "hello",
+  "hi",
+  "hey",
+  "contact",
+  "admin",
+  "support",
+  "team",
+  "office",
+  "sales",
+  "booking",
+  "bookings",
+  "frontdesk",
+  "reception",
+  "mail",
+  "email",
+  "enquiries",
+  "inquiries",
+  "help",
+  "service",
+  "billing",
+  "accounts",
+  "owner",
+  "manager",
+  "noreply",
+]);
+
+/**
+ * A first name from an address, where it starts with one: "ruben@" and "dana.kim@" say a name; "info@", "j@" and
+ * "x92@" do not. Only when they gave no name of their own.
+ */
+export function firstNameOfAddress(email: string | null | undefined): string | null {
+  const word = ((email ?? "").split("@")[0] ?? "").split(/[._+-]/)[0] ?? "";
+  if (!/^[a-z]{2,}$/i.test(word) || DESK_WORDS.has(word.toLowerCase())) return null;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
 const roleWords = (role: string): string | undefined =>
@@ -247,10 +287,12 @@ export interface SupportRowVM {
   workspace: string;
   /** "Dana Kim, Owner": the queue's line. */
   who: string;
-  /** Their first name for a reply; null when none was given. */
+  /** The name they gave; null when they gave none, and the panel names them by their address. */
+  name: string | null;
+  /** Their first name for a reply: from their name, else from an address that starts with one; null otherwise. */
   first: string | null;
   role: string | null;
-  /** "In it since Oct 2". */
+  /** "Member since Oct 2". */
   since: string | null;
   email: string | null;
   page: string | null;
@@ -269,6 +311,8 @@ export interface SupportRowVM {
   answered: string | null;
   /** An ask's: what finishes it. */
   doneWhen: string | null;
+  /** An ask's: whether the workspace shows it finished now; a question's is null. */
+  doneNow: boolean | null;
   /** An ask finished by hand, since nothing the Console reads records it. */
   byHand: boolean;
   /** A question the inbox does not have, and why. */
@@ -300,7 +344,7 @@ function sentWords(atMs: number, nowMs: number, zone: string, theirs: string | n
 
 const sinceWords = (iso: string | null, zone: string, nowMs: number): string | null => {
   const at = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(at) ? `In it since ${clockDate(at, zone, nowMs)}` : null;
+  return Number.isFinite(at) ? `Member since ${clockDate(at, zone, nowMs)}` : null;
 };
 
 /**
@@ -353,7 +397,8 @@ export function supportQueueOf(book: SupportBookDto, p: { me: string; nowMs: num
         slug: r.slug,
         workspace: r.name ?? "No workspace",
         who: whoLine(r.who, r.email),
-        first: firstName(r.who?.name),
+        name: r.who?.name || null,
+        first: firstName(r.who?.name) ?? firstNameOfAddress(r.email),
         role: r.who?.role ? (roleWords(r.who.role) ?? null) : null,
         since: sinceWords(r.who?.since ?? null, p.zone, p.nowMs),
         email: r.email,
@@ -368,6 +413,7 @@ export function supportQueueOf(book: SupportBookDto, p: { me: string; nowMs: num
         answeredAtMs: s.at,
         answered: answeredLine(r.id, at),
         doneWhen: null,
+        doneNow: null,
         byHand: false,
         unmailed: unmailedOf(r),
         error: errorWordsOf(r),
@@ -401,7 +447,8 @@ export function supportQueueOf(book: SupportBookDto, p: { me: string; nowMs: num
       slug: a.slug,
       workspace: a.name,
       who: whoLine(a.who, a.email),
-      first: firstName(a.who?.name),
+      name: a.who?.name || null,
+      first: firstName(a.who?.name) ?? firstNameOfAddress(a.email),
       role: a.who?.role ? (roleWords(a.who.role) ?? null) : null,
       since: sinceWords(a.who?.since ?? null, p.zone, p.nowMs),
       email: a.email,
@@ -416,6 +463,7 @@ export function supportQueueOf(book: SupportBookDto, p: { me: string; nowMs: num
       answeredAtMs: s.at,
       answered: answeredLine(a.id, at),
       doneWhen: sign.words,
+      doneNow: sign.done,
       byHand: sign.byHand,
       unmailed: null,
       error: null,

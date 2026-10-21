@@ -121,8 +121,41 @@ function firstAnswers(acts) {
 }
 function whoLine(who, email) {
   const role = who?.role ? roleWords(who.role) ?? null : null;
-  if (who?.name) return role ? `${who.name}, ${role}` : who.name;
-  return email ?? "Someone signed out";
+  const named = who?.name || email;
+  if (!named) return "Someone signed out";
+  return role ? `${named}, ${role}` : named;
+}
+const DESK_WORDS = /* @__PURE__ */ new Set([
+  "info",
+  "hello",
+  "hi",
+  "hey",
+  "contact",
+  "admin",
+  "support",
+  "team",
+  "office",
+  "sales",
+  "booking",
+  "bookings",
+  "frontdesk",
+  "reception",
+  "mail",
+  "email",
+  "enquiries",
+  "inquiries",
+  "help",
+  "service",
+  "billing",
+  "accounts",
+  "owner",
+  "manager",
+  "noreply"
+]);
+export function firstNameOfAddress(email) {
+  const word = ((email ?? "").split("@")[0] ?? "").split(/[._+-]/)[0] ?? "";
+  if (!/^[a-z]{2,}$/i.test(word) || DESK_WORDS.has(word.toLowerCase())) return null;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 const roleWords = (role) => ROLES.includes(role) ? ROLE_SAYS[role].label : void 0;
 const firstName = (name) => (name ?? "").trim().split(/\s+/)[0] || null;
@@ -134,7 +167,7 @@ function sentWords(atMs, nowMs, zone, theirs) {
 }
 const sinceWords = (iso, zone, nowMs) => {
   const at = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(at) ? `In it since ${clockDate(at, zone, nowMs)}` : null;
+  return Number.isFinite(at) ? `Member since ${clockDate(at, zone, nowMs)}` : null;
 };
 export function supportQueueOf(book, p) {
   const marks = lastMarks(book.acts);
@@ -173,7 +206,8 @@ export function supportQueueOf(book, p) {
       slug: r.slug,
       workspace: r.name ?? "No workspace",
       who: whoLine(r.who, r.email),
-      first: firstName(r.who?.name),
+      name: r.who?.name || null,
+      first: firstName(r.who?.name) ?? firstNameOfAddress(r.email),
       role: r.who?.role ? roleWords(r.who.role) ?? null : null,
       since: sinceWords(r.who?.since ?? null, p.zone, p.nowMs),
       email: r.email,
@@ -188,6 +222,7 @@ export function supportQueueOf(book, p) {
       answeredAtMs: s.at,
       answered: answeredLine(r.id, at),
       doneWhen: null,
+      doneNow: null,
       byHand: false,
       unmailed: unmailedOf(r),
       error: errorWordsOf(r)
@@ -216,7 +251,8 @@ export function supportQueueOf(book, p) {
       slug: a.slug,
       workspace: a.name,
       who: whoLine(a.who, a.email),
-      first: firstName(a.who?.name),
+      name: a.who?.name || null,
+      first: firstName(a.who?.name) ?? firstNameOfAddress(a.email),
       role: a.who?.role ? roleWords(a.who.role) ?? null : null,
       since: sinceWords(a.who?.since ?? null, p.zone, p.nowMs),
       email: a.email,
@@ -231,6 +267,7 @@ export function supportQueueOf(book, p) {
       answeredAtMs: s.at,
       answered: answeredLine(a.id, at),
       doneWhen: sign.words,
+      doneNow: sign.done,
       byHand: sign.byHand,
       unmailed: null,
       error: null

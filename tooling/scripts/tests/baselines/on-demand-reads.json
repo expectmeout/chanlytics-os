@@ -92,7 +92,7 @@
   },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]": {
     "kind": "on-open",
-    "fresh": "Read as a workspace's Setup and lines tab opens in the Console, and again after a line's act.",
+    "fresh": "Read as a workspace's Setup and lines tab opens in the Console, and again after a line's act; and as a row opens in Support, for its Setup's progress.",
     "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
   },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/workspaces/[slug]": {
