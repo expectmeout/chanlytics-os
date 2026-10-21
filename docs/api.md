@@ -1274,6 +1274,8 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `provider` | one of `"google"`, `"microsoft"` | yes |  |
+| `mailbox_id` | string (uuid) | no |  |
+| `admin` | one of `"1"` | no |  |
 
 ## mailboxes
 

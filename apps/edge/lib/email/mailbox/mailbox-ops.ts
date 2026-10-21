@@ -7,7 +7,9 @@
  * bytes) and asks who is knocking (authorizeAdmin); everything after is here.
  *
  *   { op: "readiness" }                                     → which providers this deployment offers, and their public half
- *   { op: "connect", tenant_id, user_id, provider, code }   → the grant exchanged and checked, the mailbox's row
+ *   { op: "connect", tenant_id, user_id, provider, code, mailbox_id? }
+ *                                                           → the grant exchanged and checked, the mailbox's row (a
+ *                                                             Reconnect's mailbox_id: that mailbox's account or none)
  *   { op: "remove" | "pause" | "unpause" | "resume" | "check" | "test", tenant_id, mailbox_id }
  *   { op: "settings", tenant_id, mailbox_id, from_name?, signature?, daily_cap? }
  *
@@ -60,7 +62,12 @@ function connectRefused(why: ConnectError): Response {
       return json(400, { ok: false, error: "no_refresh_token", reason: why });
     case "free_mail":
       return json(400, { ok: false, error: "free_mail", reason: why });
+    // Who the grant is would not do: the code is one, the reason says which (contracts MAILBOX_CONNECT_WORDS).
     case "no_address":
+    case "unverified":
+    case "not_workspace":
+    case "no_mailbox":
+    case "wrong_account":
       return json(400, { ok: false, error: "no_account", reason: why });
     case "taken":
       return json(409, { ok: false, error: "mailbox_taken", reason: why });
@@ -79,7 +86,10 @@ async function connectOp(p: MailboxPorts, tenantId: string, by: string | null, b
   const code = stringOf(body.code);
   if (!(MAILBOX_PROVIDERS as readonly string[]).includes(provider) || !code || code.length > 4_096)
     return refuse(400, "bad_request", "provider and code are required");
-  const out = await mailboxConnect(p, { tenantId, userId: by, provider, code });
+  // A Reconnect names the mailbox it is for (the dashboard's signed state carried it there and back).
+  const reconnecting = stringOf(body.mailbox_id);
+  if (reconnecting && !UUID.test(reconnecting)) return refuse(400, "bad_request", "mailbox_id is a mailbox's id");
+  const out = await mailboxConnect(p, { tenantId, userId: by, provider, code, mailboxId: reconnecting || null });
   if (out.ok) {
     const row = await mailboxConnectionOf(p.db, tenantId, out.id);
     return json(200, { ok: true, made: out.made, mailbox: row ? mailboxConnectionDtoOf(row) : null });

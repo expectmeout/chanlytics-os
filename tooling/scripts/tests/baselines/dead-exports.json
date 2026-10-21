@@ -62,7 +62,7 @@
   "apps/edge/lib/playbooks.ts": 1,
   "apps/edge/lib/reach-out/check-one.ts": 5,
   "apps/edge/lib/reach-out/check.ts": 10,
-  "apps/edge/lib/reach-out/clock.ts": 5,
+  "apps/edge/lib/reach-out/clock.ts": 4,
   "apps/edge/lib/reach-out/preview.ts": 1,
   "apps/edge/lib/reach-out/replan.ts": 1,
   "apps/edge/lib/reach-out/request.ts": 1,

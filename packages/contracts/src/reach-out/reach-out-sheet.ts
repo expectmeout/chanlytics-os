@@ -4,7 +4,7 @@
  * numbers in; a count the database does not hold is never said (interested and booked are counted since 00241, Part 6).
  */
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
-import { mailboxDailyCap } from "../email/mailbox-connections";
+import { mailboxDailyCap } from "../email/mailbox-standing";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.

@@ -332,3 +332,41 @@ test("Before each batch, picked, reaches the change door as the sequence's own m
   assert.ok(put(), "one change, at the campaign's own door");
   assert.deepEqual(put()[2], { name: rec.sequence.name, mode: "ask" });
 });
+
+test("Sends from says what is saved: the mailboxes kept in sight while chosen with none sending, and a mailbox offered once one is", () => {
+  const pickOf = (chain) => {
+    // Each case its own tree: a chain read again is taken on the next draw, never the one drawn now.
+    unmount();
+    fresh();
+    const rec = recOf(chainOf(chain));
+    const tree = sheetOf(again(() => W.React.createElement(Runs, { rec })));
+    return {
+      pick: byTestId(tree, "ld-runs-from-pick"),
+      note: byTestId(tree, "ld-runs-from-note"),
+      day: byTestId(tree, "ld-runs-day"),
+      tree,
+    };
+  };
+  // Saved to send from the mailboxes, none connected: not shown as the inbox it is not; nothing goes, and it says so.
+  const none = pickOf({ owner_sends: false, mailboxes: [] });
+  assert.equal(none.pick.props.value, "mailboxes");
+  assert.deepEqual(
+    none.pick.props.groups[0].options.map((o) => o.label),
+    ["Your inbox · you send", "Your mailboxes · none yet"],
+  );
+  assert.match(textOf(none.note), /No mailbox sends now, so nothing goes/);
+  assert.match(textOf(none.day), /None until a mailbox sends/);
+  assert.doesNotMatch(textOf(none.day), /You send each/, "never the owner's pace for a chain they do not send");
+  // The owner sends, and a mailbox is connected now: it is offered, and said once.
+  const box = { address: "sam@getharbor.example", sent_days: 9, daily_cap: 40, customer_domain: false };
+  const switchable = pickOf({ owner_sends: true, mailboxes: [box] });
+  assert.equal(switchable.pick.props.value, "inbox");
+  assert.match(textOf(switchable.note), /Your mailbox is connected: choose it to send these for you/);
+  // The owner sends, with none connected: one choice, nothing to say.
+  const plain = pickOf({ owner_sends: true, mailboxes: [] });
+  assert.deepEqual(
+    plain.pick.props.groups[0].options.map((o) => o.value),
+    ["inbox"],
+  );
+  assert.equal(plain.note ?? null, null);
+});

@@ -1,4 +1,4 @@
-import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-connections.js";
+import { mailboxDailyCap, mailboxRampShare, MAILBOX_RAMP } from "../email/mailbox-standing.js";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX
 } from "./reach-out-dtos.js";

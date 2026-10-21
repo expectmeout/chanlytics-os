@@ -7,15 +7,18 @@
  *                   an unknown outcome is the caller's (deliver: outcome unknown, the clock reads it back).
  *   gmailThreadOf   the thread of an email by its Message-ID (q=rfc822msgid:), so a nudge goes in its parent's thread.
  *   gmailSentIds    a sent message's own Message-ID header, as Gmail kept it.
- *   gmailProfile    the address and the history cursor now.
- *   gmailHistory    what was added to the inbox since a cursor: message ids and their threads, never their words.
+ *   gmailProfile    the address and the history cursor now; a mailbox with no Gmail answers 400 failedPrecondition.
+ *   gmailHistory    what was added to the mailbox since a cursor: message ids and their threads, never their words.
  *   gmailMessage    one message in full, for a thread the product started.
- *   gmailWatch      the inbox's changes published to the Pub/Sub topic; it lapses after seven days unless renewed.
+ *   gmailReports    the delivery reports received since a time, by who wrote them (ids alone).
+ *   gmailFindSent   whether an email whose send's outcome was unknown is in what the mailbox sent.
+ *   gmailWatch      the mailbox's changes published to the Pub/Sub topic; it lapses after seven days unless renewed.
  *   gmailStop       the watch ended, when the mailbox is removed.
  */
+import { DAY_MS } from "@chanlytics/contracts";
 import { b64url } from "../google/google-oauth";
 import { providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
-import { MAILBOX_READ_MS } from "./mailbox-read";
+import { FIND_SENT_LOOKS, FIND_SENT_SLACK_MS, MAILBOX_READ_MS, type FoundSent } from "./mailbox-read";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** A send's bound: Gmail answers a send in a second or two; a send past this is unknown, never repeated blind. */
@@ -36,16 +39,26 @@ function gmailReasonOf(r: Pick<ProviderReply, "json">): string | null {
 }
 
 /**
- * Whether a refusal is the mailbox's own day used up (Gmail's sending limits): the mailbox rests until tomorrow, and
- * its sends wait. `rateLimitExceeded` alone is a pace (the next tick sends), never a day.
+ * Whether a refusal is the mailbox's own day used up (Gmail's sending limits): the mailbox rests until the time Gmail
+ * names, and its sends wait. Gmail says it as a 429 whose words end "(Mail sending)"; the same "User-rate limit
+ * exceeded" without them is a pace of requests (the next tick sends), never a day.
  */
 export function gmailDayUsed(r: Pick<ProviderReply, "status" | "json" | "text">): boolean {
   const reason = gmailReasonOf(r) ?? "";
-  return (
-    reason === "dailyLimitExceeded" ||
-    reason === "userRateLimitExceeded" ||
-    /daily user sending limit exceeded|user-rate limit exceeded/i.test(r.text)
-  );
+  return reason === "dailyLimitExceeded" || /\(mail sending\)|daily user sending limit exceeded/i.test(gmailWordsOf(r));
+}
+
+/** When a mailbox whose day Gmail used up sends again: the "Retry after" time Gmail names, else a day on. */
+export function gmailRestUntil(r: Pick<ProviderReply, "json" | "text">, nowMs: number): number {
+  const at = Date.parse(/retry after (\d{4}-\d\d-\d\dT[\d:.]+Z)/i.exec(gmailWordsOf(r))?.[1] ?? "");
+  // Gmail's sending day is a rolling one: with no time named, it turns over a day on.
+  return Number.isFinite(at) && at > nowMs ? at : nowMs + DAY_MS;
+}
+
+/** Gmail's words for a refusal: its error's message, else the body as it came. */
+function gmailWordsOf(r: Pick<ProviderReply, "json" | "text">): string {
+  const message = (r.json as { error?: { message?: unknown } } | null)?.error?.message;
+  return typeof message === "string" ? `${message} ${r.text ?? ""}` : (r.text ?? "");
 }
 
 /** Whether the grant is gone (revoked, expired for good, the account suspended): the owner connects it again. */
@@ -141,14 +154,25 @@ export async function gmailProfile(token: string, deps?: Deps): Promise<Provider
   );
 }
 
+/**
+ * Whether Gmail said the account has no mailbox: a Google account that is not a Gmail one (or one whose Gmail is
+ * switched off) answers 400 failedPrecondition ("Mail service not enabled"). Gmail says the same now and then of a
+ * mailbox that has one, so a caller asks twice before it believes it.
+ */
+export function gmailNoMailbox(r: Pick<ProviderReply, "status" | "json">): boolean {
+  return r.status === 400 && /failedPrecondition|FAILED_PRECONDITION/.test(gmailReasonOf(r) ?? "");
+}
+
 /** What history said: the messages added since the cursor, with their threads, and the cursor to read from next. */
 export type GmailHistory =
   | { ok: true; added: Array<{ id: string; threadId: string }>; next: string | null; nextPage: string | null }
   | { ok: false; expired: boolean; reply: ProviderReply };
 
 /**
- * The messages added to the inbox since `startHistoryId`, a page at a time. A cursor Gmail no longer keeps (404) is
- * `expired`: the caller starts again from the profile's cursor, after reading the threads it knows directly.
+ * The messages added to the mailbox since `startHistoryId`, a page at a time, under any label: a reply a filter filed
+ * away, or one Gmail took for spam, is a reply all the same (the caller reads only threads a reach-out started). A
+ * cursor Gmail no longer keeps (404) is `expired`: the caller starts again from the profile's cursor, after reading the
+ * threads it knows directly.
  */
 export async function gmailHistory(
   token: string,
@@ -159,7 +183,6 @@ export async function gmailHistory(
   const q = new URLSearchParams({
     startHistoryId,
     historyTypes: "messageAdded",
-    labelId: "INBOX",
     maxResults: "100",
   });
   if (pageToken) q.set("pageToken", pageToken);
@@ -199,7 +222,10 @@ export async function gmailMessage(token: string, id: string, deps?: Deps): Prom
   );
 }
 
-/** The inbox's changes, published to the topic: the history cursor it starts from, and when it lapses (epoch ms). */
+/**
+ * The mailbox's changes, published to the topic, under every label (as the history read is): the history cursor it
+ * starts from, and when it lapses (epoch ms).
+ */
 export async function gmailWatch(
   token: string,
   topic: string,
@@ -211,7 +237,7 @@ export async function gmailWatch(
     {
       method: "POST",
       headers: auth(token, true),
-      body: JSON.stringify({ topicName: topic, labelIds: ["INBOX"], labelFilterBehavior: "include" }),
+      body: JSON.stringify({ topicName: topic }),
       timeoutMs: MAILBOX_READ_MS,
       idempotent: true,
       tries: 2,
@@ -222,6 +248,99 @@ export async function gmailWatch(
   const exp = Number(j?.expiration);
   if (r.outcome !== "ok" || typeof j?.historyId !== "string" || !Number.isFinite(exp)) return { ok: false, reply: r };
   return { ok: true, historyId: j.historyId, expiresAt: exp };
+}
+
+/**
+ * The delivery reports the mailbox received since `afterSec` (epoch seconds), spam included (Google files some there),
+ * as ids alone: a report that sits outside the thread of the email it is about is found by who wrote it, never by
+ * its thread. Throws when Gmail could not be asked.
+ */
+export async function gmailReports(token: string, afterSec: number, deps?: Deps): Promise<Array<{ id: string }>> {
+  const q = new URLSearchParams({
+    q: `from:(mailer-daemon OR postmaster) after:${Math.max(0, Math.floor(afterSec))}`,
+    includeSpamTrash: "true",
+    maxResults: "100",
+  });
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API}/messages?${q.toString()}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  if (r.outcome !== "ok") throw new Error(`gmail reports: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+  const list = (r.json as { messages?: Array<{ id?: unknown }> } | null)?.messages ?? [];
+  return list.flatMap((m) => (typeof m.id === "string" ? [{ id: m.id }] : []));
+}
+
+/** A message's headers by lower-case name, as Gmail's metadata read gives them. */
+async function gmailHeadersOf(
+  token: string,
+  id: string,
+  names: readonly string[],
+  deps?: Deps,
+): Promise<{ threadId: string | null; headers: Record<string, string> }> {
+  const q = new URLSearchParams({ format: "metadata" });
+  for (const n of names) q.append("metadataHeaders", n);
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API}/messages/${encodeURIComponent(id)}?${q.toString()}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  if (r.outcome !== "ok") throw new Error(`gmail get: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+  const j = r.json as {
+    threadId?: unknown;
+    payload?: { headers?: Array<{ name?: unknown; value?: unknown }> };
+  } | null;
+  const headers: Record<string, string> = {};
+  for (const h of j?.payload?.headers ?? [])
+    if (typeof h.name === "string" && typeof h.value === "string") headers[h.name.toLowerCase()] = h.value;
+  return { threadId: typeof j?.threadId === "string" ? j.threadId : null, headers };
+}
+
+const bare = (id: string | null | undefined): string => (id ?? "").trim().replace(/^<|>$/g, "").toLowerCase();
+
+/**
+ * Whether the mailbox sent an email whose send's outcome was unknown (a timeout after Gmail may have taken it): by the
+ * Message-ID it was sent under, then among what it sent to that address since, by that Message-ID kept as Gmail's
+ * "original" (Gmail may put its own in its place) or by its subject. Found or not; throws when Gmail could not be
+ * asked, and the caller looks again later.
+ */
+export async function gmailFindSent(
+  token: string,
+  want: { messageId: string; to: string; subject: string | null; sinceMs: number },
+  deps?: Deps,
+): Promise<FoundSent> {
+  const minted = bare(want.messageId);
+  const list = async (q: string) => {
+    const p = new URLSearchParams({ q, maxResults: String(FIND_SENT_LOOKS) });
+    const r = await providerFetch(
+      "google",
+      `${GMAIL_API}/messages?${p.toString()}`,
+      { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+      deps,
+    );
+    if (r.outcome !== "ok") throw new Error(`gmail list: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+    const found = (r.json as { messages?: Array<{ id?: unknown }> } | null)?.messages ?? [];
+    return found.flatMap((m) => (typeof m.id === "string" ? [m.id] : []));
+  };
+  const names = ["Message-ID", "X-Google-Original-Message-ID", "Subject"] as const;
+  const sent = (id: string, m: { threadId: string | null; headers: Record<string, string> }): FoundSent => ({
+    found: true,
+    id,
+    threadId: m.threadId,
+    messageId: m.headers["message-id"] ?? null,
+  });
+  for (const id of await list(`rfc822msgid:<${minted}>`)) return sent(id, await gmailHeadersOf(token, id, names, deps));
+  const after = Math.floor((want.sinceMs - FIND_SENT_SLACK_MS) / 1000);
+  const subject = (want.subject ?? "").trim().toLowerCase();
+  for (const id of await list(`in:sent to:${want.to} after:${Math.max(0, after)}`)) {
+    const m = await gmailHeadersOf(token, id, names, deps);
+    const ids = [m.headers["message-id"], m.headers["x-google-original-message-id"]].map(bare);
+    if (ids.includes(minted) || (subject && (m.headers.subject ?? "").trim().toLowerCase() === subject))
+      return sent(id, m);
+  }
+  return { found: false };
 }
 
 export async function gmailStop(token: string, deps?: Deps): Promise<ProviderReply> {

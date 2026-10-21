@@ -86,6 +86,28 @@ export function mailboxAuthorizeUrl(
   return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
 }
 
+/**
+ * The link a Microsoft 365 admin opens to approve Chanlytics once for their whole organisation, where the tenant lets no
+ * member consent alone (Entra's v2 admin consent: `organizations`, since a personal account approves nothing for a
+ * tenant). It asks the same Graph scopes a member's sign-in does, and comes back to the callback with
+ * `admin_consent=True` and the state.
+ */
+export function mailboxAdminConsentUrl(
+  cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">,
+  state: string,
+): string {
+  const scope = MAILBOX_SCOPES.microsoft.map((s) =>
+    /^(openid|email|profile|offline_access)$/.test(s) ? s : `https://graph.microsoft.com/${s}`,
+  );
+  const q = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    scope: scope.join(" "),
+    state,
+  });
+  return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
+}
+
 export function mailboxTokenRequest(provider: MailboxProvider, cfg: MailboxOAuthClient, code: string): MailboxRequest {
   return {
     url: MAILBOX_TOKEN_URL[provider],

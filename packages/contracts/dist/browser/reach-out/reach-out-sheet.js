@@ -1,5 +1,5 @@
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
-import { mailboxDailyCap } from "../email/mailbox-connections.js";
+import { mailboxDailyCap } from "../email/mailbox-standing.js";
 import { nextRunLabel } from "../playbooks/playbook-schedule.js";
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/playbook-triggers.js";
 import { plural } from "../shared/words.js";

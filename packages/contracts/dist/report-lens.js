@@ -1031,34 +1031,15 @@ function toPeopleReportVM(dto) {
   };
 }
 
-// src/email/mailbox-connections.ts
-var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
-var MAILBOX_CONNECTIONS_MAX = 10;
-var MAILBOXES_PER_DOMAIN_MAX = 3;
+// src/email/mailbox-standing.ts
 var HOLD_WORDS = {
-  bounces: "more than 3% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
-  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to unsubscribed"
 };
 function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
-var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
-var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
-var MAILBOX_CONNECT_WORDS = {
-  connected: "Connected. Its ramp starts at 10 a day.",
-  reconnected: "Connected again: its emails go on where they waited.",
-  declined: "Nothing was connected: the sign-in was cancelled.",
-  scopes_missing: "Nothing was connected: send and read access are both needed. Connect again and leave both ticked.",
-  no_refresh_token: "Nothing was connected: the provider gave no lasting access. Connect again.",
-  taken: "Another workspace writes from this mailbox. Remove it there first.",
-  too_many: `A workspace writes from ${MAILBOX_CONNECTIONS_MAX} mailboxes at most. Remove one to add another.`,
-  too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
-  free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
-  not_available: "Connecting a mailbox isn't switched on here yet.",
-  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
-  failed: CONNECT_FAILED
-};
 
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [

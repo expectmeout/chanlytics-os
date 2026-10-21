@@ -17,6 +17,7 @@ import {
   gmailEmailOf,
   grantScopesMissing,
   graphEmailOf,
+  mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
   mailboxMessageId,
   mailboxRefreshRequest,
@@ -26,6 +27,7 @@ import {
   rowIdOfMessageId,
   sendFromMailbox,
 } from "@chanlytics/channels";
+import { DAY_MS } from "@chanlytics/contracts";
 import { b64url } from "./_mailbox-world.mjs";
 
 const ROW = "0f1e2d3c-4b5a-4968-8776-655443322110";
@@ -211,6 +213,63 @@ test("a refusal that is the mailbox's own day, or its grant gone, says so; any o
   assert.deepEqual([bad.ok, bad.cause], [false, undefined]);
 });
 
+test("Gmail's day is the 429 that says (Mail sending), resting until the time it names; the same words without them are a pace", async () => {
+  // A clock of the test's own, so the times Gmail names stay ahead of it whenever the suite runs.
+  const NOW = Date.parse("2026-10-20T12:00:00.000Z");
+  const send = (message) =>
+    sendFromMailbox(
+      {
+        provider: "google",
+        token: "t",
+        mailbox: { id: "m", host: "getharbor.example" },
+        request: request(),
+        now: () => NOW,
+      },
+      stub(() => ({
+        status: 429,
+        json: {
+          error: { code: 429, status: "RESOURCE_EXHAUSTED", errors: [{ reason: "rateLimitExceeded" }], message },
+        },
+      })).deps,
+    );
+  const day = await send("User-rate limit exceeded. Retry after 2026-10-21T09:26:53.594Z (Mail sending)");
+  assert.deepEqual([day.cause, day.restUntil], ["day_used", Date.parse("2026-10-21T09:26:53.594Z")]);
+  const pace = await send("User-rate limit exceeded. Retry after 2026-10-20T15:00:20.000Z");
+  assert.deepEqual([pace.cause, pace.restUntil], [undefined, undefined], "a burst is the next tick's, never a day");
+  const named = await send("User-rate limit exceeded (Mail sending)");
+  assert.equal(named.cause, "day_used");
+  assert.equal(named.restUntil, NOW + DAY_MS, "no time named: a rolling day on");
+});
+
+test("through Graph: a send Graph refused deletes the draft it made, so the business's Drafts keep no half-sent email", async () => {
+  const p = stub((url, init) => {
+    if (url.endsWith("/me/messages")) return { status: 201, json: { id: "AAMk-9", internetMessageId: "<x@y>" } };
+    if (url.endsWith("/AAMk-9/send")) return { status: 400, json: { error: { code: "ErrorInvalidRecipients" } } };
+    if (url.endsWith("/me/messages/AAMk-9") && init.method === "DELETE") return { status: 204, text: "" };
+    return { status: 404 };
+  });
+  const out = await sendFromMailbox(
+    { provider: "microsoft", token: "eyJ.t", mailbox: { id: "mbx-2", host: "getharbor.example" }, request: request() },
+    p.deps,
+  );
+  assert.equal(out.ok, false);
+  assert.ok(
+    p.calls.some((c) => c.url.endsWith("/me/messages/AAMk-9") && c.init.method === "DELETE"),
+    "the draft is deleted",
+  );
+});
+
+test("an admin's link: Entra's v2 admin consent for work accounts, the same Graph scopes, back to the one callback", () => {
+  const u = new URL(mailboxAdminConsentUrl(CLIENT, "state-a"));
+  assert.equal(u.origin + u.pathname, "https://login.microsoftonline.com/organizations/v2.0/adminconsent");
+  assert.deepEqual(
+    [u.searchParams.get("client_id"), u.searchParams.get("redirect_uri"), u.searchParams.get("state")],
+    [CLIENT.clientId, CLIENT.redirectUri, "state-a"],
+  );
+  assert.match(u.searchParams.get("scope"), /https:\/\/graph\.microsoft\.com\/Mail\.Send/);
+  assert.match(u.searchParams.get("scope"), /offline_access/);
+});
+
 test("a reply read back from Gmail and from Graph is the intake's email, with its thread beside it; neither proves a sender", () => {
   const g = gmailEmailOf({
     id: "g-9",
@@ -305,4 +364,52 @@ test("a delivery report is read for the email of ours it is about: the row in th
     null,
     "a person's reply is no report",
   );
+});
+
+test("a bounce is read by whose fault it is: a dead address is hard, a server refusing the sender is blocked, the sender's own quota is its limit, a full mailbox soft", () => {
+  const report = (status, diagnostic, headers = "") => ({
+    headers: { "content-type": 'multipart/report; report-type=delivery-status; boundary="x"' },
+    from: { address: "mailer-daemon@googlemail.com", name: "Mail Delivery Subsystem" },
+    subject: "Delivery Status Notification (Failure)",
+    text: "Your message wasn't delivered.",
+    reportText: `Final-Recipient: rfc822; office@fixture-movers.example\nAction: failed\nStatus: ${status}\nDiagnostic-Code: smtp; ${diagnostic}\n${headers}`,
+  });
+  const cases = [
+    ["5.1.1", "550 5.1.1 The email account that you tried to reach does not exist.", "hard"],
+    ["5.1.10", "550 5.1.10 RESOLVER.ADR.RecipientNotFound", "hard"],
+    ["5.4.1", "550 5.4.1 Recipient address rejected: Access denied", "hard"],
+    ["5.7.1", "550 5.7.1 Our system has detected that this message is likely unsolicited mail", "blocked"],
+    ["5.7.26", "550 5.7.26 This mail has been blocked because the sender is unauthenticated", "blocked"],
+    ["5.7.509", "550 5.7.509 Access denied, sending domain does not pass DMARC verification", "blocked"],
+    ["5.4.5", "550 5.4.5 Daily user sending limit exceeded.", "sender_limit"],
+    ["5.2.0", "554 5.2.0 STOREDRV.Submission.Exception:SubmissionQuotaExceededException", "sender_limit"],
+    ["5.1.90", "550 5.1.90 Your message can't be sent because you've reached your daily limit", "sender_limit"],
+    ["5.2.2", "554 5.2.2 mailbox full; STOREDRV.Deliver.Exception:QuotaExceededException", "soft"],
+    ["5.0.0", "550 5.0.0 Something nobody named", "soft"],
+  ];
+  for (const [status, diagnostic, bounce] of cases) {
+    const r = deliveryReportOf(report(status, diagnostic));
+    assert.deepEqual(
+      [r.status, r.bounce, r.permanent],
+      [status, bounce, bounce === "hard"],
+      `${status}: ${diagnostic}`,
+    );
+  }
+  // The quoted original's own headers (DKIM, SPF, a subject about a policy) never say whose fault it was.
+  const quotedHeaders = ["DKIM-Signature: v=1; a=rsa-sha256; d=getharbor.example", "Subject: about your spam policy"];
+  const signed = deliveryReportOf(
+    report("5.0.0", "550 5.0.0 Recipient address rejected: User unknown", quotedHeaders.join("\n")),
+  );
+  assert.equal(signed.bounce, "hard");
+  const unsigned = deliveryReportOf(report("5.0.0", "550 5.0.0 Something nobody named", quotedHeaders.join("\n")));
+  assert.equal(unsigned.bounce, "soft", "its headers' words are not the server's");
+  // A dotted number in a quoted header (an address, a version) is never taken for a status.
+  const quoted = deliveryReportOf({
+    headers: {},
+    from: { address: "postmaster@outlook.com", name: null },
+    subject: "Undeliverable",
+    text: "Received: from [5.45.12.3] by relay 4.2.2.2\nSomething went wrong.",
+    reportText: null,
+  });
+  assert.deepEqual([quoted.status, quoted.bounce], [null, "soft"]);
 });

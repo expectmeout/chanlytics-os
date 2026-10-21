@@ -15,7 +15,7 @@ import { messageIdHeader } from "../email/header-values";
 import type { EmailRequest } from "../email/request";
 import type { SendResult } from "../whatsapp";
 import { buildMime, mailboxMessageId } from "./mailbox-mime";
-import { gmailDayUsed, gmailSend, gmailSentIds, gmailSignedOut, gmailThreadOf } from "./mailbox-gmail";
+import { gmailDayUsed, gmailRestUntil, gmailSend, gmailSentIds, gmailSignedOut, gmailThreadOf } from "./mailbox-gmail";
 import { graphDayUsed, graphSend, graphSignedOut } from "./mailbox-graph";
 
 type Deps = Parameters<typeof gmailSend>[4];
@@ -31,8 +31,11 @@ export interface MailboxSendInput {
   now?: () => number;
 }
 
-/** A send from a mailbox, as the door hears it, with why a refusal was the mailbox's own and not the email's. */
-export type MailboxSendResult = SendResult & { cause?: "day_used" | "signed_out" };
+/**
+ * A send from a mailbox, as the door hears it, with why a refusal was the mailbox's own and not the email's; a day used
+ * up says when it turns over, when the provider named a time (Gmail's "Retry after").
+ */
+export type MailboxSendResult = SendResult & { cause?: "day_used" | "signed_out"; restUntil?: number };
 
 export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise<MailboxSendResult> {
   const now = i.now ?? Date.now;
@@ -51,7 +54,9 @@ export async function sendFromMailbox(i: MailboxSendInput, deps?: Deps): Promise
         status: sent.status,
         errorBody: sent.error ?? "gmail_refused",
         outcome: sent.outcome,
-        ...(gmailDayUsed(sent.reply) ? { cause: "day_used" as const } : {}),
+        ...(gmailDayUsed(sent.reply)
+          ? { cause: "day_used" as const, restUntil: gmailRestUntil(sent.reply, now()) }
+          : {}),
         ...(gmailSignedOut(sent.reply) ? { cause: "signed_out" as const } : {}),
       };
     // What Gmail kept as its Message-ID; the one minted when it could not be read back, which is the one it was sent

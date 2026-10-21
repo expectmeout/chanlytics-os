@@ -2522,7 +2522,7 @@
           },
           "owner_sends": {
             "type": "boolean",
-            "description": "true hands each email to the owner to send from their own inbox."
+            "description": "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes. Leave it out to send from the mailboxes when one is connected, else by the owner."
           },
           "signed_by": {
             "type": "string",
@@ -5113,7 +5113,7 @@
           },
           "owner_sends": {
             "type": "boolean",
-            "description": "true hands each email to the owner to send from their own inbox."
+            "description": "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes. Leave it out to send from the mailboxes when one is connected, else by the owner."
           },
           "signed_by": {
             "type": "string",
@@ -7876,7 +7876,7 @@
           },
           "owner_sends": {
             "type": "boolean",
-            "description": "true hands each email to the owner to send from their own inbox."
+            "description": "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes. Leave it out to send from the mailboxes when one is connected, else by the owner."
           },
           "signed_by": {
             "type": "string",

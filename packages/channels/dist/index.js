@@ -416,14 +416,14 @@ function v4IsPublic(o) {
   return true;
 }
 function bytesOfV6(address) {
-  const bare = address.replace(/^\[|\]$/g, "").split("%")[0] ?? "";
-  if (net.isIP(bare) !== 6) return null;
-  let head = bare;
-  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(bare);
+  const bare2 = address.replace(/^\[|\]$/g, "").split("%")[0] ?? "";
+  if (net.isIP(bare2) !== 6) return null;
+  let head = bare2;
+  const tail = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(bare2);
   if (tail) {
     const o = octetsOf(tail[1] ?? "");
     if (!o) return null;
-    head = bare.slice(0, tail.index) + (o[0] << 8 | o[1]).toString(16) + ":" + (o[2] << 8 | o[3]).toString(16);
+    head = bare2.slice(0, tail.index) + (o[0] << 8 | o[1]).toString(16) + ":" + (o[2] << 8 | o[3]).toString(16);
   }
   const [left = "", right] = head.split("::");
   const groups = (s) => s ? s.split(":").filter((x) => x !== "") : [];
@@ -3021,8 +3021,8 @@ import { escapeHtml, posesAsReply } from "../../contracts/dist/index.js";
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function messageIdHeader(id) {
   const s = oneLine(id ?? "");
-  const bare = s.replace(/^<|>$/g, "");
-  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
+  const bare2 = s.replace(/^<|>$/g, "");
+  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare2) ? `<${bare2}>` : null;
 }
 function addressOf(header) {
   const s = oneLine(header ?? "");
@@ -3738,6 +3738,18 @@ function mailboxAuthorizeUrl(provider, cfg, state, loginHint) {
   if (loginHint) q.set("login_hint", loginHint);
   return `${MAILBOX_AUTH_URL[provider]}?${q.toString()}`;
 }
+function mailboxAdminConsentUrl(cfg, state) {
+  const scope = MAILBOX_SCOPES.microsoft.map(
+    (s) => /^(openid|email|profile|offline_access)$/.test(s) ? s : `https://graph.microsoft.com/${s}`
+  );
+  const q = new URLSearchParams({
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    scope: scope.join(" "),
+    state
+  });
+  return `https://login.microsoftonline.com/organizations/v2.0/adminconsent?${q.toString()}`;
+}
 function mailboxTokenRequest(provider, cfg, code) {
   return {
     url: MAILBOX_TOKEN_URL[provider],
@@ -3902,9 +3914,15 @@ function buildMime(r, p) {
   ].join(CRLF);
 }
 
+// src/mailbox/mailbox-gmail.ts
+import { DAY_MS } from "../../contracts/dist/index.js";
+
 // src/mailbox/mailbox-read.ts
+import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 var dec2 = new TextDecoder();
 var MAILBOX_READ_MS = 1e4;
+var FIND_SENT_SLACK_MS = 2 * MIN_MS3;
+var FIND_SENT_LOOKS = 3;
 function decodedText(bytes, charset) {
   try {
     return new TextDecoder(charset ?? "utf-8").decode(bytes);
@@ -3999,27 +4017,67 @@ function rowIdOfMessageId(id) {
   if (!h) return null;
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
+var SENDER_LIMIT_WORDS = /daily user sending limit|sending limit exceeded|relay (?:sending )?limit exceeded|submission ?quota|SubmissionQuotaExceeded|daily limit for message recipients|recipient rate limit|STOREDRV\.Submission/i;
+var BLOCKED_WORDS = /spam|unsolicited|reputation|block ?list|blacklist|deny ?list|blocked|banned sender|policy|not authori[sz]ed|authenticat|\bSPF\b|\bDKIM\b|\bDMARC\b|relay(?:ing)? denied|unable to relay/i;
+var HARD_WORDS = /does ?n[o']t exist|no such (?:user|mailbox|recipient)|user unknown|unknown (?:user|recipient)|recipient not found|address not found|invalid recipient|mailbox unavailable|account (?:is )?(?:disabled|inactive)|bad destination|not a valid|NonExistentDomain|domain (?:name )?(?:not found|does not exist)/i;
+var RECEIVING_TOO_FAST = /receiving mail at a rate|\brate limit/i;
+var MAILBOX_FULL_WORDS = /mailbox (?:is )?full|over ?quota|out of storage|QuotaExceededException|insufficient storage/i;
+var HARD_CODES = /* @__PURE__ */ new Set(["5.1.1", "5.1.2", "5.1.3", "5.1.6", "5.1.10", "5.7.504", "5.7.505"]);
+var SENDER_LIMIT_CODES = /* @__PURE__ */ new Set([
+  "5.1.8",
+  "5.1.90",
+  "5.4.5",
+  "5.2.121",
+  "5.7.232",
+  "5.7.233",
+  "5.7.236",
+  "5.7.705",
+  "5.7.708",
+  "5.7.750"
+]);
+function bounceClassOf(status, said) {
+  if (!status || !status.startsWith("5")) return "soft";
+  if (SENDER_LIMIT_CODES.has(status) || SENDER_LIMIT_WORDS.test(said)) return "sender_limit";
+  if (HARD_CODES.has(status)) return "hard";
+  if (status.startsWith("5.7.")) return "blocked";
+  if (MAILBOX_FULL_WORDS.test(said)) return "soft";
+  if (status === "5.4.1") return /relay access denied/i.test(said) ? "soft" : "hard";
+  if (status === "5.2.1") return RECEIVING_TOO_FAST.test(said) ? "soft" : "hard";
+  if (HARD_WORDS.test(said)) return "hard";
+  if (BLOCKED_WORDS.test(said)) return "blocked";
+  return "soft";
+}
+var REPORT_WORDS_MAX = 256e3;
+var ORIGINAL_BEGINS = /^(?:original message headers|-{2,} ?(?:original|forwarded) message|received: )/im;
+function reportRecipientOf(field, headers2) {
+  const named = field("Final-Recipient") ?? field("Original-Recipient") ?? headers2["x-failed-recipients"] ?? "";
+  return named.replace(/^rfc822;\s*/i, "").trim().toLowerCase() || null;
+}
 function deliveryReportOf(e) {
   const local = e.from?.address.split("@")[0] ?? "";
   const isReport = /multipart\/report/i.test(e.headers["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/i.test(local);
   if (!isReport) return null;
-  const words = [e.reportText ?? "", e.text ?? ""].join("\n");
+  const words = [e.reportText ?? "", e.text ?? ""].join("\n").slice(0, REPORT_WORDS_MAX);
   const field = (name) => new RegExp(`^${name}:\\s*(.+)$`, "im").exec(words)?.[1]?.trim() ?? null;
-  const quoted = /message-id:\s*(<[^<>\s]+@[^<>\s]+>)/i.exec(words)?.[1] ?? null;
+  const quoted = /message-id:\s*(<[^<>\s@]+@[^<>\s]+>)/i.exec(words)?.[1] ?? null;
   const ours = /<cl\.[0-9a-f]{32}@[^<>\s]+>/i.exec(words)?.[0] ?? null;
   const original = messageIdHeader(ours ?? quoted);
-  const recipient = (field("Final-Recipient") ?? field("Original-Recipient") ?? e.headers["x-failed-recipients"] ?? "").replace(/^rfc822;\s*/i, "").trim().toLowerCase() || null;
-  const status = field("Status")?.match(/[245]\.\d{1,3}\.\d{1,3}/)?.[0] ?? words.match(/\b[45]\.\d{1,3}\.\d{1,3}\b/)?.[0] ?? null;
+  const recipient = reportRecipientOf(field, e.headers);
   const action = (field("Action") ?? "").toLowerCase();
-  const permanent = status ? status.startsWith("5") : action === "failed";
-  const delayed = action === "delayed" || !!status && status.startsWith("4") && action !== "failed";
   const diagnostic = (field("Diagnostic-Code") ?? "").replace(/^smtp;\s*/i, "").slice(0, 300) || null;
+  const text = (e.text ?? "").slice(0, REPORT_WORDS_MAX);
+  const own = text.split(ORIGINAL_BEGINS)[0] ?? "";
+  const said = [diagnostic ?? "", own].join("\n");
+  const status = field("Status")?.match(/[245]\.\d{1,3}\.\d{1,3}/)?.[0] ?? /\b[45]\d\d[ -]#?([45]\.\d{1,3}\.\d{1,3})\b/.exec(said)?.[1] ?? null;
+  const delayed = action === "delayed" || !!status && status.startsWith("4") && action !== "failed";
+  const bounce = delayed ? "soft" : bounceClassOf(status, said);
   return {
     rowId: rowIdOfMessageId(original),
     originalMessageId: original,
     recipient,
     status,
-    permanent,
+    bounce,
+    permanent: bounce === "hard",
     delayed,
     diagnostic
   };
@@ -4039,7 +4097,15 @@ function gmailReasonOf(r) {
 }
 function gmailDayUsed(r) {
   const reason = gmailReasonOf(r) ?? "";
-  return reason === "dailyLimitExceeded" || reason === "userRateLimitExceeded" || /daily user sending limit exceeded|user-rate limit exceeded/i.test(r.text);
+  return reason === "dailyLimitExceeded" || /\(mail sending\)|daily user sending limit exceeded/i.test(gmailWordsOf(r));
+}
+function gmailRestUntil(r, nowMs) {
+  const at = Date.parse(/retry after (\d{4}-\d\d-\d\dT[\d:.]+Z)/i.exec(gmailWordsOf(r))?.[1] ?? "");
+  return Number.isFinite(at) && at > nowMs ? at : nowMs + DAY_MS;
+}
+function gmailWordsOf(r) {
+  const message = r.json?.error?.message;
+  return typeof message === "string" ? `${message} ${r.text ?? ""}` : r.text ?? "";
 }
 function gmailSignedOut(r) {
   return r.status === 401 || r.status === 403 && /insufficientPermissions|forbidden/i.test(gmailReasonOf(r) ?? "");
@@ -4102,11 +4168,13 @@ async function gmailProfile(token, deps) {
     deps
   );
 }
+function gmailNoMailbox(r) {
+  return r.status === 400 && /failedPrecondition|FAILED_PRECONDITION/.test(gmailReasonOf(r) ?? "");
+}
 async function gmailHistory(token, startHistoryId, pageToken, deps) {
   const q = new URLSearchParams({
     startHistoryId,
     historyTypes: "messageAdded",
-    labelId: "INBOX",
     maxResults: "100"
   });
   if (pageToken) q.set("pageToken", pageToken);
@@ -4146,7 +4214,7 @@ async function gmailWatch(token, topic, deps) {
     {
       method: "POST",
       headers: auth(token, true),
-      body: JSON.stringify({ topicName: topic, labelIds: ["INBOX"], labelFilterBehavior: "include" }),
+      body: JSON.stringify({ topicName: topic }),
       timeoutMs: MAILBOX_READ_MS,
       idempotent: true,
       tries: 2
@@ -4158,6 +4226,71 @@ async function gmailWatch(token, topic, deps) {
   if (r.outcome !== "ok" || typeof j?.historyId !== "string" || !Number.isFinite(exp)) return { ok: false, reply: r };
   return { ok: true, historyId: j.historyId, expiresAt: exp };
 }
+async function gmailReports(token, afterSec, deps) {
+  const q = new URLSearchParams({
+    q: `from:(mailer-daemon OR postmaster) after:${Math.max(0, Math.floor(afterSec))}`,
+    includeSpamTrash: "true",
+    maxResults: "100"
+  });
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API}/messages?${q.toString()}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  if (r.outcome !== "ok") throw new Error(`gmail reports: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+  const list = r.json?.messages ?? [];
+  return list.flatMap((m) => typeof m.id === "string" ? [{ id: m.id }] : []);
+}
+async function gmailHeadersOf(token, id, names, deps) {
+  const q = new URLSearchParams({ format: "metadata" });
+  for (const n of names) q.append("metadataHeaders", n);
+  const r = await providerFetch(
+    "google",
+    `${GMAIL_API}/messages/${encodeURIComponent(id)}?${q.toString()}`,
+    { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  if (r.outcome !== "ok") throw new Error(`gmail get: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+  const j = r.json;
+  const headers2 = {};
+  for (const h of j?.payload?.headers ?? [])
+    if (typeof h.name === "string" && typeof h.value === "string") headers2[h.name.toLowerCase()] = h.value;
+  return { threadId: typeof j?.threadId === "string" ? j.threadId : null, headers: headers2 };
+}
+var bare = (id) => (id ?? "").trim().replace(/^<|>$/g, "").toLowerCase();
+async function gmailFindSent(token, want, deps) {
+  const minted = bare(want.messageId);
+  const list = async (q) => {
+    const p = new URLSearchParams({ q, maxResults: String(FIND_SENT_LOOKS) });
+    const r = await providerFetch(
+      "google",
+      `${GMAIL_API}/messages?${p.toString()}`,
+      { headers: auth(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+      deps
+    );
+    if (r.outcome !== "ok") throw new Error(`gmail list: ${gmailReasonOf(r) ?? r.error ?? r.status}`);
+    const found = r.json?.messages ?? [];
+    return found.flatMap((m) => typeof m.id === "string" ? [m.id] : []);
+  };
+  const names = ["Message-ID", "X-Google-Original-Message-ID", "Subject"];
+  const sent = (id, m) => ({
+    found: true,
+    id,
+    threadId: m.threadId,
+    messageId: m.headers["message-id"] ?? null
+  });
+  for (const id of await list(`rfc822msgid:<${minted}>`)) return sent(id, await gmailHeadersOf(token, id, names, deps));
+  const after = Math.floor((want.sinceMs - FIND_SENT_SLACK_MS) / 1e3);
+  const subject = (want.subject ?? "").trim().toLowerCase();
+  for (const id of await list(`in:sent to:${want.to} after:${Math.max(0, after)}`)) {
+    const m = await gmailHeadersOf(token, id, names, deps);
+    const ids = [m.headers["message-id"], m.headers["x-google-original-message-id"]].map(bare);
+    if (ids.includes(minted) || subject && (m.headers.subject ?? "").trim().toLowerCase() === subject)
+      return sent(id, m);
+  }
+  return { found: false };
+}
 async function gmailStop(token, deps) {
   return providerFetch(
     "google",
@@ -4168,10 +4301,10 @@ async function gmailStop(token, deps) {
 }
 
 // src/mailbox/mailbox-graph.ts
-import { DAY_MS } from "../../contracts/dist/index.js";
+import { DAY_MS as DAY_MS2 } from "../../contracts/dist/index.js";
 var GRAPH_API = "https://graph.microsoft.com/v1.0";
 var GRAPH_SEND_MS = 15e3;
-var GRAPH_SUBSCRIPTION_MS = 6 * DAY_MS;
+var GRAPH_SUBSCRIPTION_MS = 6 * DAY_MS2;
 function base64Of(text) {
   let bin = "";
   for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b);
@@ -4209,6 +4342,18 @@ async function graphMe(token, deps) {
     name: typeof j.displayName === "string" ? j.displayName : null
   };
 }
+async function graphInbox(token, deps) {
+  return providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/mailFolders/inbox?$select=id`,
+    { headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+}
+function graphNoMailbox(r) {
+  const code = graphReasonOf(r) ?? "";
+  return r.status === 404 && /MailboxNotEnabledForRESTAPI|MailboxNotSupportedForRESTAPI|ResourceNotFound/i.test(code) || r.status === 403 && /ErrorAccessDenied/i.test(code);
+}
 async function graphSend(token, mime, p = {}, deps) {
   const bound = Math.min(GRAPH_SEND_MS, p.deadlineMs ?? GRAPH_SEND_MS);
   const draft = await providerFetch(
@@ -4243,6 +4388,8 @@ async function graphSend(token, mime, p = {}, deps) {
     { method: "POST", headers: auth2(token), timeoutMs: bound, tries: 1, breaker: "count" },
     deps
   );
+  if (sent.outcome !== "ok" && sent.outcome !== "unknown")
+    await graphDeleteMessage(token, d.id, deps).catch(() => null);
   return {
     ok: sent.outcome === "ok",
     status: sent.status,
@@ -4339,6 +4486,74 @@ async function graphRenew(token, id, nowMs, deps) {
   if (r.outcome !== "ok" || !Number.isFinite(exp)) return { ok: false, gone: r.status === 404, reply: r };
   return { ok: true, expiresAt: exp };
 }
+async function graphDeleteMessage(token, id, deps) {
+  return providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/messages/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 1 },
+    deps
+  );
+}
+async function graphList(token, path, deps) {
+  const r = await providerFetch(
+    "microsoft",
+    `${GRAPH_API}${path}`,
+    { headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  if (r.outcome !== "ok") throw new Error(`graph list: ${graphReasonOf(r) ?? r.error ?? r.status}`);
+  const value = r.json?.value;
+  return Array.isArray(value) ? value : [];
+}
+var odataString = (s) => `'${s.replace(/'/g, "''")}'`;
+var bareId = (id) => typeof id === "string" ? id.trim().replace(/^<|>$/g, "").toLowerCase() : "";
+async function graphFindSent(token, want, deps) {
+  const minted = bareId(want.messageId);
+  const select = "$select=id,conversationId,internetMessageId,isDraft,subject,toRecipients";
+  const sent = (m) => ({
+    found: true,
+    id: String(m.id),
+    threadId: typeof m.conversationId === "string" ? m.conversationId : null,
+    messageId: typeof m.internetMessageId === "string" ? m.internetMessageId : null
+  });
+  const byId = await graphList(
+    token,
+    `/me/messages?$filter=${encodeURIComponent(`internetMessageId eq ${odataString(`<${minted}>`)}`)}&${select}`,
+    deps
+  );
+  const left = byId.find((m) => typeof m.id === "string" && m.isDraft !== true);
+  if (left) return sent(left);
+  const draft = byId.find((m) => typeof m.id === "string" && m.isDraft === true);
+  if (draft) return { found: false, draftId: String(draft.id) };
+  const since = new Date(want.sinceMs - FIND_SENT_SLACK_MS).toISOString();
+  const to = want.to.toLowerCase();
+  const subject = (want.subject ?? "").trim().toLowerCase();
+  const same = (m) => typeof m.id === "string" && !!subject && typeof m.subject === "string" && m.subject.trim().toLowerCase() === subject && (m.toRecipients ?? []).some((r) => {
+    const address = r.emailAddress?.address;
+    return typeof address === "string" && address.toLowerCase() === to;
+  });
+  const recent = (field) => `$filter=${encodeURIComponent(`${field} ge ${since}`)}&$top=25&${select}`;
+  const fromSent = (await graphList(token, `/me/mailFolders/sentitems/messages?${recent("sentDateTime")}`, deps)).find(
+    same
+  );
+  return fromSent ? sent(fromSent) : { found: false };
+}
+async function graphJunkSince(token, sinceIso, deps) {
+  const filter = encodeURIComponent(`receivedDateTime ge ${sinceIso}`);
+  const r = await providerFetch(
+    "microsoft",
+    `${GRAPH_API}/me/mailFolders/junkemail/messages?$filter=${filter}&$select=id,conversationId,from&$top=50`,
+    { headers: auth2(token), timeoutMs: MAILBOX_READ_MS, idempotent: true, tries: 2 },
+    deps
+  );
+  if (r.outcome !== "ok") throw new Error(`graph junk: ${graphReasonOf(r) ?? r.error ?? r.status}`);
+  const value = r.json?.value;
+  return (Array.isArray(value) ? value : []).filter((v) => typeof v.id === "string").map((v) => ({
+    id: v.id,
+    threadId: typeof v.conversationId === "string" ? v.conversationId : null,
+    from: typeof v.from?.emailAddress?.address === "string" ? v.from.emailAddress.address.toLowerCase() : null
+  }));
+}
 async function graphUnsubscribe(token, id, deps) {
   return providerFetch(
     "microsoft",
@@ -4364,7 +4579,7 @@ async function sendFromMailbox(i, deps) {
         status: sent2.status,
         errorBody: sent2.error ?? "gmail_refused",
         outcome: sent2.outcome,
-        ...gmailDayUsed(sent2.reply) ? { cause: "day_used" } : {},
+        ...gmailDayUsed(sent2.reply) ? { cause: "day_used", restUntil: gmailRestUntil(sent2.reply, now()) } : {},
         ...gmailSignedOut(sent2.reply) ? { cause: "signed_out" } : {}
       };
     const kept = sent2.id ? await gmailSentIds(i.token, sent2.id, deps).catch(() => null) : null;
@@ -4409,13 +4624,26 @@ var SPF_INCLUDES = {
   google: ["_spf.google.com"],
   microsoft: ["spf.protection.outlook.com"]
 };
-function spfOf(txt, provider) {
-  const spf = joined(txt).filter((r) => /^v=spf1(\s|$)/i.test(r));
-  return spf.some(
-    (r) => SPF_INCLUDES[provider].some(
-      (inc) => new RegExp(`(^|\\s)\\+?include:${inc.replace(/\./g, "\\.")}(\\s|$)`, "i").test(r)
-    )
-  ) ? "found" : "missing";
+function spfRecordsOf(txt) {
+  return joined(txt).filter((r) => /^v=spf1(\s|$)/i.test(r));
+}
+function spfNamesProvider(record, provider) {
+  return SPF_INCLUDES[provider].some(
+    (inc) => new RegExp(`(^|\\s)\\+?include:${inc.replace(/\./g, "\\.")}(\\s|$)`, "i").test(record)
+  );
+}
+function spfTermsOf(record) {
+  let lookups = 0;
+  const follow = [];
+  for (const term of record.trim().split(/\s+/).slice(1)) {
+    const t = term.replace(/^[+\-~?]/, "").toLowerCase();
+    const include = /^include:(.+)$/.exec(t)?.[1] ?? /^redirect=(.+)$/.exec(t)?.[1];
+    if (include) {
+      lookups += 1;
+      follow.push(include);
+    } else if (/^(a|mx|ptr|exists)([:/]|$)/.test(t)) lookups += 1;
+  }
+  return { lookups, follow };
 }
 var DKIM_SELECTORS = {
   google: ["google"],
@@ -5302,11 +5530,11 @@ import {
   ratingWords,
   reviewSnippet,
   starsOf,
-  DAY_MS as DAY_MS2,
+  DAY_MS as DAY_MS3,
   NEW_REVIEW_NEWS
 } from "../../contracts/dist/index.js";
 var REVIEW_BELL_MAX = 3;
-var FRESH_SLACK_MS = 2 * DAY_MS2;
+var FRESH_SLACK_MS = 2 * DAY_MS3;
 function overall(rating, count) {
   return `${ratingWords(rating)} overall${typeof count === "number" ? ` \xB7 ${plural(count, "review")}` : ""}`;
 }
@@ -5587,7 +5815,7 @@ function cleanReply(text) {
 
 // src/tokens/edge-token.ts
 import { createHash as createHash2, createHmac, randomBytes, timingSafeEqual as timingSafeEqual2 } from "crypto";
-import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
+import { MIN_MS as MIN_MS4 } from "../../contracts/dist/index.js";
 
 // src/tokens/request-id.ts
 var REQUEST_ID_HEADER = "x-request-id";
@@ -5605,7 +5833,7 @@ function requestIdShaped(value) {
 }
 
 // src/tokens/edge-token.ts
-var EDGE_TOKEN_TTL_MS = MIN_MS3;
+var EDGE_TOKEN_TTL_MS = MIN_MS4;
 function edgeBodyHash(body) {
   return createHash2("sha256").update(body, "utf8").digest("base64url");
 }
@@ -5989,6 +6217,7 @@ export {
   SMS_HELD_REASON,
   SMS_MAX_CHARS,
   SMS_OPTED_OUT_CODE,
+  SPF_INCLUDES,
   STATE_TTL_MS,
   SYSTEM_ONE_URL,
   TRUSTHUB,
@@ -6075,10 +6304,13 @@ export {
   getRetellLlm,
   gmailDayUsed,
   gmailEmailOf,
+  gmailFindSent,
   gmailHistory,
   gmailMessage,
+  gmailNoMailbox,
   gmailProfile,
   gmailPushOf,
+  gmailReports,
   gmailSend,
   gmailSentIds,
   gmailSignedOut,
@@ -6089,10 +6321,15 @@ export {
   grantScopes,
   grantScopesMissing,
   graphDayUsed,
+  graphDeleteMessage,
   graphDelta,
   graphEmailOf,
+  graphFindSent,
+  graphInbox,
+  graphJunkSince,
   graphMe,
   graphMessage,
+  graphNoMailbox,
   graphNotificationsOf,
   graphRenew,
   graphSend,
@@ -6122,6 +6359,7 @@ export {
   locationsRequest,
   logger,
   mailDomainsFrom,
+  mailboxAdminConsentUrl,
   mailboxAuthorizeUrl,
   mailboxHeader,
   mailboxMessageId,
@@ -6226,7 +6464,9 @@ export {
   soleProprietorEndUserRequest,
   soleProprietorProfileRequest,
   speakText,
-  spfOf,
+  spfNamesProvider,
+  spfRecordsOf,
+  spfTermsOf,
   starRatingNumber,
   starterAttributes,
   starterEndUserRequest,

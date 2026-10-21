@@ -35,7 +35,7 @@ import {
 import { answeredReachOutEmail, mailboxOfTenant, type Database, type Json, type MailboxRow } from "@chanlytics/db";
 import type { EmailReplyPorts } from "@chanlytics/core";
 import { dbRefusal, type RouteContext } from "../with-route";
-import { mailboxConnectionsFor, mailboxesReadiness } from "./mailbox-connections";
+import { mailboxConnectionsFor, mailboxConnectionsWithDaysFor, mailboxesReadiness } from "./mailbox-connections";
 import { env } from "../env";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
@@ -208,7 +208,7 @@ export async function emailSetupFor(
   // are read whatever the hosted mailbox. A read that fails draws no block rather than failing Setup.
   const [line, mailboxes, ready] = await Promise.all([
     emailLineFor(supabase, tenantId, mailbox),
-    mailboxConnectionsFor(supabase, tenantId).catch(() => null),
+    mailboxConnectionsWithDaysFor(supabase, tenantId).catch(() => null),
     mailboxesReadiness().catch(() => ({ providers: [] })),
   ]);
   return { ...line, sending: mailboxes ? { providers: ready.providers, mailboxes } : null };

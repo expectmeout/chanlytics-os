@@ -2546,6 +2546,107 @@ async function offersEmailReach(db, tenantId) {
   return typeof data === "number" ? data : null;
 }
 
+// src/repositories/mailboxes/connections.ts
+async function mailboxConnectionsOf(db, tenantId) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).neq("state", "removed").order("connected_at", { ascending: true });
+  if (error) throw new Error(`cannot read the workspace's mailboxes: ${error.message}`);
+  return data ?? [];
+}
+async function mailboxConnectionOf(db, tenantId, id) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
+}
+async function liveMailboxByAddress(db, address) {
+  const { data, error } = await db.from("mailbox_connections").select("*").eq("address", address.trim().toLowerCase()).neq("state", "removed").maybeSingle();
+  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  return data;
+}
+async function mailboxesToTend(db, limit, skip = []) {
+  let q = db.from("mailbox_connections").select("*").in("state", ["connected", "paused", "held"]).order("synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+  const done = [...skip];
+  if (done.length) q = q.not("id", "in", `(${done.join(",")})`);
+  const { data, error } = await q;
+  if (error) throw new Error(`cannot read the mailboxes to tend: ${error.message}`);
+  return data ?? [];
+}
+async function connectMailbox(db, p) {
+  const { data, error } = await db.rpc("mailbox_connection_connect", {
+    p_tenant_id: p.tenantId,
+    p_user_id: p.userId,
+    p_provider: p.provider,
+    p_account: p.account,
+    p_address: p.address,
+    p_from_name: p.fromName,
+    p_scopes: p.scopes,
+    p_customer_domain: p.customerDomain
+  });
+  if (error) {
+    const hint = error.hint ?? "";
+    if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
+    throw new Error(`cannot connect the mailbox: ${error.message}`);
+  }
+  const r = data ?? {};
+  if (!r.id) throw new Error("cannot connect the mailbox: no row came back");
+  return { ok: true, id: r.id, made: r.made === true, state: String(r.state ?? "connected") };
+}
+async function patchMailboxConnection(db, p) {
+  let q = db.from("mailbox_connections").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.from?.length) q = q.in("state", [...p.from]);
+  const { data, error } = await q.select("*");
+  if (error) throw new Error(`cannot change the mailbox: ${error.message}`);
+  return data?.[0] ?? null;
+}
+async function putMailboxCredentials(db, p) {
+  const { error } = await db.rpc("put_mailbox_credentials", {
+    p_connection_id: p.id,
+    p_secret: p.secret,
+    ...p.ifRefreshToken ? { p_if_refresh_token: p.ifRefreshToken } : {}
+  });
+  if (error) {
+    if (error.code === "40001") return "changed";
+    throw new Error(`cannot store the mailbox's token: ${error.message}`);
+  }
+  return "stored";
+}
+async function getMailboxCredentials(db, id) {
+  const { data, error } = await db.rpc("get_mailbox_credentials", { p_connection_id: id });
+  if (error) throw new Error(`cannot read the mailbox's token: ${error.message}`);
+  return data ?? null;
+}
+async function dropMailboxCredentials(db, id) {
+  const { data, error } = await db.rpc("drop_mailbox_credentials", { p_connection_id: id });
+  if (error) throw new Error(`cannot drop the mailbox's token: ${error.message}`);
+  return data === true;
+}
+async function mailboxCountsOf(db, id, since) {
+  const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
+  if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
+  const c = data ?? {};
+  const n = (k) => Math.max(0, Number(c[k] ?? 0) || 0);
+  if (typeof c.sent !== "number") throw new Error("cannot count the mailbox's emails: the database answered no count");
+  return {
+    sent: n("sent"),
+    bounced: n("bounced"),
+    blocked: n("blocked"),
+    complained: n("complained"),
+    unsubscribed: n("unsubscribed"),
+    said_no: n("said_no")
+  };
+}
+async function stampEmailFromMailbox(db, p) {
+  const { data, error } = await db.rpc("stamp_email_from_mailbox", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_provider_id: p.providerId,
+    p_rfc_message_id: p.rfcMessageId,
+    p_thread_id: p.threadId,
+    p_mailbox_id: p.mailboxId
+  });
+  if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
+  return data === true;
+}
+
 // src/repositories/email.ts
 async function mailboxById(db, id) {
   const { data, error } = await db.from("mailboxes").select("*").eq("id", id).maybeSingle();
@@ -2756,6 +2857,25 @@ async function suppressEmailOf(db, p) {
   const { data, error } = await db.from("contacts").update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason }).eq("id", sent.data.contact_id).eq("tenant_id", p.tenantId).in("email", p.addresses).is("email_suppressed_at", null).select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
   return data?.[0]?.id ?? null;
+}
+async function settleUnknownEmail(db, p, patch) {
+  const { data, error } = await db.from("messages").update(patch).eq("id", p.id).eq("tenant_id", p.tenantId).eq("status", "failed").eq("error->>outcome", "unknown").select("id");
+  if (error) throw new Error(`cannot settle the email ${p.id}: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function emailFoundSent(db, p) {
+  await stampEmailFromMailbox(db, {
+    tenantId: p.tenantId,
+    messageId: p.id,
+    providerId: p.providerId,
+    rfcMessageId: p.rfcMessageId,
+    threadId: p.threadId,
+    mailboxId: p.mailboxId
+  });
+  return settleUnknownEmail(db, p, { status: "sent", error: null });
+}
+async function emailNeverLeft(db, p) {
+  return settleUnknownEmail(db, p, { error: { reason: "never_delivered", note: p.note.slice(0, 200) } });
 }
 
 // src/repositories/campaigns/offers-answer.ts
@@ -3079,105 +3199,6 @@ async function runsNamed(db, tenantId, ids) {
   });
 }
 
-// src/repositories/mailboxes/connections.ts
-async function mailboxConnectionsOf(db, tenantId) {
-  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).neq("state", "removed").order("connected_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's mailboxes: ${error.message}`);
-  return data ?? [];
-}
-async function mailboxConnectionOf(db, tenantId, id) {
-  const { data, error } = await db.from("mailbox_connections").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
-  return data;
-}
-async function liveMailboxByAddress(db, address) {
-  const { data, error } = await db.from("mailbox_connections").select("*").eq("address", address.trim().toLowerCase()).neq("state", "removed").maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
-  return data;
-}
-async function liveMailboxByWatch(db, watchId) {
-  const { data, error } = await db.from("mailbox_connections").select("*").eq("watch_id", watchId).neq("state", "removed").maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
-  return data;
-}
-async function mailboxesToTend(db, limit, skip = []) {
-  let q = db.from("mailbox_connections").select("*").in("state", ["connected", "paused", "held"]).order("synced_at", { ascending: true, nullsFirst: true }).limit(limit);
-  const done = [...skip];
-  if (done.length) q = q.not("id", "in", `(${done.join(",")})`);
-  const { data, error } = await q;
-  if (error) throw new Error(`cannot read the mailboxes to tend: ${error.message}`);
-  return data ?? [];
-}
-async function connectMailbox(db, p) {
-  const { data, error } = await db.rpc("mailbox_connection_connect", {
-    p_tenant_id: p.tenantId,
-    p_user_id: p.userId,
-    p_provider: p.provider,
-    p_account: p.account,
-    p_address: p.address,
-    p_from_name: p.fromName,
-    p_scopes: p.scopes,
-    p_customer_domain: p.customerDomain
-  });
-  if (error) {
-    const hint = error.hint ?? "";
-    if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
-    throw new Error(`cannot connect the mailbox: ${error.message}`);
-  }
-  const r = data ?? {};
-  if (!r.id) throw new Error("cannot connect the mailbox: no row came back");
-  return { ok: true, id: r.id, made: r.made === true, state: String(r.state ?? "connected") };
-}
-async function patchMailboxConnection(db, p) {
-  let q = db.from("mailbox_connections").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id);
-  if (p.from?.length) q = q.in("state", [...p.from]);
-  const { data, error } = await q.select("*");
-  if (error) throw new Error(`cannot change the mailbox: ${error.message}`);
-  return data?.[0] ?? null;
-}
-async function putMailboxCredentials(db, p) {
-  const { error } = await db.rpc("put_mailbox_credentials", {
-    p_connection_id: p.id,
-    p_secret: p.secret,
-    ...p.ifRefreshToken ? { p_if_refresh_token: p.ifRefreshToken } : {}
-  });
-  if (error) {
-    if (error.code === "40001") return "changed";
-    throw new Error(`cannot store the mailbox's token: ${error.message}`);
-  }
-  return "stored";
-}
-async function getMailboxCredentials(db, id) {
-  const { data, error } = await db.rpc("get_mailbox_credentials", { p_connection_id: id });
-  if (error) throw new Error(`cannot read the mailbox's token: ${error.message}`);
-  return data ?? null;
-}
-async function dropMailboxCredentials(db, id) {
-  const { data, error } = await db.rpc("drop_mailbox_credentials", { p_connection_id: id });
-  if (error) throw new Error(`cannot drop the mailbox's token: ${error.message}`);
-  return data === true;
-}
-async function mailboxCountsOf(db, id, since) {
-  const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
-  if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
-  const c = data ?? {};
-  const n = (k) => Math.max(0, Number(c[k] ?? 0) || 0);
-  if (typeof c.sent !== "number") throw new Error("cannot count the mailbox's emails: the database answered no count");
-  return { sent: n("sent"), bounced: n("bounced"), complained: n("complained"), unsubscribed: n("unsubscribed") };
-}
-async function stampEmailFromMailbox(db, p) {
-  const { data, error } = await db.rpc("stamp_email_from_mailbox", {
-    p_tenant_id: p.tenantId,
-    p_message_id: p.messageId,
-    p_provider_id: p.providerId,
-    p_rfc_message_id: p.rfcMessageId,
-    p_thread_id: p.threadId,
-    p_mailbox_id: p.mailboxId
-  });
-  if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
-  return data === true;
-}
-
 // src/repositories/mailboxes/sync.ts
 async function takeMailboxSync(db, id, at, leaseMs) {
   const until = new Date(at.getTime() + leaseMs).toISOString();
@@ -3220,6 +3241,47 @@ async function knownThreads(db, tenantId, threadIds) {
   });
   if (error) throw new Error(`cannot read which threads are the workspace's: ${error.message}`);
   return new Set(data ?? []);
+}
+
+// src/repositories/mailboxes/reconcile.ts
+import { MIN_MS } from "../../contracts/dist/index.js";
+var UNKNOWN_PAGE = 10;
+async function unknownMailboxEmails(db, mailboxId, span) {
+  const sends = await db.from("sequence_sends").select("message_id").eq("mailbox_id", mailboxId).eq("state", "queued").not("message_id", "is", null).limit(500);
+  if (sends.error) throw new Error(`cannot read the mailbox's sends: ${sends.error.message}`);
+  const ids = (sends.data ?? []).flatMap((s) => s.message_id ? [s.message_id] : []);
+  const rows = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, tenant_id, meta, created_at").in("id", ids.slice(i, i + IDS_PER_READ2)).eq("status", "failed").eq("error->>outcome", "unknown").gte("created_at", span.since.toISOString()).lte("created_at", span.before.toISOString());
+    if (error) throw new Error(`cannot read the mailbox's unsettled emails: ${error.message}`);
+    rows.push(...data ?? []);
+  }
+  return rows.sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(0, UNKNOWN_PAGE).map((m) => {
+    const request = m.meta?.email?.request;
+    const to = Array.isArray(request?.to) ? request.to.find((a) => typeof a === "string") : null;
+    return {
+      id: m.id,
+      tenantId: m.tenant_id,
+      to: to ?? null,
+      subject: typeof request?.subject === "string" ? request.subject : null,
+      writtenAt: m.created_at
+    };
+  });
+}
+var SWEEP_AGAIN_MS = MIN_MS;
+var SWEEP_TIMEOUT_MS = 65e3;
+async function requestMailboxesSweep(db, now) {
+  const last2 = await db.from("sweep_status").select("requested_at").eq("sweep", "mailboxes").maybeSingle();
+  if (last2.error) throw new Error(`cannot read the mailboxes clock: ${last2.error.message}`);
+  const at = last2.data?.requested_at ? Date.parse(last2.data.requested_at) : Number.NaN;
+  if (Number.isFinite(at) && now.getTime() - at < SWEEP_AGAIN_MS) return false;
+  const { error } = await db.rpc("request_sweep", {
+    p_sweep: "mailboxes",
+    p_path: "/api/cron/mailboxes",
+    p_timeout_ms: SWEEP_TIMEOUT_MS
+  });
+  if (error) throw new Error(`cannot ask the mailboxes clock: ${error.message}`);
+  return true;
 }
 
 // src/repositories/outreach.ts
@@ -4166,7 +4228,7 @@ import {
   DAY_MS as DAY_MS2,
   HOUR_MS as HOUR_MS2,
   isForReader,
-  MIN_MS,
+  MIN_MS as MIN_MS2,
   SAME_VISIT_MS,
   sameVisitOnRecord,
   sightingStands,
@@ -4543,7 +4605,7 @@ async function holdTold(db, p) {
   const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).is("mail_due_at", null).limit(1);
   if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
   if ((answered.data ?? []).length) return true;
-  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const since = new Date(Date.parse(p.at) - MIN_MS2).toISOString();
   const inline = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "handoff").eq("subject_type", "conversation").eq("subject_id", p.conversationId).is("source_event", null).gte("created_at", since).limit(1);
   if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
   return (inline.data ?? []).length > 0;
@@ -4564,7 +4626,7 @@ async function optOutTold(db, p) {
   const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).is("mail_due_at", null).limit(1);
   if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
   if ((answered.data ?? []).length) return true;
-  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const since = new Date(Date.parse(p.at) - MIN_MS2).toISOString();
   const twin = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "opted_out").eq("subject_type", "contact").eq("subject_id", p.contactId).neq("source_event", p.eventId).gte("created_at", since).limit(1);
   if (twin.error) throw new Error(`cannot read what the workspace was told: ${twin.error.message}`);
   return (twin.data ?? []).length > 0;
@@ -4850,9 +4912,9 @@ async function momentSchedules(db, tenantId) {
 }
 
 // src/repositories/routing.ts
-import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
-var POS_TTL_MS = 5 * MIN_MS2;
-var NEG_TTL_MS = MIN_MS2;
+import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
+var POS_TTL_MS = 5 * MIN_MS3;
+var NEG_TTL_MS = MIN_MS3;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
@@ -7149,6 +7211,8 @@ export {
   dueMailboxes,
   duePlaybooks,
   earlierVisitRows,
+  emailFoundSent,
+  emailNeverLeft,
   emailOfferCounts,
   emailOffersPause,
   emailWordsByTemplate,
@@ -7266,7 +7330,6 @@ export {
   listRow,
   listSecondFactors,
   liveMailboxByAddress,
-  liveMailboxByWatch,
   logPersonCall,
   mailSent,
   mailboxById,
@@ -7439,6 +7502,7 @@ export {
   replyTokensSince,
   replyUndoableOf,
   reportSeries,
+  requestMailboxesSweep,
   resendHandover,
   resolveChannel,
   resolveChannelDetailed,
@@ -7556,6 +7620,7 @@ export {
   uncheckedWaiting,
   undoPersonName,
   undoReplyReading,
+  unknownMailboxEmails,
   unreadOfReaders,
   updateAppointment,
   updatePlaybook,

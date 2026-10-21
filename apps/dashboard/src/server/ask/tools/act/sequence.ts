@@ -21,6 +21,7 @@ import {
   type SequenceRecordDto,
   AppError,
 } from "@chanlytics/contracts";
+import { mailboxConnectionsFor } from "../../../connections/mailbox-connections";
 import { searchRow } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { sequence as sequenceReader, sequencePeople } from "../../../readers/sequences";
@@ -411,6 +412,15 @@ const COLD_STEP = z.object({
     ),
 });
 
+/**
+ * Whether the workspace has a mailbox that sends now, as a new sequence's make reads it (00459: connected ones only); a
+ * read that fails, none.
+ */
+async function hasMailbox(t: ToolContext): Promise<boolean> {
+  const boxes = await mailboxConnectionsFor(t.ctx.supabase, t.tenantId).catch(() => []);
+  return boxes.some((m) => m.state === "connected");
+}
+
 async function proposeColdEmail(
   t: ToolContext,
   input: {
@@ -444,7 +454,9 @@ async function proposeColdEmail(
     include_unconfirmed: input.include_unconfirmed ?? false,
     gap_minutes: input.gap_minutes ?? REACH_OUT_GAP_MINUTES[2],
     mailbox_ids: [],
-    owner_sends: input.owner_sends ?? false,
+    // Unsaid, it sends as a new sequence does (00459 sequence_create_leads): from the connected mailboxes while there
+    // is one, else handed to the owner to send, so a sequence never waits on a mailbox nobody connected.
+    owner_sends: input.owner_sends ?? !(await hasMailbox(t)),
     signed_by: input.signed_by?.trim() || null,
     steps: input.steps.map((s, i) => ({
       subject: s.subject?.trim() || null,
@@ -656,7 +668,9 @@ export const propose_sequence = defineActions({
         owner_sends: z
           .boolean()
           .optional()
-          .describe("true hands each email to the owner to send from their own inbox."),
+          .describe(
+            "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes. Leave it out to send from the mailboxes when one is connected, else by the owner.",
+          ),
         signed_by: z.string().optional().describe("Who signs the emails."),
         include_unconfirmed: z
           .boolean()

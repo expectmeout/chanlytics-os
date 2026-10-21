@@ -21,6 +21,8 @@ import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../le
 import { connectedMailboxes } from "./connected-mailboxes";
 
 const MAILBOXES = connectedMailboxes;
+/** The permission a mailbox's acts ask (contracts ROLE_PERMS): the one the doors' own role check stands on. */
+const MAILBOX_PERM = "settings";
 
 type Flash = (f: LegacyFlash) => void;
 type Email = NonNullable<SetupDto["email"]>;
@@ -30,26 +32,35 @@ interface RecordsProps {
   flash: Flash;
 }
 
+/** Copy words, saying so; where the browser gives no clipboard, the words are selected so a person copies them by hand. */
+function copyWords(flash: Flash, value: string, nodeId: string) {
+  const byHand = () => {
+    const node = document.getElementById(nodeId);
+    if (node && window.getSelection && document.createRange) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+    flash({ tone: "danger", msg: <>Couldn't copy. It's selected: copy it by hand</> });
+  };
+  if (navigator.clipboard) navigator.clipboard.writeText(value).then(() => flash({ msg: <>Copied</> }), byHand);
+  else byHand();
+}
+
+/** What a record's dot says: DNS has it, has it not, or could not be read just now. */
+const DOT_WORDS: Record<MailboxRecordRow["state"], string> = {
+  found: "Found",
+  missing: "Not found yet",
+  unread: "Not read yet",
+};
+
 /** The records its domain needs, while one is missing: what each is for, where it goes, what to put in it. */
 const MailboxRecords = ({ m, flash }: RecordsProps) => {
-  // Copy, or, where the browser gives no clipboard, the words selected so a person can copy them by hand.
-  const copy = (value: string, id: string) => {
-    const byHand = () => {
-      const node = document.getElementById(id);
-      if (node && window.getSelection && document.createRange) {
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const sel = window.getSelection();
-        if (sel) {
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-      }
-      flash({ tone: "danger", msg: <>Couldn't copy. It's selected: copy it by hand</> });
-    };
-    if (navigator.clipboard) navigator.clipboard.writeText(value).then(() => flash({ msg: <>Copied</> }), byHand);
-    else byHand();
-  };
+  const copy = (value: string, id: string) => copyWords(flash, value, id);
   const rows = MAILBOXES.records(m);
   const idOf = (r: MailboxRecordRow, part: string) => `mrec-${m.id}-${part}-${r.key}`;
   return (
@@ -71,8 +82,8 @@ const MailboxRecords = ({ m, flash }: RecordsProps) => {
                 className="rec-dot"
                 role="img"
                 data-found={r.found ? "yes" : "no"}
-                title={r.found ? "Found" : "Not found yet"}
-                aria-label={r.found ? "Found" : "Not found yet"}
+                title={DOT_WORDS[r.state]}
+                aria-label={DOT_WORDS[r.state]}
               />
               {r.kind}
               <span className="ty-inline">
@@ -96,6 +107,11 @@ const MailboxRecords = ({ m, flash }: RecordsProps) => {
                   Copy
                 </LinkButton>
               )}
+              {r.note ? (
+                <span className="dim set-records-note" data-testid={`mailbox-record-note-${r.key}`}>
+                  {r.note}
+                </span>
+              ) : null}
             </span>
           </div>
         ))}
@@ -198,6 +214,10 @@ interface MailboxActs {
   check: (m: MailboxConnectionDto) => Promise<void>;
   test: (m: MailboxConnectionDto) => Promise<void>;
   remove: (m: MailboxConnectionDto) => Promise<void>;
+  /** To the provider, for a new mailbox or to Reconnect one: a refusal is said here, and the browser stays. */
+  connect: (provider: MailboxProvider, m?: MailboxConnectionDto) => Promise<void>;
+  /** The link for a Microsoft 365 admin, asked for and shown under the block to copy and send them. */
+  adminLink: () => Promise<void>;
 }
 
 /** The owner's acts on a mailbox, each said in a toast when it is done. */
@@ -205,7 +225,22 @@ function mailboxActsOf(
   flash: Flash,
   setBusy: (id: string | null) => void,
   setArm: (a: Arm | null) => void,
+  setAdminUrl: (url: string | null) => void,
 ): MailboxActs {
+  const connect = async (provider: MailboxProvider, m?: MailboxConnectionDto) => {
+    // Its own key, so a row's Check never reads "Checking…" while the page is only leaving for the provider.
+    setBusy(`connect:${m?.id ?? provider}`);
+    const r = await MAILBOXES.connect(provider, m?.id);
+    // Given a way to the provider, the browser is leaving; a page brought back from the history is pressable again.
+    setBusy(null);
+    if (!r.ok) flash(refusalToast(r, "Not connected"));
+  };
+  // Shown, not copied: a browser lets a copy happen only within the press itself, and this waits on the door first.
+  const adminLink = async () => {
+    const r = await MAILBOXES.adminLink();
+    if (r.ok) setAdminUrl(r.data.url);
+    else flash(refusalToast(r, "No link"));
+  };
   const run = async (
     m: MailboxConnectionDto,
     act: () => Promise<ApiResult<unknown>>,
@@ -232,6 +267,8 @@ function mailboxActsOf(
     test: (m) => run(m, () => MAILBOXES.test(m.id), `A test is on its way to ${m.address}: open it there.`, "Not sent"),
     remove: (m) =>
       run(m, () => MAILBOXES.remove(m.id), `${m.address} is removed. Nothing more leaves from it.`, "Not removed"),
+    connect,
+    adminLink,
   };
 }
 
@@ -283,7 +320,7 @@ function mailboxButtons(m: MailboxConnectionDto, records: boolean, ctx: RowConte
   const { owner, busy, arm, acts, setArm } = ctx;
   const can = MAILBOXES.acts(m);
   const open = !(arm && arm.id === m.id);
-  const owners = (what: string) => (owner ? {} : gate("team", what));
+  const owners = (what: string) => (owner ? {} : gate(MAILBOX_PERM, what));
   const off = busy !== null;
   return (
     <span className="set-int-actions">
@@ -291,7 +328,7 @@ function mailboxButtons(m: MailboxConnectionDto, records: boolean, ctx: RowConte
         <Button
           size="sm"
           variant="primary"
-          onClick={() => MAILBOXES.connect(m.provider)}
+          onClick={() => void acts.connect(m.provider, m)}
           disabled={off}
           data-testid={`mailbox-reconnect-${m.address}`}
           {...owners("reconnect a mailbox")}
@@ -379,6 +416,11 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
           <b>{m.address}</b>
           <span>{w.day}</span>
           {w.ramp ? <span className="dim">{w.ramp}</span> : null}
+          {w.health ? (
+            <span className="dim" data-testid={`mailbox-health-${m.address}`}>
+              {w.health}
+            </span>
+          ) : null}
           {w.fix ? <span>{w.fix}</span> : null}
           {m.customer_domain && m.state === "connected" ? (
             <span className="dim">{MAILBOXES.customerDomain(m.host)}</span>
@@ -397,9 +439,14 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, now: number) {
   );
 }
 
-/** The foot: the rule once, and a Connect for each provider this deployment offers, while there is room. */
-function mailboxesFoot(count: number, providers: readonly MailboxProvider[], owner: boolean) {
+/**
+ * The foot: the rule once, and a Connect for each provider this deployment offers, while there is room; beside
+ * Microsoft's, the link for an organisation whose admin approves apps.
+ */
+function mailboxesFoot(count: number, providers: readonly MailboxProvider[], ctx: RowContext) {
+  const { owner, busy, acts } = ctx;
   const room = count < MAILBOXES.max;
+  const gated = (what: string) => (owner ? {} : gate(MAILBOX_PERM, what));
   return (
     <div className="set-dom set-dom-foot">
       <span />
@@ -415,14 +462,20 @@ function mailboxesFoot(count: number, providers: readonly MailboxProvider[], own
               key={p}
               size="sm"
               variant={i === 0 && count === 0 ? "primary" : undefined}
-              onClick={() => MAILBOXES.connect(p)}
+              onClick={() => void acts.connect(p)}
+              disabled={busy !== null}
               data-testid={`mailbox-connect-${p}`}
-              {...(owner ? {} : gate("team", "connect a mailbox"))}
+              {...gated("connect a mailbox")}
             >
               <Icon name="plus" size={12} />
               Connect {MAILBOXES.providerWords[p]}
             </Button>
           ))}
+        {room && owner && providers.includes("microsoft") && (
+          <LinkButton onClick={() => void acts.adminLink()} data-testid="mailbox-admin-link">
+            Link for your admin
+          </LinkButton>
+        )}
       </span>
     </div>
   );
@@ -431,50 +484,94 @@ function mailboxesFoot(count: number, providers: readonly MailboxProvider[], own
 interface ConnectedMailboxesProps {
   email: Email | null | undefined;
   flash: Flash;
-  /** What the browser came back from the provider with, said until the owner closes it. */
-  note: { ok: boolean; words: string } | null;
+  /** What the browser came back from the provider with (or the door refused), said until the owner closes it. */
+  note: { ok: boolean; words: string; code: string | null } | null;
   onNote: () => void;
+}
+
+/** The note a connect came back with, and, where it waits on a Microsoft 365 admin, the link to send them. */
+function mailboxNote(note: NonNullable<ConnectedMailboxesProps["note"]>, onNote: () => void, ctx: RowContext) {
+  return (
+    <div className="set-dom set-dom-note" data-testid="mailbox-note" data-ok={note.ok ? "yes" : "no"}>
+      <span />
+      <span className="t">
+        <span>{note.words}</span>
+      </span>
+      <span />
+      <span />
+      <span className="set-int-actions">
+        {note.code === "admin_consent" && ctx.owner && (
+          <LinkButton onClick={() => void ctx.acts.adminLink()} data-testid="mailbox-note-admin-link">
+            Link for your admin
+          </LinkButton>
+        )}
+        <LinkButton onClick={onNote}>Ok</LinkButton>
+      </span>
+    </div>
+  );
+}
+
+/** The link for a Microsoft 365 admin, once asked for: the words to send with it, the link to select, and its Copy. */
+function adminLinkRow(url: string, flash: Flash, onClose: () => void) {
+  const id = "mailbox-admin-url";
+  return (
+    <div className="set-dom set-dom-note" data-testid="mailbox-admin-url-row">
+      <span />
+      <span className="t">
+        <span>Send this to your Microsoft 365 admin. Once they approve Chanlytics, connect again.</span>
+        <code id={id} className="dim">
+          {url}
+        </code>
+      </span>
+      <span />
+      <span />
+      <span className="set-int-actions">
+        <LinkButton onClick={() => copyWords(flash, url, id)} data-testid="mailbox-admin-url-copy">
+          Copy
+        </LinkButton>
+        <LinkButton onClick={onClose}>Ok</LinkButton>
+      </span>
+    </div>
+  );
 }
 
 /**
  * The mailboxes a workspace writes its sequences to leads from, under their own row, which names them (decision 0056).
- * Drawn when this deployment offers a provider or the workspace has a mailbox connected; otherwise the row is Later.
+ * Drawn when this deployment offers a provider or the workspace has a mailbox connected; otherwise the row is Later,
+ * and only what a connect came back with is said under it.
  */
 export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMailboxesProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [arm, setArm] = useState<Arm | null>(null);
-  const owner = canDo("team");
-  if (!email || !email.sending) return null;
-  const { providers, mailboxes } = email.sending;
-  if (providers.length === 0 && mailboxes.length === 0) return null;
-  const acts = mailboxActsOf(flash, setBusy, setArm);
+  const [adminUrl, setAdminUrl] = useState<string | null>(null);
+  const owner = canDo(MAILBOX_PERM);
+  const acts = mailboxActsOf(flash, setBusy, setArm, setAdminUrl);
   const ctx: RowContext = { owner, busy, arm, acts, flash, setArm };
+  const providers = email?.sending?.providers ?? [];
+  const mailboxes = email?.sending?.mailboxes ?? [];
+  const admin = adminUrl ? adminLinkRow(adminUrl, flash, () => setAdminUrl(null)) : null;
+  if (!email?.sending || (providers.length === 0 && mailboxes.length === 0))
+    return note ? (
+      <div className="set-domains" data-testid="connected-mailboxes-note">
+        {mailboxNote(note, onNote, ctx)}
+        {admin}
+      </div>
+    ) : null;
   const now = Date.now();
   return (
     <div className="set-domains" data-testid="connected-mailboxes">
-      {note && (
-        <div className="set-dom set-dom-note" data-testid="mailbox-note" data-ok={note.ok ? "yes" : "no"}>
-          <span />
-          <span className="t">
-            <span>{note.words}</span>
-          </span>
-          <span />
-          <span />
-          <span className="set-int-actions">
-            <LinkButton onClick={onNote}>Ok</LinkButton>
-          </span>
-        </div>
-      )}
+      {note && mailboxNote(note, onNote, ctx)}
+      {admin}
       {!owner && (
         <div className="set-dom set-dom-note">
           <span />
           <span className="t">
-            <span>{gateTitle("team", "connect, pause, resume or remove a mailbox")}</span>
+            <span>{gateTitle(MAILBOX_PERM, "connect, pause, resume or remove a mailbox")}</span>
           </span>
         </div>
       )}
       {mailboxes.map((m) => mailboxRow(m, ctx, now))}
-      {mailboxesFoot(mailboxes.length, providers, owner)}
+      {mailboxesFoot(mailboxes.length, providers, ctx)}
     </div>
   );
 }

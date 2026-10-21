@@ -662,16 +662,27 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    test users may grant. Make a web-application OAuth client whose one
    redirect URI is `https://app.chanlytics.com/api/v1/mailbox-connections/callback`,
    and set `GOOGLE_MAIL_CLIENT_ID` and `GOOGLE_MAIL_CLIENT_SECRET` on the edge.
+   For a pilot before verification, publish the app "In production"
+   (unverified): in Testing, Google ends every sign-in after seven days, and
+   each mailbox would ask to be connected again every week. Only a Google
+   Workspace account connects (its id token's `hd`, a verified address and a
+   working Gmail are checked): a consumer Google account made with a business
+   address has no Gmail behind it, and is refused by name.
 2. **Microsoft: an app registration** in Entra for accounts in any
    organisation's directory (a personal Outlook.com mailbox is refused anyway:
    free mail never writes to businesses). The same redirect URI, as a web
    platform; delegated Microsoft Graph permissions `Mail.Send`,
    `Mail.ReadWrite` (the email is written as MIME, then sent), `User.Read` and
    `offline_access`; publisher verification, so a business's users may consent
-   without an unverified warning (an organisation that allows only admin
-   consent asks its admin once). Set `MICROSOFT_MAIL_CLIENT_ID` and
-   `MICROSOFT_MAIL_CLIENT_SECRET` on the edge, and diary the secret's expiry
-   (24 months at most): rotate it before then.
+   without an unverified warning. An organisation that allows only admin
+   consent asks its admin once: the mailboxes block's **Link for your admin**
+   copies Entra's v2 admin-consent link (`organizations`, the same scopes,
+   back to the same callback), and a member whose sign-in Microsoft held for
+   an admin (AADSTS65001, 90093–90095) is told so with that link. An admin who
+   is not a member of the workspace approves at Microsoft and lands on a
+   sign-in refusal (Chanlytics' own, since the callback needs a session): the approval stands at Microsoft, and the member connects. Set
+   `MICROSOFT_MAIL_CLIENT_ID` and `MICROSOFT_MAIL_CLIENT_SECRET` on the edge,
+   and diary the secret's expiry (24 months at most): rotate it before then.
 3. **The callback, on the edge:** `MAILBOX_OAUTH_REDIRECT`, the URI above
    exactly. The dashboard signs the round trip's state with its
    `GOOGLE_OAUTH_STATE_SECRET` (already set for Google Business Profile), and
@@ -687,7 +698,9 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
 5. **Graph's push (optional).** `GRAPH_NOTIFY_SECRET`, any long random value:
    every subscription the clock makes carries it as its clientState, and
    `/api/mailbox/graph` checks it on each notification (and echoes the
-   validation token when Graph first asks).
+   validation token when Graph first asks). Graph wants its answer inside three
+   seconds, so the door reads nothing itself: it asks the mailboxes clock to
+   run now (Postgres calls it, at most once a minute) and answers 202.
 6. **The unsubscribe secret, the same value on both projects:**
    `UNSUBSCRIBE_SECRET`, generated once with
    `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
@@ -704,7 +717,17 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    with it connected; its row says its ramp (10 a day, then 20, 30 and 40
    after 7, 14 and 21 days it actually sent), its records (SPF, DKIM, DMARC
    and MX, read daily: the provider's own DKIM must be on), and its health.
-   **Send a test** writes one email from it to itself, through the same wire.
+   A domain that has an SPF record already is offered that record with the
+   provider's include put in, never a second one beside it (two SPF records
+   break both), and told when the change would spend more than SPF's ten
+   lookups. **Send a test** writes one email from it to itself, through the
+   same wire. A bounce is read by whose fault it is (channels
+   `bounceClassOf`): a dead address is stopped, a server refusing the sender
+   counts against the mailbox and never the lead, and the sender's own quota
+   rests the mailbox a day. A send that timed out is looked for in the
+   mailbox's sent mail ten minutes on (`mailbox-reconcile.ts`): found, it is
+   sent; not there, it is planned again. The hold reads hard bounces, servers'
+   refusals, complaints and unsubscribes (migration 00466), never a polite no.
 8. **The first reach-out, made from the sheet.** On Leads, open a search
    and press **Write to the N ready** (an owner, an operator or a partner).
    The sheet takes who gets it, the email with its slots, the nudge after it,
@@ -850,8 +873,9 @@ the workspace once (`reach_out_replied`). The readings are rows of
 
 **A mailbox held by its own mail.** The mailboxes clock judges each mailbox
 once an hour on its own reach-out email (`mailbox_connection_counts`): any
-complaint holds it, and so do permanent bounces or noes (an unsubscribe, or a
-reply's no) past 3% of at least 150 sent. Its sends wait, it is said in the
+complaint holds it, and so do hard bounces and servers' refusals of the sender,
+or unsubscribes, past 3% of at least 150 sent (00466); a reply's no is said on
+its row, never held on. Its sends wait, it is said in the
 Activity log (`mailbox_connection.held`), and its owner is told once; only
 their **Resume** on Connections lifts it, and its count starts again from
 then. A mailbox its provider signed out (a revoked grant, a changed password)

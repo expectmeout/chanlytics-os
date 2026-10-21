@@ -64,7 +64,8 @@ import type { TEMPLATE_CATEGORIES } from "../templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
 import type { PAGE_DEVICES, PAGE_METRICS } from "../shell/vitals-pages";
 import type { VOICE_END_REASONS } from "../ask/ask";
-import type { MAILBOX_CONNECTION_STATES, MAILBOX_HOLDS, MAILBOX_PROVIDERS } from "../email/mailbox-connections";
+import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections";
+import type { MAILBOX_HOLDS } from "../email/mailbox-standing";
 import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,

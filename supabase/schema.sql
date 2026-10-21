@@ -11651,29 +11651,38 @@ CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since time
        and public.email_left(o.status, o.error)
      order by o.created_at desc
      limit 500
+  ), noes as (
+    -- Each person's no in the window, by how they said it; a reply's no undone is no no.
+    select e.subject_id, e.data->>'source' as source from recent r
+      join public.events e
+        on e.tenant_id = r.tenant_id and e.kind = 'contact.consent_changed'
+       and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
+       and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
+       and e.data->>'message_id' = r.id::text
+       and not (e.data->>'source' = 'reply' and exists (
+         select 1 from public.events u
+          where u.tenant_id = r.tenant_id and u.kind = 'contact.consent_changed'
+            and u.created_at >= e.created_at and u.subject_id = e.subject_id
+            and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
+            and u.data->>'message_id' = e.data->>'message_id'))
   )
   select jsonb_build_object(
     'sent', (select count(*) from recent),
-    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the mailbox that wrote.
+    -- A hard bounce only: a full mailbox or a greylisting server says nothing about the mailbox that wrote.
     'bounced', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
                   and lower(coalesce(error->>'kind', '')) = 'permanent'),
+    -- A receiving server refusing the sender: the mailbox's own standing, never the address's.
+    'blocked', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
+                  and lower(coalesce(error->>'kind', '')) = 'blocked'),
     'complained', (
       select count(*) from ours
        where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
-    -- A person counts once, however many of the window's emails their noes name; a no undone is no no.
-    'unsubscribed', (
-      select count(distinct e.subject_id) from recent r
-        join public.events e
-          on e.tenant_id = r.tenant_id and e.kind = 'contact.consent_changed'
-         and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
-         and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
-         and e.data->>'message_id' = r.id::text
-         and not (e.data->>'source' = 'reply' and exists (
-           select 1 from public.events u
-            where u.tenant_id = r.tenant_id and u.kind = 'contact.consent_changed'
-              and u.created_at >= e.created_at and u.subject_id = e.subject_id
-              and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
-              and u.data->>'message_id' = e.data->>'message_id'))))
+    -- A person counts once, however many of the window's emails their noes name, and an unsubscribe of theirs makes
+    -- their no an unsubscribe: the door's own rule (set_email_marketing: a reply's no an unsubscribe follows is the
+    -- unsubscribe's), so a person who said no and then pressed the link counts toward the hold.
+    'unsubscribed', (select count(distinct subject_id) from noes where source = 'unsubscribe'),
+    'said_no', (select count(distinct n.subject_id) from noes n where n.source = 'reply'
+                  and not exists (select 1 from noes u where u.subject_id = n.subject_id and u.source = 'unsubscribe')))
 $$;
 
 
@@ -11681,7 +11690,7 @@ $$;
 -- Name: FUNCTION mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'What a connected mailbox''s reach-out emails came to since p_since (00424): sent (its last 500 that left), bounced (permanent bounces of them), complained, and unsubscribed (the people whose unsubscribe or reply no names one of them, a no undone excepted). The mailboxes clock judges its health by them (contracts mailboxHoldOf). Service role only.';
+COMMENT ON FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since timestamp with time zone) IS 'Service-role only (the mailboxes clock, and the dashboard''s Setup read): what one connected mailbox''s reach-out emails came to since p_since, within 90 days and its last 500: sent, bounced (hard), blocked (a server refused the sender), complained, unsubscribed, and said_no (replied no, not undone, and unsubscribed from none of them). contracts mailboxHoldOf holds a mailbox on complaints, hard and blocked bounces, and unsubscribes; never on noes.';
 
 
 --

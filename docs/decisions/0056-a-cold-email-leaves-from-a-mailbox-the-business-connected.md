@@ -85,7 +85,9 @@ keeps an OAuth token in Vault and refreshes it by compare-and-set (00364).
 8. **Health is counted from our own signals,** since Postmaster Tools v2 reports no reputation. A mailbox is held at:
    - permanent bounces over 3% of its last 150 sends (or 5 in its first 150);
    - any complaint;
-   - unsubscribes and "no thanks" over the same 3%.
+   - unsubscribes over the same 3%. (Amended 20 Oct 2026, 00466: a "no thanks" is a reply, which helps a mailbox's
+     standing, so it is counted and said, never held on; a server refusing the sender, 5.7.x, counts beside the
+     permanent bounces, never against the address.)
 
    A held mailbox's sends wait. A provider's daily limit pauses it until tomorrow. A token Google or Microsoft revoked
    asks the owner to reconnect, once.
