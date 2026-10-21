@@ -629,7 +629,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // The reader's own mark on a person (00349). The rows that say it are drawn from the tab's own word at once
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread
   // opened would be three requests to say what the screen already does.
-  "PUT contacts/[id]/seen": "the reader's own mark; the tab already draws it, and the next read carries it",
+  "PUT contacts/[id]/seen":
+    "the reader's own mark: its answer is carried into the Inbox's, Conversations' and People's rows and the tab's cache as it lands (surfaces/seen.ts carriesMark), and the next read carries it too",
   // Got it (canvas A, Up next): the reader's own mark on a note for them; the open person page reads itself again, and no
   // other page draws whether a note was read.
   "POST contacts/[id]/notes/seen": "the reader's own mark on a note for them; the open person page reads itself again",

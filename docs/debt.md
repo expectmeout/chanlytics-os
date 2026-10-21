@@ -338,7 +338,7 @@ tables with more than one writer     60   473 writers among them
 doors writing a record with no event   94   writing 108 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          31   in 11 files
-literal style values                822   in 22 stylesheets
+literal style values                820   in 22 stylesheets
 primitives outside the kit         1554   selectors naming 666 classes
 inline style props                   68   in 38 files
 wire names not in snake_case         54   in 27 routes

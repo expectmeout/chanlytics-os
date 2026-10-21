@@ -643,7 +643,7 @@ Start the 3 October read there. `RETELL_DOORS_SIGNED` closes the voice secret on
 
 Reach out writes from a mailbox the business connected: its own Google
 Workspace or Microsoft 365 mailbox, on its own domain, connected with OAuth on
-Connections › Email (decision 0056). Each email leaves through that mailbox's
+Settings › Connections, on its own row, Mailboxes you write from (decision 0056). Each email leaves through that mailbox's
 own provider, as one person's email, and the replies land in it, where the
 mailboxes clock reads them back into the Inbox. The platform's own mail
 account (Resend) carries only what a person or the receptionist answers and
@@ -698,7 +698,8 @@ sends cold until these are set, in order, and a reach-out exists (step 8).
    seals a link that names nobody, opens it on the page, and pages
    `email_unsubscribe_links_broken` when the page refuses it.
 7. **Redeploy the edge, then connect the first mailbox.** `GET /api/diag`
-   shows which providers are offered. On Connections › Email, **Connect
+   shows which providers are offered. Until one is, the Mailboxes you write
+   from row on Connections is Later, greyed, with nothing to press. On that row, **Connect
    Google** or **Connect Microsoft** signs in with the mailbox and comes back
    with it connected; its row says its ramp (10 a day, then 20, 30 and 40
    after 7, 14 and 21 days it actually sent), its records (SPF, DKIM, DMARC

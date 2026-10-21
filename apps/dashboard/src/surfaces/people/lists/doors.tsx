@@ -127,20 +127,31 @@ export async function plAddPerson({
 }
 
 /**
- * What a member asked for beside the add, once the person is there: their first note (the notes log's own door) and a
- * list kept by hand to put them on. Each is its own door, so one that is refused leaves the person added; what did not go
- * on is answered, in the words the add says it with.
+ * What a member asked for beside the add, once the person is there: their first note (the notes log's own door), the
+ * lists kept by hand to put them on, and the lists named to be made with them on it (made only now, so an add left
+ * behind leaves no empty list). Each is its own door, so one that is refused leaves the person added; what did not go on
+ * is answered, in the words the add says it with.
  */
-export async function plAddExtras(id: string, { note, listId }: { note: string; listId: string }): Promise<string[]> {
+export async function plAddExtras(
+  id: string,
+  { note, listIds, newLists }: { note: string; listIds: readonly string[]; newLists: readonly string[] },
+): Promise<string[]> {
   const missed: string[] = [];
   if (note.trim()) {
     const n = await writePersonNote(id, { body: note.trim() });
     if (!n.ok) missed.push("the note");
   }
-  if (listId) {
+  let listsMissed = 0;
+  for (const listId of listIds) {
     const l = await lists.add(listId, [id]);
-    if (!l.ok) missed.push("the list");
+    if (!l.ok) listsMissed += 1;
   }
+  for (const name of newLists) {
+    const made = await plMakeListWith(name, [id]);
+    if (!made.ok || !made.filled.ok) listsMissed += 1;
+  }
+  const asked = listIds.length + newLists.length;
+  if (listsMissed) missed.push(asked === 1 ? "the list" : listsMissed === asked ? "the lists" : "a list");
   return missed;
 }
 

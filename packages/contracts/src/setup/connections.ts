@@ -29,11 +29,21 @@ import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
 import { bookingToolName } from "../calendar/booking-notice";
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
-import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "../email/mailbox";
+import type { EmailSetupDto } from "../email/mailbox";
+import { emailRow, mailboxRow } from "./connection-email";
 import { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 
 export type ConnectionKind =
-  "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
+  | "whatsapp"
+  | "phone"
+  | "sms"
+  | "google_listing"
+  | "google_profile"
+  | "calendar"
+  | "instagram"
+  | "email"
+  | "mailbox"
+  | "deposits";
 export const CONNECTION_KINDS: readonly ConnectionKind[] = [
   "whatsapp",
   "phone",
@@ -43,6 +53,7 @@ export const CONNECTION_KINDS: readonly ConnectionKind[] = [
   "calendar",
   "instagram",
   "email",
+  "mailbox",
   "deposits",
 ];
 
@@ -78,7 +89,7 @@ export interface ConnectionRow {
   sentence: string;
   verb: ConnectionVerb | null;
   /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
-  body: "google_choose" | "business_record" | "email_setup" | null;
+  body: "google_choose" | "business_record" | "email_setup" | "mailboxes" | null;
   /**
    * What the row says beside its sentence, each its own short line, with a link after it where there is somewhere to go: what Meta
    * will ask and what WhatsApp costs before Connect, what Meta holds about a connected number, how to try it, and what it costs,
@@ -144,13 +155,16 @@ const ORDER: Record<ConnectionKind, number> = {
   calendar: 5,
   instagram: 6,
   email: 7,
-  deposits: 8,
+  mailbox: 8,
+  deposits: 9,
 };
 
-type Draft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
+/** A row as a builder says it: the group, tone, body and notes are the fold's (row()) unless the builder sets them. */
+export type ConnectionDraft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
   body?: ConnectionRow["body"];
   notes?: ConnectionNote[];
 };
+type Draft = ConnectionDraft;
 
 function row(d: Draft): ConnectionRow {
   return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
@@ -676,64 +690,6 @@ function instagramRow(): Draft {
   };
 }
 
-/**
- * Email: the workspace's address when it has one, the form that makes one when this deployment has the
- * channel, and "later" where it does not. The receptionist does not answer email yet, and the row says so
- * rather than promising what Connections used to ("an address the receptionist answers").
- */
-function emailRow(i: ConnectionInputs, { nowMs }: ConnectionFacts): Draft {
-  const base = { kind: "email" as const, icon: "mail", title: "Email" };
-  const mailbox = i.email?.mailbox ?? null;
-  if (mailbox) {
-    const last = mailbox.last_received_at
-      ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.`
-      : "";
-    // An email that could not be taken in is said HERE, where the owner looks
-    // at the channel itself — the way the Google listing row carries
-    // check_error above. It is ours to fix, not theirs, so the row says so and
-    // keeps the verb it had; the next email that arrives clears it, so this is
-    // never an old alarm about mail that has since been flowing for a week.
-    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
-    // A mailbox reach-outs write from that is held or signed out is said here too: an owner looking at "On" would not
-    // look further down the row.
-    const needs = (i.email?.sending?.mailboxes ?? []).filter(
-      (m) => m.state === "held" || m.state === "reconnect",
-    ).length;
-    return {
-      ...base,
-      detail: mailbox.address,
-      state: mailbox.last_error || needs ? "attention" : "connected",
-      stateWords: mailbox.last_error
-        ? SETUP_STATE_WORDS.waiting_them
-        : needs
-          ? `On · ${needs} mailbox${needs === 1 ? "" : "es"} to look at`
-          : "On",
-      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-      body: "email_setup",
-    };
-  }
-  if (i.email?.ready) {
-    return {
-      ...base,
-      detail: null,
-      state: "none",
-      stateWords: "Not set up",
-      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-      body: "email_setup",
-    };
-  }
-  return {
-    ...base,
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "An address customers write to, answered from your Inbox.",
-    verb: null,
-  };
-}
-
 /** Deposits: not built yet, so always later. */
 function depositsRow(): Draft {
   return {
@@ -760,6 +716,7 @@ const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
   calendarRow,
   instagramRow,
   emailRow,
+  mailboxRow,
   depositsRow,
 ];
 

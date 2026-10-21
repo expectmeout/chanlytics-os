@@ -102,6 +102,7 @@ export {
   heldPill,
   seenBy,
   isUnseen,
+  readingOf,
 } from "./standing";
 export type { StandingInput, Standing, StandingVerdict, SeenMarksDto, SeenOf, SeenReading } from "./standing";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
