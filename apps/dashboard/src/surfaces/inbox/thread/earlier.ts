@@ -11,7 +11,9 @@
  * element, draw it all.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { isDocumentScroller } from "../../kit/motion/page-scroll";
 import type { Thread } from "../types";
+import { threadScroller } from "./scroller";
 
 /** How many of a thread's newest entries are drawn as it opens. */
 const IX_DRAWN_FIRST = 30;
@@ -33,7 +35,8 @@ const ixDrawnFrom = (thread: Thread, focusMessageId: string | null): number => {
 
 /**
  * The index a thread is drawn from, and the mark that stands before its first drawn entry while earlier ones wait
- * (`moreRef`, drawn only while `from` is over zero). `scrollRef` is the pane's scroller.
+ * (`moreRef`, drawn only while `from` is over zero). `scrollRef` is the pane's conversation, which scrolls itself on a
+ * desk and which the window scrolls on a phone (scroller.ts).
  */
 export function useEarlierAsScrolled(
   thread: Thread | null,
@@ -55,12 +58,13 @@ export function useEarlierAsScrolled(
     if (!el || !was || !was.entry.isConnected) return;
     // Measured, not reckoned from the height added: a browser that anchors its own scroll (Chromium, Firefox) has put
     // the entry back already and the difference is nothing, where a second correction would throw it a screen away.
-    el.scrollTop += was.entry.getBoundingClientRect().top - was.top;
+    threadScroller(el).scrollTop += was.entry.getBoundingClientRect().top - was.top;
   }, [from, scrollRef]);
   useEffect(() => {
     const el = scrollRef.current;
     const more = moreRef.current;
     if (from <= 0 || !el || !more || typeof IntersectionObserver !== "function") return undefined;
+    const box = threadScroller(el);
     const watch = new IntersectionObserver(
       (seen) => {
         if (!seen.some((s) => s.isIntersecting)) return;
@@ -68,7 +72,8 @@ export function useEarlierAsScrolled(
         stood.current = first ? { entry: first, top: first.getBoundingClientRect().top } : null;
         setDrawn({ id, from: Math.max(0, from - IX_DRAWN_STEP) });
       },
-      { root: el, rootMargin: IX_EARLIER_NEAR },
+      // The window's own view where it scrolls the thread: the root is then the screen.
+      { root: isDocumentScroller(box) ? null : box, rootMargin: IX_EARLIER_NEAR },
     );
     watch.observe(more);
     return () => watch.disconnect();

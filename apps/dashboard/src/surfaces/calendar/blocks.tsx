@@ -21,7 +21,7 @@ import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { calendar } from "./verbs";
-import { crPhone } from "./board-dom";
+import { boardToNow, crPhone } from "./board-dom";
 import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
 import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
@@ -406,7 +406,8 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
  * the grid before the first paint and again as the room changes. A phone's is words.ts fitHourPx; a desk's is
  * fitDeskHourPx, the stylesheet's 64px where the day fits at it and never under 48, so a desk's day holds still where it
  * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled
- * past every time is above it, a scroll away.
+ * past every time is above it, a scroll away. On a phone the window scrolls the board, which is as tall as its hours there
+ * (mobile.css, "The window scrolls"), and the hour before now is brought under its heads by the window (board-dom.ts).
  */
 function useHourFit(
   scroller: RefObject<HTMLDivElement | null>,
@@ -431,28 +432,15 @@ function useHourFit(
     watch.observe(el);
     return () => watch.disconnect();
   }, [scroller, span, laneRows]);
-  // Open at now, once for the view: a scroller with room to scroll, whose now line is below what its top shows, is put an
-  // hour above the now line. Where the top already shows the now line, it stays at the top: put an hour above five-thirty,
-  // a board that scrolls a little stopped at its foot with its first hour or two cut off, and read as scrolled by mistake
-  // (Ruben's screenshots, 18 Oct 2026).
+  // Open at now, once for the view (board-dom.ts boardToNow).
   const opened = useRef(false);
   useLayoutEffect(() => {
     const el = scroller.current;
     if (opened.current || !el || nowAt === null) return;
     opened.current = true;
-    if (el.scrollHeight <= el.clientHeight + 1) return;
-    const grid = el.firstElementChild as HTMLElement;
-    const hour = parseFloat(getComputedStyle(grid).getPropertyValue("--cal-hour")) || 64;
-    const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
-    // A phone's board runs on under the tab bar, the room kept for it at the scroller's foot (mobile.css): a now line
-    // under the bar is not shown.
-    const bar = crPhone() ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
-    if (nowAt * hour + CR_NOW_CLEAR <= el.clientHeight - heads - bar) return;
-    el.scrollTop = Math.max(0, (nowAt - 1) * hour);
+    boardToNow(el, nowAt);
   }, [scroller, nowAt]);
 }
-/** How far over the board's foot the now line stands to count as shown: its dot's room. */
-const CR_NOW_CLEAR = 8;
 
 /** The board: hours down, days across. Seven columns in Week, one in Day. */
 export function CrBoard(p: {
