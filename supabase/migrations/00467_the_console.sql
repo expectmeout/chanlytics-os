@@ -1,4 +1,4 @@
--- 00466 · The Console (decision 0066): the platform's own place, its staff in three roles behind a second factor, every
+-- 00467 · The Console (decision 0066): the platform's own place, its staff in three roles behind a second factor, every
 -- act they take written down with its reason before it runs, what customers report, and the clock the data-deletion
 -- page promises.
 --
@@ -35,7 +35,7 @@ alter table public.platform_admins add column if not exists role text not null d
 alter table public.platform_admins drop constraint if exists platform_admins_role_check;
 alter table public.platform_admins add constraint platform_admins_role_check check (role in ('owner', 'support', 'billing'));
 comment on column public.platform_admins.role is
-  'What the person may do in the Console (00466, decision 0066): owner (everything), support (the workspaces'' work), billing (the money). Set at the database alone (platform_admin_add).';
+  'What the person may do in the Console (00467, decision 0066): owner (everything), support (the workspaces'' work), billing (the money). Set at the database alone (platform_admin_add).';
 
 create or replace function public.platform_staff_state()
 returns text
@@ -54,7 +54,7 @@ as $$
 $$;
 
 comment on function public.platform_staff_state() is
-  'The calling session in the Console (00466): its role once it showed its second factor, needs_second_factor before, none for everybody else. Answers about the caller alone, so every session may ask.';
+  'The calling session in the Console (00467): its role once it showed its second factor, needs_second_factor before, none for everybody else. Answers about the caller alone, so every session may ask.';
 
 revoke execute on function public.platform_staff_state() from public, anon;
 grant execute on function public.platform_staff_state() to authenticated;
@@ -73,7 +73,7 @@ as $$
 $$;
 
 comment on function public.platform_role() is
-  'The calling session''s role in the Console (00466), on a session that showed its second factor; null otherwise. Answers about the caller alone.';
+  'The calling session''s role in the Console (00467), on a session that showed its second factor; null otherwise. Answers about the caller alone.';
 
 revoke execute on function public.platform_role() from public, anon;
 grant execute on function public.platform_role() to authenticated;
@@ -91,7 +91,7 @@ as $$
 $$;
 
 comment on function public.is_platform_admin() is
-  'Whether the calling session is Chanlytics staff and showed its second factor (00466, decision 0066: no grace). Answers only about the caller, which is why every session may ask; platform_overview() and the Console''s doors are what the answer unlocks.';
+  'Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: no grace). Answers only about the caller, which is why every session may ask; platform_overview() and the Console''s doors are what the answer unlocks.';
 
 revoke execute on function public.is_platform_admin() from public, anon;
 grant execute on function public.is_platform_admin() to authenticated;
@@ -129,7 +129,7 @@ begin
 end $$;
 
 comment on function public.platform_admin_add(text, text) is
-  'Adds a person to the Console''s staff by email with a role, or changes the role of one who is staff already (00466). Service-role only, and deliberately not reachable from the app. Answers in words rather than raising, so a typo is not an outage. Removing someone is a delete from platform_admins at the same console.';
+  'Adds a person to the Console''s staff by email with a role, or changes the role of one who is staff already (00467). Service-role only, and deliberately not reachable from the app. Answers in words rather than raising, so a typo is not an outage. Removing someone is a delete from platform_admins at the same console.';
 
 revoke execute on function public.platform_admin_add(text, text) from public, anon, authenticated;
 grant execute on function public.platform_admin_add(text, text) to service_role;
@@ -159,7 +159,7 @@ create table if not exists public.platform_acts (
   constraint platform_acts_finished check ((outcome = 'running') = (finished_at is null))
 );
 comment on table public.platform_acts is
-  'Every act the Console''s staff take (00466, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.';
+  'Every act the Console''s staff take (00467, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.';
 
 create index if not exists platform_acts_at on public.platform_acts (at desc);
 create index if not exists platform_acts_tenant_at on public.platform_acts (tenant_id, at desc) where tenant_id is not null;
@@ -221,7 +221,7 @@ create table if not exists public.support_reports (
   mail_error     text check (mail_error is null or char_length(mail_error) <= 300)
 );
 comment on table public.support_reports is
-  'Report a problem (00466, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
+  'Report a problem (00467, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
 
 create index if not exists support_reports_created on public.support_reports (created_at desc);
 create index if not exists support_reports_tenant_created on public.support_reports (tenant_id, created_at desc) where tenant_id is not null;
@@ -256,7 +256,7 @@ create table if not exists public.privacy_requests (
   constraint privacy_requests_due_after_asked check (due_at > asked_at)
 );
 comment on table public.privacy_requests is
-  'A request the data-deletion page promises an answer to (00466, decision 0066): a workspace to delete within thirty days of its owner asking, a person''s request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.';
+  'A request the data-deletion page promises an answer to (00467, decision 0066): a workspace to delete within thirty days of its owner asking, a person''s request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.';
 
 create index if not exists privacy_requests_open on public.privacy_requests (due_at) where closed_at is null;
 
@@ -277,7 +277,7 @@ create table if not exists public.platform_claims (
   constraint platform_claims_until check (until > claimed_at)
 );
 comment on table public.platform_claims is
-  'Who on the Console''s staff has taken a workspace, until when (00466, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.';
+  'Who on the Console''s staff has taken a workspace, until when (00467, decision 0066: four hours, or until let go), so two people do not mend one thing at once. The service role alone reads and writes it.';
 
 alter table public.platform_claims enable row level security;
 revoke all on public.platform_claims from public, anon, authenticated;
@@ -300,7 +300,7 @@ as $$
 $$;
 
 comment on function public.platform_model_spend(integer) is
-  'The Console (00466, decision 0066): what each workspace''s model calls cost over the last days (ai_usage.usd, list price). The service role alone.';
+  'The Console (00467, decision 0066): what each workspace''s model calls cost over the last days (ai_usage.usd, list price). The service role alone.';
 
 revoke execute on function public.platform_model_spend(integer) from public, anon, authenticated;
 grant execute on function public.platform_model_spend(integer) to service_role;
@@ -370,7 +370,7 @@ begin
 end $$;
 
 comment on function public.platform_find(text) is
-  'The Console''s Find (00466, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
+  'The Console''s Find (00467, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
 
 revoke execute on function public.platform_find(text) from public, anon;
 grant execute on function public.platform_find(text) to authenticated;

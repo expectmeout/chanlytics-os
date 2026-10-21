@@ -646,7 +646,7 @@ export type {
   PartnerJoined,
   PartnerInviteMail,
 } from "./repositories/partner";
-// The Console (decision 0066, 00466): its staff, Find, claims, the Admin log, reports, requests.
+// The Console (decision 0066, 00467): its staff, Find, claims, the Admin log, reports, requests.
 export {
   staffStateOf,
   findAcross,

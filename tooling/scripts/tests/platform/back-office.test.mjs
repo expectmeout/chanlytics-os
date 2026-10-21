@@ -499,7 +499,7 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 
 test("the guard asks the database, and answers 404 rather than 403", () => {
   const src = readCode("apps/dashboard/src/server/platform/platform.ts");
-  // platform_staff_state() (00466): the role, a second factor owed, or none, about the caller alone.
+  // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
   assert.match(src, /await staffStateOf\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
   assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
   assert.match(

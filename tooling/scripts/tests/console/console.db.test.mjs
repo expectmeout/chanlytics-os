@@ -1,5 +1,5 @@
 /**
- * The Console against the replayed stack (00466, decision 0066).
+ * The Console against the replayed stack (00467, decision 0066).
  *
  * Staff show their second factor every session, no grace: a session of staff that has not is `needs_second_factor`
  * to platform_staff_state(), not staff to is_platform_admin(), and refused by every door behind it (Find, the overview).

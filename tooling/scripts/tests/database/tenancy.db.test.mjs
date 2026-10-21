@@ -431,7 +431,7 @@ before(async () => {
   await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
   await seed("lead_suggestions", { tenant_id: A, business_line: "a hair salon in Miami" }, null);
   await seed("platform_metrics", { tenant_id: A, day: "2026-09-26" }, null);
-  // The Console (00466, decision 0066): what the team did in A, who has it, what its owner reported, a request about it.
+  // The Console (00467, decision 0066): what the team did in A, who has it, what its owner reported, a request about it.
   await seed(
     "platform_acts",
     {
@@ -925,7 +925,7 @@ const TENANT_TABLES = {
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
   partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
-  // The Console (00466, decision 0066): the platform's own tables about a workspace, the service role's alone; a member,
+  // The Console (00467, decision 0066): the platform's own tables about a workspace, the service role's alone; a member,
   // the workspace's owner included, reads none of them and writes none.
   platform_acts: [
     "none",

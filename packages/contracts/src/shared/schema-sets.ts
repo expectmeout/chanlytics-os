@@ -242,7 +242,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PAGE_DEVICES>, SchemaSet<"page_vitals.device">>>,
   // How a voice session ended (00300, 00302): the browser's word, kept on the row.
   Holds<Exactly<Of<typeof VOICE_END_REASONS>, SchemaSet<"ask_voice_sessions.end_reason">>>,
-  // The Console (00466, decision 0066): the staff's three roles, an act's target, its reason and what came of it, and
+  // The Console (00467, decision 0066): the staff's three roles, an act's target, its reason and what came of it, and
   // the requests the data-deletion page promises an answer to.
   Holds<Exactly<Of<typeof STAFF_ROLES>, SchemaSet<"platform_admins.role">>>,
   Holds<Exactly<Of<typeof STAFF_ROLES>, SchemaSet<"platform_acts.actor_role">>>,

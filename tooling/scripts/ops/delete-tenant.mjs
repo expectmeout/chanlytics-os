@@ -135,7 +135,7 @@ const TABLES = [
   "person_moments",
   "person_notes",
   "platform_metrics",
-  // The Console (00466, decision 0066): what the team did in it and why, who had it taken, what it reported, and the
+  // The Console (00467, decision 0066): what the team did in it and why, who had it taken, what it reported, and the
   // requests about it, the last of which outlive it.
   "platform_acts",
   "platform_claims",
@@ -168,7 +168,7 @@ const TABLES = [
 
 /** Survives the delete with a null tenant_id, deliberately. */
 // A partner's earnings (0012) are money owed or paid, and outlive the workspace they came from, as its events do. What
-// the Console's staff did there, and the request that asked for the delete, are the record of it (00466).
+// the Console's staff did there, and the request that asked for the delete, are the record of it (00467).
 const KEPT = new Set(["billing_events", "partner_earnings", "platform_acts", "privacy_requests"]);
 
 const db = createClient(url, key, { auth: { persistSession: false } });

@@ -401,7 +401,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(NOT_PERSONAL, "checks", "code_used", "standing_why"),
   },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
-  // The Console (00466, decision 0066). What the team did and why: the platform's staff, a ticket's number, and a reason
+  // The Console (00467, decision 0066). What the team did and why: the platform's staff, a ticket's number, and a reason
   // the ask tells them to write without a customer's details (CONSOLE_WORDS.noteHint); kept as the log of the act.
   platform_acts: all(NOT_PERSONAL, "actor_email", "act", "ticket", "note", "outcome_note"),
   // Who on the team has a workspace taken: the platform's staff, gone in four hours or when let go.

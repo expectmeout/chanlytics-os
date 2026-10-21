@@ -58,7 +58,7 @@ const NOT_RECORDED = "That could not be recorded, so it was not done. Try again 
 
 /**
  * What the log keeps of a throw: our own words when it is ours (an AppError), else a line that points to the server's
- * log, where the route writes the error itself. The log outlives the workspace (00466), so a database's words, which can
+ * log, where the route writes the error itself. The log outlives the workspace (00467), so a database's words, which can
  * quote a row's values, are not copied into it.
  */
 const thrownWords = (e: unknown): string =>

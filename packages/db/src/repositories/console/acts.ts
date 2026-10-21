@@ -1,5 +1,5 @@
 /**
- * The Admin log (platform_acts, 00466, decision 0066): every act the Console's staff take, written before it runs, then
+ * The Admin log (platform_acts, 00467, decision 0066): every act the Console's staff take, written before it runs, then
  * what came of it. Three statements, on the service role the dashboard's backOffice() hands out: a row in, its outcome,
  * and a page of the log. Nothing here deletes a row.
  *

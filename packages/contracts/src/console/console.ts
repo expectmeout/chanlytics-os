@@ -4,7 +4,7 @@
  * taken one, and the log of what the team did.
  *
  * Pure. The routes hand it rows and the screens draw what comes back, so what a person on the team sees can be tested,
- * and the database says the same in `platform_role()` and `platform_staff_state()` (00466).
+ * and the database says the same in `platform_role()` and `platform_staff_state()` (00467).
  */
 import type { Tone } from "../shell/tone";
 import { CONSOLE_PATH } from "./console-path";

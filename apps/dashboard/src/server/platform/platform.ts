@@ -84,7 +84,7 @@ export interface BackOffice {
 }
 
 /**
- * Ask the database what this session is to the Console (platform_staff_state, 00466): its role once it showed its
+ * Ask the database what this session is to the Console (platform_staff_state, 00467): its role once it showed its
  * second factor, `needs_second_factor` before, `none` for everybody else.
  *
  * Three answers, not two, and the third is the one that was wrong: a database that cannot answer is not a "no".

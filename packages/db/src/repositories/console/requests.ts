@@ -1,5 +1,5 @@
 /**
- * The promise's clock (privacy_requests, 00466, decision 0066): a request the data-deletion page promises an answer to
+ * The promise's clock (privacy_requests, 00467, decision 0066): a request the data-deletion page promises an answer to
  * within thirty days, filed by a person on the Console's staff as it came in, and its steps as each is done. On the
  * service role the dashboard's backOffice() hands out; each answers what the database answered.
  *
