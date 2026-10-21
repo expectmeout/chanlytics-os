@@ -610,8 +610,6 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   "POST sequences/[id]/leads/check":
     "what an add to a sequence would do (00459, dry): nothing is written; the caller says the answer",
-  "POST sequences/draft-leads":
-    "Ask's draft of a sequence to leads' emails: nothing is made until New keeps it (POST sequences)",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/quick": "a quick answer kept as a turn: the Line holds the answer it drew and the thread it landed in",

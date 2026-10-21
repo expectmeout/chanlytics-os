@@ -20,6 +20,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { gate } from "../../../legacy-verbs";
 import { RailAdd, RailBox, RailRow } from "../place/rail";
+import { valueLabelOf } from "./new-model";
 import { StepWords, WordPick } from "./new-parts";
 import type { NewSheet } from "./new-sheets";
 
@@ -44,20 +45,28 @@ function stepDaysOf(steps: readonly NewStep[]): number[] {
   });
 }
 
-/** A step's name on its box: its own, else what its message or its task is called. */
-function stepTitleOf(step: NewStep, audience: NewDraftDto["audience"], i: number): string {
-  if (step.name.trim()) return step.name;
+/**
+ * A step's name on its box: its own, else what its message or its task is called, else its place. The first step carries
+ * the sequence's name (sequence_create names it so), which the pane's head already says: its box says its message.
+ */
+function stepTitleOf(step: NewStep, d: Pick<NewDraftDto, "audience" | "kind" | "name">, i: number): string {
+  if (step.name.trim() && !(i === 0 && step.name.trim() === d.name.trim())) return step.name;
   if (step.does === "call") return W.hand.callTitle;
   if (step.does === "note") return W.hand.noteTitle;
-  if (audience === "leads") return i === 0 ? W.sheets.firstEmail : W.sheets.laterEmail;
-  return step.message?.title ?? W.does.message;
+  // A one-off is one message, so it has no steps to count.
+  if (d.audience === "leads")
+    return d.kind === "once" ? W.draft.theEmail : i === 0 ? W.sheets.firstEmail : W.sheets.laterEmail;
+  return step.message?.title ?? (d.kind === "once" ? W.draft.message : W.draft.step(i + 1));
 }
 
-/** How a step goes, on its box: its channels, an email, or a task for you. */
-function byOf(step: NewStep, audience: NewDraftDto["audience"]): { glyph: string; words: string } | null {
+/**
+ * How a step goes, on its box: its channels (a one-off's, the ones it is sent by), an email (a later one in the first's
+ * thread), or a task for you.
+ */
+function byOf(step: NewStep, d: Pick<NewDraftDto, "audience" | "kind" | "channels">, i: number) {
   if (step.does !== "message") return { glyph: step.does === "call" ? "phone" : "note", words: SW.byTask };
-  if (audience === "leads") return { glyph: "mail", words: SW.byEmail };
-  const channels = step.message?.channels ?? [];
+  if (d.audience === "leads") return { glyph: "mail", words: i === 0 ? SW.byEmail : W.draft.sameThread };
+  const channels = d.kind === "once" ? d.channels : (step.message?.channels ?? []);
   if (channels.length === 0) return null;
   return { glyph: channels[0] === "email" ? "mail" : "chat", words: scheduleChannels(channels) };
 }
@@ -101,7 +110,7 @@ function PersonParts({ step, i, acts, asked }: { step: NewStep; i: number; acts:
         p.kind === "text" ? (
           <Field
             key={at}
-            label={W.draft.youAdd}
+            label={valueLabelOf(m, at) ?? W.draft.youAdd}
             value={p.value}
             onValueChange={(v) => acts.typed(i, at, v)}
             maxLength={200}
@@ -175,13 +184,13 @@ function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs }) {
   return (
     <RailBox
       place={i + 1}
-      title={stepTitleOf(step, draft.audience, i)}
+      title={stepTitleOf(step, draft, i)}
       onOpen={
         step.does !== "message"
           ? null
           : () => acts.open(draft.audience === "leads" ? { kind: "words", i } : { kind: "message", i })
       }
-      by={byOf(step, draft.audience)}
+      by={byOf(step, draft, i)}
       pre={
         <div className="sq-nw-step">
           <StepWords step={step} draft={draft} />

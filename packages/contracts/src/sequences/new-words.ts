@@ -10,6 +10,8 @@ export const NEW_WORDS = {
   title: "New",
   /** The head's act on Sequences, its noun said where the row has room for it. */
   act: "New sequence",
+  /** A one-off built by hand, before it is named. */
+  actOnce: "New message",
   say: {
     label: "What should it do?",
     placeholder: "What should it do? Say it in a line, as you’d tell a person.",
@@ -21,6 +23,8 @@ export const NEW_WORDS = {
     stop: "Stop",
     reading: "Reading your messages, your lists, and who can hear it",
     asked: "Ask’s draft",
+    /** Said where the line stays while Ask could not draft it. */
+    kept: "Your line is kept",
     sayAgain: "Say it again",
     undo: "Undo",
     againFor: { people: "Drafting it again for people", leads: "Drafting it again for businesses" } satisfies Record<
@@ -44,6 +48,8 @@ export const NEW_WORDS = {
     offerSaid: (n: number) => `${n} can hear an offer`,
     leads: (n: number) => `Write to ${n} ready ${n === 1 ? "lead" : "leads"}`,
     leadsLine: (search: string) => `Email the ${search} we found, then follow up a week later`,
+    /** The line a draft for leads picked on Leads is asked from. */
+    leadsPicked: "Email these businesses, then follow up a week later",
     remind: "Remind people the day before",
     needsCalendar: "Needs your calendar",
     toEveryone: "Send one message to everyone",
@@ -98,11 +104,16 @@ export const NEW_WORDS = {
     send: "Send",
     schedule: "Schedule",
     joinsAsFound: "New leads the search finds join it",
-    pickWhenAndMessage: "Pick when, and a message",
+    /** What the foot asks for before a draft can be made: "Pick when, and a message". */
+    pick: (parts: readonly string[]) =>
+      `Pick ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}` : parts[0]}`,
+    parts: { when: "when", who: "who", search: "a search", how: "how", message: "a message" },
     thenItCanStart: "Then it can start",
+    thenItCanGo: "Then it can go",
     sayIt: "Say it",
     orSay: "Or say it in a line, and Ask fills it in.",
-    lineFirst: "The people on it now get step 1 at its first run; anyone who joins later, the day they join",
+    lineFirst: (n: number | null) =>
+      `${n === null ? "The people" : `The ${n}`} on it now get step 1 at its first run; anyone who joins later, the day they join`,
     subSchedule: "Draft · nothing goes until you schedule it",
     toWrite: "Its words are still to write",
     pickMessage: "Pick a message for it",
@@ -113,6 +124,10 @@ export const NEW_WORDS = {
     people: (n: number) => `${n} ${n === 1 ? "person" : "people"}`,
     businesses: (n: number) => `${n} ${n === 1 ? "business" : "businesses"}`,
     goesSoon: "Goes 10 minutes after you send",
+    /** Sent late at night, it waits for the sending hours to open (as every send does). */
+    goesOpen: (time: string) => `Goes at ${time}, when your sending hours open`,
+    step: (n: number) => `Step ${n}`,
+    sameThread: "Email, in the same thread",
     goesAt: (when: string) => `${when} · Stop any time before`,
     leadsWait: "They wait for your OK, then go in their hours",
     joins: (list: string) => `joins ${list}`,
@@ -148,8 +163,15 @@ export const NEW_WORDS = {
     find: "Find businesses",
   },
   /** A one-off sent, back on Sequences (E2). */
+  /** A sequence made, on its record (Started, LeadsStarted): when its first batch goes, and that it waits for the OK. */
+  started: {
+    people: (when: string) => `Started · its first batch waits for your OK ${when}`,
+    leads: "Started · its first emails wait for your OK",
+    kept: (name: string) => `“${name}” is kept under Drafts`,
+  },
   sent: {
-    goes: (name: string, time: string) => `“${name}” goes at ${time}`,
+    /** When it goes, as clockWhen says it ("at 2:40 PM", "tomorrow 9:00 AM"). */
+    goes: (name: string, when: string) => `“${name}” goes ${when}`,
     stop: "Stop",
   },
   /** Send now asks first (E1): who and how, and that it can still be stopped. */
@@ -166,8 +188,10 @@ export const NEW_WORDS = {
     title: "WhatsApp needs Meta’s review first",
     /** What can go now (its other versions, "email and text"), and who hears it only by WhatsApp. */
     words: (others: string, only: number) =>
-      `Ask wrote this message new. ${others ? `Its ${others} can go now; WhatsApp’s` : "WhatsApp’s version"} takes about a day${only > 0 ? `, and ${only} ${only === 1 ? "person hears" : "people hear"} only WhatsApp` : ""}.`,
-    tomorrow: "Send it tomorrow instead",
+      `Ask wrote this message new, and Meta reviews its WhatsApp version first, in about a day. ${others ? `Sent before then, it goes by ${others}${only > 0 ? `, and the ${only} who ${only === 1 ? "hears" : "hear"} only WhatsApp ${only === 1 ? "is" : "are"} left out` : ""}` : "Nothing else carries it yet"}. Keep it, and it waits for you under Drafts.`,
+    /** None of its other channels can carry it: nothing goes until Meta approves WhatsApp's. */
+    noneYet: "WhatsApp’s version is with Meta, and no other way carries this message yet. Keep it until it’s approved.",
+    keep: "Keep it until it’s approved",
     goes: (n: number, by: string) => `${n} ${n === 1 ? "person" : "people"}, by ${by}`,
     leftOut: (n: number) => `${n} who ${n === 1 ? "hears" : "hear"} only WhatsApp ${n === 1 ? "is" : "are"} left out`,
   },
@@ -179,6 +203,10 @@ export const NEW_WORDS = {
     nobodyWords: "Pick a way they can hear it, or someone else to send it to.",
     pickAWay: "Pick a way they can hear it",
     of: (n: number) => `of ${n}`,
+    ofList: (n: number) => `of ${n} on it`,
+    getYes: "Get their yes",
+    connect: (channel: "whatsapp" | "email" | "sms") =>
+      ({ whatsapp: "Connect WhatsApp", email: "Connect email", sms: "Connect texting" })[channel],
     saidStop: (n: number) => `${n} said stop`,
     neverYes: (n: number) => `${n} never said yes`,
     noNumber: (n: number) => `${n} with no number or address`,
@@ -233,6 +261,7 @@ export const NEW_WORDS = {
     aSearch: "A search on Leads",
     hasItsSequence: "Has its sequence already",
     noneChecked: "None checked yet",
+    foundNone: (n: number) => `${n} found, none checked yet`,
     leadsYouPick: "Leads you pick",
     leadsYouPickSaid: "Tick them on Leads, then come back",
     findMore: "Find more businesses",
@@ -252,6 +281,7 @@ export const NEW_WORDS = {
     laterToday: "Later today",
     laterTodayAt: (time: string) => `At ${time}`,
     nowSaid: "Goes in 10 minutes; Stop until then",
+    nowOpens: (time: string) => `Goes at ${time}, when your sending hours open; Stop until then`,
     pickADay: "Pick a day and time",
     pickADaySaid: "Up to 30 days ahead",
     day: "Day",
@@ -268,7 +298,7 @@ export const NEW_WORDS = {
     onlyIf: "Only if",
     peopleTiming: "Anyone who books, or says stop, leaves it.",
     leadsTiming: "To leads: 2 to 30 days, and a reply always stops it.",
-    addSub: "After the last step, for people and leads alike",
+    addSub: (n: number) => `After step ${n}, for people and leads alike`,
     addMessage: "One of yours, or one Ask writes",
     addCall: "A call for you",
     okSub: "The first batch always waits for it",
@@ -347,6 +377,13 @@ export const NEW_WORDS = {
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     leftOut: (what: string) => `Left out: “${what}”`,
   },
+  /** Nothing here can start on what the line asks (D3): the closest ways, then the line again. */
+  noFit: {
+    closest: "The closest Ask can do:",
+    list: { lead: "When someone joins a list", sub: "Keep a list for it in People, and start a sequence on it" },
+    once: { lead: "Once, to people you pick", sub: "One message, sent when it comes up" },
+    again: "Or change the line and draft it again.",
+  },
   failed: {
     title: "Ask couldn’t draft it just now",
     words: "Try again in a moment, or build it yourself: the same draft, picked by hand.",
@@ -355,12 +392,19 @@ export const NEW_WORDS = {
   },
   leaving: {
     title: "Keep this draft?",
-    words: "It waits under Drafts and sends nothing.",
+    words: "It waits under Drafts and sends nothing. Leave it here, and it’s still here when you come back.",
     discard: "Discard",
     keep: "Keep as a draft",
   },
   viewer: {
     title: "Only an owner or operator can make one",
     words: "You can see what’s happening and what runs. Ask one of them to start it.",
+    /** What is happening, as a viewer reads it: the facts each start is drawn from, with nothing to press. */
+    thank: (n: number) => `${n} came in this week`,
+    thankSaid: "Nothing thanks them yet",
+    winBack: (n: number) => `${n} have gone quiet`,
+    offer: (n: number) => `${n} can hear an offer`,
+    leads: (n: number) => `${n} ${n === 1 ? "lead" : "leads"} ready`,
+    welcome: (n: number) => `${n} new ${n === 1 ? "person" : "people"}`,
   },
 } as const;

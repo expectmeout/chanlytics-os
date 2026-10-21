@@ -201,6 +201,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "route_failed",
   "route_refused",
   "sequence_draft_read_failed",
+  "sequence_kept_draft_left",
   "settings_event_failed",
   "setup_offers_by_email_failed",
   "setup_request_tell_failed",

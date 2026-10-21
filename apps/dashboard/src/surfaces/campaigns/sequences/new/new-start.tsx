@@ -10,6 +10,7 @@ import {
   NEW_WORDS_MAX,
   leadsRoute,
   newSequenceLine,
+  peopleRoute,
   type AppointmentWord,
   type NewDraftAsk,
   type NewKind,
@@ -20,6 +21,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { gate } from "../../../legacy-verbs";
 import { CmPane } from "../../parts/split";
+import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
 import { Choice, runningOn, type WhoReads } from "./new-sheets";
 
@@ -31,12 +33,14 @@ export interface StartReads extends WhoReads {
   messages: number | null;
 }
 
-/** A start from what is happening: its line and the choices it makes, drafted as it is pressed. */
+/** A start from what is happening: its line and the choices it makes, drafted as it is pressed; and the fact under it. */
 interface Start {
   id: string;
   glyph: string;
   title: string;
   said: string;
+  /** What is happening, as a viewer reads it: the fact the start is drawn from, with nothing to press (the Viewer board). */
+  fact: { title: string; said: string | null };
   kind: NewKind;
   line: string;
   fixed: Omit<NewDraftAsk, "words">;
@@ -53,7 +57,12 @@ function freeMoment(reads: StartReads, ids: readonly string[]) {
 /** The starts the workspace offers now, in the canvas's order: each with someone to reach, none doubling one that runs. */
 function startsOf(reads: StartReads): Start[] {
   const out: Start[] = [];
-  const moment = (ids: readonly string[], title: (n: number) => string, said: (n: number, hint: string) => string) => {
+  const moment = (
+    ids: readonly string[],
+    title: (n: number) => string,
+    said: (n: number, hint: string) => string,
+    fact: (n: number, hint: string) => Start["fact"],
+  ) => {
     const m = freeMoment(reads, ids);
     if (!m || !m.candidates) return;
     out.push({
@@ -61,6 +70,7 @@ function startsOf(reads: StartReads): Start[] {
       glyph: "clock",
       title: title(m.candidates),
       said: said(m.candidates, m.hint),
+      fact: fact(m.candidates, m.hint),
       kind: "sequence",
       line: newSequenceLine(m.id, reads.word) ?? m.label,
       fixed: { kind: "sequence", audience: "people", who: { kind: "moment", trigger: m.id, label: m.label } },
@@ -70,14 +80,21 @@ function startsOf(reads: StartReads): Start[] {
     ["visited"],
     () => W.starts.thank,
     (n) => W.starts.thankSaid(n),
+    (n) => ({ title: W.viewer.thank(n), said: W.viewer.thankSaid }),
   );
-  moment(["lapsed", "quiet_30"], W.starts.winBack, (_n, hint) => hint);
+  moment(
+    ["lapsed", "quiet_30"],
+    W.starts.winBack,
+    (_n, hint) => hint,
+    (n, hint) => ({ title: W.viewer.winBack(n), said: hint }),
+  );
   if (reads.everyone)
     out.push({
       id: "everyone",
       glyph: "send",
       title: W.starts.offer,
       said: W.starts.offerSaid(reads.everyone),
+      fact: { title: W.viewer.offer(reads.everyone), said: null },
       kind: "once",
       line: newSequenceLine("everyone_monthly", reads.word) ?? W.starts.offer,
       fixed: { kind: "once", audience: "people", who: { kind: "everyone", label: W.draft.everyoneOffers } },
@@ -91,11 +108,17 @@ function startsOf(reads: StartReads): Start[] {
       glyph: "search",
       title: W.starts.leads(source.ready),
       said: source.name,
+      fact: { title: W.viewer.leads(source.ready), said: source.name },
       kind: "sequence",
       line: W.starts.leadsLine(source.name),
       fixed: { kind: "sequence", audience: "leads", who: { kind: "search", id: source.id, label: source.name } },
     });
-  moment(["new_week"], W.starts.welcome, (_n, hint) => hint);
+  moment(
+    ["new_week"],
+    W.starts.welcome,
+    (_n, hint) => hint,
+    (n, hint) => ({ title: W.viewer.welcome(n), said: hint }),
+  );
   return out;
 }
 
@@ -151,8 +174,8 @@ function Starts(p: { reads: StartReads; may: boolean; onStart: (s: Start) => voi
               <Choice
                 key={s.id}
                 glyph={s.glyph}
-                name={s.title}
-                said={s.said}
+                name={p.may ? s.title : s.fact.title}
+                said={p.may ? s.said : s.fact.said}
                 tag={p.may ? W.starts.kind[s.kind] : null}
                 onPick={p.may ? () => p.onStart(s) : null}
                 testid={`sq-nw-start-${s.id}`}
@@ -196,11 +219,47 @@ function Starts(p: { reads: StartReads; may: boolean; onStart: (s: Start) => voi
   );
 }
 
+/**
+ * Nothing here can start on what the line asks (D3): what Ask said, the closest ways to do it anyway -- a list kept in
+ * People that a sequence starts on, or one message to people picked when it comes up -- and the line, to say again.
+ */
+function NoFit({ refused, onOnce }: { refused: string; onOnce: () => void }) {
+  const said = M.cannotParts(refused);
+  return (
+    <>
+      <CaseNote
+        tone="warn"
+        title={said.title}
+        words={said.words ? `${said.words} ${W.noFit.closest}` : W.noFit.closest}
+        testid="sq-nw-refused"
+      />
+      <div className="sq-nw-rows" data-testid="sq-nw-closest">
+        <Choice
+          glyph="users"
+          name={W.noFit.list.lead}
+          said={W.noFit.list.sub}
+          door={{ label: W.sheets.open, to: peopleRoute() }}
+          testid="sq-nw-closest-list"
+        />
+        <Choice
+          glyph="send"
+          name={W.noFit.once.lead}
+          said={W.noFit.once.sub}
+          tag={W.starts.kind.once}
+          onPick={onOnce}
+          testid="sq-nw-closest-once"
+        />
+      </div>
+      <p className="sq-nw-note">{W.noFit.again}</p>
+    </>
+  );
+}
+
 /** Ask at work: the line kept with its Stop, and the draft's shape held while it writes. */
 function Drafting({ line, onStop }: { line: string; onStop: () => void }) {
   return (
     <div className="sq-nw" aria-busy="true" data-testid="sq-nw-drafting">
-      <SaidLine said={line} doing={W.say.drafting} onAgain={onStop} again={W.say.stop} />
+      <SaidLine said={line} doing={W.say.drafting} onAgain={onStop} again={W.say.stop} button />
       <p className="sq-nw-cap">{W.draft.who}</p>
       <div className="sq-nw-skel is-big" />
       <p className="sq-nw-cap">{W.draft.theMessage}</p>
@@ -220,7 +279,10 @@ interface StartProps {
   failed: boolean;
   /** What Ask said nothing here can do, in a sentence (its refusal), where it said one. */
   refused: string | null;
-  onByHand: () => void;
+  /** A draft built by hand: the door's kind, or the one a closest way names (a one-off, D3). */
+  onByHand: (kind?: NewKind) => void;
+  /** What the door that opened New could not keep (a list gone since its link was made), where it said so. */
+  notice: string | null;
   reads: StartReads | null;
   may: boolean;
   onClose: () => void;
@@ -251,7 +313,8 @@ export function StartView(p: StartProps) {
               />
               <span className="sq-nw-say-acts">
                 <small>
-                  <Icon name="sparkle" size={12} /> {p.reads?.messages === 0 ? W.say.writes : W.say.hint}
+                  <Icon name="sparkle" size={12} />{" "}
+                  {p.failed ? W.say.kept : p.reads?.messages === 0 ? W.say.writes : W.say.hint}
                 </small>
                 <Button
                   size="sm"
@@ -268,6 +331,7 @@ export function StartView(p: StartProps) {
           ) : (
             <CaseNote tone="plain" title={W.viewer.title} words={W.viewer.words} testid="sq-nw-viewer" />
           )}
+          {p.notice ? <CaseNote tone="warn" title={p.notice} testid="sq-nw-door-gone" /> : null}
           {p.failed ? (
             <CaseNote
               tone="bad"
@@ -278,7 +342,7 @@ export function StartView(p: StartProps) {
                   <Button size="sm" onClick={draftIt} data-testid="sq-nw-retry">
                     {W.failed.again}
                   </Button>
-                  <Button size="sm" variant="quiet" onClick={p.onByHand} data-testid="sq-nw-by-hand">
+                  <Button size="sm" variant="quiet" onClick={() => p.onByHand()} data-testid="sq-nw-by-hand">
                     {W.failed.byHand}
                   </Button>
                 </>
@@ -286,16 +350,7 @@ export function StartView(p: StartProps) {
               testid="sq-nw-failed"
             />
           ) : p.refused ? (
-            <CaseNote
-              tone="warn"
-              title={p.refused}
-              acts={
-                <Button size="sm" variant="quiet" onClick={p.onByHand} data-testid="sq-nw-by-hand">
-                  {W.failed.byHand}
-                </Button>
-              }
-              testid="sq-nw-refused"
-            />
+            <NoFit refused={p.refused} onOnce={() => p.onByHand("once")} />
           ) : null}
           {p.reads ? (
             <Starts

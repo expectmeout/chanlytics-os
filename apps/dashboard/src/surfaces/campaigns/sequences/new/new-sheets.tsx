@@ -17,6 +17,7 @@ import {
   clockHour,
   leadsRoute,
   newConditionsOf,
+  newListOf,
   peopleRoute,
   sequenceModesFor,
   sequenceRoute,
@@ -220,12 +221,14 @@ function MomentChoices({ draft, reads, onWho }: { draft: NewDraftDto; reads: Who
 
 /** The lists a sequence starts on, or a one-off goes to: People's, then the workspace's own, each with its count. */
 function ListChoices(p: { draft: NewDraftDto; reads: WhoReads; onWho: (w: DraftWho) => void; cap: string }) {
-  if (p.reads.lists.length === 0) return null;
+  // Never who said stop (contracts newListOf).
+  const lists = p.reads.lists.filter((l) => newListOf(l.id, "sequence") === "list");
+  if (lists.length === 0) return null;
   return (
     <>
       <p className="sq-nw-cap">{p.cap}</p>
       <div className="sq-nw-rows">
-        {p.reads.lists.map((l) => (
+        {lists.map((l) => (
           <Choice
             key={l.id}
             glyph="users"
@@ -276,7 +279,9 @@ function SearchChoices({ draft, reads, onWho }: { draft: NewDraftDto; reads: Who
                 twin
                   ? W.sheets.hasItsSequence
                   : s.ready === 0
-                    ? W.sheets.noneChecked
+                    ? s.with_unconfirmed > 0
+                      ? W.sheets.foundNone(s.with_unconfirmed)
+                      : W.sheets.noneChecked
                     : s.with_unconfirmed > s.ready
                       ? W.sheets.checkingSaid(s.with_unconfirmed - s.ready)
                       : null
@@ -330,18 +335,21 @@ function OnceChoices(p: { draft: NewDraftDto; reads: WhoReads; onWho: (w: DraftW
         onPick={() => p.onWho(everyone)}
         testid="sq-nw-who-everyone"
       />
-      {p.reads.lists.map((l) => (
-        <Choice
-          key={l.id}
-          glyph="users"
-          name={l.name}
-          said={l.said}
-          count={l.candidates}
-          on={p.draft.who?.kind === "list" && p.draft.who.token === l.id}
-          onPick={() => p.onWho({ kind: "list", token: l.id, label: l.name })}
-          testid={`sq-nw-who-${l.id}`}
-        />
-      ))}
+      {/* A list of who said yes is the row above; who said stop is no one's (contracts newListOf). */}
+      {p.reads.lists
+        .filter((l) => newListOf(l.id, "once") === "list")
+        .map((l) => (
+          <Choice
+            key={l.id}
+            glyph="users"
+            name={l.name}
+            said={l.said}
+            count={l.candidates}
+            on={p.draft.who?.kind === "list" && p.draft.who.token === l.id}
+            onPick={() => p.onWho({ kind: "list", token: l.id, label: l.name })}
+            testid={`sq-nw-who-${l.id}`}
+          />
+        ))}
       <Choice
         glyph="check"
         name={W.sheets.peoplePick}
@@ -428,6 +436,8 @@ export function WhenSheet(p: {
 }) {
   const now = zonedInputValue(Date.now(), p.tz);
   const later = laterTodayOf(now);
+  // Late at night "now" waits for the sending hours, as every send does (nextOpenMoment): said so here.
+  const goes = M.sendsAt(p.tz, Date.now());
   const day = p.at ? p.at.slice(0, 10) : now.slice(0, 10);
   const time = p.at ? p.at.slice(11, 16) : "09:00";
   const picked = p.at !== null && p.at !== later;
@@ -443,7 +453,7 @@ export function WhenSheet(p: {
         <Choice
           glyph="send"
           name={upFirst(W.draft.now)}
-          said={W.sheets.nowSaid}
+          said={goes.moved ? W.sheets.nowOpens(goes.time) : W.sheets.nowSaid}
           on={p.at === null}
           onPick={() => p.onAt(null)}
           testid="sq-nw-when-now"
@@ -640,10 +650,21 @@ export function TimingSheet(p: {
   );
 }
 
-/** A step added after the last: a message, or a call or a note (always the last). */
-export function AddStepSheet(p: { open: boolean; onAdd: (does: NewStepDoes) => void; onClose: () => void }) {
+/** A step added after the last (step `after`): a message, or a call or a note (always the last). */
+export function AddStepSheet(p: {
+  open: boolean;
+  after: number;
+  onAdd: (does: NewStepDoes) => void;
+  onClose: () => void;
+}) {
   return (
-    <PickSheet open={p.open} title={W.draft.addStep} sub={W.sheets.addSub} onClose={p.onClose} testid="sq-nw-add">
+    <PickSheet
+      open={p.open}
+      title={W.draft.addStep}
+      sub={W.sheets.addSub(p.after)}
+      onClose={p.onClose}
+      testid="sq-nw-add"
+    >
       <div className="sq-nw-rows">
         <Choice
           glyph="chat"

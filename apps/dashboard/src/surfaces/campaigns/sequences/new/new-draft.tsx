@@ -9,9 +9,8 @@
  */
 import { useState, type ReactNode } from "react";
 import {
-  DAY_MS,
+  GET_YES_ROUTE,
   NEW_WORDS as W,
-  SEQUENCE_STATE_WORDS,
   clockHour,
   localHour,
   sequenceRoute,
@@ -24,7 +23,6 @@ import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
-import { StatePill } from "../../../kit/pill/state-pill";
 import { Switch } from "../../../kit/switch/switch";
 import { gate, routeDoor } from "../../../legacy-verbs";
 import { CmPane } from "../../parts/split";
@@ -72,18 +70,6 @@ interface DraftActs {
   close: () => void;
 }
 
-/** Tomorrow at nine, by the business's clock: where a one-off waiting on Meta goes instead. */
-function tomorrowAt9(today: string): string {
-  const next = new Date(Date.parse(`${today}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
-  return `${next}T09:00`;
-}
-
-/** When a sequence's first batch is, by the business's clock: today at its hour while that is still ahead, else tomorrow. */
-function firstBatchWords(hour: number, tz: string): string {
-  const at = clockHour(hour);
-  return W.draft.firstBatch(localHour(tz, new Date()) < hour ? W.draft.todayAt(at) : W.draft.tomorrowAt(at));
-}
-
 /** What the sentence says a choice is, and whether it is made. */
 function whoWords(d: NewDraftDto): { lead: string; label: string; empty: boolean } {
   const who = d.who;
@@ -103,20 +89,22 @@ function WhoSentence({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) 
     <p className="sq-nw-sentence" data-testid="sq-nw-sentence">
       <WordPick big label={W.draft.kind[draft.kind]} onPick={() => open({ kind: "kind" })} testid="sq-nw-kind-pick" />{" "}
       {who.lead}{" "}
-      <WordPick label={who.label} empty={who.empty} onPick={() => open({ kind: "who" })} testid="sq-nw-who-pick" />{" "}
+      <WordPick big label={who.label} empty={who.empty} onPick={() => open({ kind: "who" })} testid="sq-nw-who-pick" />{" "}
       {draft.audience === "leads" ? (
         <>
-          {W.draft.from} <WordPick label={from} onPick={() => open({ kind: "from" })} testid="sq-nw-from-pick" />
+          {W.draft.from} <WordPick big label={from} onPick={() => open({ kind: "from" })} testid="sq-nw-from-pick" />
         </>
       ) : draft.kind === "once" ? (
         <>
           <WordPick
+            big
             label={draft.at ? M.atWords(draft.at) : W.draft.now}
             onPick={() => open({ kind: "when" })}
             testid="sq-nw-when-pick"
           />{" "}
           {W.draft.by}{" "}
           <WordPick
+            big
             label={channels || W.draft.pickHow}
             empty={!channels}
             onPick={() => open({ kind: "channels" })}
@@ -126,31 +114,71 @@ function WhoSentence({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) 
       ) : (
         <>
           {W.draft.at}{" "}
-          <WordPick label={clockHour(draft.run_hour)} onPick={() => open({ kind: "hour" })} testid="sq-nw-hour-pick" />
+          <WordPick
+            big
+            label={clockHour(draft.run_hour)}
+            onPick={() => open({ kind: "hour" })}
+            testid="sq-nw-hour-pick"
+          />
         </>
       )}
     </p>
   );
 }
 
-/** What Ask could not do, as its card says it: its first sentence over the rest ("Left out: “if they loved it”"). */
-function cannotParts(said: string): { title: string; words: string | null } {
-  const m = /^(.+?[.!?])\s+(\S[\s\S]*)$/.exec(said.trim());
-  if (!m?.[1] || !m[2]) return { title: said.trim(), words: null };
-  return { title: m[1].replace(/\.$/, ""), words: m[2] };
+/**
+ * No one to send a one-off to yet (D4): the ways it might be heard -- the channels it goes by, a channel its message holds
+ * that is not connected, the yes nobody has given (People's Get their yes, where the send screen sent the owner) -- and
+ * someone else to send it to.
+ */
+function NobodyCase(p: { draft: NewDraftDto; ready: readonly ConsentChannel[]; open: (s: NewSheet) => void }) {
+  const { draft } = p;
+  const people = draft.audience === "people";
+  const unconnected = (draft.steps[0]?.message?.channels ?? []).find((c) => !p.ready.includes(c)) ?? null;
+  return (
+    <CaseNote
+      tone="warn"
+      title={W.reach.nobody}
+      words={W.reach.nobodyWords}
+      acts={
+        <>
+          {people ? (
+            <Button size="sm" onClick={() => p.open({ kind: "channels" })} data-testid="sq-nw-nobody-how">
+              {W.sheets.channels}
+            </Button>
+          ) : null}
+          {people && unconnected ? (
+            <Button size="sm" {...routeDoor("settings")} data-testid="sq-nw-nobody-connect">
+              {W.reach.connect(unconnected)}
+            </Button>
+          ) : null}
+          {people ? (
+            <Button size="sm" {...routeDoor(GET_YES_ROUTE)} data-testid="sq-nw-nobody-yes">
+              {W.reach.getYes}
+            </Button>
+          ) : null}
+          <Button size="sm" onClick={() => p.open({ kind: "who" })} data-testid="sq-nw-nobody-who">
+            {W.sheets.goesTo}
+          </Button>
+        </>
+      }
+      testid="sq-nw-nobody"
+    />
+  );
 }
 
 /** What stops or bends the draft, over its sentence: a part left out, a twin, no one to hear it, Meta's review. */
 function DraftCases(p: {
   draft: NewDraftDto;
-  today: string;
+  ready: readonly ConsentChannel[];
+  busy: boolean;
   open: (s: NewSheet) => void;
-  change: (d: NewDraftDto) => void;
+  keep: () => void;
 }) {
   const { draft } = p;
   const cards: ReactNode[] = [];
   if (draft.cannot) {
-    const c = cannotParts(draft.cannot);
+    const c = M.cannotParts(draft.cannot);
     cards.push(<CaseNote key="cannot" tone="warn" title={c.title} words={c.words} testid="sq-nw-cannot" />);
   }
   if (draft.twin)
@@ -170,27 +198,9 @@ function DraftCases(p: {
     );
   // A one-off goes to whoever can hear it now, so with nobody there is nothing to send (D4); a sequence runs on.
   if (draft.kind === "once" && draft.who && draft.reach?.can === 0)
-    cards.push(
-      <CaseNote
-        key="nobody"
-        tone="warn"
-        title={W.reach.nobody}
-        words={W.reach.nobodyWords}
-        acts={
-          <>
-            {draft.audience === "people" ? (
-              <Button size="sm" onClick={() => p.open({ kind: "channels" })} data-testid="sq-nw-nobody-how">
-                {W.sheets.channels}
-              </Button>
-            ) : null}
-            <Button size="sm" onClick={() => p.open({ kind: "who" })} data-testid="sq-nw-nobody-who">
-              {W.sheets.goesTo}
-            </Button>
-          </>
-        }
-        testid="sq-nw-nobody"
-      />,
-    );
+    cards.push(<NobodyCase key="nobody" draft={draft} ready={p.ready} open={p.open} />);
+  // A WhatsApp version Ask wrote goes to Meta as it is filed (D5): sent before Meta approves it, it goes by the rest; kept,
+  // it is filed now and waits under Drafts while Meta reviews it.
   const review = M.reviewOf(draft);
   if (review)
     cards.push(
@@ -200,12 +210,8 @@ function DraftCases(p: {
         title={W.review.title}
         words={W.review.words(review.others, review.only)}
         acts={
-          <Button
-            size="sm"
-            onClick={() => p.change(M.setAt(draft, tomorrowAt9(p.today)))}
-            data-testid="sq-nw-review-later"
-          >
-            {W.review.tomorrow}
+          <Button size="sm" onClick={p.keep} disabled={p.busy} data-testid="sq-nw-review-keep">
+            {W.review.keep}
           </Button>
         }
         testid="sq-nw-review"
@@ -263,7 +269,10 @@ function footLineOf(d: NewDraftDto, tz: string): { lead: string; sub: string | n
   // A sequence's line only says when it begins, which a phone's foot leaves to its two acts (the canvas's phone boards).
   if (d.kind === "sequence")
     return {
-      lead: d.audience === "leads" ? W.draft.leadsWait : firstBatchWords(d.run_hour, tz),
+      lead:
+        d.audience === "leads"
+          ? W.draft.leadsWait
+          : W.draft.firstBatch(M.firstBatchWords(d.run_hour, localHour(tz, new Date()))),
       sub: null,
       quiet: true,
     };
@@ -275,7 +284,7 @@ function footLineOf(d: NewDraftDto, tz: string): { lead: string; sub: string | n
   const review = M.reviewOf(d);
   if (review && review.only > 0)
     return { lead: W.review.goes(review.can, review.others), sub: W.review.leftOut(review.only), quiet: false };
-  const when = d.at ? W.draft.goesAt(M.atWords(d.at)) : W.draft.goesSoon;
+  const when = d.at ? W.draft.goesAt(M.atWords(d.at)) : M.goesSoonWords(tz, Date.now());
   return n === null ? { lead: when, sub: null, quiet: false } : { lead: W.draft.people(n), sub: when, quiet: false };
 }
 
@@ -463,6 +472,7 @@ function DraftSheets(p: {
       />
       <AddStepSheet
         open={sheet?.kind === "add"}
+        after={draft.steps.length}
         onAdd={(does) => {
           change(M.addStep(draft, does));
           close();
@@ -504,7 +514,8 @@ const subOf = (d: NewDraftDto): string =>
 /** Who and when, its notes, and the steps: the draft's own column. */
 function DraftBody(p: {
   draft: NewDraftDto;
-  today: string;
+  ready: readonly ConsentChannel[];
+  busy: boolean;
   open: (s: NewSheet) => void;
   rail: RailActs;
   acts: DraftActs;
@@ -513,18 +524,18 @@ function DraftBody(p: {
   const { draft, acts } = p;
   return (
     <>
-      <DraftCases draft={draft} today={p.today} open={p.open} change={acts.change} />
+      <DraftCases draft={draft} ready={p.ready} busy={p.busy} open={p.open} keep={() => acts.make(false)} />
       <WhoCaption>
         <AudienceToggle audience={draft.audience} onAudience={(a) => acts.redraft({ audience: a })} />
       </WhoCaption>
       <div className="sq-nw-who">
         <WhoSentence draft={draft} open={p.open} />
-        <ReachLine reach={draft.reach} audience={draft.audience} />
+        <ReachLine reach={draft.reach} audience={draft.audience} list={draft.who?.kind === "list"} />
       </div>
       {p.redrafting ? null : (
         <>
           {draft.kind === "sequence" && draft.who?.kind === "list" ? (
-            <p className="sq-nw-note">{W.draft.lineFirst}</p>
+            <p className="sq-nw-note">{W.draft.lineFirst(draft.reach?.of ?? draft.reach?.can ?? null)}</p>
           ) : null}
           {draft.kind === "sequence" && draft.audience === "leads" && draft.who?.kind === "search" ? (
             <div className="sq-nw-switchrow">
@@ -597,7 +608,6 @@ export function DraftView(p: {
   return (
     <CmPane
       title={<DraftName draft={draft} change={change} />}
-      badge={<StatePill kind="tone" value="plain" label={SEQUENCE_STATE_WORDS.draft} />}
       sub={subOf(draft)}
       tools={
         <Button size="sm" variant="quiet" onClick={acts.discard} data-testid="sq-nw-discard">
@@ -645,7 +655,8 @@ export function DraftView(p: {
             <div className="sq-nw-col" inert={redrafting}>
               <DraftBody
                 draft={draft}
-                today={reads.today}
+                ready={reads.ready}
+                busy={p.busy}
                 open={open}
                 rail={rail}
                 acts={acts}

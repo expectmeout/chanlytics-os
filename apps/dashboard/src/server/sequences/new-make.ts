@@ -9,7 +9,15 @@
  * showed: the body is a draft the browser held.
  */
 import "server-only";
-import { AppError, NEW_WORDS, fromZonedInput, type DraftWho, type NewWrittenMessage } from "@chanlytics/contracts";
+import {
+  AppError,
+  NEW_WORDS,
+  fromZonedInput,
+  leadChainStepOf,
+  type ConsentChannel,
+  type DraftWho,
+  type NewWrittenMessage,
+} from "@chanlytics/contracts";
 import { createBroadcast } from "@chanlytics/core";
 import type { Json } from "@chanlytics/db";
 import { keepOnceDraft } from "@chanlytics/db";
@@ -17,6 +25,7 @@ import { messageOnFile, writeMessage } from "@/server/campaigns/write-message";
 import { load, readerContext } from "@/server/readers";
 import * as facts from "@/server/readers/facts";
 import { createBroadcastPorts } from "@/server/ports/campaign-ports";
+import { log } from "@/server/log";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 import type { NewMakeBody } from "./bodies";
@@ -70,6 +79,29 @@ async function templateOf(ctx: RouteContext, member: Member, s: Step): Promise<s
   throw new AppError("validation", NEW_WORDS.cannot.noMessage, 422);
 }
 
+/**
+ * The channels a one-off goes by when it is sent: the draft's, but WhatsApp's where its message is one Ask wrote, whose
+ * WhatsApp version goes to Meta as it is filed and is no version to send until Meta approves it (the send door refuses a
+ * tick it cannot carry, core message-channels.ts refuseTicks). Its email and text go; nothing waits for Meta (decision
+ * 0065, call 8).
+ */
+export function onceChannelsOf(step: Step, channels: readonly ConsentChannel[]): ConsentChannel[] {
+  return step.message?.written ? channels.filter((c) => c !== "whatsapp") : [...channels];
+}
+
+/**
+ * A kept draft let go once what it became is made: a one-off sent, or a sequence it was drafted again as. The make stands
+ * whatever this answers, so a draft that could not go is logged, never said as the make's failure (it would be made twice).
+ */
+async function letKeptGo(ctx: RouteContext, member: Member, id: string | undefined): Promise<void> {
+  if (!id) return;
+  try {
+    await discardSequenceNow(ctx, { id, tenant_id: member.tenantId });
+  } catch (e) {
+    log.error("sequence_kept_draft_left", { tenant_id: member.tenantId, sequence_id: id, error: e });
+  }
+}
+
 /** Where a sequence to people starts: its moment, or the list it starts on. */
 function peopleStartOf(who: DraftWho): Record<string, string> {
   if (who.kind === "moment") return { trigger: who.trigger };
@@ -117,23 +149,14 @@ async function makePeopleSequence(ctx: RouteContext, member: Member, b: NewMakeB
     then,
     start: b.start,
   });
-  return madeOf(r, "sequence", b.start);
-}
-
-/** A lead's step as a sequence to leads holds it: its own email, or a call or a note. */
-function chainStepOf(s: Step, i: number) {
-  if (s.does !== "message")
-    return { subject: null, body: "", after_days: s.after_days, hand: { kind: s.does, words: s.hand } };
-  return {
-    subject: i === 0 ? (s.email?.subject ?? "") : null,
-    body: s.email?.body ?? "",
-    after_days: i === 0 ? null : s.after_days,
-  };
+  const made = madeOf(r, "sequence", b.start);
+  await letKeptGo(ctx, member, b.draft_id);
+  return made;
 }
 
 /** A sequence to leads, or a one-off to leads (one email, started): the one door, `starts` leads. */
 async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBody): Promise<NewMade> {
-  const steps = (b.kind === "once" ? b.steps.slice(0, 1) : b.steps).map(chainStepOf);
+  const steps = (b.kind === "once" ? b.steps.slice(0, 1) : b.steps).map(leadChainStepOf);
   const from =
     b.who.kind === "search"
       ? { search_id: b.who.id, aim_search_id: b.who.id, ...(b.adds_new ? { source_search_id: b.who.id } : {}) }
@@ -154,7 +177,9 @@ async function makeLeadSequence(ctx: RouteContext, member: Member, b: NewMakeBod
     then: [],
     start,
   });
-  return madeOf(r, b.kind, start);
+  const made = madeOf(r, b.kind, start);
+  await letKeptGo(ctx, member, b.draft_id);
+  return made;
 }
 
 /** A one-off's audience, as the send door names one: everyone, one of People's lists, or one the workspace keeps. */
@@ -167,24 +192,33 @@ function onceAudienceOf(who: DraftWho): { kind: "everyone" | "list" | "saved"; i
 
 /**
  * A message sent once to people: its message filed or named, then the send screen's own verb, now (ten minutes on, with
- * a Stop) or at its time by the business's clock. Kept, it waits under Drafts (00465 sequence_once_keep) and sends
- * nothing; a kept one sent lets its draft go.
+ * a Stop) or at its time by the business's clock, by the channels that carry it then (onceChannelsOf). Kept, it waits
+ * under Drafts (00465 sequence_once_keep) and sends nothing; a message Ask wrote is filed as it is kept, so Meta reviews
+ * its WhatsApp version while it waits and the draft holds it by its id. A kept one sent lets its draft go.
  */
 async function makePeopleOnce(ctx: RouteContext, member: Member, b: NewMakeBody): Promise<NewMade> {
   const step = b.steps[0];
   if (!step || step.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage, 422);
   const audience = onceAudienceOf(b.who);
   if (!b.start) {
+    const filed = step.message?.written
+      ? {
+          ...step,
+          message: { template_id: await templateOf(ctx, member, step), params: step.message.params, written: null },
+        }
+      : step;
     const kept = await keepOnceDraft(ctx.supabase, {
       tenantId: member.tenantId,
       id: b.draft_id ?? null,
       name: b.name,
       // New's {who, at, channels, step} (contracts NewOnceKept), as the column holds it.
-      once: JSON.parse(JSON.stringify({ who: b.who, at: b.at, channels: b.channels, step })) as Json,
+      once: JSON.parse(JSON.stringify({ who: b.who, at: b.at, channels: b.channels, step: filed })) as Json,
     });
     if (kept.error) throw dbRefusal(kept.error);
     return madeOf(kept.data, "once", false);
   }
+  const channels = onceChannelsOf(step, b.channels);
+  if (channels.length === 0) throw new AppError("conflict", NEW_WORDS.review.noneYet, 409);
   const templateId = await templateOf(ctx, member, step);
   const tz = (await load(readerContext(ctx, member), facts.facts, undefined)).data.timezone;
   const at = b.at ? fromZonedInput(b.at, tz) : null;
@@ -194,14 +228,14 @@ async function makePeopleOnce(ctx: RouteContext, member: Member, b: NewMakeBody)
       template_id: templateId,
       params: step.message?.params ?? [],
       audience,
-      channels: b.channels,
+      channels,
       name: b.name,
       ...(at !== null ? { scheduled_for: new Date(at).toISOString() } : {}),
     },
     now: new Date(),
   });
   // A kept one-off, sent, is the one-off now: its draft goes.
-  if (b.draft_id) await discardSequenceNow(ctx, { id: b.draft_id, tenant_id: member.tenantId });
+  await letKeptGo(ctx, member, b.draft_id);
   return { made: sent.id, kind: "once", state: "on", scheduled_for: sent.scheduled_for };
 }
 

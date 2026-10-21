@@ -17,6 +17,7 @@ import {
   slugTemplateName,
   validateReachOutWords,
   violatesNoPrices,
+  newListOf,
   whoSuits,
   type ConsentChannel,
   type NewAudience,
@@ -88,6 +89,8 @@ export interface KnownMessage {
   offer: boolean;
   channels: ConsentChannel[];
   slots: ParamSourceKind[];
+  /** Its values' names (contracts slotLabels), which the draft asks a typed value as. */
+  labels?: string[];
 }
 
 /** A sequence the workspace keeps, for its twin. */
@@ -103,6 +106,8 @@ export interface KnownRunning {
 /** What a draft is judged against: the business, what it offers and holds, and what already runs. */
 export interface DraftKnown {
   business: string;
+  /** What the business is working toward, in its own words (config `ask.goal`): what a sequence to leads offers. */
+  goal?: string | null;
   /** The business's day and time now ("YYYY-MM-DDTHH:MM"), which a one-off's moment is set from. */
   localNow: string;
   moments: KnownMoment[];
@@ -206,6 +211,7 @@ function peopleMessage(a: NewDraftAnswerStep, first: boolean, known: DraftKnown,
       params: paramsOf(held.slots, a.texts),
       offer: held.offer,
       written: null,
+      ...(held.labels ? { labels: held.labels } : {}),
     } satisfies NewMessage;
   }
   return a.write.title ? askWrittenOf(a.write, first, moment) : null;
@@ -289,6 +295,13 @@ function answerWhoOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk
   const search = known.searches.find((s) => s.key === k);
   if (search) return { kind: "search", id: search.id, label: search.label };
   return k === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : null;
+}
+
+/** Who New names, as its list rule reads it (contracts newListOf): never who said stop; a one-off's list of yeses, everyone. */
+function asNewWho(who: DraftWho | null, kind: NewKind): DraftWho | null {
+  if (who?.kind !== "list") return who;
+  const is = newListOf(who.token, kind);
+  return is === "never" ? null : is === "everyone" ? { kind: "everyone", label: NEW_WORDS.draft.everyoneNews } : who;
 }
 
 /** A one-off's moment: now, or a time ahead the send may be set for (within NEW_ONCE_AHEAD_DAYS), as the model said it. */
@@ -464,7 +477,7 @@ const everyoneSaid = (who: DraftWho | null, first: NewMessage | null): DraftWho 
 export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): NewDraftDto {
   const kind = ask.kind ?? answer.kind;
   const audience = ask.audience ?? answer.audience;
-  const named = answerWhoOf(answer, known, ask);
+  const named = asNewWho(answerWhoOf(answer, known, ask), kind);
   const who = named && whoSuits(named, audience, kind) ? named : null;
   const moment = who?.kind === "moment" ? (known.moments.find((m) => m.trigger === who.trigger) ?? null) : null;
   const name = (answer.name.trim() || who?.label || NEW_WORDS.title).slice(0, 80);

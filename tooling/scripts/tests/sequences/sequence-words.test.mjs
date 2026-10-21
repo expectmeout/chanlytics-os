@@ -108,6 +108,14 @@ test("a row's pill and line: amber only for a one-off that waits, a draft says n
   });
   assert.deepEqual([sequenceStateWords(oneOff), sequenceStateTone(oneOff)], ["Waits for you", "warn"]);
   assert.equal(sequenceRowLine(row({ state: "draft" }), TZ, NOW), "Not started · nothing goes yet");
+  // A one-off kept as a draft says it waits to be sent (00465); one still to go says when.
+  const kept = row({ state: "draft", starts: "date", once: { who: { kind: "everyone", label: "everyone" } } });
+  assert.equal(sequenceRowLine(kept, TZ, NOW), "Kept as a draft · nothing goes until you send it");
+  const going = row({
+    starts: "date",
+    date: { batch_id: "b1", state: "scheduled", at: new Date(NOW + 3600e3).toISOString(), people: 5 },
+  });
+  assert.match(sequenceRowLine(going, TZ, NOW), /^Goes (at|tomorrow) .+ · 5 people$/);
   assert.equal(sequenceRowLine(row({ needs: { ...NONE, held: 3 } }), TZ, NOW), "3 held");
   assert.equal(sequenceRowLine(row({ state: "paused", in_it: 4 }), TZ, NOW), "4 waiting");
   assert.equal(sequenceRowLine(row()), "Nobody yet");
