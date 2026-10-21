@@ -465,11 +465,15 @@
   gap: var(--space-2);
   min-width: 0;
 }
+/* The part's name is its door, said at the size and in the ink of the head it stands in. */
 .cs-h-part-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink);
 }
 .cs-h-part-value {
   display: flex;
@@ -492,7 +496,7 @@
 }
 .cs-h-part-line {
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -507,10 +511,6 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: var(--space-3);
   margin: 0;
-}
-.cs-h-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 
 /* Needs a look: Support's rows, three columns, a dot for how bad. */
@@ -545,8 +545,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* What a row of several holds, one to a line: the clocks one problem stopped. */
+.cs-h-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
 
-/* The promises: a row per promise, a cell per day, the row's last word at its end. */
+/* The promises: a row per promise, its name in a column of its own width, a cell per day beside it, its last word. */
 .cs-h-scroll {
   overflow-x: auto;
   padding: var(--space-2) var(--space-3);
@@ -554,13 +565,13 @@
 .cs-h-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: min-content;
 }
 .cs-h-grid-row {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-4);
 }
 .cs-h-grid-head {
   font-size: var(--text-2xs);
@@ -568,12 +579,16 @@
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-.cs-h-grid-row > :first-child {
+.cs-h-promise {
   display: flex;
   flex-direction: column;
-  flex: 1 0 260px;
+  flex: 0 0 340px;
   min-width: 0;
-  padding-right: var(--space-3);
+}
+.cs-h-days {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
 }
 .cs-h-day,
 .cs-h-cell {
@@ -597,8 +612,8 @@
   border-color: var(--danger);
 }
 .cs-h-last {
-  flex: 0 0 140px;
-  padding-left: var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
@@ -617,37 +632,92 @@
   gap: var(--space-2);
 }
 
-/* The clocks and the pager: four columns, the first wraps. */
+/* Health's tables (health/line.tsx): what each row is in a first column that takes the room, its numbers after it in
+   columns of one width, to the right, so a column of counts reads down as one. The clocks and the pager keep wider
+   columns for a time and a state; `wide` is for a name or a moment. */
 .cs-h-rows-head,
 .cs-h-rows-row {
   display: grid;
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-columns: minmax(0, 96px);
+  grid-auto-flow: column;
+  gap: var(--space-4);
   align-items: center;
   padding: var(--space-2) var(--space-3);
 }
-.cs-h-rows[data-shape="clocks"] :is(.cs-h-rows-head, .cs-h-rows-row) {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 110px) minmax(0, 130px) minmax(0, 104px);
+.cs-h-rows[data-wide] :is(.cs-h-rows-head, .cs-h-rows-row) {
+  grid-auto-columns: minmax(0, 176px);
 }
-.cs-h-rows[data-shape="pager"] :is(.cs-h-rows-head, .cs-h-rows-row) {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 70px) minmax(0, 56px) minmax(0, 110px);
+.cs-h-rows[data-shape="clocks"] :is(.cs-h-rows-head, .cs-h-rows-row) {
+  grid-auto-columns: minmax(0, 112px);
 }
 .cs-h-rows-head {
+  padding-top: 0;
   font-size: var(--text-2xs);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   color: var(--ink-dim);
   border-bottom: 1px solid var(--line);
 }
+.cs-h-rows-head > :not(:first-child),
+.cs-h-n {
+  text-align: right;
+}
 .cs-h-rows-row + .cs-h-rows-row {
   border-top: 1px solid var(--line);
 }
-/* A clock's problem in two lines at most: the whole of it is what Needs a look's panel opens with. */
-.cs-h-problem {
+.cs-h-rows + .cs-h-rows {
+  margin-top: var(--space-5);
+}
+.cs-h-what {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.cs-h-title {
+  font-size: var(--text-base);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cs-h-sub {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cs-h-n {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+:is(.cs-h-sub, .cs-h-n)[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+:is(.cs-h-sub, .cs-h-n)[data-tone="danger"] {
+  color: var(--danger-ink);
+}
+.cs-h-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+/* The problem the stopped clocks share, said once over their rows. */
+.cs-h-shared {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  overflow-wrap: anywhere;
+}
+.cs-h-fold {
+  padding: var(--space-3) var(--space-3) 0;
+  border-top: 1px solid var(--line);
 }
 
 @media (max-width: 900px) {
@@ -675,13 +745,56 @@
   .cs-q[data-shape="look"] .cs-q-topic:nth-child(3) {
     grid-area: since;
   }
-  .cs-h-rows-head {
-    display: none;
+  /* The promises on a phone: the name and its last word on a line, the fortnight's cells under them. */
+  .cs-h-scroll {
+    padding-inline: var(--space-2);
   }
-  .cs-h-rows[data-shape] .cs-h-rows-row {
+  .cs-h-grid {
+    min-width: 0;
+  }
+  .cs-h-grid-row {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "promise last"
+      "days days";
+    gap: var(--space-2) var(--space-3);
   }
-  .cs-h-rows-row > .cs-q-topic {
+  .cs-h-grid-row + .cs-h-grid-row {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--line);
+  }
+  .cs-h-promise {
+    grid-area: promise;
+  }
+  .cs-h-days {
+    grid-area: days;
+  }
+  .cs-h-last {
+    grid-area: last;
+    text-align: right;
+  }
+  .cs-h-day,
+  .cs-h-cell {
+    width: 16px;
+  }
+  .cs-h-cell {
+    height: 16px;
+  }
+  /* The tables on a phone: the columns a desk alone keeps are left out, the rest narrower. */
+  .cs-h-rows [data-desk] {
     display: none;
+  }
+  .cs-h-rows-head,
+  .cs-h-rows-row {
+    grid-auto-columns: minmax(0, 64px);
+    gap: var(--space-3);
+    padding-inline: var(--space-2);
+  }
+  .cs-h-rows[data-wide] :is(.cs-h-rows-head, .cs-h-rows-row) {
+    grid-auto-columns: minmax(0, 112px);
+  }
+  .cs-h-rows[data-shape="clocks"] :is(.cs-h-rows-head, .cs-h-rows-row) {
+    grid-auto-columns: minmax(0, 104px);
   }
 }

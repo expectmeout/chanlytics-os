@@ -36402,9 +36402,10 @@ function inScope(ours, scope) {
 function oursOf(workspaces) {
   return new Set((workspaces ?? []).filter((w) => w.ours).map((w) => w.id));
 }
+var PLATFORM_WHERE = "The platform";
 function workspaceNamer(workspaces) {
   const by = new Map((workspaces ?? []).map((w) => [w.id, w.name]));
-  return (id) => id ? by.get(id) ?? "A workspace since deleted" : "Every workspace";
+  return (id) => id ? by.get(id) ?? "A workspace since deleted" : PLATFORM_WHERE;
 }
 
 // src/shell/vitals.ts
@@ -36667,7 +36668,7 @@ function clocksOf(rows2) {
       state,
       stateWords: CLOCK_STATE_WORDS[state],
       lastMs: lastMs !== null && Number.isFinite(lastMs) ? lastMs : null,
-      judged: asks ? c.max_silence ? `its asks, ${silenceWords(c.max_silence)}` : "its asks" : `its runs, ${silenceWords(c.max_silence)}`,
+      lateAfter: c.max_silence ? silenceWords(c.max_silence) : "",
       runs: c.runs,
       failed: c.failed,
       problem: !c.healthy && c.healthy !== null ? c.detail || "It has not reported in time." : c.failed ? c.last_failure : null,
@@ -36747,7 +36748,7 @@ function pagesOf2(rows2, workspaces, nowMs) {
         lastMailed: alertedMs ? when(alertedMs) : null,
         recent: nowMs - lastMs <= DAY_MS,
         alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
-        where: w ? w.name : "Every workspace",
+        where: w ? w.name : PLATFORM_WHERE,
         ours: w?.ours ?? false
       };
     })
@@ -36802,7 +36803,8 @@ function failuresOf(m) {
   return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
 }
 var LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
-var seconds = (ms3) => `${(ms3 / 1e3).toFixed(1)} s`;
+var SECONDS_UP_TO_MS = 100 * 1e3;
+var seconds = (ms3) => ms3 < SECONDS_UP_TO_MS ? `${(ms3 / 1e3).toFixed(1)} s` : ms3 < HOUR_MS ? `${Math.round(ms3 / MIN_MS)} min` : ms3 < 2 * DAY_MS ? `${Math.round(ms3 / HOUR_MS)} h` : `${Math.round(ms3 / DAY_MS)} days`;
 function spineLine(r2) {
   const parts2 = [];
   const lanes = Object.entries(r2.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
@@ -37060,7 +37062,7 @@ function promiseDaysOf(rows2, ours, scope, days) {
       last: w ? `${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)}` : judged2 ? "kept" : "not judged",
       worst: w ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}` : null,
       lastMissMs,
-      where: [...missedBy].join(", ") || "Every workspace"
+      where: [...missedBy].join(", ") || PLATFORM_WHERE
     };
   });
   return { days: span2, rows: out };
@@ -37166,7 +37168,7 @@ function callsOf2(parts2, scope) {
   return {
     total: rows2.reduce((n, r2) => n + r2.n, 0),
     connected: rows2.filter((r2) => r2.status === "ended").reduce((n, r2) => n + r2.n, 0),
-    reasons: [...byReason.entries()].map(([reason, v]) => ({ reason, words: reasonWords(reason), n: v.n })).sort((a, b) => b.n - a.n),
+    reasons: [...byReason.entries()].map(([reason, v]) => ({ reason, words: reasonWords(reason), label: capitalize(reasonWords(reason)), n: v.n })).sort((a, b) => b.n - a.n),
     trouble: troubleRows(null),
     troubleByScope: [...troubleRows(true), ...troubleRows(false)]
   };
@@ -37295,6 +37297,7 @@ function deliveriesOf(parts2, scope) {
     return {
       subscriber,
       words: subscriberWords(subscriber),
+      label: capitalize(subscriberWords(subscriber)),
       done: n("done"),
       failed: n("failed"),
       waiting: n("scheduled") + n("paused")
@@ -37528,7 +37531,7 @@ function promisesTile(h, scope) {
     state: !read ? "unjudged" : missed.length ? "missed" : kept ? "kept" : "unjudged",
     value: read ? `${kept} of ${promises.rows.length}` : "\u2014",
     unit: "kept every day",
-    line: !read ? "The nightly counts could not be read just now." : missed.length ? missed.map((r2) => `${r2.short} late ${countPhrase(r2.missedDays, "day")}`).join(" \xB7 ") : "Every promise with a number was kept.",
+    line: !read ? "The nightly counts could not be read just now." : missed.length ? capitalize(missed.map((r2) => `${r2.short} late on ${countPhrase(r2.missedDays, "day")}`).join(" \xB7 ")) : "Every promise with a number was kept",
     tab: "promises"
   };
 }
@@ -37544,11 +37547,11 @@ function backgroundTile(h, scope, nowMs) {
     key: "background",
     title: "Background work",
     state,
-    value: h.clocks === null ? "\u2014" : `${clocks.rows.length - notRunning}/${clocks.rows.length}`,
+    value: h.clocks === null ? "\u2014" : `${clocks.rows.length - notRunning} of ${clocks.rows.length}`,
     unit: "clocks running",
     line: [
-      h.backlog === null ? "the backlog unread" : late > 0 ? `${countPhrase(late, "job")} late` : "0 jobs late",
-      failedJobs.length ? `${countPhrase(failedJobs.length, "failed job")}${weekJobs ? `, ${weekJobs} this week` : ""}` : null
+      h.backlog === null ? "The backlog unread" : late > 0 ? `${countPhrase(late, "job")} late` : "No job late",
+      failedJobs.length ? `${failedJobs.length} failed for good${weekJobs && weekJobs < failedJobs.length ? `, ${weekJobs} this week` : ""}` : null
     ].filter(Boolean).join(" \xB7 "),
     tab: "background"
   };
@@ -37561,20 +37564,20 @@ function deliveriesTile(h, scope) {
     state: partState(h.parts !== null, d.failed > 0, d.total > 0),
     value: h.parts === null ? "\u2014" : d.failed.toLocaleString("en-US"),
     unit: `of ${d.total.toLocaleString("en-US")} failed`,
-    line: d.failed ? d.subscribers.filter((x) => x.failed).map((x) => `${x.words}: ${x.failed}`).join(" \xB7 ") : "Every change reached what reads it.",
+    line: d.failed ? d.subscribers.filter((x) => x.failed).map((x) => `${x.words}: ${x.failed}`).join(" \xB7 ") : "Every change reached what reads it",
     tab: "background"
   };
 }
 function sendsTile(h, scope) {
   const s = sendsOf(h.parts, scope);
-  const failing = s.channels.filter((c) => c.failed).map((c) => `${c.words} ${c.failed} of ${c.total}${c.topError ? `: ${c.topError}` : ""}`).join(" \xB7 ");
+  const failing = s.channels.filter((c) => c.failed).map((c) => `${c.words} ${c.failed} of ${c.total.toLocaleString("en-US")}`).join(" \xB7 ");
   return {
     key: "sends",
     title: "Sends",
     state: partState(h.parts !== null, s.failed > 0, s.total > 0),
     value: h.parts === null ? "\u2014" : `${s.failed} of ${s.total.toLocaleString("en-US")}`,
     unit: "failed",
-    line: !s.channels.length ? "Nothing was sent." : failing || `${s.delivered.toLocaleString("en-US")} confirmed delivered`,
+    line: !s.channels.length ? "Nothing was sent" : failing || `${s.delivered.toLocaleString("en-US")} confirmed delivered`,
     tab: "messages"
   };
 }
@@ -37586,7 +37589,7 @@ function callsTile2(h, scope) {
     state: partState(h.parts !== null, c.trouble.length > 0, c.total > 0),
     value: h.parts === null ? "\u2014" : `${c.connected} of ${c.total}`,
     unit: "connected",
-    line: c.trouble.length ? c.trouble.map((t) => `${t.n} ${t.words}`).join(" \xB7 ") : c.total ? "No call failed on our side." : "No call came in.",
+    line: c.trouble.length ? capitalize(c.trouble.map((t) => `${countPhrase(t.n, "call")}: ${t.words}`).join(" \xB7 ")) : c.total ? "No call failed on our side" : "No call came in",
     tab: "messages"
   };
 }
@@ -37598,7 +37601,7 @@ function webhooksTile(h, scope, nowMs) {
     state: partState(h.parts !== null, w.unverified > 0, w.total > 0),
     value: h.parts === null ? "\u2014" : w.total.toLocaleString("en-US"),
     unit: "this week",
-    line: w.total ? `${w.unverified} unverified \xB7 ${w.providers.map((p) => `${p.words} ${p.n}`).join(", ")}` : "No provider delivered anything this week.",
+    line: w.total ? `${w.providers.map((p) => `${p.words} ${p.n}`).join(" \xB7 ")}${w.unverified ? ` \xB7 ${w.unverified} unverified` : ""}` : "No provider delivered anything this week",
     tab: "messages"
   };
 }
@@ -37611,8 +37614,8 @@ function askTile(h, scope) {
     state: !asked ? "unjudged" : a.slow ? "missed" : a.failed ? "look" : "kept",
     value: asked ? secondsWords(a.latencyP95) : "\u2014",
     unit: `at p95, ${countPhrase(a.answers, "answer")}`,
-    line: !asked ? "Nobody asked Ask anything." : [
-      a.failed ? `${a.failed} failed` : "none failed",
+    line: !asked ? "Nobody asked Ask anything" : [
+      a.failed ? `${a.failed} failed` : "None failed",
       a.usd !== null ? dollarsWords(a.usd) : null,
       a.oursShare !== null && scope !== "customers" ? `ours ${Math.round(a.oursShare * 100)}% of it` : null
     ].filter(Boolean).join(" \xB7 "),
@@ -37643,7 +37646,7 @@ function speedTile(h) {
       state: "unjudged",
       value: "\u2014",
       unit: "LCP, p75",
-      line: h.vitals === null ? "The page timings could not be read just now." : "No page sent its timings yet.",
+      line: h.vitals === null ? "The page timings could not be read just now." : "No page sent its timings yet",
       tab: "speed"
     };
   const verdict = vitalVerdict("LCP", lcp.p75);
@@ -37666,25 +37669,39 @@ var look = (r2) => ({
   tenantId: null,
   detail: null,
   reading: null,
+  items: null,
   ...r2
 });
 var onlyOne = (ids) => ids.length === 1 ? ids[0] ?? null : null;
 var sideKey = (ours) => ours ? "ours" : "customers";
 function clockLooks({ h, nowMs, sinceWords: sinceWords3 }) {
-  return clocksOf(h.clocks).rows.filter((x) => x.state === "stopped").map(
-    (c) => look({
-      key: `clock:${c.sweep}`,
-      severity: "red",
-      what: `${c.words} isn't running`,
-      why: c.problem ?? "It has not reported in time.",
-      where: "Every workspace",
-      ours: false,
-      sinceMs: c.lastMs ?? nowMs,
-      since: c.lastMs ? sinceWords3(c.lastMs) : "",
-      act: { kind: "open", tab: "background" },
-      detail: c.problem
-    })
-  );
+  const byProblem = /* @__PURE__ */ new Map();
+  for (const c of clocksOf(h.clocks).rows.filter((x) => x.state === "stopped")) {
+    const k = c.problem ?? "";
+    byProblem.set(k, [...byProblem.get(k) ?? [], c]);
+  }
+  return [...byProblem.values()].flatMap((group) => {
+    const [first] = group;
+    if (!first) return [];
+    const one = group.length === 1;
+    const spoke = group.map((c) => c.lastMs).filter((ms3) => ms3 !== null);
+    const sinceMs = spoke.length ? Math.min(...spoke) : null;
+    return [
+      look({
+        key: one ? `clock:${first.sweep}` : `clocks:${first.sweep}`,
+        severity: "red",
+        what: one ? `${first.words} isn't running` : `${group.length} clocks aren't running`,
+        why: first.problem ?? "It has not reported in time.",
+        where: PLATFORM_WHERE,
+        ours: false,
+        sinceMs: sinceMs ?? nowMs,
+        since: sinceMs ? sinceWords3(sinceMs) : "",
+        act: { kind: "open", tab: "background" },
+        detail: first.problem,
+        items: one ? null : { label: "The clocks", rows: group.map((c) => c.words) }
+      })
+    ];
+  });
 }
 function backlogLooks({ h, nowMs }) {
   if (h.backlog === null || h.backlog <= 0) return [];
@@ -37694,7 +37711,7 @@ function backlogLooks({ h, nowMs }) {
       severity: "red",
       what: `${countPhrase(h.backlog, "job")} waiting unclaimed`,
       why: "Due jobs nobody has claimed for two minutes: the heartbeat is scheduled and not draining.",
-      where: "Every workspace",
+      where: PLATFORM_WHERE,
       ours: false,
       sinceMs: nowMs,
       since: "now",
@@ -37759,8 +37776,8 @@ function pageLooks({ h, nowMs, sinceWords: sinceWords3 }) {
     (p) => look({
       key: `page:${p.key}`,
       severity: p.alertedToday ? "red" : "amber",
-      what: `The pager: ${p.words}`,
-      why: `Seen ${countPhrase(p.count, "time")} since ${p.first}${p.lastMailed ? `; last mailed ${p.lastMailed}` : ""}`,
+      what: p.words,
+      why: `The pager saw it ${countPhrase(p.count, "time")} since ${p.first}${p.lastMailed ? `, last mailed ${p.lastMailed}` : ""}`,
       where: p.where,
       ours: p.ours,
       sinceMs: p.firstMs,

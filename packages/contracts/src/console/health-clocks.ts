@@ -9,7 +9,7 @@
 import type { Tone } from "../shell/tone";
 import type { JobKind } from "../shared/enums";
 import { agoWords, DAY_MS } from "../shared/time";
-import type { HealthWorkspaceDto } from "./health-scope";
+import { PLATFORM_WHERE, type HealthWorkspaceDto } from "./health-scope";
 
 // --------------------------------------------------------------------------------------------------- clocks
 
@@ -117,7 +117,8 @@ export interface ClockVM {
   stateWords: { label: string; tone: Tone };
   /** When it last spoke: its last ask for a clock judged by its asks, its last run for one judged by its runs. */
   lastMs: number | null;
-  judged: string;
+  /** How long it may be quiet before the health check calls it late: "20 min", "35 days"; "" for one with no limit. */
+  lateAfter: string;
   runs: number;
   failed: number;
   /** Why it is not running, in the health check's own words, or the newest failed run's. */
@@ -153,11 +154,7 @@ export function clocksOf(rows: readonly HealthClockDto[] | null): {
       state,
       stateWords: CLOCK_STATE_WORDS[state],
       lastMs: lastMs !== null && Number.isFinite(lastMs) ? lastMs : null,
-      judged: asks
-        ? c.max_silence
-          ? `its asks, ${silenceWords(c.max_silence)}`
-          : "its asks"
-        : `its runs, ${silenceWords(c.max_silence)}`,
+      lateAfter: c.max_silence ? silenceWords(c.max_silence) : "",
       runs: c.runs,
       failed: c.failed,
       problem:
@@ -251,7 +248,7 @@ export interface PageVM {
   /** Seen in the last day of the window: still going. */
   recent: boolean;
   alertedToday: boolean;
-  /** The workspace a key names (model_failures:<id>), else Every workspace. */
+  /** The workspace a key names (model_failures:<id>), else the platform. */
   where: string;
   ours: boolean;
 }
@@ -284,7 +281,7 @@ export function pagesOf(
         lastMailed: alertedMs ? when(alertedMs) : null,
         recent: nowMs - lastMs <= DAY_MS,
         alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
-        where: w ? w.name : "Every workspace",
+        where: w ? w.name : PLATFORM_WHERE,
         ours: w?.ours ?? false,
       };
     }),

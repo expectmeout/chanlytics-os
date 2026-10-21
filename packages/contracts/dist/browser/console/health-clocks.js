@@ -1,4 +1,5 @@
 import { agoWords, DAY_MS } from "../shared/time.js";
+import { PLATFORM_WHERE } from "./health-scope.js";
 const SWEEP_WORDS = {
   calendar: "Calendars read for the people booked",
   calls: "Calls reconciled",
@@ -79,7 +80,7 @@ export function clocksOf(rows) {
       state,
       stateWords: CLOCK_STATE_WORDS[state],
       lastMs: lastMs !== null && Number.isFinite(lastMs) ? lastMs : null,
-      judged: asks ? c.max_silence ? `its asks, ${silenceWords(c.max_silence)}` : "its asks" : `its runs, ${silenceWords(c.max_silence)}`,
+      lateAfter: c.max_silence ? silenceWords(c.max_silence) : "",
       runs: c.runs,
       failed: c.failed,
       problem: !c.healthy && c.healthy !== null ? c.detail || "It has not reported in time." : c.failed ? c.last_failure : null,
@@ -159,7 +160,7 @@ export function pagesOf(rows, workspaces, nowMs) {
         lastMailed: alertedMs ? when(alertedMs) : null,
         recent: nowMs - lastMs <= DAY_MS,
         alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
-        where: w ? w.name : "Every workspace",
+        where: w ? w.name : PLATFORM_WHERE,
         ours: w?.ours ?? false
       };
     })

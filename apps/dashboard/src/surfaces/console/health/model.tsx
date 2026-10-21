@@ -8,7 +8,7 @@ import { dollarsWords, modelCallsOf, workspaceNamer, type HealthScope } from "@c
 import { Figure } from "../../kit/figure/figure";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
-import { HealthLine, healthCount as n, utcWords as when } from "./line";
+import { HealthRow, HealthRows, healthCount as n, utcWords as when } from "./line";
 
 export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   if (h.parts === null)
@@ -36,17 +36,20 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
         {m.byPurpose.length === 0 ? (
           <NoneRow words="No model call in the window." />
         ) : (
-          <div className="cl-attn-list">
+          <HealthRows head={["What it was for", "Calls", "No answer", "Cost"]} label="By what it was for">
             {m.byPurpose.map((p) => (
-              <HealthLine
+              <HealthRow
                 key={p.purpose}
-                label={p.words}
-                hint={`${n(p.n)} calls · ${n(p.noAnswer)} with no answer · ${dollarsWords(p.usd)}`}
-                tone={p.noAnswer ? "warn" : undefined}
+                title={p.words}
+                cells={[
+                  { v: n(p.n) },
+                  { v: n(p.noAnswer), tone: p.noAnswer ? "warn" : undefined },
+                  { v: dollarsWords(p.usd) },
+                ]}
                 testid={`console-health-model-${p.purpose}`}
               />
             ))}
-          </div>
+          </HealthRows>
         )}
       </ScreenSection>
       <ScreenSection
@@ -57,15 +60,16 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
         {m.byWorkspace.length === 0 ? (
           <NoneRow words="No workspace called the model in the window." />
         ) : (
-          <div className="cl-attn-list">
+          <HealthRows head={["Workspace", "Cost", "Calls", { label: "Of it Ask", desk: true }]} label="By workspace">
             {m.byWorkspace.map((w) => (
-              <HealthLine
+              <HealthRow
                 key={w.tenantId}
-                label={`${nameOf(w.tenantId)}${w.ours ? " · Ours" : ""}`}
-                hint={`${dollarsWords(w.usd)} · ${n(w.n)} calls · Ask ${dollarsWords(w.askUsd)}`}
+                title={nameOf(w.tenantId)}
+                sub={w.ours ? "Ours" : undefined}
+                cells={[{ v: dollarsWords(w.usd) }, { v: n(w.n) }, { v: dollarsWords(w.askUsd), desk: true }]}
               />
             ))}
-          </div>
+          </HealthRows>
         )}
       </ScreenSection>
       <ScreenSection
@@ -76,18 +80,19 @@ export function ModelTab({ h, scope }: { h: ConsoleHealth; scope: HealthScope })
         {m.failures.length === 0 ? (
           <NoneRow words="Every model call got an answer." />
         ) : (
-          <div className="cl-attn-list">
+          <HealthRows head={["What the API said", "Workspace", "When, UTC"]} label="Calls with no answer" wide>
             {[...m.failures]
               .sort((a, b) => b.atMs - a.atMs)
               .map((f, i) => (
-                <HealthLine
+                <HealthRow
                   key={`${f.atMs}:${i}`}
-                  label={f.reason ?? "No reason kept: this call came before the ledger kept them"}
-                  hint={`${f.words} · ${f.outcome} · ${nameOf(f.tenantId)}${f.ours ? " · Ours" : ""} · ${when(f.atMs)} UTC`}
-                  tone={f.reason ? "danger" : undefined}
+                  title={f.reason ?? "No reason kept: this call came before the ledger kept them"}
+                  sub={`${f.words} · ${f.outcome}`}
+                  subTone={f.reason ? "danger" : undefined}
+                  cells={[{ v: `${nameOf(f.tenantId)}${f.ours ? " · Ours" : ""}`, desk: true }, { v: when(f.atMs) }]}
                 />
               ))}
-          </div>
+          </HealthRows>
         )}
       </ScreenSection>
     </>

@@ -1,4 +1,5 @@
 import { creditRanOut } from "../ai/usage.js";
+import { capitalize } from "../shared/words.js";
 import { inScope } from "./health-scope.js";
 import { subscriberWords } from "./health-clocks.js";
 const inScopeRows = (rows, scope) => (rows ?? []).filter((r) => inScope(r.ours, scope));
@@ -100,7 +101,7 @@ export function callsOf(parts, scope) {
   return {
     total: rows.reduce((n, r) => n + r.n, 0),
     connected: rows.filter((r) => r.status === "ended").reduce((n, r) => n + r.n, 0),
-    reasons: [...byReason.entries()].map(([reason, v]) => ({ reason, words: reasonWords(reason), n: v.n })).sort((a, b) => b.n - a.n),
+    reasons: [...byReason.entries()].map(([reason, v]) => ({ reason, words: reasonWords(reason), label: capitalize(reasonWords(reason)), n: v.n })).sort((a, b) => b.n - a.n),
     trouble: troubleRows(null),
     troubleByScope: [...troubleRows(true), ...troubleRows(false)]
   };
@@ -229,6 +230,7 @@ export function deliveriesOf(parts, scope) {
     return {
       subscriber,
       words: subscriberWords(subscriber),
+      label: capitalize(subscriberWords(subscriber)),
       done: n("done"),
       failed: n("failed"),
       waiting: n("scheduled") + n("paused")

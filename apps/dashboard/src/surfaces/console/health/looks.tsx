@@ -39,9 +39,12 @@ function lookReport(l: HealthLookVM): string {
     .join("\n");
 }
 
-/** The facts beside a look: its workspace, and for a failed job its kind, its tries and when it was queued. */
+/**
+ * The facts beside a look: its workspace (or, for a look about none, whose it is: the platform's, customers', ours),
+ * and for a failed job its kind, its tries and when it was queued.
+ */
 function whereRows(l: HealthLookVM, h: ConsoleHealth): Array<{ k: string; v: string }> {
-  const rows = [{ k: "Workspace", v: l.where }];
+  const rows = [{ k: l.tenantId ? "Workspace" : "Whose", v: l.where }];
   if (l.act.kind === "run_again") {
     const jobId = l.act.jobId;
     const job = (h.failed_jobs ?? []).find((j) => j.id === jobId);
@@ -83,10 +86,23 @@ function LookDetail({
   const act = look.act;
   return (
     <div className="cs-a" data-testid="console-health-look">
-      <div className="cs-a-part">
-        {inSheet ? null : <span className="cs-a-strong">{look.what}</span>}
-        <span className="cs-a-dim">{look.why}</span>
-      </div>
+      {/* The row's line is the answer cut short: where the whole answer is drawn, it is said once, there. */}
+      {inSheet && look.detail ? null : (
+        <div className="cs-a-part">
+          {inSheet ? null : <span className="cs-a-strong">{look.what}</span>}
+          {look.detail ? null : <span className="cs-a-dim">{look.why}</span>}
+        </div>
+      )}
+      {look.items ? (
+        <div className="cs-a-part" data-testid="console-health-look-items">
+          <span className="cs-a-label">{look.items.label}</span>
+          <ul className="cs-h-items">
+            {look.items.rows.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {look.detail ? (
         <div className="cs-a-part">
           <span className="cs-a-label">{HEALTH_WORDS.whatItAnswered}</span>

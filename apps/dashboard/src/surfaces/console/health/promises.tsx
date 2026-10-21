@@ -6,6 +6,7 @@
  */
 import type { PromiseRowVM } from "@chanlytics/contracts";
 import { NoneRow, ScreenSection } from "../parts";
+import { HealthRow, HealthRows, healthCountOf } from "./line";
 
 const CELL_WORDS = { kept: "kept", missed: "missed", none: "nothing to judge that day" } as const;
 
@@ -36,12 +37,16 @@ export function PromiseGrid({
         <div className="cs-h-scroll">
           <div className="cs-h-grid" role="table">
             <div className="cs-h-grid-row cs-h-grid-head" role="row">
-              <span role="columnheader">What the platform promises</span>
-              {shown.map((d) => (
-                <span key={d} className="cs-h-day" role="columnheader">
-                  {dayOfMonth(d)}
-                </span>
-              ))}
+              <span className="cs-h-promise" role="columnheader">
+                What the platform promises
+              </span>
+              <span className="cs-h-days" role="none">
+                {shown.map((d) => (
+                  <span key={d} className="cs-h-day" role="columnheader">
+                    {dayOfMonth(d)}
+                  </span>
+                ))}
+              </span>
               <span className="cs-h-last" role="columnheader">
                 {monthOf(shown[shown.length - 1])}
               </span>
@@ -54,15 +59,17 @@ export function PromiseGrid({
                     <span className="cs-q-title">{r.title}</span>
                     <span className="cs-h-small">{r.small}</span>
                   </span>
-                  {cells.map((c) => (
-                    <span
-                      key={c.day}
-                      className="cs-h-cell"
-                      data-state={c.state}
-                      role="cell"
-                      aria-label={`${c.day}: ${c.words ?? CELL_WORDS[c.state]}`}
-                    />
-                  ))}
+                  <span className="cs-h-days" role="none">
+                    {cells.map((c) => (
+                      <span
+                        key={c.day}
+                        className="cs-h-cell"
+                        data-state={c.state}
+                        role="cell"
+                        aria-label={`${c.day}: ${c.words ?? CELL_WORDS[c.state]}`}
+                      />
+                    ))}
+                  </span>
                   <span className="cs-h-last" data-state={r.state} role="cell">
                     {r.last}
                   </span>
@@ -80,20 +87,22 @@ export function PromiseGrid({
           </div>
         </div>
       )}
-      {detailed && read
-        ? grid.rows
+      {detailed && read && grid.rows.some((r) => r.worst) ? (
+        <HealthRows head={["Missed", "Days"]} label="The promises missed">
+          {grid.rows
             .filter((r) => r.worst)
             .map((r) => (
-              <div className="set-row" key={`worst:${r.key}`} data-testid={`console-health-promise-${r.key}-worst`}>
-                <div className="set-row-info">
-                  <span className="set-row-label">{r.title}</span>
-                  <span className="set-row-hint" data-tone="danger">
-                    {`${r.worst} · missed on ${r.missedDays} day${r.missedDays === 1 ? "" : "s"} · ${r.where}`}
-                  </span>
-                </div>
-              </div>
-            ))
-        : null}
+              <HealthRow
+                key={`worst:${r.key}`}
+                title={r.title}
+                sub={r.worst}
+                subTone="danger"
+                cells={[{ v: healthCountOf(r.missedDays, "day"), tone: "danger" }]}
+                testid={`console-health-promise-${r.key}-worst`}
+              />
+            ))}
+        </HealthRows>
+      ) : null}
     </ScreenSection>
   );
 }

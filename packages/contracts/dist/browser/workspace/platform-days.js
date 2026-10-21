@@ -1,4 +1,4 @@
-import { MIN_MS } from "../shared/time.js";
+import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time.js";
 export const PLATFORM_DAYS_READ = { days: 7 };
 const sum = (m) => Object.values(m).reduce((a, n) => a + n, 0);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -14,7 +14,8 @@ function failuresOf(m) {
   return `${plural(n, "send", "sends")} failed (${parts.join(", ")})`;
 }
 const LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
-const seconds = (ms) => `${(ms / 1e3).toFixed(1)} s`;
+const SECONDS_UP_TO_MS = 100 * 1e3;
+const seconds = (ms) => ms < SECONDS_UP_TO_MS ? `${(ms / 1e3).toFixed(1)} s` : ms < HOUR_MS ? `${Math.round(ms / MIN_MS)} min` : ms < 2 * DAY_MS ? `${Math.round(ms / HOUR_MS)} h` : `${Math.round(ms / DAY_MS)} days`;
 function spineLine(r) {
   const parts = [];
   const lanes = Object.entries(r.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));

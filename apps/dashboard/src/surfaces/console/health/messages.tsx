@@ -16,52 +16,75 @@ import {
 import { Meter } from "../../kit/meter/meter";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
-import { HealthLine as Line, healthCount as n } from "./line";
+import { HealthRow, HealthRows, healthCount as n, healthCountOf } from "./line";
 
 function Sends({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   const s = sendsOf(h.parts, scope);
+  const channelWords = (channel: string) => s.channels.find((c) => c.channel === channel)?.words ?? channel;
   return (
-    <ScreenSection
-      title="Sends"
-      sub={`${n(s.failed)} of ${n(s.total)} failed · ${n(s.delivered)} confirmed delivered`}
-      testid="console-health-sends"
-    >
-      {h.parts === null ? (
-        <NoneRow words="The sends could not be read just now." />
-      ) : s.channels.length === 0 ? (
-        <NoneRow words="Nothing was sent in the window." />
-      ) : (
-        <div className="cl-attn-list">
-          {s.channels.map((c) => (
-            <div className="set-row" key={c.channel} data-testid={`console-health-send-${c.channel}`}>
-              <div className="set-row-info">
-                <span className="set-row-label">{c.words}</span>
-                <span className="set-row-hint" data-tone={c.failed ? "warn" : undefined}>
-                  {`${n(c.total)} sent · ${n(c.delivered)} delivered · ${n(c.failed)} failed${c.topError ? ` · most: ${c.topError}` : ""}`}
-                </span>
-                <Meter
-                  size="sm"
-                  rest
-                  parts={[
-                    { tone: "ok", share: c.total ? c.delivered / c.total : 0 },
-                    { tone: "warn", share: c.total ? c.failed / c.total : 0 },
-                  ]}
-                  aria-label={`${c.words}: ${n(c.delivered)} delivered, ${n(c.failed)} failed, of ${n(c.total)}`}
-                />
-              </div>
-            </div>
-          ))}
-          {s.errors.map((e) => (
-            <Line
-              key={`${e.channel}:${e.code}`}
-              label={`${e.words}`}
-              hint={`${e.channel} · code ${e.code} · ${n(e.n)} time${e.n === 1 ? "" : "s"}`}
-              testid={`console-health-send-code-${e.code}`}
-            />
-          ))}
-        </div>
+    <>
+      <ScreenSection
+        title="Sends"
+        sub={`${n(s.failed)} of ${n(s.total)} failed · ${n(s.delivered)} confirmed delivered`}
+        testid="console-health-sends"
+      >
+        {h.parts === null ? (
+          <NoneRow words="The sends could not be read just now." />
+        ) : s.channels.length === 0 ? (
+          <NoneRow words="Nothing was sent in the window." />
+        ) : (
+          <HealthRows head={["Channel", "Sent", "Delivered", "Failed", { label: "", desk: true }]} label="Sends">
+            {s.channels.map((c) => (
+              <HealthRow
+                key={c.channel}
+                title={c.words}
+                testid={`console-health-send-${c.channel}`}
+                cells={[
+                  { v: n(c.total) },
+                  { v: n(c.delivered) },
+                  { v: n(c.failed), tone: c.failed ? "warn" : undefined },
+                  {
+                    desk: true,
+                    v: (
+                      <Meter
+                        size="sm"
+                        parts={[
+                          { tone: "ok", share: c.total ? c.delivered / c.total : 0 },
+                          { tone: "warn", share: c.total ? c.failed / c.total : 0 },
+                          // Sent and not yet confirmed either way: the rest of the whole, at its own share.
+                          { tone: "rest", share: c.total ? (c.total - c.delivered - c.failed) / c.total : 1 },
+                        ]}
+                        aria-label={`${c.words}: ${n(c.delivered)} delivered, ${n(c.failed)} failed, of ${n(c.total)}`}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            ))}
+          </HealthRows>
+        )}
+      </ScreenSection>
+      {s.errors.length > 0 && (
+        <ScreenSection
+          title="Why sends failed"
+          sub="in the providers' own codes, the most first"
+          testid="console-health-send-codes"
+        >
+          <HealthRows head={["What the provider said", "Channel", "Sends"]} label="Why sends failed">
+            {s.errors.map((e) => (
+              <HealthRow
+                key={`${e.channel}:${e.code}`}
+                title={e.words}
+                sub={`code ${e.code}`}
+                mono
+                cells={[{ v: channelWords(e.channel) }, { v: n(e.n), tone: "warn" }]}
+                testid={`console-health-send-code-${e.code}`}
+              />
+            ))}
+          </HealthRows>
+        </ScreenSection>
       )}
-    </ScreenSection>
+    </>
   );
 }
 
@@ -74,20 +97,21 @@ function Calls({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
       ) : c.total === 0 ? (
         <NoneRow words="No call came in." />
       ) : (
-        <div className="cl-attn-list">
-          {c.trouble.map((t) => (
-            <Line
-              key={`trouble:${t.reason}`}
-              label={`${n(t.n)} ${t.words}`}
-              hint={t.why}
-              tone="danger"
-              testid={`console-health-call-trouble-${t.reason}`}
-            />
-          ))}
-          {c.reasons.map((r) => (
-            <Line key={r.reason || "none"} label={r.words} hint={`${n(r.n)} call${r.n === 1 ? "" : "s"}`} />
-          ))}
-        </div>
+        <HealthRows head={["How it ended", "Calls"]} label="Calls">
+          {c.reasons.map((r) => {
+            const trouble = c.trouble.find((t) => t.reason === r.reason);
+            return (
+              <HealthRow
+                key={r.reason || "none"}
+                title={r.label}
+                sub={trouble?.why}
+                subTone="danger"
+                cells={[{ v: n(r.n), tone: trouble ? "danger" : undefined }]}
+                testid={trouble ? `console-health-call-trouble-${r.reason}` : undefined}
+              />
+            );
+          })}
+        </HealthRows>
       )}
     </ScreenSection>
   );
@@ -103,23 +127,30 @@ function Webhooks({ h, scope, nowMs }: { h: ConsoleHealth; scope: HealthScope; n
     >
       {h.parts === null ? (
         <NoneRow words="What the providers delivered could not be read just now." />
-      ) : w.providers.length === 0 ? (
+      ) : w.providers.length === 0 && w.billing.length === 0 ? (
         <NoneRow words="No provider delivered anything this week." />
       ) : (
-        <div className="cl-attn-list">
+        <HealthRows head={["Provider", "Delivered", "Unverified"]} label="Webhooks in">
           {w.providers.map((p) => (
-            <Line
+            <HealthRow
               key={p.provider}
-              label={p.words}
-              hint={`${n(p.n)} · ${p.unverified} unverified · ${p.doors.join(", ")}`}
-              tone={p.unverified ? "warn" : undefined}
+              title={p.words}
+              sub={p.doors.join(" · ")}
+              mono
+              cells={[{ v: n(p.n) }, { v: n(p.unverified), tone: p.unverified ? "warn" : undefined }]}
               testid={`console-health-webhook-${p.provider}`}
             />
           ))}
           {w.billing.map((b) => (
-            <Line key={`${b.type}:${b.state}`} label={`Billing · ${b.type}`} hint={`${n(b.n)} ${b.state}`} />
+            <HealthRow
+              key={`${b.type}:${b.state}`}
+              title="Billing"
+              sub={`${b.type} · ${b.state}`}
+              mono
+              cells={[{ v: n(b.n) }, { v: "—" }]}
+            />
           ))}
-        </div>
+        </HealthRows>
       )}
     </ScreenSection>
   );
@@ -131,7 +162,9 @@ function Connections({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
   return (
     <ScreenSection
       title="Connections"
-      sub="lines, channels, Google and mailboxes that are not healthy"
+      sub={
+        rows.length ? `${healthCountOf(rows.length, "connection")} not healthy` : "lines, channels, Google, mailboxes"
+      }
       testid="console-health-connections"
     >
       {h.parts === null ? (
@@ -139,17 +172,18 @@ function Connections({ h, scope }: { h: ConsoleHealth; scope: HealthScope }) {
       ) : rows.length === 0 ? (
         <NoneRow words="Every connection is healthy." />
       ) : (
-        <div className="cl-attn-list">
+        <HealthRows head={["Connection", "Workspace"]} label="Connections" wide>
           {rows.map((c) => (
-            <Line
+            <HealthRow
               key={c.key}
-              label={`${c.what} · ${nameOf(c.tenantId)}${c.ours ? " · Ours" : ""}`}
-              hint={c.why}
-              tone="warn"
+              title={c.what}
+              sub={c.why}
+              subTone="warn"
+              cells={[{ v: `${nameOf(c.tenantId)}${c.ours ? " · Ours" : ""}` }]}
               testid={`console-health-connection-${c.key}`}
             />
           ))}
-        </div>
+        </HealthRows>
       )}
     </ScreenSection>
   );

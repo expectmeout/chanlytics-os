@@ -35,6 +35,7 @@ function Part({ t, go }: { t: HealthTileVM; go: Go }) {
     >
       <div className="cs-h-part-head">
         <LinkButton
+          size="inherit"
           href={path}
           onClick={(e: MouseEvent<HTMLAnchorElement>) => {
             e.preventDefault();

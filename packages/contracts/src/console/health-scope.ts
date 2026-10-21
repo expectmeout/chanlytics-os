@@ -28,8 +28,11 @@ export function oursOf(workspaces: readonly HealthWorkspaceDto[] | null): Set<st
   return new Set((workspaces ?? []).filter((w) => w.ours).map((w) => w.id));
 }
 
-/** A workspace's name for a row, by id; "Every workspace" for a row about none. */
+/** Where a row about no one workspace is: the platform's own clocks, its backlog, its pager. */
+export const PLATFORM_WHERE = "The platform";
+
+/** A workspace's name for a row, by id; the platform for a row about none. */
 export function workspaceNamer(workspaces: readonly HealthWorkspaceDto[] | null): (id: string | null) => string {
   const by = new Map((workspaces ?? []).map((w) => [w.id, w.name]));
-  return (id) => (id ? (by.get(id) ?? "A workspace since deleted") : "Every workspace");
+  return (id) => (id ? (by.get(id) ?? "A workspace since deleted") : PLATFORM_WHERE);
 }
