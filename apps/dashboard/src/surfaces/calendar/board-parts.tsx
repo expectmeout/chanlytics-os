@@ -1,7 +1,7 @@
 /**
  * What stands round the board (moved from legacy/pages/calendar.jsx CalendarReal, decision 0015): the one bar of controls
- * over it, its one notice, and the sheet of the hours and rules. Each is a plain function the page calls, never a
- * component: the page's tree is what it was.
+ * over it, its one notice, and the sheets of the hours and rules and of the booking emails held for a look. Each is a
+ * plain function the page calls, never a component: the page's tree is what it was.
  *
  * The calendar first: one bar over the board (the range, the steps, what Show draws, the service the open times fit, and
  * Settings), then at most one notice, then the board. Show says what the board draws over the visits, which are always
@@ -14,6 +14,7 @@ import {
   CALENDAR_SETTING_ROUTE,
   CALENDAR_SHOW_WORDS as SHOW,
   addressOf,
+  bookingEmailsHeldWords,
   bookingEmailsStep,
 } from "@chanlytics/contracts";
 import type { CalendarServiceVM, CalendarVM } from "@chanlytics/contracts";
@@ -29,6 +30,7 @@ import { StatePill } from "../kit/pill/state-pill";
 import { Select } from "../kit/select/select";
 import { Sheet } from "../kit/sheet/sheet";
 import { navigate, openBookingTool } from "../legacy-verbs";
+import { HeldBookingEmails } from "../settings/business/held-emails";
 import type { CalendarShow } from "./use-calendar";
 import { CR_FEED_WORDS } from "./words";
 
@@ -338,7 +340,7 @@ interface NoticeProps {
   spanKey: string;
   read: () => void;
   pending: boolean;
-  /** Open the booking emails held for a look, over the board (settings/business/held-emails.tsx heldEmailsSheet). */
+  /** Open the booking emails held for a look, over the board (`heldEmailsSheet`). */
   openHeld: () => void;
 }
 
@@ -644,6 +646,25 @@ export function rulesSheet(p: {
       <p className="cal-about-note">
         {vm.bookingLink ? "Customers book through your booking link." : "Customers book with your team."}
       </p>
+    </Sheet>
+  );
+}
+
+/**
+ * The card's "Look at them", over the board: the held emails themselves in the kit's sheet, named by their count, the
+ * list Settings' Booking tool fold draws too (settings/business/held-emails.tsx). It closes by itself once the last of
+ * them is read again or dismissed, since there is nothing left in it to look at.
+ */
+export function heldEmailsSheet(p: { open: boolean; onClose: () => void; notices: CalendarVM["feed"]["notices"] }) {
+  return (
+    <Sheet
+      open={p.open && p.notices.heldList.length > 0}
+      onClose={p.onClose}
+      title={bookingEmailsHeldWords(p.notices.held)}
+      close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+      testid="cal-held-emails"
+    >
+      <HeldBookingEmails notices={p.notices} head={false} />
     </Sheet>
   );
 }

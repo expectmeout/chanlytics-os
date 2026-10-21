@@ -1,16 +1,15 @@
 /**
  * The booking emails held for a person (docs/plans/2026-10-07-bookings-arrive-by-email.md, refinement C): each with its
  * subject, its tool and when it came, why it was held, and its two presses. One list, from the Calendar's read, drawn by
- * the Calendar's card ("Look at them" opens it in the kit's sheet) and by Settings' Booking tool fold, whatever that fold
- * says the business books with (Ruben, 20 Oct 2026: the card's door opened the picker, and the picker drew no email
- * until a tool was picked in it).
+ * the Calendar's card ("Look at them" opens it in the kit's sheet, calendar/board-parts.tsx heldEmailsSheet) and by
+ * Settings' Booking tool fold, whatever that fold says the business books with (Ruben, 20 Oct 2026: the card's door
+ * opened the picker, and the picker drew no email until a tool was picked in it). The sheet stays the Calendar's: drawn
+ * here, it carried the kit's Sheet into the Settings page's first load (+20 KB gzipped).
  */
 import { useState } from "react";
 import { bookingEmailsHeldWords, type CalendarVM } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { Button } from "../../kit/button/button";
-import { Icon } from "../../kit/icon/icon";
-import { Sheet } from "../../kit/sheet/sheet";
 
 type Notices = CalendarVM["feed"]["notices"];
 
@@ -71,23 +70,5 @@ export function HeldBookingEmails({ notices, head = true }: { notices: Notices; 
         </p>
       ) : null}
     </div>
-  );
-}
-
-/**
- * The card's "Look at them", over the board: the held emails themselves in the kit's sheet, named by their count. It
- * closes by itself once the last of them is read again or dismissed, since there is nothing left in it to look at.
- */
-export function heldEmailsSheet(p: { open: boolean; onClose: () => void; notices: Notices }) {
-  return (
-    <Sheet
-      open={p.open && p.notices.heldList.length > 0}
-      onClose={p.onClose}
-      title={bookingEmailsHeldWords(p.notices.held)}
-      close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
-      testid="cal-held-emails"
-    >
-      <HeldBookingEmails notices={p.notices} head={false} />
-    </Sheet>
   );
 }
