@@ -62,13 +62,16 @@ export type MenuItem = MenuWords &
       }
   );
 
-/** A set the page chooses one of: the one chosen, the options, and the tick drawn beside the one chosen. */
+/**
+ * A set the page chooses one of: the one chosen, the options, and the tick drawn beside the one chosen. An option may say a
+ * word at its end, as an item's `hint` does (how many a view holds: Pipeline's views, Sequences').
+ */
 export type MenuChoice = {
   value: string;
   onChoose: (value: string) => void;
   /** The tick (the Icon's `check`, at 13px): drawn on every option, and seen beside the one chosen (kit.css). */
   tick: ReactElement;
-  options: readonly { value: string; label: string }[];
+  options: readonly { value: string; label: string; hint?: ReactNode }[];
 };
 
 /**
@@ -193,7 +196,7 @@ function Choice({ choose }: { choose: MenuChoice }) {
           label={option.label}
           closeOnClick
         >
-          {itemContent({ label: option.label, glyph: choose.tick })}
+          {itemContent({ label: option.label, glyph: choose.tick, hint: option.hint })}
         </BaseMenu.RadioItem>
       ))}
     </BaseMenu.RadioGroup>

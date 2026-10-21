@@ -28050,6 +28050,8 @@ var SEQUENCE_WORDS = {
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
   backToLeadsLabel: "Back to Leads",
   search: "Search sequences",
+  /** The list's views over its search (Pipeline's "All deals ⌄"): every sequence, or one of its groups. */
+  views: { label: "Which sequences", all: "All sequences" },
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn\u2019t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
@@ -53816,7 +53818,7 @@ var CAMPAIGN_SCOPE_WORDS = {
   byStep: { title: "By step", line: "What each step sent, and what came of it." },
   sends: { title: "Each send", line: "Newest first, with what came of each." },
   heads: { when: "When", what: "What came of it", sent: "Sent" },
-  nothing: (name) => `Nothing went out from ${name} in these days`,
+  nothing: (name) => `Nothing went out from \u201C${name}\u201D in these days`,
   nothingBody: "Its History says what it sent before, and what goes next."
 };
 var SAID2 = CAMPAIGN_SCOPE_WORDS;
@@ -53875,7 +53877,13 @@ function campaignOneOf(input) {
   const sends2 = inDays.map((b) => {
     const place = b.place && input.steps > 1 ? SEQUENCE_HISTORY_WORDS.step(b.place) : null;
     const said = historyDayWords(b, place);
-    return { id: b.id, when: historyStamp(Date.parse(b.at), tz, input.nowMs), ...said, went: batchWent(b) };
+    return {
+      id: b.id,
+      state: b.state,
+      when: historyStamp(Date.parse(b.at), tz, input.nowMs),
+      ...said,
+      went: batchWent(b)
+    };
   });
   return {
     name,
