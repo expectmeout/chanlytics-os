@@ -7,8 +7,8 @@
  *           Answered 204 whatever the mailbox: a non-2xx is redelivered, and a push for a mailbox no longer connected
  *           would be for ever.
  *   Graph   a notification (api/mailbox/graph.ts): the validation Graph sends once when a subscription is made, echoed;
- *           otherwise each notification's clientState checked against GRAPH_NOTIFY_SECRET, and its subscription's
- *           mailbox read. Answered 202.
+ *           otherwise each notification's clientState checked against GRAPH_NOTIFY_SECRET, and the mailboxes clock
+ *           asked to read now (requestMailboxesSweep), since Graph wants its 202 inside three seconds. Answered 202.
  *
  * What a push says is only "read this mailbox now": no body is trusted for more, and the sync reads the rest from the
  * provider with the mailbox's own grant. A push that cannot be checked is refused (401) and nothing is read.
@@ -19,7 +19,7 @@ import {
   clientStateMatches,
   verifyGooglePushToken,
 } from "../../packages/channels.js";
-import { liveMailboxByAddress, liveMailboxByWatch, type MailboxConnectionRow } from "../../packages/db.js";
+import { liveMailboxByAddress, requestMailboxesSweep, type MailboxConnectionRow } from "../../packages/db.js";
 import { refuse, text } from "../../http.js";
 import { pg } from "../../pg.js";
 import { errField, logger, type Logger } from "../../log.js";
@@ -78,7 +78,6 @@ export async function receiveGmailPush(request: Request): Promise<Response> {
 
 /** A Graph notification for a Microsoft mailbox, or the validation Graph sends when a subscription is made. */
 export async function receiveGraphPush(request: Request): Promise<Response> {
-  const until = Date.now() + PUSH_READS_UNTIL_MS;
   const L = logger({ push: "microsoft" });
   const push = graphPush();
   if (!push) return refuse(404, "not_found");
@@ -95,13 +94,14 @@ export async function receiveGraphPush(request: Request): Promise<Response> {
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  for (const id of new Set(trusted.map((n) => n.subscriptionId))) {
+  // Graph wants its answer inside three seconds, and slows or drops an address that is late: the mailboxes clock is
+  // asked to read now (Postgres calls it on its own, at most once a minute), and the push is answered at once.
+  if (trusted.length > 0)
     try {
-      const outcome = await readOne(db, await liveMailboxByWatch(db, id), L, until);
-      L.info("mailbox_pushed", { provider: "microsoft", outcome });
+      const asked = await requestMailboxesSweep(db, new Date());
+      L.info("mailbox_pushed", { provider: "microsoft", outcome: asked ? "clock_asked" : "clock_asked_lately" });
     } catch (e) {
       L.error("mailbox_push_failed", { provider: "microsoft", error: errField(e) });
     }
-  }
   return text(202, "");
 }

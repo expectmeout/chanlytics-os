@@ -68,7 +68,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   // A mailbox the business connected (00423): its address, and why when it was held, in the words Connections says.
   assert.equal(
     activityWords("mailbox_connection.held", { address: "sam@getharbor.com", why: "bounces", sent: 150 }),
-    "A mailbox to write from was held · sam@getharbor.com · more than 3% of its recent emails bounced",
+    "A mailbox to write from was held · sam@getharbor.com · more than 3% of its recent emails bounced or were refused",
   );
   assert.equal(
     activityWords("mailbox_connection.connected", { address: "sam@getharbor.com", provider: "google", again: false }),

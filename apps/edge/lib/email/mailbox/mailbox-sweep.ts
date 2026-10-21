@@ -4,7 +4,8 @@
  *
  *   its watch   made or renewed a day before it lapses (mailbox-watch.ts), so its provider tells the edge it changed.
  *   its sync    read back from its cursor (mailbox-sync.ts): a push may have been lost, and a deployment with no push
- *               has only this.
+ *               has only this (and Graph's push only asks for it: mailbox-push.ts).
+ *   its sends   an email whose send's outcome was unknown, looked for in what it sent (mailbox-reconcile.ts).
  *   its health  its own mail judged hourly, its ramp's days kept, its rest lifted, its domain's records read daily
  *               (mailbox-health.ts).
  *
@@ -29,6 +30,7 @@ import { unsubscribeOrigin } from "../../dashboard-origin.js";
 import { pageOperator } from "../../ops/page-operator.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { tendMailboxHealth } from "./mailbox-health.js";
+import { reconcileMailbox } from "./mailbox-reconcile.js";
 import { syncMailbox } from "./mailbox-sync.js";
 import { keepWatch, watchDue } from "./mailbox-watch.js";
 import { markSignedOut } from "./mailbox-wire.js";
@@ -48,7 +50,16 @@ const AT_ONCE = 4;
  */
 export const READS_UNTIL_MS = 25_000;
 
-type Counts = { tended: number; synced: number; replies: number; bounced: number; held: number; failed: number };
+type Counts = {
+  tended: number;
+  synced: number;
+  replies: number;
+  bounced: number;
+  /** Emails of unknown outcome settled: found sent, or never left. */
+  settled: number;
+  held: number;
+  failed: number;
+};
 
 /** One mailbox: its watch when due, its sync, its health. Never throws. */
 async function tend(tick: SweepTick, row: MailboxConnectionRow, counts: Counts): Promise<void> {
@@ -75,6 +86,11 @@ async function tend(tick: SweepTick, row: MailboxConnectionRow, counts: Counts):
     else if (s.outcome !== "busy" && s.outcome !== "no_token" && s.outcome !== "later") counts.synced++;
     counts.replies += s.replies;
     counts.bounced += s.bounced;
+    // Its emails of unknown outcome, looked for in what it sent (mailbox-reconcile.ts).
+    if (Date.now() < until) {
+      const r = await reconcileMailbox(db, current, log, now, until);
+      counts.settled += r.sent + r.never;
+    }
     // Its health is judged on the row as the sync left it.
     const fresh = (await mailboxConnectionById(db, row.id)) ?? current;
     const after = await tendMailboxHealth(db, fresh, log, now, until);
@@ -104,7 +120,7 @@ export async function sweepMailboxes(tick: SweepTick): Promise<Response> {
     log: L,
     page,
   });
-  const counts: Counts = { tended: 0, synced: 0, replies: 0, bounced: 0, held: 0, failed: 0 };
+  const counts: Counts = { tended: 0, synced: 0, replies: 0, bounced: 0, settled: 0, held: 0, failed: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
     if (Date.now() - started > READS_UNTIL_MS) break;
     const batch = rows.slice(i, i + AT_ONCE);

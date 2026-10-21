@@ -366,37 +366,40 @@ test("its token in Vault: kept, read, replaced only over the refresh token it re
 });
 
 test(
-  "its health's counts: what left, its permanent bounces and complaints, by its own sends only",
+  "its health's counts: what left, its hard bounces, the servers' refusals and its complaints, by its own sends only (00466)",
   { skip },
   async () => {
     const box = await mailboxRow();
     const counts = async (since = null) =>
       ok(await db.rpc("mailbox_connection_counts", { p_mailbox_id: box, p_since: since }));
-    assert.deepEqual(await counts(), { sent: 0, bounced: 0, complained: 0, unsubscribed: 0 });
+    const none = { sent: 0, bounced: 0, blocked: 0, complained: 0, unsubscribed: 0, said_no: 0 };
+    assert.deepEqual(await counts(), none);
     await sentFrom(box);
     await sentFrom(box, { status: "delivered" });
     await sentFrom(box, { meta: { complained_at: iso(Date.now()) } });
     await sentFrom(box, { status: "failed", error: { provider: "bounced", kind: "Permanent" } });
     await sentFrom(box, { status: "failed", error: { provider: "bounced", kind: "Transient" } });
+    // A receiving server refusing the sender: counted as the mailbox's own, never as a dead address.
+    await sentFrom(box, { status: "failed", error: { provider: "bounced", kind: "Blocked" } });
     // What never left is none of it: refused at the provider, or never sent.
     await sentFrom(box, { status: "failed", error: { provider: "rejected" } });
     await sentFrom(box, { status: "canceled", error: { reason: "sending_mailbox_at_cap" } });
     // Another mailbox's mail, and an email no send of this one wrote, count nothing here.
     await sentFrom(await mailboxRow());
-    assert.deepEqual(await counts(), { sent: 5, bounced: 1, complained: 1, unsubscribed: 0 });
+    assert.deepEqual(await counts(), { ...none, sent: 6, bounced: 1, blocked: 1, complained: 1 });
     // Since a moment: only what was written since.
     await sentFrom(box, { createdAt: iso(Date.now() - 3 * DAY) });
-    assert.equal((await counts()).sent, 6);
-    assert.equal((await counts(iso(Date.now() - DAY))).sent, 5);
+    assert.equal((await counts()).sent, 7);
+    assert.equal((await counts(iso(Date.now() - DAY))).sent, 6);
     assert.deepEqual(
       ok(await db.rpc("mailbox_connection_counts", { p_mailbox_id: crypto.randomUUID(), p_since: null })),
-      { sent: 0, bounced: 0, complained: 0, unsubscribed: 0 },
+      none,
     );
   },
 );
 
 test(
-  "D18 on a mailbox's count: a reply's no counts beside an unsubscribe, and stops counting once it is undone",
+  "D18 on a mailbox's count: a reply's no is said_no (never a hold), an unsubscribe is unsubscribed, and a no undone stops counting (00466)",
   { skip },
   async () => {
     const box = await mailboxRow();
@@ -416,11 +419,13 @@ test(
     const second = await sentFrom(box, { contact: q });
     await sentFrom(box, { contact: q });
     const third = await sentFrom(box, { contact: p });
-    const unsubscribed = async () =>
-      ok(await db.rpc("mailbox_connection_counts", { p_mailbox_id: box, p_since: null })).unsubscribed;
-    assert.equal(await unsubscribed(), 0);
+    const noes = async () => {
+      const c = ok(await db.rpc("mailbox_connection_counts", { p_mailbox_id: box, p_since: null }));
+      return [c.unsubscribed, c.said_no];
+    };
+    assert.deepEqual(await noes(), [0, 0]);
     ok(await marketing(p, "opted_out", "reply", { p_message_id: first }));
-    assert.equal(await unsubscribed(), 1, "the email the reply answered is counted");
+    assert.deepEqual(await noes(), [0, 1], "the email the reply answered counts its no, apart from unsubscribes");
     // An undo that names another email is not this no's.
     ok(
       await db.from("events").insert({
@@ -432,16 +437,16 @@ test(
         data: { purpose: "email_marketing", consent: "unknown", source: "reply_undone", message_id: second },
       }),
     );
-    assert.equal(await unsubscribed(), 1, "a reply_undone naming another email leaves the reply counted");
+    assert.deepEqual(await noes(), [0, 1], "a reply_undone naming another email leaves the reply counted");
     ok(await marketing(p, "unknown", "reply_undone", { p_message_id: first }));
-    assert.equal(await unsubscribed(), 0, "a no undone was never a no");
+    assert.deepEqual(await noes(), [0, 0], "a no undone was never a no");
     ok(await marketing(q, "opted_out", "unsubscribe", { p_message_id: second }));
-    assert.equal(await unsubscribed(), 1, "an unsubscribe counts as before");
+    assert.deepEqual(await noes(), [1, 0], "an unsubscribe counts as unsubscribed");
     ok(await marketing(p, "opted_out", "reply", { p_message_id: first }));
-    assert.equal(await unsubscribed(), 2, "a no said again after its undo counts again");
-    // One person counts once in the window, however many of its emails their noes name.
+    assert.deepEqual(await noes(), [1, 1], "a no said again after its undo counts again");
+    // Already opted out, a person's unsubscribe writes no change (00220): they stay counted by the no they said.
     ok(await marketing(p, "opted_out", "unsubscribe", { p_message_id: third }));
-    assert.equal(await unsubscribed(), 2, "a reply's no and then an unsubscribe are one person");
+    assert.deepEqual(await noes(), [1, 1], "one person, counted once, by how they first said it");
   },
 );
 

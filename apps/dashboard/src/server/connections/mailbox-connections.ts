@@ -6,21 +6,31 @@
  * the dashboard's own, the key that signs the OAuth state (google.ts stateSecret).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mailboxConnectionsOf, type Database } from "@chanlytics/db";
+import { mailboxCapacityOf, mailboxConnectionsOf, mailboxCountsOf, type Database } from "@chanlytics/db";
 import {
   AppError,
+  MAILBOX_DAILY_CAP_MAX,
   MAILBOX_PROVIDERS,
   ROLE_PERMS,
+  WEEK_MS,
   appLink,
   mailboxConnectionDtoOf,
   type EdgeErrorCode,
   type MailboxConnectionDto,
   type MailboxProvider,
 } from "@chanlytics/contracts";
-import { mailboxAuthorizeUrl, newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels";
+import {
+  mailboxAdminConsentUrl,
+  mailboxAuthorizeUrl,
+  newNonce,
+  signState,
+  verifyState,
+  STATE_TTL_MS,
+} from "@chanlytics/channels";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
 import { deployment } from "../env";
 import { log } from "../log";
+import { serviceDbIfConfigured } from "../service-db";
 import { memberContext, type RouteContext } from "../with-route";
 import type { Member } from "../route";
 import { stateSecret } from "./google";
@@ -31,6 +41,31 @@ export async function mailboxConnectionsFor(
   tenantId: string,
 ): Promise<MailboxConnectionDto[]> {
   return (await mailboxConnectionsOf(db, tenantId)).map((r) => mailboxConnectionDtoOf(r));
+}
+
+/**
+ * The same, each live one with its day and its health beside it: what it sent in the last day (mailbox_capacity) and
+ * what its emails came to since it was counted clean (mailbox_connection_counts), as Connections says them. Both are
+ * the service role's to ask; the rows they are asked of are the ones this member's own read returned. A count that
+ * cannot be read is left out, never Setup's failure, and a deployment without the service role's keys reads none.
+ */
+export async function mailboxConnectionsWithDaysFor(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  now = new Date(),
+): Promise<MailboxConnectionDto[]> {
+  const rows = await mailboxConnectionsOf(db, tenantId);
+  const svc = serviceDbIfConfigured();
+  return Promise.all(
+    rows.map(async (r) => {
+      if (!svc || r.state === "removed" || r.state === "reconnect") return mailboxConnectionDtoOf(r);
+      const [day, counts] = await Promise.all([
+        mailboxCapacityOf(svc, r.id, now).catch(() => null),
+        mailboxCountsOf(svc, r.id, r.counted_since).catch(() => null),
+      ]);
+      return mailboxConnectionDtoOf(r, { sent_today: day?.sent_today ?? null, counts });
+    }),
+  );
 }
 
 /** One call to the edge's mailboxes door. Never throws: a failure is a status the caller reads. */
@@ -93,7 +128,7 @@ export function forgetMailboxesReadiness(): void {
 const SETTING_WORDS: Record<string, string> = {
   bad_name: "Give the name people see beside the address, 80 characters at most.",
   bad_signature: "A signature is 1,000 characters at most.",
-  bad_cap: "A mailbox sends between 1 and 50 a day.",
+  bad_cap: `A mailbox sends between 1 and ${MAILBOX_DAILY_CAP_MAX} a day.`,
 };
 
 /**
@@ -198,23 +233,52 @@ function afterMailbox(origin: string, outcome: string, why?: string | null, slug
   return `${origin}${appLink(slug, "admin/integrations", { mailbox: outcome, why: why || null })}`;
 }
 
-/** The way to the provider's consent screen: a signed state naming the workspace, the person and the provider. */
-export async function startMailboxConnect(ctx: RouteContext, member: Member, provider: string) {
+/**
+ * The way to the provider's consent screen, answered as data for the page to follow (so a refusal is said on the page,
+ * never as a bare answer the browser lands on): a signed state naming the workspace, the person and the provider. A
+ * Reconnect names its mailbox, so the provider is asked for that address (login_hint) and the account that comes back
+ * must be its own. `admin` asks instead for the link a Microsoft 365 admin opens to approve Chanlytics for their
+ * whole organisation, once, where the tenant lets no member consent alone.
+ */
+export async function startMailboxConnect(
+  ctx: RouteContext,
+  member: Member,
+  provider: string,
+  opts: { mailboxId?: string | null; admin?: boolean } = {},
+): Promise<{ url: string }> {
   if (!isProvider(provider)) throw new AppError("validation", "Connect a Google or a Microsoft mailbox.", 400);
+  if (opts.admin && provider !== "microsoft")
+    throw new AppError("validation", "Only Microsoft 365 asks for an admin's approval.", 400);
   const ready = await mailboxesReadiness();
   const oauth = ready.oauth[provider];
   const secret = stateSecret();
   if (!oauth || !secret) throw new AppError("conflict", "Connecting a mailbox isn't switched on here yet.", 409);
+  let loginHint: string | null = null;
+  if (opts.mailboxId) {
+    const was = (await mailboxConnectionsFor(ctx.supabase, member.tenantId)).find((m) => m.id === opts.mailboxId);
+    if (!was || was.provider !== provider) throw new AppError("not_found", "That mailbox isn't this workspace's.", 404);
+    loginHint = was.address;
+  }
   const state = await signState(secret, {
     t: member.tenantId,
     u: ctx.userId,
     n: newNonce(),
-    exp: Date.now() + STATE_TTL_MS,
+    exp: Date.now() + (opts.admin ? ADMIN_STATE_TTL_MS : STATE_TTL_MS),
     p: provider,
+    ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
+    ...(opts.admin ? { a: 1 } : {}),
   });
-  const url = mailboxAuthorizeUrl(provider, { clientId: oauth.client_id, redirectUri: oauth.redirect_uri }, state);
-  return new Response(null, { status: 302, headers: { location: url } });
+  const cfg = { clientId: oauth.client_id, redirectUri: oauth.redirect_uri };
+  return {
+    url: opts.admin ? mailboxAdminConsentUrl(cfg, state) : mailboxAuthorizeUrl(provider, cfg, state, loginHint),
+  };
 }
+
+/** How long an admin's link lasts: it is sent to someone else, who opens it when they can. */
+const ADMIN_STATE_TTL_MS = WEEK_MS;
+
+/** Microsoft's words for a sign-in that waits on an admin (AADSTS: consent the tenant keeps to its admins). */
+const NEEDS_ADMIN = /AADSTS(65001|90093|90094|90095|900941|900981)\b/;
 
 /**
  * Back from the provider with a code and the state. Nothing is trusted until the state proves itself (signed with the
@@ -229,8 +293,14 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
     new Response(null, { status: 302, headers: { location: afterMailbox(origin, outcome, why, slug) } });
 
   const refused = url.searchParams.get("error");
-  if (refused)
+  // A Microsoft 365 admin back from approving Chanlytics for their organisation (Entra's v2 admin consent): its answer
+  // carries admin_consent whether it was approved or not, and the error when it was not.
+  const fromAdmin = url.searchParams.has("admin_consent");
+  if (refused) {
+    if (fromAdmin) return back("error", "admin_consent");
+    if (NEEDS_ADMIN.test(url.searchParams.get("error_description") ?? "")) return back("error", "admin_consent");
     return back("error", refused === "access_denied" || refused === "consent_required" ? "declined" : "failed");
+  }
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
@@ -248,10 +318,23 @@ export async function mailboxCallback(ctx: RouteContext, req: Request) {
   } catch {
     return back("error", "failed");
   }
+  if (fromAdmin) return back("admin_approved");
+  // An admin's link answers with admin_consent, never with a code: one that comes back without it went wrong.
+  if (proof.state.a === 1) return back("error", "failed");
   const code = url.searchParams.get("code") ?? "";
   if (!code) return back("error", "failed");
 
-  const a = await edgeMailboxes({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, provider, code }, 55_000);
+  const a = await edgeMailboxes(
+    {
+      op: "connect",
+      tenant_id: tenantId,
+      user_id: ctx.userId,
+      provider,
+      code,
+      ...(proof.state.m ? { mailbox_id: proof.state.m } : {}),
+    },
+    55_000,
+  );
   const b = a.body ?? {};
   if (a.status !== 200 || b.ok !== true) {
     const reason = typeof b.reason === "string" ? b.reason : typeof b.error === "string" ? b.error : `edge_${a.status}`;

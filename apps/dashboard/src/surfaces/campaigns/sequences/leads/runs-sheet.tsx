@@ -187,10 +187,12 @@ function ADay({ lc }: { lc: LeadChain }) {
   const paces = leadPaceChoicesOf(mailboxes);
   const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
   const fixed = d.owner_sends || paces.length === 0;
+  // Saved to send from the mailboxes, with none sending: nothing goes, never "you send each".
+  const sub = d.owner_sends ? R.youPace : paces.length === 0 ? R.noneDay : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null);
   return (
     <RunsRow
       k={R.aDay}
-      sub={fixed ? R.youPace : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null)}
+      sub={sub}
       testid="ld-runs-day"
       end={
         fixed ? (
@@ -229,10 +231,13 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
     void lc.flush();
     onClose();
   };
+  // The picker says what is saved: the mailboxes are offered while one sends, and kept in sight while they are chosen
+  // with none sending (the note under it says nothing goes), never shown as the inbox they are not.
   const sendsFrom = [
     { value: "inbox", label: R.inbox },
-    ...(mailboxes.length > 0 ? [{ value: "mailboxes", label: R.mailboxes(mailboxes.length) }] : []),
+    ...(mailboxes.length > 0 || !d.owner_sends ? [{ value: "mailboxes", label: R.mailboxes(mailboxes.length) }] : []),
   ];
+  const fromNote = !d.owner_sends && mailboxes.length === 0 ? R.noneSends : d.owner_sends && mailboxes.length > 0 ? R.canSwitch(mailboxes.length) : null;
   return (
     <Sheet
       open={open}
@@ -261,7 +266,7 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
             end={
               <Picker
                 label={R.sendsFrom}
-                value={d.owner_sends || mailboxes.length === 0 ? "inbox" : "mailboxes"}
+                value={d.owner_sends ? "inbox" : "mailboxes"}
                 onValueChange={(v) => lc.edit((x) => ({ ...x, owner_sends: v === "inbox" }))}
                 groups={[{ options: sendsFrom }]}
                 chevron={cmChevron()}
@@ -270,6 +275,11 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
               />
             }
           />
+          {fromNote ? (
+            <p className="ld-note" data-testid="ld-runs-from-note">
+              {fromNote}
+            </p>
+          ) : null}
           <ADay lc={lc} />
           <BeforeEachBatch rec={rec} flash={flash} moved={moved} />
           <RunsRow

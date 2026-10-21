@@ -120,15 +120,29 @@ const grant = (over = {}) => ({
   expires_in: 3599,
   scope: SCOPES,
   token_type: "Bearer",
-  id_token: idToken({ sub: "100000000000000000009", email: "Sam@GetHarbor.example", name: "Sam Rivera" }),
+  id_token: idToken({
+    sub: "100000000000000000009",
+    email: "Sam@GetHarbor.example",
+    name: "Sam Rivera",
+    email_verified: true,
+    hd: "getharbor.example",
+  }),
   ...over,
 });
-/** Google answering: its token endpoint with `g`, its revoke, and the profile a watch starts its cursor from. */
-const google = (g = grant()) =>
+/** The profile of a Google account with no Gmail behind it (a consumer account made with a business address). */
+const NO_GMAIL = {
+  status: 400,
+  json: { error: { code: 400, message: "Mail service not enabled", errors: [{ reason: "failedPrecondition" }] } },
+};
+/**
+ * Google answering: its token endpoint with `g`, its revoke, and the profile (the connect's look for a mailbox, and the
+ * cursor a watch starts from).
+ */
+const google = (g = grant(), profile = { json: { emailAddress: "sam@getharbor.example", historyId: "4242" } }) =>
   providers((c) => {
     if (c.url === "https://oauth2.googleapis.com/token") return { json: g };
     if (c.url === "https://oauth2.googleapis.com/revoke") return { json: {} };
-    if (c.url.endsWith("/profile")) return { json: { emailAddress: "sam@getharbor.example", historyId: "4242" } };
+    if (c.url.endsWith("/profile")) return profile;
     return { status: 404 };
   });
 
@@ -218,7 +232,22 @@ test("connect refused: no send and read, no lasting access, a free mailbox, anot
       "scopes_missing",
     ],
     [grant({ refresh_token: undefined }), null, 400, "no_refresh_token", "no_refresh_token"],
-    [grant({ id_token: idToken({ sub: "1", email: "sam@gmail.com" }) }), null, 400, "free_mail", "free_mail"],
+    [grant({ id_token: idToken({ sub: "1", email: "sam@gmail.com", email_verified: true }) }), null, 400, "free_mail", "free_mail"],
+    [
+      grant({ id_token: idToken({ sub: "1", email: "sam@getharbor.example", email_verified: false, hd: "getharbor.example" }) }),
+      null,
+      400,
+      "no_account",
+      "unverified",
+    ],
+    [
+      grant({ id_token: idToken({ sub: "1", email: "sam@getharbor.example", email_verified: "true" }) }),
+      null,
+      400,
+      "no_account",
+      "not_workspace",
+    ],
+    [grant(), null, 400, "no_account", "no_mailbox", NO_GMAIL],
     [grant(), { hint: "taken", message: "This mailbox writes for another workspace." }, 409, "mailbox_taken", "taken"],
     [grant(), { hint: "too_many", message: "Ten is the most." }, 409, "too_many", "too_many"],
     [
@@ -229,9 +258,9 @@ test("connect refused: no send and read, no lasting access, a free mailbox, anot
       "too_many_on_domain",
     ],
   ];
-  for (const [g, refuse, status, code, reason] of cases) {
+  for (const [g, refuse, status, code, reason, profile] of cases) {
     const w = world({ refuse });
-    const net = google(g);
+    const net = google(g, profile);
     try {
       const [s, body] = await ask({ op: "connect", provider: "google", code: "4/code" });
       assert.deepEqual([s, body.error, body.reason], [status, code, reason], reason);
@@ -248,6 +277,62 @@ test("connect refused: no send and read, no lasting access, a free mailbox, anot
   }
   world();
   assert.deepEqual((await ask({ op: "connect", provider: "yahoo", code: "c" }))[0], 400);
+});
+
+test("a Reconnect is for its own mailbox: another account signed in connects nothing, and the signed-out one stays to be fixed", async () => {
+  const box = rows.mailboxConnection({ tenant_id: A, state: "reconnect", provider: "google", provider_account: "999" });
+  const w = world({ boxes: [box] });
+  const net = google();
+  try {
+    const [s, body] = await ask({ op: "connect", provider: "google", code: "4/code", mailbox_id: box.id });
+    assert.deepEqual([s, body.error, body.reason], [400, "no_account", "wrong_account"]);
+    assert.deepEqual(
+      w.tables.mailbox_connections.map((m) => [m.id, m.state]),
+      [[box.id, "reconnect"]],
+    );
+    assert.equal(w.secrets.size, 0);
+    assert.equal(net.calls.filter((c) => c.url === "https://oauth2.googleapis.com/revoke").length, 1);
+    assert.equal((await ask({ op: "connect", provider: "google", code: "4/code", mailbox_id: "nope" }))[0], 400);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a token Vault would not keep leaves no row saying connected: a new mailbox goes, its grant given back", async () => {
+  const w = world();
+  const net = google();
+  try {
+    // The vault's door refuses the write (a Vault outage), not the compare-and-set's 40001.
+    setPg(
+      fakeDb(w.tables, {}, {
+        ...vault().rpcs,
+        put_mailbox_credentials: () => {
+          throw new Error("vault: connection refused");
+        },
+        mailbox_connection_connect: (a) => {
+          const row = rows.mailboxConnection({
+            tenant_id: a.p_tenant_id,
+            provider: a.p_provider,
+            provider_account: a.p_account,
+            address: a.p_address,
+            host: a.p_address.split("@")[1],
+          });
+          w.tables.mailbox_connections.push(row);
+          return { id: row.id, made: true, state: "connected" };
+        },
+      }),
+    );
+    const [s, body] = await ask({ op: "connect", provider: "google", code: "4/code" });
+    assert.deepEqual([s, body.reason], [502, "failed"]);
+    assert.deepEqual(
+      w.tables.mailbox_connections.map((m) => m.state),
+      ["removed"],
+      "nothing says connected without its token",
+    );
+    assert.equal(net.calls.filter((c) => c.url === "https://oauth2.googleapis.com/revoke").length, 1);
+  } finally {
+    net.restore();
+  }
 });
 
 test("the owner's verbs: each from the states it may, each answering the page's row; another workspace's mailbox is not found", async () => {

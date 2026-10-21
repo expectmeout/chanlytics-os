@@ -5,8 +5,9 @@
  * (email/mailbox-connections.ts), so the row says the same sentence the door and the clock decided.
  *
  * Every write is in the refresh map under Setup: the block repaints from Setup's re-read, and the mailboxes clock's
- * changes arrive the same way, by realtime (mailbox_connections is watched). A connect leaves for the provider and
- * comes back to this page with one word (`?mailbox=`), read once.
+ * changes arrive the same way, by realtime (mailbox_connections is watched). A connect asks the door for the way to
+ * the provider and leaves only when it is given one (a refusal is said on the page, never landed on); it comes back to
+ * this page with one word (`?mailbox=`), read once.
  */
 import {
   MAILBOX_CONNECTIONS_MAX,
@@ -14,6 +15,7 @@ import {
   MAILBOX_PROVIDER_WORDS,
   customerDomainWords,
   mailboxActs,
+  mailboxConnectOk,
   mailboxConnectWords,
   mailboxRecordRows,
   mailboxWords,
@@ -24,8 +26,13 @@ import { api } from "@/legacy-bridge/api";
 import type { ApiResult } from "@/client/api";
 
 interface ConnectedMailboxesApi {
-  /** To the provider's consent screen: the browser leaves, and comes back to Connections. */
-  connect(provider: MailboxProvider): void;
+  /**
+   * To the provider's consent screen: the door is asked for the way there, and the browser leaves only when it gave
+   * one, so a refusal comes back here to be said on the page. A Reconnect names its mailbox.
+   */
+  connect(provider: MailboxProvider, mailboxId?: string): Promise<ApiResult<unknown>>;
+  /** The link a Microsoft 365 admin opens to approve Chanlytics for their organisation, once. */
+  adminLink(): Promise<ApiResult<{ url: string }>>;
   set(
     id: string,
     s: { paused?: boolean; from_name?: string; signature?: string | null; daily_cap?: number },
@@ -34,8 +41,8 @@ interface ConnectedMailboxesApi {
   check(id: string): Promise<ApiResult<unknown>>;
   test(id: string): Promise<ApiResult<unknown>>;
   remove(id: string): Promise<ApiResult<unknown>>;
-  /** What the browser came back from the provider with, said once: its words, and whether it connected. */
-  outcome(): { ok: boolean; words: string } | null;
+  /** What the browser came back from the provider with, said once: its words, whether it is good news, and its word. */
+  outcome(): { ok: boolean; words: string; code: string | null } | null;
   words: typeof mailboxWords;
   acts: typeof mailboxActs;
   records: typeof mailboxRecordRows;
@@ -47,7 +54,14 @@ interface ConnectedMailboxesApi {
 }
 
 export const connectedMailboxes: ConnectedMailboxesApi = {
-  connect: (provider) => window.location.assign(api().url("GET mailbox-connections/connect", { query: { provider } })),
+  connect: async (provider, mailboxId) => {
+    const r = await api()("GET mailbox-connections/connect", {
+      query: { provider, ...(mailboxId ? { mailbox_id: mailboxId } : {}) },
+    });
+    if (r.ok) window.location.assign(r.data.url);
+    return r;
+  },
+  adminLink: () => api()("GET mailbox-connections/connect", { query: { provider: "microsoft", admin: "1" } }),
   set: (id, s) => api()("PATCH mailbox-connections/[id]", { params: { id }, body: s }),
   resume: (id) => api()("POST mailbox-connections/[id]/resume", { params: { id } }),
   check: (id) => api()("POST mailbox-connections/[id]/check", { params: { id } }),
@@ -67,8 +81,9 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
         "",
         `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`,
       );
-      const ok = outcome === "connected" || outcome === "reconnected";
-      return { ok, words: mailboxConnectWords(ok ? outcome : why) };
+      const ok = mailboxConnectOk(outcome);
+      const code = ok ? outcome : why;
+      return { ok, words: mailboxConnectWords(code), code };
     } catch {
       return null;
     }

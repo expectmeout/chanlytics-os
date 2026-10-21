@@ -75,6 +75,8 @@ export {
   recordEmailNo,
   recordEmailStatus,
   suppressEmailOf,
+  emailFoundSent,
+  emailNeverLeft,
 } from "./repositories/email";
 export type { MailboxRow, IngestEmailParams, InboundEmailFacts } from "./repositories/email";
 export {
@@ -115,7 +117,6 @@ export {
   mailboxConnectionsOf,
   mailboxConnectionOf,
   liveMailboxByAddress,
-  liveMailboxByWatch,
   mailboxesToTend,
   connectMailbox,
   patchMailboxConnection,
@@ -134,6 +135,8 @@ export {
   mailboxConnectionById,
   sentEmailIdByMessageId,
 } from "./repositories/mailboxes/sync";
+export { unknownMailboxEmails, requestMailboxesSweep } from "./repositories/mailboxes/reconcile";
+export type { UnknownMailboxEmail } from "./repositories/mailboxes/reconcile";
 export {
   outreachFactsOf,
   addressesSuppressed,

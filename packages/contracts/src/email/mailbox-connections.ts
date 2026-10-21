@@ -24,7 +24,7 @@ export type MailboxConnectionState = (typeof MAILBOX_CONNECTION_STATES)[number];
 export const MAILBOX_HOLDS = ["bounces", "complaint", "unsubscribes"] as const;
 export type MailboxHold = (typeof MAILBOX_HOLDS)[number];
 
-/** What DNS can say of one of a domain's records. */
+/** What DNS can say of one of a domain's records. A record DNS could not be read for is left out: never "missing". */
 export type DnsRecordState = "found" | "missing";
 
 /** The records a mailbox's domain is read for (the mailboxes clock, daily). */
@@ -36,8 +36,8 @@ export type MailboxDnsRecord = (typeof MAILBOX_DNS_RECORDS)[number];
 /** The most live mailboxes a workspace writes from, and on one domain (00423's trigger says them too). */
 export const MAILBOX_CONNECTIONS_MAX = 10;
 const MAILBOXES_PER_DOMAIN_MAX = 3;
-/** The highest cap an owner may set; the ramp and the customer domain's ceiling stand below it. */
-export const MAILBOX_DAILY_CAP_MAX = 50;
+/** The highest cap an owner may set: the ramp's top (MAILBOX_RAMP), so a cap above it is one the ramp never reaches. */
+export const MAILBOX_DAILY_CAP_MAX = 40;
 /** A mailbox on the domain the business's customers write to never sends more than this a day (decision 0056, 4). */
 export const CUSTOMER_DOMAIN_DAILY_MAX = 20;
 
@@ -107,11 +107,27 @@ export interface MailboxConnectionDto {
   /** The days it has sent on since it was clean (D15), as the clock last read them. */
   sent_days: number;
   dns: Partial<Record<MailboxDnsRecord, DnsRecordState>>;
+  /** The SPF record its domain already publishes, as DNS read it; null when it has none or DNS was not read. */
+  spf_record: string | null;
+  /**
+   * The DNS lookups of SPF's ten (RFC 7208 4.6.4) that record spends with the provider in it, counted through its
+   * includes and the provider's own; null when they could not all be read.
+   */
+  spf_lookups: number | null;
   dns_checked_at: string | null;
   last_error: string | null;
   connected_at: string;
   sent_at: string | null;
+  /** What it sent in the last day (mailbox_capacity), when the page's read could ask; null otherwise. */
+  sent_today: number | null;
+  /** What its emails came to since it was counted clean (mailbox_connection_counts), when read; null otherwise. */
+  counts: MailboxCounts | null;
 }
+
+/** The longest SPF text a row keeps, every record of the domain's together: a TXT answer is never longer. */
+export const SPF_RECORD_MAX = 4096;
+/** How a domain that publishes more than one SPF record is kept: every one, joined by this (none of them holds it). */
+export const SPF_RECORDS_JOIN = " | ";
 
 /** A mailbox_connections row, as either app reads it: the page's DTO, never its token's name. */
 export function mailboxConnectionDtoOf(r: {
@@ -133,13 +149,16 @@ export function mailboxConnectionDtoOf(r: {
   last_error: string | null;
   connected_at: string;
   sent_at: string | null;
-}): MailboxConnectionDto {
+}, day: Pick<MailboxConnectionDto, "sent_today" | "counts"> | null = null): MailboxConnectionDto {
   const dns: Partial<Record<MailboxDnsRecord, DnsRecordState>> = {};
-  if (r.dns && typeof r.dns === "object")
-    for (const k of MAILBOX_DNS_RECORDS) {
-      const v = (r.dns as Record<string, unknown>)[k];
-      if (v === "found" || v === "missing") dns[k] = v;
-    }
+  const raw = r.dns && typeof r.dns === "object" ? (r.dns as Record<string, unknown>) : {};
+  for (const k of MAILBOX_DNS_RECORDS) {
+    const v = raw[k];
+    if (v === "found" || v === "missing") dns[k] = v;
+  }
+  const spfRecord =
+    typeof raw.spf_record === "string" && raw.spf_record.trim() ? raw.spf_record.trim().slice(0, SPF_RECORD_MAX) : null;
+  const lookups = Number(raw.spf_lookups);
   return {
     id: r.id,
     provider: r.provider === "microsoft" ? "microsoft" : "google",
@@ -157,21 +176,30 @@ export function mailboxConnectionDtoOf(r: {
     customer_domain: r.customer_domain,
     sent_days: Math.max(0, Math.floor(Number(r.sent_days) || 0)),
     dns,
+    spf_record: spfRecord,
+    spf_lookups: Number.isInteger(lookups) && lookups >= 0 ? lookups : null,
     dns_checked_at: r.dns_checked_at,
     last_error: r.last_error,
     connected_at: r.connected_at,
     sent_at: r.sent_at,
+    sent_today: day?.sent_today ?? null,
+    counts: day?.counts ?? null,
   };
 }
 
 /* ------------------------------------------------------------------------------------------------- its health */
 
-/** What one mailbox's emails came to since it was counted clean (00424 mailbox_connection_counts). */
+/** What one mailbox's emails came to since it was counted clean (00424 mailbox_connection_counts, 00466). */
 export interface MailboxCounts {
   sent: number;
+  /** Hard bounces: an address that is not one to write to. */
   bounced: number;
+  /** A receiving server refused the sender (spam, reputation, SPF, DKIM, DMARC, policy): the mailbox's own standing. */
+  blocked: number;
   complained: number;
   unsubscribed: number;
+  /** People who replied no: told, never held on (a reply helps a mailbox's standing). */
+  said_no: number;
 }
 
 /** Below this many sent, the share is taken of this many: five bounces in a mailbox's first emails hold it. */
@@ -180,24 +208,25 @@ const COUNT_FLOOR = 150;
 const HOLD_PERCENT = 3;
 
 /**
- * The hold a mailbox's own mail earns it, or null (decision 0056, 8): any complaint, else permanent bounces past 3% of
- * what it sent (of 150 at least, so five unlucky bounces in its first emails hold it and one does not), else the people
- * who unsubscribed or replied no by the same measure. Postmaster Tools reports no reputation any more, so this, from our
- * own rows, is what a mailbox answers for.
+ * The hold a mailbox's own mail earns it, or null (decision 0056, 8): any complaint, else hard bounces and servers'
+ * refusals of the sender past 3% of what it sent (of 150 at least, so five unlucky bounces in its first emails hold it
+ * and one does not), else the people who unsubscribed by the same measure. A reply that says no is never a hold: it is
+ * a reply, and replies help a mailbox's standing. Postmaster Tools reports no reputation any more, so this, from our own
+ * rows, is what a mailbox answers for.
  */
 export function mailboxHoldOf(c: MailboxCounts | null): MailboxHold | null {
   if (!c) return null;
   const of = Math.max(c.sent, COUNT_FLOOR);
   if (c.complained > 0) return "complaint";
-  if (c.bounced * 100 > HOLD_PERCENT * of) return "bounces";
+  if ((c.bounced + c.blocked) * 100 > HOLD_PERCENT * of) return "bounces";
   if (c.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
   return null;
 }
 
 const HOLD_WORDS: Record<MailboxHold, string> = {
-  bounces: "more than 3% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
-  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed",
+  unsubscribes: "more than 3% of the businesses it wrote to unsubscribed",
 };
 
 /** Why a mailbox was held, as a clause: the row, the Activity log and the owner's notice say it alike. */
@@ -206,7 +235,7 @@ export function mailboxHoldWords(why: string | null | undefined): string {
 }
 
 const HOLD_FIX_WORDS: Record<MailboxHold, string> = {
-  bounces: "Check the addresses it writes to, then resume it.",
+  bounces: "Check the addresses it writes to and its domain's records below, then resume it.",
   complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it.",
   unsubscribes: "Write to fewer, and to the ones it fits best, then resume it.",
 };
@@ -233,17 +262,30 @@ export interface MailboxWords {
   fix: string | null;
 }
 
-/** "0.4% bounced · 1 said no · none marked as spam", once it has sent. */
+/** "0.4% bounced · 1 refused it · 2 unsubscribed · 1 said no · none marked as spam", once it has sent. */
 export function mailboxHealthWords(c: MailboxCounts | null): string | null {
   if (!c || !c.sent) return null;
   const pct = Math.round((c.bounced / c.sent) * 1000) / 10;
-  const no = c.unsubscribed ? `${c.unsubscribed} said no` : "nobody said no";
-  const spam = c.complained ? `${c.complained} marked as spam` : "none marked as spam";
-  return `${pct}% bounced · ${no} · ${spam}`;
+  const parts = [
+    `${pct}% bounced`,
+    c.blocked ? `${c.blocked} refused by the server` : null,
+    c.unsubscribed ? `${c.unsubscribed} unsubscribed` : null,
+    c.said_no ? `${c.said_no} said no` : null,
+    c.complained ? `${c.complained} marked as spam` : "none marked as spam",
+  ];
+  return parts.filter(Boolean).join(" · ");
 }
 
-/** Where a mailbox stands, as Connections says it: `sentToday` is what it sent in the last day, when read. */
-export function mailboxWords(m: MailboxConnectionDto, nowMs: number, sentToday: number | null = null): MailboxWords {
+/**
+ * Where a mailbox stands, as Connections says it: `sentToday` is what it sent in the last day, when read (the row's own
+ * reading by default), and its health is its counts since it was counted clean, once it has sent.
+ */
+export function mailboxWords(
+  m: MailboxConnectionDto,
+  nowMs: number,
+  sentToday: number | null = m.sent_today ?? null,
+): MailboxWords {
+  const health = mailboxHealthWords(m.counts ?? null);
   const cap = mailboxDailyCap(m);
   const step = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
   const left = step ? step.days - m.sent_days : 0;
@@ -268,7 +310,7 @@ export function mailboxWords(m: MailboxConnectionDto, nowMs: number, sentToday: 
       tone: "plain",
       day: "You paused it: nothing leaves from it.",
       ramp,
-      health: null,
+      health,
       fix: null,
     };
   if (m.state === "held") {
@@ -278,7 +320,7 @@ export function mailboxWords(m: MailboxConnectionDto, nowMs: number, sentToday: 
       tone: "warn",
       day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
       ramp: null,
-      health: null,
+      health,
       fix: mailboxHoldFixWords(m.held_why),
     };
   }
@@ -290,17 +332,30 @@ export function mailboxWords(m: MailboxConnectionDto, nowMs: number, sentToday: 
       tone: "warn",
       day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
       ramp,
-      health: null,
+      health,
       fix: null,
     };
-  const missing = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx" && m.dns[k] === "missing");
+  const named = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx");
+  const missing = named.filter((k) => m.dns[k] === "missing");
+  // An SPF record the domain has already is changed, never added beside: a second one breaks both (RFC 7208 3.2).
+  const add = missing.filter((k) => !(k === "spf" && m.spf_record));
+  const change = missing.includes("spf") && !!m.spf_record;
+  const unread = named.some((k) => !m.dns[k]);
+  const fix =
+    [
+      add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
+      change ? "Change its SPF record below." : null,
+      !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null;
   return {
     pill: sentToday !== null && sentToday >= cap ? "Done for today" : "Connected",
     tone: sentToday !== null && sentToday >= cap ? "warn" : "ok",
     day: sentToday === null ? `Up to ${cap} a day` : `${sentToday} of ${cap} today`,
     ramp,
-    health: null,
-    fix: missing.length ? `Add its ${missing.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
+    health,
+    fix,
   };
 }
 
@@ -328,6 +383,9 @@ export function mailboxActs(m: Pick<MailboxConnectionDto, "state">): {
 
 /* ---------------------------------------------------------------------------------------------- the records */
 
+/** Whether DNS has a record: found, missing, or not read (DNS did not answer: never taken for missing). */
+type MailboxRecordState = "found" | "missing" | "unread";
+
 /** One record as Connections shows it: what it is for, where it goes, what to put in it, and whether DNS has it. */
 export interface MailboxRecordRow {
   key: MailboxDnsRecord;
@@ -338,15 +396,50 @@ export interface MailboxRecordRow {
   /** What to publish, or where the provider makes it when it is the provider's to make. */
   value: string;
   found: boolean;
+  state: MailboxRecordState;
+  /** What to do with the value when it is not simply added: a record the domain has already, changed. */
+  note: string | null;
 }
 
 /** What we recommend when a domain has no DMARC: accepted by Gmail, Yahoo and Outlook, and harmless to other mail. */
 export const DMARC_RECOMMENDED = "v=DMARC1; p=none;";
 
+/**
+ * Each provider's SPF include. A new record ends in ~all for both: -all (Microsoft's own advice) would fail every other
+ * sender the business uses that the record does not name yet (its website's forms, its newsletter, its booking tool).
+ */
 const SPF_INCLUDE: Record<MailboxProvider, string> = {
-  google: "v=spf1 include:_spf.google.com ~all",
-  microsoft: "v=spf1 include:spf.protection.outlook.com -all",
+  google: "include:_spf.google.com",
+  microsoft: "include:spf.protection.outlook.com",
 };
+/** SPF's ceiling on the DNS lookups one check may spend (RFC 7208 4.6.4): past it, the record fails. */
+export const SPF_LOOKUPS_MAX = 10;
+
+const spfAll = (t: string): boolean => /^[+\-~?]?all$/i.test(t);
+
+/**
+ * The SPF record a mailbox's domain should publish: the one it has, with the provider's include put in before its
+ * `all` (or its redirect), every sender it names kept and its own all left as it was; with two or more (none counts),
+ * one record naming every sender they name, ending ~all; or, with none, a new one. Pure.
+ */
+function spfRecordWith(existing: string | null, provider: MailboxProvider): string {
+  const include = SPF_INCLUDE[provider];
+  const records = (existing ?? "")
+    .split(SPF_RECORDS_JOIN)
+    .map((r) => r.trim().split(/\s+/).filter(Boolean))
+    .filter((terms) => /^v=spf1$/i.test(terms[0] ?? ""));
+  const has = (terms: string[]) => terms.some((t) => t.replace(/^\+/, "").toLowerCase() === include);
+  if (records.length > 1) {
+    const named = [...new Set(records.flatMap((terms) => terms.slice(1)).filter((t) => !spfAll(t) && !/^redirect=/i.test(t)))];
+    return ["v=spf1", ...named, ...(has(named) ? [] : [include]), "~all"].join(" ");
+  }
+  const terms = records[0];
+  if (!terms) return `v=spf1 ${include} ~all`;
+  if (has(terms)) return terms.join(" ");
+  const at = terms.findIndex((t, i) => i > 0 && (spfAll(t) || /^redirect=/i.test(t)));
+  if (at < 0) return [...terms, include].join(" ");
+  return [...terms.slice(0, at), include, ...terms.slice(at)].join(" ");
+}
 const DKIM_WHERE: Record<MailboxProvider, { name: string; value: string }> = {
   google: {
     name: "google._domainkey",
@@ -358,33 +451,49 @@ const DKIM_WHERE: Record<MailboxProvider, { name: string; value: string }> = {
   },
 };
 
+/** The words for SPF when the domain already has a record: change it (never add one beside it), and what it costs. */
+function spfNote(m: Pick<MailboxConnectionDto, "provider" | "spf_record" | "spf_lookups">): string | null {
+  if (!m.spf_record) return null;
+  const who = MAILBOX_PROVIDER_WORDS[m.provider];
+  const many = m.spf_record.split(SPF_RECORDS_JOIN).length;
+  const change =
+    many > 1
+      ? `Your domain has ${many} SPF records, and with more than one none of them counts: replace them all with this one, which keeps every sender they name and adds ${who}.`
+      : `Your domain has an SPF record already, and it may have only one: change it to this, which keeps every sender it names and adds ${who}.`;
+  // The edge counted the record with the provider's include in it, the include's own lookups and all.
+  const after = m.spf_lookups === null || many > 1 ? null : m.spf_lookups;
+  return after !== null && after > SPF_LOOKUPS_MAX
+    ? `${change} It would then spend ${after} of SPF's ${SPF_LOOKUPS_MAX} lookups and fail: ask whoever manages your DNS to shorten it first.`
+    : change;
+}
+
 /** The records a mailbox's domain needs, as rows: SPF, DKIM, DMARC, each with whether DNS reads it now. */
-export function mailboxRecordRows(m: Pick<MailboxConnectionDto, "provider" | "dns">): MailboxRecordRow[] {
+export function mailboxRecordRows(
+  m: Pick<MailboxConnectionDto, "provider" | "dns"> &
+    Partial<Pick<MailboxConnectionDto, "spf_record" | "spf_lookups">>,
+): MailboxRecordRow[] {
+  const stateOf = (k: MailboxDnsRecord): MailboxRecordState => m.dns[k] ?? "unread";
+  const spf = { provider: m.provider, spf_record: m.spf_record ?? null, spf_lookups: m.spf_lookups ?? null };
+  const row = (key: MailboxDnsRecord, r: Omit<MailboxRecordRow, "key" | "found" | "state" | "note">, note: string | null) => ({
+    key,
+    ...r,
+    found: stateOf(key) === "found",
+    state: stateOf(key),
+    note: stateOf(key) === "found" ? null : note,
+  });
   return [
-    {
-      key: "spf",
-      kind: "Sender (SPF)",
-      type: "TXT",
-      name: "@",
-      value: SPF_INCLUDE[m.provider],
-      found: m.dns.spf === "found",
-    },
-    {
-      key: "dkim",
-      kind: "Signing (DKIM)",
-      type: m.provider === "microsoft" ? "CNAME" : "TXT",
-      name: DKIM_WHERE[m.provider].name,
-      value: DKIM_WHERE[m.provider].value,
-      found: m.dns.dkim === "found",
-    },
-    {
-      key: "dmarc",
-      kind: "Policy (DMARC)",
-      type: "TXT",
-      name: "_dmarc",
-      value: DMARC_RECOMMENDED,
-      found: m.dns.dmarc === "found",
-    },
+    row("spf", { kind: "Sender (SPF)", type: "TXT", name: "@", value: spfRecordWith(spf.spf_record, m.provider) }, spfNote(spf)),
+    row(
+      "dkim",
+      {
+        kind: "Signing (DKIM)",
+        type: m.provider === "microsoft" ? "CNAME" : "TXT",
+        name: DKIM_WHERE[m.provider].name,
+        value: DKIM_WHERE[m.provider].value,
+      },
+      null,
+    ),
+    row("dmarc", { kind: "Policy (DMARC)", type: "TXT", name: "_dmarc", value: DMARC_RECOMMENDED }, null),
   ];
 }
 
@@ -404,9 +513,28 @@ export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
   free_mail:
     "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
   not_available: "Connecting a mailbox isn't switched on here yet.",
-  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
+  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
+  not_owner: "Only an owner can connect a mailbox.",
+  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
+  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
+  not_workspace:
+    "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
+  no_mailbox:
+    "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
+  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
+  admin_consent:
+    "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
+  admin_approved: "Approved for your organisation. Connect the mailbox now.",
   failed: CONNECT_FAILED,
 };
+
+/** The outcomes that are good news, said in the note's calm tone. */
+const CONNECT_OK = new Set(["connected", "reconnected", "admin_approved"]);
+
+/** Whether the word a connect came back with is good news. */
+export function mailboxConnectOk(code: string | null | undefined): boolean {
+  return !!code && CONNECT_OK.has(code);
+}
 
 export function mailboxConnectWords(code: string | null | undefined): string {
   return (code && MAILBOX_CONNECT_WORDS[code]) || CONNECT_FAILED;

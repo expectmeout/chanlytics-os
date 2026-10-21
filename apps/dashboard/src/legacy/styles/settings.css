@@ -550,6 +550,8 @@
 .set-conn > .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
 .set-conn > .set-int-row > .pill { justify-self: start; }
 .set-int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+/* The mailboxes block's foot holds a Connect for each provider and the admin's link: on a narrow pane they wrap. */
+.set-dom-foot .set-int-actions { flex-wrap: wrap; }
 /* The group is called Later; its rows do not each say so again. */
 .set-conn > .set-int-row[data-state="later"] > .pill { display: none; }
 .set-conn > .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
@@ -1944,6 +1946,11 @@ html.legacy-on .bt-link { position: relative; }
 }
 .set-records .rec-copy {
   margin-left: 8px;
+}
+/* What to do with a value that is not simply added (an SPF record the domain has already): under the value. */
+.set-records .set-records-note {
+  display: block;
+  padding-top: 4px;
 }
 .set-records .ty-inline {
   color: var(--ink-dim);
