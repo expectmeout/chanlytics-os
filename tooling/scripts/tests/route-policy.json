@@ -1437,6 +1437,37 @@
       "spend": false,
       "act": "request_step"
     },
+    "GET platform/support/bugs": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST platform/support/kind": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_support",
+      "spend": false,
+      "act": "report_moved"
+    },
+    "POST platform/support/mark": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_support",
+      "spend": false,
+      "act": "report_answered"
+    },
+    "POST platform/support/resend": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_support_resend",
+      "spend": false,
+      "act": "report_resent"
+    },
     "GET platform/support": {
       "kind": "read",
       "scope": "platform",

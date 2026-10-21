@@ -77,8 +77,13 @@
   },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/support": {
     "kind": "on-open",
-    "fresh": "Read as Support opens, and again as its view changes.",
+    "fresh": "Read as Support opens, again as its view, kind, topic, workspace or words change, and after each of its presses.",
     "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/support/bugs": {
+    "kind": "on-open",
+    "fresh": "Read as Health opens, and again after a bug report is moved back to Support.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0067)."
   },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]": {
     "kind": "on-open",

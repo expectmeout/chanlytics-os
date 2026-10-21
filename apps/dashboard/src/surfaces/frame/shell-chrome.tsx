@@ -64,7 +64,7 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
             Reload
           </button>
           {reportDoor.open && (
-            <Button size="sm" variant="quiet" onClick={() => reportDoor.open?.("this page")}>
+            <Button size="sm" variant="quiet" onClick={() => reportDoor.open?.("this page", "wrong")}>
               {REPORT_WORDS.doorShort}
             </Button>
           )}

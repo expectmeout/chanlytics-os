@@ -1,8 +1,10 @@
 import "server-only";
 
 /**
- * Report a problem (decision 0066): a member's words to Chanlytics, with the page they were on and the last error it
- * hit, from anywhere in the app.
+ * Get help (decisions 0066 and 0067): a member's words to Chanlytics, what they need (a question, help setting up,
+ * something that isn't working, billing), the page they were on and, for something not working, the last error it hit,
+ * from anywhere in the app. A sheet that named no kind is judged by its error: one caught means something wasn't
+ * working, and goes to Health; anything else is Support's.
  *
  * The row first, then the mail. support_reports keeps the report (numbered R-1001 and up) before anything is sent, so
  * the Console's Support has it whatever the mail does; the edge then mails the support inbox with the member's address
@@ -13,7 +15,14 @@ import "server-only";
  * someone else's. Written on the service role: the table is the platform's, and no member reads it.
  */
 import { fileReport, markReportMailed } from "@chanlytics/db";
-import { AppError, reportCode, type ReportProblemInputDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  reportCode,
+  reportKindOf,
+  supportMeanwhile,
+  supportTopicOf,
+  type ReportProblemInputDto,
+} from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { memberContext, type RouteContext } from "../with-route";
@@ -25,10 +34,11 @@ import { log } from "@/server/log";
 /** The mail gives up after this; the row is kept either way. */
 const REPORT_MAIL_TIMEOUT_MS = 8000;
 
-/** What a sent report answers: its number, and whether the inbox has it. */
+/** What a sent report answers: its number, whether the inbox has it, and the one line that helps until a person answers. */
 interface ReportFiled {
   code: string;
   mailed: boolean;
+  meanwhile: string | null;
 }
 
 /** The workspace the tab named, when the member belongs to it; null otherwise, and never a refusal. */
@@ -46,14 +56,18 @@ export async function fileProblemReport(
   db: SupabaseClient<Database> = serviceDb(),
 ): Promise<ReportFiled> {
   const tenantId = await reportedFrom(ctx, input.workspace);
+  const kind = reportKindOf(input.kind, input.error);
+  const meanwhile = kind === "wrong" ? null : supportMeanwhile(supportTopicOf(input.words, input.page, kind));
   const { data, error } = await fileReport(db, {
     tenant_id: tenantId,
+    kind,
     user_id: ctx.userId,
     email: ctx.email ?? null,
     page: input.page,
-    error_id: input.error?.id ?? null,
-    error_name: input.error?.name || null,
-    error_message: input.error?.message || null,
+    // The error is a bug's: with a question it says nothing the person answering needs.
+    error_id: kind === "wrong" ? (input.error?.id ?? null) : null,
+    error_name: kind === "wrong" ? input.error?.name || null : null,
+    error_message: kind === "wrong" ? input.error?.message || null : null,
     words: input.words,
   });
   if (error || !data)
@@ -62,7 +76,7 @@ export async function fileProblemReport(
 
   if (!deployment.providersLive || !edgeConfigured()) {
     await markReportMailed(db, data.id, { error: "This deployment sends no mail." });
-    return { code, mailed: false };
+    return { code, mailed: false, meanwhile };
   }
   const r = await callEdge(
     "/api/admin/support/report",
@@ -77,5 +91,5 @@ export async function fileProblemReport(
     mailed ? { at: new Date().toISOString() } : { error: edgeRefusalWords(r.body) ?? `The edge answered ${r.status}.` },
   );
   if (kept.error) log.error("support_report_mail_failed", { tenant_id: tenantId, error: kept.error.message });
-  return { code, mailed };
+  return { code, mailed, meanwhile };
 }

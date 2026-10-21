@@ -8,7 +8,10 @@
 import { z } from "zod";
 import { REASON_KINDS, REASON_LIMITS } from "./console";
 import { REQUEST_KINDS, REQUEST_STEP_KEYS } from "./requests";
-import { FIND_LIMITS, SUPPORT_VIEWS } from "./support";
+import { FIND_LIMITS, SUPPORT_TOPICS } from "./support";
+import { SUPPORT_KIND_FILTERS, SUPPORT_VIEWS } from "./support-queue";
+import { WORKSPACE } from "../shell/client-error";
+import { REPORT_KINDS } from "../shell/report-problem";
 import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner";
 
 const uuid = (what: string) => z.uuid({ error: `That ${what} does not exist.` });
@@ -143,8 +146,42 @@ export const FindQuerySchema = z
   })
   .strict();
 
-/** `GET platform/support?view=`. */
-export const SupportQuerySchema = z.object({ view: z.enum(SUPPORT_VIEWS).default("week") }).strict();
+/**
+ * `GET platform/support`: one view of the queue, narrowed by a kind, a topic, a workspace and words, `page` pages of
+ * SUPPORT_PAGE rows.
+ */
+export const SupportQuerySchema = z
+  .object({
+    view: z.enum(SUPPORT_VIEWS).default("needs"),
+    kind: z.enum(SUPPORT_KIND_FILTERS).default("all"),
+    topic: z.enum(SUPPORT_TOPICS).optional(),
+    workspace: z.string().regex(WORKSPACE).optional(),
+    q: z.string().trim().max(FIND_LIMITS.max).default(""),
+    page: z.coerce.number().int().min(1).max(20).default(1),
+  })
+  .strict();
+
+/**
+ * `POST platform/support/mark`: a question answered or open again; an ask answered, done by hand, or open again. One
+ * press: the act's reason is the row's own code, a ticket, so it asks no why.
+ */
+export const SupportMarkSchema = z
+  .object({
+    target: z.enum(["report", "ask"]),
+    id: uuid("row"),
+    mark: z.enum(["answered", "done", "reopened"]),
+  })
+  .strict()
+  .refine((m) => m.target === "ask" || m.mark !== "done", {
+    message: "A question is done once it is answered.",
+    path: ["mark"],
+  });
+
+/** `POST platform/support/resend`: a report the inbox did not get, sent to it again. */
+export const SupportResendSchema = z.object({ id: uuid("report") }).strict();
+
+/** `POST platform/support/kind`: a report moved between Support and Health, as what the member needed. */
+export const SupportKindSchema = z.object({ id: uuid("report"), kind: z.enum(REPORT_KINDS) }).strict();
 
 /** `GET platform/acts`: a page of the log, older than `before`, one person's or everyone's, as rows or a CSV. */
 export const ActsQuerySchema = z

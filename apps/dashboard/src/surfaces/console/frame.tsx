@@ -107,13 +107,13 @@ function Screen({ address, me, flash }: { address: ConsoleAddress; me: ConsoleMe
         <WorkspacesScreen go={go} flash={flash} />
       );
     case "support":
-      return <SupportScreen go={go} />;
+      return <SupportScreen me={me} go={go} flash={flash} />;
     case "requests":
       return <RequestsScreen me={me} go={go} flash={flash} />;
     case "partners":
       return <PartnersScreen me={me} flash={flash} />;
     case "health":
-      return <HealthScreen />;
+      return <HealthScreen me={me} go={go} flash={flash} />;
     case "log":
       return <LogScreen me={me} go={go} />;
   }

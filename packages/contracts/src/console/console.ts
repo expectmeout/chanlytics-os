@@ -76,6 +76,13 @@ export const CONSOLE_ACTS = {
   request_file: { words: "File a request", roles: SUPPORT_ROLES },
   request_step: { words: "Mark a request's step", roles: SUPPORT_ROLES },
   request_close: { words: "Close a request", roles: SUPPORT_ROLES },
+  report_answered: { words: "Mark a question answered", roles: SUPPORT_ROLES },
+  report_reopened: { words: "Open a question again", roles: SUPPORT_ROLES },
+  report_resent: { words: "Send a report to the inbox again", roles: SUPPORT_ROLES },
+  report_moved: { words: "Move a report between Support and Health", roles: SUPPORT_ROLES },
+  ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
+  ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
+  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES },
 } as const satisfies Record<string, ActRule>;
 export type ConsoleAct = keyof typeof CONSOLE_ACTS;
 export const CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS) as ConsoleAct[];
@@ -175,7 +182,17 @@ const NEVER_FINISHED_NOTE = "It started and nothing came back. Look before takin
 export const ACT_LOG_PAGE = 50;
 
 /** What an act was taken on: the log's `target_kind`. */
-export const ACT_TARGETS = ["workspace", "line", "job", "waitlist", "partner", "request", "platform"] as const;
+export const ACT_TARGETS = [
+  "workspace",
+  "line",
+  "job",
+  "waitlist",
+  "partner",
+  "request",
+  "platform",
+  "report",
+  "ask",
+] as const;
 export type ActTarget = (typeof ACT_TARGETS)[number];
 
 /** One act as the log keeps it (platform_acts). */
@@ -239,6 +256,8 @@ const TARGET_WORDS: Record<ActTarget, string> = {
   partner: "A partner",
   request: "A request",
   platform: "Every workspace",
+  report: "A report",
+  ask: "A setup ask",
 };
 
 /**

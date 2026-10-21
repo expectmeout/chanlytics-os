@@ -469,6 +469,7 @@
     "00464_a_message_keeps_when_it_left_and_people_read_how_a_person_was_added.sql": "42c303c3fbe79ad9e51cef20ee72619f2292e94b50e587b0aa6e4b55a92f8d1c",
     "00465_one_new_for_every_sequence.sql": "d2385f0fcf38a37d46e034962e62d137a63f9873449db811eee635eaea801387",
     "00466_a_mailbox_is_held_for_its_own_mail_not_its_noes.sql": "b6f2563f0c8c967368dff3e26ee8f1775b530ffb712912e80a76da64db331fa5",
-    "00467_the_console.sql": "d743c30e1ebc7ff836cc9288ac74aa09487ead7821e09d359a7074819e607304"
+    "00467_the_console.sql": "d743c30e1ebc7ff836cc9288ac74aa09487ead7821e09d359a7074819e607304",
+    "00468_support_is_the_help_desk.sql": "e7f418acbe4954cb86f8313a5bee99de3435d05a0cbeee713eabd69bb3364a83"
   }
 }

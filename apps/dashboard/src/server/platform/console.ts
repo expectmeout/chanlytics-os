@@ -1,8 +1,8 @@
 import "server-only";
 
 /**
- * The Console's reads (decision 0066): Home, one workspace by its address, Find, Support, and who has taken which
- * workspace. Each takes the BackOffice handle, so none can be reached without the database having said this session
+ * The Console's reads (decision 0066): Home, one workspace by its address, Find, and who has taken which workspace.
+ * Support's queue is ./support.ts's, which Home reads for what is past its day. Each takes the BackOffice handle, so none can be reached without the database having said this session
  * is staff and showed its second factor.
  *
  * A side read that fails is said as null, never as nothing: Home is opened when something is wrong, and a page that
@@ -11,18 +11,7 @@ import "server-only";
  *
  * Cross-workspace: the Console's reads; the service-role client exists only behind backOffice(ctx)'s admin check.
  */
-import {
-  claimOf,
-  findAcross,
-  letClaimGo,
-  listReports,
-  liveClaims,
-  modelSpend,
-  setupAsks,
-  takeClaim,
-  tenantBySlug,
-  tenantNames,
-} from "@chanlytics/db";
+import { claimOf, findAcross, letClaimGo, liveClaims, modelSpend, takeClaim, tenantBySlug } from "@chanlytics/db";
 import {
   AppError,
   CLAIM_MS,
@@ -44,13 +33,14 @@ import {
   type PlatformTenantDto,
   type SetupAskDto,
   type StaffRole,
+  type SupportBookDto,
   type SupportReportDto,
-  type SupportView,
 } from "@chanlytics/contracts";
 import { platformEvents, platformOverview, platformPartners, platformWaitlist, type BackOffice } from "./platform";
 import { consoleRequests } from "./requests";
 import { billingReadiness } from "@/server/workspace/billing";
 import { consoleActs } from "./acts";
+import { asksSince, reportsSince, supportDueBook } from "./support";
 import { log } from "@/server/log";
 
 /** Who is asking, as the Console's frame draws them. */
@@ -73,69 +63,6 @@ async function side<T>(what: string, read: () => Promise<T>): Promise<T | null> 
     log.error("platform_console_read_failed", { read: what, error: e });
     return null;
   }
-}
-
-/* ------------------------------------------------------------------------------------------- reports and asks */
-
-type ReportRow = {
-  id: string;
-  number: number;
-  tenant_id: string | null;
-  email: string | null;
-  page: string | null;
-  error_id: string | null;
-  error_name: string | null;
-  error_message: string | null;
-  words: string;
-  created_at: string;
-  mailed_at: string | null;
-  mail_error: string | null;
-  tenant: { slug: string; name: string } | null;
-};
-
-const reportDto = (r: ReportRow): SupportReportDto => ({
-  id: r.id,
-  number: r.number,
-  tenant_id: r.tenant_id,
-  slug: r.tenant?.slug ?? null,
-  name: r.tenant?.name ?? null,
-  email: r.email,
-  page: r.page,
-  error_id: r.error_id,
-  error_name: r.error_name,
-  error_message: r.error_message,
-  words: r.words,
-  created_at: r.created_at,
-  mailed_at: r.mailed_at,
-  mail_error: r.mail_error,
-});
-
-/** Reports since a moment (or all), newest first. */
-async function reportsSince(
-  office: BackOffice,
-  q: { sinceIso?: string; tenantId?: string },
-): Promise<SupportReportDto[]> {
-  const { data, error } = await listReports(office.db, { ...q, limit: 200 });
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(reportDto);
-}
-
-/** The setup asks since a moment, with each workspace's name. */
-async function asksSince(office: BackOffice, q: { sinceIso: string; tenantId?: string }): Promise<SetupAskDto[]> {
-  const { data, error } = await setupAsks(office.db, { ...q, limit: 100 });
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []).filter((e): e is typeof e & { tenant_id: string } => !!e.tenant_id);
-  const ids = [...new Set(rows.map((e) => e.tenant_id))];
-  const names = ids.length ? await tenantNames(office.db, ids) : { data: [], error: null };
-  if (names.error) throw new Error(names.error.message);
-  const byId = new Map((names.data ?? []).map((t) => [t.id, t]));
-  return rows.flatMap((e) => {
-    const t = byId.get(e.tenant_id);
-    const what = e.data && typeof e.data === "object" && !Array.isArray(e.data) ? e.data.what : null;
-    return t
-      ? [{ tenant_id: t.id, slug: t.slug, name: t.name, what: typeof what === "string" ? what : "", at: e.created_at }]
-      : [];
-  });
 }
 
 /* ---------------------------------------------------------------------------------------------- who has it */
@@ -181,8 +108,11 @@ interface ConsoleHomeDto {
   tenants: PlatformTenantDto[];
   numbers: ConsoleNumbersDto;
   claims: ClaimDto[] | null;
+  /** What came in this week: the questions (never a bug report: Health's) and the setup asks. */
   reports: SupportReportDto[] | null;
   asks: SetupAskDto[] | null;
+  /** Due: the questions and asks past their day, as their own records; null when unread. */
+  support: SupportBookDto | null;
   /** Due: the open requests (null to a role that does not see them), and the partners' workspaces held for a person. */
   requests: PrivacyRequestDto[] | null;
   partners: Awaited<ReturnType<typeof platformPartners>> | null;
@@ -214,19 +144,22 @@ const seen = <T>(office: BackOffice, sight: ConsoleSight, read: () => Promise<T>
 
 /**
  * Home: every workspace (the groups are drawn from them), the numbers, who has what, what came in this week, what is
- * due, and who is waiting to get in. The plan's price is the edge's, read from Stripe and held five minutes. The open
+ * due (the requests' clocks, the questions and asks past their day, the partners' held shares), and who is waiting to
+ * get in. The plan's price is the edge's, read from Stripe and held five minutes. The open
  * requests are the roles' that work them (CONSOLE_SIGHTS): to any other they are null, and Due draws the rest.
  */
 export async function consoleHome(office: BackOffice, now = Date.now()): Promise<ConsoleHomeDto> {
   const nowIso = new Date(now).toISOString();
   const weekAgo = new Date(now - WEEK_MS).toISOString();
-  const [tenants, spend, readiness, claims, reports, asks, requests, partners, queue] = await Promise.all([
-    platformOverview(office),
+  const overview = platformOverview(office);
+  const [tenants, spend, readiness, claims, reports, asks, support, requests, partners, queue] = await Promise.all([
+    overview,
     side("model_spend", () => spendOf(office)),
     side("price", () => billingReadiness(now)),
     side("claims", () => claimsNow(office, nowIso)),
-    side("reports", () => reportsSince(office, { sinceIso: weekAgo })),
-    side("asks", () => asksSince(office, { sinceIso: weekAgo })),
+    side("reports", () => reportsSince(office, { sinceIso: weekAgo, side: "support", limit: 200 })),
+    side("asks", () => asksSince(office, { sinceIso: weekAgo, limit: 100 })),
+    side("support", () => supportDueBook(office, now, overview)),
     seen(office, "requests", () =>
       side("requests", async () => (await consoleRequests(office)).filter((r) => !r.closed_at)),
     ),
@@ -240,6 +173,7 @@ export async function consoleHome(office: BackOffice, now = Date.now()): Promise
     claims,
     reports,
     asks,
+    support,
     requests,
     partners,
     queue,
@@ -276,8 +210,8 @@ export async function consoleWorkspace(office: BackOffice, slug: string): Promis
     side("overview", () => platformOverview(office)),
     side("events", () => platformEvents(office, tenant.id)),
     side("acts", () => consoleActs(office, { tenantId: tenant.id })),
-    side("reports", () => reportsSince(office, { tenantId: tenant.id })),
-    side("asks", () => asksSince(office, { sinceIso: monthAgo, tenantId: tenant.id })),
+    side("reports", () => reportsSince(office, { tenantId: tenant.id, side: "all", limit: 200 })),
+    side("asks", () => asksSince(office, { sinceIso: monthAgo, tenantId: tenant.id, limit: 100 })),
     side("claim", async () => (await claimOf(office.db, tenant.id, nowIso)).data ?? null),
   ]);
   return {
@@ -312,21 +246,4 @@ export async function consoleFind(office: BackOffice, q: string): Promise<FindRo
       label: r.label,
       detail: r.detail,
     }));
-}
-
-/* ------------------------------------------------------------------------------------------------------ Support */
-
-interface ConsoleSupportDto {
-  reports: SupportReportDto[];
-  asks: SetupAskDto[] | null;
-}
-
-/** What customers reported, this week or all, and the setup asks of the same days. */
-export async function consoleSupport(office: BackOffice, view: SupportView): Promise<ConsoleSupportDto> {
-  const since = new Date(Date.now() - (view === "week" ? WEEK_MS : 90 * DAY_MS)).toISOString();
-  const [reports, asks] = await Promise.all([
-    reportsSince(office, view === "week" ? { sinceIso: since } : {}),
-    side("asks", () => asksSince(office, { sinceIso: since })),
-  ]);
-  return { reports, asks };
 }

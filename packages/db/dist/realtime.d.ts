@@ -6462,6 +6462,7 @@ type Database = {
                     error_message: string | null;
                     error_name: string | null;
                     id: string;
+                    kind: string;
                     mail_error: string | null;
                     mailed_at: string | null;
                     number: number;
@@ -6477,6 +6478,7 @@ type Database = {
                     error_message?: string | null;
                     error_name?: string | null;
                     id?: string;
+                    kind?: string;
                     mail_error?: string | null;
                     mailed_at?: string | null;
                     number?: number;
@@ -6492,6 +6494,7 @@ type Database = {
                     error_message?: string | null;
                     error_name?: string | null;
                     id?: string;
+                    kind?: string;
                     mail_error?: string | null;
                     mailed_at?: string | null;
                     number?: number;

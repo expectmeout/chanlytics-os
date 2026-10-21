@@ -334,7 +334,17 @@ export const SCHEMA_SETS = {
   "platform_acts.actor_role": ["owner", "support", "billing"],
   "platform_acts.outcome": ["running", "done", "refused", "failed"],
   "platform_acts.reason_kind": ["ticket", "call", "found", "cleanup"],
-  "platform_acts.target_kind": ["workspace", "line", "job", "waitlist", "partner", "request", "platform"],
+  "platform_acts.target_kind": [
+    "workspace",
+    "line",
+    "job",
+    "waitlist",
+    "partner",
+    "request",
+    "platform",
+    "report",
+    "ask"
+  ],
   "platform_admins.role": ["owner", "support", "billing"],
   "policies.class": [
     "reply",
@@ -394,6 +404,7 @@ export const SCHEMA_SETS = {
   "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],
   "sequences.state": ["draft", "on", "paused", "ended"],
+  "support_reports.kind": ["how_to", "setup", "wrong", "billing"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],

@@ -827,7 +827,7 @@ var LIST = {
 var CHIPS = {
   offer: (p) => `Changing the offer, photo or words sends the ad back to ${PLATFORM_OWNER[p]} for checking, ${REVIEW_WITHIN[p]}.`,
   areaMiles: "Miles around your address",
-  areaPeople: (lo, hi) => `About ${lo.toLocaleString("en-US")} to ${hi.toLocaleString("en-US")} people \xB7 Meta's estimate`,
+  areaPeople: (lo, hi2) => `About ${lo.toLocaleString("en-US")} to ${hi2.toLocaleString("en-US")} people \xB7 Meta's estimate`,
   areaSmall: "Small areas can be slow to start.",
   areaMeta: "Changing the area sends the ad back for checking.",
   areaGoogle: "People who live or are in this area. People who only search about it won't see it. Fewer people, a better fit.",
@@ -6994,8 +6994,8 @@ function quantile(sorted, q) {
   if (!sorted.length) return null;
   const pos = (sorted.length - 1) * q;
   const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  const hi2 = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi2] - sorted[lo]) * (pos - lo);
 }
 function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
@@ -20315,8 +20315,8 @@ var exampleFacts = (businessName) => ({
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", ...exampleFacts(businessName) });
 }
-function exampleParamsFor(specs, businessName, firstName2) {
-  return resolveParams(specs, { firstName: firstName2, ...exampleFacts(businessName) });
+function exampleParamsFor(specs, businessName, firstName3) {
+  return resolveParams(specs, { firstName: firstName3, ...exampleFacts(businessName) });
 }
 var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
 function templateUsage(src) {
@@ -26773,11 +26773,11 @@ function openSpans(zone, windows, fromMs, days) {
 }
 function lowerBound(times, x) {
   let lo = 0;
-  let hi = times.length;
-  while (lo < hi) {
-    const mid = lo + hi >> 1;
+  let hi2 = times.length;
+  while (lo < hi2) {
+    const mid = lo + hi2 >> 1;
     if (times[mid] < x) lo = mid + 1;
-    else hi = mid;
+    else hi2 = mid;
   }
   return lo;
 }
@@ -30494,10 +30494,10 @@ function replyReachOf(p, now) {
 function proposalMessage(url) {
   return `Here's the proposal we put together for you: ${url}`;
 }
-function proposalAction(reach, sentWords2) {
+function proposalAction(reach, sentWords3) {
   const { via, window: win } = reach;
-  const again = sentWords2 ? " again" : "";
-  const sent = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
+  const again = sentWords3 ? " again" : "";
+  const sent = sentWords3 ? ` \xB7 sent ${sentWords3}` : "";
   const notReady = (title) => ({ label: "Send the proposal", title, ready: false });
   if (via === "Email")
     return reach.emailStopped ? notReady(EMAIL_CANT_REACH) : {
@@ -32940,11 +32940,11 @@ function bookingRulesWords(rules) {
 }
 function bookingRuleRefusal(key) {
   const words3 = {
-    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
-    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
-    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
-    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
+    lead_hours: (lo, hi2) => `Least notice is ${lo} to ${hi2} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi2) => `A slot is ${lo} to ${hi2} minutes; leave it empty for the calendar\u2019s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi2) => `The gap is ${lo} to ${hi2} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi2) => `Times are offered ${lo} to ${hi2} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi2) => `A booking is for ${lo} to ${hi2} people; leave it empty for no rule.`
   };
   const known = Object.prototype.hasOwnProperty.call(words3, key);
   if (!known) {
@@ -34804,7 +34804,14 @@ var CONSOLE_ACTS = {
   partner_second_factor: { words: "Reset a partner's second factor", roles: SUPPORT_ROLES },
   request_file: { words: "File a request", roles: SUPPORT_ROLES },
   request_step: { words: "Mark a request's step", roles: SUPPORT_ROLES },
-  request_close: { words: "Close a request", roles: SUPPORT_ROLES }
+  request_close: { words: "Close a request", roles: SUPPORT_ROLES },
+  report_answered: { words: "Mark a question answered", roles: SUPPORT_ROLES },
+  report_reopened: { words: "Open a question again", roles: SUPPORT_ROLES },
+  report_resent: { words: "Send a report to the inbox again", roles: SUPPORT_ROLES },
+  report_moved: { words: "Move a report between Support and Health", roles: SUPPORT_ROLES },
+  ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
+  ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
+  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES }
 };
 var CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS);
 var LINE_ACTS = {
@@ -34851,7 +34858,17 @@ var ACT_GONE_QUIET_MS = 5 * MIN_MS;
 var NEVER_FINISHED = { label: "Never finished", tone: "warn" };
 var NEVER_FINISHED_NOTE = "It started and nothing came back. Look before taking it again.";
 var ACT_LOG_PAGE = 50;
-var ACT_TARGETS = ["workspace", "line", "job", "waitlist", "partner", "request", "platform"];
+var ACT_TARGETS = [
+  "workspace",
+  "line",
+  "job",
+  "waitlist",
+  "partner",
+  "request",
+  "platform",
+  "report",
+  "ask"
+];
 function actRowOf(dto, nowMs) {
   const at3 = Date.parse(dto.at);
   const quiet = dto.outcome === "running" && Number.isFinite(at3) && nowMs - at3 > ACT_GONE_QUIET_MS;
@@ -34875,7 +34892,9 @@ var TARGET_WORDS = {
   waitlist: "The waiting list",
   partner: "A partner",
   request: "A request",
-  platform: "Every workspace"
+  platform: "Every workspace",
+  report: "A report",
+  ask: "A setup ask"
 };
 function actsCsv(rows2) {
   const head = ["at", "who", "role", "act", "workspace", "reason", "ticket", "note", "outcome", "outcome_note"];
@@ -35193,8 +35212,6 @@ var REQUEST_WORDS = {
 function reportCode(n) {
   return `R-${n}`;
 }
-var SUPPORT_VIEWS = ["week", "all"];
-var SUPPORT_VIEW_WORDS = { week: "This week", all: "All" };
 var PAGE_WORDS = {
   today: "Today",
   inbox: "Inbox",
@@ -35213,6 +35230,14 @@ var PAGE_WORDS = {
 function pageWords(page2) {
   return page2 ? PAGE_WORDS[page2] ?? page2.charAt(0).toUpperCase() + page2.slice(1) : "No page";
 }
+function unmailedOf(dto) {
+  return dto.mailed_at ? null : dto.mail_error ? `Not in the inbox: ${dto.mail_error}` : "Not in the inbox yet";
+}
+function errorWordsOf(dto) {
+  if (!dto.error_id) return null;
+  const said = [dto.error_name, dto.error_message].filter(Boolean).join(": ");
+  return `${dto.error_id} \xB7 ${said || "an error"}`;
+}
 function reportOf(dto, nowMs) {
   return {
     id: dto.id,
@@ -35223,8 +35248,9 @@ function reportOf(dto, nowMs) {
     slug: dto.slug,
     page: pageWords(dto.page),
     errorId: dto.error_id,
+    error: errorWordsOf(dto),
     when: agoWords(Date.parse(dto.created_at), nowMs),
-    unmailed: dto.mailed_at ? null : dto.mail_error ? `Not in the inbox: ${dto.mail_error}` : "Not in the inbox yet"
+    unmailed: unmailedOf(dto)
   };
 }
 function supportClusters(rows2, nowMs) {
@@ -35255,8 +35281,111 @@ var SETUP_ASK_WORDS = {
   repair: "Asked for their settings to be repaired",
   name: "Asked to change the name the carriers hold"
 };
+var ASKED_SOMETHING = "Asked a person for something";
+function askTitle(workspace, what) {
+  const said = SETUP_ASK_WORDS[what] ?? ASKED_SOMETHING;
+  return `${workspace} ${said.charAt(0).toLowerCase()}${said.slice(1)}`;
+}
+function askCode(id) {
+  return `A-${id.replace(/-/g, "").slice(0, 6)}`;
+}
+function askDoneOf(what, row2, askAtMs, signals) {
+  if (what === "line")
+    return {
+      done: !!row2?.line_e164 && row2.line_kind !== "forwarded",
+      byHand: false,
+      words: "Done when the workspace has a line"
+    };
+  if (what === "forwarding") {
+    const at3 = signals?.forwarding_verified_at ? Date.parse(signals.forwarding_verified_at) : NaN;
+    return {
+      done: Number.isFinite(at3) && at3 >= askAtMs,
+      byHand: false,
+      words: "Done when a test call comes through the forwarding"
+    };
+  }
+  const byHand2 = {
+    port: "Mark it done once the number has moved",
+    repair: "Mark it done once the receptionist reads the settings again",
+    name: "Mark it done once the new campaign is approved"
+  };
+  return { done: false, byHand: true, words: byHand2[what] ?? "Mark it done once it is" };
+}
+var SUPPORT_TOPICS = [
+  "whatsapp",
+  "forwarding",
+  "line",
+  "calendar",
+  "billing",
+  "language",
+  "facts",
+  "team",
+  "other"
+];
+var SUPPORT_TOPIC_WORDS = {
+  whatsapp: "WhatsApp",
+  forwarding: "Forwarding",
+  line: "A line or number",
+  calendar: "Calendar",
+  billing: "Billing",
+  language: "Language",
+  facts: "Hours and prices",
+  team: "Team and alerts",
+  other: "Other"
+};
+var TOPIC_MATCH = [
+  ["whatsapp", /whats\s?app|\bwa\b|meta business|facebook/i],
+  [
+    "billing",
+    /invoice|bill(ing|ed)?\b|charged?\b|\bcard\b|payment|refund|subscription|receipt|\btrial\b|my plan|cancel/i
+  ],
+  [
+    "forwarding",
+    /forward|ring\s?central|vonage|8x8|phone system|voicemail|calls? (go|ring|come)|keep my (own |current )?number/i
+  ],
+  ["language", /spanish|español|espanol|french|portuguese|chinese|language|translat|bilingual|english/i],
+  ["line", /\bline\b|phone number|\bnumber\b|\bport(ing)?\b|carrier|\bsms\b|\btext(s|ing)?\b|10dlc|a2p|campaign/i],
+  ["calendar", /calendar|appointment|\bbook(ing|ed|s)?\b|schedul|availability|google cal|outlook/i],
+  [
+    "facts",
+    /\bhours\b|\bopen(ing)?\b|\bclosed?\b|price|pricing|\bcost|services?\b|\bmenu\b|address|location|\bfaq|facts/i
+  ],
+  ["team", /\bteam\b|staff|invite|member|alert|notif|\bbell\b|hand ?off|escalat|who gets/i]
+];
+var TOPIC_OF_PAGE = { calendar: "calendar" };
+function supportTopicOf(words3, page2, kind) {
+  if (kind === "billing") return "billing";
+  const hit = TOPIC_MATCH.find(([, re]) => re.test(words3));
+  if (hit) return hit[0];
+  return page2 && TOPIC_OF_PAGE[page2] || "other";
+}
+var ASK_TOPIC = {
+  line: "line",
+  port: "line",
+  forwarding: "forwarding",
+  repair: "facts",
+  name: "line"
+};
+function supportPathOf(code2) {
+  return `${consolePathOf("support")}?open=${encodeURIComponent(code2)}`;
+}
+function inboxSearchUrl(template, q) {
+  return template && template.includes("{q}") ? template.replace("{q}", encodeURIComponent(q)) : null;
+}
+function inboxHomeUrl(template) {
+  if (!template || !template.includes("{q}")) return null;
+  const base = template.split("#")[0] ?? template;
+  return base === template ? base.replace("{q}", "") : `${base}#inbox`;
+}
+var SUPPORT_KIND_WORDS = {
+  how_to: "Question",
+  setup: "Setup help",
+  billing: "Billing",
+  wrong: "Bug report",
+  ask: "Setup ask"
+};
 function cameInOf(reports, asks, nowMs) {
-  const fromReports = reports.map((r2) => {
+  const fromReports = reports.filter((r2) => r2.kind !== "wrong").map((r2) => {
     const at3 = Date.parse(r2.created_at);
     return {
       key: `r-${r2.id}`,
@@ -35264,7 +35393,9 @@ function cameInOf(reports, asks, nowMs) {
       title: `\u201C${r2.words.length > 60 ? `${r2.words.slice(0, 59)}\u2026` : r2.words}\u201D`,
       workspace: r2.name ?? "No workspace",
       slug: r2.slug,
-      detail: [pageWords(r2.page), r2.error_id ? `error ${r2.error_id}` : "no error"].join(" \xB7 "),
+      detail: [
+        .../* @__PURE__ */ new Set([SUPPORT_KIND_WORDS[r2.kind], SUPPORT_TOPIC_WORDS[supportTopicOf(r2.words, r2.page, r2.kind)]])
+      ].join(" \xB7 "),
       when: agoWords(at3, nowMs),
       atMs: at3,
       code: reportCode(r2.number)
@@ -35273,15 +35404,15 @@ function cameInOf(reports, asks, nowMs) {
   const fromAsks = asks.map((a) => {
     const at3 = Date.parse(a.at);
     return {
-      key: `s-${a.tenant_id}-${a.at}`,
+      key: `a-${a.id}`,
       kind: "setup",
-      title: SETUP_ASK_WORDS[a.what] ?? "Asked a person for something",
+      title: askTitle(a.name, a.what),
       workspace: a.name,
       slug: a.slug,
       detail: "Something setup can't do yet",
       when: agoWords(at3, nowMs),
       atMs: at3,
-      code: null
+      code: askCode(a.id)
     };
   });
   return [...fromReports, ...fromAsks].sort((a, b) => b.atMs - a.atMs);
@@ -35308,21 +35439,723 @@ function findGroups(rows2) {
 }
 var SUPPORT_WORDS = {
   title: "Support",
-  sub: "From Report a problem in the app \xB7 you reply in the inbox",
+  sub: "Questions and setup asks from members \xB7 you answer in the inbox",
   openInbox: "Open the inbox",
-  cluster: (n) => `The same error, ${n} workspaces`,
-  clusterReports: (n) => `${n} report${n === 1 ? "" : "s"}`,
-  none: "Nothing was reported this week.",
-  noneAll: "Nothing has been reported.",
-  columns: { words: "What they wrote", workspace: "Workspace", page: "Page", error: "Error", when: "When" },
+  search: "Their words, a workspace, a topic",
+  kinds: "Kind",
+  topic: "Topic",
+  anyTopic: "Every topic",
+  workspace: "Workspace",
+  anyWorkspace: "Every workspace",
+  views: "Support's views",
+  toHealth: (n) => `${n} bug report${n === 1 ? "" : "s"} this week went to Health, where what isn't working is looked at.`,
+  openHealth: "Open Health",
+  columns: { what: "Who needs what", topic: "Topic", waiting: "Waiting", state: "State" },
+  shown: (n) => `${n} shown`,
+  older: "Older",
+  keys: "\u2191\u2193 move \xB7 Enter opens \xB7 T take \xB7 A copy the reply \xB7 M mark answered",
+  noneInView: {
+    needs: "Nothing needs a person.",
+    waiting: "Nothing is waiting on a workspace.",
+    done: "Nothing was answered in the last thirty days."
+  },
+  noneMatch: "Nothing here matches.",
+  cameInNone: "No question or setup ask came in this week.",
+  due: (n) => `${n} past ${n === 1 ? "its" : "their"} day in Support`,
+  failed: "the queue",
+  pick: "Open a row to answer it.",
+  from: "From",
+  workspaceCard: "Their workspace",
+  nobodyHasIt: "Nobody has it",
+  openSetup: "Open its Setup",
+  openWorkspace: "Open the workspace",
+  howToHelp: "How to help",
+  checkFirst: "Check first",
+  reply: "Reply, filled in",
+  replyNote: "Copied, never sent from here",
+  alsoSent: "Also sent",
+  doneWhen: "Done when",
+  answerInInbox: "Answer in the inbox",
+  writeInInbox: "Write to them in the inbox",
+  copyReply: "Copy the reply",
+  replyCopied: "The reply is copied: paste it in the inbox.",
+  markAnswered: "Mark answered",
+  markDone: "Mark done",
+  reopen: "Open it again",
+  sendAgain: "Send to the inbox again",
+  moveToHealth: "This is a bug: move it to Health",
+  moveToSupport: "This is a question: move it to Support",
+  answeredSaid: "Answered. It's in Done.",
+  waitingSaid: "Answered. It waits on the workspace now.",
+  doneSaid: "Done.",
+  reopenedSaid: "It needs a person again.",
+  resentSaid: "Sent to the inbox again.",
+  movedSaid: "Moved. It's on Health now.",
+  movedBackSaid: "Moved. It's on Support now.",
+  noInbox: "The inbox's address isn't set here: copy the code and search the inbox with it.",
   copied: "The number is copied: search the inbox with it.",
+  close: "Close",
   findEmpty: "Nothing matches.",
   findHint: "A name, a slug, an owner's email, a number, a report",
   findKeys: { move: "move", open: "open", close: "close" }
 };
 
+// src/console/support-queue.ts
+var SUPPORT_ZONE = "America/New_York";
+var SUPPORT_PROMISE_MS = DAY_MS;
+var SUPPORT_SOON = 0.75;
+var CLOCK_DAYS_MAX = 400;
+var isBusinessDay = (weekday) => weekday !== "sat" && weekday !== "sun";
+function midnightAfter(atMs) {
+  const next = dayPlusInZone(SUPPORT_ZONE, atMs, 1);
+  return localToUtcMs(SUPPORT_ZONE, next.y, next.m, next.d, 0, 0);
+}
+function businessMsBetween(fromMs, toMs2) {
+  let at3 = fromMs;
+  let sum3 = 0;
+  for (let i = 0; i < CLOCK_DAYS_MAX && at3 < toMs2; i += 1) {
+    const end = Math.min(midnightAfter(at3), toMs2);
+    if (isBusinessDay(dayInZone(SUPPORT_ZONE, at3).weekday)) sum3 += end - at3;
+    at3 = end;
+  }
+  return sum3;
+}
+function supportDueAt(createdMs) {
+  let at3 = createdMs;
+  let left = SUPPORT_PROMISE_MS;
+  for (let i = 0; i < CLOCK_DAYS_MAX; i += 1) {
+    const end = midnightAfter(at3);
+    if (isBusinessDay(dayInZone(SUPPORT_ZONE, at3).weekday)) {
+      if (end - at3 >= left) return at3 + left;
+      left -= end - at3;
+    }
+    at3 = end;
+  }
+  return at3;
+}
+var WEEKDAY_WORDS = {
+  sun: "Sun",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat"
+};
+function byWords(dueMs, nowMs, zone) {
+  const due = dayInZone(zone, dueMs);
+  const when = due.key === dayInZone(zone, nowMs).key ? "today" : due.key === dayPlusInZone(zone, nowMs, 1).key ? "tomorrow" : dueMs - nowMs < WEEK_MS ? WEEKDAY_WORDS[due.weekday] ?? clockDate(dueMs, zone, nowMs) : clockDate(dueMs, zone, nowMs);
+  return `by ${clockTime(dueMs, zone)} ${when}`;
+}
+function supportWaitOf(createdMs, nowMs, zone) {
+  const due = supportDueAt(createdMs);
+  if (nowMs >= due) return { words: `past its day by ${spanLabel(nowMs - due)}`, tone: "danger", part: 1 };
+  const part = Math.min(1, businessMsBetween(createdMs, nowMs) / SUPPORT_PROMISE_MS);
+  return {
+    words: `${spanLabel(nowMs - createdMs)} \xB7 ${byWords(due, nowMs, zone)}`,
+    tone: part >= SUPPORT_SOON ? "warn" : null,
+    part
+  };
+}
+var SUPPORT_VIEWS = ["needs", "waiting", "done"];
+var SUPPORT_VIEW_WORDS = {
+  needs: "Needs a person",
+  waiting: "Waiting on them",
+  done: "Done, 30 days"
+};
+var SUPPORT_DONE_DAYS = 30;
+var SUPPORT_READ_DAYS = 90;
+var SUPPORT_PAGE = 50;
+var SUPPORT_ROW_KINDS = ["question", "ask"];
+var SUPPORT_KIND_FILTERS = ["all", ...SUPPORT_ROW_KINDS];
+var SUPPORT_KIND_FILTER_WORDS = {
+  all: "All",
+  question: "Questions",
+  ask: "Setup asks"
+};
+var MARKS = {
+  report_answered: "answered",
+  report_reopened: "open",
+  ask_answered: "answered",
+  ask_done: "done",
+  ask_reopened: "open"
+};
+function lastMarks(acts) {
+  const out = /* @__PURE__ */ new Map();
+  for (const a of acts) {
+    const mark = MARKS[a.act];
+    const at3 = Date.parse(a.at);
+    if (!mark || !Number.isFinite(at3)) continue;
+    const was = out.get(a.target_id);
+    if (!was || at3 > was.at) out.set(a.target_id, { mark, at: at3, by: staffName(a.actor_email) });
+  }
+  return out;
+}
+function firstAnswers(acts) {
+  const out = /* @__PURE__ */ new Map();
+  for (const a of acts) {
+    if (a.act !== "report_answered" && a.act !== "ask_answered") continue;
+    const at3 = Date.parse(a.at);
+    if (!Number.isFinite(at3)) continue;
+    const was = out.get(a.target_id);
+    if (was === void 0 || at3 < was) out.set(a.target_id, at3);
+  }
+  return out;
+}
+function whoLine(who, email) {
+  const role = who?.role ? roleWords(who.role) ?? null : null;
+  if (who?.name) return role ? `${who.name}, ${role}` : who.name;
+  return email ?? "Someone signed out";
+}
+var roleWords = (role) => ROLES.includes(role) ? ROLE_SAYS[role].label : void 0;
+var firstName2 = (name) => (name ?? "").trim().split(/\s+/)[0] || null;
+function sentWords(atMs, nowMs, zone, theirs3) {
+  const ago3 = agoWords(atMs, nowMs, { date: (ms2) => clockDate(ms2, zone, nowMs) });
+  const yours = `${clockTime(atMs, zone)} yours`;
+  if (!theirs3 || theirs3 === zone) return `${ago3} \xB7 ${clockTime(atMs, zone)}`;
+  return `${ago3} \xB7 ${yours} \xB7 ${clockTime(atMs, theirs3)} in ${timezoneCity(theirs3)}`;
+}
+var sinceWords = (iso, zone, nowMs) => {
+  const at3 = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(at3) ? `In it since ${clockDate(at3, zone, nowMs)}` : null;
+};
+function supportQueueOf(book, p) {
+  const marks = lastMarks(book.acts);
+  const firsts = firstAnswers(book.acts);
+  const claimOf2 = new Map(book.claims.map((c) => [c.tenant_id, c]));
+  const rowOf2 = new Map(book.tenants.map((t) => [t.tenant_id, t]));
+  const claimLine = (tenantId) => tenantId ? claimWords(claimOf2.get(tenantId) ?? null, p.me, p.nowMs) : null;
+  const answeredLine = (id, atMs) => {
+    const m = marks.get(id);
+    const first = firsts.get(id);
+    if (!m || m.mark === "open" || first === void 0) return null;
+    return `Answered by ${m.by} in ${spanLabel(Math.max(0, first - atMs))}`;
+  };
+  const stateOf2 = (id, tenantId, finished) => {
+    const m = marks.get(id);
+    if (m && m.mark !== "open") return { state: finished(m.mark), at: m.at };
+    return { state: claimLine(tenantId) ? "taken" : "new", at: null };
+  };
+  const questions = book.reports.filter((r2) => r2.kind !== "wrong").map((r2) => {
+    const at3 = Date.parse(r2.created_at);
+    const s = stateOf2(r2.id, r2.tenant_id, () => "done");
+    const theirs3 = r2.tenant_id ? rowOf2.get(r2.tenant_id)?.timezone ?? null : null;
+    return {
+      key: `r-${r2.id}`,
+      kind: "question",
+      id: r2.id,
+      code: reportCode(r2.number),
+      title: r2.words,
+      quoted: true,
+      kindWords: SUPPORT_KIND_WORDS[r2.kind],
+      door: r2.kind,
+      what: null,
+      topic: supportTopicOf(r2.words, r2.page, r2.kind),
+      topicWords: SUPPORT_TOPIC_WORDS[supportTopicOf(r2.words, r2.page, r2.kind)],
+      tenantId: r2.tenant_id,
+      slug: r2.slug,
+      workspace: r2.name ?? "No workspace",
+      who: whoLine(r2.who, r2.email),
+      first: firstName2(r2.who?.name),
+      role: r2.who?.role ? roleWords(r2.who.role) ?? null : null,
+      since: sinceWords(r2.who?.since ?? null, p.zone, p.nowMs),
+      email: r2.email,
+      page: r2.page ? pageWords(r2.page) : null,
+      atMs: at3,
+      dueMs: supportDueAt(at3),
+      sent: sentWords(at3, p.nowMs, p.zone, theirs3),
+      wait: supportWaitOf(at3, p.nowMs, p.zone),
+      state: s.state,
+      ...stateWordsOf(s.state, claimLine(r2.tenant_id)),
+      claim: claimLine(r2.tenant_id),
+      answeredAtMs: s.at,
+      answered: answeredLine(r2.id, at3),
+      doneWhen: null,
+      byHand: false,
+      unmailed: unmailedOf(r2),
+      error: errorWordsOf(r2)
+    };
+  });
+  const asks = book.asks.map((a) => {
+    const at3 = Date.parse(a.at);
+    const row2 = rowOf2.get(a.tenant_id) ?? null;
+    const sign = askDoneOf(a.what, row2, at3, book.signals[a.tenant_id] ?? null);
+    const marked = marks.get(a.id);
+    const s = sign.done && marked?.mark !== "open" ? { state: "done", at: marked?.at ?? null } : stateOf2(a.id, a.tenant_id, (mark) => mark === "done" ? "done" : "waiting");
+    const topic = ASK_TOPIC[a.what] ?? "other";
+    return {
+      key: `a-${a.id}`,
+      kind: "ask",
+      id: a.id,
+      code: askCode(a.id),
+      title: askTitle(a.name, a.what),
+      quoted: false,
+      kindWords: SUPPORT_KIND_WORDS.ask,
+      door: null,
+      what: a.what,
+      topic,
+      topicWords: SUPPORT_TOPIC_WORDS[topic],
+      tenantId: a.tenant_id,
+      slug: a.slug,
+      workspace: a.name,
+      who: whoLine(a.who, a.email),
+      first: firstName2(a.who?.name),
+      role: a.who?.role ? roleWords(a.who.role) ?? null : null,
+      since: sinceWords(a.who?.since ?? null, p.zone, p.nowMs),
+      email: a.email,
+      page: null,
+      atMs: at3,
+      dueMs: supportDueAt(at3),
+      sent: sentWords(at3, p.nowMs, p.zone, row2?.timezone ?? null),
+      wait: supportWaitOf(at3, p.nowMs, p.zone),
+      state: s.state,
+      ...stateWordsOf(s.state, claimLine(a.tenant_id)),
+      claim: claimLine(a.tenant_id),
+      answeredAtMs: s.at,
+      answered: answeredLine(a.id, at3),
+      doneWhen: sign.words,
+      byHand: sign.byHand,
+      unmailed: null,
+      error: null
+    };
+  });
+  return [...questions, ...asks].map((r2) => r2.state === "waiting" || r2.state === "done" ? { ...r2, wait: settledWait(r2, p) } : r2).sort((a, b) => queueOrder(a, b, p.nowMs));
+}
+function settledWait(r2, p) {
+  const at3 = r2.answeredAtMs;
+  return {
+    words: at3 ? `answered ${agoWords(at3, p.nowMs, { date: (ms2) => clockDate(ms2, p.zone, p.nowMs) })}` : "",
+    tone: null,
+    part: null
+  };
+}
+function stateWordsOf(state, claim) {
+  if (state === "new") return { stateWords: "New", stateTone: "accent" };
+  if (state === "taken") return { stateWords: claim ?? "Taken", stateTone: "info" };
+  if (state === "waiting") return { stateWords: "Waiting on them", stateTone: "info" };
+  return { stateWords: "Done", stateTone: "ok" };
+}
+function supportViewOf(r2) {
+  return r2.state === "waiting" ? "waiting" : r2.state === "done" ? "done" : "needs";
+}
+function queueOrder(a, b, nowMs) {
+  const done = (r2) => r2.state === "done" ? 2 : r2.state === "waiting" ? 1 : 0;
+  if (done(a) !== done(b)) return done(a) - done(b);
+  if (done(a) === 2) return (b.answeredAtMs ?? 0) - (a.answeredAtMs ?? 0);
+  const late = (r2) => r2.dueMs <= nowMs ? 0 : 1;
+  return late(a) - late(b) || a.atMs - b.atMs;
+}
+function rowMatches(r2, q) {
+  const s = q.trim().toLowerCase();
+  if (!s) return true;
+  return [r2.title, r2.code, r2.workspace, r2.slug ?? "", r2.who, r2.email ?? "", r2.topicWords].some(
+    (t) => t.toLowerCase().includes(s)
+  );
+}
+var inDone = (r2, nowMs) => r2.state !== "done" || (r2.answeredAtMs ?? r2.atMs) >= nowMs - SUPPORT_DONE_DAYS * DAY_MS;
+function supportPageOf(rows2, f, nowMs) {
+  const kept = rows2.filter((r2) => inDone(r2, nowMs));
+  const views = { needs: 0, waiting: 0, done: 0 };
+  for (const r2 of kept) views[supportViewOf(r2)] += 1;
+  const inView = kept.filter((r2) => supportViewOf(r2) === f.view && rowMatches(r2, f.q));
+  const kinds = { all: inView.length, question: 0, ask: 0 };
+  for (const r2 of inView) kinds[r2.kind] += 1;
+  const ofKind = inView.filter((r2) => f.kind === "all" || r2.kind === f.kind);
+  const topics = SUPPORT_TOPICS.map((topic) => ({
+    topic,
+    words: SUPPORT_TOPIC_WORDS[topic],
+    n: ofKind.filter((r2) => r2.topic === topic).length
+  })).filter((t) => t.n > 0);
+  const bySlug = /* @__PURE__ */ new Map();
+  for (const r2 of ofKind) {
+    if (!r2.slug) continue;
+    const was = bySlug.get(r2.slug);
+    bySlug.set(r2.slug, { slug: r2.slug, name: r2.workspace, n: (was?.n ?? 0) + 1 });
+  }
+  return {
+    rows: ofKind.filter((r2) => (!f.topic || r2.topic === f.topic) && (!f.workspace || r2.slug === f.workspace)),
+    counts: {
+      views,
+      late: kept.filter((r2) => supportViewOf(r2) === "needs" && r2.dueMs <= nowMs).length,
+      kinds,
+      topics,
+      workspaces: [...bySlug.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))
+    }
+  };
+}
+function supportDue(rows2, nowMs) {
+  return rows2.filter((r2) => supportViewOf(r2) === "needs" && r2.dueMs <= nowMs);
+}
+function answeredMedianMs(rows2, acts, nowMs) {
+  const firsts = firstAnswers(acts);
+  const since = nowMs - SUPPORT_DONE_DAYS * DAY_MS;
+  const spans = rows2.flatMap((r2) => {
+    const at3 = firsts.get(r2.id);
+    return at3 !== void 0 && at3 >= since ? [Math.max(0, at3 - r2.atMs)] : [];
+  }).sort((a, b) => a - b);
+  if (!spans.length) return null;
+  const mid = Math.floor(spans.length / 2);
+  return spans.length % 2 ? spans[mid] ?? null : ((spans[mid - 1] ?? 0) + (spans[mid] ?? 0)) / 2;
+}
+function supportSentence(counts, medianMs) {
+  const n = counts.views.needs;
+  return [
+    n === 0 ? "Nothing needs a person" : `${n} need${n === 1 ? "s" : ""} a person`,
+    ...counts.late ? [`${counts.late} past ${counts.late === 1 ? "its" : "their"} day`] : [],
+    ...counts.views.waiting ? [`${counts.views.waiting} waiting on them`] : [],
+    ...medianMs !== null ? [`answered in ${spanLabel(medianMs)} this month`] : []
+  ].join(" \xB7 ");
+}
+function supportQuietWords(rows2, nowMs) {
+  const last = [...rows2].sort((a, b) => b.atMs - a.atMs)[0];
+  if (!last) return "Nothing needs a person. No question or ask has come in yet.";
+  const said = `The last ${last.kind === "ask" ? "ask" : "question"} was ${last.code}, ${agoWords(last.atMs, nowMs)}`;
+  return `Nothing needs a person. ${said}${last.answered ? `, ${last.answered.charAt(0).toLowerCase()}${last.answered.slice(1)}` : ""}.`;
+}
+function supportWorkspaceOf(tenants, tenantId, nowMs) {
+  const row2 = tenants.find((t) => t.tenant_id === tenantId);
+  return row2 ? platformRows([row2], nowMs)[0] ?? null : null;
+}
+
+// src/console/support-playbooks.ts
+var hi = (p) => `Hi ${p.first || "there"},`;
+var signed = (p) => `\u2014 ${p.me}, Chanlytics`;
+var letter = (p, body) => `${hi(p)} ${body}
+${signed(p)}`;
+var TOPIC_PLAYBOOKS = {
+  whatsapp: {
+    title: "WhatsApp",
+    check: "Their Setup's WhatsApp row, and whether Connections shows a WhatsApp number.",
+    steps: () => [
+      "They need the Meta Business account that owns the number. Ask which account they sign in to Facebook with.",
+      "In their app: Settings \u203A Connections \u203A WhatsApp \u203A Connect, signed in with that account.",
+      "A number on the WhatsApp Business app today has to come off it first, or they use another number.",
+      "Once it's connected, the Setup row says so."
+    ],
+    reply: (p) => letter(
+      p,
+      "WhatsApp connects from Settings \u203A Connections \u203A WhatsApp \u203A Connect, signed in with the Facebook account that owns your business. If your number is on the WhatsApp Business app today, it has to come off it first; I can walk you through it on a 10-minute call. Which account do you use for Facebook?"
+    ),
+    meanwhile: "WhatsApp connects from Settings \u203A Connections \u203A WhatsApp."
+  },
+  forwarding: {
+    title: "Forwarding",
+    check: "Their Setup: whether the receptionist's line answers, and whether the number they keep passed its test call.",
+    steps: () => [
+      "Calls reach the receptionist when the number they keep forwards to its number, which Setup shows beside it.",
+      "A mobile or a landline forwards in the carrier's settings: unanswered calls, or every call, as their Setup row says.",
+      "An office phone system (RingCentral, Vonage, 8x8 and the like) forwards in its own settings, before any voicemail. Offer a call to do it together.",
+      "Then they press Test it on Setup's row for the number they keep."
+    ],
+    reply: (p) => letter(
+      p,
+      "calls reach the receptionist once your number forwards to it: the number to forward to is on your Setup page, beside the number you keep. Set the forwarding in your phone's or phone system's settings, before any voicemail, then press Test it on that row. If your office phone system makes it fiddly, I can do it with you on a 10-minute call."
+    ),
+    meanwhile: "Setup shows the number to forward to, and Test it checks it."
+  },
+  line: {
+    title: "A line or number",
+    check: "Their Setup's row A line for calls and texts, and the workspace's Setup and lines tab here.",
+    steps: () => [
+      "A new number: Setup's row A line for calls and texts; where it can't get one by itself, it asks a person (a setup ask).",
+      "Keeping the number they have: they forward it to the receptionist's line (the forwarding playbook).",
+      "Moving their number to us for good: a port, which a person files; they keep their current service until it completes.",
+      "Texting needs the carriers' registration; the same Setup row says where it stands."
+    ],
+    reply: (p) => letter(
+      p,
+      `there are two ways to have the receptionist answer: a new number from us, or the number you have, forwarded to it. Setup's row "A line for calls and texts" starts either. Which would you like? If you'd rather move your number to us for good, I can start that for you.`
+    ),
+    meanwhile: "Setup's row A line for calls and texts starts a line."
+  },
+  calendar: {
+    title: "Calendar",
+    check: "Their Setup's Calendar row, and whether Connections shows a calendar.",
+    steps: () => [
+      "Their calendar connects from Settings \u203A Connections, signed in with the calendar's account.",
+      "Opening hours, closed days and booking rules are in Settings \u203A Hours & booking.",
+      "The receptionist offers open times only where the calendar can be read."
+    ],
+    reply: (p) => letter(
+      p,
+      "the receptionist books into your calendar once it's connected: Settings \u203A Connections, signed in with your calendar's account. Your opening hours and booking rules are in Settings \u203A Hours & booking, and it offers only the times your calendar shows free. Want me to check it with you on a short call?"
+    ),
+    meanwhile: "Your calendar connects from Settings \u203A Connections."
+  },
+  billing: {
+    title: "Billing",
+    check: "Their workspace's card here: the plan, the trial, how it pays.",
+    steps: () => [
+      "The plan, the card and the invoices are in Settings \u203A Billing, which an owner sees.",
+      "A charge to correct or a refund is the Billing role's: hand it over if it isn't yours.",
+      "Never take card details by email."
+    ],
+    reply: (p) => letter(
+      p,
+      "your plan, card and invoices are in Settings \u203A Billing (an owner sees it). Tell me which invoice or charge you mean and I'll look at it today."
+    ),
+    meanwhile: "Your plan and invoices are in Settings \u203A Billing."
+  },
+  language: {
+    title: "Language",
+    check: "Settings \u203A How it answers: the languages it answers in.",
+    steps: () => [
+      "The receptionist answers each customer in the language they write in; How it answers sets which ones.",
+      "Their business facts can stay in one language: it answers from them in the customer's."
+    ],
+    reply: (p) => letter(
+      p,
+      "yes: the receptionist answers each customer in the language they write in, and you choose which languages under Settings \u203A How it answers. Your business details can stay as they are; it answers from them in the customer's language."
+    ),
+    meanwhile: "Languages are chosen in Settings \u203A How it answers."
+  },
+  facts: {
+    title: "Hours and prices",
+    check: "Their Setup's Business facts row: what it knows, and what it lacks.",
+    steps: () => [
+      "Services, prices and the address are their business facts: Setup's Business facts row.",
+      "Opening hours and closed days are in Settings \u203A Hours & booking.",
+      "Notes in their own words, and what never to say, are in Settings \u203A How it answers.",
+      "What it doesn't know, it hands over: more facts mean fewer hand-offs."
+    ],
+    reply: (p) => letter(
+      p,
+      "the receptionist answers from your business facts: your services, prices and address on Setup's Business facts row, and your hours in Settings \u203A Hours & booking. Anything it doesn't know, it hands to you. Want me to fill them in with you on a 15-minute call?"
+    ),
+    meanwhile: "Your services and prices are on Setup's Business facts row."
+  },
+  team: {
+    title: "Team and alerts",
+    check: "Settings \u203A Team, and their Setup's rows A person to hand off to and Team and alerts.",
+    steps: () => [
+      "Someone is added from Settings \u203A Team: they get an invite and sign in with the address it went to.",
+      "Who is told when the receptionist hands a conversation over: Setup's A person to hand off to, and Settings \u203A Notifications."
+    ],
+    reply: (p) => letter(
+      p,
+      `you add someone from Settings \u203A Team: they get an invite at their address and sign in with it. Who is told when the receptionist hands a conversation over is set on Setup's "A person to hand off to" row and in Settings \u203A Notifications.`
+    ),
+    meanwhile: "People are added from Settings \u203A Team."
+  },
+  other: {
+    title: "A question",
+    check: "Their workspace's card, and the page they wrote from.",
+    steps: () => [
+      "Answer the question they asked, in their words.",
+      "Name the exact place in the app.",
+      "Offer a short call when it takes more than a reply."
+    ],
+    reply: (p) => letter(p, "thanks for writing in."),
+    meanwhile: null
+  }
+};
+var ASK_PLAYBOOKS = {
+  // The voice door takes a token minted for it, never the platform's key on an edge that holds EDGE_CALL_SECRET
+  // (admin-auth.ts): the script mints one, as the dashboard does. The key in a curl was refused there (token_required).
+  line: {
+    title: "A phone line",
+    subject: "asked for a phone line",
+    check: "Whether the workspace has a line yet: its Setup and lines tab here.",
+    steps: (p) => [
+      "Set it up from the repository with EDGE_CALL_SECRET (the secret the dashboard signs with) in the environment, a dry run first:",
+      `  node tooling/scripts/ops/voice/voice-provision.mjs --tenant ${p.tenantId ?? "<workspace id>"} --area-code <3 digits>`,
+      "then the same with --apply. Their Setup page reads the line as ready by itself once the row exists."
+    ],
+    reply: (p) => letter(
+      p,
+      "I'm setting up your line: a number in your area, with the receptionist answering it. Which area code would you like? Once it's ready, Setup shows the number, and you can call it to hear the receptionist."
+    ),
+    meanwhile: null
+  },
+  // Bringing the number they have (S14): a person files the port with the carrier; nothing here provisions it.
+  port: {
+    title: "Bringing their number",
+    subject: "asked to bring their phone number",
+    check: "Their Setup's row for the number they keep, and whether they still pay their current carrier.",
+    steps: () => [
+      "Reply for what the losing carrier asks for: the number, the carrier, the account holder's name and service address as the carrier has them, the account number and the port-out PIN, and a recent bill.",
+      "File the port with Twilio, and tell them to keep their current service until it completes -- cancelling it first can lose the number. Their Setup row says so meanwhile."
+    ],
+    reply: (p) => letter(
+      p,
+      "to move your number to us I need, from your current carrier: the account holder's name and service address as they have them, the account number, the port-out PIN, and a recent bill. Keep your current service until the move is finished; cancelling it first can lose the number."
+    ),
+    meanwhile: null
+  },
+  // Forwarding in an office phone system (00173, the first run's decision 3): no star code, so a person does it with them.
+  forwarding: {
+    title: "Forwarding in their phone system",
+    subject: "asked for help setting up forwarding in their office phone system",
+    check: "Their Setup's row for the number they keep: the number to forward to, and whether a test call came through.",
+    steps: () => [
+      "Reply to find a time for a call. Their phone system (RingCentral, Vonage, 8x8 and the like) forwards calls in its own settings, under forwarding or what happens when no one answers: forward the calls (unanswered, or every call, as their Setup row for the number they keep says) to the receptionist's number, which their first run and Setup show.",
+      "Put the forwarding before any voicemail. Then have them press Test it on Setup's row for the number they keep."
+    ],
+    reply: (p) => letter(
+      p,
+      "happy to set up the forwarding in your phone system with you; it takes about 15 minutes on a call, with its admin sign-in to hand. When suits you this week?"
+    ),
+    meanwhile: null
+  },
+  // A configuration the receptionist can no longer read (S8): only a person can repair it.
+  repair: {
+    title: "Repairing their settings",
+    subject: "asked for their business settings to be repaired",
+    check: "Their Setup's Business facts row: it names what the receptionist can't read.",
+    steps: () => [
+      "Their saved configuration no longer passes the receptionist's checks, so it is silent. GET /api/v1/settings answers the problems as broken.issues, and their Business pane lists them.",
+      "Correct tenant_config.config for this workspace; the receptionist answers again within a minute of the fix."
+    ],
+    reply: (p) => letter(
+      p,
+      "I'm repairing your settings now; the receptionist answers again within a minute of the fix, and I'll write when it's done."
+    ),
+    meanwhile: null
+  },
+  // A name the carriers hold (X4-5): the campaign's name is in its filed confirmation, and only a new campaign changes it.
+  name: {
+    title: "The name the carriers hold",
+    subject: "asked to change the name the carriers hold for their texting",
+    check: "The workspace's Setup and lines tab: the campaign its line was filed under.",
+    steps: () => [
+      "They renamed the business in Settings. Their sign-up page and sign say the new name now; the text confirming a START still says the name their campaign was filed under (lines.facts.a2p_campaign_name), and the brand keeps its own (a2p_filed_name).",
+      "Reply to confirm the new name is the one customers know them by, and that it is on their business record (its legal or trading name). Then register a new campaign for their line under it -- the carriers vet it again, which takes days -- and retire the old one once the new one is approved."
+    ],
+    reply: (p) => letter(
+      p,
+      `before I file texting under the new name: is "${p.workspace}" the name your customers know you by, and is it on your business record (its legal or trading name)? The carriers check it again, which takes a few days; until then, the text confirming a START says the old name.`
+    ),
+    meanwhile: null
+  }
+};
+var ASK_UNKNOWN = {
+  title: "A setup ask",
+  subject: "asked a person for something",
+  check: "Their workspace's Setup and lines tab here.",
+  steps: () => ["Find out what they need, and do it with them."],
+  reply: (p) => letter(p, "thanks for asking; what would you like set up?"),
+  meanwhile: null
+};
+function playbookOf(row2) {
+  return row2.kind === "ask" ? ASK_PLAYBOOKS[row2.what ?? ""] ?? ASK_UNKNOWN : TOPIC_PLAYBOOKS[row2.topic];
+}
+function setupAskMail(what) {
+  const a = ASK_PLAYBOOKS[what];
+  return a ? { subject: a.subject, steps: a.steps } : null;
+}
+function supportMeanwhile(topic) {
+  return TOPIC_PLAYBOOKS[topic].meanwhile;
+}
+
 // src/console/console-schema.ts
 import { z as z12 } from "zod";
+
+// src/shell/client-error.ts
+var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
+var CLIENT_ERROR_LIMITS = {
+  name: 60,
+  message: 300,
+  stack: 1200,
+  page: 32,
+  digest: 64,
+  workspace: 64
+};
+var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
+var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+function errorIdOf(page2, name, message) {
+  const said = `${page2 ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
+  let h = 2166136261;
+  for (let i = 0; i < said.length; i++) {
+    h ^= said.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return (h >>> 16).toString(16).padStart(4, "0");
+}
+function clientErrorOf(boundary, error, page2, digest, workspace) {
+  const e = error instanceof Error ? error : new Error(String(error));
+  const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
+  return {
+    boundary,
+    page: PAGE.test(first) ? first : null,
+    name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
+    message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
+    stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
+    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
+    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
+  };
+}
+
+// src/shell/report-problem.ts
+var REPORT_LIMITS = {
+  words: 2e3,
+  errorId: 8,
+  errorName: CLIENT_ERROR_LIMITS.name,
+  errorMessage: CLIENT_ERROR_LIMITS.message
+};
+var REPORT_KINDS = ["how_to", "setup", "wrong", "billing"];
+var REPORT_KIND_WORDS = {
+  how_to: {
+    pick: "How do I\u2026",
+    hint: "Using the app",
+    label: "What are you trying to do?",
+    placeholder: "Connect WhatsApp, change the hours, add someone to the team\u2026"
+  },
+  setup: {
+    pick: "Help setting up",
+    hint: "A line, forwarding, your calendar",
+    label: "What would you like set up?",
+    placeholder: "A phone line, forwarding from your number, your calendar\u2026"
+  },
+  wrong: {
+    pick: "Something isn't working",
+    hint: "Something didn't do what it should",
+    label: "What happened?",
+    placeholder: "What you were doing, and what you saw"
+  },
+  billing: {
+    pick: "Billing",
+    hint: "Your plan, a charge, an invoice",
+    label: "What's your question?",
+    placeholder: "An invoice, a charge, your plan\u2026"
+  }
+};
+function reportKindOf(kind, error) {
+  return kind ?? (error ? "wrong" : "how_to");
+}
+function reportProblemOf(kind, words3, page2, error, workspace) {
+  const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
+  return {
+    kind,
+    words: words3.trim().slice(0, REPORT_LIMITS.words),
+    page: PAGE.test(first) ? first : null,
+    error: error && kind === "wrong" ? {
+      id: error.id.slice(0, REPORT_LIMITS.errorId),
+      name: error.name.slice(0, REPORT_LIMITS.errorName),
+      message: error.message.slice(0, REPORT_LIMITS.errorMessage)
+    } : null,
+    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
+  };
+}
+var SUPPORT_ADDRESS = "hi@chanlytics.agency";
+var REPORT_WORDS = {
+  door: "Get help",
+  doorShort: "Report this",
+  title: "Get help",
+  sub: "A person at Chanlytics reads every one and answers within one business day.",
+  need: "What do you need?",
+  sentWith: "Sent with it",
+  thisPage: (page2) => `This page \xB7 ${page2}`,
+  theError: (id) => `The error \xB7 ${id}`,
+  privacy: (email) => email ? `Nothing about your customers is sent. We answer at ${email}.` : "Nothing about your customers is sent.",
+  send: "Send",
+  sending: "Sending\u2026",
+  empty: "Say what you need first.",
+  sent: "Sent",
+  sentBody: (email) => email ? `A person answers at ${email} within one business day.` : "A person answers by email within one business day.",
+  meanwhile: (hint) => `Until then: ${hint}`,
+  done: "Done",
+  failed: `That didn't send. Write to ${SUPPORT_ADDRESS} instead, and say what you need.`
+};
 
 // src/workspace/partner.ts
 var PARTNER_STATUSES = ["active", "paused", "closed"];
@@ -35811,7 +36644,24 @@ var ClaimSchema = z12.object({ tenant_id: uuid("workspace"), take: z12.boolean()
 var FindQuerySchema = z12.object({
   q: z12.string().trim().min(FIND_LIMITS.min, `At least ${FIND_LIMITS.min} characters.`).max(FIND_LIMITS.max, `At most ${FIND_LIMITS.max} characters.`)
 }).strict();
-var SupportQuerySchema = z12.object({ view: z12.enum(SUPPORT_VIEWS).default("week") }).strict();
+var SupportQuerySchema = z12.object({
+  view: z12.enum(SUPPORT_VIEWS).default("needs"),
+  kind: z12.enum(SUPPORT_KIND_FILTERS).default("all"),
+  topic: z12.enum(SUPPORT_TOPICS).optional(),
+  workspace: z12.string().regex(WORKSPACE).optional(),
+  q: z12.string().trim().max(FIND_LIMITS.max).default(""),
+  page: z12.coerce.number().int().min(1).max(20).default(1)
+}).strict();
+var SupportMarkSchema = z12.object({
+  target: z12.enum(["report", "ask"]),
+  id: uuid("row"),
+  mark: z12.enum(["answered", "done", "reopened"])
+}).strict().refine((m) => m.target === "ask" || m.mark !== "done", {
+  message: "A question is done once it is answered.",
+  path: ["mark"]
+});
+var SupportResendSchema = z12.object({ id: uuid("report") }).strict();
+var SupportKindSchema = z12.object({ id: uuid("report"), kind: z12.enum(REPORT_KINDS) }).strict();
 var ActsQuerySchema = z12.object({
   who: z12.uuid().optional(),
   before: z12.iso.datetime({ offset: true }).optional(),
@@ -37109,7 +37959,7 @@ var DEAL_CARD_WORDS = {
   sending: "Sending",
   openLink: "Open the proposal in a new tab"
 };
-function sentWords(sent, tz, nowMs) {
+function sentWords2(sent, tz, nowMs) {
   const at3 = Date.parse(sent.at);
   const day = Number.isFinite(at3) ? ` ${clockDate(at3, tz, nowMs)}` : "";
   const on = sent.via === "WhatsApp" ? " on WhatsApp" : sent.via === "Email" ? " by email" : sent.via === "Text" ? " as a text" : "";
@@ -37185,7 +38035,7 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
   if (!won) {
     const sent = sentOf(p, deal);
     facts.push(
-      !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent ? sentWords(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent
+      !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent ? sentWords2(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
@@ -45592,8 +46442,8 @@ function proposalOf2(d, current, tz) {
   const proposalUrl = proposalLinkOf(current, d.proposal_url);
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
   const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
-  const sentWords2 = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
-  return { proposal, sentWords: sentWords2 };
+  const sentWords3 = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
+  return { proposal, sentWords: sentWords3 };
 }
 function personCardContext(d, tz, now, viewerId, names3 = null) {
   const nowMs = now.getTime();
@@ -45849,7 +46699,7 @@ function aboutOf({
   if (reach) about.push({ k: "Sequence", v: reach });
   return about;
 }
-function sinceWords(base) {
+function sinceWords2(base) {
   return base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`;
 }
 function replyFields(reply, emailStopped, stop) {
@@ -47208,7 +48058,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
   const vm = {
     ...base,
     ...reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {},
-    since: sinceWords(base),
+    since: sinceWords2(base),
     metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
     facts: personFactsOf(ctx),
@@ -48312,8 +49162,8 @@ function opensOf2(stages, needs2, more2) {
   return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names3, ...more2].join(", ")}`;
 }
 function rung(id, label, n, people, opens, by = void 0) {
-  const byWords = countsByChannelWords(by);
-  const parts2 = byWords && by && people > 0 ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people })) : null;
+  const byWords2 = countsByChannelWords(by);
+  const parts2 = byWords2 && by && people > 0 ? CONSENT_CHANNELS.filter((c) => by[c] > 0).map((c) => ({ channel: c, share: by[c] / people })) : null;
   return {
     id,
     label,
@@ -48321,9 +49171,9 @@ function rung(id, label, n, people, opens, by = void 0) {
     share: people > 0 ? n / people : 0,
     opens,
     tone: id === "offers" && n === 0 ? "warn" : "plain",
-    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}${byWords ? ` \xB7 ${byWords}` : ""}`,
+    meter: id === "people" ? `${n} in People` : `${label}: ${n} of ${people}${byWords2 ? ` \xB7 ${byWords2}` : ""}`,
     parts: parts2,
-    byWords
+    byWords: byWords2
   };
 }
 function lifecycleReach(input, stages) {
@@ -48495,11 +49345,11 @@ function lifecycleComing(input, stages, defs) {
   const { nowMs, tz, broadcasts } = input;
   const rules = LIFECYCLE_WORDS.coming.rules;
   if (!broadcasts) return { read: outOf(broadcasts), rows: [], empty: null, rules };
-  const playbookOf = (id) => playbooks.rows.find((p) => p.id === id);
+  const playbookOf2 = (id) => playbooks.rows.find((p) => p.id === id);
   const paused = workspacePausedOf(input);
   const end = nowMs + COMING_DAYS * DAY_MS;
   const runs = broadcasts.rows.filter((r2) => (r2.state === "scheduled" || r2.state === "pending_approval") && Date.parse(r2.scheduled_for) <= end).map((r2) => {
-    const p = playbookOf(r2.playbook_id);
+    const p = playbookOf2(r2.playbook_id);
     return runRow(r2, p?.name ?? r2.name, nowMs, tz, { paused, known: p !== void 0 });
   });
   const covered = new Set(
@@ -56680,7 +57530,17 @@ var SCHEMA_SETS = {
   "platform_acts.actor_role": ["owner", "support", "billing"],
   "platform_acts.outcome": ["running", "done", "refused", "failed"],
   "platform_acts.reason_kind": ["ticket", "call", "found", "cleanup"],
-  "platform_acts.target_kind": ["workspace", "line", "job", "waitlist", "partner", "request", "platform"],
+  "platform_acts.target_kind": [
+    "workspace",
+    "line",
+    "job",
+    "waitlist",
+    "partner",
+    "request",
+    "platform",
+    "report",
+    "ask"
+  ],
   "platform_admins.role": ["owner", "support", "billing"],
   "policies.class": [
     "reply",
@@ -56740,6 +57600,7 @@ var SCHEMA_SETS = {
   "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],
   "sequences.state": ["draft", "on", "paused", "ended"],
+  "support_reports.kind": ["how_to", "setup", "wrong", "billing"],
   "sweep_status.judged_by": ["request", "run"],
   "templates.category": ["marketing", "utility", "authentication"],
   "templates.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
@@ -56831,6 +57692,7 @@ var ROUTE_KEYS = [
   "GET platform/overview",
   "GET platform/requests",
   "GET platform/support",
+  "GET platform/support/bugs",
   "GET platform/tenants/[id]",
   "GET platform/workspaces/[slug]",
   "GET playbooks",
@@ -56984,6 +57846,9 @@ var ROUTE_KEYS = [
   "POST platform/partners/status",
   "POST platform/requests",
   "POST platform/requests/step",
+  "POST platform/support/kind",
+  "POST platform/support/mark",
+  "POST platform/support/resend",
   "POST platform/waitlist/invited",
   "POST playbooks",
   "POST playbooks/[id]/run",
@@ -57670,41 +58535,6 @@ function pageSpeedWords(speed) {
   };
 }
 
-// src/shell/client-error.ts
-var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
-var CLIENT_ERROR_LIMITS = {
-  name: 60,
-  message: 300,
-  stack: 1200,
-  page: 32,
-  digest: 64,
-  workspace: 64
-};
-var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
-var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
-function errorIdOf(page2, name, message) {
-  const said = `${page2 ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
-  let h = 2166136261;
-  for (let i = 0; i < said.length; i++) {
-    h ^= said.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return (h >>> 16).toString(16).padStart(4, "0");
-}
-function clientErrorOf(boundary, error, page2, digest, workspace) {
-  const e = error instanceof Error ? error : new Error(String(error));
-  const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
-  return {
-    boundary,
-    page: PAGE.test(first) ? first : null,
-    name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
-    message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
-    stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
-    digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
-    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
-  };
-}
-
 // src/shell/client-error-schema.ts
 import { z as z29 } from "zod";
 var ClientErrorInput = z29.object({
@@ -57719,50 +58549,12 @@ var ClientErrorInput = z29.object({
   workspace: z29.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 
-// src/shell/report-problem.ts
-var REPORT_LIMITS = {
-  words: 2e3,
-  errorId: 8,
-  errorName: CLIENT_ERROR_LIMITS.name,
-  errorMessage: CLIENT_ERROR_LIMITS.message
-};
-function reportProblemOf(words3, page2, error, workspace) {
-  const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
-  return {
-    words: words3.trim().slice(0, REPORT_LIMITS.words),
-    page: PAGE.test(first) ? first : null,
-    error: error ? {
-      id: error.id.slice(0, REPORT_LIMITS.errorId),
-      name: error.name.slice(0, REPORT_LIMITS.errorName),
-      message: error.message.slice(0, REPORT_LIMITS.errorMessage)
-    } : null,
-    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
-  };
-}
-var REPORT_WORDS = {
-  door: "Report a problem",
-  doorShort: "Report this",
-  title: "Report a problem",
-  sub: "A person at Chanlytics reads every one",
-  label: "What happened?",
-  placeholder: "What you were doing, and what you saw",
-  sentWith: "Sent with it",
-  thisPage: (page2) => `This page \xB7 ${page2}`,
-  theError: (id) => `The error \xB7 ${id}`,
-  privacy: (email) => email ? `Nothing about your customers is sent. We answer at ${email}.` : "Nothing about your customers is sent.",
-  send: "Send",
-  sending: "Sending\u2026",
-  empty: "Say what happened first.",
-  sent: "Sent",
-  sentBody: (email) => email ? `We'll answer at ${email}, usually within a working day.` : "We'll answer by email, usually within a working day.",
-  done: "Done",
-  failed: "That didn't send. Write to hi@chanlytics.com instead, and say what happened."
-};
-
 // src/shell/report-problem-schema.ts
 import { z as z30 } from "zod";
 var ReportProblemInput = z30.object({
-  words: z30.string().trim().min(1, "Say what happened first.").max(2e3, "At most 2,000 characters."),
+  /** What they need (decision 0067); a sheet from before the pick sends none, and the route infers it. */
+  kind: z30.enum(REPORT_KINDS).optional(),
+  words: z30.string().trim().min(1, "Say what you need first.").max(2e3, "At most 2,000 characters."),
   /** The route's first segment, as field data names a page; null on a page with none. */
   page: z30.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
   /** The last error the page hit, when it hit one. */
@@ -63193,6 +63985,8 @@ export {
   REPLY_WINDOW_WORDS,
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
+  REPORT_KINDS,
+  REPORT_KIND_WORDS,
   REPORT_LENSES,
   REPORT_LIMITS,
   REPORT_MIN_N,
@@ -63363,9 +64157,16 @@ export {
   STOP_ALL_REFUSALS,
   STOP_ENDED_OFFERS_SOURCE,
   STOP_WORDS,
+  SUPPORT_KIND_FILTERS,
+  SUPPORT_KIND_FILTER_WORDS,
+  SUPPORT_KIND_WORDS,
+  SUPPORT_PAGE,
+  SUPPORT_READ_DAYS,
+  SUPPORT_TOPICS,
   SUPPORT_VIEWS,
   SUPPORT_VIEW_WORDS,
   SUPPORT_WORDS,
+  SUPPORT_ZONE,
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,
   SayItDealAnswerSchema,
@@ -63373,7 +64174,10 @@ export {
   SayItNoteAnswerSchema,
   ServiceSchema,
   SignupSchema,
+  SupportKindSchema,
+  SupportMarkSchema,
   SupportQuerySchema,
+  SupportResendSchema,
   TEAM_INVITE_DAYS,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
@@ -63548,6 +64352,7 @@ export {
   answerText,
   answerWireOf,
   answerWords,
+  answeredMedianMs,
   answeredYes,
   answersToRuns,
   appLink,
@@ -63575,7 +64380,9 @@ export {
   asTenantId,
   askCallOutcome,
   askCardLapsed,
+  askCode,
   askColumnOf,
+  askDoneOf,
   askGoalRefusal,
   askGoalSaved,
   askIntent,
@@ -63655,6 +64462,7 @@ export {
   businessFieldsFor,
   businessGap,
   businessGroupWordsFor,
+  businessMsBetween,
   businessNameOf,
   businessPageMetadata,
   businessPageVM,
@@ -64145,6 +64953,8 @@ export {
   inLocalWeek,
   inboxBlankOf,
   inboxBucketWord,
+  inboxHomeUrl,
+  inboxSearchUrl,
   inboxSlots,
   inboxTemplateParts,
   inboxTemplates,
@@ -64847,6 +65657,7 @@ export {
   playbookListRef,
   playbookName,
   playbookNoNumberWords,
+  playbookOf,
   playbookPoolKey,
   playbookReach,
   playbookReachDoor,
@@ -65040,6 +65851,7 @@ export {
   reportDaysRefusal,
   reportFacts,
   reportHourWords,
+  reportKindOf,
   reportOf,
   reportPeriodOf,
   reportPickWords,
@@ -65217,6 +66029,7 @@ export {
   sessionEnded,
   settledNoticeIds,
   settling,
+  setupAskMail,
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
@@ -65342,6 +66155,18 @@ export {
   sumOf,
   sumsOf,
   supportClusters,
+  supportDue,
+  supportDueAt,
+  supportMeanwhile,
+  supportPageOf,
+  supportPathOf,
+  supportQueueOf,
+  supportQuietWords,
+  supportSentence,
+  supportTopicOf,
+  supportViewOf,
+  supportWaitOf,
+  supportWorkspaceOf,
   systemOneDollars,
   systemOneState,
   takesBookingRequests,

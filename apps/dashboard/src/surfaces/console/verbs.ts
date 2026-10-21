@@ -12,8 +12,11 @@ import type {
   FindRowDto,
   PlatformActDto,
   PrivacyRequestDto,
+  ReportKind,
   RequestKind,
   RequestStep,
+  SupportKindFilter,
+  SupportTopic,
   SupportView,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
@@ -22,7 +25,18 @@ import { api } from "@/legacy-bridge/api";
 export type ConsoleMe = Output<"GET platform/me">;
 export type ConsoleHome = Output<"GET platform/home">;
 export type ConsoleWorkspace = Output<"GET platform/workspaces/[slug]">;
-type ConsoleSupport = Output<"GET platform/support">;
+export type ConsoleSupport = Output<"GET platform/support">;
+type ConsoleBugs = Output<"GET platform/support/bugs">;
+
+/** What Support's tools narrow the queue by, and how many pages of it are shown. */
+export interface SupportAsk {
+  view: SupportView;
+  kind: SupportKindFilter;
+  topic: SupportTopic | null;
+  workspace: string | null;
+  q: string;
+  page: number;
+}
 type ConsoleTenant = Output<"GET platform/tenants/[id]">;
 
 /** A read's answer, or why it could not be had, in a person's words; `missing` when the route said there is none. */
@@ -52,8 +66,33 @@ export const consoleVerbs = {
     readAnswer(await api()("GET platform/tenants/[id]", { params: { id } })),
   find: async (q: string): Promise<Read<{ rows: FindRowDto[] }>> =>
     readAnswer(await api()("GET platform/find", { query: { q } })),
-  support: async (view: SupportView): Promise<Read<ConsoleSupport>> =>
-    readAnswer(await api()("GET platform/support", { query: { view } })),
+  support: async (a: SupportAsk): Promise<Read<ConsoleSupport>> =>
+    readAnswer(
+      await api()("GET platform/support", {
+        query: {
+          view: a.view,
+          kind: a.kind,
+          q: a.q,
+          page: a.page,
+          ...(a.topic ? { topic: a.topic } : {}),
+          ...(a.workspace ? { workspace: a.workspace } : {}),
+        },
+      }),
+    ),
+  /** Health's bug reports: the last thirty days of "Something isn't working". */
+  bugs: async (): Promise<Read<ConsoleBugs>> => readAnswer(await api()("GET platform/support/bugs")),
+  /** A question answered or open again; an ask answered, done, or open again. One press: its reason is its code. */
+  mark: async (body: {
+    target: "report" | "ask";
+    id: string;
+    mark: "answered" | "done" | "reopened";
+  }): Promise<Wrote<{ ok: true }>> => wroteAnswer(await api()("POST platform/support/mark", { body })),
+  /** A report the inbox did not get, sent to it again. */
+  resend: async (id: string): Promise<Wrote<{ mailed: boolean }>> =>
+    wroteAnswer(await api()("POST platform/support/resend", { body: { id } })),
+  /** A report moved between Support and Health. */
+  move: async (id: string, kind: ReportKind): Promise<Wrote<{ kind: ReportKind }>> =>
+    wroteAnswer(await api()("POST platform/support/kind", { body: { id, kind } })),
   requests: async (): Promise<Read<{ requests: PrivacyRequestDto[] }>> =>
     readAnswer(await api()("GET platform/requests")),
   acts: async (q: { who?: string; before?: string }): Promise<Read<{ rows: PlatformActDto[] }>> =>

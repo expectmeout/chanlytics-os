@@ -88,6 +88,16 @@ const SCHEMA = {
   // The product's one address.
   CANONICAL_HOST: host,
 
+  // The support inbox, as the Console opens it: a search's address with {q} where its words go (decision 0067). Unset,
+  // the Console copies a report's code to search with instead.
+  SUPPORT_INBOX_URL: z.preprocess(
+    blankAsUnset,
+    z
+      .url()
+      .refine((u) => u.startsWith("https://") && u.includes("{q}"), "an https address with {q} where the search goes")
+      .optional(),
+  ),
+
   // Sign-up, the phone app's links and the oldest app spoken to.
   SIGNUP_CODE: optionalText,
   APP_LINKS_APPLE: optionalText,
@@ -126,6 +136,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   ASK_VOICE_SECRET: () => process.env.ASK_VOICE_SECRET,
   ELEVENLABS_LLM_SECRET: () => process.env.ELEVENLABS_LLM_SECRET,
   CANONICAL_HOST: () => process.env.CANONICAL_HOST,
+  SUPPORT_INBOX_URL: () => process.env.SUPPORT_INBOX_URL,
   SIGNUP_CODE: () => process.env.SIGNUP_CODE,
   APP_LINKS_APPLE: () => process.env.APP_LINKS_APPLE,
   APP_LINKS_ANDROID: () => process.env.APP_LINKS_ANDROID,

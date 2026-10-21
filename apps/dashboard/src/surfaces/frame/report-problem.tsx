@@ -1,15 +1,25 @@
 /**
- * Report a problem (decision 0066): a member tells a person at Chanlytics what went wrong, from a card whose read failed
- * ("Report this"), the error screen (which leaves its error for after the reload that heals it), or Settings › Profile.
- * What they write goes with the page they are on and the last error this page load caught (its short id, its name, its
- * first line), and the workspace the tab holds; never what was on the page, nor anything of their customers. The answer
- * is the report's number, which the sheet says, and a person replies by email.
+ * Get help (decisions 0066 and 0067): a member asks a person at Chanlytics for help, from Settings › Profile, a card
+ * whose read failed ("Report this"), or the error screen (which leaves its error for after the reload that heals it).
+ * They say what they need first: a question, help setting up, something that isn't working (where the failing doors
+ * open it), or billing; the question under it and its example follow the pick. What they write goes with the page they
+ * are on and the workspace the tab holds, and with "Something isn't working" the last error this page load caught (its
+ * short id, its name, its first line); never what was on the page, nor anything of their customers. The answer is the
+ * report's number and the promise, a person by email within one business day, with the line that helps meanwhile.
  *
  * The host mounts with the frame and opens the sheet through the kit's report door, so any card may offer it while the
  * frame is there and none offers a door that opens nothing.
  */
 import { useEffect, useRef, useState } from "react";
-import { REPORT_LIMITS, REPORT_WORDS, pageWords, reportProblemOf } from "@chanlytics/contracts";
+import {
+  REPORT_KINDS,
+  REPORT_KIND_WORDS,
+  REPORT_LIMITS,
+  REPORT_WORDS,
+  pageWords,
+  reportProblemOf,
+  type ReportKind,
+} from "@chanlytics/contracts";
 import { REPORT_AFTER_KEY, lastClientError } from "@/client/client-error";
 import { api } from "@/legacy-bridge/api";
 import { meNow } from "../legacy-verbs";
@@ -17,11 +27,13 @@ import { Button } from "../kit/button/button";
 import { reportDoor } from "../kit/empty/report-door";
 import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
+import { Segmented } from "../kit/segmented/segmented";
 import { Sheet } from "../kit/sheet/sheet";
 import { shellAddress } from "./shell-routes";
 
 type Caught = ReturnType<typeof lastClientError>;
-type Phase = { at: "writing" } | { at: "sending" } | { at: "sent"; code: string } | { at: "failed" };
+type Phase =
+  { at: "writing" } | { at: "sending" } | { at: "sent"; code: string; meanwhile: string | null } | { at: "failed" };
 
 /** The workspace the address names (`/w/<slug>/…`), or none. */
 const workspaceOnScreen = (): string | null => /^\/w\/([^/]+)/.exec(window.location.pathname)?.[1] ?? null;
@@ -39,7 +51,8 @@ function leftByAnErrorScreen(): { error: Caught } | null {
   }
 }
 
-function ReportSheet({ error, onClose }: { error: Caught; onClose: () => void }) {
+function ReportSheet({ error, opened, onClose }: { error: Caught; opened: ReportKind; onClose: () => void }) {
+  const [kind, setKind] = useState<ReportKind>(opened);
   const [words, setWords] = useState("");
   const box = useRef<HTMLTextAreaElement | null>(null);
   const [phase, setPhase] = useState<Phase>({ at: "writing" });
@@ -48,11 +61,14 @@ function ReportSheet({ error, onClose }: { error: Caught; onClose: () => void })
   const send = async () => {
     if (!words.trim()) return;
     setPhase({ at: "sending" });
-    const body = reportProblemOf(words, page, error, workspaceOnScreen());
+    const body = reportProblemOf(kind, words, page, error, workspaceOnScreen());
     const r = await api()("POST support/report", { body, once: true });
-    setPhase(r.ok ? { at: "sent", code: r.data.code } : { at: "failed" });
+    setPhase(r.ok ? { at: "sent", code: r.data.code, meanwhile: r.data.meanwhile } : { at: "failed" });
   };
   const sent = phase.at === "sent";
+  const asked = REPORT_KIND_WORDS[kind];
+  // The error rides only with "Something isn't working": a question is not a bug's.
+  const shown = kind === "wrong" ? error : null;
   return (
     <Sheet
       open
@@ -86,15 +102,31 @@ function ReportSheet({ error, onClose }: { error: Caught; onClose: () => void })
               {REPORT_WORDS.sent} · {phase.code}
             </span>
             <span className="set-row-hint">{REPORT_WORDS.sentBody(email)}</span>
+            {phase.meanwhile && (
+              <span className="set-row-hint" data-testid="report-meanwhile">
+                {REPORT_WORDS.meanwhile(phase.meanwhile)}
+              </span>
+            )}
           </div>
         </div>
       ) : (
         <>
+          <Segmented
+            label={REPORT_WORDS.need}
+            value={kind}
+            onValueChange={setKind}
+            options={REPORT_KINDS.map((k) => ({
+              value: k,
+              label: REPORT_KIND_WORDS[k].pick,
+              hint: REPORT_KIND_WORDS[k].hint,
+              testid: `report-kind-${k}`,
+            }))}
+          />
           <Field
-            label={REPORT_WORDS.label}
+            label={asked.label}
             value={words}
             onValueChange={setWords}
-            placeholder={REPORT_WORDS.placeholder}
+            placeholder={asked.placeholder}
             maxLength={REPORT_LIMITS.words}
             rows={5}
             ref={box}
@@ -107,9 +139,9 @@ function ReportSheet({ error, onClose }: { error: Caught; onClose: () => void })
               <span className="set-row-hint" data-testid="report-page">
                 {REPORT_WORDS.thisPage(pageWords(page))}
               </span>
-              {error && (
+              {shown && (
                 <span className="set-row-hint" data-testid="report-error">
-                  {REPORT_WORDS.theError(`${error.id} · ${error.name}`)}
+                  {REPORT_WORDS.theError(`${shown.id} · ${shown.name}`)}
                 </span>
               )}
               <span className="set-row-hint">{REPORT_WORDS.privacy(email)}</span>
@@ -121,16 +153,19 @@ function ReportSheet({ error, onClose }: { error: Caught; onClose: () => void })
   );
 }
 
-/** The frame's host: the kit's report door while the frame is mounted, and the sheet it opens. */
+/**
+ * The frame's host: the kit's report door while the frame is mounted, and the sheet it opens, on the kind its door
+ * named (a question from Settings; something that isn't working from a failed card or the error screen).
+ */
 export function ReportHost() {
-  const [open, setOpen] = useState<{ error: Caught } | null>(null);
+  const [open, setOpen] = useState<{ error: Caught; kind: ReportKind } | null>(null);
   useEffect(() => {
-    reportDoor.open = () => setOpen({ error: lastClientError() });
+    reportDoor.open = (_what, kind) => setOpen({ error: lastClientError(), kind: kind ?? "how_to" });
     const left = leftByAnErrorScreen();
-    if (left) setOpen(left);
+    if (left) setOpen({ ...left, kind: "wrong" });
     return () => {
       reportDoor.open = null;
     };
   }, []);
-  return open ? <ReportSheet error={open.error} onClose={() => setOpen(null)} /> : null;
+  return open ? <ReportSheet error={open.error} opened={open.kind} onClose={() => setOpen(null)} /> : null;
 }

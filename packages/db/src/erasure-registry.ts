@@ -416,7 +416,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // the page and the error are the app's own.
   support_reports: {
     ...all(WITH_WORKSPACE, "email", "words"),
-    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error"),
+    ...all(NOT_PERSONAL, "kind", "page", "error_id", "error_name", "error_message", "mail_error"),
   },
   platform_metrics: all(
     NOT_PERSONAL,

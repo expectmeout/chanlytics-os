@@ -1,14 +1,17 @@
 /**
- * A report of a problem, as the route reads it (ReportProblemInput), apart from report-problem.ts's words and limits.
+ * A member's ask for help, as the route reads it (ReportProblemInput), apart from report-problem.ts's words and limits.
  * zod is not built into the browser's contracts (decision 0024, the browser's entry): a page that says these words loads
  * none of it.
  */
 import { z } from "zod";
 import { PAGE, WORKSPACE, CLIENT_ERROR_LIMITS } from "./client-error";
+import { REPORT_KINDS } from "./report-problem";
 
 export const ReportProblemInput = z
   .object({
-    words: z.string().trim().min(1, "Say what happened first.").max(2000, "At most 2,000 characters."),
+    /** What they need (decision 0067); a sheet from before the pick sends none, and the route infers it. */
+    kind: z.enum(REPORT_KINDS).optional(),
+    words: z.string().trim().min(1, "Say what you need first.").max(2000, "At most 2,000 characters."),
     /** The route's first segment, as field data names a page; null on a page with none. */
     page: z.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
     /** The last error the page hit, when it hit one. */

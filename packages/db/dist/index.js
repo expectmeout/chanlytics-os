@@ -822,7 +822,7 @@ var ERASURE_STRATEGIES = {
   // the page and the error are the app's own.
   support_reports: {
     ...all(WITH_WORKSPACE, "email", "words"),
-    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error")
+    ...all(NOT_PERSONAL, "kind", "page", "error_id", "error_name", "error_message", "mail_error")
   },
   platform_metrics: all(
     NOT_PERSONAL,
@@ -6281,7 +6281,7 @@ async function listActs(db, q) {
 }
 
 // src/repositories/console/support.ts
-var REPORT_COLUMNS = "id, number, tenant_id, email, page, error_id, error_name, error_message, words, created_at, mailed_at, mail_error, tenant:tenants(slug, name)";
+var REPORT_COLUMNS = "id, number, kind, tenant_id, user_id, email, page, error_id, error_name, error_message, words, created_at, mailed_at, mail_error, tenant:tenants(slug, name)";
 async function fileReport(db, row) {
   return db.from("support_reports").insert(row).select("id, number").single();
 }
@@ -6292,15 +6292,46 @@ async function listReports(db, q) {
   let query = db.from("support_reports").select(REPORT_COLUMNS).order("created_at", { ascending: false }).limit(q.limit);
   if (q.sinceIso) query = query.gte("created_at", q.sinceIso);
   if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
+  if (q.side === "support") query = query.neq("kind", "wrong");
+  if (q.side === "health") query = query.eq("kind", "wrong");
   return query;
+}
+async function countBugReports(db, sinceIso) {
+  return db.from("support_reports").select("id", { count: "exact", head: true }).eq("kind", "wrong").gte("created_at", sinceIso);
+}
+async function reportById(db, id) {
+  return db.from("support_reports").select(REPORT_COLUMNS).eq("id", id).maybeSingle();
+}
+async function setReportKind(db, id, kind) {
+  return db.from("support_reports").update({ kind }).eq("id", id).select("id").maybeSingle();
 }
 async function reportToMail(db, id, userId) {
   return db.from("support_reports").select(REPORT_COLUMNS).eq("id", id).eq("user_id", userId).maybeSingle();
 }
 async function setupAsks(db, q) {
-  let query = db.from("events").select("tenant_id, data, created_at").eq("kind", "setup.requested").gte("created_at", q.sinceIso).order("created_at", { ascending: false }).limit(q.limit);
+  let query = db.from("events").select("id, tenant_id, data, created_at").eq("kind", "setup.requested").gte("created_at", q.sinceIso).order("created_at", { ascending: false }).limit(q.limit);
   if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
   return query;
+}
+async function setupAskById(db, id) {
+  return db.from("events").select("id, tenant_id, data, created_at").eq("id", id).eq("kind", "setup.requested").maybeSingle();
+}
+async function supportPeople(db, userIds) {
+  const [members, profiles] = await Promise.all([
+    db.from("memberships").select("user_id, tenant_id, role, created_at").in("user_id", [...userIds]),
+    db.from("profiles").select("user_id, display_name").in("user_id", [...userIds])
+  ]);
+  return { members, profiles };
+}
+async function personEmail(db, userId) {
+  const { data, error } = await db.auth.admin.getUserById(userId);
+  return error ? null : data.user?.email ?? null;
+}
+async function supportMarks(db, q) {
+  return db.from("platform_acts").select("act, target_kind, target_id, at, actor_email").in("target_kind", ["report", "ask"]).eq("outcome", "done").gte("at", q.sinceIso).order("at", { ascending: false }).limit(q.limit);
+}
+async function forwardingVerified(db, tenantIds) {
+  return db.from("lines").select("tenant_id, state_since").eq("kind", "forwarded").eq("forwarding_state", "verified").in("tenant_id", [...tenantIds]);
 }
 
 // src/repositories/console/requests.ts
@@ -7295,6 +7326,7 @@ export {
   contactIdByEmail,
   contactIdByPhone,
   contactSeen,
+  countBugReports,
   countSentToday,
   createList,
   createMessageVersion,
@@ -7360,6 +7392,7 @@ export {
   forgetActivityTokens,
   forgetEveryPhone,
   forgetNotification,
+  forwardingVerified,
   getHandoverInvite,
   getMailboxCredentials,
   getOpenHandovers,
@@ -7534,6 +7567,7 @@ export {
   peoplePage,
   peopleSeries,
   personDecisions,
+  personEmail,
   personExportPages,
   personFactsOf,
   personReplyMode,
@@ -7622,6 +7656,7 @@ export {
   replySaid,
   replyTokensSince,
   replyUndoableOf,
+  reportById,
   reportSeries,
   reportToMail,
   requestById,
@@ -7693,11 +7728,13 @@ export {
   setPartnerStatus,
   setPersonReplyMode,
   setPolicyMode,
+  setReportKind,
   setRequestSteps,
   setSequenceStepWords,
   setTemplateQuality,
   setWorkspaceLogo,
   settleDelivery,
+  setupAskById,
   setupAsks,
   signUpOnPublicKey,
   signersOf,
@@ -7720,6 +7757,8 @@ export {
   subscribeWorkspaceChanges,
   subscriptionPaused,
   suggestFact,
+  supportMarks,
+  supportPeople,
   suppressEmailOf,
   syncFeedAppointments,
   takeCheckAttempt,

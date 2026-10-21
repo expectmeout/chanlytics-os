@@ -18,7 +18,7 @@ const LOOP_MS = MIN_MS;
  *  group the frame cannot count as loaded, so what it imports is downloaded twice on every page: the reporter holds
  *  its route's path, not the route table, and the route is read from the address through contracts, as
  *  workspace.ts routeOnScreen reads it. */
-/** Leave the error this screen showed for Report a problem, then reload: the frame opens the sheet with it. */
+/** Leave the error this screen showed for Get help, then reload: the frame opens the sheet with it, as a bug. */
 function reportAfterReload() {
   try {
     sessionStorage.setItem(REPORT_AFTER_KEY, JSON.stringify(lastClientError() ?? { none: true }));
@@ -79,9 +79,10 @@ export default function OsError({ error, reset }: { error: Error & { digest?: st
           Retry without reloading
         </button>
       </div>
-      {/* Report a problem (decision 0066): the reload heals the frame, and the frame's sheet opens with this error. */}
+      {/* Report this (decisions 0066, 0067): the reload heals the frame, and its sheet opens on "Something isn't
+          working" with this error. */}
       <button className="auth-linkbtn" onClick={reportAfterReload} data-testid="os-error-report">
-        {REPORT_WORDS.door}
+        {REPORT_WORDS.doorShort}
       </button>
     </main>
   );

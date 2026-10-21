@@ -220,6 +220,69 @@ test(
 );
 
 test(
+  "a report keeps what the member needed (00468): a question unless they said otherwise, one of four; the log names reports and asks",
+  { skip },
+  async () => {
+    const [plain] = ok(
+      await db
+        .from("support_reports")
+        .insert({ tenant_id: owner.tenant, user_id: owner.userId, words: "How do I add someone?" })
+        .select("kind"),
+    );
+    assert.equal(plain.kind, "how_to", "a sheet from before the pick is a question");
+    const [billing] = ok(
+      await db
+        .from("support_reports")
+        .insert({ tenant_id: owner.tenant, user_id: owner.userId, words: "The invoice.", kind: "billing" })
+        .select("id, number, kind"),
+    );
+    assert.equal(billing.kind, "billing");
+    const odd = await db
+      .from("support_reports")
+      .insert({ tenant_id: owner.tenant, user_id: owner.userId, words: "x", kind: "complaint" });
+    assert.equal(odd.error?.code, "23514", "only the four kinds");
+    for (const [target, act] of [
+      ["report", "report_answered"],
+      ["ask", "ask_answered"],
+    ]) {
+      ok(
+        await db.from("platform_acts").insert({
+          actor_id: staff.userId,
+          actor_role: "support",
+          act,
+          tenant_id: owner.tenant,
+          target_kind: target,
+          target_id: billing.id,
+          reason_kind: "ticket",
+          ticket: `R-${billing.number}`,
+          outcome: "running",
+        }),
+      );
+    }
+  },
+);
+
+test(
+  "a setup ask's bell note says the promise, one business day, and what to have ready (00468)",
+  { skip },
+  async () => {
+    ok(await owner.client.rpc("setup_request", { p_tenant_id: owner.tenant, p_what: "port" }));
+    const [note] = ok(
+      await db
+        .from("notifications")
+        .select("body")
+        .eq("tenant_id", owner.tenant)
+        .eq("subject_type", "setup")
+        .order("created_at", { ascending: false })
+        .limit(1),
+    );
+    assert.match(note.body, /We answer by email within one business day\./);
+    assert.match(note.body, /port-out PIN/);
+    assert.doesNotMatch(note.body, /You will hear from us/);
+  },
+);
+
+test(
   "Find: staff with their factor only; a caller's whole number answers with the workspace, never who called",
   { skip },
   async () => {

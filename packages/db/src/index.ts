@@ -663,8 +663,22 @@ export {
 } from "./repositories/console/staff";
 export { startAct, finishAct, listActs } from "./repositories/console/acts";
 export type { PlatformActInsert } from "./repositories/console/acts";
-export { fileReport, markReportMailed, listReports, reportToMail, setupAsks } from "./repositories/console/support";
-export type { SupportReportInsert } from "./repositories/console/support";
+export {
+  fileReport,
+  markReportMailed,
+  listReports,
+  countBugReports,
+  reportById,
+  setReportKind,
+  reportToMail,
+  setupAsks,
+  setupAskById,
+  supportPeople,
+  personEmail,
+  supportMarks,
+  forwardingVerified,
+} from "./repositories/console/support";
+export type { SupportReportInsert, ReportSide } from "./repositories/console/support";
 export { fileRequest, requestById, setRequestSteps, listRequests } from "./repositories/console/requests";
 export type { PrivacyRequestInsert } from "./repositories/console/requests";
 export {

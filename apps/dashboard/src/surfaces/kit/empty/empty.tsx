@@ -172,15 +172,16 @@ function alsoButton(kind: Kind, also: NonNullable<FailedReadProps["also"]>) {
 
 /** A read that failed, never "nothing there": the alert glyph, what stopped, and a Retry where there is one to press. */
 /**
- * Report a problem (decision 0066): where the frame's host is there to open its sheet, a card with no second act of its
- * own offers to tell a person at Chanlytics what failed; with no host (the Console, a test), none.
+ * Report this (decisions 0066, 0067): where the frame's host is there to open its sheet, a card with no second act of
+ * its own offers to tell a person at Chanlytics what failed, as something that isn't working; with no host (the
+ * Console, a test), none.
  */
 function reportAct(what: string, testid: string | null): NonNullable<FailedReadProps["also"]> | null {
   const open = reportDoor.open;
   if (!open) return null;
   return {
     label: REPORT_WORDS.doorShort,
-    onClick: () => open(what),
+    onClick: () => open(what, "wrong"),
     ...(testid ? { testid: `${testid}-report` } : {}),
   };
 }

@@ -1,6 +1,7 @@
 /**
- * POST /api/admin/support/report — a member pressed Send on Report a problem (decision 0066), and the support inbox
- * hears about it.
+ * POST /api/admin/support/report — a member pressed Send on Get help (decisions 0066 and 0067), and the support inbox
+ * hears about it, with what they needed: a question, help setting up, billing, or something that isn't working (the
+ * Console's Health's).
  *
  * The dashboard keeps the report first (support_reports, R-1001 and up), so a mail that fails loses nothing: the
  * Console's Support shows the row, marked as not in the inbox. This sends the one thing Postgres cannot: a mail to
@@ -20,7 +21,7 @@ import { env } from "./env.js";
 import { logger } from "./log.js";
 import { reportToMail } from "./packages/db.js";
 import { oneLine } from "./packages/channels.js";
-import { CONSOLE_PATH, UUID, pageWords, reportCode } from "./packages/contracts.js";
+import { CONSOLE_PATH, SUPPORT_KIND_WORDS, UUID, pageWords, reportCode } from "./packages/contracts.js";
 
 /** The support inbox: SUPPORT_TO, one address or several separated by commas; the platform's mailbox while unset. */
 function supportTo(): string[] {
@@ -34,6 +35,7 @@ function supportTo(): string[] {
 /** A report as the mail tells it. */
 interface ReportToMail {
   number: number;
+  kind: string;
   email: string | null;
   page: string | null;
   error_id: string | null;
@@ -44,23 +46,29 @@ interface ReportToMail {
   tenant: { slug: string; name: string } | null;
 }
 
-/** The mail: the report's number and workspace in the subject, the words first, then what the page said. */
+/** What the member needed, as the team says it: a report kept before the pick existed reads as a question. */
+const kindWords = (kind: string): string =>
+  kind in SUPPORT_KIND_WORDS ? SUPPORT_KIND_WORDS[kind as keyof typeof SUPPORT_KIND_WORDS] : SUPPORT_KIND_WORDS.how_to;
+
+/** The mail: the report's number, what they needed and the workspace in the subject, the words first, then the page. */
 function supportMail(r: ReportToMail, origin: string): { subject: string; text: string } {
   const code = reportCode(r.number);
+  const need = kindWords(r.kind);
+  const screen = r.kind === "wrong" ? "health" : "support";
   const where = r.tenant ? `${r.tenant.name} (${r.tenant.slug})` : "No workspace";
   const error = r.error_id
     ? `${r.error_id} · ${[r.error_name, r.error_message].filter(Boolean).join(": ") || "an error"}`
     : "None caught";
   const said = oneLine(r.words);
   return {
-    subject: oneLine(`${code} · ${where} · ${said.length > 60 ? `${said.slice(0, 59)}…` : said}`),
+    subject: oneLine(`${code} · ${need} · ${where} · ${said.length > 60 ? `${said.slice(0, 59)}…` : said}`),
     text:
-      `${code}, from ${r.email ?? "a member"} in ${where}.\n\n` +
+      `${code}, ${need.toLowerCase()}, from ${r.email ?? "a member"} in ${where}.\n\n` +
       `What they wrote:\n${r.words}\n\n` +
       `Page: ${pageWords(r.page)}\n` +
-      `Last error: ${error}\n` +
+      (r.kind === "wrong" || r.error_id ? `Last error: ${error}\n` : "") +
       `Sent: ${r.created_at}\n\n` +
-      `Reply to this mail to answer them. The report is in the Console: ${origin}${CONSOLE_PATH}/support\n`,
+      `Reply to this mail to answer them, within one business day. It is in the Console: ${origin}${CONSOLE_PATH}/${screen}\n`,
   };
 }
 

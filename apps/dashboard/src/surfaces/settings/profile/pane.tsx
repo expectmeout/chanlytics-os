@@ -356,7 +356,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
       {role && <RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />}
       <AnswerStyle flash={flash} />
       <PartnerOfferRow />
-      {/* Report a problem (decision 0066): to a person at Chanlytics, with this page; the frame's sheet takes it. */}
+      {/* Get help (decisions 0066, 0067): a person at Chanlytics, within one business day; the frame's sheet takes it. */}
       {reportDoor.open && (
         <RecordRow
           id="profile-report"
@@ -364,7 +364,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
           value={REPORT_WORDS.sub}
           act={{
             label: REPORT_WORDS.door,
-            onClick: () => reportDoor.open?.(null),
+            onClick: () => reportDoor.open?.(null, "how_to"),
             testid: "set-profile-report",
           }}
         />
