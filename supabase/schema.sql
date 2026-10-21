@@ -28384,23 +28384,23 @@ begin
 
   if p_what = 'line' then
     v_title := 'We got your request for a phone line';
-    v_body := 'A person at Chanlytics will set up your line with you — a number, the receptionist answering it, and forwarding from the number you have. You will hear from us by email.';
+    v_body := 'A person at Chanlytics will set up your line with you — a number, the receptionist answering it, and forwarding from the number you have. We answer by email within one business day.';
     v_route := 'admin/setup';
   elsif p_what = 'port' then
     v_title := 'We got your request to bring your number';
-    v_body := 'A person at Chanlytics will move the number you have onto Chanlytics with you. Keep your current phone service until the move is finished — cancelling it first can lose the number. You will hear from us by email.';
+    v_body := 'A person at Chanlytics will move the number you have onto Chanlytics with you. Have ready the account number and port-out PIN from your current carrier, and a recent bill. Keep your current phone service until the move is finished — cancelling it first can lose the number. We answer by email within one business day.';
     v_route := 'admin/setup';
   elsif p_what = 'forwarding' then
     v_title := 'We got your request to set up forwarding';
-    v_body := 'A person at Chanlytics will set up forwarding in your phone system with you on a call. You will hear from us by email to find a time.';
+    v_body := 'A person at Chanlytics will set up forwarding in your phone system with you on a call; have its admin sign-in ready. We answer by email within one business day to find a time.';
     v_route := 'start/phone';
   elsif p_what = 'name' then
     v_title := 'We got your request to change your name with the carriers';
-    v_body := 'A person at Chanlytics will change the name the carriers hold for your texting to the one you saved. Until then, the text confirming a START says the name you filed. You will hear from us by email.';
+    v_body := 'A person at Chanlytics will change the name the carriers hold for your texting to the one you saved. Until then, the text confirming a START says the name you filed. We answer by email within one business day.';
     v_route := 'admin/workspace';
   else
     v_title := 'We got your request to repair your settings';
-    v_body := 'A person at Chanlytics will repair the business settings the receptionist can no longer read; until then it stays silent. You will hear from us by email.';
+    v_body := 'A person at Chanlytics will repair the business settings the receptionist can no longer read; until then it stays silent. We answer by email within one business day.';
     v_route := 'admin/workspace';
   end if;
 
@@ -28419,7 +28419,7 @@ end $$;
 -- Name: FUNCTION setup_request(p_tenant_id uuid, p_what text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configuration the receptionist cannot read, or changing the name the carriers hold (00439). A bell row for the workspace, an event for the platform; idempotent within a day per thing.';
+COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configuration the receptionist cannot read, or changing the name the carriers hold (00439). A bell row for the workspace that says the promise, one business day, and what to have ready (00468); an event for the platform; idempotent within a day per thing.';
 
 
 --
@@ -33289,7 +33289,7 @@ CREATE TABLE public.platform_acts (
     CONSTRAINT platform_acts_outcome_check CHECK ((outcome = ANY (ARRAY['running'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT platform_acts_outcome_note_check CHECK (((outcome_note IS NULL) OR (char_length(outcome_note) <= 500))),
     CONSTRAINT platform_acts_reason_kind_check CHECK ((reason_kind = ANY (ARRAY['ticket'::text, 'call'::text, 'found'::text, 'cleanup'::text]))),
-    CONSTRAINT platform_acts_target_kind_check CHECK ((target_kind = ANY (ARRAY['workspace'::text, 'line'::text, 'job'::text, 'waitlist'::text, 'partner'::text, 'request'::text, 'platform'::text]))),
+    CONSTRAINT platform_acts_target_kind_check CHECK ((target_kind = ANY (ARRAY['workspace'::text, 'line'::text, 'job'::text, 'waitlist'::text, 'partner'::text, 'request'::text, 'platform'::text, 'report'::text, 'ask'::text]))),
     CONSTRAINT platform_acts_ticket_check CHECK (((ticket IS NULL) OR ((char_length(ticket) >= 1) AND (char_length(ticket) <= 40)))),
     CONSTRAINT platform_acts_ticket_named CHECK (((reason_kind <> 'ticket'::text) OR (ticket IS NOT NULL)))
 );
@@ -34277,10 +34277,12 @@ CREATE TABLE public.support_reports (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     mailed_at timestamp with time zone,
     mail_error text,
+    kind text DEFAULT 'how_to'::text NOT NULL,
     CONSTRAINT support_reports_email_check CHECK (((email IS NULL) OR (char_length(email) <= 320))),
     CONSTRAINT support_reports_error_id_check CHECK (((error_id IS NULL) OR (error_id ~ '^[0-9a-f]{1,8}$'::text))),
     CONSTRAINT support_reports_error_message_check CHECK (((error_message IS NULL) OR (char_length(error_message) <= 300))),
     CONSTRAINT support_reports_error_name_check CHECK (((error_name IS NULL) OR (char_length(error_name) <= 60))),
+    CONSTRAINT support_reports_kind_check CHECK ((kind = ANY (ARRAY['how_to'::text, 'setup'::text, 'wrong'::text, 'billing'::text]))),
     CONSTRAINT support_reports_mail_error_check CHECK (((mail_error IS NULL) OR (char_length(mail_error) <= 300))),
     CONSTRAINT support_reports_page_check CHECK (((page IS NULL) OR (page ~ '^[a-z][a-z0-9-]{0,31}$'::text))),
     CONSTRAINT support_reports_words_check CHECK (((char_length(words) >= 1) AND (char_length(words) <= 2000)))
@@ -34292,6 +34294,13 @@ CREATE TABLE public.support_reports (
 --
 
 COMMENT ON TABLE public.support_reports IS 'Report a problem (00467, decision 0066): what a member wrote, the page and the last error it hit, numbered R-1001 and up, then whether the mail to the support inbox left. Nothing of their customers. The service role alone reads and writes it.';
+
+
+--
+-- Name: COLUMN support_reports.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.support_reports.kind IS 'What the member needs (00468, decision 0067): how_to (How do I…), setup (Help setting up), wrong (Something isn''t working: Health''s), billing. Picked on Get help; a report with an error and no pick is wrong.';
 
 
 --
@@ -37413,6 +37422,13 @@ CREATE INDEX support_reports_created ON public.support_reports USING btree (crea
 --
 
 CREATE INDEX support_reports_error ON public.support_reports USING btree (error_id, created_at DESC) WHERE (error_id IS NOT NULL);
+
+
+--
+-- Name: support_reports_kind_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_kind_created ON public.support_reports USING btree (kind, created_at DESC);
 
 
 --

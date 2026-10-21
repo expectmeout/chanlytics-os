@@ -3,10 +3,10 @@ import { ReportProblemInput } from "@chanlytics/contracts";
 import { fileProblemReport } from "@/server/platform/report";
 
 /**
- * POST /api/v1/support/report — {words, page, error, workspace}: Report a problem, from anywhere in the app (decision
- * 0066). The report is kept first, then mailed to the support inbox with the member's address to reply to; the answer
- * is its number, which the sheet says, and whether the inbox has it. Any signed-in member may send one; the workspace is
- * taken only when they belong to it.
+ * POST /api/v1/support/report — {kind, words, page, error, workspace}: Get help, from anywhere in the app (decisions
+ * 0066 and 0067). The report is kept first with what the member needs, then mailed to the support inbox with their
+ * address to reply to; the answer is its number, which the sheet says, whether the inbox has it, and the one line that
+ * helps until a person answers. Any signed-in member may send one; the workspace is taken only when they belong to it.
  */
 export const POST = write({
   scope: account,

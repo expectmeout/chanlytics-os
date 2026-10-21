@@ -88,6 +88,7 @@ import type {
 import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/lead-kind";
 import type { ACT_OUTCOMES, ACT_TARGETS, REASON_KINDS, STAFF_ROLES } from "../console/console";
 import type { REQUEST_KINDS } from "../console/requests";
+import type { REPORT_KINDS } from "../shell/report-problem";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
@@ -251,4 +252,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof REASON_KINDS>, SchemaSet<"platform_acts.reason_kind">>>,
   Holds<Exactly<Of<typeof ACT_OUTCOMES>, SchemaSet<"platform_acts.outcome">>>,
   Holds<Exactly<Of<typeof REQUEST_KINDS>, SchemaSet<"privacy_requests.kind">>>,
+  // What a member needs, picked on Get help (00468, decision 0067): Support's three, and Health's bug.
+  Holds<Exactly<Of<typeof REPORT_KINDS>, SchemaSet<"support_reports.kind">>>,
 ];

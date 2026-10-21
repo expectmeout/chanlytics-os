@@ -174,7 +174,14 @@ export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf, errorIdOf 
 export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorBoundary } from "./client-error";
 export type { ClientErrorInputDto } from "./client-error-schema";
-export { REPORT_LIMITS, REPORT_WORDS, reportProblemOf } from "./report-problem";
-export type { ReportedError } from "./report-problem";
+export {
+  REPORT_LIMITS,
+  REPORT_KINDS,
+  REPORT_KIND_WORDS,
+  REPORT_WORDS,
+  reportKindOf,
+  reportProblemOf,
+} from "./report-problem";
+export type { ReportedError, ReportKind } from "./report-problem";
 export { ReportProblemInput } from "./report-problem-schema";
 export type { ReportProblemInputDto } from "./report-problem-schema";

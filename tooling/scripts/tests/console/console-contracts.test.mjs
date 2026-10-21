@@ -1,8 +1,9 @@
 /**
  * The Console's pure half (decision 0066, contracts/src/console): who may take which act, the reason every act carries
  * and the words the log says it in, the screens' addresses, how Home groups the workspaces and counts, who has a
- * workspace, the thirty-day clock and its steps, Support's clusters and what came in, Find's kinds, and the short id an
- * error is reported by. Run, not read: each function is called with the cases it exists for.
+ * workspace, the thirty-day clock and its steps, Health's clusters and what came in, Find's kinds, and the short id an
+ * error is reported by. Support's queue is support-queue.test.mjs's. Run, not read: each function is called with the
+ * cases it exists for.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -37,7 +38,11 @@ import {
   homeSentence,
   platformRows,
   reportCode,
+  reportKindOf,
   reportProblemOf,
+  REPORT_KINDS,
+  REPORT_KIND_WORDS,
+  ReportProblemInput,
   requestClock,
   requestCode,
   requestDueAt,
@@ -416,6 +421,7 @@ test("open requests first, the nearest due first; a request is filed by its work
 const report = (over = {}) => ({
   id: "r1",
   number: 1042,
+  kind: "wrong",
   tenant_id: "t1",
   slug: "rivera-nails",
   name: "Rivera Nails",
@@ -428,6 +434,7 @@ const report = (over = {}) => ({
   created_at: iso(NOW - 12 * 60_000),
   mailed_at: iso(NOW - 12 * 60_000),
   mail_error: null,
+  who: null,
   ...over,
 });
 
@@ -448,19 +455,32 @@ test("one error two workspaces reported is the product; one workspace pressing t
   assert.equal(reportCode(1042), "R-1042");
 });
 
-test("what came in is one list, newest first: a report by its number, a setup ask by what it asked for", () => {
+test("what came in is one list, newest first: a question by its number, a setup ask in the third person; a bug is Health's", () => {
+  const ask = {
+    id: "3f9c2a77-0000-4000-8000-000000000000",
+    tenant_id: "t9",
+    slug: "atlas",
+    name: "Atlas Plumbing",
+    what: "line",
+    at: iso(NOW - 60_000),
+    email: null,
+    who: null,
+  };
   const rows = cameInOf(
-    [report({ created_at: iso(NOW - 3_600_000) })],
-    [{ tenant_id: "t9", slug: "atlas", name: "Atlas Plumbing", what: "line", at: iso(NOW - 60_000) }],
+    [report({ kind: "how_to", created_at: iso(NOW - 3_600_000) }), report({ id: "r2", number: 1043 })],
+    [ask],
     NOW,
   );
   assert.deepEqual(
     rows.map((r) => [r.kind, r.title, r.code]),
     [
-      ["setup", "Asked for a phone line", null],
+      ["setup", "Atlas Plumbing asked for a phone line", "A-3f9c2a"],
       ["report", "“The calendar won't load”", "R-1042"],
     ],
   );
+  assert.equal(rows[1].detail, "Question · Calendar", "a question says what it is about, never its error");
+  const billing = cameInOf([report({ kind: "billing", words: "The invoice is wrong" })], [], NOW);
+  assert.equal(billing[0].detail, "Billing", "said once where the kind and the topic are one word");
 });
 
 test("Find reads a number as a number only when it is one, and groups what it found by kind", () => {
@@ -487,18 +507,39 @@ test("an error's short id is the same for the same error on the same page, and f
 });
 
 test("a report leaves the browser cut to its limits, its page a route's first part, a workspace only by its shape", () => {
-  const sent = reportProblemOf(
-    "  It broke  ",
-    "calendar/2026-10-21?x=1",
-    { id: "e4c1", name: "TypeError", message: "x".repeat(400) },
-    "rivera-nails",
-  );
+  const caught = { id: "e4c1", name: "TypeError", message: "x".repeat(400) };
+  const sent = reportProblemOf("wrong", "  It broke  ", "calendar/2026-10-21?x=1", caught, "rivera-nails");
+  assert.equal(sent.kind, "wrong");
   assert.equal(sent.words, "It broke");
   assert.equal(sent.page, "calendar");
   assert.equal(sent.error.message.length, 300);
   assert.equal(sent.workspace, "rivera-nails");
-  assert.equal(reportProblemOf("x", "Not A Page", null, "../etc").page, null);
-  assert.equal(reportProblemOf("x", null, null, "../etc").workspace, null);
+  assert.equal(reportProblemOf("how_to", "x", "Not A Page", null, "../etc").page, null);
+  assert.equal(reportProblemOf("how_to", "x", null, null, "../etc").workspace, null);
+  assert.equal(
+    reportProblemOf("how_to", "How do I connect WhatsApp?", "inbox", caught, null).error,
+    null,
+    "the last error goes only with something that isn't working: a question is not a bug's",
+  );
+});
+
+test("a report the sheet named no kind for is judged by its error: one caught is a bug, else a question", () => {
+  assert.equal(reportKindOf(undefined, { id: "e4c1" }), "wrong");
+  assert.equal(reportKindOf(undefined, null), "how_to");
+  assert.equal(reportKindOf("billing", { id: "e4c1" }), "billing", "what they picked wins");
+  assert.deepEqual(REPORT_KINDS, ["how_to", "setup", "wrong", "billing"]);
+  for (const k of REPORT_KINDS) {
+    const w = REPORT_KIND_WORDS[k];
+    assert.ok(
+      w.pick && w.hint && w.label && w.placeholder,
+      `${k} says its choice, its line, its question, its example`,
+    );
+  }
+  assert.equal(ReportProblemInput.safeParse({ words: "x", page: null, error: null, workspace: null }).success, true);
+  assert.equal(
+    ReportProblemInput.safeParse({ kind: "nonsense", words: "x", page: null, error: null, workspace: null }).success,
+    false,
+  );
 });
 
 test("the second step says the Console's words to its staff and a partner's to a partner", () => {

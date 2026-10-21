@@ -1,8 +1,9 @@
 /**
  * A workspace's phone receptionist on a Retell-owned number, set up by hand: the platform's knock on the edge's
  * voice-provision door (apps/edge/api/admin/voice-provision.ts) for a workspace that asked for a line (Setup's "Ask for
- * a line", which mails the platform: apps/edge/lib/ops/setup-request.ts names this script). Dry run DEFAULT: the door
- * plans and this prints the plan. --apply does it, and a number bought in an area code costs money every month.
+ * a line", which mails the platform its playbook's steps: packages/contracts/src/console/support-playbooks.ts names
+ * this script). Dry run DEFAULT: the door plans and this prints the plan. --apply does it, and a number bought in an
+ * area code costs money every month.
  *
  * The knock is a token minted for this door, this workspace and this exact body, as the dashboard mints one
  * (packages/channels edge-token). An edge that holds EDGE_CALL_SECRET (production) lets the platform's key alone in only

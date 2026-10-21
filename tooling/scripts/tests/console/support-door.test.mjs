@@ -34,6 +34,7 @@ const R1 = "33333333-3333-4333-8333-333333333333";
 const reportRow = (over = {}) => ({
   id: R1,
   number: 1042,
+  kind: "wrong",
   tenant_id: A,
   user_id: MEMBER,
   email: "owner@example.com",
@@ -110,12 +111,13 @@ test("the support inbox has the mail: from the platform's address, Reply-To the 
     assert.equal(mail.reply_to, "owner@example.com", "a reply from the inbox reaches the member");
     assert.match(
       mail.subject,
-      /^R-1042 · Rivera Nails \(rivera-nails\) · The calendar won't load since this morning\.$/,
+      /^R-1042 · Bug report · Rivera Nails \(rivera-nails\) · The calendar won't load since this morning\.$/,
     );
     assert.match(mail.text, /What they wrote:\nThe calendar won't load since this morning\./);
     assert.match(mail.text, /Page: Calendar/);
     assert.match(mail.text, /Last error: e4c1 · TypeError: Cannot read properties of undefined/);
-    assert.match(mail.text, /\/console\/support/);
+    assert.match(mail.text, /\/console\/health/, "a bug report is Health's");
+    assert.match(mail.text, /within one business day/);
   } finally {
     w.restore();
   }
@@ -178,13 +180,16 @@ test("a transport that refuses is said as 502, and a report with no workspace or
     plain.restore();
   }
   assert.equal(bare.reply_to, undefined, "no address, no Reply-To");
-  assert.match(bare.subject, /^R-1042 · No workspace · /);
+  assert.match(bare.subject, /^R-1042 · Bug report · No workspace · /);
   setPg(fakeDb({ support_reports: [reportRow({ words: "It broke.\r\nBcc: someone@example.com\n\nAgain" })] }));
   const lines = wire();
   try {
     assert.equal((await knock({ report_id: R1 })).status, 200);
     const [mail] = lines.mail();
-    assert.equal(mail.subject, "R-1042 · Rivera Nails (rivera-nails) · It broke. Bcc: someone@example.com Again");
+    assert.equal(
+      mail.subject,
+      "R-1042 · Bug report · Rivera Nails (rivera-nails) · It broke. Bcc: someone@example.com Again",
+    );
     assert.match(mail.text, /What they wrote:\nIt broke\.\r\nBcc/, "the body keeps their words as written");
   } finally {
     lines.restore();
@@ -192,4 +197,20 @@ test("a transport that refuses is said as 502, and a report with no workspace or
   assert.match(bare.text, /from a member in No workspace/);
   assert.match(bare.text, /Last error: None caught/);
   assert.match(bare.text, /Page: No page/);
+});
+
+test("a question's mail says it is a question, carries no error line, and points at Support; one from before the pick reads as one", async () => {
+  for (const kind of ["how_to", undefined]) {
+    setPg(fakeDb({ support_reports: [reportRow({ kind, error_id: null, words: "How do I connect WhatsApp?" })] }));
+    const w = wire();
+    try {
+      assert.equal((await knock({ report_id: R1 })).status, 200);
+      const [mail] = w.mail();
+      assert.match(mail.subject, /^R-1042 · Question · Rivera Nails \(rivera-nails\) · How do I connect WhatsApp\?$/);
+      assert.doesNotMatch(mail.text, /Last error/);
+      assert.match(mail.text, /\/console\/support/);
+    } finally {
+      w.restore();
+    }
+  }
 });

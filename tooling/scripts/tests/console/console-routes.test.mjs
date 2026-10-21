@@ -2,8 +2,8 @@
  * The Console's doors, run through route() (decision 0066): the real route modules, their `run` called with a database
  * in memory for the session and another for the service role. What is proved is who is let in (staff, with their
  * second factor shown), which role may take which act before anything is judged, that the Admin log's row is written
- * before an act runs and an act whose row cannot be written does not run, and what Requests, claims, Find, the log and
- * Report a problem answer.
+ * before an act runs and an act whose row cannot be written does not run, and what Requests, claims, Find, the log,
+ * Support's queue and its presses (decision 0067) and Get help answer.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -31,6 +31,11 @@ const claims = await route("platform/claims");
 const find = await route("platform/find");
 const acts = await route("platform/acts");
 const report = await route("support/report");
+const support = await route("platform/support");
+const bugs = await route("platform/support/bugs");
+const mark = await route("platform/support/mark");
+const resend = await route("platform/support/resend");
+const move = await route("platform/support/kind");
 
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => setServiceClient(null));
@@ -437,7 +442,7 @@ test("the log is read newest first, one person's or everyone's, and as a CSV fil
 
 /* --------------------------------------------------------------------------------------------- Report a problem */
 
-test("Report a problem keeps the report first, under the workspace only when the member belongs to it, and says its number", async () => {
+test("Get help keeps the report first, with what they need, under the workspace only when the member belongs to it", async () => {
   const world = service({ support_reports: [] });
   const member = {
     supabase: fakeDb(
@@ -466,7 +471,7 @@ test("Report a problem keeps the report first, under the workspace only when the
     workspace: "old-town-cuts",
     ...over,
   });
-  await refused(report.POST.run(post(body({ words: "   " })), member), "validation", 400, "Say what happened first.");
+  await refused(report.POST.run(post(body({ words: "   " })), member), "validation", 400, "Say what you need first.");
   await refused(report.POST.run(post(body({ page: "Not/A/Page" })), member), "validation", 400);
   const out = await report.POST.run(post(body({})), member);
   // Its number is the database's identity, R-1001 and up, which console.db.test.mjs proves; the double keeps none.
@@ -474,12 +479,191 @@ test("Report a problem keeps the report first, under the workspace only when the
   assert.equal(out.mailed, false, "a deployment that reaches no provider sends no mail, and says so");
   const [kept] = world.support_reports;
   assert.deepEqual(
-    [kept.tenant_id, kept.user_id, kept.email, kept.page, kept.error_id, kept.words],
-    [A, ME, "owner@example.com", "calendar", "e4c1", "The calendar won't load"],
+    [kept.kind, kept.tenant_id, kept.user_id, kept.email, kept.page, kept.error_id, kept.words],
+    ["wrong", A, ME, "owner@example.com", "calendar", "e4c1", "The calendar won't load"],
+    "a sheet from before the pick, with an error, is something that isn't working",
   );
+  assert.equal(out.meanwhile, null, "a bug has no line of help to say back");
   assert.equal(kept.mail_error, "This deployment sends no mail.", "and Support shows it as not in the inbox");
   // A workspace the member is not in is not taken: the report is theirs, about no workspace.
   await report.POST.run(post(body({ workspace: "someone-elses" })), member);
   assert.equal(world.support_reports[1].tenant_id, null);
+  // A question: the error goes with nothing, and the answer says the one line that helps meanwhile.
+  const asked = await report.POST.run(
+    post(body({ kind: "how_to", words: "How do I connect WhatsApp?", page: "admin" })),
+    member,
+  );
+  const question = world.support_reports[2];
+  assert.deepEqual([question.kind, question.error_id], ["how_to", null]);
+  assert.equal(asked.meanwhile, "WhatsApp connects from Settings › Connections › WhatsApp.");
   assert.equal(world.platform_acts.length, 0, "a member's report is not the team's act");
+});
+
+/* ----------------------------------------------------------------------------------------- Support (decision 0067) */
+
+const T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const R1 = "33333333-3333-4333-8333-333333333331";
+const R2 = "33333333-3333-4333-8333-333333333332";
+const E1 = "3f9c2a77-0000-4000-8000-000000000000";
+const DAY_MS = 86_400_000;
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+
+const overviewRow = (tenant_id, slug, name) => ({
+  tenant_id,
+  slug,
+  name,
+  status: "active",
+  timezone: "America/New_York",
+  created_at: ago(30 * DAY_MS),
+  members: 1,
+  billing_mode: "stripe",
+  billing_status: "active",
+  trial_end: null,
+  current_period_end: null,
+  line_e164: null,
+  line_kind: null,
+  voice_state: null,
+  sms_state: null,
+  reg_step: null,
+  reg_mock: null,
+  reg_sole_prop: null,
+  line_error: null,
+  whatsapp_number: null,
+  whatsapp_active: null,
+  voice_number: null,
+  voice_active: null,
+  last_inbound_at: null,
+});
+
+const reportRow = (over = {}) => ({
+  id: R1,
+  number: 1044,
+  kind: "how_to",
+  tenant_id: A,
+  user_id: OTHER,
+  email: "dana@example.com",
+  page: "admin",
+  error_id: null,
+  error_name: null,
+  error_message: null,
+  words: "How do I connect WhatsApp?",
+  created_at: ago(3 * 3_600_000),
+  mailed_at: ago(3 * 3_600_000),
+  mail_error: null,
+  tenant: { slug: "harbor-moving", name: "Harbor Moving" },
+  ...over,
+});
+
+/** The log's rows as Postgres keeps them: the double stamps no default but an id, and `at` defaults to now(). */
+const stamped = (world) => {
+  for (const a of world.platform_acts) a.at ??= new Date().toISOString();
+};
+
+/** The service role's world for Support: a question and a bug, an ask, who sent them, and the workspaces. */
+function supportWorld() {
+  return service({
+    support_reports: [
+      reportRow(),
+      reportRow({ id: R2, number: 1045, kind: "wrong", error_id: "e4c1", words: "The calendar is blank" }),
+    ],
+    events: [
+      {
+        id: E1,
+        tenant_id: T2,
+        kind: "setup.requested",
+        data: { what: "line", by: OTHER },
+        created_at: ago(2 * DAY_MS),
+      },
+    ],
+    tenants: [
+      { id: A, slug: "harbor-moving", name: "Harbor Moving" },
+      { id: T2, slug: "atlas-plumbing", name: "Atlas Plumbing" },
+    ],
+    memberships: [{ user_id: OTHER, tenant_id: A, role: "owner", created_at: ago(20 * DAY_MS) }],
+    profiles: [{ user_id: OTHER, display_name: "Dana Kim" }],
+    platform_claims: [],
+    lines: [],
+  });
+}
+const overview = () => ({
+  platform_overview: () => [
+    overviewRow(A, "harbor-moving", "Harbor Moving"),
+    overviewRow(T2, "atlas-plumbing", "Atlas Plumbing"),
+  ],
+});
+
+test("Support's queue is the questions and asks, never a bug; each comes back as its own record, who sent it beside it", async () => {
+  supportWorld();
+  const out = await support.GET.run(get("?view=needs"), ctxFor("support", { rpcs: overview() }));
+  assert.deepEqual(
+    out.book.reports.map((r) => [r.id, r.kind]),
+    [[R1, "how_to"]],
+    "the bug report is Health's",
+  );
+  assert.deepEqual([out.book.reports[0].who?.name, out.book.reports[0].who?.role], ["Dana Kim", "owner"]);
+  assert.deepEqual(
+    out.book.asks.map((a) => [a.id, a.what, a.slug]),
+    [[E1, "line", "atlas-plumbing"]],
+  );
+  assert.deepEqual(out.counts.views, { needs: 2, waiting: 0, done: 0 });
+  assert.equal(out.counts.late, 1, "the ask of two days is past its day");
+  assert.equal(out.to_health, 1, "and Support says one bug went to Health this week");
+  assert.equal(out.more, false);
+  assert.equal(out.inbox, null, "no inbox address here: the page copies the code instead");
+  const listed = await bugs.GET.run(get(), ctxFor("billing", { rpcs: overview() }));
+  assert.deepEqual(
+    listed.reports.map((r) => r.id),
+    [R2],
+    "Health lists the bug, to every role",
+  );
+});
+
+test("marking a row is one press, written down with its own code as the reason, and the queue reads it", async () => {
+  const world = supportWorld();
+  await refused(
+    mark.POST.run(post({ target: "report", id: R1, mark: "answered" }), ctxFor("billing")),
+    "forbidden",
+    403,
+  );
+  assert.equal(world.platform_acts.length, 0, "Billing is refused before anything is written");
+  await mark.POST.run(post({ target: "report", id: R1, mark: "answered" }), ctxFor("support"));
+  const [row] = world.platform_acts;
+  assert.deepEqual(
+    [row.act, row.target_kind, row.target_id, row.tenant_id, row.reason_kind, row.ticket, row.outcome],
+    ["report_answered", "report", R1, A, "ticket", "R-1044", "done"],
+  );
+  stamped(world);
+  const done = await support.GET.run(get("?view=done"), ctxFor("support", { rpcs: overview() }));
+  assert.deepEqual(done.counts.views, { needs: 1, waiting: 0, done: 1 });
+  await mark.POST.run(post({ target: "ask", id: E1, mark: "answered" }), ctxFor("owner"));
+  const asked = world.platform_acts[1];
+  assert.deepEqual([asked.act, asked.ticket, asked.tenant_id], ["ask_answered", "A-3f9c2a", T2]);
+  stamped(world);
+  const waiting = await support.GET.run(get("?view=waiting"), ctxFor("support", { rpcs: overview() }));
+  assert.deepEqual(waiting.counts.views, { needs: 0, waiting: 1, done: 1 }, "an ask answered waits on the workspace");
+  await refused(mark.POST.run(post({ target: "report", id: R1, mark: "done" }), ctxFor("support")), "validation", 400);
+  await refused(
+    mark.POST.run(
+      post({ target: "report", id: "44444444-4444-4444-8444-444444444444", mark: "answered" }),
+      ctxFor("support"),
+    ),
+    "not_found",
+    404,
+  );
+});
+
+test("a report is moved to Health and back as the member's need, and sent again only where this deployment mails", async () => {
+  const world = supportWorld();
+  await move.POST.run(post({ id: R1, kind: "wrong" }), ctxFor("support"));
+  assert.equal(world.support_reports.find((r) => r.id === R1).kind, "wrong");
+  const [moved] = world.platform_acts;
+  assert.deepEqual(
+    [moved.act, moved.ticket, moved.note, moved.outcome],
+    ["report_moved", "R-1044", "To Health", "done"],
+  );
+  await move.POST.run(post({ id: R1, kind: "how_to" }), ctxFor("owner"));
+  assert.equal(world.support_reports.find((r) => r.id === R1).kind, "how_to");
+  await refused(resend.POST.run(post({ id: R1 }), ctxFor("support")), "conflict", 409, "sends no mail");
+  const tried = world.platform_acts.at(-1);
+  assert.deepEqual([tried.act, tried.outcome], ["report_resent", "refused"], "the press is written down, refused");
 });

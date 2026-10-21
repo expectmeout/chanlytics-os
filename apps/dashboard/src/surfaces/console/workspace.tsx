@@ -12,9 +12,12 @@ import {
   actRowOf,
   claimWords,
   consolePathOf,
+  askCode,
   pageWords,
   reportCode,
   SETUP_ASK_WORDS,
+  SUPPORT_KIND_WORDS,
+  supportPathOf,
   verdictPill,
   type ConsoleWorkspaceTab,
 } from "@chanlytics/contracts";
@@ -241,11 +244,7 @@ function Overview({
           </div>
         )}
       </ScreenSection>
-      <ScreenSection
-        title="Reported and asked"
-        sub="From Report a problem and Setup"
-        testid="console-workspace-came-in"
-      >
+      <ScreenSection title="Asked and reported" sub="From Get help and Setup" testid="console-workspace-came-in">
         <div className="cl-attn-list">
           {(ws.reports ?? []).length + (ws.asks ?? []).length === 0 && <NoneRow words="Nothing reported or asked." />}
           {(ws.reports ?? []).map((r) => (
@@ -254,17 +253,18 @@ function Overview({
               glyph="chat"
               name={`“${r.words}”`}
               meta={[reportCode(r.number), r.email ?? "", pageWords(r.page)].filter(Boolean).join(" · ")}
-              sentence={r.error_id ? `error ${r.error_id}` : "no error caught"}
-              onOpen={() => go(consolePathOf("support"))}
+              sentence={[SUPPORT_KIND_WORDS[r.kind], ...(r.error_id ? [`error ${r.error_id}`] : [])].join(" · ")}
+              onOpen={() => go(r.kind === "wrong" ? consolePathOf("health") : supportPathOf(reportCode(r.number)))}
               testid={`console-workspace-report-${r.number}`}
             />
           ))}
           {(ws.asks ?? []).map((a) => (
             <AttnRow
-              key={`${a.what}-${a.at}`}
+              key={a.id}
               glyph="user"
               name={SETUP_ASK_WORDS[a.what] ?? "Asked a person for something"}
-              meta={backOfficeWhen(a.at, tz, now)}
+              meta={[askCode(a.id), backOfficeWhen(a.at, tz, now)].join(" · ")}
+              onOpen={() => go(supportPathOf(askCode(a.id)))}
               testid={`console-workspace-ask-${a.at}`}
             />
           ))}

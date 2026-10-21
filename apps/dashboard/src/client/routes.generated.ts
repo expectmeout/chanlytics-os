@@ -80,6 +80,7 @@ export const ROUTES = {
   "GET platform/overview": { method: "GET", path: "/api/v1/platform/overview" },
   "GET platform/requests": { method: "GET", path: "/api/v1/platform/requests" },
   "GET platform/support": { method: "GET", path: "/api/v1/platform/support" },
+  "GET platform/support/bugs": { method: "GET", path: "/api/v1/platform/support/bugs" },
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET platform/workspaces/[slug]": { method: "GET", path: "/api/v1/platform/workspaces/[slug]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
@@ -233,6 +234,9 @@ export const ROUTES = {
   "POST platform/partners/status": { method: "POST", path: "/api/v1/platform/partners/status" },
   "POST platform/requests": { method: "POST", path: "/api/v1/platform/requests" },
   "POST platform/requests/step": { method: "POST", path: "/api/v1/platform/requests/step" },
+  "POST platform/support/kind": { method: "POST", path: "/api/v1/platform/support/kind" },
+  "POST platform/support/mark": { method: "POST", path: "/api/v1/platform/support/mark" },
+  "POST platform/support/resend": { method: "POST", path: "/api/v1/platform/support/resend" },
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
@@ -386,6 +390,7 @@ export type Routes = {
   "GET platform/overview": typeof import("../../app/api/v1/platform/overview/route").GET;
   "GET platform/requests": typeof import("../../app/api/v1/platform/requests/route").GET;
   "GET platform/support": typeof import("../../app/api/v1/platform/support/route").GET;
+  "GET platform/support/bugs": typeof import("../../app/api/v1/platform/support/bugs/route").GET;
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET platform/workspaces/[slug]": typeof import("../../app/api/v1/platform/workspaces/[slug]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
@@ -539,6 +544,9 @@ export type Routes = {
   "POST platform/partners/status": typeof import("../../app/api/v1/platform/partners/status/route").POST;
   "POST platform/requests": typeof import("../../app/api/v1/platform/requests/route").POST;
   "POST platform/requests/step": typeof import("../../app/api/v1/platform/requests/step/route").POST;
+  "POST platform/support/kind": typeof import("../../app/api/v1/platform/support/kind/route").POST;
+  "POST platform/support/mark": typeof import("../../app/api/v1/platform/support/mark/route").POST;
+  "POST platform/support/resend": typeof import("../../app/api/v1/platform/support/resend/route").POST;
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;

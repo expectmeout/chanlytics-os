@@ -64,10 +64,10 @@ what the script writes.
 | [`lead_suggestions`](#lead_suggestions) | none | on, 1 policy |
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
+| [`lines`](#lines) | `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/mailboxes/connections.ts`, `packages/db/src/repositories/mailboxes/sync.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts` | on, 2 policies |
+| [`memberships`](#memberships) | `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/mailboxes/reconcile.ts`, `packages/db/src/repositories/mailboxes/sync.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
@@ -85,13 +85,13 @@ what the script writes.
 | [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts` | on, no policy, so only the service role reaches it |
+| [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
-| [`profiles`](#profiles) | none | on, 1 policy |
+| [`profiles`](#profiles) | `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
@@ -1656,7 +1656,7 @@ Foreign keys:
 
 The number as an ASSET: one row per number Chanlytics bought or forwards, and the state of getting it working -- subaccount, trunk, receptionist, messaging service, carrier registration, porting, forwarding. Routing lives in tenant_channels, which this table is the source for (tenant_channels.config.line_id points back here). A number provisioned elsewhere -- inside Retell, or a WhatsApp number through Meta -- has a channel row and no row here.
 
-- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/lines.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1796,7 +1796,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts`
+- Owned by: `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notices/member-alerts.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -2324,7 +2324,7 @@ Foreign keys:
 
 Every act the Console's staff take (00467, decision 0066), written before the act runs (an act that cannot be written does not run), then what came of it. The service role alone reads and writes it; nothing deletes a row.
 
-- Owned by: `packages/db/src/repositories/console/acts.ts`
+- Owned by: `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -2491,7 +2491,7 @@ Foreign keys:
 
 A person's own name. Readable by the members of any workspace they share; written only by them, through profile_set.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/console/support.ts`
 - Primary key: `user_id`
 - Row-level security: on, 1 policy
 
@@ -3076,6 +3076,7 @@ Report a problem (00467, decision 0066): what a member wrote, the page and the l
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `mailed_at` | timestamp with time zone | yes |  |  |
 | `mail_error` | text | yes |  |  |
+| `kind` | text | no | `'how_to'::text` | What the member needs (00468, decision 0067): how_to (How do I…), setup (Help setting up), wrong (Something isn't working: Health's), billing. Picked on Get help; a report with an error and no pick is wrong. |
 
 Foreign keys:
 

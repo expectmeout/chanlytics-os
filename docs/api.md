@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-302 handlers in 51 domains.
+306 handlers in 51 domains.
 
 ## activity
 
@@ -1742,7 +1742,45 @@ Reads; for platform staff; no rate bucket; spends nothing.
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `view` | one of `"week"`, `"all"` | no |  |
+| `view` | one of `"needs"`, `"waiting"`, `"done"` | no |  |
+| `kind` | one of `"all"`, `"question"`, `"ask"` | no |  |
+| `topic` | one of `"whatsapp"`, `"forwarding"`, `"line"`, `"calendar"`, `"billing"`, `"language"`, `"facts"`, `"team"`, `"other"` | no |  |
+| `workspace` | string | no | matches `^[A-Za-z0-9][A-Za-z0-9-]{0,63}$` |
+| `q` | string | no | at most 80 characters |
+| `page` | integer | no | ≥ 1; ≤ 20 |
+
+### `GET /api/v1/platform/support/bugs`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/platform/support/bugs/route.ts`).
+
+### `POST /api/v1/platform/support/kind`
+
+Writes; for platform staff; counts against the `platform_support` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
+| `kind` | one of `"how_to"`, `"setup"`, `"wrong"`, `"billing"` | yes |  |
+
+### `POST /api/v1/platform/support/mark`
+
+Writes; for platform staff; counts against the `platform_support` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `target` | one of `"report"`, `"ask"` | yes |  |
+| `id` | string (uuid) | yes |  |
+| `mark` | one of `"answered"`, `"done"`, `"reopened"` | yes |  |
+
+### `POST /api/v1/platform/support/resend`
+
+Writes; for platform staff; counts against the `platform_support_resend` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/platform/tenants/[id]`
 
@@ -2388,6 +2426,7 @@ Writes; for any signed-in person, for themselves; counts against the `support_re
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
+| `kind` | one of `"how_to"`, `"setup"`, `"wrong"`, `"billing"` | no |  |
 | `words` | string | yes | at least 1 characters; at most 2000 characters |
 | `page` | string or null | yes |  |
 | `error` | object or null | yes |  |

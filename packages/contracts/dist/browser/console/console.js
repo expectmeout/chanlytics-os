@@ -32,7 +32,14 @@ export const CONSOLE_ACTS = {
   partner_second_factor: { words: "Reset a partner's second factor", roles: SUPPORT_ROLES },
   request_file: { words: "File a request", roles: SUPPORT_ROLES },
   request_step: { words: "Mark a request's step", roles: SUPPORT_ROLES },
-  request_close: { words: "Close a request", roles: SUPPORT_ROLES }
+  request_close: { words: "Close a request", roles: SUPPORT_ROLES },
+  report_answered: { words: "Mark a question answered", roles: SUPPORT_ROLES },
+  report_reopened: { words: "Open a question again", roles: SUPPORT_ROLES },
+  report_resent: { words: "Send a report to the inbox again", roles: SUPPORT_ROLES },
+  report_moved: { words: "Move a report between Support and Health", roles: SUPPORT_ROLES },
+  ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
+  ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
+  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES }
 };
 export const CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS);
 export const LINE_ACTS = {
@@ -79,7 +86,17 @@ const ACT_GONE_QUIET_MS = 5 * MIN_MS;
 const NEVER_FINISHED = { label: "Never finished", tone: "warn" };
 const NEVER_FINISHED_NOTE = "It started and nothing came back. Look before taking it again.";
 export const ACT_LOG_PAGE = 50;
-export const ACT_TARGETS = ["workspace", "line", "job", "waitlist", "partner", "request", "platform"];
+export const ACT_TARGETS = [
+  "workspace",
+  "line",
+  "job",
+  "waitlist",
+  "partner",
+  "request",
+  "platform",
+  "report",
+  "ask"
+];
 export function actRowOf(dto, nowMs) {
   const at = Date.parse(dto.at);
   const quiet = dto.outcome === "running" && Number.isFinite(at) && nowMs - at > ACT_GONE_QUIET_MS;
@@ -103,7 +120,9 @@ const TARGET_WORDS = {
   waitlist: "The waiting list",
   partner: "A partner",
   request: "A request",
-  platform: "Every workspace"
+  platform: "Every workspace",
+  report: "A report",
+  ask: "A setup ask"
 };
 export function actsCsv(rows) {
   const head = ["at", "who", "role", "act", "workspace", "reason", "ticket", "note", "outcome", "outcome_note"];

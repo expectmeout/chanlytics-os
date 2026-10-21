@@ -712,6 +712,9 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/requests": "the Console's requests, read again by its screen",
   "POST platform/requests/step": "the Console's requests, read again by its screen",
   "POST platform/claims": "who has a workspace, read again by the Console's screen",
+  "POST platform/support/mark": "Support's queue, read again by its screen",
+  "POST platform/support/resend": "Support's queue, read again by its screen",
+  "POST platform/support/kind": "Support's queue and Health's bug reports, read again by their screens",
 };
 
 /** The keys the table names, for the test that holds them to writes. */
