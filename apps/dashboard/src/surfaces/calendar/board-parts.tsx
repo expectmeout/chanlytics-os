@@ -32,7 +32,7 @@ import { Sheet } from "../kit/sheet/sheet";
 import { navigate, openBookingTool } from "../legacy-verbs";
 import { HeldBookingEmails } from "../settings/business/held-emails";
 import type { CalendarShow } from "./use-calendar";
-import { CR_FEED_WORDS } from "./words";
+import { CR_CONNECT, CR_FEED_WORDS } from "./words";
 
 /** Where a Business row of Settings opens: its pane, the row named (settings/frame/tabs.ts settingsRowOf). */
 const businessRow = (row: string): string => `${addressOf({ kind: "facts" })}/${row}`;
@@ -71,28 +71,32 @@ const crGlyph = (name: string) => <Icon name={name} size={13} />;
 /**
  * The legend: what each look on the board means, said once, where the switches that draw them are. An open time is said
  * for the service the picker filters by, and for a consultation where that service needs one first (C5b, the rule the
- * phone and the assistant follow), through the last day the receptionist offers (C1). On a phone, one line under the
- * chips: what Open means and the clock, where three sentences made the menu three things (the fitted sheets, 14 Oct).
+ * phone and the assistant follow), through the last day the receptionist offers (C1). On a phone, one short line under
+ * the chips while open times are on, and none while they are off (Ruben, 21 Oct 2026: a quieter Settings).
  */
 function showLegend(vm: CalendarVM, serviceName: string, phone: boolean): string {
   const service = vm.services.find((s) => s.name === serviceName) ?? null;
   const forWhat = service ? ` for ${service.consultFirst ? "a consultation" : service.name}` : "";
-  if (phone) return `Open times it would offer${forWhat}, through ${vm.offer.label} · ${vm.zoneCity} time`;
+  if (phone) return `Open times${forWhat} through ${vm.offer.label} · ${vm.zoneCity} time`;
   return `Taken is from your calendar or your booking tool. Open is a time the receptionist would offer${forWhat}, through ${vm.offer.label}. Times are ${vm.zoneCity} time.`;
 }
 
-/** Show's switches: the workspace's word for what is booked, locked on; open times; campaigns and cold email where it has them. */
+/**
+ * Show's switches: open times; campaigns and cold email where it has them. On a desk, the rows say the workspace's word for
+ * what is booked first, locked on; a phone's chips leave it out, since a chip that cannot be pressed was the board itself
+ * said again ("Meetings · Always", Ruben, 21 Oct 2026), and its one line of chips fits the three that can.
+ */
 function showGroup(p: BarProps): MenuGroup {
   const { show, setShow, offers } = p;
   const items = [
-    { value: "visits", label: p.many, on: true, locked: SHOW.always },
+    ...(p.phone ? [] : [{ value: "visits", label: p.many, on: true, locked: SHOW.always }]),
     { value: "open", label: SHOW.open, on: show.open },
     ...(offers.campaigns ? [{ value: "campaigns", label: SHOW.campaigns, on: show.campaigns }] : []),
     ...(offers.cold ? [{ value: "cold", label: SHOW.cold, on: show.cold }] : []),
   ];
   return {
     header: SHOW.label,
-    caption: showLegend(p.vm, p.serviceName, p.phone),
+    ...(p.phone && !show.open ? {} : { caption: showLegend(p.vm, p.serviceName, p.phone) }),
     toggles: {
       items,
       tick: <Icon name="check" size={13} />,
@@ -105,30 +109,27 @@ function showGroup(p: BarProps): MenuGroup {
 }
 
 /**
- * What the calendar offers its owner, in one menu at the bar's end: on a phone what Show draws first, then the booking
- * link (open it, copy it in place), the calendar read again now, the hours and rules, and the place they are kept.
+ * What the calendar offers its owner, in one menu at the bar's end: on a phone what Show draws first, then the calendar's
+ * settings in one group (Ruben, 21 Oct 2026: a quieter, compact Settings): the booking link, copied in place on one row
+ * where it had a heading and two rows of its own; the hours and rules; the booking tool, saying where the calendar stands
+ * where that is not simply working, in the one answer's few words; and the calendar read again now, where one is read.
  */
 function optionsGroups(p: BarProps): MenuGroup[] {
   const { vm, refreshing, refreshNow, openRules } = p;
   const link = vm.bookingLink;
   const groups: MenuGroup[] = p.phone ? [showGroup(p)] : [];
-  if (link) {
-    groups.push({
-      header: "Booking link",
-      items: [
-        {
-          label: "Open the booking page",
-          glyph: crGlyph("external"),
-          onSelect: () => window.open(link, "_blank", "noopener,noreferrer"),
-        },
-        // Copied in place, the menu held open: the toast said it at the foot of a phone, under the thumb (CAL-23).
-        { label: "Copy the link", glyph: crGlyph("copy"), copy: { text: link, said: "Copied" } },
-      ],
-    });
-  }
   groups.push({
-    header: "Calendar",
+    header: "Calendar settings",
     items: [
+      // Copied in place, the menu held open: the toast said it at the foot of a phone, under the thumb (CAL-23).
+      ...(link ? [{ label: "Copy booking link", glyph: crGlyph("copy"), copy: { text: link, said: "Copied" } }] : []),
+      { label: "Hours and rules", glyph: crGlyph("clock"), onSelect: openRules },
+      {
+        label: BOOKING_TOOL_WORDS.label,
+        hint: vm.source.state === "ready" ? undefined : vm.source.words,
+        glyph: crGlyph("cog"),
+        onSelect: () => openBookingTool(CALENDAR_SETTING_ROUTE),
+      },
       ...(vm.feed.present
         ? [
             {
@@ -140,13 +141,6 @@ function optionsGroups(p: BarProps): MenuGroup[] {
             },
           ]
         : []),
-      { label: "Hours and rules", glyph: crGlyph("clock"), onSelect: openRules },
-      {
-        label: BOOKING_TOOL_WORDS.label,
-        hint: "Settings › Hours & booking",
-        glyph: crGlyph("cog"),
-        onSelect: () => openBookingTool(CALENDAR_SETTING_ROUTE),
-      },
     ],
   });
   return groups;
@@ -403,18 +397,21 @@ function unreadNotice(p: NoticeProps): NoticeVM {
 
 /**
  * No calendar link that reads: what the calendar is fed by instead (vm.source), and the way to what is next: the held
- * emails' own sheet where that is a look at them (`openHeld`), else the door the one answer names.
+ * emails' own sheet where that is a look at them (`openHeld`), else the door the one answer names. Nothing connected is
+ * its first sentence alone and a door that says Connect (Ruben, 21 Oct 2026: the sentence after it and "Connect your
+ * calendar" said it three times); Settings' row, where the owner chooses, keeps the whole sentence.
  */
 function sourceNotice(vm: CalendarVM, openHeld: () => void): NoticeVM | null {
   const s = vm.source;
   if (s.state === "hand" || s.state === "ready") return null;
   const door = feedDoorOf(s);
+  const brief = s.state === "none";
   return {
     id: "feed",
     fact: (
       <span data-testid={s.by === "emails" ? "cal-feed-notices" : undefined}>
         <b>{s.lead}</b>
-        {s.rest ? ` ${s.rest}` : ""}
+        {s.rest && !brief ? ` ${s.rest}` : ""}
       </span>
     ),
     act: (
@@ -424,7 +421,7 @@ function sourceNotice(vm: CalendarVM, openHeld: () => void): NoticeVM | null {
         onClick={heldIsNext(vm) ? openHeld : goTo(door.to)}
         data-testid="cal-feed-door"
       >
-        {door.words}
+        {brief ? CR_CONNECT : door.words}
       </Button>
     ),
     label: s.lead,

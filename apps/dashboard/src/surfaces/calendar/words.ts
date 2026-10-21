@@ -54,6 +54,9 @@ export const CR_FEED_WORDS = {
   unavailable: "The address is saved; check it in Settings › Hours & booking if this keeps happening.",
 };
 
+/** The card's door where nothing is connected, beside "No calendar connected.", which says the rest (Ruben, 21 Oct 2026). */
+export const CR_CONNECT = "Connect";
+
 /**
  * Settings › Business states the same calendar's last read in its own row (pages/business-tab-open.jsx). It keeps a read
  * for as long as this board does, and says these two states in these words: one number and one spelling, here, which
