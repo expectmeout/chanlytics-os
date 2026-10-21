@@ -4,7 +4,45 @@
 
 /* The list: its search over the groups, which scroll; the groups are its filter. */
 .sq-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: var(--space-4) var(--space-4) var(--space-2);
+}
+/* The view over the search, as Pipeline's "All deals 1 ⌄" stands over its (clients.css .pp-bar-pick): the view's name in the
+   base size's semibold, how many it holds beside it in a dim medium, the chevron dim; quiet words a thumb tall, no ground. */
+.sq-view-bar {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+/* A thumb's 44px to press, standing in Pipeline's 34 (its ::after reaches the same 5px over and under): the words 4px in
+   from the search's edge, as Pipeline's sit over its. */
+.sq-view-pick {
+  gap: 6px;
+  min-width: 0;
+  margin-block: -5px;
+  padding-inline: 3px 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.sq-view-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sq-view-count {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.sq-view-pick .icon {
+  flex: none;
+  color: var(--ink-dim);
 }
 .sq-list-rows {
   display: flex;
