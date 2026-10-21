@@ -29,12 +29,14 @@ import {
 import {
   MODEL_TURN_WRITE_MS,
   aiUsageBodyOf,
+  creditRanOut,
   type ModelCallOutcome,
   type ModelPurpose,
   type ModelUsage,
 } from "./packages/contracts.js";
 import { keepModelTurn, recordModelUsage, workspaceMayUseModels, type ModelTurnKept } from "./packages/db.js";
 import { pg } from "./pg.js";
+import { pageOperator } from "./ops/page-operator.js";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 
@@ -95,14 +97,37 @@ function outcomeOf(r: ModelReply, forWhom: ModelCallFor): ModelCallOutcome {
   return r.fellBack ? "fell_back" : "answered";
 }
 
-/** One row of the ledger for one call; never thrown. */
+/** The page when the key's credit has run out: one per window, whichever workspace's call found it. */
+const MODEL_CREDIT_PAGE_KEY = "model_credit";
+
+/**
+ * One row of the ledger for one call, with what the API said when it got no answer (00469); never thrown. A refusal
+ * that says the key's credit ran out pages the platform, once per window: every model call stops until it is topped up.
+ */
 export async function recordCall(
   purpose: ModelPurpose,
-  call: { asked: string; model: string; outcome: ModelCallOutcome; usage: ModelUsage },
+  call: {
+    asked: string;
+    model: string;
+    outcome: ModelCallOutcome;
+    usage: ModelUsage;
+    error?: { type: string; message: string } | null;
+  },
   forWhom: ModelCallFor,
 ): Promise<void> {
   const db = pg();
   if (!db || !forWhom.tenantId) return;
+  if (creditRanOut(call.error))
+    await pageOperator(
+      { db },
+      MODEL_CREDIT_PAGE_KEY,
+      "The model key's credit has run out",
+      `A ${purpose} call was refused: "${call.error?.message ?? ""}". Every model call (the receptionist, Ask, the drafts, ` +
+        `the lead finder) is refused until the key's credit is topped up in the Claude Console. The Console's Health ` +
+        `lists each refused call under Model calls.\n`,
+    ).catch((e: unknown) =>
+      logger({ tenant_id: forWhom.tenantId }).error("model_credit_page_failed", { error: errField(e) }),
+    );
   try {
     await recordModelUsage(
       db,
@@ -116,6 +141,7 @@ export async function recordCall(
         promptHash: forWhom.promptHash ?? null,
         userId: forWhom.userId ?? null,
         subjectId: forWhom.subjectId ?? null,
+        error: call.error ?? null,
       }),
     );
   } catch (e) {
@@ -179,7 +205,13 @@ export async function callModel(ask: ModelAsk, forWhom: ModelCallFor): Promise<M
   const r = await portAsk(key, ask, deps);
   await recordCall(
     ask.purpose,
-    { asked: r.asked, model: r.model, outcome: outcomeOf(r, forWhom), usage: r.usage },
+    {
+      asked: r.asked,
+      model: r.model,
+      outcome: outcomeOf(r, forWhom),
+      usage: r.usage,
+      error: r.outcome === "ok" ? null : { type: r.errorType, message: r.error },
+    },
     forWhom,
   );
   return r;

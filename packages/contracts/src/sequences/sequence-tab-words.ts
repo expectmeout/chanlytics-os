@@ -9,6 +9,7 @@ import { isReachOutHold, type ReachOutHold } from "../reach-out/reach-out-words"
 import { personHandWords, type HandKind } from "../reach-out/reach-out-hand";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
+import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words";
 import { addressOf } from "../activity/record-address";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
@@ -411,6 +412,13 @@ export function historyDays(batches: readonly SequenceBatchDto[], tz: string): n
   return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
 }
 
+/**
+ * Why a batch stopped, as its day says it: a failure of ours (a code, as campaign_stuck tells one) in the owner's words; a
+ * sentence a run kept from before codes, as it was written.
+ */
+const failureSaid = (failure: string): string =>
+  /^[a-z_]+(:[a-z]+)?$/.test(failure) ? `stopped: ${broadcastFailureWords(failure)}` : failure;
+
 /** A day's row: what it says at its end ("13 sent"), and under its time what came of them. */
 export function historyDayWords(b: SequenceBatchDto, place: string | null): { end: string; said: string } {
   const c = b.counts;
@@ -426,6 +434,7 @@ export function historyDayWords(b: SequenceBatchDto, place: string | null): { en
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);
   return {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
-    said: [place, parts.join(" · "), b.failure].filter(Boolean).join(" · "),
+    // Why a batch stopped, in the owner's words (its run's report said it there; a day that went opens Reports now).
+    said: [place, parts.join(" · "), b.failure ? failureSaid(b.failure) : null].filter(Boolean).join(" · "),
   };
 }

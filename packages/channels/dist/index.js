@@ -683,6 +683,12 @@ function errorOf(a) {
   const m = j && typeof j === "object" && j.error && typeof j.error.message === "string" ? j.error.message : null;
   return m ?? a.error ?? `status ${a.status}`;
 }
+function errorTypeOf(a) {
+  const j = a.json;
+  if (j && typeof j === "object" && j.error && typeof j.error.type === "string" && j.error.type) return j.error.type;
+  if (a.error === "timeout") return "timeout";
+  return a.status ? `status_${a.status}` : "network";
+}
 var neverCame = (a) => a.outcome === "unknown";
 var modelUnknown = (a) => a.status === 404;
 function messageOf(json) {
@@ -795,6 +801,7 @@ async function askModel(key, ask, deps = {}) {
       model,
       outcome: failure(a),
       error: errorOf(a),
+      errorType: errorTypeOf(a),
       detail: a.text.slice(0, 300),
       usage: NO_USAGE
     };
@@ -812,7 +819,14 @@ async function askModel(key, ask, deps = {}) {
 async function streamModel(key, ask, deps = {}) {
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
   if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
-  return { ...base, model, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
+  return {
+    ...base,
+    model,
+    outcome: failure(a),
+    error: errorOf(a),
+    errorType: errorTypeOf(a),
+    detail: a.text.slice(0, 300)
+  };
 }
 
 // src/models/typesafe.ts

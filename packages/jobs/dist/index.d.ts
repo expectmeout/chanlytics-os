@@ -349,9 +349,9 @@ interface JobContext {
     /**
      * The platform's own pager, for a condition that is the platform's: a
      * provider refusing sends with 401 or 403 is credentials, not content.
-     * Optional so a test context need not supply one.
+     * Optional so a test context need not supply one. The workspace rides along, so the pager can leave ours out (00469).
      */
-    page?: (key: string, subject: string, body: string) => Promise<unknown>;
+    page?: (key: string, subject: string, body: string, tenantId?: string | null) => Promise<unknown>;
     /**
      * Run a line's provisioning saga, or resume it. INJECTED, not imported:
      * the provider and the receptionist's credentials live on the edge, and a
@@ -646,9 +646,10 @@ interface TickPorts {
     alert(job: LedgerRow, news: JobNews): Promise<void>;
     /**
      * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
-     * platform's and never an owner's (ledger PAGES_THE_PLATFORM).
+     * platform's and never an owner's (ledger PAGES_THE_PLATFORM). The job's workspace rides along, so the pager can leave
+     * our own workspaces out (00469, decision 0068).
      */
-    page(key: string, subject: string, body: string): Promise<unknown>;
+    page(key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown>;
     log: TickLog;
     now(): number;
     /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */

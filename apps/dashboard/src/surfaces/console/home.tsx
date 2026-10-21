@@ -28,7 +28,7 @@ import { Figure } from "../kit/figure/figure";
 import { PageHead } from "../kit/head/page-head";
 import { pageDatelineParts } from "../kit/head/dateline";
 import { LinkButton } from "../kit/link-button/link-button";
-import { PlatformQueueCard } from "./health-cards";
+import { PlatformQueueCard } from "./waiting";
 import {
   NoneRow,
   ScreenFailed,

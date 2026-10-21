@@ -107,8 +107,9 @@ const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
 function spineLine(r: PlatformDayRowDto): string {
   const parts: string[] = [];
   const lanes = Object.entries(r.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
-  if (lanes.length) {
-    const [[lane0, ms0], ...rest] = lanes;
+  const [first, ...rest] = lanes;
+  if (first) {
+    const [lane0, ms0] = first;
     parts.push(
       [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`]
         .concat(rest.map(([lane, ms]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms)}`))

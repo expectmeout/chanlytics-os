@@ -1,14 +1,15 @@
 /**
- * A sequence's History, as its record draws it (sequences/history.tsx): each day is its run, a door to the run's one
- * screen at its home under the sequence (the Campaigns wiring review's lane 2), whatever the run is -- decided there while
- * it waits for an OK, its report once it went. A day that went opened in place, and a run had three views. And a period in
- * which nothing went out says so in one line, not four figures of nothing. Run here on the stub React, through the real
+ * A sequence's History, as its record draws it (sequences/history.tsx): History is the end of a sequence's own pages
+ * (Ruben, 21 Oct 2026). A day that went (or stopped) opens its report in Reports, its campaign narrowed to it over that day;
+ * one still to decide opens its run at its home under the sequence, where it is approved or skipped; a canceled one opens
+ * nothing. A day that went opened in place once, and a run had three views. And a period in which nothing went out says so
+ * in one line, not four figures of nothing. Run here on the stub React, through the real
  * component, with the record's history read answered by the test.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { SEQUENCE_HISTORY_WORDS, runRoute } from "@chanlytics/contracts";
+import { SEQUENCE_HISTORY_WORDS, campaignReportRoute, runRoute } from "@chanlytics/contracts";
 import { again, byTestId, fresh, installLegacyReact, settle, textOf, unmount } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
@@ -71,16 +72,35 @@ beforeEach(() => {
   values.setSurfaceValue("sequences", { sequences: [], timezone: TZ, word: "appointment" });
 });
 
-test("a day is the door to its run at its home, waiting for an OK or gone, never a day that opens in place", async () => {
-  historyIs([batch("b-wait", "pending_approval"), batch("b-went", "sent", { at: at(-60_000) })]);
+test("a day that went opens its report in Reports over that day; one waiting for an OK its run; one canceled nothing -- never a day that opens in place", async () => {
+  historyIs([
+    batch("b-wait", "pending_approval"),
+    batch("b-went", "sent", { at: at(-60_000) }),
+    batch("b-failed", "failed", { at: at(-120_000), failure: "after_hours" }),
+    batch("b-off", "canceled", { at: at(-180_000) }),
+  ]);
   const tree = await draw();
-  for (const id of ["b-wait", "b-went"]) {
-    const day = byTestId(tree, `sq-batch-${id}`);
-    assert.ok(day, `${id} is drawn`);
-    assert.ok(day.props.href.endsWith(runRoute(id, "q-1")), `its door is the run's home: ${day.props.href}`);
-    assert.equal(day.props["aria-expanded"], undefined, "it is a link, never a day that opens in place");
+  const hrefOf = (id) => byTestId(tree, `sq-batch-${id}`)?.props.href;
+  const day = { from: today(), to: today() };
+  const report = campaignReportRoute(day, { kind: "sequence", id: "q-1" });
+  for (const id of ["b-went", "b-failed"]) {
+    assert.ok(hrefOf(id)?.endsWith(report), `${id} opens its campaign in Reports over its day: ${hrefOf(id)}`);
   }
+  assert.ok(hrefOf("b-wait")?.endsWith(runRoute("b-wait", "q-1")), "one waiting for an OK opens where it is decided");
+  assert.ok(byTestId(tree, "sq-batch-b-off"), "a canceled day is drawn");
+  assert.equal(hrefOf("b-off"), undefined, "and opens nothing");
+  for (const id of ["b-wait", "b-went"])
+    assert.equal(
+      byTestId(tree, `sq-batch-${id}`).props["aria-expanded"],
+      undefined,
+      "a link, never a day that opens in place",
+    );
   assert.equal(byTestId(tree, "sq-day-run"), null, "and no door inside it to press a second time");
+  // Its own report over History's days is the head's door: Reports narrowed to it.
+  assert.match(
+    byTestId(tree, "sq-history-reports").props.href,
+    /reports\/campaigns:\d{4}-\d\d-\d\d~\d{4}-\d\d-\d\d:seq:q-1$/,
+  );
 });
 
 test("a period in which nothing went out says so once, not four figures of nothing; a day that went is counted", async () => {

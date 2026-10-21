@@ -2,6 +2,7 @@ import { write, account } from "@/server/route";
 import { ClientErrorInput } from "@chanlytics/contracts";
 import { log } from "@/server/log";
 import { memberContext } from "@/server/with-route";
+import { keepClientErrorRow } from "@/server/platform/health";
 
 /**
  * POST /api/v1/client-errors — {boundary, page, name, message, stack, digest}: an error a page hit in this member's
@@ -12,8 +13,10 @@ import { memberContext } from "@/server/with-route";
  * request, and a workspace they do not belong to is not taken, so a report cannot be filed under someone else's.
  * Counted, since a page in a render loop would otherwise send the same error for ever.
  *
- * Nothing is kept but the line: the report carries the error, never the person or what they were doing
- * (contracts shell/client-error.ts), and the logger redacts by key what an exception's words might carry.
+ * Kept besides for Health to group (client_errors, 00469; decision 0068): the error's fingerprint (the id Get help
+ * sends), its page, its first line, the build and the device, and a short hash of who, never the person, the workspace
+ * or the stack. The report carries the error, never what they were doing (contracts shell/client-error.ts), and the
+ * logger redacts by key what an exception's words might carry. A row that could not be kept leaves the line.
  */
 export const POST = write({
   scope: account,
@@ -31,7 +34,9 @@ export const POST = write({
       message: input.message,
       stack: input.stack,
       digest: input.digest,
+      build: input.build ?? null,
+      device: input.device ?? null,
     });
-    return { logged: true };
+    return { logged: true, kept: await keepClientErrorRow(ctx.userId, input) };
   },
 });

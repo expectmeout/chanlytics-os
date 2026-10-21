@@ -160,7 +160,16 @@ export interface AiUsageBody {
   shadow_confidence?: number | null;
   confident?: boolean | null;
   agrees?: boolean | null;
+  /**
+   * For a call that got no answer (rejected, unreachable): the API's error type and the first words of what it said
+   * (00469, decision 0068), so the reason outlives the log that held it. Null for an answer.
+   */
+  error_type?: string | null;
+  error_message?: string | null;
 }
+
+/** How much of a failed call's words the ledger keeps (the column's own bound, 00469). */
+export const AI_USAGE_ERROR_CHARS = 300;
 
 /** The ledger's row for one call, its dollars priced here. */
 export function aiUsageBodyOf(call: {
@@ -173,6 +182,8 @@ export function aiUsageBodyOf(call: {
   promptHash?: string | null;
   userId?: string | null;
   subjectId?: string | null;
+  /** What the API said of a call that got no answer; absent for an answer. */
+  error?: { type: string; message: string } | null;
 }): AiUsageBody {
   return {
     tenant_id: call.tenantId,
@@ -188,5 +199,19 @@ export function aiUsageBodyOf(call: {
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
     subject_id: call.subjectId ?? null,
+    ...(call.error
+      ? {
+          error_type: call.error.type.slice(0, 80) || null,
+          error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null,
+        }
+      : {}),
   };
+}
+
+/**
+ * Whether a refused call says the platform's key has run out of credit: every model call stops until it is topped up,
+ * so the platform is paged once (the model port, decision 0068), never an owner left to find it.
+ */
+export function creditRanOut(error: { type: string; message: string } | null | undefined): boolean {
+  return !!error && /credit balance/i.test(error.message);
 }

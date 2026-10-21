@@ -36,6 +36,8 @@ const bugs = await route("platform/support/bugs");
 const mark = await route("platform/support/mark");
 const resend = await route("platform/support/resend");
 const move = await route("platform/support/kind");
+const health = await route("platform/health");
+const redrive = await route("platform/deliveries/redrive");
 
 beforeEach(() => setRateStore(memoryStore()));
 afterEach(() => setServiceClient(null));
@@ -666,4 +668,205 @@ test("a report is moved to Health and back as the member's need, and sent again 
   await refused(resend.POST.run(post({ id: R1 }), ctxFor("support")), "conflict", 409, "sends no mail");
   const tried = world.platform_acts.at(-1);
   assert.deepEqual([tried.act, tried.outcome], ["report_resent", "refused"], "the press is written down, refused");
+});
+
+/* -------------------------------------------------------------------------------------------- Health (decision 0068) */
+
+/** What platform_health_parts answers: every list, quiet but for what a case says. */
+const quietParts = (over = {}) => ({
+  days: 30,
+  ...Object.fromEntries(
+    [
+      "sends",
+      "send_errors",
+      "calls",
+      "webhooks",
+      "billing",
+      "model",
+      "model_by_workspace",
+      "model_failures",
+      "deliveries",
+      "delivery_failures",
+      "ask",
+      "ask_traced",
+      "ask_tools",
+      "ask_by_workspace",
+      "ask_failures",
+      "ask_threads",
+      "lines",
+      "channels",
+      "google",
+      "mailboxes",
+    ].map((k) => [k, []]),
+  ),
+  ...over,
+});
+
+test("Health is one read for staff alone: every part read on its own, the clocks beside their judgement, a part of the wrong shape said as unread", async () => {
+  await refused(health.GET.run(get(), ctxFor("none")), "not_found", 404, "No such page.");
+  const asked = [];
+  const rpc = (name, answer) => ({ [name]: (args) => (asked.push([name, args]), answer) });
+  const world = {
+    tenants: [
+      { id: A, slug: "harbor", name: "Harbor", status: "active", ours: false, created_at: "2026-01-01T00:00:00Z" },
+      {
+        id: P1,
+        slug: "nightly",
+        name: "The nightly suite",
+        status: "active",
+        ours: true,
+        created_at: "2026-01-02T00:00:00Z",
+      },
+    ],
+    jobs: [
+      {
+        id: L1,
+        tenant_id: A,
+        kind: "booking_read",
+        lane: 1,
+        attempts: 3,
+        last_error: "resend answered 422",
+        state: "failed",
+        created_at: new Date(Date.now() - 3_600_000).toISOString(),
+        updated_at: new Date(Date.now() - 1_800_000).toISOString(),
+      },
+    ],
+    operator_pages: [
+      {
+        key: "numbers_past_target",
+        first_at: "2026-10-13T00:43:00Z",
+        last_at: "2026-10-21T00:43:00Z",
+        count: 9,
+        alerted_at: null,
+      },
+    ],
+    client_errors: [],
+  };
+  const clock = {
+    sweep: "health",
+    jobname: "sweep-health",
+    schedule: "13,43 * * * *",
+    judged_by: "request",
+    max_silence: "00:35:00",
+    last_run: null,
+    runs: 336,
+    failed: 0,
+    last_failure: null,
+  };
+  setServiceClient(
+    fakeDb(
+      world,
+      {},
+      {
+        ...rpc("platform_clocks", [clock]),
+        ...rpc("sweep_health", [
+          {
+            sweep: "health",
+            healthy: true,
+            detail: null,
+            last_request_at: "2026-10-21T11:43:00Z",
+            alerted_at: null,
+            scheduled: true,
+            status_code: 200,
+          },
+        ]),
+        ...rpc("jobs_backlog", 0),
+        ...rpc(
+          "platform_health_parts",
+          quietParts({
+            calls: [{ ours: false, status: "ended", reason: "user_hangup", n: 4, last_at: "2026-10-21T10:00:00Z" }],
+          }),
+        ),
+        ...rpc("platform_metrics_read", []),
+      },
+    ),
+  );
+  const h = await health.GET.run(get("?days=7"), ctxFor("support"));
+  assert.equal(h.days, 7);
+  assert.deepEqual(
+    asked
+      .filter(([n]) => n !== "sweep_health" && n !== "jobs_backlog")
+      .map(([n, args]) => [n, args.p_days])
+      .sort(),
+    [
+      ["platform_clocks", 7],
+      ["platform_metrics_read", 7],
+      ["platform_health_parts", 7],
+    ].sort(),
+    "the window is asked of every read that takes one",
+  );
+  assert.deepEqual(h.workspaces, [
+    { id: A, slug: "harbor", name: "Harbor", ours: false },
+    { id: P1, slug: "nightly", name: "The nightly suite", ours: true },
+  ]);
+  assert.deepEqual(
+    h.clocks.map((c) => [c.sweep, c.runs, c.healthy, c.last_request_at]),
+    [["health", 336, true, "2026-10-21T11:43:00Z"]],
+  );
+  assert.equal(h.backlog, 0);
+  assert.deepEqual(
+    h.failed_jobs.map((j) => [j.id, j.kind, j.attempts]),
+    [[L1, "booking_read", 3]],
+  );
+  assert.deepEqual(
+    h.pages.map((p) => [p.key, p.count]),
+    [["numbers_past_target", 9]],
+  );
+  assert.equal(h.parts.calls[0].n, 4);
+  assert.deepEqual(h.client_errors, []);
+
+  // A parts answer missing its lists is not drawn as a quiet platform: it is unread, and the rest still answer.
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    setServiceClient(
+      fakeDb(
+        world,
+        {},
+        {
+          platform_clocks: () => {
+            throw new Error("cron is gone");
+          },
+          sweep_health: () => [],
+          jobs_backlog: () => 2,
+          platform_health_parts: () => ({ days: 30, sends: [] }),
+          platform_metrics_read: () => [],
+        },
+      ),
+    );
+    const broken = await health.GET.run(get(), ctxFor("owner"));
+    assert.equal(broken.days, 30, "a month by default");
+    assert.equal(broken.parts, null);
+    assert.equal(broken.clocks, null);
+    assert.equal(broken.backlog, 2);
+    assert.equal(broken.failed_jobs.length, 1);
+  } finally {
+    console.error = quiet;
+  }
+});
+
+test("Deliver again is an act: Billing is refused before anything runs; Support's is written down first, then every failed delivery of the subscriber is scheduled once", async () => {
+  const empty = service();
+  await refused(
+    redrive.POST.run(post({ subscriber: "consent_notice", why: WHY }), ctxFor("billing")),
+    "forbidden",
+    403,
+    "Billing cannot do that",
+  );
+  assert.deepEqual(empty.platform_acts, []);
+
+  const asked = [];
+  const world = { platform_acts: [] };
+  setServiceClient(fakeDb(world, {}, { event_deliveries_redrive: (args) => (asked.push(args), 13) }));
+  assert.deepEqual(await redrive.POST.run(post({ subscriber: "consent_notice", why: WHY }), ctxFor("support")), {
+    subscriber: "consent_notice",
+    scheduled: 13,
+  });
+  assert.deepEqual(asked, [{ p_subscriber: "consent_notice" }]);
+  const [row] = world.platform_acts;
+  assert.deepEqual(
+    [row.act, row.tenant_id, row.target_kind, row.target_id, row.ticket, row.outcome, row.outcome_note],
+    ["delivery_redrive", null, "platform", "consent_notice", "R-1042", "done", "13 scheduled again."],
+  );
+  await refused(redrive.POST.run(post({ subscriber: "Not a subscriber", why: WHY }), ctxFor("support")), "validation");
 });

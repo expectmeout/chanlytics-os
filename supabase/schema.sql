@@ -17464,7 +17464,7 @@ CREATE FUNCTION public.platform_answer_silence(p_day date DEFAULT (((now() AT TI
   select pm.tenant_id, t.name, pm.asks
     from public.platform_metrics pm
     join public.tenants t on t.id = pm.tenant_id
-   where pm.day = p_day and pm.asks > 0 and pm.answered = 0 and t.status = 'active'
+   where pm.day = p_day and pm.asks > 0 and pm.answered = 0 and t.status = 'active' and not t.ours
    order by pm.asks desc, t.name
 $$;
 
@@ -17473,7 +17473,39 @@ $$;
 -- Name: FUNCTION platform_answer_silence(p_day date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active workspaces whose answer rate was zero on the day (00277): customers wrote, and nobody answered. The health sweep pages the platform with them.';
+COMMENT ON FUNCTION public.platform_answer_silence(p_day date) IS 'The active customers'' workspaces whose answer rate was zero on the day (00277; ours left out, 00469): customers wrote, and nobody answered. The health sweep pages the platform with them.';
+
+
+--
+-- Name: platform_clocks(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_clocks(p_days integer DEFAULT 7) RETURNS TABLE(sweep text, jobname text, schedule text, judged_by text, max_silence interval, last_run timestamp with time zone, runs integer, failed integer, last_failure text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select s.sweep, s.jobname, j.schedule, s.judged_by, s.max_silence,
+         r.last_run, coalesce(r.runs, 0)::integer, coalesce(r.failed, 0)::integer, r.last_failure
+    from public.sweep_status s
+    left join cron.job j on j.jobname = s.jobname
+    left join lateral (
+      select max(d.start_time) as last_run,
+             count(*) as runs,
+             count(*) filter (where d.status <> 'succeeded') as failed,
+             (array_agg(left(d.return_message, 200) order by d.start_time desc)
+                filter (where d.status <> 'succeeded'))[1] as last_failure
+        from cron.job_run_details d
+       where d.jobid = j.jobid and d.start_time > now() - make_interval(days => greatest(1, least(p_days, 14)))
+    ) r on true
+   order by s.sweep
+$$;
+
+
+--
+-- Name: FUNCTION platform_clocks(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_clocks(p_days integer) IS 'Every registered clock (sweep_status) with its pg_cron schedule and, over the last p_days (at most 14, the history kept), how many times it ran, how many of those failed, and the newest failure''s words: the Console''s Health (00469, decision 0068). Service role.';
 
 
 --
@@ -17543,6 +17575,209 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (00467, decision 0066): workspaces by name or address, owners by email, lines by number, a caller''s whole number (the workspace only, never who called), reports by their words or R-number. Staff on a session that showed its second factor; anyone else is refused.';
+
+
+--
+-- Name: platform_health_parts(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_health_parts(p_days integer DEFAULT 30) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with
+  win as (select now() - make_interval(days => greatest(1, least(p_days, 90))) as since,
+                 now() - make_interval(days => greatest(1, least(p_days, 7))) as week),
+  ws as (select t.id, t.ours from public.tenants t),
+  sends as (
+    select coalesce(w.ours, false) as ours, m.channel, m.status, count(*)::integer as n
+      from win, public.messages m left join ws w on w.id = m.tenant_id
+     where m.direction = 'outbound' and m.created_at > win.since
+     group by 1, 2, 3),
+  send_errors as (
+    select coalesce(w.ours, false) as ours, m.channel,
+           coalesce(m.error->>'code', m.error->'errors'->0->>'code', m.error->>'reason', 'unknown') as code,
+           max(left(coalesce(m.error->>'title', m.error->'errors'->0->>'title', m.error->>'message', ''), 120)) as title,
+           count(*)::integer as n, max(m.created_at) as last_at
+      from win, public.messages m left join ws w on w.id = m.tenant_id
+     where m.direction = 'outbound' and m.status = 'failed' and m.created_at > win.since
+     group by 1, 2, 3
+     order by n desc
+     limit 20),
+  calls as (
+    select coalesce(w.ours, false) as ours, c.status, coalesce(c.disconnection_reason, '') as reason,
+           count(*)::integer as n, max(c.created_at) as last_at
+      from win, public.calls c left join ws w on w.id = c.tenant_id
+     where c.created_at > win.since
+     group by 1, 2, 3),
+  webhooks as (
+    select coalesce(w.ours, false) as ours, p.provider, p.door, count(*)::integer as n,
+           count(*) filter (where not p.verified)::integer as unverified, max(p.received_at) as last_at
+      from win, public.provider_events p left join ws w on w.id = p.tenant_id
+     where p.received_at > win.week
+     group by 1, 2, 3),
+  billing as (
+    select b.type, b.state, count(*)::integer as n, max(b.received_at) as last_at
+      from win, public.billing_events b
+     where b.received_at > win.since
+     group by 1, 2),
+  model as (
+    select coalesce(w.ours, false) as ours, a.purpose, a.outcome, count(*)::integer as n,
+           round(coalesce(sum(a.usd), 0)::numeric, 4) as usd
+      from win, public.ai_usage a left join ws w on w.id = a.tenant_id
+     where a.created_at > win.since and not a.shadow
+     group by 1, 2, 3),
+  model_ws as (
+    select a.tenant_id, coalesce(w.ours, false) as ours, a.purpose, count(*)::integer as n,
+           round(coalesce(sum(a.usd), 0)::numeric, 4) as usd
+      from win, public.ai_usage a left join ws w on w.id = a.tenant_id
+     where a.created_at > win.since and not a.shadow
+     group by 1, 2, 3
+     order by usd desc
+     limit 40),
+  model_failures as (
+    select a.created_at as at, a.tenant_id, coalesce(w.ours, false) as ours, a.purpose, a.model, a.outcome,
+           a.error_type, a.error_message
+      from win, public.ai_usage a left join ws w on w.id = a.tenant_id
+     where a.created_at > win.since and a.outcome in ('rejected', 'unreachable')
+     order by a.created_at desc
+     limit 20),
+  deliveries as (
+    select coalesce(w.ours, false) as ours, d.subscriber, d.state, count(*)::integer as n, max(d.updated_at) as last_at
+      from win, public.event_deliveries d left join ws w on w.id = d.tenant_id
+     where d.created_at > win.since
+     group by 1, 2, 3),
+  delivery_failed as (
+    select d.event_id, d.subscriber, d.kind, d.tenant_id, coalesce(w.ours, false) as ours, d.attempts,
+           left(coalesce(d.last_error, ''), 200) as last_error, d.updated_at
+      from win, public.event_deliveries d left join ws w on w.id = d.tenant_id
+     where d.state = 'failed' and d.updated_at > win.since
+     order by d.updated_at desc
+     limit 30),
+  answers as (
+    select coalesce(w.ours, false) as ours, m.tenant_id, m.created_at,
+           nullif(m.content->>'latency_ms', '')::numeric as latency,
+           coalesce((m.content->>'failed')::boolean, false) as failed,
+           coalesce((m.content->>'ungrounded')::boolean, false) as ungrounded,
+           m.content->>'failure' as failure,
+           left(coalesce(m.content->>'text', ''), 160) as said,
+           case when jsonb_typeof(m.content->'shape') = 'object' then m.content->'shape' end as shape
+      from win, public.ask_messages m left join ws w on w.id = m.tenant_id
+     where m.role = 'assistant' and m.created_at > win.since),
+  traced as (
+    select a.ours, a.shape,
+           nullif(a.shape->>'first_text_ms', '')::numeric as first_text,
+           nullif(a.shape->>'context_ms', '')::numeric as context,
+           nullif(a.shape->>'first_byte_ms', '')::numeric as first_byte,
+           nullif(a.shape->>'final_ms', '')::numeric as final,
+           (select sum(x::numeric) from jsonb_array_elements_text(coalesce(a.shape->'rounds_ms', '[]'::jsonb)) x) as rounds_ms,
+           (select coalesce(sum((t->>'ms')::numeric), 0) from jsonb_array_elements(coalesce(a.shape->'tools_ms', '[]'::jsonb)) t) as tools_ms,
+           nullif(a.shape->>'rounds', '')::integer as rounds,
+           nullif(a.shape->>'cache_hit', '')::numeric as cache_hit,
+           a.shape->>'speed' as speed
+      from answers a
+     where a.shape is not null),
+  ask as (
+    select a.ours, count(*)::integer as answers,
+           count(*) filter (where a.failed)::integer as failed,
+           count(*) filter (where a.ungrounded)::integer as ungrounded,
+           percentile_cont(0.5) within group (order by a.latency) as latency_p50,
+           percentile_cont(0.95) within group (order by a.latency) as latency_p95,
+           max(a.latency) as latency_max
+      from answers a
+     group by grouping sets ((a.ours), ())),
+  ask_traced as (
+    select t.ours, count(*)::integer as traced,
+           percentile_cont(0.5) within group (order by t.first_text) as first_text_p50,
+           percentile_cont(0.95) within group (order by t.first_text) as first_text_p95,
+           percentile_cont(0.5) within group (order by t.context) as context_p50,
+           percentile_cont(0.95) within group (order by t.context) as context_p95,
+           percentile_cont(0.5) within group (order by t.first_byte) as first_byte_p50,
+           percentile_cont(0.95) within group (order by t.first_byte) as first_byte_p95,
+           percentile_cont(0.5) within group (order by t.rounds_ms) as rounds_p50,
+           percentile_cont(0.95) within group (order by t.rounds_ms) as rounds_p95,
+           percentile_cont(0.5) within group (order by t.tools_ms) as tools_p50,
+           percentile_cont(0.95) within group (order by t.tools_ms) as tools_p95,
+           percentile_cont(0.5) within group (order by t.final) as final_p50,
+           percentile_cont(0.95) within group (order by t.final) as final_p95,
+           count(*) filter (where t.rounds = 1)::integer as one_round,
+           count(*) filter (where t.rounds = 2)::integer as two_rounds,
+           count(*) filter (where t.rounds >= 3)::integer as more_rounds,
+           avg(t.cache_hit) as cache_hit,
+           count(*) filter (where t.speed = 'fast')::integer as fast
+      from traced t
+     group by grouping sets ((t.ours), ())),
+  ask_tools as (
+    select t.ours, x->>'name' as name, count(*)::integer as n,
+           avg((x->>'ms')::numeric) as avg_ms, max((x->>'ms')::numeric) as max_ms
+      from traced t, jsonb_array_elements(coalesce(t.shape->'tools_ms', '[]'::jsonb)) x
+     group by 1, 2
+     order by avg_ms desc
+     limit 24),
+  ask_ws as (
+    select a.tenant_id, a.ours, count(*)::integer as answers
+      from answers a
+     group by 1, 2),
+  ask_failures as (
+    select a.created_at as at, a.tenant_id, a.ours, a.failure, a.said
+      from answers a
+     where a.failed
+     order by a.created_at desc
+     limit 20),
+  threads as (
+    select coalesce(w.ours, false) as ours, count(*)::integer as n
+      from win, public.ask_threads t left join ws w on w.id = t.tenant_id
+     where t.created_at > win.since
+     group by 1),
+  troubled_lines as (
+    select l.tenant_id, coalesce(w.ours, false) as ours, l.kind, l.voice_state, l.sms_state, l.whatsapp_state,
+           left(coalesce(l.last_error, ''), 200) as error, l.state_since as since
+      from public.lines l left join ws w on w.id = l.tenant_id
+     where l.last_error is not null or l.voice_state = 'failed' or l.whatsapp_state = 'failed'),
+  troubled_channels as (
+    select c.tenant_id, coalesce(w.ours, false) as ours, c.kind, c.status, c.updated_at
+      from public.tenant_channels c left join ws w on w.id = c.tenant_id
+     where c.status <> 'active'),
+  troubled_google as (
+    select g.tenant_id, coalesce(w.ours, false) as ours, left(g.sync_error, 200) as error, g.last_synced_at
+      from public.google_connections g left join ws w on w.id = g.tenant_id
+     where g.sync_error is not null),
+  troubled_mailboxes as (
+    select b.tenant_id, coalesce(w.ours, false) as ours, b.provider, b.state, b.held_why,
+           left(coalesce(b.last_error, ''), 200) as error, b.last_error_at
+      from public.mailbox_connections b left join ws w on w.id = b.tenant_id
+     where b.removed_at is null and b.state in ('reconnect', 'paused', 'held'))
+  select jsonb_build_object(
+    'days', greatest(1, least(p_days, 90)),
+    'sends', coalesce((select jsonb_agg(to_jsonb(s)) from sends s), '[]'::jsonb),
+    'send_errors', coalesce((select jsonb_agg(to_jsonb(s)) from send_errors s), '[]'::jsonb),
+    'calls', coalesce((select jsonb_agg(to_jsonb(c)) from calls c), '[]'::jsonb),
+    'webhooks', coalesce((select jsonb_agg(to_jsonb(h)) from webhooks h), '[]'::jsonb),
+    'billing', coalesce((select jsonb_agg(to_jsonb(b)) from billing b), '[]'::jsonb),
+    'model', coalesce((select jsonb_agg(to_jsonb(m)) from model m), '[]'::jsonb),
+    'model_by_workspace', coalesce((select jsonb_agg(to_jsonb(m)) from model_ws m), '[]'::jsonb),
+    'model_failures', coalesce((select jsonb_agg(to_jsonb(f)) from model_failures f), '[]'::jsonb),
+    'deliveries', coalesce((select jsonb_agg(to_jsonb(d)) from deliveries d), '[]'::jsonb),
+    'delivery_failures', coalesce((select jsonb_agg(to_jsonb(d)) from delivery_failed d), '[]'::jsonb),
+    'ask', coalesce((select jsonb_agg(to_jsonb(a)) from ask a), '[]'::jsonb),
+    'ask_traced', coalesce((select jsonb_agg(to_jsonb(a)) from ask_traced a), '[]'::jsonb),
+    'ask_tools', coalesce((select jsonb_agg(to_jsonb(a)) from ask_tools a), '[]'::jsonb),
+    'ask_by_workspace', coalesce((select jsonb_agg(to_jsonb(a)) from ask_ws a), '[]'::jsonb),
+    'ask_failures', coalesce((select jsonb_agg(to_jsonb(a)) from ask_failures a), '[]'::jsonb),
+    'ask_threads', coalesce((select jsonb_agg(to_jsonb(t)) from threads t), '[]'::jsonb),
+    'lines', coalesce((select jsonb_agg(to_jsonb(l)) from troubled_lines l), '[]'::jsonb),
+    'channels', coalesce((select jsonb_agg(to_jsonb(c)) from troubled_channels c), '[]'::jsonb),
+    'google', coalesce((select jsonb_agg(to_jsonb(g)) from troubled_google g), '[]'::jsonb),
+    'mailboxes', coalesce((select jsonb_agg(to_jsonb(b)) from troubled_mailboxes b), '[]'::jsonb)
+  )
+$$;
+
+
+--
+-- Name: FUNCTION platform_health_parts(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_health_parts(p_days integer) IS 'Every part the Console''s Health draws, over the last p_days (at most 90; webhooks a week, as provider_events keeps): sends by channel and status with the providers'' failure codes, calls by outcome, webhooks by provider, billing events, model calls by purpose and outcome and by workspace with the failures'' reasons, event deliveries by subscriber, Ask''s answers with their percentiles, tools, failures and threads, and the lines, channels, Google syncs and mailboxes that are not healthy. Each keyed by whether its workspace is ours (00469, decision 0068). Nobody''s words. Service role.';
 
 
 --
@@ -30454,8 +30689,11 @@ CREATE TABLE public.ai_usage (
     shadow_confidence numeric(4,3),
     confident boolean,
     agrees boolean,
+    error_type text,
+    error_message text,
     CONSTRAINT ai_usage_cache_read_tokens_check CHECK ((cache_read_tokens >= 0)),
     CONSTRAINT ai_usage_cache_write_tokens_check CHECK ((cache_write_tokens >= 0)),
+    CONSTRAINT ai_usage_error_message_short CHECK (((error_message IS NULL) OR (char_length(error_message) <= 300))),
     CONSTRAINT ai_usage_input_tokens_check CHECK ((input_tokens >= 0)),
     CONSTRAINT ai_usage_model_asked_check CHECK (((char_length(model_asked) >= 1) AND (char_length(model_asked) <= 80))),
     CONSTRAINT ai_usage_model_check CHECK (((char_length(model) >= 1) AND (char_length(model) <= 80))),
@@ -30503,6 +30741,20 @@ COMMENT ON COLUMN public.ai_usage.question IS 'A shadow row''s question (contrac
 --
 
 COMMENT ON COLUMN public.ai_usage.agrees IS 'Whether the shadow''s label is the primary''s; null when either gave none.';
+
+
+--
+-- Name: COLUMN ai_usage.error_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.error_type IS 'For a call that got no answer (outcome rejected or unreachable): the API''s error type (invalid_request_error, overloaded_error), or timeout or network when no answer came (00469).';
+
+
+--
+-- Name: COLUMN ai_usage.error_message; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ai_usage.error_message IS 'For a call that got no answer: the first 300 characters of what the API said, or of the network''s words (00469).';
 
 
 --
@@ -30959,6 +31211,41 @@ COMMENT ON TABLE public.capability_activations IS 'One row per capability an own
 --
 
 COMMENT ON COLUMN public.capability_activations.deactivated_at IS 'Set when the owner switches the capability off again; the row stays, so the history of the decision does.';
+
+
+--
+-- Name: client_errors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.client_errors (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    fingerprint text NOT NULL,
+    boundary text NOT NULL,
+    page text,
+    name text NOT NULL,
+    message text NOT NULL,
+    build text,
+    device text,
+    member_key text,
+    CONSTRAINT client_errors_fingerprint_short CHECK ((char_length(fingerprint) <= 64)),
+    CONSTRAINT client_errors_message_short CHECK ((char_length(message) <= 300)),
+    CONSTRAINT client_errors_name_short CHECK ((char_length(name) <= 120))
+);
+
+
+--
+-- Name: TABLE client_errors; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.client_errors IS 'What a page hit in a member''s browser, as the boundary that caught it reported it (POST /api/v1/client-errors, 00469; decision 0068): the error''s fingerprint (its name, first line and page), the page, the build, the device. Never the person''s words nor a workspace: member_key is a short hash of who, so Health counts people without knowing who. Kept 30 days (purge-client-errors).';
+
+
+--
+-- Name: COLUMN client_errors.member_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.client_errors.member_key IS 'The first 16 hex of sha256 of the member''s id: who, counted and never named.';
 
 
 --
@@ -34585,6 +34872,7 @@ CREATE TABLE public.tenants (
     left_empty_at timestamp with time zone,
     logo_path text,
     appointment_word text,
+    ours boolean DEFAULT false NOT NULL,
     CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
@@ -34617,6 +34905,13 @@ COMMENT ON COLUMN public.tenants.logo_path IS 'The workspace''s own logo (00407)
 --
 
 COMMENT ON COLUMN public.tenants.appointment_word IS 'What this workspace calls a booking (0041 J4): appointment, visit, meeting, session or lesson. Words only: it changes no moment, run, list or send. Null where never picked, read as appointment (contracts appointmentWordOf). Owner-settable through PATCH workspaces, like the timezone (00084).';
+
+
+--
+-- Name: COLUMN tenants.ours; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.ours IS 'A workspace of ours (00469, decision 0068): the nightly suite''s, the smoke test, a trial we run by hand. Counted apart from customers on the Console''s Health, and left out of the pager. Every status test workspace is ours; ours does not take public pages away, as test does.';
 
 
 --
@@ -34828,6 +35123,14 @@ ALTER TABLE ONLY public.calls
 
 ALTER TABLE ONLY public.capability_activations
     ADD CONSTRAINT capability_activations_pkey PRIMARY KEY (tenant_id, capability);
+
+
+--
+-- Name: client_errors client_errors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_errors
+    ADD CONSTRAINT client_errors_pkey PRIMARY KEY (id);
 
 
 --
@@ -36057,6 +36360,20 @@ CREATE INDEX calls_tenant_started ON public.calls USING btree (tenant_id, starte
 --
 
 CREATE INDEX calls_transcript_words ON public.calls USING gin (to_tsvector('simple'::regconfig, COALESCE(transcript, ''::text)));
+
+
+--
+-- Name: client_errors_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX client_errors_at ON public.client_errors USING btree (at DESC);
+
+
+--
+-- Name: client_errors_fingerprint_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX client_errors_fingerprint_at ON public.client_errors USING btree (fingerprint, at DESC);
 
 
 --
@@ -40994,6 +41311,12 @@ CREATE POLICY capability_activations_owner_write ON public.capability_activation
 
 
 --
+-- Name: client_errors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.client_errors ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: contact_identities; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -45082,12 +45405,28 @@ GRANT ALL ON FUNCTION public.platform_answer_silence(p_day date) TO service_role
 
 
 --
+-- Name: FUNCTION platform_clocks(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_clocks(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_clocks(p_days integer) TO service_role;
+
+
+--
 -- Name: FUNCTION platform_find(p_q text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.platform_find(p_q text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO authenticated;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_health_parts(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_health_parts(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_health_parts(p_days integer) TO service_role;
 
 
 --
@@ -47455,6 +47794,13 @@ GRANT INSERT(deactivated_at) ON TABLE public.capability_activations TO authentic
 --
 
 GRANT INSERT(note) ON TABLE public.capability_activations TO authenticated;
+
+
+--
+-- Name: TABLE client_errors; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.client_errors TO service_role;
 
 
 --

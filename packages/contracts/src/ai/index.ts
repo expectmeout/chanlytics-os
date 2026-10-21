@@ -76,6 +76,8 @@ export {
   usageTokens,
   usageOf,
   aiUsageBodyOf,
+  AI_USAGE_ERROR_CHARS,
+  creditRanOut,
 } from "./usage";
 export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody } from "./usage";
 export {

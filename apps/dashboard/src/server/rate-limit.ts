@@ -188,6 +188,8 @@ export const RATE = {
    * an outage is fixed, so a support session's ceiling, and still a ceiling: each one is a job run again.
    */
   platform_job_requeue: { limit: 60, windowMs: HOUR_MS, noun: "jobs run again for other workspaces" },
+  /** A subscriber's failed deliveries scheduled again (Health, decision 0068): once its cause is mended, rarely more. */
+  platform_delivery_redrive: { limit: 20, windowMs: HOUR_MS, noun: "deliveries sent again" },
   /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */
   platform_partner_second_factor: { limit: 10, windowMs: HOUR_MS, noun: "second factors reset" },
   /**

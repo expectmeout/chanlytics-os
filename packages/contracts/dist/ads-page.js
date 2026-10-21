@@ -3801,8 +3801,15 @@ var REPORT_LENSES = [
     })
   }
 ];
+var campaignScopeKey = (scope) => scope.kind === "all" ? "all" : `seq:${scope.id}`;
+var isAdsScope = (scope) => scope.kind !== "sequence";
+function narrowedKey(id, scope) {
+  if (scope === null || scope.kind === "all") return null;
+  if (id === "ads" && isAdsScope(scope)) return adsScopeKey(scope);
+  return id === "campaigns" && scope.kind === "sequence" ? campaignScopeKey(scope) : null;
+}
 var lensRoute = (id, days = null, scope = null) => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+  const narrowed = narrowedKey(id, scope);
   if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
   const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
   return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;

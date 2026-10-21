@@ -13,6 +13,7 @@
   "campaigns/templates": "channels playbooks reach_outs settings",
   "channels": "channels",
   "console": "",
+  "console/health": "",
   "frame": "calendar live settings workspace",
   "frame/sidebar": "workspace",
   "frame/topbar": "calendar live",

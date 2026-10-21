@@ -79,6 +79,7 @@ const CONSEQUENCE: Record<string, string> = {
     "next month's events land in the catch-all partition, and that month's own partition can no longer be created until they are moved",
   purge_events: "the events stream grows without bound",
   purge_ask: "Ask transcripts are kept past their retention",
+  purge_client_errors: "the errors pages hit are kept past their thirty days",
   purge_notifications: "notifications are kept past their retention",
   purge_rate_hits: "the rate-limit ledger grows without bound, and every limit check reads a bigger table",
   purge_cron_history: "cron.job_run_details grows without bound, and this check reads a bigger table each time",

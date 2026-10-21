@@ -474,10 +474,11 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // passed, which is the opposite of what this test's own header promises.
     // Every helper the route imports from the platform module has to come after
     // the handle it needs.
-    // The Console's modules behind the door (decisions 0066, 0067): platform, its acts, its reads, its requests, Support.
+    // The Console's modules behind the door (decisions 0066, 0067, 0068): platform, its acts, its reads, its requests,
+    // Support, Health.
     const imported = [
       ...src.matchAll(
-        /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform\/(?:platform|acts|console|requests|support)"/g,
+        /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform\/(?:platform|acts|console|requests|support|health)"/g,
       ),
     ];
     assert.ok(imported.length, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform`);
@@ -1098,14 +1099,17 @@ useStubHooks(
 );
 const S = "../../../../apps/dashboard/src/surfaces/console";
 const { PlatformLine, SetupAndLines } = await import(`${S}/lines.tsx`);
-const { WaitingRow: PlatformWaitingRow, PlatformQueueCard } = await import(`${S}/health-cards.tsx`);
+const { WaitingRow: PlatformWaitingRow, PlatformQueueCard } = await import(`${S}/waiting.tsx`);
 const { PartnerRow: PlatformPartnerRow, PartnerStandingRow: PlatformPartnerStandingRow } = await import(
   `${S}/partner-rows.tsx`
 );
 const { WorkspacesScreen } = await import(`${S}/workspaces.tsx`);
 const { WorkspaceScreen } = await import(`${S}/workspace.tsx`);
 const { PartnersScreen } = await import(`${S}/partners.tsx`);
-const { HealthScreen } = await import(`${S}/health.tsx`);
+const { SpeedTab } = await import(`${S}/health/speed.tsx`);
+/** The back office's words the App speed tab reads, as the bridge hands them (legacy-bridge/platform.ts). */
+const { pageSpeedWords, platformDaysWords } = await import("@chanlytics/contracts");
+const WORDS = { vitalsWords: pageVitalsWords, speedWords: pageSpeedWords, daysWords: platformDaysWords };
 const { WorkspaceRow } = await import(`${S}/rows.tsx`);
 const { WhyAsk } = await import(`${S}/why.tsx`);
 const { consoleVerbs } = await import(`${S}/verbs.ts`);
@@ -1619,7 +1623,7 @@ test("a role is offered only the acts it may take: Billing sees a line, and no b
 });
 
 /** The Console's screens and rows, their source as one, whitespace folded. */
-const CONSOLE_FILES = ["workspaces", "workspace", "home", "lines", "partner-rows", "health-cards", "rows"];
+const CONSOLE_FILES = ["workspaces", "workspace", "home", "lines", "partner-rows", "waiting", "rows"];
 const consoleSource = () =>
   CONSOLE_FILES.map((f) => readCode(`apps/dashboard/src/surfaces/console/${f}.tsx`))
     .join("\n")
@@ -1922,26 +1926,19 @@ test("a mark that did not go through is said, and changes nothing on the page", 
 const p75 = (metric, page, samples, value) => ({ metric, page, samples, p75: value });
 
 test("Health's timings card: the 75th percentile in words, a line for each metric, and the slowest pages by name", async () => {
-  const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
-  backOffice.verbs = {
-    ...api([harbor]),
-    list: async () => ({
-      ok: true,
-      tenants: [harbor],
-      health: null,
-      queue: null,
-      partners: null,
-      vitals: [
-        p75("INP", null, 30, 610),
-        p75("LCP", null, 40, 2300),
-        p75("LCP", "inbox", 25, 3300),
-        p75("INP", "inbox", 20, 640),
-        p75("LCP", "today", 15, 1900),
-      ],
-      message: "",
-    }),
+  // Health's App speed tab draws it from Health's own read (decision 0068), the back office's words beside it.
+  const h = {
+    vitals: [
+      p75("INP", null, 30, 610),
+      p75("LCP", null, 40, 2300),
+      p75("LCP", "inbox", 25, 3300),
+      p75("INP", "inbox", 20, 640),
+      p75("LCP", "today", 15, 1900),
+    ],
+    speed: null,
+    day_rows: null,
   };
-  const page = mount(HealthScreen);
+  const page = mount(SpeedTab, { P: WORDS, h });
   await page.settle();
   assert.equal(
     textOf(byId(page.tree, "platform-vitals-words")),
@@ -1956,28 +1953,18 @@ test("Health's timings card: the 75th percentile in words, a line for each metri
   );
 });
 
-test("timings that could not be read say so, and an overview that predates them draws no card", async () => {
-  const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
-  backOffice.verbs = {
-    ...api([harbor]),
-    list: async () => ({
-      ok: true,
-      tenants: [harbor],
-      health: null,
-      queue: null,
-      partners: null,
-      vitals: null,
-      message: "",
-    }),
-  };
-  const unread = mount(HealthScreen);
+test("timings that could not be read say so, and none yet says that, never an empty card", async () => {
+  const unread = mount(SpeedTab, { P: WORDS, h: { vitals: null, speed: null, day_rows: null } });
   await unread.settle();
   assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings could not be read just now.");
   assert.equal(byId(unread.tree, "platform-vitals-lines"), null, "nothing is drawn, because nothing is known");
-  backOffice.verbs = api([harbor]);
-  const older = mount(HealthScreen);
-  await older.settle();
-  assert.equal(byId(older.tree, "platform-vitals"), null);
+  const none = mount(SpeedTab, { P: WORDS, h: { vitals: [], speed: null, day_rows: [] } });
+  await none.settle();
+  assert.match(
+    textOf(byId(none.tree, "platform-vitals-words")),
+    /^No page has sent its timings in the last \d+ days\.$/,
+  );
+  assert.equal(byId(none.tree, "platform-vitals-lines"), null);
 });
 
 /* ------------------------------------------------------------------------ partners (decision 0012, P5) */

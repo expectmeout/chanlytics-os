@@ -194,6 +194,8 @@ type ModelReply = (Asked & {
     outcome: "rejected" | "unreachable";
     /** The network's words, "timeout", or the API's error message. */
     error: string;
+    /** The API's error type (invalid_request_error, overloaded_error), or timeout or network when none answered. */
+    errorType: string;
     /** The API's own body, cut short, for the log. */
     detail: string;
     usage: ModelUsage;
@@ -205,6 +207,7 @@ type ModelStreamReply = (Asked & {
 }) | (Asked & {
     outcome: "rejected" | "unreachable";
     error: string;
+    errorType: string;
     detail: string;
 });
 interface ModelAsk {

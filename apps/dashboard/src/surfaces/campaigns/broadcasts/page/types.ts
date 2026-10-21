@@ -7,7 +7,6 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type {
   AskedPurpose,
   AudiencePreview,
-  BroadcastDto,
   BroadcastVM,
   ChannelsReady,
   ConsentChannel,
@@ -312,5 +311,4 @@ export type BcV = BcBase &
   BcSendActs &
   BcRunsOf & {
     sheetFor: (row: BroadcastVM | null) => BcSheet | null;
-    againFor: (b: BroadcastDto) => ReactNode;
   };

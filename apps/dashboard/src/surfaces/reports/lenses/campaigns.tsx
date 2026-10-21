@@ -14,7 +14,8 @@
  * and never the period it left under the new one's name. Every row of cards adds up to the grid's twelve columns.
  *
  * Four sections, in order: the lens (this file: the strip and the window's cards), the time between steps and what is stuck now
- * (campaigns-now.tsx), and the reach-outs, a part that names itself (campaigns-reach-outs.tsx).
+ * (campaigns-now.tsx), and the reach-outs, a part that names itself (campaigns-reach-outs.tsx). Over them, which campaign: every
+ * one, or one sequence, whose own cards stand in place of all four: a chunk fetched with the lens (campaigns-scope.ts).
  */
 import { useMemo } from "react";
 import type { CampaignReportVM } from "@chanlytics/contracts";
@@ -29,6 +30,7 @@ import { RPT_CHANNEL_COLORS, RPT_SENT } from "../series";
 import type { ReportsSurface } from "../surface";
 import { byMessageCard, failedWhyCard, heldCard, stoppedCard } from "./campaigns-mix";
 import { campaignsStuck, campaignsTime, failedRead } from "./campaigns-now";
+import type { CampaignsScopeHere } from "./campaigns-scope";
 import { reachOutsSection } from "./campaigns-reach-outs";
 import { LensEmpty, mixCard, type LensProps } from "./shared";
 
@@ -219,17 +221,23 @@ export function CampaignsLens({
   R,
   own,
   fold,
+  here,
 }: LensProps & {
   /** The lens's own read, and where it stands against the period shown. */
   own: Follower<CampaignsSurface>;
   /** Its fold (useCampaignsFold): drawn only while that is of the period shown. */
   fold: CampaignLensVM | null;
+  /** Which campaign the address names, and one sequence's read where it names one. */
+  here: CampaignsScopeHere;
 }) {
+  const parts = here.parts;
+  if (here.scope.kind === "sequence") return parts ? <parts.OneLens here={here} R={R} /> : null;
   const shown = shownFold(own, fold);
   if (shown === null) return null;
   return (
     <>
       <RptSection title="Campaigns" bare>
+        {parts ? <parts.Row here={here} R={R} /> : null}
         {failedCards(shown)}
         {windowBody(R, shown)}
       </RptSection>

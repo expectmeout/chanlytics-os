@@ -60,6 +60,11 @@
     "fresh": "Read as words are typed into Find, a pause after the last key.",
     "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
   },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/health": {
+    "kind": "on-open",
+    "fresh": "Read as Health opens and when its window changes, and again after Run again or Deliver again.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0068)."
+  },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/home": {
     "kind": "on-open",
     "fresh": "Read as Home or Workspaces opens, and again after an act taken there.",
@@ -250,5 +255,20 @@
     "kind": "on-open",
     "fresh": "Read as New message's Write to leads opens, and again by its retry after a read that failed (sources.tsx).",
     "why": "What a reach-out can start from is each search or list with someone to write to and no sequence yet; the choice is open for the moment a pick takes, and a search that gains leads meanwhile is there the next time Write to leads opens."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences": {
+    "kind": "on-open",
+    "fresh": "Read once the Campaigns lens's picker is reached for (a pointer over it, its focus, a press), and held while the page stays.",
+    "why": "It is the list of campaigns the picker offers; a sequence made while the page is open is offered after a reload, and the one the address names is listed whatever the list says."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as Reports › Campaigns opens on one campaign, and again as its days or its campaign change or Retry is pressed.",
+    "why": "Its name, its steps and its clock, which change rarely; the cards say what it sent, not what it is about to do."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences/[id]/history": {
+    "kind": "on-open",
+    "fresh": "Read with the record, a page at a time back to the first day shown, and again as the days or the campaign change or Retry is pressed.",
+    "why": "A report of days that went: a send that lands while it is open is counted at the next read, as Reports' other lenses are read for the period picked."
   }
 }

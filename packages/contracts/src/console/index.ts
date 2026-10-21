@@ -137,6 +137,63 @@ export type {
   SupportFilter,
   SupportCounts,
 } from "./support-queue";
+export { HEALTH_SCOPES, HEALTH_SCOPE_WORDS, inScope, oursOf, workspaceNamer } from "./health-scope";
+export type { HealthScope, HealthWorkspaceDto } from "./health-scope";
+export {
+  HEALTH_WINDOWS,
+  HEALTH_STATE_WORDS,
+  HEALTH_TABS,
+  HEALTH_TAB_WORDS,
+  HEALTH_WORDS,
+  secondsWords,
+  dollarsWords,
+  healthTilesOf,
+  healthLooksOf,
+  healthTabOf,
+  healthPathOf,
+  healthCounts,
+  healthSentence,
+  healthQuietWords,
+} from "./health";
+export type {
+  FailedJobDto,
+  ClientErrorDto,
+  HealthWindow,
+  HealthDto,
+  HealthState,
+  HealthTab,
+  HealthTileVM,
+  HealthSeverity,
+  HealthAct,
+  HealthLookVM,
+} from "./health";
+export {
+  scheduleWords,
+  clocksOf,
+  pageKeyWords,
+  subscriberWords,
+  pagesOf,
+  jobWords,
+  failureReadingOf,
+} from "./health-clocks";
+export type { HealthClockDto, ClockState, ClockVM, OperatorPageDto, PageVM } from "./health-clocks";
+export { promiseDaysOf } from "./health-promises";
+export type { PromiseCellState, PromiseCellVM, PromiseRowVM } from "./health-promises";
+export { sendsOf, callsOf, webhooksOf, modelCallsOf, deliveriesOf, connectionsOf } from "./health-parts";
+export type {
+  HealthPartsDto,
+  SendChannelVM,
+  SendsVM,
+  CallsVM,
+  WebhooksVM,
+  ModelCallsVM,
+  DeliveriesVM,
+  ConnectionVM,
+} from "./health-parts";
+export { healthAskOf } from "./health-ask";
+export type { HealthAskStageVM, HealthAskVM } from "./health-ask";
+export { errorGroupsOf, errorGroupReport } from "./health-errors";
+export type { ErrorGroupVM, ErrorGroupsVM } from "./health-errors";
 export { playbookOf, setupAskMail, supportMeanwhile } from "./support-playbooks";
 export type { PlaybookFill, SupportPlaybook } from "./support-playbooks";
 export {
@@ -156,6 +213,8 @@ export {
   SupportMarkSchema,
   SupportResendSchema,
   SupportKindSchema,
+  HealthQuerySchema,
+  DeliveryRedriveSchema,
   ActsQuerySchema,
 } from "./console-schema";
 export type { ConsoleWhyInput } from "./console-schema";

@@ -10,8 +10,11 @@ import type { BackOffice } from "./platform";
  * loudly: a read that fails leaves the back office's other cards standing and says it could not be read (null), and
  * a database 00277 has not reached has no days to show (none).
  */
-export async function platformDays(office: BackOffice): Promise<PlatformDayRowDto[] | null> {
-  const r = await office.db.rpc("platform_metrics_read", { p_days: PLATFORM_DAYS_READ.days }).then(
+export async function platformDays(
+  office: BackOffice,
+  days: number = PLATFORM_DAYS_READ.days,
+): Promise<PlatformDayRowDto[] | null> {
+  const r = await office.db.rpc("platform_metrics_read", { p_days: days }).then(
     (x) => x,
     () => ({ data: null, error: { code: "unreachable", message: "unreadable" } }),
   );

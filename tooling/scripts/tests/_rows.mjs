@@ -39,6 +39,7 @@ const DEFAULTS = {
       slug: `example-${id.slice(-6)}`,
       locale: "en",
       status: "active",
+      ours: false,
       timezone: "America/New_York",
       created_at: AT,
       updated_at: AT,

@@ -22,7 +22,7 @@ export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInli
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
-export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf } from "./ai/usage";
+export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, AI_USAGE_ERROR_CHARS, creditRanOut } from "./ai/usage";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue, ASK_STYLE_PAGE, ASK_STYLE_MAX, answerStyleOf } from "./ask-proposals/follow-ups";
@@ -129,6 +129,13 @@ export { policyLinks, optInConfirmation, confirmationNameOf, verbalOptInScript, 
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsubscribe";
 export { STAFF_ROLES, STAFF_ROLE_WORDS, STAFF_STATES, staffName, CONSOLE_ACTS, CONSOLE_ACT_KEYS, LINE_ACTS, staffMay, staffCannotWords, staffSees, staffCannotSeeWords, staffSeesScreen, REASON_KINDS, REASON_WORDS, REASON_LIMITS, whyWords, ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CONSOLE_SCREENS, CONSOLE_SCREEN_WORDS, CONSOLE_WORKSPACE_TABS, CONSOLE_WORKSPACE_TAB_WORDS, consoleAddressOf, consolePathOf, CONSOLE_GROUP_WORDS, consoleGroupOf, consoleGroups, verdictPill, CLAIM_MS, claimWords, consoleNumbersOf, consoleNumbersFrom, homeSentence, CONSOLE_WORDS } from "./console/console";
 export { CONSOLE_PATH } from "./console/console-path";
+export { HEALTH_WINDOWS, HEALTH_STATE_WORDS, HEALTH_TABS, HEALTH_TAB_WORDS, HEALTH_WORDS, secondsWords, dollarsWords, healthTilesOf, healthLooksOf, healthTabOf, healthPathOf, healthCounts, healthSentence, healthQuietWords } from "./console/health";
+export { healthAskOf } from "./console/health-ask";
+export { scheduleWords, clocksOf, pageKeyWords, subscriberWords, pagesOf, jobWords, failureReadingOf } from "./console/health-clocks";
+export { errorGroupsOf, errorGroupReport } from "./console/health-errors";
+export { sendsOf, callsOf, webhooksOf, modelCallsOf, deliveriesOf, connectionsOf } from "./console/health-parts";
+export { promiseDaysOf } from "./console/health-promises";
+export { HEALTH_SCOPES, HEALTH_SCOPE_WORDS, inScope, oursOf, workspaceNamer } from "./console/health-scope";
 export { REQUEST_KINDS, REQUEST_KIND_WORDS, REQUEST_STEP_KEYS, REQUEST_STEPS, requestDueAt, requestClock, requestCode, privacyRequestOf, requestDayWords, requestsInOrder, requestStepChange, REQUEST_WORDS } from "./console/requests";
 export { reportCode, pageWords, reportOf, supportClusters, SETUP_ASK_WORDS, askCode, askDoneOf, SUPPORT_TOPICS, supportTopicOf, SUPPORT_KIND_WORDS, supportPathOf, inboxSearchUrl, inboxHomeUrl, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, SUPPORT_WORDS } from "./console/support";
 export { playbookOf, setupAskMail, supportMeanwhile } from "./console/support-playbooks";
@@ -315,10 +322,11 @@ export { sendWindowsOf, timetable, SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME, TIMET
 export { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, REACH_OUT_BODY_MAX, REACH_OUT_WORDS_MAX, OPENING_WORDS_MAX, OPENING_CHARS_MAX, ANGLE_WORDS_MAX, REACH_OUT_STEPS_MAX, REACH_OUT_NAME_MAX, SIGNED_BY_MAX, REACH_OUT_GAP_MINUTES, REACH_OUT_AFTER_DAYS, slotCount, reachOutSlotFault, reachOutRules, wordsNeedOpening, wordCount, emailWordCount, linksIn, linkCount, shoutingLine, validateReachOutWords, wordsIssueWords, validateReachOutChain, chainIssueWords, OPENING_FACT_KEYS, isOpeningFactKey, factValue, OPENING_PROBLEMS, isOpeningProblem, checkOpening, openingProblemWords, CHAIN_MIN_LISTINGS, chainOf, customerDomainOf, REACH_OUT_HOLDS, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, reachOutCountryOf, isReachOutHold, holdWords, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, HOLD_DOOR_WORDS } from "./reach-out/reach-out-words";
 export { zoneOfRegion, US_STATE_ZONES } from "./reach-out/us-zones";
 export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./reports/booking-report";
+export { CAMPAIGN_CHOICE_GROUPS, CAMPAIGN_SCOPE_WORDS, campaignChoicesOf, campaignOneOf } from "./reports/campaign-one";
 export { toCampaignReportVM } from "./reports/campaign-report";
 export { isCampaignLedgerSeriesDto, isCampaignStuckRawDto, campaignLedgerDtoOf } from "./reports/campaigns/campaign-record";
 export { lensAnswerOf } from "./reports/lens-answer";
-export { REPORT_LENSES, LENS_ROUTES, adsReportRoute, lensRoute, reviewRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
+export { REPORT_LENSES, LENS_ROUTES, adsReportRoute, campaignReportRoute, isAdsScope, lensRoute, reviewRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty, CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./reports/lenses";
 export { peopleNowOf } from "./reports/people/people-now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/people-record";
 export { reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";

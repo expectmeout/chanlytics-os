@@ -1076,3 +1076,53 @@ test("the tick's clock is the door's: a relay that took the claim window leaves 
   assert.deepEqual([job.state, job.attempts, message.status], ["scheduled", 0, "queued"], "the next heartbeat's");
   assert.deepEqual(L.left().graph, [], "nothing left for WhatsApp");
 });
+
+/* ------------------------------------------------------- ours (0068) */
+
+test("a delivery that fails for good in one of our own workspaces is Health's, never a page; a customer's pages the platform (decision 0068)", async () => {
+  for (const ours of [true, false]) {
+    const L = ledger();
+    const ws = L.workspace({ whatsapp: false });
+    const at = iso(Date.now() - 60_000);
+    L.tables.tenants = [{ id: ws.T, status: "active", ours }];
+    L.tables.event_subscriptions = [
+      { kind: "appointment.changed", subscriber: "reach_out_booked", lane: 2, paused: false, created_at: at },
+    ];
+    // The relay wrote the delivery; its event has since gone from the ledger, so the delivery fails for good.
+    L.tables.event_deliveries = [
+      {
+        event_id: "e-gone",
+        subscriber: "reach_out_booked",
+        tenant_id: ws.T,
+        kind: "appointment.changed",
+        event_at: at,
+        state: "scheduled",
+        job_id: null,
+        attempts: 0,
+        last_error: null,
+        created_at: at,
+        updated_at: at,
+      },
+    ];
+    L.tables.jobs.push({
+      id: `job-deliver-${ours}`,
+      tenant_id: ws.T,
+      kind: "event_deliver",
+      payload: { event_id: "e-gone", subscriber: "reach_out_booked", kind: "appointment.changed", lane: "2" },
+      due_at: iso(Date.now() - 1_000),
+      lane: 2,
+      state: "scheduled",
+      attempts: 0,
+      lease_until: null,
+    });
+    await listening(async () => {
+      await knock();
+    });
+    assert.equal(L.tables.event_deliveries[0].state, "failed", "the delivery is failed either way");
+    assert.deepEqual(
+      L.tables.operator_pages.map((p) => p.key),
+      ours ? [] : ["event_deliver_failed:reach_out_booked"],
+      ours ? "our own workspace's failure is shown under Ours, never paged" : "a customer's is the platform's to hear",
+    );
+  }
+});

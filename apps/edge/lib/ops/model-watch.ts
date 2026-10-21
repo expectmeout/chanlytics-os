@@ -12,7 +12,7 @@
  * The usage ledger keeps its rows RETENTION_DAYS.ai_usage days: the older ones go on the same tick.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { aiFailuresHour, purgeAiUsage, type AiFailures, type Database } from "../packages/db.js";
+import { aiFailuresHour, purgeAiUsage, workspaceIsOurs, type AiFailures, type Database } from "../packages/db.js";
 import { pageOperator, type PagePorts } from "./page-operator.js";
 import { logger, errField } from "../log.js";
 
@@ -43,6 +43,8 @@ export async function watchModels(
   let purged = 0;
   try {
     for (const f of await aiFailuresHour(db, MODEL_FAILURES_PAGE_AT)) {
+      // Our own workspaces page nobody (decision 0068): the nightly suite's failures show on Health, under Ours.
+      if (await workspaceIsOurs(db, f.tenant_id)) continue;
       const page = describeModelFailures(f);
       try {
         // Only a page that went out is counted: one held back in its window, unaddressed or failed is not.

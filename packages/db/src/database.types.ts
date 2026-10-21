@@ -41,6 +41,8 @@ export type Database = {
           cache_write_tokens: number
           confident: boolean | null
           created_at: string
+          error_message: string | null
+          error_type: string | null
           id: number
           input_tokens: number
           model: string
@@ -66,6 +68,8 @@ export type Database = {
           cache_write_tokens?: number
           confident?: boolean | null
           created_at?: string
+          error_message?: string | null
+          error_type?: string | null
           id?: never
           input_tokens?: number
           model: string
@@ -91,6 +95,8 @@ export type Database = {
           cache_write_tokens?: number
           confident?: boolean | null
           created_at?: string
+          error_message?: string | null
+          error_type?: string | null
           id?: never
           input_tokens?: number
           model?: string
@@ -883,6 +889,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      client_errors: {
+        Row: {
+          at: string
+          boundary: string
+          build: string | null
+          device: string | null
+          fingerprint: string
+          id: string
+          member_key: string | null
+          message: string
+          name: string
+          page: string | null
+        }
+        Insert: {
+          at?: string
+          boundary: string
+          build?: string | null
+          device?: string | null
+          fingerprint: string
+          id?: string
+          member_key?: string | null
+          message: string
+          name: string
+          page?: string | null
+        }
+        Update: {
+          at?: string
+          boundary?: string
+          build?: string | null
+          device?: string | null
+          fingerprint?: string
+          id?: string
+          member_key?: string | null
+          message?: string
+          name?: string
+          page?: string | null
+        }
+        Relationships: []
       }
       contact_identities: {
         Row: {
@@ -6770,6 +6815,7 @@ export type Database = {
           locale: string
           logo_path: string | null
           name: string
+          ours: boolean
           slug: string
           status: string
           timezone: string
@@ -6783,6 +6829,7 @@ export type Database = {
           locale?: string
           logo_path?: string | null
           name: string
+          ours?: boolean
           slug: string
           status?: string
           timezone?: string
@@ -6796,6 +6843,7 @@ export type Database = {
           locale?: string
           logo_path?: string | null
           name?: string
+          ours?: boolean
           slug?: string
           status?: string
           timezone?: string
@@ -8745,6 +8793,20 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      platform_clocks: {
+        Args: { p_days?: number }
+        Returns: {
+          failed: number
+          jobname: string
+          judged_by: string
+          last_failure: string
+          last_run: string
+          max_silence: string
+          runs: number
+          schedule: string
+          sweep: string
+        }[]
+      }
       platform_find: {
         Args: { p_q: string }
         Returns: {
@@ -8756,6 +8818,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      platform_health_parts: { Args: { p_days?: number }; Returns: Json }
       platform_metrics_read: {
         Args: { p_days?: number }
         Returns: {

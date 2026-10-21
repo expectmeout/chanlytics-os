@@ -61,13 +61,6 @@
 .sq-group-act {
   margin-left: auto;
 }
-/* First contact's line at the foot of Your customers: a quiet door to its settings, a thumb tall. */
-.sq-foot-link {
-  align-self: flex-start;
-  min-height: var(--control-h-touch);
-  padding: 0 var(--space-2);
-  color: var(--ink-dim);
-}
 .sq-reading {
   min-height: var(--space-20);
 }

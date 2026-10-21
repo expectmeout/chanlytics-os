@@ -4,10 +4,11 @@
  *
  * One run, opened, as the canvas's After board draws it: what went out and what came back, by the run's own people.
  * Five figures, everyone it touched in the words of what happened to them, every reply quoted with what has happened
- * since, and, for a run that stopped, why and what to do next. The words are the contracts' (toRunReportVM, through
- * `broadcasts.report`); this draws them. It is the pane beside the list (parts/split.tsx), drawn in every state it can
- * be in -- being read, gone, unread, a reach-out's block, a run's approval sheet, its report -- and it is read when it
- * opens.
+ * since. The words are the contracts' (toRunReportVM, through `broadcasts.report`); this draws them. It is the pane beside
+ * the list (parts/split.tsx), drawn in every state it can be in -- being read, gone, unread, a reach-out's block, a run's
+ * approval sheet, its report while it can still change -- and it is read when it opens. A run that is done (sent, failed,
+ * canceled, skipped) is read in Reports (Ruben, 21 Oct 2026): its campaign narrowed to it, over its day (contracts
+ * campaignReportRoute), and the pane moves there as the run is read.
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
@@ -17,9 +18,11 @@ import {
   runStillMoving,
   runStopWords,
   runTitleOf,
+  campaignReportRoute,
   sequenceRoute,
 } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
+import { goToRoute } from "@/legacy-bridge/workspace";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -30,11 +33,12 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate, gatedProps, navigate, touchSwipe } from "../../legacy-verbs";
+import { gate, gatedProps, navigate, replaceRoute, touchSwipe } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
 import { CmPane, useCmPhone } from "../parts/split";
 import { ReachOutRun, RoRunDock, roRunHead, roRunWaits } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
+import { seeOverNow } from "../../see/see-over";
 import { starters } from "../templates/verbs";
 import { BcSheet, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
@@ -115,14 +119,10 @@ interface BcPaneHead {
 
 /**
  * What the pane's head says of a run: its state beside its name, and under it when it went, whose it is, how many, and
- * the template it sent. Its verbs (`tools`) are the run's, and Send it again.
+ * the template it sent. Its verbs (`tools`) are the run's.
  */
-function bcRunHead(p: {
-  d: BroadcastDetailDto;
-  acts: ReactNode;
-  again: ((b: BroadcastDto) => ReactNode) | null;
-}): BcPaneHead {
-  const { d, acts, again } = p;
+function bcRunHead(p: { d: BroadcastDetailDto; acts: ReactNode }): BcPaneHead {
+  const { d, acts } = p;
   const b = d.broadcast;
   const playbookId = b.playbook_id;
   const when = bcWhen(b.started_at || b.scheduled_for);
@@ -154,12 +154,7 @@ function bcRunHead(p: {
         </span>
       </>
     ),
-    tools: (
-      <>
-        {acts}
-        {again && again(b)}
-      </>
-    ),
+    tools: acts,
   };
 }
 
@@ -275,25 +270,10 @@ function bcTouched(p: { vm: RunReportVM; filter: RunFilterId; setFilter: (filter
   );
 }
 
-/** Beside the people: why it stopped, and what came back. */
+/** Beside the people: what came back. A run that stopped is done, and Reports says why (its sends' own words). */
 function bcAside(vm: RunReportVM) {
   return (
     <div className="bc-report-aside">
-      {/* Why it stopped and what to do next, in the run's own words: a failed run never says "something went wrong". */}
-      {vm.stop && (
-        <section className="bc-card" data-testid="bc-stopped">
-          <span className="bc-card-title">Why it stopped</span>
-          <div className="bc-stop-box" data-tone={vm.stop.tone}>
-            <span className="bc-stop-dot" aria-hidden="true" />
-            <span className="bc-stop-text">
-              <span className="bc-stop-line" data-testid="bc-detail-failure">
-                It stopped: <strong>{vm.stop.words}</strong>.
-              </span>
-              {vm.stop.fix && <span className="bc-stop-fix">{vm.stop.fix}</span>}
-            </span>
-          </div>
-        </section>
-      )}
       <section className="bc-card" data-testid="bc-back">
         <span className="bc-card-title">What came back</span>
         <p className="bc-card-lede">
@@ -380,13 +360,39 @@ function bcDecidedPane(ask: BcDecidedAsk): ReactNode {
   );
 }
 
+/** Where a run that is done is read: its campaign in Reports, over the day it went (or was to go). */
+function reportRouteOf(b: BroadcastDto): string {
+  const at = Date.parse(b.started_at || b.scheduled_for);
+  const day = b.run_for ?? (Number.isNaN(at) ? null : pageClock().dayKey(at));
+  return campaignReportRoute(day ? { from: day, to: day } : null, { kind: "sequence", id: b.sequence_id });
+}
+
+/**
+ * A run that is done, moving to its report in Reports as it is read: over a page (a mention opened in place) the move leaves
+ * that page, so the sheet goes with it; at its home it takes the run's place, so Back never lands on a run that moves again.
+ */
+function RunToReport({ b, pane }: { b: BroadcastDto; pane: (head: BcPaneHead, body: ReactNode) => ReactNode }) {
+  const to = reportRouteOf(b);
+  useEffect(() => {
+    if (seeOverNow()) goToRoute(to, { home: true });
+    else replaceRoute(to);
+  }, [to]);
+  return pane(
+    { title: b.name },
+    <div className="bc-report" data-testid="bc-detail">
+      <div className="bc-report-wait">
+        <span className="cl-prof-aut-hint">Opening its report…</span>
+      </div>
+    </div>,
+  );
+}
+
 interface BroadcastDetailProps {
   id: string;
   /** The name the list's row has for it, which the pane's head says while the report is read (else "Run"). */
   name?: string | null;
   onClose: () => void;
   acts?: ReactNode;
-  again?: ((b: BroadcastDto) => ReactNode) | null;
   sheet?: BcSheetAsk | null;
   /** The page's toast, where the page has one: a reach-out run's Take out says its receipt there, with Put back. */
   flash?: Flash | null;
@@ -397,7 +403,6 @@ export function BroadcastDetail({
   name = null,
   onClose,
   acts = null,
-  again = null,
   sheet = null,
   flash = null,
 }: BroadcastDetailProps) {
@@ -509,9 +514,11 @@ export function BroadcastDetail({
   const onSeeAll = () => setSeeAll((v) => !v);
   const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, flash, pane });
   if (decided) return decided;
+  // Done, it is read in Reports; while it can still change (scheduled, going out) its report stands here with its Stop.
+  if (!BC_LIVE.has(b.state)) return <RunToReport b={b} pane={pane} />;
   const vm = broadcasts.report(d);
   return pane(
-    bcRunHead({ d, acts, again }),
+    bcRunHead({ d, acts }),
     <div className="bc-report" data-testid="bc-detail">
       {b.params.length > 0 && bcValues(b)}
       {bcFigures(vm)}

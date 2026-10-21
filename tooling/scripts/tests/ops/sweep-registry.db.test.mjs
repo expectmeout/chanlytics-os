@@ -71,6 +71,8 @@ const EVERY_CLOCK = {
   // The moments, the check and the leads' send clock run on one clock since 00449 (decision 0060, S2).
   playbooks: "sequences-clock",
   purge_ask: "purge-ask",
+  // 00469: the browser errors Health groups, kept thirty days.
+  purge_client_errors: "purge-client-errors",
   purge_cron_history: "purge-cron-history",
   purge_events: "purge-events",
   purge_notifications: "purge-notifications",
@@ -124,6 +126,7 @@ const RUN_JUDGED = [
   "pauses",
   "platform_metrics_roll",
   "purge_ask",
+  "purge_client_errors",
   "purge_config_versions",
   "purge_cron_history",
   "purge_events",

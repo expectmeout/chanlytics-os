@@ -141,7 +141,7 @@
   },
   "apps/dashboard/src/surfaces/campaigns/campaigns.css": {
     "font": 9,
-    "radius": 14,
+    "radius": 13,
     "shadow": 0,
     "colour": 1,
     "blur": 0

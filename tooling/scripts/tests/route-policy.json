@@ -1310,7 +1310,22 @@
       "rate": "platform_claim",
       "spend": false
     },
+    "POST platform/deliveries/redrive": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_delivery_redrive",
+      "spend": false,
+      "act": "delivery_redrive"
+    },
     "GET platform/find": {
+      "kind": "read",
+      "scope": "platform",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET platform/health": {
       "kind": "read",
       "scope": "platform",
       "role": null,

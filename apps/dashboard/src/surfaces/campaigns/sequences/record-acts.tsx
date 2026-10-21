@@ -1,8 +1,8 @@
 /**
  * A sequence's acts around its tabs (decision 0060; the phone review of 16 Oct 2026). The head's one act on a desk (Start,
  * Pause, or Turn on, which asks first: decision 7) and its More: on a phone Pause or Turn on and Skip first, then Cancel
- * this send for a one-off waiting for its day, Run now where its first step runs today, Rename, Who approves (its class,
- * said, changed in Autonomy) and Ask about it, so the head stays Back, a name and More. The one notice (D8) says what needs
+ * this send for a one-off waiting for its day, Send it again for a one-off that went, Run now where its first step runs
+ * today, Rename, Who approves (its class, said, changed in Autonomy) and Ask about it, so the head stays Back, a name and More. The one notice (D8) says what needs
  * you most: on a desk above the tabs with its acts, on a phone in the dock at the foot (phoneFootOf): its line, its one
  * fact and at most two acts, the dock gone where nothing needs you. A question an act asks stands where the notice stood,
  * or in a phone's dock. Every press is a verb (verbs.ts `pressed`): the campaign's own for a state, a name and a run now,
@@ -26,6 +26,7 @@ import {
   sequenceRunsNow,
   sequenceTwinOf,
   sequenceWhoApprovesHint,
+  sendOnceRoute,
   type AskScope,
   type SequenceRecordDto,
   type SequenceTab,
@@ -37,9 +38,12 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { Notice } from "../../kit/notice/notice";
 import { StatePill } from "../../kit/pill/state-pill";
-import { askAbout, gate, navigate, routeDoor } from "../../legacy-verbs";
+import { keepTabDraft } from "../../kit/record/work";
+import { askAbout, gate, navigate, refusalToast, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { runDetail } from "../broadcasts/detail-read";
+import { keptSendOf } from "./new/kept-send";
 import { useSequenceRead } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
@@ -119,6 +123,22 @@ export function useRecordActs(
       if (!row.date) return;
       await press("run", { broadcast_id: row.date.batch_id, verb: "skip", name: row.name, people: row.date.people });
       setAsking(null);
+    },
+    /**
+     * Send it again (a one-off that went): its last run read for what it sent, kept for the tab as the send New opens on,
+     * and New's Send once opened, where it is checked against what can go now and sent as a new one-off.
+     */
+    sendAgain: async () => {
+      if (!row.last) return;
+      setBusy(true);
+      const r = await runDetail(row.last.id);
+      setBusy(false);
+      if (!r.ok) {
+        flash(refusalToast(r));
+        return;
+      }
+      keepTabDraft("broadcast", keptSendOf(r.data.broadcast));
+      navigate(sendOnceRoute());
     },
     /** Paused, or on again: a sequence's state is its first step's, the campaign's own verb (its receipt, its undo). */
     turn: async (state: "paused" | "running") => {
@@ -241,8 +261,8 @@ function phoneItems(a: RecordActs): MenuItem[] {
 }
 
 /**
- * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Run now, Rename, Who approves
- * (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it. On a desk it rides
+ * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Send it again, Run now, Rename, Who
+ * approves (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it. On a desk it rides
  * the head's act as its caret (Ruben, 20 Oct 2026: no three dots where a pill can carry it), or is its own pill, its word
  * and a caret, where no act stands; a phone's head is the caret alone, its acts in the dock.
  */
@@ -258,6 +278,15 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
       disabled: a.busy,
       gate: allowed,
       onSelect: () => a.setAsking("cancel"),
+    });
+  if (row.starts === "date" && row.last)
+    items.push({
+      label: A.sendAgain,
+      glyph: <Icon name="send" size={13} />,
+      title: A.sendAgainTip,
+      disabled: a.busy,
+      gate: gate("approve", "send a message"),
+      onSelect: () => void a.sendAgain(),
     });
   if (sequenceRunsNow(row, { tz: a.rec.timezone, nowMs: Date.now() }))
     items.push({

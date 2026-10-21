@@ -12,7 +12,13 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, ClientErrorInput, clientErrorOf } from "@chanlytics/contracts";
+import {
+  CLIENT_ERROR_BOUNDARIES,
+  CLIENT_ERROR_LIMITS,
+  ClientErrorInput,
+  clientErrorOf,
+  errorIdOf,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
@@ -30,9 +36,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setBearerVerifier } = await import(at("apps/dashboard/src/server/bearer.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/client-errors/route.ts"));
 
-beforeEach(() => setRateStore(memoryStore()));
+/** What the service role keeps of each report: Health's rows (client_errors, 00469). */
+let kept;
+beforeEach(() => {
+  setRateStore(memoryStore());
+  kept = { client_errors: [] };
+  setServiceClient(fakeDb(kept));
+});
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -162,7 +175,7 @@ test("through the real route wrapper: the report is a client_error line under th
     ),
   );
   assert.equal(result.status, 200);
-  assert.deepEqual((await result.json()).data, { logged: true });
+  assert.deepEqual((await result.json()).data, { logged: true, kept: true });
   assert.equal(result.headers.get("x-request-id"), PLATFORM_ID, "the answer carries the request's name");
   const line = lines.find((l) => l.event === "client_error");
   assert.ok(line, `a client_error line was written: ${lines.map((l) => l.event).join(", ")}`);
@@ -182,8 +195,45 @@ test("through the real route wrapper: the report is a client_error line under th
     message: "Could not reach …@example.com or …0142",
     stack: "at Inbox (app-shell.jsx:12:3) token=[redacted]",
     digest: null,
+    build: null,
+    device: null,
   });
   assert.ok(!JSON.stringify(line).includes("ana@example.com"), "what an exception quoted stays out of the log");
+});
+
+test("a report is kept for Health (00469): its fingerprint the id Get help sends, its first line, its build and device, and a hash of who, never the stack nor the workspace", async () => {
+  signedInWith([membership(A, "harbor")]);
+  const message = "Cannot read properties of undefined (reading 'id')\n    at Row (inbox.tsx:40:2)";
+  const { result } = await said(() =>
+    send(post(report({ workspace: A, message, build: "3de53f9a1c2b", device: "phone" }))),
+  );
+  assert.equal(result.status, 200);
+  assert.equal(kept.client_errors.length, 1);
+  const row = kept.client_errors[0];
+  assert.deepEqual(
+    [row.fingerprint, row.boundary, row.page, row.name, row.message, row.build, row.device],
+    [
+      errorIdOf("inbox", "TypeError", message),
+      "shell",
+      "inbox",
+      "TypeError",
+      "Cannot read properties of undefined (reading 'id')",
+      "3de53f9a1c2b",
+      "phone",
+    ],
+  );
+  assert.match(row.member_key, /^[0-9a-f]{16}$/, "a short hash of who");
+  assert.notEqual(row.member_key, "u-1");
+  assert.ok(
+    !("stack" in row) && !("tenant_id" in row) && !("workspace" in row),
+    "never the stack, never the workspace",
+  );
+
+  // A table that will not take the row costs the report nothing: the line is written, and the answer says so.
+  setServiceClient(fakeDb({ client_errors: [] }, { "client_errors.insert": { message: "down", code: "57P01" } }));
+  const { result: unkept, lines } = await said(() => send(post(report({ message: "another" }))));
+  assert.deepEqual((await unkept.json()).data, { logged: true, kept: false });
+  assert.ok(lines.some((l) => l.event === "client_error") && lines.some((l) => l.event === "client_error_not_kept"));
 });
 
 test("a workspace the member does not belong to is no name: the line is theirs alone, never filed under someone else's", async () => {
@@ -239,6 +289,21 @@ test("the browser's reporter sends each error once, five at most a load, as JSON
   });
   assert.equal(throwing("root", new Error("y"), null), false, "never a second error");
   assert.equal(clientErrorReporter(undefined)("root", new Error("z"), null), false, "no beacon at all");
+});
+
+test("the reporter says the build that ran and the device it ran on, as field data names them; with neither known it says none", async () => {
+  const beacons = [];
+  const nav = { sendBeacon: (url, blob) => (beacons.push(blob), true) };
+  clientErrorReporter(
+    nav,
+    () => A,
+    () => ({ build: "3de53f9a1c2b", device: "phone" }),
+  )("os", new Error("a"), "inbox");
+  clientErrorReporter(nav)("os", new Error("b"), "inbox");
+  const [ran, unknown] = await Promise.all(beacons.map(async (b) => JSON.parse(await b.text())));
+  assert.deepEqual([ran.build, ran.device], ["3de53f9a1c2b", "phone"]);
+  assert.deepEqual([unknown.build, unknown.device], [null, null]);
+  assert.equal(ClientErrorInput.safeParse(ran).success, true, "what it sends, the route takes");
 });
 
 test("the shell's boundary says what it caught as an event on the window, and the host sends it; unhooked, it hears nothing", async () => {

@@ -680,6 +680,20 @@ export {
 } from "./repositories/console/support";
 export type { SupportReportInsert, ReportSide } from "./repositories/console/support";
 export { fileRequest, requestById, setRequestSteps, listRequests } from "./repositories/console/requests";
+export {
+  healthClocks,
+  healthSweeps,
+  healthBacklog,
+  healthFailedJobs,
+  healthPages,
+  healthParts,
+  healthWorkspaces,
+  workspaceIsOurs,
+  keepClientError,
+  healthClientErrors,
+  redriveDeliveries,
+} from "./repositories/console/health";
+export type { ClientErrorInsert } from "./repositories/console/health";
 export type { PrivacyRequestInsert } from "./repositories/console/requests";
 export {
   readLeadOne,

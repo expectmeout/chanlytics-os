@@ -39,7 +39,8 @@ export const CONSOLE_ACTS = {
   report_moved: { words: "Move a report between Support and Health", roles: SUPPORT_ROLES },
   ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
   ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
-  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES }
+  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES },
+  delivery_redrive: { words: "Deliver a subscriber's failures again", roles: SUPPORT_ROLES }
 };
 export const CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS);
 export const LINE_ACTS = {
