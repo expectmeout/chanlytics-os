@@ -1426,7 +1426,10 @@ test("the mailboxes you write from: under their own row, each in contracts' word
     ["google", null],
     ["microsoft", null],
   ]);
-  assert.ok(byTestId(tree, "mailbox-admin-link"), "beside Microsoft, the link for an organisation whose admin approves");
+  assert.ok(
+    byTestId(tree, "mailbox-admin-link"),
+    "beside Microsoft, the link for an organisation whose admin approves",
+  );
   tree = settle(Connections);
   assert.equal(byTestId(tree, "mailbox-records-sam@getharbor.com"), null, "every record found: none to add");
 });
@@ -1520,7 +1523,10 @@ test("the owner's acts: pause at once, settings judged before they are sent, rem
 
   asRole("operator");
   tree = render(Connections);
-  assert.match(textOf(byTestId(tree, "connected-mailboxes")), /Only an owner can connect, pause, resume or remove a mailbox/);
+  assert.match(
+    textOf(byTestId(tree, "connected-mailboxes")),
+    /Only an owner can connect, pause, resume or remove a mailbox/,
+  );
   assert.equal(byTestId(tree, "mailbox-remove-sam@getharbor.com"), null);
   // The partner sets the workspace up (ROLE_PERMS settings), as the doors' own role check admits them: nothing gated.
   asRole("partner");
@@ -1547,7 +1553,10 @@ test("a mailbox's row says its day and its health; an SPF record its domain has 
   const tree = render(Connections);
   const sam = byTestId(tree, "mailbox-sam@getharbor.com");
   assert.match(textOf(sam), /12 of 20 today/);
-  assert.equal(textOf(byTestId(tree, "mailbox-health-sam@getharbor.com")), "0.4% bounced · 2 said no · none marked as spam");
+  assert.equal(
+    textOf(byTestId(tree, "mailbox-health-sam@getharbor.com")),
+    "0.4% bounced · 2 said no · none marked as spam",
+  );
   assert.match(textOf(sam), /Change its SPF record below/);
   const table = byTestId(tree, "mailbox-records-sam@getharbor.com");
   assert.match(textOf(table), /v=spf1 include:mailgun\.org include:_spf\.google\.com ~all/);
@@ -1577,8 +1586,15 @@ test("a sign-in a Microsoft 365 admin must approve: the note hands the owner the
   asRole("owner");
   const links = [];
   Object.assign(connectedMailboxes, {
-    outcome: () => ({ ok: false, words: "Your organisation's Microsoft 365 admin approves Chanlytics once.", code: "admin_consent" }),
-    adminLink: async () => (links.push(1), { ok: true, data: { url: "https://login.microsoftonline.com/organizations/v2.0/adminconsent?x" } }),
+    outcome: () => ({
+      ok: false,
+      words: "Your organisation's Microsoft 365 admin approves Chanlytics once.",
+      code: "admin_consent",
+    }),
+    adminLink: async () => (
+      links.push(1),
+      { ok: true, data: { url: "https://login.microsoftonline.com/organizations/v2.0/adminconsent?x" } }
+    ),
   });
   try {
     emailSeam({ providers: ["microsoft"], mailboxes: [] });

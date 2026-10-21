@@ -31,8 +31,7 @@ export const MAILBOX_READ_MS = 10_000;
  * proves it never left.
  */
 export type FoundSent =
-  | { found: true; id: string; threadId: string | null; messageId: string | null }
-  | { found: false; draftId?: string };
+  { found: true; id: string; threadId: string | null; messageId: string | null } | { found: false; draftId?: string };
 
 /** How far before an email's own row a look for it in Sent starts: the provider's clock and ours may differ. */
 export const FIND_SENT_SLACK_MS = 2 * MIN_MS;
@@ -238,11 +237,23 @@ const HARD_WORDS =
   /does ?n[o']t exist|no such (?:user|mailbox|recipient)|user unknown|unknown (?:user|recipient)|recipient not found|address not found|invalid recipient|mailbox unavailable|account (?:is )?(?:disabled|inactive)|bad destination|not a valid|NonExistentDomain|domain (?:name )?(?:not found|does not exist)/i;
 /** Gmail's 5.2.1 for an account receiving too fast to take more: passing, unlike its 5.2.1 for a disabled account. */
 const RECEIVING_TOO_FAST = /receiving mail at a rate|\brate limit/i;
-const MAILBOX_FULL_WORDS = /mailbox (?:is )?full|over ?quota|out of storage|QuotaExceededException|insufficient storage/i;
+const MAILBOX_FULL_WORDS =
+  /mailbox (?:is )?full|over ?quota|out of storage|QuotaExceededException|insufficient storage/i;
 
 /** The enhanced codes whose class is settled by the code itself, by its provider's own table. */
 const HARD_CODES = new Set(["5.1.1", "5.1.2", "5.1.3", "5.1.6", "5.1.10", "5.7.504", "5.7.505"]);
-const SENDER_LIMIT_CODES = new Set(["5.1.8", "5.1.90", "5.4.5", "5.2.121", "5.7.232", "5.7.233", "5.7.236", "5.7.705", "5.7.708", "5.7.750"]);
+const SENDER_LIMIT_CODES = new Set([
+  "5.1.8",
+  "5.1.90",
+  "5.4.5",
+  "5.2.121",
+  "5.7.232",
+  "5.7.233",
+  "5.7.236",
+  "5.7.705",
+  "5.7.708",
+  "5.7.750",
+]);
 
 /**
  * Whose fault a bounce is, by the receiving server's own words first and its code second (BounceClass); a code nobody

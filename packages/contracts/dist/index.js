@@ -26619,7 +26619,7 @@ var MAILBOX_HOLDS = ["bounces", "complaint", "unsubscribes"];
 var MAILBOX_DNS_RECORDS = ["spf", "dkim", "dmarc", "mx"];
 var MAILBOX_CONNECTIONS_MAX = 10;
 var MAILBOXES_PER_DOMAIN_MAX = 3;
-var MAILBOX_DAILY_CAP_MAX = 50;
+var MAILBOX_DAILY_CAP_MAX = 40;
 var CUSTOMER_DOMAIN_DAILY_MAX = 20;
 var MAILBOX_RAMP = [
   { days: 0, perDay: 10 },
@@ -26644,13 +26644,17 @@ function mailboxSendsNow(m, nowMs) {
 function reachOutWritesFrom(m, named) {
   return m.state !== "removed" && (named.length === 0 || named.includes(m.id));
 }
-function mailboxConnectionDtoOf(r2) {
+var SPF_RECORD_MAX = 4096;
+var SPF_RECORDS_JOIN = " | ";
+function mailboxConnectionDtoOf(r2, day = null) {
   const dns = {};
-  if (r2.dns && typeof r2.dns === "object")
-    for (const k of MAILBOX_DNS_RECORDS) {
-      const v = r2.dns[k];
-      if (v === "found" || v === "missing") dns[k] = v;
-    }
+  const raw = r2.dns && typeof r2.dns === "object" ? r2.dns : {};
+  for (const k of MAILBOX_DNS_RECORDS) {
+    const v = raw[k];
+    if (v === "found" || v === "missing") dns[k] = v;
+  }
+  const spfRecord = typeof raw.spf_record === "string" && raw.spf_record.trim() ? raw.spf_record.trim().slice(0, SPF_RECORD_MAX) : null;
+  const lookups = Number(raw.spf_lookups);
   return {
     id: r2.id,
     provider: r2.provider === "microsoft" ? "microsoft" : "google",
@@ -26666,10 +26670,14 @@ function mailboxConnectionDtoOf(r2) {
     customer_domain: r2.customer_domain,
     sent_days: Math.max(0, Math.floor(Number(r2.sent_days) || 0)),
     dns,
+    spf_record: spfRecord,
+    spf_lookups: Number.isInteger(lookups) && lookups >= 0 ? lookups : null,
     dns_checked_at: r2.dns_checked_at,
     last_error: r2.last_error,
     connected_at: r2.connected_at,
-    sent_at: r2.sent_at
+    sent_at: r2.sent_at,
+    sent_today: day?.sent_today ?? null,
+    counts: day?.counts ?? null
   };
 }
 var COUNT_FLOOR = 150;
@@ -26678,20 +26686,20 @@ function mailboxHoldOf(c) {
   if (!c) return null;
   const of = Math.max(c.sent, COUNT_FLOOR);
   if (c.complained > 0) return "complaint";
-  if (c.bounced * 100 > HOLD_PERCENT * of) return "bounces";
+  if ((c.bounced + c.blocked) * 100 > HOLD_PERCENT * of) return "bounces";
   if (c.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
   return null;
 }
 var HOLD_WORDS = {
-  bounces: "more than 3% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
-  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to unsubscribed"
 };
 function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
 }
 var HOLD_FIX_WORDS = {
-  bounces: "Check the addresses it writes to, then resume it.",
+  bounces: "Check the addresses it writes to and its domain's records below, then resume it.",
   complaint: "Read the email again (a clear reason for writing, and fewer a day), then resume it.",
   unsubscribes: "Write to fewer, and to the ones it fits best, then resume it."
 };
@@ -26702,11 +26710,17 @@ var MAILBOX_PROVIDER_WORDS = { google: "Google", microsoft: "Microsoft" };
 function mailboxHealthWords(c) {
   if (!c || !c.sent) return null;
   const pct2 = Math.round(c.bounced / c.sent * 1e3) / 10;
-  const no = c.unsubscribed ? `${c.unsubscribed} said no` : "nobody said no";
-  const spam = c.complained ? `${c.complained} marked as spam` : "none marked as spam";
-  return `${pct2}% bounced \xB7 ${no} \xB7 ${spam}`;
+  const parts2 = [
+    `${pct2}% bounced`,
+    c.blocked ? `${c.blocked} refused by the server` : null,
+    c.unsubscribed ? `${c.unsubscribed} unsubscribed` : null,
+    c.said_no ? `${c.said_no} said no` : null,
+    c.complained ? `${c.complained} marked as spam` : "none marked as spam"
+  ];
+  return parts2.filter(Boolean).join(" \xB7 ");
 }
-function mailboxWords(m, nowMs, sentToday = null) {
+function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
+  const health = mailboxHealthWords(m.counts ?? null);
   const cap2 = mailboxDailyCap(m);
   const step2 = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
   const left = step2 ? step2.days - m.sent_days : 0;
@@ -26727,7 +26741,7 @@ function mailboxWords(m, nowMs, sentToday = null) {
       tone: "plain",
       day: "You paused it: nothing leaves from it.",
       ramp,
-      health: null,
+      health,
       fix: null
     };
   if (m.state === "held") {
@@ -26737,7 +26751,7 @@ function mailboxWords(m, nowMs, sentToday = null) {
       tone: "warn",
       day: `${since ? `Held since ${since}` : "Held"}: ${mailboxHoldWords(m.held_why)}.`,
       ramp: null,
-      health: null,
+      health,
       fix: mailboxHoldFixWords(m.held_why)
     };
   }
@@ -26749,17 +26763,26 @@ function mailboxWords(m, nowMs, sentToday = null) {
       tone: "warn",
       day: `${MAILBOX_PROVIDER_WORDS[m.provider]}'s own daily limit: it sends again from ${clockOf(m.resting_until)}.`,
       ramp,
-      health: null,
+      health,
       fix: null
     };
-  const missing = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx" && m.dns[k] === "missing");
+  const named = MAILBOX_DNS_RECORDS.filter((k) => k !== "mx");
+  const missing = named.filter((k) => m.dns[k] === "missing");
+  const add = missing.filter((k) => !(k === "spf" && m.spf_record));
+  const change = missing.includes("spf") && !!m.spf_record;
+  const unread = named.some((k) => !m.dns[k]);
+  const fix = [
+    add.length ? `Add its ${add.map((k) => k.toUpperCase()).join(" and ")} record below.` : null,
+    change ? "Change its SPF record below." : null,
+    !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null
+  ].filter(Boolean).join(" ") || null;
   return {
     pill: sentToday !== null && sentToday >= cap2 ? "Done for today" : "Connected",
     tone: sentToday !== null && sentToday >= cap2 ? "warn" : "ok",
     day: sentToday === null ? `Up to ${cap2} a day` : `${sentToday} of ${cap2} today`,
     ramp,
-    health: null,
-    fix: missing.length ? `Add its ${missing.map((k) => k.toUpperCase()).join(" and ")} record below.` : null
+    health,
+    fix
   };
 }
 var CLOCK_FMT = formatterOnUse("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -26776,9 +26799,28 @@ function mailboxActs(m) {
 }
 var DMARC_RECOMMENDED = "v=DMARC1; p=none;";
 var SPF_INCLUDE = {
-  google: "v=spf1 include:_spf.google.com ~all",
-  microsoft: "v=spf1 include:spf.protection.outlook.com -all"
+  google: "include:_spf.google.com",
+  microsoft: "include:spf.protection.outlook.com"
 };
+var SPF_LOOKUPS_MAX = 10;
+var spfAll = (t) => /^[+\-~?]?all$/i.test(t);
+function spfRecordWith(existing, provider) {
+  const include = SPF_INCLUDE[provider];
+  const records = (existing ?? "").split(SPF_RECORDS_JOIN).map((r2) => r2.trim().split(/\s+/).filter(Boolean)).filter((terms2) => /^v=spf1$/i.test(terms2[0] ?? ""));
+  const has3 = (terms2) => terms2.some((t) => t.replace(/^\+/, "").toLowerCase() === include);
+  if (records.length > 1) {
+    const named = [
+      ...new Set(records.flatMap((terms2) => terms2.slice(1)).filter((t) => !spfAll(t) && !/^redirect=/i.test(t)))
+    ];
+    return ["v=spf1", ...named, ...has3(named) ? [] : [include], "~all"].join(" ");
+  }
+  const terms = records[0];
+  if (!terms) return `v=spf1 ${include} ~all`;
+  if (has3(terms)) return terms.join(" ");
+  const at3 = terms.findIndex((t, i) => i > 0 && (spfAll(t) || /^redirect=/i.test(t)));
+  if (at3 < 0) return [...terms, include].join(" ");
+  return [...terms.slice(0, at3), include, ...terms.slice(at3)].join(" ");
+}
 var DKIM_WHERE = {
   google: {
     name: "google._domainkey",
@@ -26789,32 +26831,41 @@ var DKIM_WHERE = {
     value: "Turned on in Microsoft Defender: Email authentication settings \u203A DKIM"
   }
 };
+function spfNote(m) {
+  if (!m.spf_record) return null;
+  const who = MAILBOX_PROVIDER_WORDS[m.provider];
+  const many = m.spf_record.split(SPF_RECORDS_JOIN).length;
+  const change = many > 1 ? `Your domain has ${many} SPF records, and with more than one none of them counts: replace them all with this one, which keeps every sender they name and adds ${who}.` : `Your domain has an SPF record already, and it may have only one: change it to this, which keeps every sender it names and adds ${who}.`;
+  const after = m.spf_lookups === null || many > 1 ? null : m.spf_lookups;
+  return after !== null && after > SPF_LOOKUPS_MAX ? `${change} It would then spend ${after} of SPF's ${SPF_LOOKUPS_MAX} lookups and fail: ask whoever manages your DNS to shorten it first.` : change;
+}
 function mailboxRecordRows(m) {
+  const stateOf2 = (k) => m.dns[k] ?? "unread";
+  const spf = { provider: m.provider, spf_record: m.spf_record ?? null, spf_lookups: m.spf_lookups ?? null };
+  const row2 = (key, r2, note) => ({
+    key,
+    ...r2,
+    found: stateOf2(key) === "found",
+    state: stateOf2(key),
+    note: stateOf2(key) === "found" ? null : note
+  });
   return [
-    {
-      key: "spf",
-      kind: "Sender (SPF)",
-      type: "TXT",
-      name: "@",
-      value: SPF_INCLUDE[m.provider],
-      found: m.dns.spf === "found"
-    },
-    {
-      key: "dkim",
-      kind: "Signing (DKIM)",
-      type: m.provider === "microsoft" ? "CNAME" : "TXT",
-      name: DKIM_WHERE[m.provider].name,
-      value: DKIM_WHERE[m.provider].value,
-      found: m.dns.dkim === "found"
-    },
-    {
-      key: "dmarc",
-      kind: "Policy (DMARC)",
-      type: "TXT",
-      name: "_dmarc",
-      value: DMARC_RECOMMENDED,
-      found: m.dns.dmarc === "found"
-    }
+    row2(
+      "spf",
+      { kind: "Sender (SPF)", type: "TXT", name: "@", value: spfRecordWith(spf.spf_record, m.provider) },
+      spfNote(spf)
+    ),
+    row2(
+      "dkim",
+      {
+        kind: "Signing (DKIM)",
+        type: m.provider === "microsoft" ? "CNAME" : "TXT",
+        name: DKIM_WHERE[m.provider].name,
+        value: DKIM_WHERE[m.provider].value
+      },
+      null
+    ),
+    row2("dmarc", { kind: "Policy (DMARC)", type: "TXT", name: "_dmarc", value: DMARC_RECOMMENDED }, null)
   ];
 }
 var CONNECT_FAILED = "That didn't go through. Try again in a minute.";
@@ -26829,9 +26880,21 @@ var MAILBOX_CONNECT_WORDS = {
   too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
   free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
   not_available: "Connecting a mailbox isn't switched on here yet.",
-  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
+  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
+  not_owner: "Only an owner can connect a mailbox.",
+  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
+  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
+  not_workspace: "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
+  no_mailbox: "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
+  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
+  admin_consent: "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
+  admin_approved: "Approved for your organisation. Connect the mailbox now.",
   failed: CONNECT_FAILED
 };
+var CONNECT_OK = /* @__PURE__ */ new Set(["connected", "reconnected", "admin_approved"]);
+function mailboxConnectOk(code2) {
+  return !!code2 && CONNECT_OK.has(code2);
+}
 function mailboxConnectWords(code2) {
   return code2 && MAILBOX_CONNECT_WORDS[code2] || CONNECT_FAILED;
 }
@@ -48787,11 +48850,17 @@ var LEAD_BUILD_WORDS = {
     sending: "Sending",
     sendsFrom: "Sends from",
     inbox: "Your inbox \xB7 you send",
-    mailboxes: (n) => n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
+    mailboxes: (n) => n === 0 ? "Your mailboxes \xB7 none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
+    /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
+    noneSends: "No mailbox sends now, so nothing goes: choose Your inbox to send each yourself, or connect one.",
+    /** Saved for the owner to send, with a mailbox that could send for them now. */
+    canSwitch: (n) => `${n === 1 ? "Your mailbox is" : `Your ${n} mailboxes are`} connected: choose ${n === 1 ? "it" : "them"} to send these for you.`,
     connect: "Connect a mailbox",
     aDay: "A day, at most",
     every: (minutes) => `one every ${minutes} min or so`,
     youPace: "You send each, so you are the pace",
+    /** Saved to send from the mailboxes, with none sending now. */
+    noneDay: "None until a mailbox sends",
     approves: SEQUENCE_MODE_LABEL,
     newWordsAsk: "New words always ask first",
     signed: "Signed",
@@ -62467,6 +62536,9 @@ export {
   SPEND_NUMBER,
   SPEND_TEXTING,
   SPEND_TRY,
+  SPF_LOOKUPS_MAX,
+  SPF_RECORDS_JOIN,
+  SPF_RECORD_MAX,
   STANDING,
   STANDING_CHECKS,
   STARTER_LANGUAGES,
@@ -63558,6 +63630,7 @@ export {
   logoLookupWords,
   lookPrefOf,
   mailboxActs,
+  mailboxConnectOk,
   mailboxConnectWords,
   mailboxConnectionDtoOf,
   mailboxDailyCap,

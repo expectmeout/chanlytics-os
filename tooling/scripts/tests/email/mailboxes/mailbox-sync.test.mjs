@@ -338,7 +338,8 @@ test("Gmail: a report outside the thread of the email it is about is found by wh
       };
     const reports = reportsList(c, ["b2"]);
     if (reports) return reports;
-    if (c.url.includes("/messages/b2")) return { json: report("failed", "5.1.1", { id: "b2", threadId: "dsn-thread" }) };
+    if (c.url.includes("/messages/b2"))
+      return { json: report("failed", "5.1.1", { id: "b2", threadId: "dsn-thread" }) };
     return { status: 404 };
   });
   try {
@@ -372,7 +373,9 @@ test("whose fault a bounce is decides what follows: a refused sender stops no ad
     return w;
   };
   const blocked = await sync(
-    report("failed", "5.7.1", { diagnostic: "550 5.7.1 Our system has detected that this message is likely unsolicited mail" }),
+    report("failed", "5.7.1", {
+      diagnostic: "550 5.7.1 Our system has detected that this message is likely unsolicited mail",
+    }),
   );
   assert.deepEqual([blocked.tables.messages[0].status, blocked.tables.messages[0].error?.kind], ["failed", "Blocked"]);
   assert.equal(blocked.tables.contacts[0].email_suppressed_reason, null, "the address is not the one at fault");
@@ -429,7 +432,11 @@ test("Graph: a reply Exchange took for junk is read from Junk Email since the la
   try {
     const out = await syncMailbox(w.db, w.mailbox, logger({ tenant_id: T }));
     assert.deepEqual([out.read, out.replies], [1, 1]);
-    assert.equal(net.calls.filter((c) => c.url.includes("/me/messages/j2")).length, 0, "junk that is not ours is never read");
+    assert.equal(
+      net.calls.filter((c) => c.url.includes("/me/messages/j2")).length,
+      0,
+      "junk that is not ours is never read",
+    );
     assert.deepEqual(
       w.tables.jobs.map((j) => withoutRequestId(j.payload).received_id),
       ["j1"],

@@ -227,7 +227,9 @@ test("Gmail's day is the 429 that says (Mail sending), resting until the time it
       },
       stub(() => ({
         status: 429,
-        json: { error: { code: 429, status: "RESOURCE_EXHAUSTED", errors: [{ reason: "rateLimitExceeded" }], message } },
+        json: {
+          error: { code: 429, status: "RESOURCE_EXHAUSTED", errors: [{ reason: "rateLimitExceeded" }], message },
+        },
       })).deps,
     );
   const day = await send("User-rate limit exceeded. Retry after 2026-10-21T09:26:53.594Z (Mail sending)");
@@ -387,24 +389,21 @@ test("a bounce is read by whose fault it is: a dead address is hard, a server re
   ];
   for (const [status, diagnostic, bounce] of cases) {
     const r = deliveryReportOf(report(status, diagnostic));
-    assert.deepEqual([r.status, r.bounce, r.permanent], [status, bounce, bounce === "hard"], `${status}: ${diagnostic}`);
+    assert.deepEqual(
+      [r.status, r.bounce, r.permanent],
+      [status, bounce, bounce === "hard"],
+      `${status}: ${diagnostic}`,
+    );
   }
-  // A dotted number in a quoted header (an address, a version) is never taken for a status.
   // The quoted original's own headers (DKIM, SPF, a subject about a policy) never say whose fault it was.
+  const quotedHeaders = ["DKIM-Signature: v=1; a=rsa-sha256; d=getharbor.example", "Subject: about your spam policy"];
   const signed = deliveryReportOf(
-    report(
-      "5.0.0",
-      "550 5.0.0 Recipient address rejected: User unknown",
-      "DKIM-Signature: v=1; a=rsa-sha256; d=getharbor.example
-Subject: about your policy",
-    ),
+    report("5.0.0", "550 5.0.0 Recipient address rejected: User unknown", quotedHeaders.join("\n")),
   );
   assert.equal(signed.bounce, "hard");
-  const unsigned = deliveryReportOf(
-    report("5.0.0", "550 5.0.0 Something nobody named", "DKIM-Signature: v=1; d=getharbor.example
-Subject: spam policy"),
-  );
+  const unsigned = deliveryReportOf(report("5.0.0", "550 5.0.0 Something nobody named", quotedHeaders.join("\n")));
   assert.equal(unsigned.bounce, "soft", "its headers' words are not the server's");
+  // A dotted number in a quoted header (an address, a version) is never taken for a status.
   const quoted = deliveryReportOf({
     headers: {},
     from: { address: "postmaster@outlook.com", name: null },

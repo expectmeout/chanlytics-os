@@ -164,7 +164,11 @@ test("Graph's door: the validation token echoed as text; a notification whose cl
       "the mailboxes clock asked to read now, once however often named",
     );
     assert.equal(net.calls.length, 0, "the door reads nothing itself: Graph wants its answer inside three seconds");
-    assert.match(tables.mailbox_connections[0].sync_cursor, /deltatoken=d1$/, "the clock moves the cursor, not the door");
+    assert.match(
+      tables.mailbox_connections[0].sync_cursor,
+      /deltatoken=d1$/,
+      "the clock moves the cursor, not the door",
+    );
     assert.equal((await post(graphDoor, "https://edge.example.com/api/mailbox/graph", ours)).status, 202);
     assert.equal(asked.length, 1, "a burst of pushes asks once a minute");
   } finally {

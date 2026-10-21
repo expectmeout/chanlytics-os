@@ -232,9 +232,17 @@ test("connect refused: no send and read, no lasting access, a free mailbox, anot
       "scopes_missing",
     ],
     [grant({ refresh_token: undefined }), null, 400, "no_refresh_token", "no_refresh_token"],
-    [grant({ id_token: idToken({ sub: "1", email: "sam@gmail.com", email_verified: true }) }), null, 400, "free_mail", "free_mail"],
     [
-      grant({ id_token: idToken({ sub: "1", email: "sam@getharbor.example", email_verified: false, hd: "getharbor.example" }) }),
+      grant({ id_token: idToken({ sub: "1", email: "sam@gmail.com", email_verified: true }) }),
+      null,
+      400,
+      "free_mail",
+      "free_mail",
+    ],
+    [
+      grant({
+        id_token: idToken({ sub: "1", email: "sam@getharbor.example", email_verified: false, hd: "getharbor.example" }),
+      }),
       null,
       400,
       "no_account",
@@ -304,23 +312,27 @@ test("a token Vault would not keep leaves no row saying connected: a new mailbox
   try {
     // The vault's door refuses the write (a Vault outage), not the compare-and-set's 40001.
     setPg(
-      fakeDb(w.tables, {}, {
-        ...vault().rpcs,
-        put_mailbox_credentials: () => {
-          throw new Error("vault: connection refused");
+      fakeDb(
+        w.tables,
+        {},
+        {
+          ...vault().rpcs,
+          put_mailbox_credentials: () => {
+            throw new Error("vault: connection refused");
+          },
+          mailbox_connection_connect: (a) => {
+            const row = rows.mailboxConnection({
+              tenant_id: a.p_tenant_id,
+              provider: a.p_provider,
+              provider_account: a.p_account,
+              address: a.p_address,
+              host: a.p_address.split("@")[1],
+            });
+            w.tables.mailbox_connections.push(row);
+            return { id: row.id, made: true, state: "connected" };
+          },
         },
-        mailbox_connection_connect: (a) => {
-          const row = rows.mailboxConnection({
-            tenant_id: a.p_tenant_id,
-            provider: a.p_provider,
-            provider_account: a.p_account,
-            address: a.p_address,
-            host: a.p_address.split("@")[1],
-          });
-          w.tables.mailbox_connections.push(row);
-          return { id: row.id, made: true, state: "connected" };
-        },
-      }),
+      ),
     );
     const [s, body] = await ask({ op: "connect", provider: "google", code: "4/code" });
     assert.deepEqual([s, body.reason], [502, "failed"]);

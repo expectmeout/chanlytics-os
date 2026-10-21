@@ -248,7 +248,11 @@ async function reportReceipt(
   const elsewhere = !!report.recipient && ours.length > 0 && !ours.some((a) => a.toLowerCase() === report.recipient);
   // Anyone can write a report, so a rest is taken only from the sending provider's own system, and only where none
   // stands: a forged "you hit your limit" from a recipient's own domain stops nothing.
-  if (report.bounce === "sender_limit" && fromItsProvider(row, e) && !(row.resting_until && Date.parse(row.resting_until) > now))
+  if (
+    report.bounce === "sender_limit" &&
+    fromItsProvider(row, e) &&
+    !(row.resting_until && Date.parse(row.resting_until) > now)
+  )
     await patchMailboxConnection(db, {
       tenantId: row.tenant_id,
       id: row.id,
@@ -326,9 +330,7 @@ export async function syncMailbox(
     );
     const own = row.address.toLowerCase();
     const wanted = arrived
-      .filter(
-        (a) => (a.threadId && ours.has(a.threadId)) || a.report || (a.from !== null && REPORTER.test(a.from)),
-      )
+      .filter((a) => (a.threadId && ours.has(a.threadId)) || a.report || (a.from !== null && REPORTER.test(a.from)))
       .filter((a) => a.from !== own);
     const seen = new Set<string>();
     const result: SyncOutcome = {

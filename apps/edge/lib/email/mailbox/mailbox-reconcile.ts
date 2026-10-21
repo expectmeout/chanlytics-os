@@ -17,7 +17,13 @@
  */
 import { gmailFindSent, graphDeleteMessage, graphFindSent, mailboxMessageId } from "../../packages/channels.js";
 import { MIN_MS } from "../../packages/contracts.js";
-import { emailFoundSent, emailNeverLeft, unknownMailboxEmails, type Database, type MailboxConnectionRow } from "../../packages/db.js";
+import {
+  emailFoundSent,
+  emailNeverLeft,
+  unknownMailboxEmails,
+  type Database,
+  type MailboxConnectionRow,
+} from "../../packages/db.js";
 import { UNKNOWN_OUTCOME_MS } from "../../reach-out/clock.js";
 import { tokenFor } from "./mailbox-credentials.js";
 import { errField, type Logger } from "../../log.js";

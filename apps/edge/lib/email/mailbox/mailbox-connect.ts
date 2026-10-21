@@ -239,7 +239,13 @@ export async function mailboxConnect(
       id: made.id,
       patch: made.made
         ? { state: "removed", removed_at: at, held_why: null, held_at: null }
-        : { state: "reconnect", held_why: null, held_at: null, last_error: "Its sign-in wasn't kept: connect it again.", last_error_at: at },
+        : {
+            state: "reconnect",
+            held_why: null,
+            held_at: null,
+            last_error: "Its sign-in wasn't kept: connect it again.",
+            last_error_at: at,
+          },
     }).catch((cleanup: unknown) =>
       p.log.error("mailbox_door_failed", { mailbox: made.id, stage: "store_cleanup", error: errField(cleanup) }),
     );

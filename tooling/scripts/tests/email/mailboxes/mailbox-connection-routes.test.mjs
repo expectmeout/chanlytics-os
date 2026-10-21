@@ -161,7 +161,10 @@ test("Reconnect asks the provider for its own mailbox's address, and the state c
     const proof = await verifyState(SECRET, to.searchParams.get("state"), Date.now());
     assert.equal(proof.state.m, M1);
     await refused(
-      connect.GET.run(send("GET", null, `&provider=microsoft&mailbox_id=${M1}`), ctx("owner", { mailbox_connections: [box] })),
+      connect.GET.run(
+        send("GET", null, `&provider=microsoft&mailbox_id=${M1}`),
+        ctx("owner", { mailbox_connections: [box] }),
+      ),
       "not_found",
     );
     await refused(connect.GET.run(send("GET", null, `&provider=google&mailbox_id=${M1}`), ctx()), "not_found");
@@ -181,15 +184,16 @@ test("Reconnect asks the provider for its own mailbox's address, and the state c
 test("back from Microsoft: a sign-in its admin must approve says so; an admin's approval is good news; a Reconnect hands the edge its mailbox", async () => {
   const net = edge((b) => [200, b.op === "connect" ? { ok: true, made: false, mailbox: DTO } : READY]);
   const back = async (q) => {
-    const res = await callback.GET.run(new Request(`https://app.example.test/api/v1/mailbox-connections/callback${q}`), ctx());
+    const res = await callback.GET.run(
+      new Request(`https://app.example.test/api/v1/mailbox-connections/callback${q}`),
+      ctx(),
+    );
     return new URL(res.headers.get("location"));
   };
   const state = (extra) =>
     signState(SECRET, { t: A, u: USER, n: newNonce(), exp: Date.now() + STATE_TTL_MS, p: "microsoft", ...extra });
   try {
-    const held = await back(
-      "?error=access_denied&error_description=AADSTS90094%3A+Administrator+consent+is+required.",
-    );
+    const held = await back("?error=access_denied&error_description=AADSTS90094%3A+Administrator+consent+is+required.");
     assert.deepEqual([held.searchParams.get("mailbox"), held.searchParams.get("why")], ["error", "admin_consent"]);
     const approved = await back(`?admin_consent=True&tenant=t1&state=${await state({ a: 1 })}`);
     assert.equal(approved.searchParams.get("mailbox"), "admin_approved");

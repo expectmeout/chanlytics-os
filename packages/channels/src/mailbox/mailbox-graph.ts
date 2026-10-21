@@ -159,7 +159,8 @@ export async function graphSend(
   );
   // A send Graph refused left nothing but its draft, which would sit in the business's Drafts: it goes. One whose
   // outcome is unknown may have left, so its draft is the reconciliation's to judge (graphFindSent), never deleted here.
-  if (sent.outcome !== "ok" && sent.outcome !== "unknown") await graphDeleteMessage(token, d.id, deps).catch(() => null);
+  if (sent.outcome !== "ok" && sent.outcome !== "unknown")
+    await graphDeleteMessage(token, d.id, deps).catch(() => null);
   return {
     ok: sent.outcome === "ok",
     status: sent.status,
@@ -342,8 +343,7 @@ async function graphList(token: string, path: string, deps?: Deps): Promise<List
 }
 
 const odataString = (s: string): string => `'${s.replace(/'/g, "''")}'`;
-const bareId = (id: unknown): string =>
-  typeof id === "string" ? id.trim().replace(/^<|>$/g, "").toLowerCase() : "";
+const bareId = (id: unknown): string => (typeof id === "string" ? id.trim().replace(/^<|>$/g, "").toLowerCase() : "");
 
 /**
  * Whether the mailbox sent an email whose send's outcome was unknown (graphSend's second call timed out): by the

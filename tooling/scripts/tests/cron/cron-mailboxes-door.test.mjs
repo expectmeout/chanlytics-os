@@ -71,7 +71,15 @@ function world(boxes, { counts = {}, creds } = {}) {
         const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);
         if (!m) return false;
         m.external_id ??= a.p_provider_id;
-        m.meta = { ...m.meta, email: { ...m.meta?.email, message_id: a.p_rfc_message_id, thread_id: a.p_thread_id, mailbox_id: a.p_mailbox_id } };
+        m.meta = {
+          ...m.meta,
+          email: {
+            ...m.meta?.email,
+            message_id: a.p_rfc_message_id,
+            thread_id: a.p_thread_id,
+            mailbox_id: a.p_mailbox_id,
+          },
+        };
         return true;
       },
       mailbox_connection_counts: (a) =>
@@ -131,10 +139,7 @@ test("each mailbox is tended: its watch made and its cursor started, read back, 
       Date.parse(f.watch_expires_at) > Date.now(),
       "a week's watch with no push, so it is not asked every tick",
     );
-    assert.deepEqual(
-      [f.dns.spf, f.dns.dkim, f.dns.dmarc, f.dns.mx],
-      ["found", "missing", "missing", "found"],
-    );
+    assert.deepEqual([f.dns.spf, f.dns.dkim, f.dns.dmarc, f.dns.mx], ["found", "missing", "missing", "found"]);
     assert.equal(f.dns.spf_record, "v=spf1 include:_spf.google.com ~all", "the record it has, kept to offer back");
     assert.ok(f.dns_checked_at);
     assert.equal(f.sent_days, 8, "its ramp's days, as its sends say them");

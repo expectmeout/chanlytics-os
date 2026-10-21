@@ -188,7 +188,11 @@ function ADay({ lc }: { lc: LeadChain }) {
   const share = chainPaceOf({ mailboxes, owner_sends: d.owner_sends, gap_minutes: d.gap_minutes }).share;
   const fixed = d.owner_sends || paces.length === 0;
   // Saved to send from the mailboxes, with none sending: nothing goes, never "you send each".
-  const sub = d.owner_sends ? R.youPace : paces.length === 0 ? R.noneDay : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null);
+  const sub = d.owner_sends
+    ? R.youPace
+    : paces.length === 0
+      ? R.noneDay
+      : (paces.find((p) => p.gap === d.gap_minutes)?.hint ?? null);
   return (
     <RunsRow
       k={R.aDay}
@@ -237,7 +241,12 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
     { value: "inbox", label: R.inbox },
     ...(mailboxes.length > 0 || !d.owner_sends ? [{ value: "mailboxes", label: R.mailboxes(mailboxes.length) }] : []),
   ];
-  const fromNote = !d.owner_sends && mailboxes.length === 0 ? R.noneSends : d.owner_sends && mailboxes.length > 0 ? R.canSwitch(mailboxes.length) : null;
+  const fromNote =
+    !d.owner_sends && mailboxes.length === 0
+      ? R.noneSends
+      : d.owner_sends && mailboxes.length > 0
+        ? R.canSwitch(mailboxes.length)
+        : null;
   return (
     <Sheet
       open={open}

@@ -292,7 +292,15 @@ export { gmailEmailOf, graphEmailOf, rowIdOfMessageId, deliveryReportOf } from "
 export type { MailboxEmail, DeliveryReport, BounceClass, FoundSent } from "./mailbox/mailbox-read";
 export { sendFromMailbox } from "./mailbox/mailbox-send";
 export type { MailboxSendInput, MailboxSendResult } from "./mailbox/mailbox-send";
-export { dmarcOf, spfRecordsOf, spfNamesProvider, spfTermsOf, SPF_INCLUDES, dkimOf, DKIM_SELECTORS } from "./mailbox/mailbox-dns";
+export {
+  dmarcOf,
+  spfRecordsOf,
+  spfNamesProvider,
+  spfTermsOf,
+  SPF_INCLUDES,
+  dkimOf,
+  DKIM_SELECTORS,
+} from "./mailbox/mailbox-dns";
 export type { TxtAnswer } from "./mailbox/mailbox-dns";
 export { verifyGooglePushToken, gmailPushOf, graphNotificationsOf, clientStateMatches } from "./mailbox/mailbox-push";
 export type { PushTokenRefusal } from "./mailbox/mailbox-push";

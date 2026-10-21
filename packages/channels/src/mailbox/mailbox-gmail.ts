@@ -45,9 +45,7 @@ function gmailReasonOf(r: Pick<ProviderReply, "json">): string | null {
  */
 export function gmailDayUsed(r: Pick<ProviderReply, "status" | "json" | "text">): boolean {
   const reason = gmailReasonOf(r) ?? "";
-  return (
-    reason === "dailyLimitExceeded" || /\(mail sending\)|daily user sending limit exceeded/i.test(gmailWordsOf(r))
-  );
+  return reason === "dailyLimitExceeded" || /\(mail sending\)|daily user sending limit exceeded/i.test(gmailWordsOf(r));
 }
 
 /** When a mailbox whose day Gmail used up sends again: the "Retry after" time Gmail names, else a day on. */

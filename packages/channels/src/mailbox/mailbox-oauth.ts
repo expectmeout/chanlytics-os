@@ -92,7 +92,10 @@ export function mailboxAuthorizeUrl(
  * tenant). It asks the same Graph scopes a member's sign-in does, and comes back to the callback with
  * `admin_consent=True` and the state.
  */
-export function mailboxAdminConsentUrl(cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">, state: string): string {
+export function mailboxAdminConsentUrl(
+  cfg: Pick<MailboxOAuthClient, "clientId" | "redirectUri">,
+  state: string,
+): string {
   const scope = MAILBOX_SCOPES.microsoft.map((s) =>
     /^(openid|email|profile|offline_access)$/.test(s) ? s : `https://graph.microsoft.com/${s}`,
   );

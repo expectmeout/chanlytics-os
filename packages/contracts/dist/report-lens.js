@@ -1036,9 +1036,9 @@ var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
 var MAILBOX_CONNECTIONS_MAX = 10;
 var MAILBOXES_PER_DOMAIN_MAX = 3;
 var HOLD_WORDS = {
-  bounces: "more than 3% of its recent emails bounced",
+  bounces: "more than 3% of its recent emails bounced or were refused",
   complaint: "someone marked an email from it as spam",
-  unsubscribes: "more than 3% of the businesses it wrote to said no or unsubscribed"
+  unsubscribes: "more than 3% of the businesses it wrote to unsubscribed"
 };
 function mailboxHoldWords(why) {
   return why && HOLD_WORDS[why] || "it was held";
@@ -1056,7 +1056,15 @@ var MAILBOX_CONNECT_WORDS = {
   too_many_on_domain: `A workspace writes from ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on one domain at most.`,
   free_mail: "A free mailbox (Gmail.com, Outlook.com and the like) isn't for writing to businesses: connect one on your own domain.",
   not_available: "Connecting a mailbox isn't switched on here yet.",
-  not_owner: "Only the workspace's owner or a manager connects a mailbox.",
+  // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
+  not_owner: "Only an owner can connect a mailbox.",
+  no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
+  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
+  not_workspace: "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
+  no_mailbox: "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
+  wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
+  admin_consent: "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
+  admin_approved: "Approved for your organisation. Connect the mailbox now.",
   failed: CONNECT_FAILED
 };
 

@@ -130,26 +130,29 @@ export const SPF_RECORD_MAX = 4096;
 export const SPF_RECORDS_JOIN = " | ";
 
 /** A mailbox_connections row, as either app reads it: the page's DTO, never its token's name. */
-export function mailboxConnectionDtoOf(r: {
-  id: string;
-  provider: string;
-  address: string;
-  host: string;
-  from_name: string;
-  signature: string | null;
-  state: string;
-  held_why: string | null;
-  held_at: string | null;
-  resting_until: string | null;
-  daily_cap: number;
-  customer_domain: boolean;
-  sent_days: number | null;
-  dns: unknown;
-  dns_checked_at: string | null;
-  last_error: string | null;
-  connected_at: string;
-  sent_at: string | null;
-}, day: Pick<MailboxConnectionDto, "sent_today" | "counts"> | null = null): MailboxConnectionDto {
+export function mailboxConnectionDtoOf(
+  r: {
+    id: string;
+    provider: string;
+    address: string;
+    host: string;
+    from_name: string;
+    signature: string | null;
+    state: string;
+    held_why: string | null;
+    held_at: string | null;
+    resting_until: string | null;
+    daily_cap: number;
+    customer_domain: boolean;
+    sent_days: number | null;
+    dns: unknown;
+    dns_checked_at: string | null;
+    last_error: string | null;
+    connected_at: string;
+    sent_at: string | null;
+  },
+  day: Pick<MailboxConnectionDto, "sent_today" | "counts"> | null = null,
+): MailboxConnectionDto {
   const dns: Partial<Record<MailboxDnsRecord, DnsRecordState>> = {};
   const raw = r.dns && typeof r.dns === "object" ? (r.dns as Record<string, unknown>) : {};
   for (const k of MAILBOX_DNS_RECORDS) {
@@ -430,7 +433,9 @@ function spfRecordWith(existing: string | null, provider: MailboxProvider): stri
     .filter((terms) => /^v=spf1$/i.test(terms[0] ?? ""));
   const has = (terms: string[]) => terms.some((t) => t.replace(/^\+/, "").toLowerCase() === include);
   if (records.length > 1) {
-    const named = [...new Set(records.flatMap((terms) => terms.slice(1)).filter((t) => !spfAll(t) && !/^redirect=/i.test(t)))];
+    const named = [
+      ...new Set(records.flatMap((terms) => terms.slice(1)).filter((t) => !spfAll(t) && !/^redirect=/i.test(t))),
+    ];
     return ["v=spf1", ...named, ...(has(named) ? [] : [include]), "~all"].join(" ");
   }
   const terms = records[0];
@@ -469,12 +474,15 @@ function spfNote(m: Pick<MailboxConnectionDto, "provider" | "spf_record" | "spf_
 
 /** The records a mailbox's domain needs, as rows: SPF, DKIM, DMARC, each with whether DNS reads it now. */
 export function mailboxRecordRows(
-  m: Pick<MailboxConnectionDto, "provider" | "dns"> &
-    Partial<Pick<MailboxConnectionDto, "spf_record" | "spf_lookups">>,
+  m: Pick<MailboxConnectionDto, "provider" | "dns"> & Partial<Pick<MailboxConnectionDto, "spf_record" | "spf_lookups">>,
 ): MailboxRecordRow[] {
   const stateOf = (k: MailboxDnsRecord): MailboxRecordState => m.dns[k] ?? "unread";
   const spf = { provider: m.provider, spf_record: m.spf_record ?? null, spf_lookups: m.spf_lookups ?? null };
-  const row = (key: MailboxDnsRecord, r: Omit<MailboxRecordRow, "key" | "found" | "state" | "note">, note: string | null) => ({
+  const row = (
+    key: MailboxDnsRecord,
+    r: Omit<MailboxRecordRow, "key" | "found" | "state" | "note">,
+    note: string | null,
+  ) => ({
     key,
     ...r,
     found: stateOf(key) === "found",
@@ -482,7 +490,11 @@ export function mailboxRecordRows(
     note: stateOf(key) === "found" ? null : note,
   });
   return [
-    row("spf", { kind: "Sender (SPF)", type: "TXT", name: "@", value: spfRecordWith(spf.spf_record, m.provider) }, spfNote(spf)),
+    row(
+      "spf",
+      { kind: "Sender (SPF)", type: "TXT", name: "@", value: spfRecordWith(spf.spf_record, m.provider) },
+      spfNote(spf),
+    ),
     row(
       "dkim",
       {
@@ -516,7 +528,8 @@ export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
   // The page's own gate says the same (contracts roleGate on `settings`), and so does the door's refusal.
   not_owner: "Only an owner can connect a mailbox.",
   no_address: "Nothing was connected: the provider didn't say which address the account sends from. Connect again.",
-  unverified: "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
+  unverified:
+    "Nothing was connected: Google hasn't verified that account's address yet. Verify it, then connect again.",
   not_workspace:
     "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
   no_mailbox:

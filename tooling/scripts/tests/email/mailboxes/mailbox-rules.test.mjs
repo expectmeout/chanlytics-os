@@ -133,7 +133,11 @@ test("a mailbox's own mail holds it: any complaint, or hard bounces and refusals
   assert.equal(mailboxHoldOf(c(20, 5)), "bounces", "five holds it");
   assert.equal(mailboxHoldOf(c(400, 12)), null, "3% of 400 is 12: not past it");
   assert.equal(mailboxHoldOf(c(400, 13)), "bounces");
-  assert.equal(mailboxHoldOf(c(400, 6, 0, 0, 7)), "bounces", "a server refusing the sender counts beside a dead address");
+  assert.equal(
+    mailboxHoldOf(c(400, 6, 0, 0, 7)),
+    "bounces",
+    "a server refusing the sender counts beside a dead address",
+  );
   assert.equal(mailboxHoldOf(c(400, 0, 0, 13)), "unsubscribes");
   assert.equal(mailboxHoldOf(c(400, 0, 0, 0, 0, 40)), null, "a polite no is a reply, never a hold");
   assert.equal(mailboxHoldOf(c(400, 13, 1, 13)), "complaint", "a complaint is said first");
@@ -155,10 +159,12 @@ test("a row says its day and its health from the counts its read carried, and a 
   assert.deepEqual([w.day, w.health], ["12 of 20 today", "0.4% bounced · 2 said no · none marked as spam"]);
   assert.equal(mailboxWords(row({ sent_days: 9, sent_today: 20 }), NOW).pill, "Done for today");
   assert.equal(mailboxWords(row({ counts: null }), NOW).health, null);
-  assert.equal(mailboxWords(row({ dns: {} }), NOW).fix, "Its records couldn't be read just now: Check reads them again.");
   assert.equal(
-    mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW)
-      .fix,
+    mailboxWords(row({ dns: {} }), NOW).fix,
+    "Its records couldn't be read just now: Check reads them again.",
+  );
+  assert.equal(
+    mailboxWords(row({ dns: { spf: "missing", dkim: "found", dmarc: "missing" }, spf_record: "v=spf1 -all" }), NOW).fix,
     "Add its DMARC record below. Change its SPF record below.",
     "an SPF record the domain has is changed, never added beside",
   );
@@ -182,7 +188,10 @@ test("SPF: the record the domain has, with the provider put in before its all; t
   const kept = spf("google", "v=spf1 include:mailgun.org ip4:192.0.2.1 -all", 3);
   assert.equal(kept.value, "v=spf1 include:mailgun.org ip4:192.0.2.1 include:_spf.google.com -all", "its own all kept");
   assert.match(kept.note, /may have only one: change it to this, which keeps every sender it names and adds Google/);
-  assert.equal(spf("google", "v=spf1 a mx redirect=_spf.example.com").value, "v=spf1 a mx include:_spf.google.com redirect=_spf.example.com");
+  assert.equal(
+    spf("google", "v=spf1 a mx redirect=_spf.example.com").value,
+    "v=spf1 a mx include:_spf.google.com redirect=_spf.example.com",
+  );
   assert.equal(spf("microsoft", "v=spf1 a").value, "v=spf1 a include:spf.protection.outlook.com");
   const two = spf("google", "v=spf1 include:mailgun.org -all | v=spf1 a include:mailgun.org ~all");
   assert.equal(two.value, "v=spf1 include:mailgun.org a include:_spf.google.com ~all");
@@ -299,10 +308,13 @@ test("a connect come back, in words: each reason the edge answers, and the rule 
     assert.equal(mailboxConnectWords(code), MAILBOX_CONNECT_WORDS[code], code);
     assert.notEqual(MAILBOX_CONNECT_WORDS[code], MAILBOX_CONNECT_WORDS.failed, `${code} has words of its own`);
   }
-  assert.deepEqual(
-    ["connected", "reconnected", "admin_approved", "declined", null].map(mailboxConnectOk),
-    [true, true, true, false, false],
-  );
+  assert.deepEqual(["connected", "reconnected", "admin_approved", "declined", null].map(mailboxConnectOk), [
+    true,
+    true,
+    true,
+    false,
+    false,
+  ]);
   assert.equal(MAILBOX_CONNECT_WORDS.not_owner, "Only an owner can connect a mailbox.", "the page's own gate's words");
   assert.equal(mailboxConnectWords("something_new"), MAILBOX_CONNECT_WORDS.failed);
   assert.equal(mailboxConnectWords(null), MAILBOX_CONNECT_WORDS.failed);

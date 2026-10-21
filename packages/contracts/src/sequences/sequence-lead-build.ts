@@ -117,7 +117,8 @@ export const LEAD_BUILD_WORDS = {
     sending: "Sending",
     sendsFrom: "Sends from",
     inbox: "Your inbox · you send",
-    mailboxes: (n: number) => (n === 0 ? "Your mailboxes · none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`),
+    mailboxes: (n: number) =>
+      n === 0 ? "Your mailboxes · none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
     /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
     noneSends: "No mailbox sends now, so nothing goes: choose Your inbox to send each yourself, or connect one.",
     /** Saved for the owner to send, with a mailbox that could send for them now. */
