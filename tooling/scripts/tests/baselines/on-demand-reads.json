@@ -60,6 +60,11 @@
     "fresh": "Read as words are typed into Find, a pause after the last key.",
     "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
   },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/health": {
+    "kind": "on-open",
+    "fresh": "Read as Health opens and when its window changes, and again after Run again or Deliver again.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0068)."
+  },
   "apps/dashboard/src/surfaces/console/verbs.ts GET platform/home": {
     "kind": "on-open",
     "fresh": "Read as Home or Workspaces opens, and again after an act taken there.",

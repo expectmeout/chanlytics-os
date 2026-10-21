@@ -154,3 +154,22 @@ test("a page that cannot be sent is logged and the next workspace is still paged
     "the workspace whose page never went out is paged now; the one paged before is held back",
   );
 });
+
+test("a workspace that is ours is never paged for its model failures: Health shows it under Ours (decision 0068)", async () => {
+  const w = world([
+    { tenant_id: A, failed_calls: 9, brain_errors: 0 },
+    { tenant_id: B, failed_calls: 6, brain_errors: 0 },
+  ]);
+  w.tables.tenants = [
+    { id: A, ours: true },
+    { id: B, ours: false },
+  ];
+  const p = pager();
+  const out = await withEnv(ADDRESSED, () => watchModels(w.db, { send: p.send, now: p.now }));
+  assert.equal(out.paged, 1, "only the customer's workspace is paged");
+  assert.equal(p.sent.length, 1);
+  assert.ok(
+    p.sent[0].body.includes(`Workspace ${B}`) && !p.sent[0].body.includes(A),
+    "and the page names theirs alone",
+  );
+});

@@ -92,6 +92,8 @@ export type ModelReply =
       outcome: "rejected" | "unreachable";
       /** The network's words, "timeout", or the API's error message. */
       error: string;
+      /** The API's error type (invalid_request_error, overloaded_error), or timeout or network when none answered. */
+      errorType: string;
       /** The API's own body, cut short, for the log. */
       detail: string;
       usage: ModelUsage;
@@ -99,7 +101,7 @@ export type ModelReply =
 
 export type ModelStreamReply =
   | (Asked & { outcome: "ok"; body: ReadableStream<Uint8Array>; headers: Headers | null })
-  | (Asked & { outcome: "rejected" | "unreachable"; error: string; detail: string });
+  | (Asked & { outcome: "rejected" | "unreachable"; error: string; errorType: string; detail: string });
 
 export interface ModelAsk {
   purpose: ModelPurpose;
@@ -146,6 +148,17 @@ function errorOf(a: ProviderReply): string {
   const j = a.json as { error?: { message?: unknown; type?: unknown } } | null;
   const m = j && typeof j === "object" && j.error && typeof j.error.message === "string" ? j.error.message : null;
   return m ?? a.error ?? `status ${a.status}`;
+}
+
+/**
+ * The kind of failure, as the usage ledger keeps it (00469): the API's own error type when it answered with one, else
+ * "timeout" for a try that ran out of time, "network" for an answer that never came, or the status it answered.
+ */
+function errorTypeOf(a: ProviderReply): string {
+  const j = a.json as { error?: { type?: unknown } } | null;
+  if (j && typeof j === "object" && j.error && typeof j.error.type === "string" && j.error.type) return j.error.type;
+  if (a.error === "timeout") return "timeout";
+  return a.status ? `status_${a.status}` : "network";
 }
 
 /** Whether an answer that did not come is worth the fallback: a 5xx or 529, a timeout, a dropped connection. */
@@ -345,6 +358,7 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
       model,
       outcome: failure(a),
       error: errorOf(a),
+      errorType: errorTypeOf(a),
       detail: a.text.slice(0, 300),
       usage: NO_USAGE,
     };
@@ -364,5 +378,12 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
 export async function streamModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelStreamReply> {
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
   if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
-  return { ...base, model, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
+  return {
+    ...base,
+    model,
+    outcome: failure(a),
+    error: errorOf(a),
+    errorType: errorTypeOf(a),
+    detail: a.text.slice(0, 300),
+  };
 }

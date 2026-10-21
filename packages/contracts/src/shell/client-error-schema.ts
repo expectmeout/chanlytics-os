@@ -5,6 +5,8 @@
  */
 import { z } from "zod";
 import { CLIENT_ERROR_BOUNDARIES, PAGE, CLIENT_ERROR_LIMITS, WORKSPACE } from "./client-error";
+import { PAGE_BUILD } from "./vitals";
+import { PAGE_DEVICES } from "./vitals-pages";
 
 export const ClientErrorInput = z.object({
   boundary: z.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
@@ -16,6 +18,9 @@ export const ClientErrorInput = z.object({
   digest: z.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
   workspace: z.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable(),
+  /** The build that ran, and the device it ran on, as field data names them (00469); a page from before sends neither. */
+  build: z.string().regex(PAGE_BUILD).nullable().optional(),
+  device: z.enum(PAGE_DEVICES).nullable().optional(),
 });
 
 export type ClientErrorInputDto = z.infer<typeof ClientErrorInput>;

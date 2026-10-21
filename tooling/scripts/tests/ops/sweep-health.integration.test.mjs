@@ -75,6 +75,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "platform_metrics_roll",
       "playbooks",
       "purge_ask",
+      "purge_client_errors",
       "purge_config_versions",
       "purge_cron_history",
       "purge_events",
@@ -154,6 +155,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "platform_metrics_roll",
     "playbooks",
     "purge_ask",
+    "purge_client_errors",
     "purge_config_versions",
     "purge_cron_history",
     "purge_events",
@@ -206,6 +208,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "mailboxes-sweep",
     // 00449: the sequences' one clock, every minute: the moments at :05, the reach-out check and its send clock.
     "sequences-clock",
+    // 00469: the browser errors Health groups, kept thirty days.
+    "purge-client-errors",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

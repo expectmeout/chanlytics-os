@@ -482,7 +482,7 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     if (ctx.page) {
       try {
         const page = deliveryPage(job, why);
-        await ctx.page(deliveryPageKey(job), page.subject, page.body);
+        await ctx.page(deliveryPageKey(job), page.subject, page.body, job.tenant_id);
       } catch (e) {
         logger().error("job_page_failed", {
           tenant_id: job.tenant_id,

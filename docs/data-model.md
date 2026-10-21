@@ -28,6 +28,7 @@ what the script writes.
 | [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
+| [`client_errors`](#client_errors) | `packages/db/src/repositories/console/health.ts` | on, no policy, so only the service role reaches it |
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
@@ -49,7 +50,7 @@ what the script writes.
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
-| [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
+| [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
 | [`lead_judgments`](#lead_judgments) | none | on, no policy, so only the service role reaches it |
 | [`lead_niche_priors`](#lead_niche_priors) | none | on, no policy, so only the service role reaches it |
@@ -74,7 +75,7 @@ what the script writes.
 | [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
-| [`operator_pages`](#operator_pages) | none | on, no policy, so only the service role reaches it |
+| [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts` | on, no policy, so only the service role reaches it |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
 | [`partner_invitations`](#partner_invitations) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
@@ -113,7 +114,7 @@ what the script writes.
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -153,6 +154,8 @@ One row per model call the platform made for a workspace (the model port, apps/e
 | `shadow_confidence` | numeric(4,3) | yes |  |  |
 | `confident` | boolean | yes |  |  |
 | `agrees` | boolean | yes |  | Whether the shadow's label is the primary's; null when either gave none. |
+| `error_type` | text | yes |  | For a call that got no answer (outcome rejected or unreachable): the API's error type (invalid_request_error, overloaded_error), or timeout or network when no answer came (00469). |
+| `error_message` | text | yes |  | For a call that got no answer: the first 300 characters of what the API said, or of the network's words (00469). |
 
 Foreign keys:
 
@@ -546,6 +549,27 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `capability_activations_member_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 | `capability_activations_owner_write` | all | authenticated | `caller_has_permission(tenant_id, 'disconnect'::text)` | `caller_has_permission(tenant_id, 'disconnect'::text)` |
+
+### client_errors
+
+What a page hit in a member's browser, as the boundary that caught it reported it (POST /api/v1/client-errors, 00469; decision 0068): the error's fingerprint (its name, first line and page), the page, the build, the device. Never the person's words nor a workspace: member_key is a short hash of who, so Health counts people without knowing who. Kept 30 days (purge-client-errors).
+
+- Owned by: `packages/db/src/repositories/console/health.ts`
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `at` | timestamp with time zone | no | `now()` |  |
+| `fingerprint` | text | no |  |  |
+| `boundary` | text | no |  |  |
+| `page` | text | yes |  |  |
+| `name` | text | no |  |  |
+| `message` | text | no |  |  |
+| `build` | text | yes |  |  |
+| `device` | text | yes |  |  |
+| `member_key` | text | yes |  | The first 16 hex of sha256 of the member's id: who, counted and never named. |
 
 ### contact_identities
 
@@ -1161,7 +1185,7 @@ How many jobs naming a capacity key (scope:key in payload.capacity) may be fired
 
 ### jobs
 
-- Owned by: `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts`
+- Owned by: `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/reach-out.ts`
 - Primary key: `id`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -1988,7 +2012,7 @@ Foreign keys:
 
 Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backlog) keyed by condition. alerted_at is the suppression stamp: one page per key per window, stamped only after delivery.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/console/health.ts`
 - Primary key: `key`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -3224,7 +3248,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3241,6 +3265,7 @@ Foreign keys:
 | `left_empty_at` | timestamp with time zone | yes |  | When the workspace's last member left it (delete_my_account, 00262): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it. |
 | `logo_path` | text | yes |  | The workspace's own logo (00407): <tenant id>/<uuid>.png in the public workspace-logos bucket, a square PNG the server remade; null when it has none and its initials stand in. Written only by set_workspace_logo. |
 | `appointment_word` | text | yes |  | What this workspace calls a booking (0041 J4): appointment, visit, meeting, session or lesson. Words only: it changes no moment, run, list or send. Null where never picked, read as appointment (contracts appointmentWordOf). Owner-settable through PATCH workspaces, like the timezone (00084). |
+| `ours` | boolean | no | `false` | A workspace of ours (00469, decision 0068): the nightly suite's, the smoke test, a trial we run by hand. Counted apart from customers on the Console's Health, and left out of the pager. Every status test workspace is ours; ours does not take public pages away, as test does. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |

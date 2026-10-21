@@ -101,6 +101,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "cancel_pending_ai_reply_failed",
   "card_receipt_unkept",
   "client_error",
+  "client_error_not_kept",
   "consent_qr_standing_failed",
   "cross_site_write_refused",
   "db_failed",

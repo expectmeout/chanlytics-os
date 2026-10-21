@@ -54,9 +54,10 @@ export interface TickPorts {
   alert(job: LedgerRow, news: JobNews): Promise<void>;
   /**
    * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
-   * platform's and never an owner's (ledger PAGES_THE_PLATFORM).
+   * platform's and never an owner's (ledger PAGES_THE_PLATFORM). The job's workspace rides along, so the pager can leave
+   * our own workspaces out (00469, decision 0068).
    */
-  page(key: string, subject: string, body: string): Promise<unknown>;
+  page(key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown>;
   log: TickLog;
   now(): number;
   /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */
@@ -322,7 +323,7 @@ async function conclude(
   if (PAGES_THE_PLATFORM.has(job.kind)) {
     try {
       const page = deliveryPage(job, reason, wreckage);
-      await ports.page(deliveryPageKey(job), page.subject, page.body);
+      await ports.page(deliveryPageKey(job), page.subject, page.body, job.tenant_id);
     } catch (e) {
       ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
     }

@@ -75,6 +75,7 @@ export const ROUTES = {
   "GET people/list-counts": { method: "GET", path: "/api/v1/people/list-counts" },
   "GET platform/acts": { method: "GET", path: "/api/v1/platform/acts" },
   "GET platform/find": { method: "GET", path: "/api/v1/platform/find" },
+  "GET platform/health": { method: "GET", path: "/api/v1/platform/health" },
   "GET platform/home": { method: "GET", path: "/api/v1/platform/home" },
   "GET platform/me": { method: "GET", path: "/api/v1/platform/me" },
   "GET platform/overview": { method: "GET", path: "/api/v1/platform/overview" },
@@ -223,6 +224,7 @@ export const ROUTES = {
   "POST people/[id]/name": { method: "POST", path: "/api/v1/people/[id]/name" },
   "POST people/[id]/say": { method: "POST", path: "/api/v1/people/[id]/say" },
   "POST platform/claims": { method: "POST", path: "/api/v1/platform/claims" },
+  "POST platform/deliveries/redrive": { method: "POST", path: "/api/v1/platform/deliveries/redrive" },
   "POST platform/jobs/requeue": { method: "POST", path: "/api/v1/platform/jobs/requeue" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
@@ -385,6 +387,7 @@ export type Routes = {
   "GET people/list-counts": typeof import("../../app/api/v1/people/list-counts/route").GET;
   "GET platform/acts": typeof import("../../app/api/v1/platform/acts/route").GET;
   "GET platform/find": typeof import("../../app/api/v1/platform/find/route").GET;
+  "GET platform/health": typeof import("../../app/api/v1/platform/health/route").GET;
   "GET platform/home": typeof import("../../app/api/v1/platform/home/route").GET;
   "GET platform/me": typeof import("../../app/api/v1/platform/me/route").GET;
   "GET platform/overview": typeof import("../../app/api/v1/platform/overview/route").GET;
@@ -533,6 +536,7 @@ export type Routes = {
   "POST people/[id]/name": typeof import("../../app/api/v1/people/[id]/name/route").POST;
   "POST people/[id]/say": typeof import("../../app/api/v1/people/[id]/say/route").POST;
   "POST platform/claims": typeof import("../../app/api/v1/platform/claims/route").POST;
+  "POST platform/deliveries/redrive": typeof import("../../app/api/v1/platform/deliveries/redrive/route").POST;
   "POST platform/jobs/requeue": typeof import("../../app/api/v1/platform/jobs/requeue/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;

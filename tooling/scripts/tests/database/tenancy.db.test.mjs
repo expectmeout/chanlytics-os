@@ -524,6 +524,9 @@ before(async () => {
   // A page load's timing (00255): the platform's, with no person and no workspace on it.
   await seed("page_vitals", { id: key, page: "tenancy", metric: "LCP", value: 1 }, null);
   probes.push(["page_vitals", "id", key]);
+  // An error a page hit (00469): no workspace on it, a hash of who; Health reads it on the service role.
+  await seed("client_errors", { fingerprint: key, boundary: "os", name: "TypeError", message: "tenancy" }, null);
+  probes.push(["client_errors", "fingerprint", key]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
@@ -987,6 +990,7 @@ const OTHER_TABLES = {
   push_devices: "own", // a person's phones (00162): read by user_id; written only through the two definer doors
   profiles: "people", // a person's own row, and the rows of people who share a workspace with them: not tenancy
   operator_pages: "none",
+  client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone
   platform_admins: "none",
   rate_hits: "none",
   sweep_status: "none",

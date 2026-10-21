@@ -10,6 +10,7 @@ import type {
   ClaimDto,
   ConsoleWhy,
   FindRowDto,
+  HealthWindow,
   PlatformActDto,
   PrivacyRequestDto,
   ReportKind,
@@ -26,7 +27,8 @@ export type ConsoleMe = Output<"GET platform/me">;
 export type ConsoleHome = Output<"GET platform/home">;
 export type ConsoleWorkspace = Output<"GET platform/workspaces/[slug]">;
 export type ConsoleSupport = Output<"GET platform/support">;
-type ConsoleBugs = Output<"GET platform/support/bugs">;
+export type ConsoleBugs = Output<"GET platform/support/bugs">;
+export type ConsoleHealth = Output<"GET platform/health">;
 
 /** What Support's tools narrow the queue by, and how many pages of it are shown. */
 export interface SupportAsk {
@@ -79,6 +81,22 @@ export const consoleVerbs = {
         },
       }),
     ),
+  /** Health (decision 0068): every part over the window, a part that could not be read said as null. */
+  health: async (days: HealthWindow): Promise<Read<ConsoleHealth>> =>
+    readAnswer(await api()("GET platform/health", { query: { days } })),
+  /** Run again: a failed job of a workspace, a fresh row of its kind and payload, due now. */
+  requeue: async (body: {
+    tenant_id: string;
+    job_id: string;
+    why: ConsoleWhy;
+  }): Promise<Wrote<{ ok: true; job_id: string; kind: string }>> =>
+    wroteAnswer(await api()("POST platform/jobs/requeue", { body })),
+  /** Deliver again: every failed or paused delivery of one subscriber, scheduled once more. */
+  redrive: async (body: {
+    subscriber: string;
+    why: ConsoleWhy;
+  }): Promise<Wrote<{ subscriber: string; scheduled: number }>> =>
+    wroteAnswer(await api()("POST platform/deliveries/redrive", { body })),
   /** Health's bug reports: the last thirty days of "Something isn't working". */
   bugs: async (): Promise<Read<ConsoleBugs>> => readAnswer(await api()("GET platform/support/bugs")),
   /** A question answered or open again; an ask answered, done, or open again. One press: its reason is its code. */
