@@ -123,6 +123,7 @@ async function runVerb(
     setBusy: (b: boolean) => void;
     setArm: (a: Arm | null) => void;
     toggleEmail: () => void;
+    toggleRecord: () => void;
     setSignup: (open: boolean) => void;
     forgetLeftOpen: () => void;
     setSignupSaid: (said: string | null) => void;
@@ -189,10 +190,8 @@ async function runVerb(
       k.setArm({ kind: r.kind, what: "disconnect" });
       return;
     case "verb:business-record":
-      // The form is the row's own body; the verb only points at it.
-      document
-        .querySelector('[data-testid="business-record"]')
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // The form is the row's own body, opened under it by its verb (Connect, or Open the record in its Settings).
+      k.toggleRecord();
       return;
     case "verb:email-setup":
       k.toggleEmail();
@@ -262,10 +261,11 @@ export const PaneIntegrationsReal = () => {
   // Ad accounts, a demo's card or a workspace's whose Ads preview is on (campaigns/ads/shown.ts); no other workspace draws it.
   const adsShown = useAdsShown();
   const [arm, setArm] = useState<Arm | null>(null);
-  // The email row's form, open only once its verb is pressed.
+  // The email row's form and the business record under Texting, each open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [note, setNote] = useState<string | null>(googleNote);
-  // What the browser came back from a mailbox's provider with, said once under the Email row.
+  // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
   const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
@@ -311,6 +311,7 @@ export const PaneIntegrationsReal = () => {
       setBusy,
       setArm,
       toggleEmail: () => setEmailOpen((o) => !o),
+      toggleRecord: () => setRecordOpen((o) => !o),
       setSignup,
       forgetLeftOpen: () => setLeftOpenAt(null),
       setSignupSaid,
@@ -358,7 +359,7 @@ export const PaneIntegrationsReal = () => {
           onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })}
         />
       )}
-      {r.body === "business_record" && <BusinessRecordForm line={ownLine} flash={flash} />}
+      {r.body === "business_record" && recordOpen && <BusinessRecordForm line={ownLine} flash={flash} />}
       {r.body === "email_setup" && emailOpen && S && email && (
         <EmailSetupForm
           email={email}
@@ -367,7 +368,7 @@ export const PaneIntegrationsReal = () => {
           onClose={() => setEmailOpen(false)}
         />
       )}
-      {r.kind === "email" && S && email && (
+      {r.body === "mailboxes" && S && email && (
         <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
       )}
     </Fragment>

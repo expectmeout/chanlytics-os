@@ -41,7 +41,7 @@ const LlImportPick = ({
   busy: boolean;
   onFile: (e: ChangeEvent<HTMLInputElement>) => void;
   onText: (text: string) => void;
-  onRead: () => void;
+  onRead: (text: string) => void;
 }) => (
   <ImportSource
     words={{ file: W.file, paste: W.paste, placeholder: W.pastePlaceholder, read: W.read }}
@@ -278,14 +278,7 @@ export const LeadImportSheet = ({
     >
       <div className="pl-import">
         {!result && (
-          <LlImportPick
-            W={W}
-            text={text}
-            busy={busy}
-            onFile={onFile}
-            onText={setText}
-            onRead={() => read(text, null)}
-          />
+          <LlImportPick W={W} text={text} busy={busy} onFile={onFile} onText={setText} onRead={(t) => read(t, null)} />
         )}
         {plan && !result && (
           <LlImportPreview

@@ -27083,7 +27083,7 @@ var REACH_OUT_SHEET_WORDS = {
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
-  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
+  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections.",
   /** From, when its owner sends it (00429): what they are handed, and how. */
   ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
@@ -52500,6 +52500,81 @@ function setupSteps2(i, nowMs = Date.now()) {
   };
 }
 
+// src/setup/connection-email.ts
+function emailRow2(i, { nowMs }) {
+  const base = { kind: "email", icon: "mail", title: "Email" };
+  const mailbox = i.email?.mailbox ?? null;
+  if (mailbox) {
+    const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
+    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    return {
+      ...base,
+      detail: mailbox.address,
+      state: mailbox.last_error ? "attention" : "connected",
+      stateWords: mailbox.last_error ? SETUP_STATE_WORDS.waiting_them : "On",
+      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
+      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
+  }
+  if (i.email?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not set up",
+      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "An address customers write to, answered from your Inbox.",
+    verb: null
+  };
+}
+function mailboxRow(i) {
+  const base = { kind: "mailbox", icon: "send", title: "Mailboxes you write from" };
+  const sending = i.email?.sending ?? null;
+  const boxes = sending?.mailboxes ?? [];
+  if (boxes.length > 0) {
+    const needs2 = boxes.filter((m) => m.state === "held" || m.state === "reconnect").length;
+    const one = boxes.length === 1;
+    return {
+      ...base,
+      detail: one ? boxes[0]?.address ?? null : `${boxes.length} mailboxes`,
+      state: needs2 ? "attention" : "connected",
+      stateWords: needs2 ? `${needs2} to look at` : "On",
+      sentence: `Sequences to leads write from ${one ? "it" : "them"}, and replies come back to ${one ? "it" : "them"} and to your Inbox.`,
+      verb: null,
+      body: "mailboxes"
+    };
+  }
+  if (sending && sending.providers.length > 0) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Send sequences to leads from your own Google Workspace or Microsoft 365 mailbox; replies come back to it and to your Inbox.",
+      verb: null,
+      body: "mailboxes"
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Sequences to leads will send from your own Google Workspace or Microsoft 365 mailbox. Until then, each email is handed to you to send.",
+    verb: null
+  };
+}
+
 // src/setup/connections.ts
 var CONNECTION_KINDS = [
   "whatsapp",
@@ -52510,6 +52585,7 @@ var CONNECTION_KINDS = [
   "calendar",
   "instagram",
   "email",
+  "mailbox",
   "deposits"
 ];
 var TONE = {
@@ -52540,7 +52616,8 @@ var ORDER2 = {
   calendar: 5,
   instagram: 6,
   email: 7,
-  deposits: 8
+  mailbox: 8,
+  deposits: 9
 };
 function row(d) {
   return { ...d, group: GROUP2[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
@@ -52919,45 +52996,6 @@ function instagramRow() {
     verb: null
   };
 }
-function emailRow2(i, { nowMs }) {
-  const base = { kind: "email", icon: "mail", title: "Email" };
-  const mailbox = i.email?.mailbox ?? null;
-  if (mailbox) {
-    const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
-    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
-    const needs2 = (i.email?.sending?.mailboxes ?? []).filter(
-      (m) => m.state === "held" || m.state === "reconnect"
-    ).length;
-    return {
-      ...base,
-      detail: mailbox.address,
-      state: mailbox.last_error || needs2 ? "attention" : "connected",
-      stateWords: mailbox.last_error ? SETUP_STATE_WORDS.waiting_them : needs2 ? `On \xB7 ${needs2} mailbox${needs2 === 1 ? "" : "es"} to look at` : "On",
-      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-      body: "email_setup"
-    };
-  }
-  if (i.email?.ready) {
-    return {
-      ...base,
-      detail: null,
-      state: "none",
-      stateWords: "Not set up",
-      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-      body: "email_setup"
-    };
-  }
-  return {
-    ...base,
-    detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "An address customers write to, answered from your Inbox.",
-    verb: null
-  };
-}
 function depositsRow() {
   return {
     kind: "deposits",
@@ -52979,6 +53017,7 @@ var ROW_BUILDERS = [
   calendarRow2,
   instagramRow,
   emailRow2,
+  mailboxRow,
   depositsRow
 ];
 function connectionRows(i, nowMs = Date.now()) {

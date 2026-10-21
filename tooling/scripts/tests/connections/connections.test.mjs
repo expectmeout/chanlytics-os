@@ -116,7 +116,7 @@ test("a workspace with nothing: every door honest, nothing pretends", () => {
   assert.equal(r.google_listing.group, "later");
   // The one answer's press (setup/calendar-source.test.mjs), which opens the Business row itself.
   assert.deepEqual(r.calendar.verb, { label: "Connect your calendar", to: "admin/workspace/calendar", who: "owner" });
-  for (const k of ["instagram", "email", "deposits"]) assert.equal(r[k].group, "later", k);
+  for (const k of ["instagram", "email", "mailbox", "deposits"]) assert.equal(r[k].group, "later", k);
   assert.equal(
     by(connectionRows({ ...base(), whatsapp: undefined }, NOW)).whatsapp.sentence,
     "Checking whether Chanlytics can connect a number…",
@@ -429,11 +429,12 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   );
   const [pane, row, form] = parts;
   const page = parts.join("\n");
+  // Its Disconnect (Remove until 20 Oct 2026) is in the listing's Settings, and asked only of a listing there is.
   assert.ok(
     row.includes(
-      'r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (',
+      'const removable = r.kind === "google_listing" && owner && (r.state === "connected" || r.state === "attention");',
     ),
-    "Remove is offered only when there is a listing to remove",
+    "Disconnect is offered only when there is a listing to disconnect",
   );
   assert.ok(
     !page.includes("It is an operator action for now"),
@@ -581,7 +582,7 @@ test("a WhatsApp number Meta flagged needs attention on Connections, in the word
   assert.deepEqual([off.state, off.stateWords], ["off", "Off"], "off is off, whatever Meta said before");
 });
 
-test("the Email row says a mailbox reach-outs write from is held or signed out, so neither is a green 'On' above it", async () => {
+test("the mailboxes sequences write from are a row of their own: Later and greyed until a provider is offered, then Connect, then each one's state", async () => {
   const { connectionRows } = await import("@chanlytics/contracts");
   const mailbox = {
     id: "mb1",
@@ -590,47 +591,44 @@ test("the Email row says a mailbox reach-outs write from is held or signed out, 
     last_received_at: null,
     last_error: null,
   };
-  const held = { id: "d1", state: "held", held_why: "complaint" };
-  const rows = connectionRows(
-    {
-      ...base(),
-      email: {
-        ready: true,
-        domain: "mail.chanlytics.com",
-        mailbox,
-        sending: { providers: ["google"], mailboxes: [held, { id: "d2", state: "connected" }] },
-      },
-    },
-    NOW,
+  const rowsWith = (sending) =>
+    by(connectionRows({ ...base(), email: { ready: true, domain: "mail.chanlytics.com", mailbox, sending } }, NOW));
+
+  // No provider offered and none connected (production until Google's and Microsoft's reviews): the row is there,
+  // Later, with nothing to press, and says what happens meanwhile.
+  const later = rowsWith({ providers: [], mailboxes: [] }).mailbox;
+  assert.deepEqual([later.group, later.state, later.verb, later.body], ["later", "later", null, null]);
+  assert.match(later.sentence, /Google Workspace or Microsoft 365/);
+  assert.match(later.sentence, /handed to you to send/);
+  assert.equal(rowsWith(null).mailbox.group, "later", "an unread list offers nothing either");
+
+  // A provider offered: Available, its Connect buttons in the block under the row.
+  const offered = rowsWith({ providers: ["google"], mailboxes: [] }).mailbox;
+  assert.deepEqual(
+    [offered.group, offered.state, offered.stateWords, offered.body],
+    ["available", "none", "Not connected", "mailboxes"],
   );
-  const email = rows.find((r) => r.kind === "email");
-  assert.deepEqual([email.state, email.stateWords], ["attention", "On · 1 mailbox to look at"]);
-  const two = connectionRows(
-    {
-      ...base(),
-      email: {
-        ready: true,
-        domain: "mail.chanlytics.com",
-        mailbox,
-        sending: { providers: ["google"], mailboxes: [held, { id: "d3", state: "reconnect" }] },
-      },
-    },
-    NOW,
-  ).find((r) => r.kind === "email");
-  assert.equal(two.stateWords, "On · 2 mailboxes to look at", "a signed-out one is said too");
-  const calm = connectionRows(
-    {
-      ...base(),
-      email: {
-        ready: true,
-        domain: "mail.chanlytics.com",
-        mailbox,
-        sending: { providers: ["google"], mailboxes: [{ id: "d2", state: "paused" }] },
-      },
-    },
-    NOW,
-  ).find((r) => r.kind === "email");
+
+  // Connected: the address, and a held or signed-out one is the row's attention, never a green On.
+  const held = { id: "d1", address: "sam@getbestmovers.com", state: "held", held_why: "complaint" };
+  const one = rowsWith({ providers: ["google"], mailboxes: [{ ...held, state: "connected" }] }).mailbox;
+  assert.deepEqual(
+    [one.group, one.state, one.stateWords, one.detail],
+    ["connected", "connected", "On", "sam@getbestmovers.com"],
+  );
+  const attention = rowsWith({ providers: ["google"], mailboxes: [held, { id: "d2", state: "connected" }] }).mailbox;
+  assert.deepEqual(
+    [attention.state, attention.stateWords, attention.detail],
+    ["attention", "1 to look at", "2 mailboxes"],
+  );
+  const two = rowsWith({ providers: [], mailboxes: [held, { id: "d3", state: "reconnect" }] }).mailbox;
+  assert.equal(two.stateWords, "2 to look at", "a signed-out one is said too, offered or not");
+  const calm = rowsWith({ providers: ["google"], mailboxes: [{ id: "d2", state: "paused" }] }).mailbox;
   assert.deepEqual([calm.state, calm.stateWords], ["connected", "On"]);
+
+  // The Email row is the hosted address alone: a held mailbox is said once, on its own row.
+  const email = rowsWith({ providers: ["google"], mailboxes: [held] }).email;
+  assert.deepEqual([email.state, email.stateWords], ["connected", "On"]);
 });
 
 test("D1-line-row-derivations: the phone row says what Start's row says in each state of the own line, and retries in place", () => {

@@ -40597,7 +40597,7 @@ declare const REACH_OUT_SHEET_WORDS: {
     readonly footHint: "as the law asks";
     readonly repliesHint: "into your Inbox";
     readonly checkLater: "Each email is checked before it goes. The first run waits for you.";
-    readonly noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.";
+    readonly noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections.";
     /** From, when its owner sends it (00429): what they are handed, and how. */
     readonly ownerSends: "Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to 30 a day.";
     /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
@@ -44667,7 +44667,7 @@ declare function setupSteps(i: SetupInputs, nowMs?: number): SetupVM;
  * disagree. Pure: the page feeds it window globals, the tests fixtures.
  */
 
-type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
+type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "mailbox" | "deposits";
 declare const CONNECTION_KINDS: readonly ConnectionKind[];
 /** Where the row sits: joined, joinable from here, or not built yet. */
 type ConnectionGroup = "connected" | "available" | "later";
@@ -44699,7 +44699,7 @@ interface ConnectionRow {
     sentence: string;
     verb: ConnectionVerb | null;
     /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
-    body: "google_choose" | "business_record" | "email_setup" | null;
+    body: "google_choose" | "business_record" | "email_setup" | "mailboxes" | null;
     /**
      * What the row says beside its sentence, each its own short line, with a link after it where there is somewhere to go: what Meta
      * will ask and what WhatsApp costs before Connect, what Meta holds about a connected number, how to try it, and what it costs,
@@ -44743,10 +44743,12 @@ interface ConnectionInputs {
      */
     signupLeftOpenAt?: string | null;
 }
-type Draft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
+/** A row as a builder says it: the group, tone, body and notes are the fold's (row()) unless the builder sets them. */
+type ConnectionDraft = Omit<ConnectionRow, "group" | "tone" | "body" | "notes"> & {
     body?: ConnectionRow["body"];
     notes?: ConnectionNote[];
 };
+type Draft = ConnectionDraft;
 /** What Google's audience means for the person about to press Connect. */
 declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
