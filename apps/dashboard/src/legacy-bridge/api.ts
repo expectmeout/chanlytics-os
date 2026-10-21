@@ -9,7 +9,12 @@ import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { sealSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
-import { PREFETCH_SLOT, SECOND_FACTOR_REQUIRED_PATH } from "@chanlytics/contracts";
+import {
+  CONSOLE_PATH,
+  PREFETCH_SLOT,
+  SECOND_FACTOR_REQUIRED_PATH,
+  SECOND_FACTOR_STAFF_PATH,
+} from "@chanlytics/contracts";
 
 let instance: Api | null = null;
 
@@ -39,14 +44,16 @@ function forgetWorkspaceAndReboot(win: Window): void {
 }
 
 /**
- * A partner's seat, or the partner account, asked for the second factor this session has not shown (0013). The rows
- * read so far are dropped, as at a sign-out, and the tab goes to the second step, which asks for the code or, for an
- * account without an authenticator, sets one up; it comes back in from there.
+ * A partner's seat, or the partner account, asked for the second factor this session has not shown (0013); or the
+ * Console did, for its staff (decision 0066). The rows read so far are dropped, as at a sign-out, and the tab goes to
+ * the second step, which asks for the code or, for an account without an authenticator, sets one up; it comes back
+ * in from there, to the Console when that is where it was.
  */
 function toSecondFactor(win: Window): void {
   sealSurfaceCache();
   clearReadCaches();
-  win.location.assign(SECOND_FACTOR_REQUIRED_PATH);
+  const inConsole = win.location.pathname === CONSOLE_PATH || win.location.pathname.startsWith(`${CONSOLE_PATH}/`);
+  win.location.assign(inConsole ? SECOND_FACTOR_STAFF_PATH : SECOND_FACTOR_REQUIRED_PATH);
 }
 
 /**

@@ -4963,20 +4963,117 @@ export type Database = {
           },
         ]
       }
+      platform_acts: {
+        Row: {
+          act: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_role: string
+          at: string
+          finished_at: string | null
+          id: string
+          note: string | null
+          outcome: string
+          outcome_note: string | null
+          reason_kind: string
+          target_id: string | null
+          target_kind: string
+          tenant_id: string | null
+          ticket: string | null
+        }
+        Insert: {
+          act: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role: string
+          at?: string
+          finished_at?: string | null
+          id?: string
+          note?: string | null
+          outcome?: string
+          outcome_note?: string | null
+          reason_kind: string
+          target_id?: string | null
+          target_kind: string
+          tenant_id?: string | null
+          ticket?: string | null
+        }
+        Update: {
+          act?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_role?: string
+          at?: string
+          finished_at?: string | null
+          id?: string
+          note?: string | null
+          outcome?: string
+          outcome_note?: string | null
+          reason_kind?: string
+          target_id?: string | null
+          target_kind?: string
+          tenant_id?: string | null
+          ticket?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_acts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           created_at: string
+          role: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          role?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          role?: string
           user_id?: string
         }
         Relationships: []
+      }
+      platform_claims: {
+        Row: {
+          claimed_at: string
+          email: string | null
+          tenant_id: string
+          until: string
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          email?: string | null
+          tenant_id: string
+          until: string
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string
+          email?: string | null
+          tenant_id?: string
+          until?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_metrics: {
         Row: {
@@ -5101,6 +5198,68 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      privacy_requests: {
+        Row: {
+          asked_at: string
+          asked_by: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          due_at: string
+          id: string
+          kind: string
+          name: string
+          note: string | null
+          number: number
+          slug: string
+          steps: Json
+          tenant_id: string | null
+          ticket: string | null
+        }
+        Insert: {
+          asked_at: string
+          asked_by: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at: string
+          id?: string
+          kind: string
+          name: string
+          note?: string | null
+          number?: number
+          slug: string
+          steps?: Json
+          tenant_id?: string | null
+          ticket?: string | null
+        }
+        Update: {
+          asked_at?: string
+          asked_by?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          note?: string | null
+          number?: number
+          slug?: string
+          steps?: Json
+          tenant_id?: string | null
+          ticket?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privacy_requests_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -6291,6 +6450,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sequences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_reports: {
+        Row: {
+          created_at: string
+          email: string | null
+          error_id: string | null
+          error_message: string | null
+          error_name: string | null
+          id: string
+          mail_error: string | null
+          mailed_at: string | null
+          number: number
+          page: string | null
+          tenant_id: string | null
+          user_id: string
+          words: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          error_id?: string | null
+          error_message?: string | null
+          error_name?: string | null
+          id?: string
+          mail_error?: string | null
+          mailed_at?: string | null
+          number?: number
+          page?: string | null
+          tenant_id?: string | null
+          user_id: string
+          words: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          error_id?: string | null
+          error_message?: string | null
+          error_name?: string | null
+          id?: string
+          mail_error?: string | null
+          mailed_at?: string | null
+          number?: number
+          page?: string | null
+          tenant_id?: string | null
+          user_id?: string
+          words?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_reports_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -8515,12 +8730,26 @@ export type Database = {
         }
         Returns: Json
       }
-      platform_admin_add: { Args: { p_email: string }; Returns: string }
+      platform_admin_add: {
+        Args: { p_email: string; p_role?: string }
+        Returns: string
+      }
       platform_answer_silence: {
         Args: { p_day?: string }
         Returns: {
           asks: number
           name: string
+          tenant_id: string
+        }[]
+      }
+      platform_find: {
+        Args: { p_q: string }
+        Returns: {
+          detail: string
+          kind: string
+          label: string
+          name: string
+          slug: string
           tenant_id: string
         }[]
       }
@@ -8549,6 +8778,13 @@ export type Database = {
         }[]
       }
       platform_metrics_roll: { Args: { p_day?: string }; Returns: number }
+      platform_model_spend: {
+        Args: { p_days?: number }
+        Returns: {
+          tenant_id: string
+          usd: number
+        }[]
+      }
       platform_overview: {
         Args: never
         Returns: {
@@ -8669,6 +8905,8 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      platform_role: { Args: never; Returns: string }
+      platform_staff_state: { Args: never; Returns: string }
       playbook_totals: {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json

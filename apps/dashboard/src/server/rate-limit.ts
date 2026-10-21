@@ -190,6 +190,13 @@ export const RATE = {
   platform_job_requeue: { limit: 60, windowMs: HOUR_MS, noun: "jobs run again for other workspaces" },
   /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */
   platform_partner_second_factor: { limit: 10, windowMs: HOUR_MS, noun: "second factors reset" },
+  /**
+   * The Console's own (decision 0066): a privacy request filed and its steps marked, worked down by hand; a workspace
+   * taken or let go, pressed as a shift moves; a member's report of a problem, a few in an hour, never a flood.
+   */
+  platform_request: { limit: 120, windowMs: HOUR_MS, noun: "request changes" },
+  platform_claim: { limit: 120, windowMs: HOUR_MS, noun: "workspaces taken or let go" },
+  support_report: { limit: 6, windowMs: HOUR_MS, noun: "problem reports" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: HOUR_MS, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */

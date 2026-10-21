@@ -530,6 +530,7 @@ export const LOG_EVENTS = [
   "stripe_read_failed",
   "stripe_signature_rejected",
   "stripe_webhook_failed",
+  "support_report_mailed",
   "sweep_health_alert_undelivered",
   "sweep_health_backlog_unreadable",
   "sweep_health_checked",

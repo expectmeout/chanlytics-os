@@ -47,8 +47,15 @@ export const SECOND_FACTOR_WORDS = {
   enrolTitle: "Set up two-step sign-in",
   enrolBody: "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
   /** Settings › Partner, before becoming one. */
-  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app."
+  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
+  /** The Console (decision 0066): staff show a code every session, no grace. */
+  staffRequired: "The Console asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
+  staffEnrolBody: "The Console can act on every business on Chanlytics, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue."
 };
+export const SECOND_FACTOR_STAFF_PATH = "/verify?for=console";
+export function secondFactorAsked(forWhom) {
+  return forWhom === "console" ? { required: SECOND_FACTOR_WORDS.staffRequired, enrolBody: SECOND_FACTOR_WORDS.staffEnrolBody } : { required: SECOND_FACTOR_WORDS.required, enrolBody: SECOND_FACTOR_WORDS.enrolBody };
+}
 export function enrolRefusalWords(message) {
   const m = String(message ?? "");
   if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };

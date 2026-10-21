@@ -15,6 +15,8 @@
  *   with_workspace the workspace's own record that can name someone it is not serving: its owner, a member, its payer,
  *                 the representative its filing names. An erasure is of a person the workspace serves and does not
  *                 reach it; it leaves with the workspace, within the 30 days the privacy page states;
+ *   as_record     the record that a request about a person was answered (decision 0066): who asked, when, and what was
+ *                 done, kept past the workspace it was about so the answer can be shown; never what they wrote to it;
  *   not_personal  holds nothing of a person, said once.
  *
  * Which columns can hold words is the schema's: text, json and their arrays, in a table that names `tenant_id`, its
@@ -67,6 +69,7 @@ export type ErasureStrategy =
   | { readonly kind: "digest" }
   | { readonly kind: "by_age"; readonly days: keyof typeof RETENTION_DAYS }
   | { readonly kind: "with_workspace" }
+  | { readonly kind: "as_record" }
   | { readonly kind: "not_personal" };
 
 const withPerson = (by: ErasureLeg): ErasureStrategy => ({ kind: "with_person", by });
@@ -74,6 +77,7 @@ const scrubbedBy = (...by: ErasureLeg[]): ErasureStrategy => ({ kind: "scrubbed"
 const byAge = (days: keyof typeof RETENTION_DAYS): ErasureStrategy => ({ kind: "by_age", days });
 const DIGEST: ErasureStrategy = { kind: "digest" };
 const WITH_WORKSPACE: ErasureStrategy = { kind: "with_workspace" };
+const AS_RECORD: ErasureStrategy = { kind: "as_record" };
 const NOT_PERSONAL: ErasureStrategy = { kind: "not_personal" };
 
 /** Every column in `names` with one strategy. */
@@ -397,6 +401,23 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(NOT_PERSONAL, "checks", "code_used", "standing_why"),
   },
   person_notes: { body: scrubbedBy("notes_scrub", "notes_trigger") },
+  // The Console (00467, decision 0066). What the team did and why: the platform's staff, a ticket's number, and a reason
+  // the ask tells them to write without a customer's details (CONSOLE_WORDS.noteHint); kept as the log of the act.
+  platform_acts: all(NOT_PERSONAL, "actor_email", "act", "ticket", "note", "outcome_note"),
+  // Who on the team has a workspace taken: the platform's staff, gone in four hours or when let go.
+  platform_claims: { email: NOT_PERSONAL },
+  // A request the data-deletion page promises an answer to: who asked and the team's notes on it, kept as the answer's
+  // record; the workspace's name and address as it was filed.
+  privacy_requests: {
+    ...all(AS_RECORD, "asked_by", "ticket", "note", "steps"),
+    ...all(NOT_PERSONAL, "slug", "name"),
+  },
+  // Report a problem: a member's address and words leave with the workspace (or their account), as its other records do;
+  // the page and the error are the app's own.
+  support_reports: {
+    ...all(WITH_WORKSPACE, "email", "words"),
+    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error"),
+  },
   platform_metrics: all(
     NOT_PERSONAL,
     "messages_in",

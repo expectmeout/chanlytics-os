@@ -29577,8 +29577,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z34] = m;
-  if (z34) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z35] = m;
+  if (z35) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
@@ -29907,14 +29907,14 @@ function offerLead(offer) {
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
   const whole2 = cents % 100 === 0;
-  const money2 = numberFormat("en-US", {
+  const money3 = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: whole2 ? 0 : 2,
     maximumFractionDigits: whole2 ? 0 : 2
   }).format(cents / 100);
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money2} ${p}` : money2;
+  return p && per !== "once" ? `${money3} ${p}` : money3;
 }
 function parseAmount(words3) {
   const digits2 = String(words3 || "").replace(/[^0-9.-]/g, "");
@@ -34544,6 +34544,1280 @@ function optOutNotice(f) {
   };
 }
 
+// src/console/console-path.ts
+var CONSOLE_PATH = "/console";
+
+// src/workspace/platform.ts
+var PLATFORM_VERDICTS = {
+  broken: { label: "Broken", tone: "danger", rank: 100 },
+  billing: { label: "Billing", tone: "danger", rank: 90 },
+  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
+  stalled: { label: "Stalled", tone: "warn", rank: 70 },
+  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
+  quiet: { label: "Quiet", tone: "warn", rank: 40 },
+  new: { label: "New", tone: "info", rank: 20 },
+  live: { label: "Live", tone: "ok", rank: 10 },
+  paused: { label: "Paused", tone: "plain", rank: 5 },
+  test: { label: "Test", tone: "plain", rank: 0 }
+};
+var PLATFORM_NEW_DAYS = 1;
+var PLATFORM_QUIET_DAYS = 14;
+var at = (iso) => {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? ms2 : null;
+};
+var OURS_TO_FIX = ["failed"];
+var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
+function billingBites(mode, status) {
+  if (mode !== "stripe") return false;
+  return !receptionistOn(status) || status === "past_due";
+}
+function verdictFor(r2, nowMs) {
+  if (r2.status === "test") return "test";
+  const mode = r2.billing_mode ?? "direct";
+  const status = r2.billing_status ?? "none";
+  const answering = r2.voice_active === true || r2.whatsapp_active === true;
+  const age = nowMs - (at(r2.created_at) ?? nowMs);
+  if (r2.voice_state === "failed" || OURS_TO_FIX.includes(r2.sms_state ?? "")) return "broken";
+  if (billingBites(mode, status)) return "billing";
+  if (r2.status === "paused") return "paused";
+  if (r2.reg_mock === true) return "rehearsal";
+  if (!answering && age <= PLATFORM_NEW_DAYS * DAY_MS) return "new";
+  if (THEIRS_TO_FIX.includes(r2.sms_state ?? "")) return "waiting_owner";
+  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
+  if (!answering) return "stalled";
+  const heard = at(r2.last_inbound_at);
+  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY_MS ? "quiet" : "new";
+  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY_MS) return "quiet";
+  return "live";
+}
+function sentenceFor(r2, verdict, nowMs) {
+  const heard = at(r2.last_inbound_at);
+  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
+  switch (verdict) {
+    case "broken":
+      return r2.line_error ? `${r2.line_error}${r2.reg_step ? ` (stopped at ${r2.reg_step})` : ""}` : "Their line stopped and said nothing. A person at Chanlytics has to look.";
+    case "billing":
+      return r2.billing_status === "past_due" ? "A payment failed. The receptionist still answers; once Stripe gives up, the workspace is paused." : `Not subscribed (${r2.billing_status ?? "no status"}) \u2014 the receptionist is paused for them.`;
+    case "rehearsal":
+      return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
+    case "stalled":
+      return `Set up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)} and nothing answers yet${r2.members <= 1 ? ", with one person in the workspace" : ""}.`;
+    case "waiting_owner": {
+      const mode = r2.billing_mode ?? "direct";
+      const status = r2.billing_status ?? "none";
+      if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
+        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
+      }
+      const words3 = textingWords({
+        sms_state: r2.sms_state ?? "none",
+        reg_mock: r2.reg_mock ?? false,
+        reg_sole_prop: r2.reg_sole_prop ?? false
+      }).sentence;
+      return r2.line_error ? `${words3} \u2014 ${r2.line_error}` : words3;
+    }
+    case "quiet":
+      return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
+    case "new":
+      return r2.voice_active === true || r2.whatsapp_active === true ? `Answering since ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.` : `Signed up ${agoWords(at(r2.created_at) ?? nowMs, nowMs)}, still setting up.`;
+    case "live":
+      return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
+    case "paused":
+      return `The workspace is paused, by design: ${PAUSED_CALL}.`;
+    case "test":
+      return "Not a customer \u2014 a test workspace.";
+  }
+}
+function factsFor(r2, nowMs) {
+  const mode = r2.billing_mode ?? null;
+  const status = r2.billing_status ?? null;
+  const paying = mode === null ? "No arrangement" : mode === "direct" ? "Invoiced" : status === "trialing" && r2.trial_end ? `Trial to ${r2.trial_end.slice(0, 10)}` : status ?? "unknown";
+  const on = [r2.voice_active ? "phone" : null, r2.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
+  const answering = on.length ? on.join(" + ") : r2.voice_state === "provisioning" ? "Getting a number" : r2.voice_state === "failed" ? "Line failed" : "Nothing yet";
+  const texting = !r2.line_e164 ? "No line" : r2.sms_state === "active" ? r2.reg_sole_prop ? "On (sole proprietor)" : "On" : r2.reg_mock ? "Rehearsal" : (r2.sms_state ?? "none").replace(/_/g, " ");
+  const at_ = at(r2.last_inbound_at);
+  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
+}
+function platformRows(rows2, nowMs = Date.now()) {
+  return rows2.map((r2) => {
+    const verdict = verdictFor(r2, nowMs);
+    return {
+      tenantId: r2.tenant_id,
+      slug: r2.slug,
+      name: r2.name,
+      verdict,
+      sentence: sentenceFor(r2, verdict, nowMs),
+      facts: factsFor(r2, nowMs),
+      age: agoWords(at(r2.created_at) ?? nowMs, nowMs),
+      members: r2.members
+    };
+  }).sort((a, b) => {
+    const byRank = PLATFORM_VERDICTS[b.verdict].rank - PLATFORM_VERDICTS[a.verdict].rank;
+    if (byRank !== 0) return byRank;
+    return a.name.localeCompare(b.name);
+  });
+}
+function platformSummary(rows2) {
+  const customers = rows2.filter((r2) => r2.verdict !== "test");
+  const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
+  const needsThem = customers.filter(
+    (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
+  ).length;
+  const live = customers.filter((r2) => r2.verdict === "live").length;
+  const parts2 = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
+  if (needsUs) parts2.push(`${needsUs} on us`);
+  if (needsThem) parts2.push(`${needsThem} on them`);
+  return { total: customers.length, needsUs, needsThem, live, sentence: parts2.join(" \xB7 ") };
+}
+function platformNumber(e164) {
+  return formatPhoneDisplay(e164) ?? "\u2014";
+}
+var NUMBER_MONTHLY = "$1.15 a month";
+var REAL_FILING = "about $19.50 once";
+var CAMPAIGN_VETTING = "about $15 once";
+function platformLineActions(l, nowMs = Date.now()) {
+  const out = [];
+  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
+    out.push({
+      action: "retry",
+      label: "Retry setting up",
+      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
+      // A saga that failed BEFORE the number was bought buys one when it
+      // resumes, so this can spend even though it usually does not.
+      cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
+      permanent: false
+    });
+  }
+  if (l.sms_state === "rejected") {
+    out.push({
+      action: "refile",
+      label: "Send the campaign back",
+      // It used to say "Correct the business on record first — this sends what is
+      // there now", which was true and was the whole problem: nothing verified
+      // that anyone had, so a rejection could be answered with the fault that
+      // caused it. Both senders now run the same pre-flight, so the honest
+      // sentence is that this REFUSES rather than repeats.
+      sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: null,
+      permanent: false
+    });
+    out.push({
+      action: "replace",
+      label: "File a new campaign",
+      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
+      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
+      permanent: true
+    });
+  } else if (l.reg_mock === true) {
+    out.push({
+      action: "refile",
+      label: "File it for real",
+      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
+      cost: `${REAL_FILING}, charged to Chanlytics.`,
+      permanent: true
+    });
+  }
+  if (l.e164) {
+    out.push({
+      action: "release",
+      label: "Give the number back",
+      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
+      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
+      permanent: true
+    });
+  }
+  return out;
+}
+function platformHealthOf(rows2, backlog, now = /* @__PURE__ */ new Date()) {
+  const unhealthy = (rows2 ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
+  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
+}
+function platformHealthWords(h) {
+  if (h.backlog === null) return "The platform's health could not be read just now.";
+  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
+  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
+  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
+  return [clocks, late].filter(Boolean).join(" \xB7 ");
+}
+function platformActionWarning(a) {
+  const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
+  return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
+}
+var QUEUE_SHOWN = 100;
+var QUEUE_SENDS_NOTHING = "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
+function waitingDetail(r2) {
+  const from = r2.source ? sourceWords(r2.source) : null;
+  return [r2.business?.trim() || null, from].filter(Boolean).join(" \xB7 ") || null;
+}
+function sourceWords(source) {
+  const s = source.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    const path = u.pathname.replace(/\/+$/, "");
+    return `from ${u.host}${path && path !== "/" ? path : ""}`;
+  } catch {
+    return `from ${s.slice(0, 60)}`;
+  }
+}
+function platformQueue(q, nowMs = Date.now()) {
+  const note = QUEUE_SENDS_NOTHING;
+  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
+  const rows2 = q.waiting.map((r2) => ({
+    id: r2.id,
+    email: r2.email,
+    detail: waitingDetail(r2),
+    waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
+  }));
+  const total = q.total ?? rows2.length;
+  const oldest = q.waiting[0];
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows2.length ? ` \xB7 showing the first ${rows2.length}` : ""}.`;
+  return { rows: rows2, sentence: sentence2, unreadable: false, note };
+}
+
+// src/console/console.ts
+var STAFF_ROLES = ["owner", "support", "billing"];
+var STAFF_ROLE_WORDS = {
+  owner: "Owner",
+  support: "Support",
+  billing: "Billing"
+};
+var STAFF_STATES = [...STAFF_ROLES, "needs_second_factor", "none"];
+function staffName(email) {
+  const local = (email ?? "").split("@")[0] ?? "";
+  const word = local.split(/[._+-]/)[0] ?? "";
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Someone";
+}
+var SUPPORT_ROLES = ["owner", "support"];
+var MONEY_ROLES = ["owner", "billing"];
+var CONSOLE_ACTS = {
+  line_retry: { words: "Retry setting up", roles: SUPPORT_ROLES },
+  line_refile: { words: "Refile texting", roles: SUPPORT_ROLES },
+  line_replace: { words: "File a new campaign", roles: SUPPORT_ROLES },
+  line_release: { words: "Give the number back", roles: SUPPORT_ROLES },
+  job_requeue: { words: "Run a failed job again", roles: SUPPORT_ROLES },
+  waitlist_invited: { words: "Mark as invited", roles: SUPPORT_ROLES },
+  partner_standing: { words: "Rule on a partner's workspace", roles: MONEY_ROLES },
+  partner_payout: { words: "Record a payout", roles: MONEY_ROLES },
+  partner_status: { words: "Pause, close or restore a partner", roles: SUPPORT_ROLES },
+  partner_second_factor: { words: "Reset a partner's second factor", roles: SUPPORT_ROLES },
+  request_file: { words: "File a request", roles: SUPPORT_ROLES },
+  request_step: { words: "Mark a request's step", roles: SUPPORT_ROLES },
+  request_close: { words: "Close a request", roles: SUPPORT_ROLES }
+};
+var CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS);
+var LINE_ACTS = {
+  retry: "line_retry",
+  refile: "line_refile",
+  replace: "line_replace",
+  release: "line_release"
+};
+function staffMay(role, act2) {
+  return !!role && CONSOLE_ACTS[act2].roles.includes(role);
+}
+function staffCannotWords(role, act2) {
+  return `${STAFF_ROLE_WORDS[role]} cannot do that: ${CONSOLE_ACTS[act2].words.toLowerCase()}.`;
+}
+var CONSOLE_SIGHTS = {
+  requests: { words: "the privacy requests", roles: SUPPORT_ROLES }
+};
+function staffSees(role, sight) {
+  return !!role && CONSOLE_SIGHTS[sight].roles.includes(role);
+}
+function staffCannotSeeWords(role, sight) {
+  return `${STAFF_ROLE_WORDS[role]} cannot see ${CONSOLE_SIGHTS[sight].words}.`;
+}
+var REASON_KINDS = ["ticket", "call", "found", "cleanup"];
+var REASON_WORDS = {
+  ticket: "Ticket",
+  call: "A call",
+  found: "Found it",
+  cleanup: "Cleanup"
+};
+var REASON_LIMITS = { ticket: 40, note: 500 };
+function whyWords(why) {
+  const head = why.ticket ? `${REASON_WORDS[why.kind]} \xB7 ${why.ticket}` : REASON_WORDS[why.kind];
+  return why.note ? `${head} \xB7 ${why.note}` : head;
+}
+var ACT_OUTCOMES = ["running", "done", "refused", "failed"];
+var ACT_OUTCOME_WORDS = {
+  running: { label: "Running", tone: "info" },
+  done: { label: "Done", tone: "ok" },
+  refused: { label: "Refused", tone: "danger" },
+  failed: { label: "Failed", tone: "danger" }
+};
+var ACT_GONE_QUIET_MS = 5 * MIN_MS;
+var NEVER_FINISHED = { label: "Never finished", tone: "warn" };
+var NEVER_FINISHED_NOTE = "It started and nothing came back. Look before taking it again.";
+var ACT_LOG_PAGE = 50;
+var ACT_TARGETS = ["workspace", "line", "job", "waitlist", "partner", "request", "platform"];
+function actRowOf(dto, nowMs) {
+  const at3 = Date.parse(dto.at);
+  const quiet = dto.outcome === "running" && Number.isFinite(at3) && nowMs - at3 > ACT_GONE_QUIET_MS;
+  return {
+    id: dto.id,
+    when: Number.isFinite(at3) ? agoWords(at3, nowMs) : "",
+    who: staffName(dto.actor_email),
+    role: STAFF_ROLE_WORDS[dto.actor_role],
+    what: CONSOLE_ACTS[dto.act]?.words ?? dto.act,
+    where: dto.name ?? (dto.tenant_id ? "A workspace since deleted" : TARGET_WORDS[dto.target_kind]),
+    why: whyWords({ kind: dto.reason_kind, ticket: dto.ticket, note: dto.note }),
+    outcome: quiet ? NEVER_FINISHED : ACT_OUTCOME_WORDS[dto.outcome],
+    outcomeNote: quiet ? NEVER_FINISHED_NOTE : dto.outcome_note,
+    slug: dto.slug
+  };
+}
+var TARGET_WORDS = {
+  workspace: "A workspace",
+  line: "A line",
+  job: "A job",
+  waitlist: "The waiting list",
+  partner: "A partner",
+  request: "A request",
+  platform: "Every workspace"
+};
+function actsCsv(rows2) {
+  const head = ["at", "who", "role", "act", "workspace", "reason", "ticket", "note", "outcome", "outcome_note"];
+  const lines = rows2.map(
+    (r2) => [
+      r2.at,
+      r2.actor_email,
+      r2.actor_role,
+      r2.act,
+      r2.slug ?? r2.tenant_id,
+      r2.reason_kind,
+      r2.ticket,
+      r2.note,
+      r2.outcome,
+      r2.outcome_note
+    ].map(csvCell).join(",")
+  );
+  return [head.join(","), ...lines].join("\r\n");
+}
+var CONSOLE_SCREENS = ["home", "workspaces", "support", "requests", "partners", "health", "log"];
+var CONSOLE_SCREEN_WORDS = {
+  home: { label: "Home", icon: "home", group: "Work" },
+  workspaces: { label: "Workspaces", icon: "monitor", group: "Work" },
+  support: { label: "Support", icon: "chat", group: "Work" },
+  requests: { label: "Requests", icon: "note", group: "Work", sight: "requests" },
+  partners: { label: "Partners", icon: "users", group: "Business" },
+  health: { label: "Health", icon: "bolt", group: "Platform" },
+  log: { label: "Admin log", icon: "list", group: "Access" }
+};
+function staffSeesScreen(role, screen) {
+  const sight = CONSOLE_SCREEN_WORDS[screen].sight;
+  return sight ? staffSees(role, sight) : !!role;
+}
+var CONSOLE_WORKSPACE_TABS = ["overview", "lines", "activity"];
+var CONSOLE_WORKSPACE_TAB_WORDS = {
+  overview: "Overview",
+  lines: "Setup and lines",
+  activity: "Activity"
+};
+var SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
+function consoleAddressOf(pathname) {
+  const parts2 = ((pathname ?? "").split(/[?#]/)[0] ?? "").split("/").filter(Boolean);
+  const [root, screen, slug, tab] = parts2;
+  const home = { screen: "home", slug: null, tab: "overview" };
+  if (root !== CONSOLE_PATH.slice(1) || !screen) return home;
+  if (!CONSOLE_SCREENS.includes(screen)) return home;
+  const s = screen;
+  if (s !== "workspaces" || !slug || !SLUG.test(slug)) return { screen: s, slug: null, tab: "overview" };
+  const t = CONSOLE_WORKSPACE_TABS.includes(tab ?? "") ? tab : "overview";
+  return { screen: s, slug, tab: t };
+}
+function consolePathOf(screen, slug, tab) {
+  if (screen === "home") return CONSOLE_PATH;
+  if (screen === "workspaces" && slug) {
+    return tab && tab !== "overview" ? `${CONSOLE_PATH}/workspaces/${slug}/${tab}` : `${CONSOLE_PATH}/workspaces/${slug}`;
+  }
+  return `${CONSOLE_PATH}/${screen}`;
+}
+var CONSOLE_GROUPS = {
+  needs_us: ["broken", "rehearsal"],
+  waiting: ["billing", "waiting_owner", "stalled"],
+  look: ["quiet", "new"],
+  live: ["live"],
+  paused: ["paused"],
+  ours: ["test"]
+};
+var CONSOLE_GROUP_WORDS = {
+  needs_us: "Needs us",
+  waiting: "Waiting on them",
+  look: "Worth a look",
+  live: "Live",
+  paused: "Paused",
+  ours: "Ours"
+};
+var GROUP_ORDER = Object.keys(CONSOLE_GROUPS);
+function consoleGroupOf(verdict) {
+  return GROUP_ORDER.find((g) => CONSOLE_GROUPS[g].includes(verdict)) ?? "look";
+}
+function consoleGroups(rows2) {
+  return GROUP_ORDER.map((group) => ({
+    group,
+    words: CONSOLE_GROUP_WORDS[group],
+    rows: rows2.filter((r2) => consoleGroupOf(r2.verdict) === group)
+  })).filter((g) => g.rows.length > 0);
+}
+function verdictPill(verdict) {
+  const v = PLATFORM_VERDICTS[verdict];
+  return { label: v.label, tone: v.tone };
+}
+var CLAIM_HOURS = 4;
+var CLAIM_MS = CLAIM_HOURS * HOUR_MS;
+function claimWords(claim, me, nowMs) {
+  if (!claim || Date.parse(claim.until) <= nowMs) return null;
+  return claim.user_id === me ? "You have it" : `${staffName(claim.email)} is on it`;
+}
+var money = (cents, currency) => {
+  const whole2 = Math.round(cents / 100).toLocaleString("en-US");
+  return !currency || currency === "usd" ? `$${whole2}` : `${whole2} ${currency.toUpperCase()}`;
+};
+function consoleNumbersFrom(tenants, spend, price, nowMs) {
+  const verdictOf2 = new Map(platformRows(tenants, nowMs).map((r2) => [r2.tenantId, r2.verdict]));
+  const customers = tenants.filter((t) => verdictOf2.get(t.tenant_id) !== "test");
+  const answering = customers.filter((t) => ["live", "quiet"].includes(verdictOf2.get(t.tenant_id) ?? ""));
+  const trialing = customers.filter((t) => t.billing_status === "trialing");
+  const endsSoon = (iso) => {
+    const at3 = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(at3) && at3 >= nowMs && at3 <= nowMs + WEEK_MS;
+  };
+  const heardToday = (iso) => {
+    const at3 = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(at3) && nowMs - at3 <= DAY_MS;
+  };
+  const paying = customers.filter((t) => t.billing_status === "active");
+  const monthly = price && price.interval === "month" && price.unit_amount !== null ? price.unit_amount : null;
+  return {
+    paying: paying.length,
+    paying_cents: monthly === null ? null : paying.filter((t) => t.billing_mode !== "direct").length * monthly,
+    currency: monthly === null || !price ? null : price.currency,
+    trials: trialing.length,
+    trials_ending: trialing.filter((t) => endsSoon(t.trial_end)).length,
+    answering: answering.length,
+    heard_today: answering.filter((t) => heardToday(t.last_inbound_at)).length,
+    model_usd: spend ? spend.usd : null,
+    model_workspaces: spend?.workspaces ?? 0
+  };
+}
+function consoleNumbersOf(n) {
+  return [
+    {
+      label: "Paying",
+      value: n.paying_cents === null ? String(n.paying) : money(n.paying_cents, n.currency),
+      sub: n.paying_cents === null ? `workspace${n.paying === 1 ? "" : "s"} on a plan` : `a month \xB7 ${n.paying} workspace${n.paying === 1 ? "" : "s"}`,
+      tone: null
+    },
+    {
+      label: "On a trial",
+      value: String(n.trials),
+      sub: n.trials_ending ? `${n.trials_ending} end${n.trials_ending === 1 ? "s" : ""} this week` : "none end this week",
+      tone: n.trials_ending ? "warn" : null
+    },
+    {
+      label: "Heard from today",
+      value: `${n.heard_today} of ${n.answering}`,
+      sub: "workspaces that answer",
+      tone: null
+    },
+    {
+      label: "Model calls, 30 days",
+      value: n.model_usd === null ? "\u2014" : `$${Math.round(n.model_usd).toLocaleString("en-US")}`,
+      sub: n.model_usd === null ? "could not be read" : `across ${n.model_workspaces} workspaces`,
+      tone: null
+    }
+  ];
+}
+function homeSentence(n) {
+  return [
+    n.needsUs === 1 ? "1 needs us" : `${n.needsUs} need us`,
+    `${n.waiting} waiting on them`,
+    `${n.cameIn} came in this week`,
+    ...n.due ? [n.due] : []
+  ].join(" \xB7 ");
+}
+var CONSOLE_WORDS = {
+  brand: "Chanlytics",
+  badge: "Console",
+  find: "Find",
+  findPlaceholder: "A name, an email, a number or a report",
+  secondFactorOn: "second factor on",
+  signOut: "Sign out",
+  openApp: "Open the app",
+  readAgain: "Read again",
+  reading: "Reading\u2026",
+  failed: "Could not be read right now.",
+  failedBody: "Nothing on the platform changed; this page could not read it.",
+  noSuchWorkspace: "No workspace has that address.",
+  takeIt: "Take it",
+  letGo: "Let go",
+  open: "Open",
+  inTheInbox: "In the inbox",
+  every: "Every workspace",
+  asksWhy: "Each asks why, then twice, and is written down against you first.",
+  recorded: "Written down against you before it runs",
+  notNow: "Not now",
+  why: "Why",
+  ticket: "The ticket",
+  ticketHint: "R-1042, or the inbox's number",
+  note: "A note for the log",
+  noteHint: "What you checked, or what the owner said: never a customer's details",
+  needTicket: "Name the ticket, or choose another reason."
+};
+
+// src/console/requests.ts
+var REQUEST_KINDS = ["delete_workspace", "delete_person", "copy"];
+var REQUEST_KIND_WORDS = {
+  delete_workspace: "Delete a workspace",
+  delete_person: "A person asks to be deleted",
+  copy: "A copy of everything"
+};
+var REQUEST_DUE_DAYS = 30;
+var REQUEST_STEP_KEYS = [
+  "confirmed",
+  "copy_sent",
+  "number_released",
+  "dry_run",
+  "deleted",
+  "passed_on",
+  "answered",
+  "sent",
+  "told"
+];
+var REQUEST_STEPS = {
+  delete_workspace: ["confirmed", "copy_sent", "number_released", "dry_run", "deleted", "told"],
+  delete_person: ["passed_on", "answered", "told"],
+  copy: ["confirmed", "sent", "told"]
+};
+var REQUEST_STEP_WORDS = {
+  confirmed: { title: "They confirmed", hint: "From the address on the account" },
+  copy_sent: { title: "Their copy, sent", hint: "People, conversations, calls and consent, from Settings \u203A Billing" },
+  number_released: { title: "Its number, given back", hint: "From its line, on Setup and lines" },
+  dry_run: { title: "A dry run, and a backup", hint: "ops/delete-tenant.mjs without --apply: counts every row" },
+  deleted: { title: "Deleted, for good", hint: "ops/delete-tenant.mjs with --apply, after the dry run" },
+  passed_on: { title: "Passed to the business", hint: "The owner is the one who deletes them" },
+  answered: { title: "The business answered", hint: "What they did, in the note" },
+  sent: { title: "Sent", hint: "What the export doesn't hold, by hand" },
+  told: { title: "They were told", hint: "A reply from the inbox" }
+};
+function requestDueAt(askedAtIso) {
+  return new Date(Date.parse(askedAtIso) + REQUEST_DUE_DAYS * DAY_MS).toISOString();
+}
+function requestClock(dueAtIso, closedAtIso, nowMs) {
+  if (closedAtIso) return { days: 0, words: "Closed", tone: "ok" };
+  const days = Math.ceil((Date.parse(dueAtIso) - nowMs) / DAY_MS);
+  if (days < 0) return { days, words: `${-days} day${days === -1 ? "" : "s"} late`, tone: "danger" };
+  if (days === 0) return { days, words: "Due today", tone: "danger" };
+  return { days, words: `${days} day${days === 1 ? "" : "s"} left`, tone: days <= 10 ? "warn" : "plain" };
+}
+function requestCode(n) {
+  return `Q-${n}`;
+}
+function privacyRequestOf(dto, nowMs, tz) {
+  const steps = REQUEST_STEPS[dto.kind].map((step2) => {
+    const doneAt = dto.steps[step2] ?? null;
+    const done = doneAt ? requestDayWords(doneAt, tz) : "";
+    return {
+      step: step2,
+      title: REQUEST_STEP_WORDS[step2].title,
+      hint: REQUEST_STEP_WORDS[step2].hint,
+      doneAt,
+      says: done ? `Done ${done}` : REQUEST_STEP_WORDS[step2].hint
+    };
+  });
+  return {
+    id: dto.id,
+    code: requestCode(dto.number),
+    kind: dto.kind,
+    title: REQUEST_KIND_WORDS[dto.kind],
+    workspace: dto.name ?? "No workspace",
+    slug: dto.slug,
+    askedBy: dto.asked_by,
+    askedAt: dto.asked_at,
+    asked: `Asked by ${dto.asked_by}, ${requestDayWords(dto.asked_at, tz)}`,
+    ticket: dto.ticket,
+    note: dto.note,
+    clock: requestClock(dto.due_at, dto.closed_at, nowMs),
+    steps,
+    next: steps.find((s) => !s.doneAt)?.step ?? null,
+    open: !dto.closed_at
+  };
+}
+function requestsInOrder(rows2, nowMs, tz) {
+  const open = rows2.filter((r2) => !r2.closed_at).sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at));
+  const closed = rows2.filter((r2) => r2.closed_at).sort((a, b) => Date.parse(b.closed_at ?? "") - Date.parse(a.closed_at ?? ""));
+  return [...open, ...closed].map((r2) => privacyRequestOf(r2, nowMs, tz));
+}
+function requestDayWords(iso, tz) {
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? clockDateYear(ms2, tz) : "";
+}
+function requestHasStep(kind, step2) {
+  return REQUEST_STEPS[kind].includes(step2);
+}
+function requestStepChange(dto, step2, done, nowIso) {
+  if (dto.closed_at) return { refused: "This request is closed already." };
+  if (step2 === "close") {
+    const left = REQUEST_STEPS[dto.kind].find((s) => !dto.steps[s]);
+    if (left) return { refused: `Mark each step first: \u201C${REQUEST_STEP_WORDS[left].title}\u201D is not done.` };
+    return { steps: { ...dto.steps }, closedAt: nowIso };
+  }
+  if (!requestHasStep(dto.kind, step2)) return { refused: "That step is not one this request has." };
+  const steps = { ...dto.steps };
+  if (done) steps[step2] = steps[step2] ?? nowIso;
+  else delete steps[step2];
+  return { steps, closedAt: null };
+}
+var REQUEST_WORDS = {
+  title: "Requests",
+  sub: "What the data-deletion page promises: a workspace gone within 30 days of its owner asking; a person's request passed to the business",
+  open: "Open",
+  done: "Done",
+  none: "Nothing is waiting.",
+  file: "File a request",
+  kind: "What they asked",
+  workspace: "The workspace",
+  workspaceHint: "Its address, as /w/ says it",
+  askedBy: "Who asked",
+  askedByHint: "Their email, as it came in",
+  askedAt: "When they asked",
+  markDone: "Mark done",
+  undo: "Not done",
+  close: "Close it",
+  scriptNote: "The delete stays the script until the next tier: run it, then mark the step."
+};
+
+// src/console/support.ts
+function reportCode(n) {
+  return `R-${n}`;
+}
+var SUPPORT_VIEWS = ["week", "all"];
+var SUPPORT_VIEW_WORDS = { week: "This week", all: "All" };
+var PAGE_WORDS = {
+  today: "Today",
+  inbox: "Inbox",
+  conversations: "Conversations",
+  clients: "People",
+  people: "People",
+  leads: "Leads",
+  calendar: "Calendar",
+  campaigns: "Campaigns",
+  reports: "Reports",
+  admin: "Settings",
+  settings: "Settings",
+  live: "Live",
+  start: "Setup"
+};
+function pageWords(page2) {
+  return page2 ? PAGE_WORDS[page2] ?? page2.charAt(0).toUpperCase() + page2.slice(1) : "No page";
+}
+function reportOf(dto, nowMs) {
+  return {
+    id: dto.id,
+    code: reportCode(dto.number),
+    words: dto.words,
+    who: dto.email ?? "Someone signed out",
+    workspace: dto.name ?? "No workspace",
+    slug: dto.slug,
+    page: pageWords(dto.page),
+    errorId: dto.error_id,
+    when: agoWords(Date.parse(dto.created_at), nowMs),
+    unmailed: dto.mailed_at ? null : dto.mail_error ? `Not in the inbox: ${dto.mail_error}` : "Not in the inbox yet"
+  };
+}
+function supportClusters(rows2, nowMs) {
+  const byError = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    if (!r2.error_id) continue;
+    byError.set(r2.error_id, [...byError.get(r2.error_id) ?? [], r2]);
+  }
+  return [...byError.entries()].map(([errorId, list2]) => {
+    const names3 = [...new Set(list2.map((r2) => r2.name ?? "No workspace"))];
+    const times = list2.map((r2) => Date.parse(r2.created_at)).sort((a, b) => a - b);
+    const first = list2[0];
+    return {
+      errorId,
+      page: pageWords(first?.page),
+      error: first?.error_message || first?.error_name || "An error",
+      workspaces: names3,
+      reports: list2.length,
+      first: agoWords(times[0] ?? nowMs, nowMs),
+      last: agoWords(times[times.length - 1] ?? nowMs, nowMs)
+    };
+  }).filter((c) => c.workspaces.length >= 2).sort((a, b) => b.workspaces.length - a.workspaces.length || b.reports - a.reports);
+}
+var SETUP_ASK_WORDS = {
+  line: "Asked for a phone line",
+  port: "Asked to bring their phone number",
+  forwarding: "Asked for help with forwarding in their phone system",
+  repair: "Asked for their settings to be repaired",
+  name: "Asked to change the name the carriers hold"
+};
+function cameInOf(reports, asks, nowMs) {
+  const fromReports = reports.map((r2) => {
+    const at3 = Date.parse(r2.created_at);
+    return {
+      key: `r-${r2.id}`,
+      kind: "report",
+      title: `\u201C${r2.words.length > 60 ? `${r2.words.slice(0, 59)}\u2026` : r2.words}\u201D`,
+      workspace: r2.name ?? "No workspace",
+      slug: r2.slug,
+      detail: [pageWords(r2.page), r2.error_id ? `error ${r2.error_id}` : "no error"].join(" \xB7 "),
+      when: agoWords(at3, nowMs),
+      atMs: at3,
+      code: reportCode(r2.number)
+    };
+  });
+  const fromAsks = asks.map((a) => {
+    const at3 = Date.parse(a.at);
+    return {
+      key: `s-${a.tenant_id}-${a.at}`,
+      kind: "setup",
+      title: SETUP_ASK_WORDS[a.what] ?? "Asked a person for something",
+      workspace: a.name,
+      slug: a.slug,
+      detail: "Something setup can't do yet",
+      when: agoWords(at3, nowMs),
+      atMs: at3,
+      code: null
+    };
+  });
+  return [...fromReports, ...fromAsks].sort((a, b) => b.atMs - a.atMs);
+}
+var FIND_KINDS = ["workspace", "owner", "line", "caller", "report"];
+var FIND_KIND_WORDS = {
+  workspace: "Workspaces",
+  owner: "Owners",
+  line: "A number",
+  caller: "A customer of theirs who called it",
+  report: "Reports"
+};
+var FIND_LIMITS = { min: 2, max: 80, rows: 20 };
+function findDigits(q) {
+  const digits2 = q.replace(/\D/g, "");
+  return digits2.length >= 4 && /^[\d\s()+.-]+$/.test(q.trim()) ? digits2 : null;
+}
+function findGroups(rows2) {
+  return FIND_KINDS.map((kind) => ({
+    kind,
+    words: FIND_KIND_WORDS[kind],
+    rows: rows2.filter((r2) => r2.kind === kind)
+  })).filter((g) => g.rows.length > 0);
+}
+var SUPPORT_WORDS = {
+  title: "Support",
+  sub: "From Report a problem in the app \xB7 you reply in the inbox",
+  openInbox: "Open the inbox",
+  cluster: (n) => `The same error, ${n} workspaces`,
+  clusterReports: (n) => `${n} report${n === 1 ? "" : "s"}`,
+  none: "Nothing was reported this week.",
+  noneAll: "Nothing has been reported.",
+  columns: { words: "What they wrote", workspace: "Workspace", page: "Page", error: "Error", when: "When" },
+  copied: "The number is copied: search the inbox with it.",
+  findEmpty: "Nothing matches.",
+  findHint: "A name, a slug, an owner's email, a number, a report",
+  findKeys: { move: "move", open: "open", close: "close" }
+};
+
+// src/console/console-schema.ts
+import { z as z12 } from "zod";
+
+// src/workspace/partner.ts
+var PARTNER_STATUSES = ["active", "paused", "closed"];
+var PARTNER_SHARE_BP_DEFAULT = 2500;
+var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
+var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
+var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
+var PARTNER_HOLD_DAYS = 30;
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
+var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+function cleanPartnerCode(raw) {
+  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!code2) return { ok: false, reason: "Choose a code for your link." };
+  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
+    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
+  if (!CODE_SHAPE.test(code2))
+    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
+  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
+  return { ok: true, code: code2 };
+}
+var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
+var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
+var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
+var PARTNER_COOKIE = "chanlytics_partner";
+var PARTNER_COOKIE_DAYS = 30;
+function partnerCodeFromCookie(header) {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
+    let value = part.slice(eq + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+    const cleaned = cleanPartnerCode(value);
+    return cleaned.ok ? cleaned.code : null;
+  }
+  return null;
+}
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  workspaces: "Your workspaces",
+  open: "Open",
+  readingWorkspaces: "Reading your workspaces\u2026",
+  failedWorkspaces: "your workspaces",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
+};
+function shareWords(shareBp) {
+  const pct2 = shareBp / 100;
+  const shown2 = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
+  return `${shown2}% of what it pays for its plan`;
+}
+function broughtWords(count2) {
+  if (count2 <= 0) return "No workspace has you as its partner yet.";
+  if (count2 === 1) return "1 workspace has you as its partner.";
+  return `${count2} workspaces have you as their partner.`;
+}
+var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+function sumWords(rows2, state) {
+  const of = rows2.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows2[0]?.currency ?? "usd"), cents: 0 };
+  return {
+    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
+    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
+  };
+}
+function partnerEarningsWords(rows2, nowMs = Date.now()) {
+  const list2 = rows2 ?? [];
+  const held = sumWords(list2, "held");
+  const payable = sumWords(list2, "payable");
+  const paid = sumWords(list2, "paid");
+  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
+  return {
+    none: list2.every((r2) => r2.earned_cents === 0),
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
+    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
+    paid: `${paid.words} paid to date.`
+  };
+}
+function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
+  return {
+    code: dto.code,
+    link: partnerLinkFor(dto.code, origin),
+    status: dto.status,
+    share: shareWords(dto.share_bp),
+    since: PARTNER_WORDS.since(dto.created_at),
+    brought: broughtWords(workspacesAsPartner),
+    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
+    earnings: partnerEarningsWords(balance)
+  };
+}
+var PARTNER_STANDING_WORDS = {
+  pending: "Its share is judged once it has paid.",
+  qualified: null,
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
+  disqualified: "Not eligible for a share."
+};
+var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
+function moneyLine(lines) {
+  if (!lines.length) return "Nothing earned from it yet.";
+  const say2 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
+  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
+  const month = lines.reduce((n, l) => n + l.month_cents, 0);
+  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
+  return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
+}
+function partnerWorkspacesVM(overview, money3, nowMs = Date.now(), status = "active") {
+  const judged2 = platformRows(overview, nowMs);
+  const moneyOf2 = (id) => money3.filter((m) => m.tenant_id === id);
+  const standingOf2 = (id) => {
+    const s = moneyOf2(id)[0]?.standing ?? "pending";
+    return PARTNER_STANDING_WORDS[s] ?? null;
+  };
+  const rows2 = judged2.map((r2) => {
+    const v = PLATFORM_VERDICTS[r2.verdict];
+    return {
+      tenantId: r2.tenantId,
+      slug: r2.slug,
+      name: r2.name,
+      verdict: r2.verdict,
+      label: v.label,
+      tone: v.tone,
+      sentence: r2.sentence,
+      facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
+      standing: standingOf2(r2.tenantId),
+      money: moneyLine(moneyOf2(r2.tenantId)),
+      onTeam: true
+    };
+  });
+  const seen = new Set(rows2.map((r2) => r2.tenantId));
+  const off = [...new Map(money3.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
+  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
+    rows2.push({
+      tenantId: m.tenant_id,
+      slug: null,
+      name: m.name,
+      verdict: null,
+      label: "Off the team",
+      tone: "plain",
+      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      facts: null,
+      standing: standingOf2(m.tenant_id),
+      money: moneyLine(moneyOf2(m.tenant_id)),
+      onTeam: m.on_team
+    });
+  }
+  const total = rows2.length;
+  const live = rows2.filter((r2) => r2.verdict === "live").length;
+  const needs2 = rows2.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
+  const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
+  if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
+  return { rows: rows2, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
+}
+var PARTNER_STANDING_VERBS = {
+  qualified: "Qualify",
+  review: "Hold for review",
+  disqualified: "Disqualify"
+};
+function partnerStandingChoices(standing2) {
+  return PARTNER_STANDINGS.filter((s) => s !== standing2);
+}
+var PARTNER_STATUS_VERBS = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close"
+};
+function partnerStatusChoices(status) {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+function partnerStatusOutcomeWords(code2, r2) {
+  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r2.status === "active")
+    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
+  const what = r2.status === "closed" ? "closed" : "paused";
+  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
+}
+function platformPartnerRows(rows2) {
+  const seen = /* @__PURE__ */ new Set();
+  return rows2.map((r2) => {
+    const first = !seen.has(r2.partner_id);
+    seen.add(r2.partner_id);
+    const cur = r2.currency ?? "usd";
+    const pct2 = r2.share_bp / 100;
+    const who = [
+      r2.email ?? "no address on file",
+      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
+      r2.under_review ? `${r2.under_review} under review` : null,
+      `${Number.isInteger(pct2) ? pct2 : pct2.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      r2.status === "active" ? null : r2.status
+    ].filter(Boolean);
+    const payable = r2.payable_cents;
+    const money3 = r2.currency === null ? "Nothing earned yet." : [
+      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
+      `${moneyWords(r2.held_cents, cur)} held`,
+      `${moneyWords(r2.paid_cents, cur)} paid to date`
+    ].join(" \xB7 ");
+    return {
+      partnerId: r2.partner_id,
+      code: r2.code,
+      who: who.join(" \xB7 "),
+      money: money3,
+      currency: r2.currency,
+      payableCents: payable,
+      canPay: r2.currency !== null && payable > 0,
+      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
+      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r2.status,
+      first,
+      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
+    };
+  });
+}
+function platformPartnerSummary(rows2) {
+  const partners = new Set(rows2.map((r2) => r2.partner_id)).size;
+  if (!partners) return "No partners yet.";
+  const byCur = /* @__PURE__ */ new Map();
+  for (const r2 of rows2)
+    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
+  const review = [...new Map(rows2.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
+  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
+  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
+  return parts2.join(" \xB7 ");
+}
+var STANDING_LABELS = {
+  qualified: "Qualified",
+  review: "Under review",
+  disqualified: "Disqualified"
+};
+var standingLabel = (standing2) => STANDING_LABELS[standing2] ?? standing2;
+var DECIDED_BY_WORDS = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)"
+};
+var BY_ORIGIN = {
+  link: (code2) => `Brought by ${code2}`,
+  handover: (code2) => `Set up and handed over by ${code2}`,
+  invite: (code2) => `${code2}, asked in by its owner`
+};
+function platformPartnerStanding(w) {
+  const label = w.standing ? standingLabel(w.standing) : "Not judged yet";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
+  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
+  return {
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
+    standing: `${label}${whose}${why}`,
+    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
+    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
+  };
+}
+var CODE_IGNORED_WHY = {
+  unknown: "no partner has that code",
+  paused: "that partner's account is paused",
+  closed: "that partner's account is closed",
+  self: "it was their own code"
+};
+var REVERSED_WORDS = {
+  refund: "a payment was refunded",
+  dispute: "a payment was disputed",
+  dispute_won: "a dispute was won"
+};
+function partnerEventBits(kind, p) {
+  const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
+  const known = (words3, k) => {
+    const said = text(k);
+    const word = said !== null && Object.hasOwn(words3, said) ? words3[said] ?? null : null;
+    return word === null ? [] : [word];
+  };
+  switch (kind) {
+    case "partner.code_ignored":
+      return known(CODE_IGNORED_WHY, "why");
+    case "partner.reversed":
+      return known(REVERSED_WORDS, "kind");
+    case "partner.handover_sent":
+      return p.again === true ? ["sent again"] : [];
+    case "partner.invite_accepted":
+      return p.earns === false ? ["it was already paying, so it earns no share"] : [];
+    default:
+      return [];
+  }
+}
+function partnerPayoutOutcomeWords(code2, r2) {
+  if (r2.changed)
+    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
+  if (r2.paid)
+    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
+  if (r2.total_cents < 0)
+    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
+  return "Nothing is payable to them in that currency, so nothing was recorded.";
+}
+function partnerStandingOutcomeWords(r2) {
+  const label = standingLabel(r2.standing).toLowerCase();
+  if (r2.standing === "disqualified")
+    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+  if (r2.standing === "qualified")
+    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
+  return `Now ${label}. What it holds waits until a person decides.`;
+}
+var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
+var money2 = (rows2) => rows2.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
+var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
+var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
+var whyWords2 = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
+var REVERSAL_LINES = {
+  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
+  dispute: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
+  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`
+};
+function standingLine(s) {
+  const name = workspaceWords(s.workspace);
+  if (s.standing === "review")
+    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords2(s.why)}`;
+  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords2(s.why)}`;
+  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords2(s.why)}`;
+}
+function statusLine(s) {
+  if (s.status === "paused")
+    return `Your partner account is paused.${whyWords2(s.why)} On the teams you joined you can read, not change, until it is restored.`;
+  if (s.status === "closed") return `Your partner account is closed.${whyWords2(s.why)}`;
+  return "Your partner account is active again.";
+}
+function balanceRows(balance) {
+  return balance.flatMap((b) => [
+    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
+    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
+    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null }
+  ]);
+}
+function partnerLetter(news, opts) {
+  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
+  const body = [
+    `Since ${dayWords2(opts.since)}:`,
+    "",
+    ...letterLines(news).map((l) => `- ${l}`),
+    "",
+    "Where you stand:",
+    ...stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`),
+    "",
+    `See it all: ${partnerPaneUrl(opts.origin)}`,
+    "",
+    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings \u203A Partner."
+  ].join("\n");
+  return { subject: letterSubject(news), body };
+}
+var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
+var countOf2 = (rows2) => rows2.reduce((k, w) => k + w.count, 0);
+var nonZero = (rows2) => rows2.filter((r2) => r2.cents !== 0);
+function letterLines(news) {
+  const lines = [];
+  if (news.status) lines.push(statusLine(news.status));
+  for (const p of news.paid)
+    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
+  const shares = sharesOf(news);
+  if (shares.length) {
+    const n = countOf2(shares);
+    lines.push(
+      `You earned ${money2(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
+    );
+  }
+  for (const kind of PARTNER_REVERSAL_KINDS) {
+    const of = news.written.filter((w) => w.kind === kind);
+    if (of.length) lines.push(REVERSAL_LINES[kind](countOf2(of), money2(of)));
+  }
+  const matured = nonZero(news.matured);
+  if (matured.length) lines.push(`${money2(matured)} became payable.`);
+  const voided = nonZero(news.voided);
+  if (voided.length) lines.push(`${money2(voided)} held will not be paid: its workspace is not eligible.`);
+  for (const s of news.standing) lines.push(standingLine(s));
+  for (const b of news.brought)
+    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+  for (const a of news.accepted ?? [])
+    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
+  for (const d of news.declined ?? [])
+    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
+  return lines;
+}
+var LETTER_SUBJECTS = [
+  [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
+  [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
+  [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money2(n.paid)}`],
+  [
+    (n) => n.standing.some((s) => s.standing === "disqualified"),
+    () => "A workspace you brought is not eligible for a share"
+  ],
+  [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
+  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
+  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
+  [(n) => sharesOf(n).length > 0, (n) => `You earned ${money2(sharesOf(n))}`]
+];
+function letterSubject(news) {
+  const rule2 = LETTER_SUBJECTS.find(([holds]) => holds(news));
+  return rule2 ? rule2[1](news) : "What changed in your partner account";
+}
+
+// src/console/console-schema.ts
+var uuid = (what) => z12.uuid({ error: `That ${what} does not exist.` });
+var wordsUpTo = (max) => z12.string().trim().max(max, `At most ${max} characters.`).transform((s) => s ? s : null).nullable().optional().transform((s) => s ?? null);
+var ConsoleWhySchema = z12.object({
+  kind: z12.enum(REASON_KINDS, { error: "Say why." }),
+  ticket: wordsUpTo(REASON_LIMITS.ticket),
+  note: wordsUpTo(REASON_LIMITS.note)
+}).strict().refine((w) => w.kind !== "ticket" || !!w.ticket, {
+  message: "Name the ticket, or choose another reason.",
+  path: ["ticket"]
+});
+var PartnerWhySchema = ConsoleWhySchema.refine((w) => !!w.note, {
+  message: "Say why in a sentence: the partner reads it.",
+  path: ["note"]
+});
+var LineActSchema = z12.object({ tenant_id: uuid("workspace"), line_id: uuid("line"), why: ConsoleWhySchema }).strict();
+var JobRequeueSchema = z12.object({ tenant_id: uuid("workspace"), job_id: uuid("job"), why: ConsoleWhySchema }).strict();
+var WaitlistInvitedSchema = z12.object({ id: uuid("place"), why: ConsoleWhySchema }).strict();
+var PartnerStandingSchema = z12.object({
+  tenant_id: uuid("workspace"),
+  standing: z12.enum(PARTNER_STANDINGS, { error: "Choose qualified, review or disqualified." }),
+  why: PartnerWhySchema
+}).strict();
+var PartnerStatusSchema = z12.object({
+  partner_id: uuid("partner"),
+  status: z12.enum(PARTNER_STATUSES, { error: "Choose active, paused or closed." }),
+  why: PartnerWhySchema
+}).strict();
+var PartnerPayoutSchema = z12.object({
+  partner_id: uuid("partner"),
+  currency: z12.string().trim().toLowerCase().regex(/^[a-z]{3}$/, "Name the currency the payout was sent in."),
+  reference: z12.string().trim().min(1, "Give the payment's reference, so it can be found again.").max(200, "At most 200 characters."),
+  /** The total the card showed: a total that moved since is refused, not recorded. */
+  expected_cents: z12.number({ error: "The expected amount must be a whole number of cents." }).int("The expected amount must be a whole number of cents.").optional(),
+  why: ConsoleWhySchema
+}).strict();
+var PartnerSecondFactorSchema = z12.object({ partner_id: uuid("partner"), why: PartnerWhySchema }).strict();
+var RequestFileSchema = z12.object({
+  kind: z12.enum(REQUEST_KINDS, { error: "Say what they asked for." }),
+  /** The workspace it is about, by its address: a request is kept by its name after the workspace is gone. */
+  workspace: z12.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "Give the workspace's address, as /w/ says it."),
+  asked_by: z12.string().trim().min(3, "Say who asked: their email, as it came in.").max(200, "At most 200 characters."),
+  asked_at: z12.iso.datetime({ offset: true, error: "Say when they asked." }),
+  why: ConsoleWhySchema
+}).strict();
+var RequestStepSchema = z12.object({
+  id: uuid("request"),
+  step: z12.union([z12.enum(REQUEST_STEP_KEYS), z12.literal("close")], { error: "Say which step." }),
+  done: z12.boolean(),
+  why: ConsoleWhySchema
+}).strict();
+var ClaimSchema = z12.object({ tenant_id: uuid("workspace"), take: z12.boolean() }).strict();
+var FindQuerySchema = z12.object({
+  q: z12.string().trim().min(FIND_LIMITS.min, `At least ${FIND_LIMITS.min} characters.`).max(FIND_LIMITS.max, `At most ${FIND_LIMITS.max} characters.`)
+}).strict();
+var SupportQuerySchema = z12.object({ view: z12.enum(SUPPORT_VIEWS).default("week") }).strict();
+var ActsQuerySchema = z12.object({
+  who: z12.uuid().optional(),
+  before: z12.iso.datetime({ offset: true }).optional(),
+  format: z12.enum(["rows", "csv"]).default("rows")
+}).strict();
+
 // src/conversations/thread-dto.ts
 function messageAt(m) {
   return m.channel_ts ?? m.created_at;
@@ -36516,8 +37790,8 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
   ];
   const proposed = proposals.length ? worth(proposals) : null;
   const earning = clients.length ? worth(clients) : null;
-  const money2 = [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null].filter((x) => !!x).join(" \xB7 ") || null;
-  return { summary: line.map((p) => p.words), line, filters, money: money2, groups, empty: groups.length === 0, pace };
+  const money3 = [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null].filter((x) => !!x).join(" \xB7 ") || null;
+  return { summary: line.map((p) => p.words), line, filters, money: money3, groups, empty: groups.length === 0, pace };
 }
 
 // src/deals/pipeline/pipeline-peek.ts
@@ -36716,32 +37990,32 @@ function pipelineBoardMore(n) {
 }
 
 // src/deals/deal-body.ts
-import { z as z12 } from "zod";
-var DealMoveBody = z12.object({
-  stage: z12.enum(DEAL_STAGES),
+import { z as z13 } from "zod";
+var DealMoveBody = z13.object({
+  stage: z13.enum(DEAL_STAGES),
   /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-  deal_id: z12.uuid().optional(),
-  version: z12.number().int().min(1).optional(),
-  service: z12.string().trim().min(1).max(80).optional(),
+  deal_id: z13.uuid().optional(),
+  version: z13.number().int().min(1).optional(),
+  service: z13.string().trim().min(1).max(80).optional(),
   /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
-  when: z12.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
-  amount_cents: z12.number().int().min(0).max(1e9).optional(),
-  per: z12.enum(DEAL_PERS).optional(),
-  note: z12.string().trim().max(200).optional(),
+  when: z13.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
+  amount_cents: z13.number().int().min(0).max(1e9).optional(),
+  per: z13.enum(DEAL_PERS).optional(),
+  note: z13.string().trim().max(200).optional(),
   /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-  message_id: z12.uuid().optional(),
-  form_note: z12.string().trim().min(1).max(200).optional(),
+  message_id: z13.uuid().optional(),
+  form_note: z13.string().trim().min(1).max(200).optional(),
   /**
    * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
    * Blank says nothing, as absent does: an emptied link is `clear`.
    */
-  proposal_url: z12.string().max(600).optional(),
+  proposal_url: z13.string().max(600).optional(),
   /** The last day the proposal stands; null says nothing, as absent does (an emptied day is `clear`). */
-  valid_until: z12.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
+  valid_until: z13.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
   /** Why they passed, on a move to lost. */
-  lost_reason: z12.enum(DEAL_LOST_REASONS).optional(),
+  lost_reason: z13.enum(DEAL_LOST_REASONS).optional(),
   /** The fields a person emptied: a move keeps everything it is not told. */
-  clear: z12.array(z12.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
+  clear: z13.array(z13.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
 }).strict();
 
 // src/email/mailbox.ts
@@ -37081,41 +38355,41 @@ function journeyGuide(input) {
 }
 
 // src/leads/search/plan-schema.ts
-import { z as z13 } from "zod";
-var words2 = (min, max) => z13.string().transform((s) => stripUnsafe(s).trim()).pipe(z13.string().min(min).max(max));
-var LeadSearchPlanSchema = z13.object({
-  version: z13.number().int().min(1),
-  card: z13.literal("local_businesses"),
+import { z as z14 } from "zod";
+var words2 = (min, max) => z14.string().transform((s) => stripUnsafe(s).trim()).pipe(z14.string().min(min).max(max));
+var LeadSearchPlanSchema = z14.object({
+  version: z14.number().int().min(1),
+  card: z14.literal("local_businesses"),
   name: words2(2, 80),
-  category_key: z13.string().regex(KEY).optional(),
-  from: z13.literal("idea").optional(),
+  category_key: z14.string().regex(KEY).optional(),
+  from: z14.literal("idea").optional(),
   asked: words2(1, 400),
-  terms: z13.array(words2(2, 60)).min(1).max(5),
-  area: z13.object({
-    kind: z13.enum(["zip", "city", "radius"]),
+  terms: z14.array(words2(2, 60)).min(1).max(5),
+  area: z14.object({
+    kind: z14.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z13.string().regex(/^[A-Z]{2}$/),
-    center: z13.object({ lat: z13.number().min(-90).max(90), lng: z13.number().min(-180).max(180) }).nullable(),
-    radius_m: z13.number().int().min(500).max(2e5),
-    zip: z13.string().regex(/^\d{5}$/).optional(),
+    state: z14.string().regex(/^[A-Z]{2}$/),
+    center: z14.object({ lat: z14.number().min(-90).max(90), lng: z14.number().min(-180).max(180) }).nullable(),
+    radius_m: z14.number().int().min(500).max(2e5),
+    zip: z14.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z13.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z13.enum(["phone", "email"]),
-  criteria: z13.array(
-    z13.object({
-      key: z13.string().regex(KEY),
+  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z14.enum(["phone", "email"]),
+  criteria: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 120),
-      standard: z13.enum(["likely", "seen"]),
-      required: z13.boolean()
+      standard: z14.enum(["likely", "seen"]),
+      required: z14.boolean()
     })
   ).max(8),
-  exclusions: z13.array(
-    z13.object({
-      key: z13.string().regex(KEY),
+  exclusions: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 80),
-      origin: z13.enum(["claude", "you_said"]),
-      category_key: z13.string().regex(KEY).optional()
+      origin: z14.enum(["claude", "you_said"]),
+      category_key: z14.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -37360,7 +38634,7 @@ function peoplePlanSentence(p) {
 }
 
 // src/leads/search/people-plan-schema.ts
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 
 // src/leads/search/people-industries.ts
 var PEOPLE_INDUSTRIES = [
@@ -37547,47 +38821,47 @@ function peopleIndustriesNear(typed) {
 }
 
 // src/leads/search/people-plan-schema.ts
-var industry = z14.string().transform((typed, ctx) => {
+var industry = z15.string().transform((typed, ctx) => {
   const name = peopleIndustryOf(typed);
   if (name) return name;
   ctx.addIssue({
     code: "custom",
     message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
   });
-  return z14.NEVER;
+  return z15.NEVER;
 });
-var LeadPeoplePlanSchema = z14.object({
-  version: z14.literal(1),
-  card: z14.literal(PEOPLE_CARD),
+var LeadPeoplePlanSchema = z15.object({
+  version: z15.literal(1),
+  card: z15.literal(PEOPLE_CARD),
   name: words2(2, 80),
   asked: words2(1, PEOPLE_ASKED_CHARS),
-  count: z14.number().int().min(1).max(PEOPLE_COUNT_MAX),
-  titles: z14.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  seniority: z14.array(z14.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
+  count: z15.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  titles: z15.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  seniority: z15.array(z15.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
-  industries: z14.array(industry).max(PEOPLE_INDUSTRIES_MAX),
-  sizes: z14.array(z14.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
-  states: z14.array(
-    z14.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
+  industries: z15.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  sizes: z15.array(z15.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
+  states: z15.array(
+    z15.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
   ).max(PEOPLE_STATES_MAX),
-  contact: z14.literal("email"),
+  contact: z15.literal("email"),
   // Made by peoplePlanFrom: no phrases, and the states as an area every page reads.
-  terms: z14.tuple([]),
-  criteria: z14.tuple([]),
-  exclusions: z14.tuple([]),
-  area: z14.object({
-    kind: z14.literal("city"),
+  terms: z15.tuple([]),
+  criteria: z15.tuple([]),
+  exclusions: z15.tuple([]),
+  area: z15.object({
+    kind: z15.literal("city"),
     label: words2(2, 400),
-    state: z14.string().max(2),
-    center: z14.null(),
-    radius_m: z14.number().int().min(0).max(0),
+    state: z15.string().max(2),
+    center: z15.null(),
+    radius_m: z15.number().int().min(0).max(0),
     query: words2(2, 420)
   })
 });
-var LeadPeopleSearchSchema = z14.object({
+var LeadPeopleSearchSchema = z15.object({
   plan: LeadPeoplePlanSchema,
-  via: z14.enum(["people", "ask"]),
-  thread_id: z14.uuid().nullable().optional()
+  via: z15.enum(["people", "ask"]),
+  thread_id: z15.uuid().nullable().optional()
 });
 
 // src/leads/search/question.ts
@@ -37643,96 +38917,96 @@ function questionAfterProbe(plan, members) {
 }
 
 // src/leads/lead-plan-schema.ts
-import { z as z15 } from "zod";
-var LeadsQuerySchema = z15.object({
-  list: z15.enum(LEAD_LISTS).default("all"),
-  search: z15.string().uuid().optional(),
-  class: z15.enum(LEAD_CLASSES).optional(),
-  sort: z15.enum(LEAD_SORTS).default("fit"),
-  dir: z15.enum(["asc", "desc"]).default("asc"),
-  after_key: z15.string().max(80).optional(),
-  after_id: z15.string().uuid().optional(),
-  limit: z15.coerce.number().int().min(1).max(500).default(500),
+import { z as z16 } from "zod";
+var LeadsQuerySchema = z16.object({
+  list: z16.enum(LEAD_LISTS).default("all"),
+  search: z16.string().uuid().optional(),
+  class: z16.enum(LEAD_CLASSES).optional(),
+  sort: z16.enum(LEAD_SORTS).default("fit"),
+  dir: z16.enum(["asc", "desc"]).default("asc"),
+  after_key: z16.string().max(80).optional(),
+  after_id: z16.string().uuid().optional(),
+  limit: z16.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
-  pile_list: z15.uuid().optional()
+  pile_list: z16.uuid().optional()
 });
-var LeadOneQuerySchema = z15.object({ search: z15.string().uuid().optional() });
+var LeadOneQuerySchema = z16.object({ search: z16.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z15.discriminatedUnion("kind", [
-  z15.object({ kind: z15.literal("stage"), stage: z15.enum(["ready", "nurture", "converted"]) }),
-  z15.object({ kind: z15.literal("not_a_fit"), why: z15.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z15.object({ kind: z15.literal("said_no") }),
-  z15.object({
-    kind: z15.literal("outcome"),
-    outcome: z15.enum(LEAD_CALL_OUTCOMES),
-    note: z15.string().trim().max(280).optional(),
+var LeadStageInputSchema = z16.discriminatedUnion("kind", [
+  z16.object({ kind: z16.literal("stage"), stage: z16.enum(["ready", "nurture", "converted"]) }),
+  z16.object({ kind: z16.literal("not_a_fit"), why: z16.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z16.object({ kind: z16.literal("said_no") }),
+  z16.object({
+    kind: z16.literal("outcome"),
+    outcome: z16.enum(LEAD_CALL_OUTCOMES),
+    note: z16.string().trim().max(280).optional(),
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
-    spoke_with: z15.string().trim().max(80).optional()
+    spoke_with: z16.string().trim().max(80).optional()
   }),
   /** "Did you send it?" Yes. */
-  z15.object({ kind: z15.literal("emailed") })
+  z16.object({ kind: z16.literal("emailed") })
 ]);
-var LeadsBulkSchema = z15.discriminatedUnion("by", [
+var LeadsBulkSchema = z16.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z15.object({
-    by: z15.literal("ids"),
-    action: z15.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z15.array(z15.string().uuid()).min(1).max(500),
-    search_id: z15.string().uuid().optional()
+  z16.object({
+    by: z16.literal("ids"),
+    action: z16.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z16.array(z16.string().uuid()).min(1).max(500),
+    search_id: z16.string().uuid().optional()
   }),
-  z15.object({ by: z15.literal("view"), action: z15.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z16.object({ by: z16.literal("view"), action: z16.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z15.object({ ids: z15.array(z15.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z15.object({
-  tone: z15.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z15.object({ subject: z15.string().max(200), body: z15.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z16.object({ ids: z16.array(z16.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z16.object({
+  tone: z16.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z16.object({ subject: z16.string().max(200), body: z16.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z15.object({ name: z15.string().trim().min(1).max(80) });
-var BusinessLineSchema = z15.object({ business_line: z15.string().trim().min(3).max(160) });
-var planChip = (max) => z15.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z15.object({
+var RenameLeadSearchSchema = z16.object({ name: z16.string().trim().min(1).max(80) });
+var BusinessLineSchema = z16.object({ business_line: z16.string().trim().min(3).max(160) });
+var planChip = (max) => z16.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z16.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
    * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
-  looking_for: z15.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z15.string().trim().min(2).max(40),
-  count: z15.number().int().min(1).max(LEAD_MAX_PLACES),
+  looking_for: z16.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z15.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z15.array(planChip(60)).min(1).max(5),
-  city: z15.string().trim().max(60).nullable().default(null),
-  region: z15.string().trim().min(2).max(40),
-  zip: z15.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z15.enum(["phone", "email"]),
-  criteria: z15.array(z15.object({ text: planChip(120), standard: z15.enum(["likely", "seen"]), required: z15.boolean() })).max(6).default([]),
-  leave_out: z15.array(z15.object({ words: planChip(40) })).max(6).default([]),
-  asked: z15.string().trim().min(1).max(400)
+  category_key: z16.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z16.array(planChip(60)).min(1).max(5),
+  city: z16.string().trim().max(60).nullable().default(null),
+  region: z16.string().trim().min(2).max(40),
+  zip: z16.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z16.enum(["phone", "email"]),
+  criteria: z16.array(z16.object({ text: planChip(120), standard: z16.enum(["likely", "seen"]), required: z16.boolean() })).max(6).default([]),
+  leave_out: z16.array(z16.object({ words: planChip(40) })).max(6).default([]),
+  asked: z16.string().trim().min(1).max(400)
 });
-var ProposePeopleSearchSchema = z15.object({
-  looking_for: z15.literal("people_at_companies"),
-  country: z15.string().trim().min(2).max(40),
-  count: z15.number().int().min(1).max(PEOPLE_COUNT_MAX),
+var ProposePeopleSearchSchema = z16.object({
+  looking_for: z16.literal("people_at_companies"),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(PEOPLE_COUNT_MAX),
   /** What to call the search: "Marketing managers at agencies". */
   who: planChip(80),
-  terms: z15.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  region: z15.string().trim().min(2).max(200),
-  asked: z15.string().trim().min(1).max(400),
-  seniority: z15.array(z15.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
-  industries: z15.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
-  company_sizes: z15.array(z15.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
+  terms: z16.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  region: z16.string().trim().min(2).max(200),
+  asked: z16.string().trim().min(1).max(400),
+  seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
+  industries: z16.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  company_sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
 });
-var ProposeAnySearchSchema = z15.discriminatedUnion("looking_for", [
+var ProposeAnySearchSchema = z16.discriminatedUnion("looking_for", [
   ProposeLeadSearchSchema,
   ProposePeopleSearchSchema
 ]);
-var LeadDraftAnswerSchema = z15.object({
-  subject: z15.string().trim().min(3).max(120),
-  body: z15.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z16.object({
+  subject: z16.string().trim().min(3).max(120),
+  body: z16.string().trim().min(20).max(2e3)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -38396,29 +39670,29 @@ function ideaAreaPhrase(label) {
 }
 
 // src/leads/lead-ideas-read.ts
-import { z as z16 } from "zod";
-var cut = (max) => z16.string().transform((s) => s.trim().slice(0, max));
-var LeadIdeasAnswerSchema = z16.object({
-  line: z16.string().trim().min(3).transform((s) => s.slice(0, 160)),
-  ideas: z16.array(
-    z16.object({
+import { z as z17 } from "zod";
+var cut = (max) => z17.string().transform((s) => s.trim().slice(0, max));
+var LeadIdeasAnswerSchema = z17.object({
+  line: z17.string().trim().min(3).transform((s) => s.slice(0, 160)),
+  ideas: z17.array(
+    z17.object({
       words: cut(80),
       why: cut(140),
       who: cut(60),
       who_one: cut(60),
       category_key: cut(40),
-      terms: z16.array(z16.string()).catch([]),
-      place: z16.string().catch(""),
-      count: z16.number().int().catch(IDEA_SIZES[1]),
-      contact: z16.enum(["email", "phone"]).catch("email"),
-      criteria: z16.array(
-        z16.object({
-          text: z16.string(),
-          standard: z16.enum(["likely", "seen"]).catch("likely"),
-          required: z16.boolean().catch(false)
+      terms: z17.array(z17.string()).catch([]),
+      place: z17.string().catch(""),
+      count: z17.number().int().catch(IDEA_SIZES[1]),
+      contact: z17.enum(["email", "phone"]).catch("email"),
+      criteria: z17.array(
+        z17.object({
+          text: z17.string(),
+          standard: z17.enum(["likely", "seen"]).catch("likely"),
+          required: z17.boolean().catch(false)
         })
       ).catch([]),
-      leave_out: z16.array(z16.string()).catch([])
+      leave_out: z17.array(z17.string()).catch([])
     })
   ).min(1)
 });
@@ -38494,25 +39768,25 @@ function ideasFrom(answer, p) {
 }
 
 // src/leads/lead-import-schema.ts
-import { z as z17 } from "zod";
-var nullableText = (max) => z17.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z17.object({
-  name: z17.string().trim().min(1).max(200),
-  email: z17.string().trim().min(3).max(254),
+import { z as z18 } from "zod";
+var nullableText = (max) => z18.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z18.object({
+  name: z18.string().trim().min(1).max(200),
+  email: z18.string().trim().min(3).max(254),
   phone: nullableText(16),
   website_host: nullableText(120),
   city: nullableText(120),
   region: nullableText(2),
   category: nullableText(120)
 });
-var LeadImportSchema = z17.object({
-  name: z17.string().trim().min(1).max(120),
-  asked: z17.string().trim().max(400).optional(),
-  rows: z17.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+var LeadImportSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  asked: z18.string().trim().max(400).optional(),
+  rows: z18.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
 });
-var LeadChooseSchema = z17.object({
-  name: z17.string().trim().min(1).max(120),
-  lead_ids: z17.array(z17.string().uuid()).min(1).max(LEAD_LIST_MAX)
+var LeadChooseSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  lead_ids: z18.array(z18.string().uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/leads/lead-pile.ts
@@ -38653,12 +39927,12 @@ var REACH_OUT_UNDO_WORDS = {
 };
 
 // src/reach-out/reach-out-leads.ts
-var at = (iso) => {
+var at2 = (iso) => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? t : null;
 };
 var near2 = (iso, tz, nowMs) => {
-  const t = at(iso);
+  const t = at2(iso);
   return t === null ? "" : clockNear(t, tz, nowMs);
 };
 var intentWords = (intent) => isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent] : "wrote back";
@@ -38672,15 +39946,15 @@ function writtenWords(l, tz, nowMs) {
   return parts2.join(" \xB7 ");
 }
 function reachOutLineOf(l, nowMs, tz) {
-  const booked = at(l.booked_at);
-  const won = at(l.won_at ?? null);
+  const booked = at2(l.booked_at);
+  const won = at2(l.won_at ?? null);
   if (won !== null)
     return `${booked !== null ? `Booked ${clockDate(booked, tz, nowMs)} \xB7 won` : "Won"} ${clockDate(won, tz, nowMs)}`;
   if (booked !== null) return `Booked ${clockNearWhen(booked, tz, nowMs)}`;
   const r2 = l.reply;
   if (personAnswered(r2)) {
     if (r2.intent === "no") return `Said no ${near2(r2.read_at, tz, nowMs)}`;
-    const resume = at(l.resume_at);
+    const resume = at2(l.resume_at);
     if (r2.intent === "not_now" && resume !== null && resume <= nowMs)
       return `Back \xB7 asked to hear from you ${askedDayOf(resume, tz, nowMs)}`;
     if (r2.intent === "not_now" && resume !== null) return `Not now \xB7 until ${clockDate(resume, tz, nowMs)}`;
@@ -38691,13 +39965,13 @@ function reachOutLineOf(l, nowMs, tz) {
   if (l.bounced)
     return `Bounced ${near2(l.bounced_at, tz, nowMs)}${l.email_state === "invalid" ? " \xB7 address dropped" : ""}`;
   if (l.stopped_at) return `Stopped ${near2(l.stopped_at, tz, nowMs)}`;
-  const away = at(l.away_until);
+  const away = at2(l.away_until);
   if (l.sent > 0 && away !== null && away > nowMs)
     return `Written ${near2(l.first_sent_at, tz, nowMs)} \xB7 away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
   if (l.held) return "Held for your OK";
   if ((l.drafted ?? 0) > 0) return "Drafted for you \xB7 to send from your inbox";
-  const next = at(l.next_at);
+  const next = at2(l.next_at);
   if (next !== null) return capitalize(clockNearWhen(next, tz, nowMs));
   if (l.handed) return "Handed to you";
   if (l.added_at) return `Added ${near2(l.added_at, tz, nowMs)} \xB7 not written yet`;
@@ -38707,7 +39981,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
   const running2 = s.chain.state === "running";
   const share2 = chain ? chainPaceOf(chain).share : 0;
   const parts2 = [share2 > 0 ? `${s.today} of ${share2} today` : `${s.today} today`];
-  const next = s.next ? at(s.next.at) : null;
+  const next = s.next ? at2(s.next.at) : null;
   if (!running2) parts2.push("nothing goes while it is paused");
   else if (s.next && next !== null) {
     const when = zoneDayKey(next, tz) === zoneDayKey(nowMs, tz) ? clockTime(next, tz) : clockNearWhen(next, tz, nowMs);
@@ -38736,7 +40010,7 @@ var skippedWords = (reason) => reason === "run_canceled" || reason === "owner_to
 var stepName = (n, hand) => n === null ? "A step since removed" : hand ? stepLabelOf({ n, hand: { kind: hand } }) : `Email ${n + 1}`;
 function sendLine(s, tz, nowMs) {
   const name = stepName(s.n, s.hand);
-  const t = at(s.sent_at) ?? at(s.send_at);
+  const t = at2(s.sent_at) ?? at2(s.send_at);
   if (t === null) return null;
   const line = (text) => ({
     id: `s-${s.id}`,
@@ -38758,9 +40032,9 @@ function sendLine(s, tz, nowMs) {
   return why ? line(`${name} \xB7 ${why}`) : null;
 }
 function readingLine(r2, tz, nowMs) {
-  const t = at(r2.read_at);
+  const t = at2(r2.read_at);
   if (t === null) return null;
-  const until = at(r2.until_at);
+  const until = at2(r2.until_at);
   const undone = r2.undone ? " \xB7 undone" : "";
   const text = r2.claim === "auto_reply" && r2.intent === "away" ? `An automatic reply \xB7 away${until !== null ? ` until ${clockDate(until, tz, nowMs)}` : ""}${undone}` : `${r2.claim === "owner" ? "You said they wrote back \xB7" : "They wrote back \xB7 read as"} ${intentWords(r2.intent)}${undone}`;
   return { id: `r-${r2.message_id}`, at: t, when: capitalize(clockNearWhen(t, tz, nowMs)), text };
@@ -38772,7 +40046,7 @@ function reachOutTimelineOf(t, nowMs, tz) {
   ].filter((x) => x !== null);
   lines.sort((a, b) => a.at - b.at);
   const undoable = t.readings.find((r2) => r2.can_undo && r2.intent === "no" && !r2.undone) ?? null;
-  const stopped = at(t.stopped_at);
+  const stopped = at2(t.stopped_at);
   const draftedRun = t.sends.find((s) => s.state === "drafted" && s.run_id)?.run_id ?? null;
   const ownerSent = t.sends.some((s) => s.left && s.said === true);
   const answered = t.readings.some((r2) => !r2.undone && r2.claim !== "auto_reply");
@@ -38814,7 +40088,7 @@ function reachOutPersonOf(t, nowMs, tz) {
       r2.message_id,
       `${r2.claim === "owner" ? "You said" : "Read as"} ${intentWords(r2.intent)} \xB7 ${readingEffect(r2)}`
     );
-  const foundAt = at(t.found_at);
+  const foundAt = at2(t.found_at);
   const fit = t.search?.fit && t.search.fit in LEAD_FIT_WORDS ? LEAD_FIT_WORDS[t.search.fit] : null;
   const found = foundAt !== null ? {
     at: foundAt,
@@ -38854,7 +40128,7 @@ function answerStanding(r2, tz, nowMs, resume) {
   return standing(r2.stops || r2.convert ? `${what} \xB7 the sequence stopped` : what, "good", false);
 }
 var nextPlanned = (t) => {
-  const times = t.sends.filter((s) => s.state === "planned").map((s) => at(s.send_at)).filter((x) => x !== null);
+  const times = t.sends.filter((s) => s.state === "planned").map((s) => at2(s.send_at)).filter((x) => x !== null);
   return times.length > 0 ? Math.min(...times) : null;
 };
 function writtenStanding(t, tz, nowMs) {
@@ -38881,8 +40155,8 @@ function writtenStanding(t, tz, nowMs) {
 }
 function reachOutStandingOf(t, nowMs, tz) {
   if (!t.chain) return null;
-  const booked = at(t.booked_at);
-  const won = at(t.won_at ?? null);
+  const booked = at2(t.booked_at);
+  const won = at2(t.won_at ?? null);
   if (won !== null)
     return standing(
       `${booked !== null ? `booked ${clockDate(booked, tz, nowMs)} \xB7 ` : ""}won ${clockDate(won, tz, nowMs)}`,
@@ -38891,12 +40165,12 @@ function reachOutStandingOf(t, nowMs, tz) {
     );
   if (booked !== null) return standing(`booked ${clockNearWhen(booked, tz, nowMs)}`, "good", false);
   const person = t.readings.find((r2) => !r2.undone && r2.claim !== "auto_reply") ?? null;
-  if (person) return answerStanding(person, tz, nowMs, at(t.resume_at));
+  if (person) return answerStanding(person, tz, nowMs, at2(t.resume_at));
   if (t.closed_reason === "said_no") return standing("said no \xB7 nothing more will be written", "bad", false);
   if (t.stopped_at) return standing(`you stopped writing to them ${near2(t.stopped_at, tz, nowMs)}`, "plain", false);
   if (t.sends.some((s) => s.bounced)) return standing("bounced \xB7 nothing more will be written", "bad", false);
-  const away = t.readings.find((r2) => !r2.undone && r2.intent === "away" && at(r2.until_at) !== null);
-  const back = away ? at(away.until_at) : null;
+  const away = t.readings.find((r2) => !r2.undone && r2.intent === "away" && at2(r2.until_at) !== null);
+  const back = away ? at2(away.until_at) : null;
   if (back !== null && back > nowMs)
     return standing(`away until ${clockDate(back, tz, nowMs)} \xB7 the sequence waits`, "plain", t.can_stop);
   const written = writtenStanding(t, tz, nowMs);
@@ -43291,39 +44565,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z18 } from "zod";
-var PersonDraftInputSchema = z18.object({
-  how: z18.enum(DRAFT_HOWS),
-  wire: z18.enum(CONSENT_CHANNELS).optional(),
-  about: z18.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z18.array(
-    z18.object({
-      key: z18.string().min(1).max(40),
-      question: z18.string().max(200),
-      words: z18.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z19 } from "zod";
+var PersonDraftInputSchema = z19.object({
+  how: z19.enum(DRAFT_HOWS),
+  wire: z19.enum(CONSENT_CHANNELS).optional(),
+  about: z19.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z19.array(
+    z19.object({
+      key: z19.string().min(1).max(40),
+      question: z19.string().max(200),
+      words: z19.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z18.object({ text: z18.string().max(4e3), subject: z18.string().max(200).optional() }).strict().optional(),
-  tone: z18.enum(DRAFT_TONES).optional()
+  previous: z19.object({ text: z19.string().max(4e3), subject: z19.string().max(200).optional() }).strict().optional(),
+  tone: z19.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z18.object({
-  asks: z18.array(z18.object({ key: z18.string().trim().min(1).max(40), question: z18.string().trim().min(3).max(200) })).max(4),
-  text: z18.string().trim().max(4e3),
-  subject: z18.string().trim().max(200),
-  note: z18.string().trim().max(600),
-  opening: z18.string().trim().max(400),
-  points: z18.array(z18.string().trim().max(300)).max(6),
-  avoid: z18.array(z18.string().trim().max(300)).max(6),
-  ask: z18.string().trim().max(300)
+var PersonDraftAnswerSchema = z19.object({
+  asks: z19.array(z19.object({ key: z19.string().trim().min(1).max(40), question: z19.string().trim().min(3).max(200) })).max(4),
+  text: z19.string().trim().max(4e3),
+  subject: z19.string().trim().max(200),
+  note: z19.string().trim().max(600),
+  opening: z19.string().trim().max(400),
+  points: z19.array(z19.string().trim().max(300)).max(6),
+  avoid: z19.array(z19.string().trim().max(300)).max(6),
+  ask: z19.string().trim().max(300)
 });
-var PersonMessageBodySchema = z18.object({
-  wire: z18.enum(CONSENT_CHANNELS),
-  text: z18.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z18.string().trim().min(1).max(200).optional(),
-  template: z18.object({ name: z18.string().min(1).max(512), language: z18.string().min(2).max(15) }).strict().optional(),
-  email_to: z18.string().max(320).optional(),
-  then: z18.enum(["receptionist", "me"]),
-  note: z18.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z19.object({
+  wire: z19.enum(CONSENT_CHANNELS),
+  text: z19.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z19.string().trim().min(1).max(200).optional(),
+  template: z19.object({ name: z19.string().min(1).max(512), language: z19.string().min(2).max(15) }).strict().optional(),
+  email_to: z19.string().max(320).optional(),
+  then: z19.enum(["receptionist", "me"]),
+  note: z19.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -44032,7 +45306,7 @@ var DOUBT_WORDS = {
 };
 
 // src/people/lists/list-rules.ts
-import * as z19 from "zod/mini";
+import * as z20 from "zod/mini";
 var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
 var CHANNELS = ["whatsapp", "sms", "voice", "email"];
 var CAME_FROM = [
@@ -44045,37 +45319,37 @@ var CAME_FROM = [
   "import",
   "lead"
 ];
-var Days = { op: z19.enum(LIST_DAY_OPS), days: z19.optional(z19.int().check(z19.minimum(1), z19.maximum(3650))) };
-var YesNo = { op: z19.literal("is"), yes: z19.boolean() };
-var Count = { op: z19.enum(["at_least", "at_most"]), n: z19.int().check(z19.minimum(0), z19.maximum(1e4)) };
-var IsOrNot = z19.enum(["is", "is_not"]);
-var Token = z19.string().check(z19.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
-var fact = (shape) => z19.strictObject(shape);
-var ListFactSchema = z19.discriminatedUnion("field", [
-  fact({ field: z19.literal("last_visit"), ...Days }),
-  fact({ field: z19.literal("next_visit"), ...Days }),
-  fact({ field: z19.literal("missed_visit"), ...Days }),
-  fact({ field: z19.literal("booked"), ...YesNo }),
-  fact({ field: z19.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z19.literal("last_heard"), ...Days }),
-  fact({ field: z19.literal("first_contact"), ...Days }),
-  fact({ field: z19.literal("channel"), op: IsOrNot, channel: z19.enum(CHANNELS) }),
-  fact({ field: z19.literal("came_from"), op: IsOrNot, from: z19.enum(CAME_FROM) }),
-  fact({ field: z19.literal("calls"), ...Count }),
-  fact({ field: z19.literal("conversations"), ...Count }),
-  fact({ field: z19.literal("has_chat"), ...YesNo }),
-  fact({ field: z19.literal("said_yes"), ...YesNo, to: z19.enum(LIST_PURPOSES) }),
-  fact({ field: z19.literal("can_receive"), ...YesNo, to: z19.enum(LIST_PURPOSES) }),
-  fact({ field: z19.literal("stopped"), ...YesNo }),
-  fact({ field: z19.literal("standing"), op: IsOrNot, value: z19.enum(LIST_STANDINGS) }),
-  fact({ field: z19.literal("assigned"), op: IsOrNot, value: z19.enum(LIST_ASSIGNED) }),
-  fact({ field: z19.literal("deal_stage"), op: IsOrNot, value: z19.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z19.literal("consultation"), ...YesNo }),
-  fact({ field: z19.literal("step_due"), ...YesNo }),
-  fact({ field: z19.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z20.enum(LIST_DAY_OPS), days: z20.optional(z20.int().check(z20.minimum(1), z20.maximum(3650))) };
+var YesNo = { op: z20.literal("is"), yes: z20.boolean() };
+var Count = { op: z20.enum(["at_least", "at_most"]), n: z20.int().check(z20.minimum(0), z20.maximum(1e4)) };
+var IsOrNot = z20.enum(["is", "is_not"]);
+var Token = z20.string().check(z20.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
+var fact = (shape) => z20.strictObject(shape);
+var ListFactSchema = z20.discriminatedUnion("field", [
+  fact({ field: z20.literal("last_visit"), ...Days }),
+  fact({ field: z20.literal("next_visit"), ...Days }),
+  fact({ field: z20.literal("missed_visit"), ...Days }),
+  fact({ field: z20.literal("booked"), ...YesNo }),
+  fact({ field: z20.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z20.literal("last_heard"), ...Days }),
+  fact({ field: z20.literal("first_contact"), ...Days }),
+  fact({ field: z20.literal("channel"), op: IsOrNot, channel: z20.enum(CHANNELS) }),
+  fact({ field: z20.literal("came_from"), op: IsOrNot, from: z20.enum(CAME_FROM) }),
+  fact({ field: z20.literal("calls"), ...Count }),
+  fact({ field: z20.literal("conversations"), ...Count }),
+  fact({ field: z20.literal("has_chat"), ...YesNo }),
+  fact({ field: z20.literal("said_yes"), ...YesNo, to: z20.enum(LIST_PURPOSES) }),
+  fact({ field: z20.literal("can_receive"), ...YesNo, to: z20.enum(LIST_PURPOSES) }),
+  fact({ field: z20.literal("stopped"), ...YesNo }),
+  fact({ field: z20.literal("standing"), op: IsOrNot, value: z20.enum(LIST_STANDINGS) }),
+  fact({ field: z20.literal("assigned"), op: IsOrNot, value: z20.enum(LIST_ASSIGNED) }),
+  fact({ field: z20.literal("deal_stage"), op: IsOrNot, value: z20.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z20.literal("consultation"), ...YesNo }),
+  fact({ field: z20.literal("step_due"), ...YesNo }),
+  fact({ field: z20.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z19.strictObject({ any: z19.array(ListFactSchema).check(z19.minLength(2), z19.maxLength(LIST_ANY_MAX)) });
-var ListConditionSchema = z19.union([AnySchema, ListFactSchema]);
+var AnySchema = z20.strictObject({ any: z20.array(ListFactSchema).check(z20.minLength(2), z20.maxLength(LIST_ANY_MAX)) });
+var ListConditionSchema = z20.union([AnySchema, ListFactSchema]);
 var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
   if (!isDayFact(f)) return null;
@@ -44083,11 +45357,11 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
-var ListRuleSchema = z19.strictObject({
-  v: z19.optional(z19.literal(2)),
-  all: z19.array(ListConditionSchema).check(z19.minLength(1), z19.maxLength(LIST_RULE_MAX))
+var ListRuleSchema = z20.strictObject({
+  v: z20.optional(z20.literal(2)),
+  all: z20.array(ListConditionSchema).check(z20.minLength(1), z20.maxLength(LIST_RULE_MAX))
 }).check(
-  z19.superRefine((r2, ctx) => {
+  z20.superRefine((r2, ctx) => {
     for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
       const p = factProblem(f);
       if (p) ctx.addIssue({ code: "custom", message: p });
@@ -46108,14 +47382,14 @@ function heldDraftWaiting(messages, thread, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z20 } from "zod";
-var PeopleExportQuerySchema = z20.object({
-  list: z20.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z21 } from "zod";
+var PeopleExportQuerySchema = z21.object({
+  list: z21.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z20.object({
-  name: z20.string().trim().min(1).max(60),
-  cannot: z20.string().trim().max(200),
-  all: z20.array(z20.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z21.object({
+  name: z21.string().trim().min(1).max(60),
+  cannot: z21.string().trim().max(200),
+  all: z21.array(z21.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/lists.ts
@@ -46382,53 +47656,53 @@ function legacyLeadSuppressionHash(tenantId, value) {
 }
 
 // src/people/doors/person-bodies.ts
-import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z21.array(z21.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-var CONSENT = z21.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-var MODE = z21.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
-var ConsentAnswerBody = z21.object({
+var SOME_PEOPLE = z22.array(z22.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var CONSENT = z22.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
+var MODE = z22.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+var ConsentAnswerBody = z22.object({
   consent: CONSENT,
-  source: z21.string().optional(),
-  note: z21.string().optional(),
-  message_id: z21.uuid({ message: "Choose one of their messages." }).optional()
+  source: z22.string().optional(),
+  note: z22.string().optional(),
+  message_id: z22.uuid({ message: "Choose one of their messages." }).optional()
 });
-var ConsentManyBody = z21.object({
+var ConsentManyBody = z22.object({
   ids: SOME_PEOPLE,
   consent: CONSENT,
-  source: z21.string().optional(),
-  note: z21.string().optional()
+  source: z22.string().optional(),
+  note: z22.string().optional()
 });
-var ReceptionistModeBody = z21.object({ mode: MODE });
-var ReceptionistManyBody = z21.object({ ids: SOME_PEOPLE, mode: MODE });
-var NotesAppendManyBody = z21.object({
+var ReceptionistModeBody = z22.object({ mode: MODE });
+var ReceptionistManyBody = z22.object({ ids: SOME_PEOPLE, mode: MODE });
+var NotesAppendManyBody = z22.object({
   ids: SOME_PEOPLE,
-  append: z21.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
+  append: z22.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
 });
-var PersonMergeBody = z21.object({
-  merge: z21.uuid({ message: "Choose the record to merge into this one." })
+var PersonMergeBody = z22.object({
+  merge: z22.uuid({ message: "Choose the record to merge into this one." })
 });
-var PersonAddBody = z21.object({
-  phone: z21.string().optional(),
-  email: z21.string().optional(),
-  name: z21.string().optional(),
-  source: z21.string().optional()
+var PersonAddBody = z22.object({
+  phone: z22.string().optional(),
+  email: z22.string().optional(),
+  name: z22.string().optional(),
+  source: z22.string().optional()
 });
-var NoteWriteBody = z21.object({
-  body: z21.string().trim().min(1).max(NOTE_MAX),
+var NoteWriteBody = z22.object({
+  body: z22.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z21.uuid().nullable().optional(),
+  for_user_id: z22.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
-  team_only: z21.boolean().optional(),
+  team_only: z22.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z21.uuid().optional(),
-  version: z21.number().int().min(1).optional(),
+  note_id: z22.uuid().optional(),
+  version: z22.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
-  due_on: z21.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z22.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z21.uuid().nullable().optional(),
+  deal_id: z22.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
-  clear_due: z21.boolean().optional()
+  clear_due: z22.boolean().optional()
 }).strict();
 
 // src/people/doors/say-it.ts
@@ -46518,24 +47792,24 @@ function noteSheetFill(sheet, fill2) {
 }
 
 // src/people/doors/say-it-schema.ts
-import { z as z22 } from "zod";
-var SayItInputSchema = z22.object({
-  verb: z22.enum(SAY_IT_VERBS),
-  words: z22.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
+import { z as z23 } from "zod";
+var SayItInputSchema = z23.object({
+  verb: z23.enum(SAY_IT_VERBS),
+  words: z23.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
 }).strict();
-var SayItDealAnswerSchema = z22.object({
-  service: z22.string(),
-  value: z22.string(),
-  per: z22.string(),
-  link: z22.string(),
-  valid_until: z22.string(),
-  lost_reason: z22.string(),
-  note: z22.string()
+var SayItDealAnswerSchema = z23.object({
+  service: z23.string(),
+  value: z23.string(),
+  per: z23.string(),
+  link: z23.string(),
+  valid_until: z23.string(),
+  lost_reason: z23.string(),
+  note: z23.string()
 });
-var SayItNoteAnswerSchema = z22.object({
-  body: z22.string(),
-  day: z22.string(),
-  team_only: z22.boolean()
+var SayItNoteAnswerSchema = z23.object({
+  body: z23.string(),
+  day: z23.string(),
+  team_only: z23.boolean()
 });
 
 // src/person-page/head-state.ts
@@ -46797,26 +48071,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z23 } from "zod";
-var PersonNameActSchema = z23.discriminatedUnion("act", [
-  z23.object({ act: z23.literal("adopt"), message_id: z23.uuid({ message: "Name the reply whose signer to use." }) }),
-  z23.object({ act: z23.literal("undo") }),
-  z23.object({ act: z23.literal("decline"), message_id: z23.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z24 } from "zod";
+var PersonNameActSchema = z24.discriminatedUnion("act", [
+  z24.object({ act: z24.literal("adopt"), message_id: z24.uuid({ message: "Name the reply whose signer to use." }) }),
+  z24.object({ act: z24.literal("undo") }),
+  z24.object({ act: z24.literal("decline"), message_id: z24.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z23.object({
-  lead_id: z23.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z24.object({
+  lead_id: z24.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z23.object({
-  outcome: z23.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z23.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z24.object({
+  outcome: z24.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z24.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z23.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z24.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z23.boolean().optional(),
+  tell: z24.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z23.string().trim().max(80).optional(),
+  spoke_with: z24.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z23.boolean().optional()
+  closes_call_back: z24.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -48115,55 +49389,55 @@ function zoneOfRegion(region) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z24 } from "zod";
-var ReachOutRepliesQuerySchema = z24.object({
-  since: z24.string().datetime({ offset: true }).optional(),
-  conversation_id: z24.string().uuid().optional()
+import { z as z25 } from "zod";
+var ReachOutRepliesQuerySchema = z25.object({
+  since: z25.string().datetime({ offset: true }).optional(),
+  conversation_id: z25.string().uuid().optional()
 });
-var ReachOutStepSchema = z24.object({
+var ReachOutStepSchema = z25.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z24.string().uuid().nullable().optional(),
-  subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z24.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z24.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z25.string().uuid().nullable().optional(),
+  subject: z25.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z25.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z25.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z24.object({ kind: z24.enum(HAND_KINDS), words: z24.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z25.object({ kind: z25.enum(HAND_KINDS), words: z25.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z24.object({
-  name: z24.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z24.string().uuid(),
-  include_unconfirmed: z24.boolean(),
+var ReachOutChainSchema = z25.object({
+  name: z25.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z25.string().uuid(),
+  include_unconfirmed: z25.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z24.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z25.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z24.array(z24.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z25.array(z25.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
-  owner_sends: z24.boolean().default(false),
-  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z24.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  owner_sends: z25.boolean().default(false),
+  signed_by: z25.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z25.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z24.object({
-  search_id: z24.string().uuid(),
-  index: z24.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z24.boolean(),
-  words: z24.object({
-    subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z24.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z25.object({
+  search_id: z25.string().uuid(),
+  index: z25.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z25.boolean(),
+  words: z25.object({
+    subject: z25.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z25.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z24.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z25.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z25.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z24.object({ decision: z24.enum(REACH_OUT_DECISIONS) });
-var ReachOutSaidSchema = z24.object({ outcome: z24.enum(REACH_OUT_SAID_OUTCOMES) });
-var ReachOutReplySaidSchema = z24.object({
-  intent: z24.enum(OWNER_SAID_INTENTS),
-  day: z24.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  refer_to: z24.string().trim().max(120).nullable().optional()
+var ReachOutDecideSchema = z25.object({ decision: z25.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z25.object({ outcome: z25.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z25.object({
+  intent: z25.enum(OWNER_SAID_INTENTS),
+  day: z25.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z25.string().trim().max(120).nullable().optional()
 });
-var ReachOutAddSchema = z24.object({
-  lead_ids: z24.array(z24.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutAddSchema = z25.object({
+  lead_ids: z25.array(z25.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -49192,36 +50466,36 @@ var NEW_DRAFT_JSON_SCHEMA = {
 };
 
 // src/sequences/new-draft-schema.ts
-import { z as z25 } from "zod";
-var LONG_WORDS = z25.string().max(2e3);
-var NewDraftAnswerSchema = z25.object({
-  kind: z25.enum(NEW_KINDS),
-  audience: z25.enum(NEW_AUDIENCES),
-  who: z25.string().trim().max(60),
-  name: z25.string().trim().max(120),
-  hour: z25.number().int(),
-  when: z25.string().trim().max(40),
-  steps: z25.array(
-    z25.object({
-      does: z25.enum(NEW_STEP_DOES),
-      after_days: z25.number().int(),
-      only_if: z25.array(z25.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
-      message: z25.string().trim().max(10),
-      texts: z25.array(z25.string().max(300)).max(10),
-      write: z25.object({
-        title: z25.string().trim().max(80),
-        offer: z25.boolean(),
+import { z as z26 } from "zod";
+var LONG_WORDS = z26.string().max(2e3);
+var NewDraftAnswerSchema = z26.object({
+  kind: z26.enum(NEW_KINDS),
+  audience: z26.enum(NEW_AUDIENCES),
+  who: z26.string().trim().max(60),
+  name: z26.string().trim().max(120),
+  hour: z26.number().int(),
+  when: z26.string().trim().max(40),
+  steps: z26.array(
+    z26.object({
+      does: z26.enum(NEW_STEP_DOES),
+      after_days: z26.number().int(),
+      only_if: z26.array(z26.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
+      message: z26.string().trim().max(10),
+      texts: z26.array(z26.string().max(300)).max(10),
+      write: z26.object({
+        title: z26.string().trim().max(80),
+        offer: z26.boolean(),
         whatsapp: LONG_WORDS,
-        email_subject: z25.string().max(200),
+        email_subject: z26.string().max(200),
         email_body: LONG_WORDS,
-        text: z25.string().max(600)
+        text: z26.string().max(600)
       }),
-      subject: z25.string().max(200),
+      subject: z26.string().max(200),
       body: LONG_WORDS,
-      words: z25.string().max(600)
+      words: z26.string().max(600)
     })
   ).max(8),
-  cannot: z25.string().trim().max(300)
+  cannot: z26.string().trim().max(300)
 });
 
 // src/sequences/new-words.ts
@@ -49773,7 +51047,7 @@ function columnWords(d) {
     answeredWords: d.replied > 0 ? `${d.replied} answered` : null
   };
 }
-function sourceWords(s) {
+function sourceWords2(s) {
   const delivered = shareSaid(pct(s.delivered, s.sent), s.delivered, s.sent);
   const replied = shareSaid(pct(s.replied, s.sent), s.replied, s.sent);
   return {
@@ -49835,7 +51109,7 @@ function toCampaignReportVM(dto) {
     replied: s.replied,
     deliveredPct: pct(s.delivered, s.sent),
     repliedPct: pct(s.replied, s.sent),
-    ...sourceWords(s),
+    ...sourceWords2(s),
     lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : ""
   }));
   return {
@@ -55403,6 +56677,11 @@ var SCHEMA_SETS = {
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out"],
   "person_notes.state": ["kept", "suggested"],
+  "platform_acts.actor_role": ["owner", "support", "billing"],
+  "platform_acts.outcome": ["running", "done", "refused", "failed"],
+  "platform_acts.reason_kind": ["ticket", "call", "found", "cleanup"],
+  "platform_acts.target_kind": ["workspace", "line", "job", "waitlist", "partner", "request", "platform"],
+  "platform_admins.role": ["owner", "support", "billing"],
   "policies.class": [
     "reply",
     "booking",
@@ -55416,6 +56695,7 @@ var SCHEMA_SETS = {
   ],
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
+  "privacy_requests.kind": ["delete_workspace", "delete_person", "copy"],
   "provider_events.provider": ["meta", "twilio", "retell", "resend", "stripe"],
   "push_devices.platform": ["ios", "android"],
   "sending_domain_days.state": ["verified", "held"],
@@ -55544,8 +56824,15 @@ var ROUTE_KEYS = [
   "GET partner/workspaces",
   "GET people/[id]/reach",
   "GET people/list-counts",
+  "GET platform/acts",
+  "GET platform/find",
+  "GET platform/home",
+  "GET platform/me",
   "GET platform/overview",
+  "GET platform/requests",
+  "GET platform/support",
   "GET platform/tenants/[id]",
+  "GET platform/workspaces/[slug]",
   "GET playbooks",
   "GET policies",
   "GET reach-out-replies",
@@ -55685,6 +56972,7 @@ var ROUTE_KEYS = [
   "POST people/[id]/message",
   "POST people/[id]/name",
   "POST people/[id]/say",
+  "POST platform/claims",
   "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
@@ -55694,6 +56982,8 @@ var ROUTE_KEYS = [
   "POST platform/partners/second-factor",
   "POST platform/partners/standing",
   "POST platform/partners/status",
+  "POST platform/requests",
+  "POST platform/requests/step",
   "POST platform/waitlist/invited",
   "POST playbooks",
   "POST playbooks/[id]/run",
@@ -55723,6 +57013,7 @@ var ROUTE_KEYS = [
   "POST sequences/new",
   "POST settings/receptionist",
   "POST setup/request",
+  "POST support/report",
   "POST team/invite",
   "POST team/invite/[id]/resend",
   "POST team/leave",
@@ -55975,7 +57266,7 @@ var SEE_WORDS = {
 };
 
 // src/shell/vitals.ts
-import * as z26 from "zod/mini";
+import * as z27 from "zod/mini";
 
 // src/shell/vitals-pages.ts
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
@@ -56036,18 +57327,18 @@ var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 var VITAL_CEILING = 10 * MIN_MS;
 var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
-var detailWord = () => z26.optional(z26.string().check(z26.regex(DETAIL_WORD)));
-var detailMs = () => z26.optional(z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)));
-var PageVitalDetail = z26.object({
+var detailWord = () => z27.optional(z27.string().check(z27.regex(DETAIL_WORD)));
+var detailMs = () => z27.optional(z27.number().check(z27.minimum(0), z27.maximum(VITAL_CEILING)));
+var PageVitalDetail = z27.object({
   wait: detailWord(),
   wait_ms: detailMs(),
   server_ms: detailMs(),
   db_ms: detailMs(),
-  db_n: z26.optional(z26.int().check(z26.minimum(0), z26.maximum(1e4))),
+  db_n: z27.optional(z27.int().check(z27.minimum(0), z27.maximum(1e4))),
   chunk_ms: detailMs(),
   render_ms: detailMs(),
   el: detailWord(),
-  type: z26.optional(z26.enum(["pointer", "keyboard"])),
+  type: z27.optional(z27.enum(["pointer", "keyboard"])),
   input_ms: detailMs(),
   processing_ms: detailMs(),
   presentation_ms: detailMs(),
@@ -56056,19 +57347,19 @@ var PageVitalDetail = z26.object({
   load_delay_ms: detailMs(),
   load_ms: detailMs(),
   render_delay_ms: detailMs(),
-  shift: z26.optional(z26.number().check(z26.minimum(0), z26.maximum(100))),
-  state: z26.optional(z26.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  shift: z27.optional(z27.number().check(z27.minimum(0), z27.maximum(100))),
+  state: z27.optional(z27.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
   phase: detailWord()
 });
-var PageVitalReport = z26.object({
-  id: z26.string().check(z26.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z26.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
-  value: z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)),
-  page: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
-  part: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
-  from: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
-  warm: z26.optional(z26.boolean()),
-  detail: z26.optional(PageVitalDetail)
+var PageVitalReport = z27.object({
+  id: z27.string().check(z27.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z27.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z27.number().check(z27.minimum(0), z27.maximum(VITAL_CEILING)),
+  page: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
+  part: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
+  from: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
+  warm: z27.optional(z27.boolean()),
+  detail: z27.optional(PageVitalDetail)
 });
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -56154,12 +57445,12 @@ function pageVitalsWords(rows2) {
 }
 
 // src/shell/vitals-schema.ts
-import { z as z27 } from "zod";
-var PageVitalsInput = z27.object({
-  page: z27.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  device: z27.enum(PAGE_DEVICES).optional(),
-  build: z27.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
-  vitals: z27.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
+import { z as z28 } from "zod";
+var PageVitalsInput = z28.object({
+  page: z28.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  device: z28.enum(PAGE_DEVICES).optional(),
+  build: z28.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z28.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
 
 // src/shell/page-speed.ts
@@ -56391,6 +57682,15 @@ var CLIENT_ERROR_LIMITS = {
 };
 var PAGE = /^[a-z][a-z0-9-]{0,31}$/;
 var WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
+function errorIdOf(page2, name, message) {
+  const said = `${page2 ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
+  let h = 2166136261;
+  for (let i = 0; i < said.length; i++) {
+    h ^= said.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return (h >>> 16).toString(16).padStart(4, "0");
+}
 function clientErrorOf(boundary, error, page2, digest, workspace) {
   const e = error instanceof Error ? error : new Error(String(error));
   const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
@@ -56406,18 +57706,74 @@ function clientErrorOf(boundary, error, page2, digest, workspace) {
 }
 
 // src/shell/client-error-schema.ts
-import { z as z28 } from "zod";
-var ClientErrorInput = z28.object({
-  boundary: z28.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z28.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z28.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z28.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z28.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+import { z as z29 } from "zod";
+var ClientErrorInput = z29.object({
+  boundary: z29.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z29.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z29.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z29.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z29.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z28.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  digest: z29.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z28.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z29.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
+
+// src/shell/report-problem.ts
+var REPORT_LIMITS = {
+  words: 2e3,
+  errorId: 8,
+  errorName: CLIENT_ERROR_LIMITS.name,
+  errorMessage: CLIENT_ERROR_LIMITS.message
+};
+function reportProblemOf(words3, page2, error, workspace) {
+  const first = (page2 ?? "").split(/[/?#]/)[0] ?? "";
+  return {
+    words: words3.trim().slice(0, REPORT_LIMITS.words),
+    page: PAGE.test(first) ? first : null,
+    error: error ? {
+      id: error.id.slice(0, REPORT_LIMITS.errorId),
+      name: error.name.slice(0, REPORT_LIMITS.errorName),
+      message: error.message.slice(0, REPORT_LIMITS.errorMessage)
+    } : null,
+    workspace: workspace && WORKSPACE.test(workspace) ? workspace : null
+  };
+}
+var REPORT_WORDS = {
+  door: "Report a problem",
+  doorShort: "Report this",
+  title: "Report a problem",
+  sub: "A person at Chanlytics reads every one",
+  label: "What happened?",
+  placeholder: "What you were doing, and what you saw",
+  sentWith: "Sent with it",
+  thisPage: (page2) => `This page \xB7 ${page2}`,
+  theError: (id) => `The error \xB7 ${id}`,
+  privacy: (email) => email ? `Nothing about your customers is sent. We answer at ${email}.` : "Nothing about your customers is sent.",
+  send: "Send",
+  sending: "Sending\u2026",
+  empty: "Say what happened first.",
+  sent: "Sent",
+  sentBody: (email) => email ? `We'll answer at ${email}, usually within a working day.` : "We'll answer by email, usually within a working day.",
+  done: "Done",
+  failed: "That didn't send. Write to hi@chanlytics.com instead, and say what happened."
+};
+
+// src/shell/report-problem-schema.ts
+import { z as z30 } from "zod";
+var ReportProblemInput = z30.object({
+  words: z30.string().trim().min(1, "Say what happened first.").max(2e3, "At most 2,000 characters."),
+  /** The route's first segment, as field data names a page; null on a page with none. */
+  page: z30.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  /** The last error the page hit, when it hit one. */
+  error: z30.object({
+    id: z30.string().regex(/^[0-9a-f]{1,8}$/),
+    name: z30.string().max(CLIENT_ERROR_LIMITS.name),
+    message: z30.string().max(CLIENT_ERROR_LIMITS.message)
+  }).strict().nullable(),
+  /** The workspace the tab held: the route takes it only if the member belongs to it. */
+  workspace: z30.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+}).strict();
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
@@ -58995,667 +60351,6 @@ function cleanWorkspaceName(raw) {
   return { ok: true, name };
 }
 
-// src/workspace/platform.ts
-var PLATFORM_VERDICTS = {
-  broken: { label: "Broken", tone: "danger", rank: 100 },
-  billing: { label: "Billing", tone: "danger", rank: 90 },
-  rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
-  stalled: { label: "Stalled", tone: "warn", rank: 70 },
-  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
-  quiet: { label: "Quiet", tone: "warn", rank: 40 },
-  new: { label: "New", tone: "info", rank: 20 },
-  live: { label: "Live", tone: "ok", rank: 10 },
-  paused: { label: "Paused", tone: "plain", rank: 5 },
-  test: { label: "Test", tone: "plain", rank: 0 }
-};
-var PLATFORM_NEW_DAYS = 1;
-var PLATFORM_QUIET_DAYS = 14;
-var at2 = (iso) => {
-  if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? ms2 : null;
-};
-var OURS_TO_FIX = ["failed"];
-var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
-function billingBites(mode, status) {
-  if (mode !== "stripe") return false;
-  return !receptionistOn(status) || status === "past_due";
-}
-function verdictFor(r2, nowMs) {
-  if (r2.status === "test") return "test";
-  const mode = r2.billing_mode ?? "direct";
-  const status = r2.billing_status ?? "none";
-  const answering = r2.voice_active === true || r2.whatsapp_active === true;
-  const age = nowMs - (at2(r2.created_at) ?? nowMs);
-  if (r2.voice_state === "failed" || OURS_TO_FIX.includes(r2.sms_state ?? "")) return "broken";
-  if (billingBites(mode, status)) return "billing";
-  if (r2.status === "paused") return "paused";
-  if (r2.reg_mock === true) return "rehearsal";
-  if (!answering && age <= PLATFORM_NEW_DAYS * DAY_MS) return "new";
-  if (THEIRS_TO_FIX.includes(r2.sms_state ?? "")) return "waiting_owner";
-  if (mode === "stripe" && !maySpend(mode, status) && status !== "trialing") return "waiting_owner";
-  if (!answering) return "stalled";
-  const heard = at2(r2.last_inbound_at);
-  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY_MS ? "quiet" : "new";
-  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY_MS) return "quiet";
-  return "live";
-}
-function sentenceFor(r2, verdict, nowMs) {
-  const heard = at2(r2.last_inbound_at);
-  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
-  switch (verdict) {
-    case "broken":
-      return r2.line_error ? `${r2.line_error}${r2.reg_step ? ` (stopped at ${r2.reg_step})` : ""}` : "Their line stopped and said nothing. A person at Chanlytics has to look.";
-    case "billing":
-      return r2.billing_status === "past_due" ? "A payment failed. The receptionist still answers; once Stripe gives up, the workspace is paused." : `Not subscribed (${r2.billing_status ?? "no status"}) \u2014 the receptionist is paused for them.`;
-    case "rehearsal":
-      return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
-    case "stalled":
-      return `Set up ${agoWords(at2(r2.created_at) ?? nowMs, nowMs)} and nothing answers yet${r2.members <= 1 ? ", with one person in the workspace" : ""}.`;
-    case "waiting_owner": {
-      const mode = r2.billing_mode ?? "direct";
-      const status = r2.billing_status ?? "none";
-      if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
-        return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
-      }
-      const words3 = textingWords({
-        sms_state: r2.sms_state ?? "none",
-        reg_mock: r2.reg_mock ?? false,
-        reg_sole_prop: r2.reg_sole_prop ?? false
-      }).sentence;
-      return r2.line_error ? `${words3} \u2014 ${r2.line_error}` : words3;
-    }
-    case "quiet":
-      return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
-    case "new":
-      return r2.voice_active === true || r2.whatsapp_active === true ? `Answering since ${agoWords(at2(r2.created_at) ?? nowMs, nowMs)}; no customer has reached them yet.` : `Signed up ${agoWords(at2(r2.created_at) ?? nowMs, nowMs)}, still setting up.`;
-    case "live":
-      return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
-    case "paused":
-      return `The workspace is paused, by design: ${PAUSED_CALL}.`;
-    case "test":
-      return "Not a customer \u2014 a test workspace.";
-  }
-}
-function factsFor(r2, nowMs) {
-  const mode = r2.billing_mode ?? null;
-  const status = r2.billing_status ?? null;
-  const paying = mode === null ? "No arrangement" : mode === "direct" ? "Invoiced" : status === "trialing" && r2.trial_end ? `Trial to ${r2.trial_end.slice(0, 10)}` : status ?? "unknown";
-  const on = [r2.voice_active ? "phone" : null, r2.whatsapp_active ? "WhatsApp" : null].filter(Boolean);
-  const answering = on.length ? on.join(" + ") : r2.voice_state === "provisioning" ? "Getting a number" : r2.voice_state === "failed" ? "Line failed" : "Nothing yet";
-  const texting = !r2.line_e164 ? "No line" : r2.sms_state === "active" ? r2.reg_sole_prop ? "On (sole proprietor)" : "On" : r2.reg_mock ? "Rehearsal" : (r2.sms_state ?? "none").replace(/_/g, " ");
-  const at_ = at2(r2.last_inbound_at);
-  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
-}
-function platformRows(rows2, nowMs = Date.now()) {
-  return rows2.map((r2) => {
-    const verdict = verdictFor(r2, nowMs);
-    return {
-      tenantId: r2.tenant_id,
-      slug: r2.slug,
-      name: r2.name,
-      verdict,
-      sentence: sentenceFor(r2, verdict, nowMs),
-      facts: factsFor(r2, nowMs),
-      age: agoWords(at2(r2.created_at) ?? nowMs, nowMs),
-      members: r2.members
-    };
-  }).sort((a, b) => {
-    const byRank = PLATFORM_VERDICTS[b.verdict].rank - PLATFORM_VERDICTS[a.verdict].rank;
-    if (byRank !== 0) return byRank;
-    return a.name.localeCompare(b.name);
-  });
-}
-function platformSummary(rows2) {
-  const customers = rows2.filter((r2) => r2.verdict !== "test");
-  const needsUs = customers.filter((r2) => r2.verdict === "broken" || r2.verdict === "rehearsal").length;
-  const needsThem = customers.filter(
-    (r2) => r2.verdict === "billing" || r2.verdict === "waiting_owner" || r2.verdict === "stalled"
-  ).length;
-  const live = customers.filter((r2) => r2.verdict === "live").length;
-  const parts2 = [`${customers.length} workspace${customers.length === 1 ? "" : "s"}`, `${live} live`];
-  if (needsUs) parts2.push(`${needsUs} on us`);
-  if (needsThem) parts2.push(`${needsThem} on them`);
-  return { total: customers.length, needsUs, needsThem, live, sentence: parts2.join(" \xB7 ") };
-}
-function platformNumber(e164) {
-  return formatPhoneDisplay(e164) ?? "\u2014";
-}
-var NUMBER_MONTHLY = "$1.15 a month";
-var REAL_FILING = "about $19.50 once";
-var CAMPAIGN_VETTING = "about $15 once";
-function platformLineActions(l, nowMs = Date.now()) {
-  const out = [];
-  if (l.voice_state === "failed" || lineStuckProvisioning(l, nowMs)) {
-    out.push({
-      action: "retry",
-      label: "Retry setting up",
-      sentence: "Resumes the line where it stopped, without repeating the steps that succeeded. The saga reads its own receipts, so nothing is bought twice.",
-      // A saga that failed BEFORE the number was bought buys one when it
-      // resumes, so this can spend even though it usually does not.
-      cost: `If it stopped before the number was bought, this buys one \u2014 ${NUMBER_MONTHLY}.`,
-      permanent: false
-    });
-  }
-  if (l.sms_state === "rejected") {
-    out.push({
-      action: "refile",
-      label: "Send the campaign back",
-      // It used to say "Correct the business on record first — this sends what is
-      // there now", which was true and was the whole problem: nothing verified
-      // that anyone had, so a rejection could be answered with the fault that
-      // caused it. Both senders now run the same pre-flight, so the honest
-      // sentence is that this REFUSES rather than repeats.
-      sentence: "Resubmits the campaign to the carriers, free \u2014 the vetting fee is charged once per campaign. It refuses, with the reason, if the record or the workspace's name still would not pass review.",
-      cost: null,
-      permanent: false
-    });
-    out.push({
-      action: "replace",
-      label: "File a new campaign",
-      sentence: "Deletes the refused campaign and files a new one from today's facts, under the same approved brand: the remedy when what the carriers named cannot be edited (the opt-in confirmation and its keywords never can be). It refuses, with the reason, if the record or the workspace's name still would not pass review.",
-      cost: `${CAMPAIGN_VETTING}, charged to Chanlytics.`,
-      permanent: true
-    });
-  } else if (l.reg_mock === true) {
-    out.push({
-      action: "refile",
-      label: "File it for real",
-      sentence: "Takes the rehearsal off and files a real registration with the carriers. The rehearsal delivers nothing and expires thirty days after it was filed.",
-      cost: `${REAL_FILING}, charged to Chanlytics.`,
-      permanent: true
-    });
-  }
-  if (l.e164) {
-    out.push({
-      action: "release",
-      label: "Give the number back",
-      sentence: "Releases the number, drops the trunk and forgets the line. Calls keep their history; the routing row is switched off, never deleted.",
-      cost: `Stops the ${NUMBER_MONTHLY} this number costs.`,
-      permanent: true
-    });
-  }
-  return out;
-}
-function platformHealthOf(rows2, backlog, now = /* @__PURE__ */ new Date()) {
-  const unhealthy = (rows2 ?? []).filter((r2) => !r2.healthy).map((r2) => ({ sweep: r2.sweep, detail: r2.detail }));
-  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
-}
-function platformHealthWords(h) {
-  if (h.backlog === null) return "The platform's health could not be read just now.";
-  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
-  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
-  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
-  return [clocks, late].filter(Boolean).join(" \xB7 ");
-}
-function platformActionWarning(a) {
-  const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
-  return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
-}
-var QUEUE_SHOWN = 100;
-var QUEUE_SENDS_NOTHING = "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
-function waitingDetail(r2) {
-  const from = r2.source ? sourceWords2(r2.source) : null;
-  return [r2.business?.trim() || null, from].filter(Boolean).join(" \xB7 ") || null;
-}
-function sourceWords2(source) {
-  const s = source.trim();
-  if (!s) return null;
-  try {
-    const u = new URL(s);
-    const path = u.pathname.replace(/\/+$/, "");
-    return `from ${u.host}${path && path !== "/" ? path : ""}`;
-  } catch {
-    return `from ${s.slice(0, 60)}`;
-  }
-}
-function platformQueue(q, nowMs = Date.now()) {
-  const note = QUEUE_SENDS_NOTHING;
-  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
-  const rows2 = q.waiting.map((r2) => ({
-    id: r2.id,
-    email: r2.email,
-    detail: waitingDetail(r2),
-    waited: `asked ${agoWords(Date.parse(r2.created_at), nowMs)}`
-  }));
-  const total = q.total ?? rows2.length;
-  const oldest = q.waiting[0];
-  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows2.length ? ` \xB7 showing the first ${rows2.length}` : ""}.`;
-  return { rows: rows2, sentence: sentence2, unreadable: false, note };
-}
-
-// src/workspace/partner.ts
-var PARTNER_STATUSES = ["active", "paused", "closed"];
-var PARTNER_SHARE_BP_DEFAULT = 2500;
-var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
-var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
-var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
-var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
-var PARTNER_HOLD_DAYS = 30;
-var PARTNER_CODE_MIN = 3;
-var PARTNER_CODE_MAX = 24;
-var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
-var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
-function cleanPartnerCode(raw) {
-  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (!code2) return { ok: false, reason: "Choose a code for your link." };
-  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
-    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
-  if (!CODE_SHAPE.test(code2))
-    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
-  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
-  return { ok: true, code: code2 };
-}
-var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
-var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
-var PARTNER_COOKIE = "chanlytics_partner";
-var PARTNER_COOKIE_DAYS = 30;
-function partnerCodeFromCookie(header) {
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq < 0) continue;
-    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
-    let value = part.slice(eq + 1).trim();
-    try {
-      value = decodeURIComponent(value);
-    } catch {
-      return null;
-    }
-    const cleaned = cleanPartnerCode(value);
-    return cleaned.ok ? cleaned.code : null;
-  }
-  return null;
-}
-var PARTNER_WORDS = {
-  tab: "Partner",
-  title: "Bring a business to Chanlytics",
-  /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
-  codeLabel: "Your code",
-  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
-  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
-  termsAgree: "I agree to these terms.",
-  become: "Become a partner",
-  becoming: "Setting you up\u2026",
-  linkLabel: "Your link",
-  copy: "Copy link",
-  copied: "Copied",
-  since: (at3) => `A partner since ${new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
-  paused: "Your partner account is paused. Write to us to have it looked at.",
-  closed: "Your partner account is closed.",
-  reading: "Reading your partner account\u2026",
-  failed: "your partner account",
-  /** What the switcher and Team show for a workspace brought this way. */
-  role: "Partner",
-  earnings: "Earnings",
-  workspaces: "Your workspaces",
-  open: "Open",
-  readingWorkspaces: "Reading your workspaces\u2026",
-  failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
-  /**
-   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
-   * owner's yes. Their price does not change; the share is Chanlytics'.
-   */
-  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
-  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
-  /** The pane's switch for the daily letter (0014). */
-  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
-  lettersFailed: "your email setting"
-};
-function shareWords(shareBp) {
-  const pct2 = shareBp / 100;
-  const shown2 = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
-  return `${shown2}% of what it pays for its plan`;
-}
-function broughtWords(count2) {
-  if (count2 <= 0) return "No workspace has you as its partner yet.";
-  if (count2 === 1) return "1 workspace has you as its partner.";
-  return `${count2} workspaces have you as their partner.`;
-}
-var dayWords2 = (at3) => new Date(at3).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-function sumWords(rows2, state) {
-  const of = rows2.filter((r2) => r2.state === state && r2.earned_cents !== 0);
-  if (!of.length) return { words: moneyWords(0, rows2[0]?.currency ?? "usd"), cents: 0 };
-  return {
-    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
-    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
-  };
-}
-function partnerEarningsWords(rows2, nowMs = Date.now()) {
-  const list2 = rows2 ?? [];
-  const held = sumWords(list2, "held");
-  const payable = sumWords(list2, "payable");
-  const paid = sumWords(list2, "paid");
-  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
-  return {
-    none: list2.every((r2) => r2.earned_cents === 0),
-    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
-    // date and not yet judged, is said as waiting rather than given a day that has gone.
-    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
-    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
-    paid: `${paid.words} paid to date.`
-  };
-}
-function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
-  return {
-    code: dto.code,
-    link: partnerLinkFor(dto.code, origin),
-    status: dto.status,
-    share: shareWords(dto.share_bp),
-    since: PARTNER_WORDS.since(dto.created_at),
-    brought: broughtWords(workspacesAsPartner),
-    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
-    earnings: partnerEarningsWords(balance)
-  };
-}
-var PARTNER_STANDING_WORDS = {
-  pending: "Its share is judged once it has paid.",
-  qualified: null,
-  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
-  disqualified: "Not eligible for a share."
-};
-var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
-function moneyLine(lines) {
-  if (!lines.length) return "Nothing earned from it yet.";
-  const say2 = (pick) => lines.map((l) => moneyWords(pick(l), l.currency)).join(" and ");
-  const toDate = lines.reduce((n, l) => n + l.held_cents + l.payable_cents + l.paid_cents, 0);
-  const month = lines.reduce((n, l) => n + l.month_cents, 0);
-  if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
-  return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
-}
-function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
-  const judged2 = platformRows(overview, nowMs);
-  const moneyOf2 = (id) => money2.filter((m) => m.tenant_id === id);
-  const standingOf2 = (id) => {
-    const s = moneyOf2(id)[0]?.standing ?? "pending";
-    return PARTNER_STANDING_WORDS[s] ?? null;
-  };
-  const rows2 = judged2.map((r2) => {
-    const v = PLATFORM_VERDICTS[r2.verdict];
-    return {
-      tenantId: r2.tenantId,
-      slug: r2.slug,
-      name: r2.name,
-      verdict: r2.verdict,
-      label: v.label,
-      tone: v.tone,
-      sentence: r2.sentence,
-      facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
-      standing: standingOf2(r2.tenantId),
-      money: moneyLine(moneyOf2(r2.tenantId)),
-      onTeam: true
-    };
-  });
-  const seen = new Set(rows2.map((r2) => r2.tenantId));
-  const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
-  for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
-    rows2.push({
-      tenantId: m.tenant_id,
-      slug: null,
-      name: m.name,
-      verdict: null,
-      label: "Off the team",
-      tone: "plain",
-      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
-      facts: null,
-      standing: standingOf2(m.tenant_id),
-      money: moneyLine(moneyOf2(m.tenant_id)),
-      onTeam: m.on_team
-    });
-  }
-  const total = rows2.length;
-  const live = rows2.filter((r2) => r2.verdict === "live").length;
-  const needs2 = rows2.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
-  const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
-  if (needs2) parts2.push(`${needs2} need${needs2 === 1 ? "s" : ""} you`);
-  return { rows: rows2, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
-}
-var PARTNER_STANDING_VERBS = {
-  qualified: "Qualify",
-  review: "Hold for review",
-  disqualified: "Disqualify"
-};
-function partnerStandingChoices(standing2) {
-  return PARTNER_STANDINGS.filter((s) => s !== standing2);
-}
-var PARTNER_STATUS_VERBS = {
-  active: "Restore",
-  paused: "Pause",
-  closed: "Close"
-};
-function partnerStatusChoices(status) {
-  return PARTNER_STATUSES.filter((s) => s !== status);
-}
-function partnerStatusOutcomeWords(code2, r2) {
-  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
-  if (r2.status === "active")
-    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
-  const what = r2.status === "closed" ? "closed" : "paused";
-  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
-}
-function platformPartnerRows(rows2) {
-  const seen = /* @__PURE__ */ new Set();
-  return rows2.map((r2) => {
-    const first = !seen.has(r2.partner_id);
-    seen.add(r2.partner_id);
-    const cur = r2.currency ?? "usd";
-    const pct2 = r2.share_bp / 100;
-    const who = [
-      r2.email ?? "no address on file",
-      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
-      r2.under_review ? `${r2.under_review} under review` : null,
-      `${Number.isInteger(pct2) ? pct2 : pct2.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
-      r2.status === "active" ? null : r2.status
-    ].filter(Boolean);
-    const payable = r2.payable_cents;
-    const money2 = r2.currency === null ? "Nothing earned yet." : [
-      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
-      `${moneyWords(r2.held_cents, cur)} held`,
-      `${moneyWords(r2.paid_cents, cur)} paid to date`
-    ].join(" \xB7 ");
-    return {
-      partnerId: r2.partner_id,
-      code: r2.code,
-      who: who.join(" \xB7 "),
-      money: money2,
-      currency: r2.currency,
-      payableCents: payable,
-      canPay: r2.currency !== null && payable > 0,
-      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
-      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
-      status: r2.status,
-      first,
-      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
-    };
-  });
-}
-function platformPartnerSummary(rows2) {
-  const partners = new Set(rows2.map((r2) => r2.partner_id)).size;
-  if (!partners) return "No partners yet.";
-  const byCur = /* @__PURE__ */ new Map();
-  for (const r2 of rows2)
-    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
-  const review = [...new Map(rows2.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
-  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
-  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
-  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
-  return parts2.join(" \xB7 ");
-}
-var STANDING_LABELS = {
-  qualified: "Qualified",
-  review: "Under review",
-  disqualified: "Disqualified"
-};
-var standingLabel = (standing2) => STANDING_LABELS[standing2] ?? standing2;
-var DECIDED_BY_WORDS = {
-  person: " (decided by a person)",
-  sweep: " (the nightly check)",
-  joining: " (as the partner joined)"
-};
-var BY_ORIGIN = {
-  link: (code2) => `Brought by ${code2}`,
-  handover: (code2) => `Set up and handed over by ${code2}`,
-  invite: (code2) => `${code2}, asked in by its owner`
-};
-function platformPartnerStanding(w) {
-  const label = w.standing ? standingLabel(w.standing) : "Not judged yet";
-  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
-  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
-  return {
-    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
-    standing: `${label}${whose}${why}`,
-    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
-    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
-  };
-}
-var CODE_IGNORED_WHY = {
-  unknown: "no partner has that code",
-  paused: "that partner's account is paused",
-  closed: "that partner's account is closed",
-  self: "it was their own code"
-};
-var REVERSED_WORDS = {
-  refund: "a payment was refunded",
-  dispute: "a payment was disputed",
-  dispute_won: "a dispute was won"
-};
-function partnerEventBits(kind, p) {
-  const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
-  const known = (words3, k) => {
-    const said = text(k);
-    const word = said !== null && Object.hasOwn(words3, said) ? words3[said] ?? null : null;
-    return word === null ? [] : [word];
-  };
-  switch (kind) {
-    case "partner.code_ignored":
-      return known(CODE_IGNORED_WHY, "why");
-    case "partner.reversed":
-      return known(REVERSED_WORDS, "kind");
-    case "partner.handover_sent":
-      return p.again === true ? ["sent again"] : [];
-    case "partner.invite_accepted":
-      return p.earns === false ? ["it was already paying, so it earns no share"] : [];
-    default:
-      return [];
-  }
-}
-function partnerPayoutOutcomeWords(code2, r2) {
-  if (r2.changed)
-    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
-  if (r2.paid)
-    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
-  if (r2.total_cents < 0)
-    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
-  return "Nothing is payable to them in that currency, so nothing was recorded.";
-}
-function partnerStandingOutcomeWords(r2) {
-  const label = standingLabel(r2.standing).toLowerCase();
-  if (r2.standing === "disqualified")
-    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
-  if (r2.standing === "qualified")
-    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
-  return `Now ${label}. What it holds waits until a person decides.`;
-}
-var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
-var money = (rows2) => rows2.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
-var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
-var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
-var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
-var REVERSAL_LINES = {
-  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
-  dispute: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
-  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`
-};
-function standingLine(s) {
-  const name = workspaceWords(s.workspace);
-  if (s.standing === "review")
-    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords(s.why)}`;
-  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords(s.why)}`;
-  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords(s.why)}`;
-}
-function statusLine(s) {
-  if (s.status === "paused")
-    return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
-  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
-  return "Your partner account is active again.";
-}
-function balanceRows(balance) {
-  return balance.flatMap((b) => [
-    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
-    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
-    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null }
-  ]);
-}
-function partnerLetter(news, opts) {
-  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
-  const body = [
-    `Since ${dayWords2(opts.since)}:`,
-    "",
-    ...letterLines(news).map((l) => `- ${l}`),
-    "",
-    "Where you stand:",
-    ...stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`),
-    "",
-    `See it all: ${partnerPaneUrl(opts.origin)}`,
-    "",
-    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings \u203A Partner."
-  ].join("\n");
-  return { subject: letterSubject(news), body };
-}
-var sharesOf = (news) => news.written.filter((w) => w.kind === "share");
-var countOf2 = (rows2) => rows2.reduce((k, w) => k + w.count, 0);
-var nonZero = (rows2) => rows2.filter((r2) => r2.cents !== 0);
-function letterLines(news) {
-  const lines = [];
-  if (news.status) lines.push(statusLine(news.status));
-  for (const p of news.paid)
-    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
-  const shares = sharesOf(news);
-  if (shares.length) {
-    const n = countOf2(shares);
-    lines.push(
-      `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
-    );
-  }
-  for (const kind of PARTNER_REVERSAL_KINDS) {
-    const of = news.written.filter((w) => w.kind === kind);
-    if (of.length) lines.push(REVERSAL_LINES[kind](countOf2(of), money(of)));
-  }
-  const matured = nonZero(news.matured);
-  if (matured.length) lines.push(`${money(matured)} became payable.`);
-  const voided = nonZero(news.voided);
-  if (voided.length) lines.push(`${money(voided)} held will not be paid: its workspace is not eligible.`);
-  for (const s of news.standing) lines.push(standingLine(s));
-  for (const b of news.brought)
-    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
-  for (const a of news.accepted ?? [])
-    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
-  for (const d of news.declined ?? [])
-    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
-  return lines;
-}
-var LETTER_SUBJECTS = [
-  [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
-  [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
-  [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money(n.paid)}`],
-  [
-    (n) => n.standing.some((s) => s.standing === "disqualified"),
-    () => "A workspace you brought is not eligible for a share"
-  ],
-  [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
-  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
-  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
-  [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`]
-];
-function letterSubject(news) {
-  const rule2 = LETTER_SUBJECTS.find(([holds]) => holds(news));
-  return rule2 ? rule2[1](news) : "What changed in your partner account";
-}
-
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
 var ACTIVITY_NOISE_KINDS = [
@@ -60202,11 +60897,11 @@ function isActivityNoise(kind) {
 }
 
 // src/workspace/signup-schema.ts
-import { z as z29 } from "zod";
-var InviteCodeSchema = z29.string().trim().max(80);
-var SignupSchema = z29.object({
-  name: z29.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z29.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+import { z as z31 } from "zod";
+var InviteCodeSchema = z31.string().trim().max(80);
+var SignupSchema = z31.object({
+  name: z31.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z31.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -60220,17 +60915,17 @@ var SignupSchema = z29.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z29.string().max(200).optional(),
+  password: z31.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z29.string().trim().min(1).max(64).optional(),
+  timezone: z31.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z29.object({
-  name: z29.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z31.object({
+  name: z31.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z29.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z31.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -60283,38 +60978,38 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner-schema.ts
-import { z as z30 } from "zod";
-var PartnerBecomeSchema = z30.object({
-  code: z30.string().trim().min(1).max(64),
-  terms: z30.literal(true, { message: "The terms have to be accepted." })
+import { z as z32 } from "zod";
+var PartnerBecomeSchema = z32.object({
+  code: z32.string().trim().min(1).max(64),
+  terms: z32.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z30.object({ letters: z30.boolean() }).strict();
-var letterCents = z30.coerce.number();
-var letterSum = z30.object({ currency: z30.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z30.object({
+var PartnerLettersSchema = z32.object({ letters: z32.boolean() }).strict();
+var letterCents = z32.coerce.number();
+var letterSum = z32.object({ currency: z32.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z32.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z30.array(z30.object({ kind: z30.string(), currency: z30.string(), count: z30.coerce.number(), cents: letterCents })).default([]),
+  written: z32.array(z32.object({ kind: z32.string(), currency: z32.string(), count: z32.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z30.array(letterSum).default([]),
+  matured: z32.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z30.array(letterSum).default([]),
-  paid: z30.array(z30.object({ currency: z30.string(), cents: letterCents, reference: z30.string(), sent_at: z30.string() })).default([]),
+  voided: z32.array(letterSum).default([]),
+  paid: z32.array(z32.object({ currency: z32.string(), cents: letterCents, reference: z32.string(), sent_at: z32.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z30.array(z30.object({ workspace: z30.string().nullable(), standing: z30.string(), why: z30.string().nullable() })).default([]),
+  standing: z32.array(z32.object({ workspace: z32.string().nullable(), standing: z32.string(), why: z32.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z30.array(z30.string().nullable()).default([]),
+  brought: z32.array(z32.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z30.array(z30.string().nullable()).default([]),
-  declined: z30.array(z30.string().nullable()).default([]),
+  accepted: z32.array(z32.string().nullable()).default([]),
+  declined: z32.array(z32.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z30.object({ status: z30.string(), why: z30.string().nullable() }).nullable().default(null),
-  balance: z30.array(
-    z30.object({
-      currency: z30.string(),
+  status: z32.object({ status: z32.string(), why: z32.string().nullable() }).nullable().default(null),
+  balance: z32.array(
+    z32.object({
+      currency: z32.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z30.string().nullable()
+      next_payable_at: z32.string().nullable()
     })
   ).default([])
 });
@@ -60397,14 +61092,14 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/handover-schema.ts
-import { z as z31 } from "zod";
-var ownerEmail = z31.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z31.object({
-  name: z31.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z31.string().trim().max(64).nullish(),
+import { z as z33 } from "zod";
+var ownerEmail = z33.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z33.object({
+  name: z33.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z33.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z31.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z33.object({ email: ownerEmail }).strict();
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -60456,8 +61151,15 @@ var SECOND_FACTOR_WORDS = {
   enrolTitle: "Set up two-step sign-in",
   enrolBody: "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
   /** Settings › Partner, before becoming one. */
-  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app."
+  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
+  /** The Console (decision 0066): staff show a code every session, no grace. */
+  staffRequired: "The Console asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
+  staffEnrolBody: "The Console can act on every business on Chanlytics, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue."
 };
+var SECOND_FACTOR_STAFF_PATH = "/verify?for=console";
+function secondFactorAsked(forWhom) {
+  return forWhom === "console" ? { required: SECOND_FACTOR_WORDS.staffRequired, enrolBody: SECOND_FACTOR_WORDS.staffEnrolBody } : { required: SECOND_FACTOR_WORDS.required, enrolBody: SECOND_FACTOR_WORDS.enrolBody };
+}
 function enrolRefusalWords(message) {
   const m = String(message ?? "");
   if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };
@@ -60477,13 +61179,6 @@ function cleanFactorCode(raw) {
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
-
-// src/workspace/second-factor-schema.ts
-import { z as z32 } from "zod";
-var PartnerSecondFactorResetSchema = z32.object({
-  partner_id: z32.string().uuid("That partner does not exist."),
-  why: z32.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
-}).strict();
 
 // src/workspace/partner-invite.ts
 var PARTNER_INVITE_DAYS = 14;
@@ -60579,9 +61274,9 @@ function partnerInviteEmail(i) {
 }
 
 // src/workspace/partner-invite-schema.ts
-import { z as z33 } from "zod";
-var PartnerInviteSchema = z33.object({
-  code: z33.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+import { z as z34 } from "zod";
+var PartnerInviteSchema = z34.object({
+  code: z34.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 
 // src/workspace/activation.ts
@@ -61445,6 +62140,9 @@ export {
   ACTIVITY_SPAN_DAYS,
   ACTIVITY_SUBJECT_HOMES,
   ACTOR_TYPES,
+  ACT_LOG_PAGE,
+  ACT_OUTCOMES,
+  ACT_TARGETS,
   ADD_TO_PEOPLE_WORDS,
   ADS_ASK_MIN,
   ADS_ASK_MIN_CALLS,
@@ -61546,6 +62244,7 @@ export {
   ASK_WARM_MAX_TOKENS,
   AUDIENCE_KINDS,
   AUTOMATIC_NAMING,
+  ActsQuerySchema,
   AppError,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
@@ -61650,6 +62349,7 @@ export {
   CHIPS,
   CHIPS_SHOWN,
   CHOOSE,
+  CLAIM_MS,
   CLIENT_ERROR_BOUNDARIES,
   CLIENT_ERROR_LIMITS,
   COMBINE_WORDS,
@@ -61667,6 +62367,15 @@ export {
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   CONSENT_STATES,
+  CONSOLE_ACTS,
+  CONSOLE_ACT_KEYS,
+  CONSOLE_GROUP_WORDS,
+  CONSOLE_PATH,
+  CONSOLE_SCREENS,
+  CONSOLE_SCREEN_WORDS,
+  CONSOLE_WORDS,
+  CONSOLE_WORKSPACE_TABS,
+  CONSOLE_WORKSPACE_TAB_WORDS,
   CONSULT_FOLLOW_DAYS,
   CONVERSATIONAL_ASK_TITLE,
   CONVERSATION_GAP_MS,
@@ -61680,10 +62389,12 @@ export {
   CUSTOMER_DOMAIN_DAILY_MAX,
   CUSTOMER_MESSAGE_SKILL,
   CalendarConfigSchema,
+  ClaimSchema,
   ClientErrorInput,
   ClosureSchema,
   ConsentAnswerBody,
   ConsentManyBody,
+  ConsoleWhySchema,
   ContactAddedData,
   ContactConsentChangedData,
   DASH,
@@ -61787,6 +62498,8 @@ export {
   FEED_GUIDES,
   FEED_MAX_BYTES,
   FIGURES,
+  FIND_KINDS,
+  FIND_LIMITS,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
@@ -61812,6 +62525,7 @@ export {
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
   FeaturesConfigSchema,
+  FindQuerySchema,
   GATE,
   GET_YES_NO_NUMBER_WORDS,
   GET_YES_PARAM,
@@ -61867,6 +62581,7 @@ export {
   JOURNEY_STAGE_IDS,
   JUDGE_FACT_KEYS,
   JUDGE_OUTPUT_SCHEMA,
+  JobRequeueSchema,
   KEEP_ROW,
   LANGUAGE_GROUP_WORDS,
   LAST_WORDS_TITLE,
@@ -62005,6 +62720,7 @@ export {
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   LIMIT_TIERS,
+  LINE_ACTS,
   LINE_CODES_EVERY_MS,
   LINE_CODES_MAX,
   LINE_CODES_WITHIN_MS,
@@ -62060,6 +62776,7 @@ export {
   LeadsCheckAgainSchema,
   LeadsQuerySchema,
   LeadsViewSchema,
+  LineActSchema,
   ListConditionSchema,
   ListDraftAnswerSchema,
   ListFactSchema,
@@ -62361,7 +63078,10 @@ export {
   PartnerInviteSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
-  PartnerSecondFactorResetSchema,
+  PartnerPayoutSchema,
+  PartnerSecondFactorSchema,
+  PartnerStandingSchema,
+  PartnerStatusSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PersonAddBody,
@@ -62429,6 +63149,9 @@ export {
   REACH_OUT_WORDS_MAX,
   READING_SCHEMA,
   READY_WHATSAPP_ALONE,
+  REASON_KINDS,
+  REASON_LIMITS,
+  REASON_WORDS,
   RECENT_MAX,
   RECIPIENT_REASON_HEARD,
   RECIPIENT_STATES,
@@ -62471,6 +63194,7 @@ export {
   REPLY_WORDS_MAX,
   REPORT_CHANNELS,
   REPORT_LENSES,
+  REPORT_LIMITS,
   REPORT_MIN_N,
   REPORT_MOST_DAYS,
   REPORT_PERIOD_DEFAULT,
@@ -62479,6 +63203,12 @@ export {
   REPORT_RANGES,
   REPORT_WEEK_LONG,
   REPORT_WEEK_SHORT,
+  REPORT_WORDS,
+  REQUEST_KINDS,
+  REQUEST_KIND_WORDS,
+  REQUEST_STEPS,
+  REQUEST_STEP_KEYS,
+  REQUEST_WORDS,
   RESULTS,
   RETELL_MODELS,
   RETENTION_DAYS,
@@ -62520,6 +63250,9 @@ export {
   ReceptionistManyBody,
   ReceptionistModeBody,
   RenameLeadSearchSchema,
+  ReportProblemInput,
+  RequestFileSchema,
+  RequestStepSchema,
   SAME_SITTING_MS,
   SAME_VISIT_MS,
   SAY_IT_DEAL_JSON_SCHEMA,
@@ -62533,6 +63266,7 @@ export {
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
+  SECOND_FACTOR_STAFF_PATH,
   SECOND_FACTOR_WORDS,
   SEE_PARAM,
   SEE_WORDS,
@@ -62575,6 +63309,7 @@ export {
   SERVICE_SUGGESTION_TYPES,
   SESSION_ENDED,
   SETTINGS_DOOR,
+  SETUP_ASK_WORDS,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -62612,6 +63347,9 @@ export {
   SPF_LOOKUPS_MAX,
   SPF_RECORDS_JOIN,
   SPF_RECORD_MAX,
+  STAFF_ROLES,
+  STAFF_ROLE_WORDS,
+  STAFF_STATES,
   STANDING,
   STANDING_CHECKS,
   STARTER_LANGUAGES,
@@ -62625,6 +63363,9 @@ export {
   STOP_ALL_REFUSALS,
   STOP_ENDED_OFFERS_SOURCE,
   STOP_WORDS,
+  SUPPORT_VIEWS,
+  SUPPORT_VIEW_WORDS,
+  SUPPORT_WORDS,
   SYSTEM_ONE_MODEL,
   SYSTEM_ONE_STATE_MAX_CHARS,
   SayItDealAnswerSchema,
@@ -62632,6 +63373,7 @@ export {
   SayItNoteAnswerSchema,
   ServiceSchema,
   SignupSchema,
+  SupportQuerySchema,
   TEAM_INVITE_DAYS,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
@@ -62727,12 +63469,14 @@ export {
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
   WRITE_WAY_REFUSED,
+  WaitlistInvitedSchema,
   YES_WHILE_PAUSED,
   ZIPS,
   abandonedCall,
   abilityRows,
   aboutADayAfter,
   accountRows,
+  actRowOf,
   activityDoor,
   activityFamily,
   activityFamilyKinds,
@@ -62743,6 +63487,7 @@ export {
   activityRowsForLines,
   activityTone,
   activityWords,
+  actsCsv,
   adAccountOf,
   adBarsOf,
   adFollowOn,
@@ -62951,6 +63696,7 @@ export {
   callsStillUp,
   callsToday,
   cameFromOf,
+  cameInOf,
   campaignChannelsOf,
   campaignDayWords,
   campaignEmailRules,
@@ -63002,6 +63748,7 @@ export {
   checkedWords,
   chipsMoreWords,
   citationRoute,
+  claimWords,
   claimsWrite,
   clampWords,
   classEvidenceLine,
@@ -63059,6 +63806,12 @@ export {
   consentPageVM,
   consentRuleWords,
   consentSourceLabel,
+  consoleAddressOf,
+  consoleGroupOf,
+  consoleGroups,
+  consoleNumbersFrom,
+  consoleNumbersOf,
+  consolePathOf,
   consultFirstOf,
   consultServiceOf,
   consultationHappened,
@@ -63189,6 +63942,7 @@ export {
   enrolRefusalWords,
   eraseSlot,
   err,
+  errorIdOf,
   escapeHtml,
   estimateRoundUsd,
   eventText,
@@ -63233,6 +63987,8 @@ export {
   fillSlots,
   filterOpenings,
   filterTimeline,
+  findDigits,
+  findGroups,
   findLanguages,
   finishedRunHeldWhy,
   finiteOrNull,
@@ -63364,6 +64120,7 @@ export {
   holdWaits,
   holdWords2 as holdWords,
   holderOf,
+  homeSentence,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
   hoursOf,
@@ -63913,6 +64670,7 @@ export {
   pageTitle,
   pageTotals,
   pageVitalsWords,
+  pageWords,
   paramLabel,
   paramSaid,
   parseAds,
@@ -64130,6 +64888,7 @@ export {
   priceWords,
   pricesWrittenWords,
   priorOf,
+  privacyRequestOf,
   profileRefusal,
   promptBlocks,
   promptCostWords,
@@ -64275,13 +65034,16 @@ export {
   replyWaitsOnYou,
   replyWhy,
   replyWindow,
+  reportCode,
   reportDaysAsked,
   reportDaysCount,
   reportDaysRefusal,
   reportFacts,
   reportHourWords,
+  reportOf,
   reportPeriodOf,
   reportPickWords,
+  reportProblemOf,
   reportRangeAsked,
   reportRangeKey,
   reportRangeOfKey,
@@ -64289,8 +65051,14 @@ export {
   reportWindowOf,
   reportsParamParts,
   reportsRouteParts,
+  requestClock,
+  requestCode,
   requestCodeWords,
+  requestDayWords,
+  requestDueAt,
+  requestStepChange,
   requestedBookingOf,
+  requestsInOrder,
   rereadAt,
   resendLeft,
   resolveFacts,
@@ -64390,6 +65158,7 @@ export {
   scopeFromRoute,
   seasonHorizon,
   seatNeedsSecondFactor,
+  secondFactorAsked,
   secondFactorResetWords,
   secondFactorShown,
   seeHomeOf,
@@ -64507,6 +65276,12 @@ export {
   spokenBreachDetails,
   spokenDuration,
   spokenNameOf,
+  staffCannotSeeWords,
+  staffCannotWords,
+  staffMay,
+  staffName,
+  staffSees,
+  staffSeesScreen,
   stageArgs,
   standingAfterNameDecision,
   standingAlertWords,
@@ -64566,6 +65341,7 @@ export {
   sumMoney,
   sumOf,
   sumsOf,
+  supportClusters,
   systemOneDollars,
   systemOneState,
   takesBookingRequests,
@@ -64728,6 +65504,7 @@ export {
   verbForRoute,
   verbSpec,
   verbalOptInScript,
+  verdictPill,
   verifyCodeWords,
   versionComponents,
   versionSlotsRefusal,
@@ -64808,6 +65585,7 @@ export {
   whyNotForward,
   whyNotLook,
   whyNotReceive,
+  whyWords,
   winBackWords,
   windowFor,
   wireFailure,

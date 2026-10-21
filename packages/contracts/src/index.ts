@@ -9,6 +9,7 @@ export * from "./broadcasts";
 export * from "./calendar";
 export * from "./config";
 export * from "./consent";
+export * from "./console";
 export * from "./conversations";
 export * from "./deals";
 export * from "./email";

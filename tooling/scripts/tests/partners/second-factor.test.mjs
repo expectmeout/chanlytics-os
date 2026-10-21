@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
-  PartnerSecondFactorResetSchema,
+  PartnerSecondFactorSchema,
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
@@ -70,12 +70,14 @@ test("a code is six digits, spaces dropped; the Auth server's refusals read as a
   assert.equal(enrolRefusalWords("boom").unavailable, false);
 });
 
-test("the reset's input: whose, and why with how it was checked; its answer in words", () => {
+test("the reset's input: whose, and why with how it was checked (the Console's reason, its note asked); its answer in words", () => {
   const id = "11111111-1111-4111-8111-111111111111";
-  assert.equal(PartnerSecondFactorResetSchema.safeParse({ partner_id: id, why: "Called them back." }).success, true);
-  assert.equal(PartnerSecondFactorResetSchema.safeParse({ partner_id: id, why: "  " }).success, false);
-  assert.equal(PartnerSecondFactorResetSchema.safeParse({ partner_id: "nope", why: "x" }).success, false);
-  assert.equal(PartnerSecondFactorResetSchema.safeParse({ partner_id: id, why: "x", extra: 1 }).success, false);
+  const why = (note) => ({ kind: "call", ticket: null, note });
+  assert.equal(PartnerSecondFactorSchema.safeParse({ partner_id: id, why: why("Called them back.") }).success, true);
+  assert.equal(PartnerSecondFactorSchema.safeParse({ partner_id: id, why: why("  ") }).success, false);
+  assert.equal(PartnerSecondFactorSchema.safeParse({ partner_id: "nope", why: why("x") }).success, false);
+  assert.equal(PartnerSecondFactorSchema.safeParse({ partner_id: id, why: why("x"), extra: 1 }).success, false);
+  assert.equal(PartnerSecondFactorSchema.safeParse({ partner_id: id, why: "Called them back." }).success, false);
   assert.match(secondFactorResetWords("ada-co", 1), /^ada-co's authenticator is removed/);
   assert.match(secondFactorResetWords("ada-co", 0), /had no authenticator to remove/);
 });
@@ -207,10 +209,22 @@ function admin({ factors = [{ id: "f1" }], listError = null } = {}) {
   };
 }
 
-test("the reset: recorded by the function first, then every factor of that account removed; its refusals mapped", async () => {
+/** The Console's reason (decision 0066): how it was checked it is them, the note the partner reads. */
+const WHY = (note) => ({ kind: "call", ticket: null, note });
+/** The Console's handle: who is acting and in which role, the session's client, and the log the act is written to. */
+const officeOf = (session, acts = []) => ({
+  session,
+  db: fakeDb({ platform_acts: acts }),
+  role: "support",
+  userId: "u-staff",
+  email: "staff@example.com",
+});
+
+test("the reset: written down with why, recorded by the function first, then every factor of that account removed; its refusals mapped", async () => {
   const recorded = [];
-  const office = {
-    session: fakeDb(
+  const acts = [];
+  const office = officeOf(
+    fakeDb(
       {},
       {},
       {
@@ -221,26 +235,35 @@ test("the reset: recorded by the function first, then every factor of that accou
         },
       },
     ),
-  };
+    acts,
+  );
   const a = admin({ factors: [{ id: "f1" }, { id: "f2" }] });
-  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, "Called them back.", a.svc), { removed: 2 });
+  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, WHY("Called them back."), a.svc), {
+    removed: 2,
+  });
   assert.deepEqual(recorded, [{ p_partner: PARTNER, p_why: "Called them back." }]);
+  assert.deepEqual(
+    acts.map((r) => [r.act, r.actor_role, r.target_kind, r.target_id, r.reason_kind, r.note, r.outcome]),
+    [["partner_second_factor", "support", "partner", PARTNER, "call", "Called them back.", "done"]],
+  );
   assert.deepEqual(a.removed, [
     ["f1", USER],
     ["f2", USER],
   ]);
-  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, "x", admin({ factors: [] }).svc), {
+  assert.deepEqual(await platformPartnerSecondFactorReset(office, PARTNER, WHY("x"), admin({ factors: [] }).svc), {
     removed: 0,
   });
+  assert.equal(acts[1].outcome_note, "They had no authenticator to remove.", "the log says what came of it");
   await assert.rejects(
-    platformPartnerSecondFactorReset(office, "44444444-4444-4444-8444-444444444444", "x", admin().svc),
+    platformPartnerSecondFactorReset(office, "44444444-4444-4444-8444-444444444444", WHY("x"), admin().svc),
     (e) => e.code === "not_found",
   );
+  assert.equal(acts[2].outcome, "refused");
   const untouched = admin();
   await assert.rejects(
     platformPartnerSecondFactorReset(
-      {
-        session: fakeDb(
+      officeOf(
+        fakeDb(
           {},
           {},
           {
@@ -249,17 +272,25 @@ test("the reset: recorded by the function first, then every factor of that accou
             },
           },
         ),
-      },
+      ),
       PARTNER,
-      "x",
+      WHY("x"),
       untouched.svc,
     ),
   );
   assert.deepEqual(untouched.removed, [], "nothing removed without the record");
   await assert.rejects(
-    platformPartnerSecondFactorReset(office, PARTNER, "x", admin({ listError: new Error("503") }).svc),
+    platformPartnerSecondFactorReset(office, PARTNER, WHY("x"), admin({ listError: new Error("503") }).svc),
     (e) => e.code === "upstream_auth",
   );
+  assert.equal(acts.at(-1).outcome, "failed", "a failure that is ours is said as failed, not refused");
+  // Billing does not reset a partner's second factor: refused before anything is written or removed.
+  const billing = admin({ factors: [{ id: "f9" }] });
+  await assert.rejects(
+    platformPartnerSecondFactorReset({ ...office, role: "billing" }, PARTNER, WHY("x"), billing.svc),
+    (e) => e.code === "forbidden" && e.status === 403,
+  );
+  assert.deepEqual(billing.removed, []);
 });
 
 test("the reset's door: the platform's, counted, and its input judged before anything", () => {
@@ -270,6 +301,7 @@ test("the reset's door: the platform's, counted, and its input judged before any
     rate: "platform_partner_second_factor",
     spend: false,
     fresh: true,
+    act: "partner_second_factor",
   });
   assert.equal(RATE.platform_partner_second_factor.limit, 10);
 });
@@ -309,7 +341,7 @@ const world = (extra = {}) => ({
   ...extra,
 });
 const session = (aal, tables = world(), rpcs = {}) => ({
-  supabase: fakeDb(tables, {}, { is_platform_admin: () => false, ...rpcs }),
+  supabase: fakeDb(tables, {}, { platform_staff_state: () => "none", ...rpcs }),
   userId: U,
   email: "ada@example.com",
   ...(aal ? { aal } : {}),

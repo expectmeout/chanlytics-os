@@ -50,6 +50,7 @@ import {
   platformPartnerSummary,
   platformPartnerStanding,
   pageVitalsWords,
+  CONSOLE_WORDS,
 } from "@chanlytics/contracts";
 
 const clock = (sweep, healthy, detail = null) => ({
@@ -473,10 +474,13 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // passed, which is the opposite of what this test's own header promises.
     // Every helper the route imports from the platform module has to come after
     // the handle it needs.
-    const imported = /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform\/platform"/.exec(src);
-    assert.ok(imported, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform/platform`);
-    const helpers = imported[1]
-      .split(",")
+    // The Console's modules behind the door (decision 0066): platform, its acts, its reads, its requests.
+    const imported = [
+      ...src.matchAll(/import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform\/(?:platform|acts|console|requests)"/g),
+    ];
+    assert.ok(imported.length, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform`);
+    const helpers = imported
+      .flatMap((m) => m[1].split(","))
       .map((x) => x.trim())
       .filter((x) => x && x !== "backOffice");
     assert.ok(helpers.length > 0, `${path.basename(path.dirname(file))}: only the guard is imported`);
@@ -495,7 +499,14 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 
 test("the guard asks the database, and answers 404 rather than 403", () => {
   const src = readCode("apps/dashboard/src/server/platform/platform.ts");
-  assert.match(src, /ctx\.supabase\.rpc\("is_platform_admin"\)/, "the answer comes from Postgres, not from an env var");
+  // platform_staff_state() (00467): the role, a second factor owed, or none, about the caller alone.
+  assert.match(src, /await staffStateOf\(ctx\.supabase\)/, "the answer comes from Postgres, not from an env var");
+  assert.match(src, /if \(state === "none"\) throw new AppError\("not_found", "No such page\.", 404\);/);
+  assert.match(
+    src,
+    /if \(state === "needs_second_factor"\) throw new AppError\("mfa_required", SECOND_FACTOR_WORDS\.staffRequired, 403\);/,
+    "staff who have not shown their second factor are sent to show it (no grace)",
+  );
   assert.ok(
     !/process\.env\.[A-Z_]*ADMIN|PLATFORM_ADMIN|ALLOWLIST/.test(src),
     "no second answer that can disagree with the first",
@@ -811,7 +822,7 @@ test("the service-role client cannot be obtained without passing the check", () 
   // stops an object literal standing in for one.
   assert.match(src, /declare const backOfficeBrand: unique symbol;/);
   assert.match(src, /export async function backOffice\(ctx: RouteContext\): Promise<BackOffice>/);
-  assert.match(src, /if \(!\(await admitted\(ctx\)\)\) throw new AppError\("not_found", "No such page\.", 404\);/);
+  assert.match(src, /const state = await staffState\(ctx\);/);
   // Every cross-tenant read takes the handle rather than reaching for a client.
   for (const [fn, tail] of [
     ["platformOverview", "\\)"],
@@ -957,19 +968,17 @@ test("three named operations, and no way to send a fourth", () => {
 
   for (const action of routes) {
     const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
-    // Its own operation, named in its own file, not taken from the request.
+    // Its own operation, named in its own file, not taken from the request, and the Console's act it is.
     assert.ok(
-      src.includes(`platformLineAct(office, ctx, "${action}", tenantId, lineId)`),
+      src.includes(`platformLineAct(office, "${action}", input.tenant_id, input.line_id, input.why)`),
       `${action}: the action is a literal`,
     );
+    assert.ok(src.includes(`act: LINE_ACTS.${action},`), `${action}: the act its role is asked for`);
     assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
     assert.ok(src.includes("scope: platform,"), `${action}: no admin check`);
     assert.ok(src.indexOf("scope: platform,") < src.indexOf("platformLineAct("), `${action}: the check runs first`);
     assert.ok(src.includes('rate: "platform_line_'), `${action}: rate-limited`);
-    assert.ok(
-      src.includes('requireUuid(body.tenant_id, "workspace")') && src.includes('requireUuid(body.line_id, "line")'),
-      `${action}: both ids are checked`,
-    );
+    assert.ok(src.includes("input: LineActSchema,"), `${action}: both ids, and why, are judged by the schema`);
     assert.ok(!src.includes("memberContext("), `${action}: this surface is about workspaces the caller is not in`);
   }
 
@@ -994,6 +1003,11 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   // can be held to is worse than an action that did not happen.
   const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   const fn = server.slice(server.indexOf("export async function platformLineAct"));
+  // The Admin log's row with why comes first (act(), decision 0066), then the workspace's own event, then the edge.
+  assert.match(
+    fn,
+    /return takeAct\(\s*office,\s*\{ act: LINE_ACTS\[action\], why, tenantId, target: "line", targetId: lineId \}/,
+  );
   const audit = fn.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
   const act = fn.indexOf("await edgeLines(");
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
@@ -1004,37 +1018,11 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   );
   assert.match(
     fn,
-    /by: ctx\.userId,\s*by_email: ctx\.email \?\? null/,
+    /by: office\.userId,\s*by_email: office\.email/,
     "who, by id and by the address they signed in with",
   );
   assert.ok(/"platform\.acted",\s*"line",\s*lineId,/.test(fn), "the line it was done to");
   assert.ok(EVENT_KINDS.includes("platform.acted"), "the kind is in the closed set the rest of the product uses");
-});
-
-/** The back office's source (surfaces/settings/platform), its four files as one, whitespace folded. */
-const PANE_FILES = ["pane", "detail", "partners", "cards"];
-const paneSource = () =>
-  PANE_FILES.map((f) => readCode(`apps/dashboard/src/surfaces/settings/platform/${f}.tsx`))
-    .join("\n")
-    .replace(/\s+/g, " ");
-
-test("the page reads the cost out; it does not decide it", () => {
-  const page = paneSource();
-  assert.ok(page.includes("const actions = P.actions(line);"), "which actions, from the contract");
-  assert.ok(page.includes("{P.warning(arm)}"), "and what each costs, from the contract");
-  assert.ok(!/\$\d/.test(page), "no money figure lives in the page");
-  assert.ok(
-    !/reg_mock === true \?|sms_state === "rejected" \?/.test(page),
-    "and no judgement about which refile this is",
-  );
-  // Arm-then-confirm: a cross-tenant write is never one click.
-  assert.ok(
-    page.includes("data-testid={`platform-act-${a.action}`}") && page.includes("testid={`platform-${arm.action}`}"),
-  );
-  assert.ok(page.includes("P.act(a.action, tenantId, line.id)"), "the action is a name, not a request body");
-  // After one lands, both reads are stale.
-  assert.ok(page.includes("onChanged={() => { setDetail(null); void load(); setReload((n) => n + 1); }}"));
-  assert.ok(page.includes("}, [P, openId, reload]);"), "so the detail re-reads on a change, not only on a new id");
 });
 
 test("the back office is read on demand, not published to every browser", () => {
@@ -1061,13 +1049,12 @@ test("the back office is read on demand, not published to every browser", () => 
 });
 
 /* -------------------------------------------------------------------------- *
- * The pane, rendered without a browser.
+ * The Console's screens and rows, rendered without a browser (decision 0066: the back office's pane moved into the
+ * Console, its cards, lines and partner rows by git mv).
  *
- * Same harness as registration-path.test.mjs: no jsdom and no React, just the
- * hooks these two components use, so the component bodies run for real and what
- * comes back is the element tree. Which matters more here than usual — the
- * claim being tested is "support sees exactly what the customer sees", and that
- * is a claim about what is on the screen.
+ * Same harness as registration-path.test.mjs: no jsdom and no React, just the hooks these components use, so the
+ * component bodies run for real and what comes back is the element tree. Which matters more here than usual — the
+ * claim being tested is "support sees exactly what the customer sees", and that is a claim about what is on the screen.
  * -------------------------------------------------------------------------- */
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
@@ -1080,13 +1067,10 @@ globalThis.window = {
   removeEventListener() {},
 };
 globalThis.Icon = () => null;
-// The shared attention row, and the pane that draws it.
-// The kit's attention row, which the pane imports: the walker below reads the props each row was handed and does not
-// expand it.
+// The kit's attention row, which the screens import: the walker below reads the props each row was handed and does
+// not expand it.
 const { AttnRow: ATTN } = await import("../../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 globalThis.window.AttnRow = ATTN;
-// A line's act is confirmed through the shared Confirm (surfaces/frame): pure,
-// so the walker below expands it like any other nested component.
 globalThis.document ??= {
   body: {},
   addEventListener() {},
@@ -1097,27 +1081,42 @@ globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.Confirm = kitPages.Confirm;
 Object.assign(globalThis.window, kitPages);
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
-// the kit's attention row is in kitPages now: this harness reads the props each row was handed, from its stub
 globalThis.window.AttnRow = ATTN;
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, () => {}];
-// The back office is TSX (surfaces/settings/platform): its hooks come from "react", which under this runner has none,
-// so each one is the stub's of the moment -- mount() below gives the stub new hooks for every mount.
+// The Console is TSX: its hooks come from "react", which under this runner has none, so each one is the stub's of the
+// moment -- mount() below gives the stub new hooks for every mount.
 useStubHooks(
   Object.fromEntries([
     ["Fragment", "Fragment"],
-    ...["useState", "useMemo", "useCallback", "useEffect"].map((h) => [h, (...a) => globalThis.React[h](...a)]),
+    ...["useState", "useMemo", "useCallback", "useEffect", "useRef"].map((h) => [
+      h,
+      (...a) => globalThis.React[h](...a),
+    ]),
   ]),
 );
-const S = "../../../../apps/dashboard/src/surfaces/settings/platform";
-const { PanePlatform: Pane } = await import(`${S}/pane.tsx`);
-const { PlatformLine } = await import(`${S}/detail.tsx`);
-const { WaitingRow: PlatformWaitingRow } = await import(`${S}/cards.tsx`);
+const S = "../../../../apps/dashboard/src/surfaces/console";
+const { PlatformLine, SetupAndLines } = await import(`${S}/lines.tsx`);
+const { WaitingRow: PlatformWaitingRow, PlatformQueueCard } = await import(`${S}/health-cards.tsx`);
 const { PartnerRow: PlatformPartnerRow, PartnerStandingRow: PlatformPartnerStandingRow } = await import(
-  `${S}/partners.tsx`
+  `${S}/partner-rows.tsx`
 );
-// The verbs the pane reads, which a test stands in whole, as it once replaced window.__platform.
+const { WorkspacesScreen } = await import(`${S}/workspaces.tsx`);
+const { WorkspaceScreen } = await import(`${S}/workspace.tsx`);
+const { PartnersScreen } = await import(`${S}/partners.tsx`);
+const { HealthScreen } = await import(`${S}/health.tsx`);
+const { WorkspaceRow } = await import(`${S}/rows.tsx`);
+const { WhyAsk } = await import(`${S}/why.tsx`);
+const { consoleVerbs } = await import(`${S}/verbs.ts`);
+const { Segmented } = await import("../../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
+const { Field } = await import("../../../../apps/dashboard/src/surfaces/kit/field/field.tsx");
+const { Search } = await import("../../../../apps/dashboard/src/surfaces/kit/search/search.tsx");
+const { SubTabs } = await import("../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
+const { RecordTip } = await import("../../../../apps/dashboard/src/surfaces/kit/record/field.tsx");
+// The verbs the screens read, which a test stands in whole, as it once replaced window.__platform.
 const { backOffice } = await import("../../../../apps/dashboard/src/legacy-bridge/platform.ts");
+
+/** Who is looking, as GET platform/me answers: an owner on the Console's staff. */
+const ME = { user_id: "u-admin", email: "ruben@rjcapital.io", name: "Ruben", role: "owner" };
 
 /** Whether a dependency array differs from the one an effect or memo last saw. Undefined deps mean "every render", as in React. */
 const changed = (before, after) =>
@@ -1126,7 +1125,39 @@ const changed = (before, after) =>
   before.length !== after.length ||
   after.some((d, i) => !Object.is(d, before[i]));
 
+/**
+ * The reason ask keeps what is typed in it (decision 0066): a nested component with state of its own, which the walker
+ * expands with a store of its own, kept by its test id across walks and redraws, so a choice made in it is there at the
+ * next walk. Cleared at every mount.
+ */
+const STATEFUL = new Set([WhyAsk]);
+let ownCells = new Map();
+function expand(n) {
+  if (!STATEFUL.has(n.type)) return n.type(n.props);
+  const key = `${n.type.name}:${n.props.testid}`;
+  const cells = ownCells.get(key) ?? [];
+  ownCells.set(key, cells);
+  let seq = 0;
+  const saved = { useState: globalThis.React.useState };
+  globalThis.React.useState = (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { value: typeof init === "function" ? init() : init };
+    return [
+      cells[k].value,
+      (v) => {
+        cells[k] = { value: typeof v === "function" ? v(cells[k].value) : v };
+      },
+    ];
+  };
+  try {
+    return n.type(n.props);
+  } finally {
+    Object.assign(globalThis.React, saved);
+  }
+}
+
 function mount(Component, props = {}) {
+  ownCells = new Map();
   const cells = [];
   let seq = 0;
   /** What each effect slot last ran with, and its cleanup. */
@@ -1134,11 +1165,7 @@ function mount(Component, props = {}) {
   let pending = [];
   Object.assign(globalThis.React, {
     createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
-    // Dependency arrays are HONOURED. The first version ignored them, which made
-    // the harness unable to fail: changing the effect below from [P, openId] to
-    // [P] — which in a browser means clicking Open never loads anything — left
-    // every test passing. A harness that cannot distinguish working code from
-    // broken code is worse than no harness, because it is reported as coverage.
+    // Dependency arrays are HONOURED: a harness that cannot tell working code from broken code is worse than none.
     useMemo: (fn, deps) => {
       const k = seq++;
       const cell = cells[k];
@@ -1161,6 +1188,11 @@ function mount(Component, props = {}) {
         },
       ];
     },
+    useRef: (init) => {
+      const k = seq++;
+      if (!(k in cells)) cells[k] = { value: { current: init } };
+      return cells[k].value;
+    },
     useEffect: (fn, deps) => {
       pending.push({ fn, deps, key: seq++ });
     },
@@ -1171,11 +1203,7 @@ function mount(Component, props = {}) {
     return Component(props);
   };
   let tree = draw();
-  /**
-   * Run the effects whose deps changed, then redraw, until nothing changes --
-   * rather than a fixed three passes, which both re-ran effects that should not
-   * have fired and could stop before a real chain had settled.
-   */
+  /** Run the effects whose deps changed, then redraw, until nothing changes. */
   const settle = async () => {
     for (let pass = 0; pass < 12; pass++) {
       const due = pending.filter((e) => changed(effects[e.key]?.deps, e.deps));
@@ -1203,7 +1231,7 @@ function mount(Component, props = {}) {
       tree = draw();
       await settle();
     },
-    /** Press a handler the pane handed to a child component -- an attention row's cta, say. */
+    /** Press a handler a screen handed to a child component -- an attention row's cta, say. */
     async press(fn) {
       fn();
       tree = draw();
@@ -1211,51 +1239,66 @@ function mount(Component, props = {}) {
       tree = draw();
       await settle();
     },
+    /** Type into a kit field or search: the change handler its props were handed. */
     type(node, value) {
-      node.props.onChange({ target: { value } });
+      (node.props.onValueChange ?? node.props.onChange)(value);
+      tree = draw();
+    },
+    /** Choose an option of a kit segmented control. */
+    choose(node, value) {
+      node.props.onValueChange(value);
       tree = draw();
     },
   };
 }
 
 /**
- * Walk the element tree, expanding nested components as it goes.
- *
- * `createElement` only records a component's function and props, so the detail
- * pane's own markup would be invisible without this. Expanding it is safe here
- * because the nested components in this file are pure -- no hooks, so nothing to
- * confuse the cell counter above. The shared attention row is deliberately NOT
- * expanded: it belongs to People and Today too, and what this pane owes it is
- * the props, which is what the assertions read.
+ * The kit's parts with behaviour of their own (Base UI underneath, hooks inside), and the Console's own row that keeps a
+ * claim's press: what a screen owes them is the props, which is what the assertions read, so the walker does not
+ * expand them (their hooks would run outside the mount's cells).
  */
+const LEAVES = new Set([ATTN, Segmented, Field, Search, SubTabs, RecordTip, WorkspaceRow]);
+
+/** Walk the element tree, expanding nested components as it goes, the leaves aside. */
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   fn(n);
-  if (typeof n.type === "function" && n.type !== ATTN) walk(n.type(n.props), fn);
+  if (typeof n.type === "function" && !LEAVES.has(n.type)) walk(expand(n), fn);
   for (const k of n.props?.children ?? []) walk(k, fn);
 };
 const byId = (root, id) => {
   let hit = null;
   walk(root, (n) => {
-    if (!hit && n.props?.["data-testid"] === id) hit = n;
+    if (!hit && (n.props?.["data-testid"] === id || (LEAVES.has(n.type) && n.props?.testid === id))) hit = n;
   });
   return hit;
 };
-/** The box a kit field drew (the walk expands the field into its <input>), which takes the change event. */
-const inputById = (root, id) => {
-  let hit = null;
-  walk(root, (n) => {
-    if (!hit && n.type === "input" && n.props?.["data-testid"] === id) hit = n;
-  });
-  return hit;
-};
-/** Every attention row the pane drew, in order, as the props it handed the shared component. */
+/** Every attention row a screen drew, in order, as the props it handed the shared component. */
 const attnRows = (root) => {
   const out = [];
   walk(root, (n) => {
     if (n.type === ATTN) out.push(n);
   });
   return out;
+};
+/** The first segmented control under a node. */
+const segmentedIn = (root) => {
+  let hit = null;
+  walk(root, (n) => {
+    if (!hit && n.type === Segmented) hit = n;
+  });
+  return hit;
+};
+/**
+ * Every workspace row a screen drew, as the rows it was handed, each once: a section draws the rows it is handed as its
+ * children, so the walk meets them inside it and as its children both.
+ */
+const workspaceRows = (root) => {
+  const seen = new Set();
+  walk(root, (n) => {
+    if (n.type === WorkspaceRow) seen.add(n);
+  });
+  return [...seen].map((n) => n.props.row);
 };
 /** Everything a reader would see, expanding nested components the same way walk does. */
 const textOf = (n) => {
@@ -1271,30 +1314,27 @@ const textOf = (n) => {
       return;
     }
     if (typeof x !== "object") return;
-    if (typeof x.type === "function" && x.type !== ATTN) {
-      rec(x.type(x.props));
+    if (typeof x.type === "function" && !LEAVES.has(x.type)) {
+      rec(expand(x));
       return;
     }
+    if (x.type === WorkspaceRow) out.push(x.props.row.name);
     rec(x.props?.children);
   };
   rec(n);
   return out.join(" ");
 };
 
-/** The window API, network stubbed, every judgement the real contract's. */
-function api(tenants, detail = null, calls = []) {
+/** The reason an act carried, as the reason ask hands it over when nothing is chosen: found, no ticket, no note. */
+const FOUND = { kind: "found", ticket: null, note: null };
+
+/** The back office's verbs, network stubbed, every judgement the real contract's, at the fixtures' NOW. */
+function api(tenants, calls = []) {
   return {
     list: async () => {
       calls.push("list");
-      return { ok: true, tenants, message: "" };
+      return { ok: true, tenants, health: null, queue: null, partners: null, message: "" };
     },
-    one: async (id) => {
-      calls.push(`one:${id}`);
-      return { ok: !!detail, detail, message: detail ? "" : "No such page." };
-    },
-    // The bridge reads the real clock; these fixtures are written against NOW,
-    // so the stand-in reads NOW too. It used the real one, and "heard 1d ago"
-    // became "2d ago" the morning after it was written.
     rows: (tenants) => platformRows(tenants, NOW),
     summary: platformSummary,
     verdicts: PLATFORM_VERDICTS,
@@ -1305,30 +1345,42 @@ function api(tenants, detail = null, calls = []) {
     warning: platformActionWarning,
     words: activityWords,
     vitalsWords: pageVitalsWords,
-    // A zone the page is GIVEN, not the one it is in: the same contracts
-    // functions the bridge hands over.
+    healthWords: platformHealthWords,
     clock: {
       time: clockTime,
       dateYear: clockDateYear,
       dayLabel: (ms, tz) => clockDayLabel(ms, tz, NOW),
       dayKey: zoneDayKey,
     },
-    act: async (action, tenantId, lineId) => {
-      calls.push(`act:${action}:${tenantId}:${lineId}`);
+    act: async (action, tenantId, lineId, why) => {
+      calls.push(`act:${action}:${tenantId}:${lineId}:${why.kind}`);
       return { ok: true, message: "Done." };
     },
-    // The queue, as the bridge hands it over: the contract's own view model,
-    // read at the fixtures' NOW rather than at this machine's.
     queue: (q) => platformQueue(q, NOW),
-    markInvited: async (id) => {
-      calls.push(`invited:${id}`);
+    markInvited: async (id, why) => {
+      calls.push(`invited:${id}:${why.kind}`);
       return { ok: true, message: "Marked. They are off the list." };
     },
   };
 }
 
-test("the list is the contract's judgement, in the row grammar the rest of the app uses", async () => {
-  backOffice.verbs = api([
+/** Home's read, as the Console's Workspaces asks it (GET platform/home), with the tenants given. */
+const homeOf = (tenants) => ({
+  me: ME,
+  tenants,
+  numbers: null,
+  claims: [],
+  reports: [],
+  asks: [],
+  requests: [],
+  partners: null,
+  queue: { waiting: [], total: 0 },
+  spend: null,
+});
+
+test("the list is the contract's judgement, grouped by who the next move is with, in the row the rest of the app uses", async () => {
+  backOffice.verbs = api([]);
+  const tenants = [
     live({ tenant_id: "a", slug: "all-good", name: "All Good" }),
     live({
       tenant_id: "b",
@@ -1338,155 +1390,139 @@ test("the list is the contract's judgement, in the row grammar the rest of the a
       line_error: "Twilio refused the number: 21422",
     }),
     live({ tenant_id: "c", slug: "smoke", name: "Smoke", status: "test" }),
-  ]);
-  const page = mount(Pane);
-  assert.match(textOf(page.tree), /Reading every workspace/, "nothing is shown before it is read");
+  ];
+  consoleVerbs.home = async () => ({ ok: true, data: homeOf(tenants) });
+  const page = mount(WorkspacesScreen, { go: () => {}, flash: () => {} });
+  assert.match(textOf(page.tree), /Reading/, "nothing is shown before it is read");
   await page.settle();
-
-  // One attention row per workspace, in the contract's order: the broken one
-  // first, whatever it is called.
-  const rows = attnRows(page.tree);
+  // The broken one first, whatever it is called; our own workspace last, in a group of its own.
+  const rows = workspaceRows(page.tree);
   assert.deepEqual(
-    rows.map((r) => r.props.name),
+    rows.map((r) => r.name),
     ["Broken Co", "All Good", "Smoke"],
   );
   assert.deepEqual(
-    rows.map((r) => r.props.testid),
-    ["platform-row-broken-co", "platform-row-all-good", "platform-row-smoke"],
+    rows.map((r) => r.verdict),
+    ["broken", "live", "test"],
   );
-  // The sentence is the verdict's, unchanged -- the provider's own words reach
-  // the screen rather than a category.
-  assert.match(rows[0].props.sentence, /Twilio refused the number: 21422/);
-  // The verdict leads the status line and colours the row.
-  assert.equal(rows[0].props.status[0], "Broken");
-  assert.equal(rows[0].props.tone, "danger");
-  assert.equal(rows[1].props.tone, "ok", "the verdict speaks the six tones now; a live workspace is ok, not blank");
-  // The verdict is the row; the four facts are behind its mark. They were
-  // printed on every line so the answer was on the page rather than one click
-  // away -- Ruben changed that call on 17 Sep, looking at five facts per row on
-  // a page of twenty workspaces. They are one hover, focus or tap away now, and
-  // the mark carries them on its aria-label for a reader that never hovers.
-  assert.deepEqual(rows[1].props.status, ["Live"], "the verdict leads alone");
-  assert.match(rows[1].props.note, /active · phone \+ WhatsApp · texting On · heard 1d ago/);
-  assert.match(textOf(byId(page.tree, "platform-summary")), /2 workspaces · 1 live · 1 on us/);
+  assert.ok(byId(page.tree, "console-group-needs_us") && byId(page.tree, "console-group-ours"));
+  // The sentence is the verdict's, unchanged -- the provider's own words reach the screen rather than a category.
+  assert.match(rows[0].sentence, /Twilio refused the number: 21422/);
+  assert.match(textOf(page.tree), /2 workspaces · 1 live · 1 on us/);
 });
 
 test("a refusal is the ordinary answer, and it does not look like an empty platform", async () => {
-  backOffice.verbs = {
-    ...api([]),
-    list: async () => ({ ok: false, tenants: [], message: "No such page." }),
-  };
-  const page = mount(Pane);
+  backOffice.verbs = api([]);
+  consoleVerbs.home = async () => ({ ok: false, message: "No such page.", missing: true });
+  const page = mount(WorkspacesScreen, { go: () => {}, flash: () => {} });
   await page.settle();
   assert.match(textOf(page.tree), /No such page/, "what the route said, said plainly");
-  assert.equal(attnRows(page.tree).length, 0);
+  assert.equal(workspaceRows(page.tree).length, 0);
+  assert.doesNotMatch(textOf(page.tree), /No workspaces yet/);
 });
 
 test("REGRESSION (S10): a list that cannot be read says so with a Retry, and never says there are no workspaces", async () => {
-  const calls = [];
+  backOffice.verbs = api([]);
   let fail = true;
+  let reads = 0;
   const harbor = live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" });
-  backOffice.verbs = {
-    ...api([harbor], null, calls),
-    list: async () => {
-      calls.push("list");
-      return fail
-        ? { ok: false, tenants: [], message: "The platform could not be read." }
-        : { ok: true, tenants: [harbor], message: "" };
-    },
+  consoleVerbs.home = async () => {
+    reads += 1;
+    return fail
+      ? { ok: false, message: "The platform could not be read.", missing: false }
+      : { ok: true, data: homeOf([harbor]) };
   };
-  const page = mount(Pane);
+  const page = mount(WorkspacesScreen, { go: () => {}, flash: () => {} });
   await page.settle();
   assert.match(textOf(page.tree), /The platform could not be read/);
   assert.ok(!/No workspaces yet/.test(textOf(page.tree)), "REGRESSION: a failed read said the platform was empty");
-  const retry = byId(page.tree, "platform-failed-retry");
+  const retry = byId(page.tree, "console-workspaces-failed-retry");
   assert.ok(retry, "and it can be read again from where it failed");
   fail = false;
   await page.act(retry);
-  assert.equal(calls.filter((c) => c === "list").length, 2);
-  assert.equal(attnRows(page.tree).length, 1, "and the rows arrive");
-  assert.equal(byId(page.tree, "platform-failed"), null);
-});
-
-test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, instead of reading for ever", async () => {
-  const calls = [];
-  backOffice.verbs = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], null, calls);
-  const page = mount(Pane);
-  await page.settle();
-  await page.press(attnRows(page.tree)[0].props.cta.onClick);
-  assert.ok(!/Reading that workspace/.test(textOf(page.tree)), "REGRESSION: it read for ever");
-  assert.match(textOf(byId(page.tree, "platform-detail-failed")), /No such page/, "what the route said");
-  assert.equal(byId(page.tree, "platform-failed"), null, "the list is not blamed for it");
-  await page.act(byId(page.tree, "platform-detail-failed-retry"));
-  assert.equal(calls.filter((c) => c === "one:a").length, 2, "Retry reads that workspace again");
+  assert.equal(reads, 2);
+  assert.equal(workspaceRows(page.tree).length, 1, "and the rows arrive");
+  assert.equal(byId(page.tree, "console-workspaces-failed"), null);
 });
 
 test("REGRESSION (S10): a read that throws is a failed read, not a page reading for ever", async () => {
-  backOffice.verbs = {
-    ...api([]),
-    list: async () => {
-      throw new Error("socket hang up");
-    },
+  backOffice.verbs = api([]);
+  consoleVerbs.home = async () => {
+    throw new Error("socket hang up");
   };
-  const page = mount(Pane);
+  const page = mount(WorkspacesScreen, { go: () => {}, flash: () => {} });
   await page.settle();
-  assert.ok(!/Reading every workspace/.test(textOf(page.tree)), "REGRESSION: a thrown read left the page reading");
-  assert.ok(byId(page.tree, "platform-failed"));
+  assert.ok(!/Reading/.test(textOf(page.tree)), "REGRESSION: a thrown read left the page reading");
+  assert.ok(byId(page.tree, "console-workspaces-failed"));
+});
+
+test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, instead of reading for ever", async () => {
+  backOffice.verbs = api([]);
+  let reads = 0;
+  consoleVerbs.workspace = async () => {
+    reads += 1;
+    return { ok: false, message: "Could not be read right now.", missing: false };
+  };
+  const page = mount(WorkspaceScreen, {
+    slug: "harbor-moving",
+    tab: "overview",
+    me: ME,
+    go: () => {},
+    flash: () => {},
+  });
+  await page.settle();
+  assert.ok(!/Reading/.test(textOf(page.tree)), "REGRESSION: it read for ever");
+  assert.match(textOf(byId(page.tree, "console-workspace-failed")), /Could not be read right now/);
+  await page.act(byId(page.tree, "console-workspace-failed-retry"));
+  assert.equal(reads, 2, "Retry reads that workspace again");
+  // An address no workspace has is said as that, not as a failure.
+  consoleVerbs.workspace = async () => ({ ok: false, message: "No workspace has that address.", missing: true });
+  const missing = mount(WorkspaceScreen, { slug: "nobody", tab: "overview", me: ME, go: () => {}, flash: () => {} });
+  await missing.settle();
+  assert.ok(byId(missing.tree, "console-workspace-missing"));
 });
 
 test("finding a workspace by name or slug, because that is what a support call starts with", async () => {
-  backOffice.verbs = api([
-    live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),
-    live({ tenant_id: "b", slug: "marisas-beauty-salon", name: "Marisa's Beauty Salon" }),
-  ]);
-  const page = mount(Pane);
+  backOffice.verbs = api([]);
+  consoleVerbs.home = async () => ({
+    ok: true,
+    data: homeOf([
+      live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),
+      live({ tenant_id: "b", slug: "marisas-beauty-salon", name: "Marisa's Beauty Salon" }),
+    ]),
+  });
+  const page = mount(WorkspacesScreen, { go: () => {}, flash: () => {} });
   await page.settle();
-  assert.equal(attnRows(page.tree).length, 2);
-  page.type(inputById(page.tree, "platform-find"), "marisa");
+  assert.equal(workspaceRows(page.tree).length, 2);
+  page.type(byId(page.tree, "console-workspaces-find"), "marisa");
   assert.deepEqual(
-    attnRows(page.tree).map((r) => r.props.name),
+    workspaceRows(page.tree).map((r) => r.name),
     ["Marisa's Beauty Salon"],
   );
-  page.type(inputById(page.tree, "platform-find"), "harbor-mov");
+  page.type(byId(page.tree, "console-workspaces-find"), "harbor-mov");
   assert.deepEqual(
-    attnRows(page.tree).map((r) => r.props.name),
+    workspaceRows(page.tree).map((r) => r.name),
     ["Harbor Moving"],
     "the slug matches too",
   );
-  page.type(inputById(page.tree, "platform-find"), "zzz");
-  assert.equal(attnRows(page.tree).length, 0);
+  page.type(byId(page.tree, "console-workspaces-find"), "zzz");
+  assert.equal(workspaceRows(page.tree).length, 0);
   assert.match(textOf(page.tree), /Nothing matches/);
 });
 
-test("opening one shows the customer's own Setup rows, and no buttons that would act on ours", async () => {
-  const calls = [];
-  const detail = {
-    tenant: {
-      id: "a",
-      slug: "harbor-moving",
-      name: "Harbor Moving",
-      status: "active",
-      timezone: "America/New_York",
-      created_at: ago(90),
-    },
+test("a workspace's Setup and lines show the customer's own Setup rows, and no buttons that would act on ours", () => {
+  backOffice.verbs = api([]);
+  const view = mount(SetupAndLines, {
     setup: SETUP_FIXTURE,
-    events: [
-      { kind: "line.provisioned", category: "setup", subject_type: "line", created_at: ago(2), data: {} },
-      { kind: "business.recorded", category: "setup", subject_type: "tenant", created_at: ago(1), data: {} },
-    ],
-  };
-  backOffice.verbs = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], detail, calls);
-  const page = mount(Pane);
-  await page.settle();
-  await page.press(attnRows(page.tree)[0].props.cta.onClick);
-  assert.ok(calls.includes("one:a"), "it reads that workspace");
-  assert.ok(byId(page.tree, "platform-detail"), "the detail opens under the list");
-
-  // The rows are setupSteps' rows -- the customer's own view model, run for
-  // their workspace. Compared against the function directly, so a second
-  // rendering cannot creep in.
+    tenantId: "a",
+    role: "owner",
+    onChanged: () => {},
+    flash: () => {},
+  });
+  // The rows are setupSteps' rows -- the customer's own view model, run for their workspace. Compared against the
+  // function directly, so a second rendering cannot creep in.
   const want = setupSteps({ ...SETUP_FIXTURE, later: [] });
-  const shown = attnRows(page.tree)
+  const shown = attnRows(view.tree)
     .map((r) => r.props.testid)
     .filter((t) => String(t).startsWith("platform-setup-"));
   assert.deepEqual(
@@ -1494,138 +1530,150 @@ test("opening one shows the customer's own Setup rows, and no buttons that would
     want.rows.map((r) => `platform-setup-${r.id}`),
   );
   assert.ok(want.rows.length >= 5, "a real set of rows, not an empty one");
-
-  // Read-only: not one of those rows offers a verb. Setup's buttons act on the
-  // SIGNED-IN workspace, and this is somebody else's.
-  for (const r of attnRows(page.tree).filter((r) => String(r.props["data-testid"]).startsWith("platform-setup-"))) {
-    assert.equal(r.props.cta ?? null, null, `${r.props["data-testid"]} offers a button`);
+  // Read-only: not one of those rows offers a verb. Setup's buttons act on the SIGNED-IN workspace, and this is
+  // somebody else's.
+  for (const r of attnRows(view.tree).filter((r) => String(r.props.testid).startsWith("platform-setup-"))) {
+    assert.equal(r.props.cta ?? null, null, `${r.props.testid} offers a button`);
     assert.equal(r.props.also ?? null, null);
   }
-  // The trail, newest first, and the line's own step and error.
-  assert.ok(byId(page.tree, "platform-events"));
-  assert.match(textOf(byId(page.tree, "platform-events")), /line\.provisioned/);
-  const text = textOf(page.tree);
+  const text = textOf(view.tree);
   assert.match(text, /Their lines/);
   assert.match(text, /stopped at brand/, "where the registration stopped");
   assert.match(text, /the carriers refused it/, "and what the provider said");
 });
 
-test("acting on a line is never one click, and says the cost before it is", async () => {
-  // The line row, driven on its own: it holds the arm-then-confirm state, and a
-  // harness that re-invokes nested components cannot drive one from outside.
-  //
-  // This line's registration was REJECTED, so the action offered is the free
-  // edit -- and the confirmation has to say so rather than quoting the
-  // rehearsal's $19.50.
+test("acting on a line is never one click, says the cost before it is, and asks why", async () => {
+  // This line's registration was REJECTED, so the action offered is the free edit -- and the ask has to say so rather
+  // than quoting the rehearsal's $19.50.
   const calls = [];
-  backOffice.verbs = api([], null, calls);
+  backOffice.verbs = api([], calls);
   const rejected = { ...SETUP_FIXTURE.lines.rows[0] };
   assert.equal(rejected.sms_state, "rejected", "the fixture is the case this is about");
-
   let reloaded = 0;
   const row = mount(PlatformLine, {
     line: rejected,
     tenantId: "a",
+    role: "support",
     onDone: () => {
       reloaded += 1;
     },
     flash: () => {},
   });
-
   // The buttons the contract offers for THIS line, and no others.
   assert.ok(byId(row.tree, "platform-act-refile"), "a rejected campaign can be sent back");
   assert.ok(byId(row.tree, "platform-act-release"));
   assert.equal(byId(row.tree, "platform-act-retry"), null, "the line is answering, so there is nothing to retry");
   assert.equal(calls.length, 0, "and nothing has happened yet");
 
-  // Arming shows the cost and does NOT act.
+  // Arming shows the cost and the reason ask, and does NOT act.
   await row.press(byId(row.tree, "platform-act-refile").props.onClick);
-  const arm = byId(row.tree, "platform-refile-confirm");
-  assert.ok(arm, "a cross-tenant write is never one click");
-  assert.match(textOf(arm), /Nothing is spent/, "this one is an edit, so it says so");
-  assert.ok(!textOf(arm).includes("19.50"), "REGRESSION: quoting the rehearsal's price for a free edit");
+  const ask = byId(row.tree, "platform-refile-why");
+  assert.ok(ask, "a cross-tenant write is never one click");
+  assert.match(textOf(ask), /Nothing is spent/, "this one is an edit, so it says so");
+  assert.ok(!textOf(ask).includes("19.50"), "REGRESSION: quoting the rehearsal's price for a free edit");
+  assert.match(textOf(ask), /Written down against you before it runs/);
+  assert.deepEqual(
+    segmentedIn(ask).props.options.map((o) => o.value),
+    ["ticket", "call", "found", "cleanup"],
+    "why, in four answers",
+  );
   assert.equal(calls.length, 0, "arming is not doing");
 
-  // Confirming acts, once, with the workspace and line it was shown for.
+  // A ticket as the reason needs the ticket.
+  row.choose(segmentedIn(byId(row.tree, "platform-refile-why")), "ticket");
+  assert.equal(byId(row.tree, "platform-refile-yes").props.disabled, true, "not without the ticket");
+  row.type(byId(row.tree, "platform-refile-why-ticket"), "R-1042");
+  assert.equal(byId(row.tree, "platform-refile-yes").props.disabled, false);
+
+  // Confirming acts, once, with the workspace and line it was shown for, and why.
   await row.press(byId(row.tree, "platform-refile-yes").props.onClick);
-  assert.deepEqual(calls, ["act:refile:a:l1"]);
+  assert.deepEqual(calls, ["act:refile:a:l1:ticket"]);
   assert.equal(reloaded, 1, "and the reads it made stale are re-read");
 });
 
 test("a rehearsal offers a different action, at a price, and says it cannot be undone", async () => {
-  const calls = [];
-  backOffice.verbs = api([], null, calls);
+  backOffice.verbs = api([]);
   const mock = { ...SETUP_FIXTURE.lines.rows[0], sms_state: "approved", reg_mock: true };
-  const row = mount(PlatformLine, { line: mock, tenantId: "a", onDone: () => {}, flash: () => {} });
+  const row = mount(PlatformLine, { line: mock, tenantId: "a", role: "owner", onDone: () => {}, flash: () => {} });
   await row.press(byId(row.tree, "platform-act-refile").props.onClick);
-  const said = textOf(byId(row.tree, "platform-refile-confirm"));
+  const said = textOf(byId(row.tree, "platform-refile-why"));
   assert.match(said, /\$19\.50/, "a real filing spends, and says how much");
   assert.match(said, /cannot be undone/);
   assert.ok(said.indexOf("$19.50") < said.indexOf("cannot be undone"), "money first");
 });
 
-test("the pane decides nothing: every verdict, word and row comes from the contract", () => {
-  const src = paneSource();
+test("a role is offered only the acts it may take: Billing sees a line, and no button on it", () => {
+  backOffice.verbs = api([]);
+  const row = mount(PlatformLine, {
+    line: { ...SETUP_FIXTURE.lines.rows[0] },
+    tenantId: "a",
+    role: "billing",
+    onDone: () => {},
+    flash: () => {},
+  });
+  assert.ok(byId(row.tree, `platform-line-${SETUP_FIXTURE.lines.rows[0].id}`));
+  assert.equal(byId(row.tree, "platform-act-refile"), null);
+  assert.equal(byId(row.tree, "platform-act-release"), null);
+});
+
+/** The Console's screens and rows, their source as one, whitespace folded. */
+const CONSOLE_FILES = ["workspaces", "workspace", "home", "lines", "partner-rows", "health-cards", "rows"];
+const consoleSource = () =>
+  CONSOLE_FILES.map((f) => readCode(`apps/dashboard/src/surfaces/console/${f}.tsx`))
+    .join("\n")
+    .replace(/\s+/g, " ");
+
+test("the screens decide nothing: every verdict, word and row comes from the contract", () => {
+  const src = consoleSource();
   for (const call of [
     "P.rows(tenants)",
     "P.summary(rows)",
-    "P.verdicts[r.verdict]",
-    "P.steps({ ...detail.setup, later: [] })",
+    "verdictPill(row.verdict)",
+    "P.steps({ ...setup, later: [] })",
     "P.number(line.e164)",
     "P.actions(line)",
     "P.warning(arm)",
+    "consoleGroups(",
   ]) {
-    assert.ok(src.includes(call), `the page reads ${call} rather than deciding`);
+    assert.ok(src.includes(call), `the screen reads ${call} rather than deciding`);
   }
   // No thresholds, no state lists, no sorting of its own.
   assert.ok(!/\.sort\(/.test(src), "the contract sorts");
   assert.ok(!/86_?400_?000|14 \* DAY|\bDAY\b/.test(src), "no clocks of its own");
   assert.ok(!/needs_record|past_due|reg_mock === true/.test(src), "no state judgements of its own");
+  assert.ok(!/\$\d/.test(src.replace(/\$\{/g, "")), "no money figure lives in a screen");
   // It borrows the row grammar rather than inventing one.
   assert.ok(src.includes("<AttnRow"), "the same row People, Today and Setup draw");
-  assert.ok(!/className="pf-row/.test(src));
 });
 
-test("the tab exists for the people it is for, and for nobody else", () => {
-  // The rail's tabs (frame/tabs.ts) and the page that draws them (frame/page.tsx), TSX since decision 0015 step 11.
+test("Settings' Back office is a link to the Console, for the people it is for and for nobody else", () => {
   const settings = readCode(
     "apps/dashboard/src/surfaces/settings/frame/tabs.ts",
     "apps/dashboard/src/surfaces/settings/frame/page.tsx",
   );
-  // Not in SET_TABS: a customer who types the route lands on Profile rather
-  // than on a locked door they now know about.
+  // Not in SET_TABS: a customer who types the route lands on Profile rather than on a locked door they now know about.
   assert.ok(!/id: "platform".*group: "Workspace"/.test(settings));
-  assert.match(settings, /export const SET_TABS_PLATFORM: readonly SetTab\[\] = \[\s*\{ id: "platform"/);
+  assert.match(
+    settings,
+    /export const SET_TABS_PLATFORM: readonly SetTab\[\] = \[\s*\{ id: "platform", label: "The Console"/,
+  );
   assert.match(
     settings,
     /export const isPlatformAdmin = \(\): boolean =>\s*!!\(Reflect\.get\(window, "__ME"\) as \{ platform_admin\?: boolean \} \| null \| undefined\)\?\.platform_admin;/,
   );
-  // The rail derives from the list, so the tab cannot appear where it may not.
   assert.match(settings, /\.\.\.SET_TABS\.filter\(.*\),\s*\.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)/);
-  // And the route resolves to it only for an admin -- otherwise SET_TAB falls
-  // through to the default, which is what makes the route a dead end.
   assert.match(settings, /\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\) \|\|/);
-  assert.match(settings, /\{id === "platform" && <PanePlatform \/>\}/);
-  // The crumb asks SET_TAB itself, so one route cannot be described two ways:
-  // run in shell-status.test.mjs, for a customer and for an admin.
-  // The page imports the pane it draws (no name is published on the window any more: decision 0015 step 11).
-  assert.ok(settings.includes('import { PanePlatform } from "../platform/pane";'));
+  // One copy, not two (decision 0066): the row opens the Console, and an old address says where it went.
+  assert.match(settings, /t\.id === "platform" \? window\.location\.assign\(CONSOLE_PATH\) : go\(t\.id\)/);
+  assert.match(settings, /\{id === "platform" && <PaneConsole \/>\}/);
+  assert.ok(!settings.includes("PanePlatform"), "the back office's pane is the Console's now");
 });
 
 test("the ops routes have their own ceilings, sized for a support shift and named for what they do", async () => {
-  // RATE's own rule is "One rule per bucket. Named by what the route DOES, not by
-  // its path." The three platform routes borrowed the OWNER buckets, and three
-  // things followed, all wrong in the same direction:
-  //
-  //   * `takeRate` counts per PERSON, so an admin's refiles for three different
-  //     customers drew down the same three-an-hour as filings for their own line.
-  //   * correcting a REJECTED campaign is free and reversible -- Twilio charges the
-  //     vetting fee once per campaign -- yet it was capped by a ceiling sized for an
-  //     irreversible $19.50 spend, so a shift clearing four rejections failed on the
-  //     fourth. It is described in server/platform/platform.ts as the most common A2P
-  //     support action there is.
-  //   * the refusal reads from `noun`, so handing a number BACK was refused with
-  //     "Too many lines in a short time".
+  // RATE's own rule is "One rule per bucket. Named by what the route DOES, not by its path." The three platform routes
+  // borrowed the OWNER buckets once: an admin's refiles for three customers drew down one owner's three-an-hour, a free
+  // correction was capped like an irreversible $19.50 filing, and handing a number BACK was refused in a sentence about
+  // buying lines.
   const { RATE } = await import("../../../../apps/dashboard/src/server/rate-limit.ts");
   for (const [bucket, route, min] of [
     ["platform_line_retry", "retry", 10],
@@ -1642,41 +1690,28 @@ test("the ops routes have their own ceilings, sized for a support shift and name
       assert.ok(!src.includes(`"${owner}"`), `${route}: REGRESSION: back on the owner's bucket ${owner}`);
     }
   }
-  // Release stays the tightest: it is permanent, and a number handed back cannot
-  // be reclaimed.
   assert.ok(RATE.platform_line_release.limit < RATE.platform_line_refile.limit, "the irreversible one is the tightest");
 });
 
-test("the back office does not tell the reader it changes nothing, in the files that change things", () => {
-  // Gate 6 added Retry / Refile / Release to this page. Two claims in it were not
-  // updated, and one of them is user-visible copy sitting directly above rows
-  // whose Open reveals a button that permanently releases a customer's number.
-  const page = paneSource();
-  assert.ok(!/Read-only — nothing here changes a workspace/.test(page), "REGRESSION: the page claims to be read-only");
-  assert.ok(!/Read-only: actions come later/.test(page), "REGRESSION: a comment describing the opposite of the file");
-  assert.match(
-    page,
-    /This list changes nothing; open a workspace and its lines can be/,
-    "it says which half is read-only",
-  );
-  assert.match(page, /each one asks twice, and each is recorded against you/);
-  // And those two claims are true: arm-then-confirm, and the ledger row goes in
-  // before the action runs.
-  assert.match(page, /const \[arm, setArm\] = useState<PlatformLineActionVM \| null>\(null\);/);
-  const server = readCode("apps/dashboard/src/server/platform/platform.ts");
-  const audit = server.search(/recordEvent\(\s*office\.db,\s*tenantId,\s*"platform\.acted"/);
-  const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
-  assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");
+test("the Console says every act is written down first, and the act helper does write it first", () => {
+  // The claim is on screen beside every act (the reason ask), so it has to be true where it runs.
+  assert.match(CONSOLE_WORDS.recorded, /Written down against you before it runs/);
+  const acts = readCode("apps/dashboard/src/server/platform/acts.ts");
+  const fn = acts.slice(acts.indexOf("export async function takeAct<T>("));
+  const written = fn.indexOf("await startAct(office.db,");
+  const ran = fn.indexOf("out = await run();");
+  assert.ok(written !== -1 && ran !== -1 && written < ran, "the log's row first, then the act");
+  assert.match(fn, /if \(started\.error \|\| !started\.data\) throw new AppError\("internal", NOT_RECORDED, 503\);/);
+  // The line acts write the workspace's own ledger too, before the edge is asked anything: "no cross-tenant action
+  // happens that nobody can be held to", above.
 });
 
 /* -------------------------------------------------------------------------- *
  * The people who are not workspaces yet.
  *
- * `public.waitlist` (00088) had a writer and no reader anywhere in the product
- * — which is how it went unnoticed that the writer did not work either. These
- * people have no workspace, so the back office is the only surface they can
- * appear on at all. waitlist.db.test.mjs proves the writing; this proves what
- * is made of it.
+ * `public.waitlist` (00088) had a writer and no reader anywhere in the product — which is how it went unnoticed that
+ * the writer did not work either. These people have no workspace, so the Console is the only surface they can appear
+ * on at all. waitlist.db.test.mjs proves the writing; this proves what is made of it.
  * -------------------------------------------------------------------------- */
 
 const waiting = (over = {}) => ({
@@ -1693,16 +1728,12 @@ test("the queue says how many and how long, and an unreadable queue is not an em
   assert.equal(empty.sentence, "Nobody is waiting.");
   assert.deepEqual(empty.rows, []);
   assert.equal(empty.unreadable, false);
-
-  // The answer a queue must never give by accident.
   const blind = platformQueue({ waiting: null, total: null }, NOW);
   assert.equal(blind.unreadable, true);
   assert.match(blind.sentence, /could not be read/);
   assert.doesNotMatch(blind.sentence, /Nobody/, "REGRESSION: a failed read must never read as an empty list");
-
   const two = platformQueue({ waiting: [waiting(), waiting({ id: "w2", created_at: ago(1) })], total: 2 }, NOW);
   assert.match(two.sentence, /^2 waiting, the first since 3d ago\.$/);
-  // Capped: the list is the first hundred and the sentence still counts them all.
   const many = platformQueue({ waiting: [waiting()], total: 140 }, NOW);
   assert.match(many.sentence, /140 waiting.*showing the first 1\./);
 });
@@ -1712,8 +1743,6 @@ test("a row says who they are and where they came from, and never the query stri
   assert.equal(row.email, "ana@example.com");
   assert.equal(row.detail, "Marisa's Beauty Salon · from chanlytics.com/pricing");
   assert.equal(row.waited, "asked 3d ago");
-
-  // Whichever half they gave, and nothing when they gave neither.
   assert.equal(
     platformQueue({ waiting: [waiting({ business: null })], total: 1 }, NOW).rows[0].detail,
     "from chanlytics.com/pricing",
@@ -1726,7 +1755,6 @@ test("a row says who they are and where they came from, and never the query stri
     platformQueue({ waiting: [waiting({ business: "  ", source: "" })], total: 1 }, NOW).rows[0].detail,
     null,
   );
-  // A referer that is not a URL is still shown, bounded, rather than dropped.
   assert.equal(
     platformQueue({ waiting: [waiting({ business: null, source: "an email signature" })], total: 1 }, NOW).rows[0]
       .detail,
@@ -1735,9 +1763,6 @@ test("a row says who they are and where they came from, and never the query stri
 });
 
 test("the only action says what it does not do", () => {
-  // A button that looked like it sent something would leave people waiting for
-  // a mail nobody ever wrote. There is one shared sign-up code; an invitation
-  // is a mail a person writes.
   assert.match(QUEUE_SENDS_NOTHING, /sends no invitations/i);
   assert.match(QUEUE_SENDS_NOTHING, /Write to them yourself/);
   assert.equal(platformQueue({ waiting: [waiting()], total: 1 }, NOW).note, QUEUE_SENDS_NOTHING);
@@ -1756,23 +1781,16 @@ test("the queue is read through the one door, still-waiting only, oldest first",
     "invited is out of the queue; oldest first",
   );
   assert.equal(q.total, 2);
-  // What the read SELECTS -- and so what reaches a browser -- is proved in
-  // waitlist.db.test.mjs: this double hands back whole rows whatever is asked
-  // for, and an assertion about projection here would pass on either.
 });
 
 test("a queue that could not be read answers null, not empty, and does not throw", async () => {
   const q = await platformWaitlist({
     db: fakeDb({ waitlist: [] }, { "waitlist.select": { message: "permission denied" } }),
   });
-  assert.deepEqual(
-    q,
-    { waiting: null, total: null },
-    "the back office is opened when things are wrong; this must not take the page with it",
-  );
+  assert.deepEqual(q, { waiting: null, total: null });
 });
 
-test("marking somebody invited is conditional on them still waiting, and records who", async () => {
+test("marking somebody invited is conditional on them still waiting, records who, and is written down with why", async () => {
   const rows = [
     {
       id: "w1",
@@ -1784,42 +1802,46 @@ test("marking somebody invited is conditional on them still waiting, and records
       invited_by: null,
     },
   ];
-  const office = { db: fakeDb({ waitlist: rows }) };
-  const ctx = { userId: "u-admin", email: "ruben@rjcapital.io" };
+  const tables = { waitlist: rows, platform_acts: [] };
+  const db = fakeDb(tables);
+  const office = { db, session: db, role: "support", userId: "u-admin", email: "ruben@rjcapital.io" };
 
-  assert.equal(await platformWaitlistInvited(office, ctx, "w1"), "marked");
+  assert.equal(await platformWaitlistInvited(office, "w1", FOUND), "marked");
   assert.ok(rows[0].invited_at, "the stamp that takes them out of the queue");
   assert.equal(rows[0].invited_by, "u-admin", "the column the table was given for exactly this");
-
-  // Two admins working down the same list is how this is used. The second one
-  // is owed the truth, not a failure and not a second stamp.
+  // Two admins working down the same list is how this is used. The second one is owed the truth, not a failure and
+  // not a second stamp; and the log says that too.
   const firstStamp = rows[0].invited_at;
-  assert.equal(await platformWaitlistInvited(office, ctx, "w1"), "already");
+  assert.equal(await platformWaitlistInvited(office, "w1", FOUND), "already");
   assert.equal(rows[0].invited_at, firstStamp, "the row is somebody else's now and is left exactly as they left it");
-  assert.equal(await platformWaitlistInvited(office, ctx, "w-nobody"), "already");
+  assert.deepEqual(
+    tables.platform_acts.map((a) => [a.act, a.target_kind, a.target_id, a.outcome, a.outcome_note]),
+    [
+      ["waitlist_invited", "waitlist", "w1", "done", null],
+      ["waitlist_invited", "waitlist", "w1", "done", "Someone had marked them already."],
+    ],
+  );
+  // Billing does not invite people: refused before anything is written.
+  await assert.rejects(
+    platformWaitlistInvited({ ...office, role: "billing" }, "w1", FOUND),
+    (e) => e.code === "forbidden" && e.status === 403,
+  );
+  assert.equal(tables.platform_acts.length, 2);
 });
 
-test("the page draws who is waiting, and says the product sends nothing", async () => {
-  const calls = [];
-  backOffice.verbs = {
-    ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })], null, calls),
-    list: async () => ({
-      ok: true,
-      tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })],
-      health: null,
-      queue: {
-        waiting: [
-          waiting(),
-          waiting({ id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1) }),
-        ],
-        total: 2,
-      },
-      message: "",
-    }),
-  };
-  const page = mount(Pane);
-  await page.settle();
-
+test("the queue's card draws who is waiting, and says the product sends nothing", () => {
+  backOffice.verbs = api([]);
+  const vm = platformQueue(
+    {
+      waiting: [
+        waiting(),
+        waiting({ id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1) }),
+      ],
+      total: 2,
+    },
+    NOW,
+  );
+  const page = mount(PlatformQueueCard, { waiting: vm, P: backOffice.verbs, role: "owner", onDone() {}, flash() {} });
   assert.match(textOf(byId(page.tree, "platform-queue-words")), /2 waiting, the first since 3d ago/);
   assert.match(textOf(byId(page.tree, "platform-queue-note")), /sends no invitations/i);
   const rows = [];
@@ -1827,54 +1849,49 @@ test("the page draws who is waiting, and says the product sends nothing", async 
     if (n.props?.["data-testid"] === "platform-queue-row") rows.push(n);
   });
   assert.equal(rows.length, 2);
-  assert.match(textOf(rows[0]), /ana@example\.com/);
   assert.match(textOf(rows[0]), /Marisa's Beauty Salon · from chanlytics\.com\/pricing · asked 3d ago/);
-  assert.match(
-    textOf(rows[1]),
-    /bea@example\.com asked 1d ago/,
-    "the halves they did not give leave no separator hanging",
-  );
-  assert.doesNotMatch(textOf(rows[1]), / · /, "nor an empty one");
+  assert.match(textOf(rows[1]), /bea@example\.com asked 1d ago/, "the halves they did not give leave no separator");
+  // A queue that could not be read says so, and draws no list.
+  const blind = mount(PlatformQueueCard, {
+    waiting: platformQueue({ waiting: null, total: null }, NOW),
+    P: backOffice.verbs,
+    role: "owner",
+    onDone() {},
+    flash() {},
+  });
+  assert.match(textOf(byId(blind.tree, "platform-queue-words")), /could not be read/);
+  assert.equal(byId(blind.tree, "platform-queue-rows"), null, "nothing is drawn, because nothing is known");
 });
 
-test("marking somebody invited is never one click, and says what it does not do", async () => {
-  // Driven on its own, the way the line row is: it holds the arm-then-confirm
-  // state, and a harness that re-invokes nested components cannot drive one
-  // from outside.
+test("marking somebody invited is never one click, asks why, and says what it does not do", async () => {
   const calls = [];
-  backOffice.verbs = api([], null, calls);
+  backOffice.verbs = api([], calls);
   let reloaded = 0;
   const said = [];
   const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
   const view = mount(PlatformWaitingRow, {
     row,
     P: backOffice.verbs,
+    role: "support",
     onDone: () => {
       reloaded += 1;
     },
     flash: (t) => said.push(t),
   });
-
   assert.match(textOf(view.tree), /ana@example\.com/);
   await view.press(byId(view.tree, "platform-queue-mark").props.onClick);
-  assert.deepEqual(
-    calls.filter((c) => c.startsWith("invited:")),
-    [],
-    "arming is not doing",
-  );
-
-  const confirm = byId(view.tree, "platform-queue-invited-confirm");
-  assert.ok(confirm, "it asks");
-  assert.match(textOf(confirm), /Nothing is sent/, "and the question says what it is not");
+  assert.deepEqual(calls, [], "arming is not doing");
+  const ask = byId(view.tree, "platform-queue-invited-why");
+  assert.ok(ask, "it asks");
+  assert.match(textOf(ask), /Nothing is sent/, "and the question says what it is not");
   assert.equal(byId(view.tree, "platform-queue-mark"), null, "the button is gone while the question stands");
-
   await view.press(byId(view.tree, "platform-queue-invited-yes").props.onClick);
-  assert.deepEqual(
-    calls.filter((c) => c.startsWith("invited:")),
-    ["invited:w1"],
-  );
+  assert.deepEqual(calls, ["invited:w1:found"]);
   assert.equal(reloaded, 1, "the queue on screen is a row out of date, so the page reads again");
   assert.equal(said.length, 1, "and the person who pressed it is told what happened");
+  // Billing is shown who is waiting, and no button.
+  const billing = mount(PlatformWaitingRow, { row, P: backOffice.verbs, role: "billing", onDone() {}, flash() {} });
+  assert.equal(byId(billing.tree, "platform-queue-mark"), null);
 });
 
 test("a mark that did not go through is said, and changes nothing on the page", async () => {
@@ -1884,6 +1901,7 @@ test("a mark that did not go through is said, and changes nothing on the page", 
   const view = mount(PlatformWaitingRow, {
     row,
     P: { markInvited: async () => ({ ok: false, message: "That could not be recorded, so it was not done." }) },
+    role: "owner",
     onDone: () => {
       reloaded += 1;
     },
@@ -1896,40 +1914,12 @@ test("a mark that did not go through is said, and changes nothing on the page", 
   assert.equal(said[0].tone, "danger");
 });
 
-test("a queue that could not be read says so on the page, and never draws an empty list", async () => {
-  backOffice.verbs = {
-    ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]),
-    list: async () => ({
-      ok: true,
-      tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })],
-      health: null,
-      queue: { waiting: null, total: null },
-      message: "",
-    }),
-  };
-  const page = mount(Pane);
-  await page.settle();
-  assert.match(textOf(byId(page.tree, "platform-queue-words")), /could not be read/);
-  assert.equal(byId(page.tree, "platform-queue-rows"), null, "nothing is drawn, because nothing is known");
-  assert.equal(byId(page.tree, "platform-queue-mark"), null);
-});
-
-test("a deployment whose overview predates the queue draws no card at all", async () => {
-  // The page and the API ship separately. A payload without `queue` is a client
-  // reading an older server, and an absent queue is not an empty one.
-  backOffice.verbs = api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]);
-  const page = mount(Pane);
-  await page.settle();
-  assert.equal(byId(page.tree, "platform-queue"), null);
-  assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
-});
-
 /* ------------------------------------------------------------------------ how fast the pages are (00255) */
 
 /** One row of page_vitals_p75(): a metric over every page (null) or over one. */
 const p75 = (metric, page, samples, value) => ({ metric, page, samples, p75: value });
 
-test("the timings card: the 75th percentile in words, a line for each metric, and the slowest pages by name", async () => {
+test("Health's timings card: the 75th percentile in words, a line for each metric, and the slowest pages by name", async () => {
   const harbor = live({ tenant_id: "a", slug: "all-good", name: "All Good" });
   backOffice.verbs = {
     ...api([harbor]),
@@ -1949,7 +1939,7 @@ test("the timings card: the 75th percentile in words, a line for each metric, an
       message: "",
     }),
   };
-  const page = mount(Pane);
+  const page = mount(HealthScreen);
   await page.settle();
   assert.equal(
     textOf(byId(page.tree, "platform-vitals-words")),
@@ -1962,7 +1952,6 @@ test("the timings card: the 75th percentile in words, a line for each metric, an
     textOf(byId(page.tree, "platform-vitals-pages")),
     /^inbox Drawn within 3\.3 s, a tap answered within 640 ms · 25 loads$/,
   );
-  assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
 });
 
 test("timings that could not be read say so, and an overview that predates them draws no card", async () => {
@@ -1979,15 +1968,14 @@ test("timings that could not be read say so, and an overview that predates them 
       message: "",
     }),
   };
-  const unread = mount(Pane);
+  const unread = mount(HealthScreen);
   await unread.settle();
   assert.equal(textOf(byId(unread.tree, "platform-vitals-words")), "Page timings could not be read just now.");
   assert.equal(byId(unread.tree, "platform-vitals-lines"), null, "nothing is drawn, because nothing is known");
   backOffice.verbs = api([harbor]);
-  const older = mount(Pane);
+  const older = mount(HealthScreen);
   await older.settle();
   assert.equal(byId(older.tree, "platform-vitals"), null);
-  assert.ok(byId(older.tree, "platform-overview"), "and the workspaces are still there");
 });
 
 /* ------------------------------------------------------------------------ partners (decision 0012, P5) */
@@ -2023,35 +2011,34 @@ const brought = (over = {}) => ({
   checks: { same_card: true, same_listing: false },
   ...over,
 });
-/** The window API with the partner card's half, network stubbed, the words the real contract's. */
+/** The back office's verbs with the partners' half, network stubbed, the words the real contract's. */
 function partnerApi(tenants, partners, calls = []) {
   return {
-    ...api(tenants, null, calls),
+    ...api(tenants, calls),
     list: async () => ({ ok: true, tenants, health: null, queue: null, partners, message: "" }),
     partnerRows: platformPartnerRows,
     partnerSummary: platformPartnerSummary,
     partnerStanding: platformPartnerStanding,
-    markPaid: async (partnerId, code, currency, reference, expected) => {
-      calls.push(`paid:${partnerId}:${code}:${currency}:${reference}:${expected}`);
+    markPaid: async (partnerId, code, currency, reference, expected, why) => {
+      calls.push(`paid:${partnerId}:${code}:${currency}:${reference}:${expected}:${why.kind}`);
       return { ok: true, message: "Recorded." };
     },
     setStatus: async (partnerId, code, status, why) => {
-      calls.push(`status:${partnerId}:${code}:${status}:${why}`);
+      calls.push(`status:${partnerId}:${code}:${status}:${why.note}`);
       return { ok: true, message: "Done." };
     },
     setStanding: async (tenantId, standing, why) => {
-      calls.push(`standing:${tenantId}:${standing}:${why}`);
+      calls.push(`standing:${tenantId}:${standing}:${why.note}`);
       return { ok: true, message: "Done." };
     },
   };
 }
 
-test("the partner card: what each partner is owed, the workspaces held for a person, and who brought each workspace on its row", async () => {
+test("Partners: what each partner is owed, and the workspaces held for a person", async () => {
   backOffice.verbs = partnerApi(
     [
       live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" }),
       live({ tenant_id: "b", slug: "bayside", name: "Bayside Salon" }),
-      live({ tenant_id: "c", slug: "nobody", name: "Nobody's" }),
     ],
     {
       balances: [balance()],
@@ -2061,24 +2048,17 @@ test("the partner card: what each partner is owed, the workspaces held for a per
       ],
     },
   );
-  const page = mount(Pane);
+  const page = mount(PartnersScreen, { me: ME, flash: () => {} });
   await page.settle();
-  assert.equal(
-    textOf(byId(page.tree, "platform-partners-words")),
-    "1 partner · $125.00 payable · 1 workspace under review",
-  );
+  assert.match(textOf(page.tree), /1 partner · \$125\.00 payable · 1 workspace under review/);
   assert.equal(
     textOf(byId(page.tree, "platform-partner-money-ada-co")),
     "$125.00 payable · $50.00 held · $0.00 paid to date",
     "a zero is said as a zero",
   );
-  assert.ok(byId(page.tree, "platform-standing-b"), "the one under review is on the card");
+  assert.ok(byId(page.tree, "platform-standing-b"), "the one under review is on the screen");
   assert.equal(byId(page.tree, "platform-standing-a"), null, "a qualified one is not: nothing to decide");
   assert.match(textOf(byId(page.tree, "platform-standing-words-b")), /Under review \(the nightly check\): The card/);
-  const rows = attnRows(page.tree);
-  const meta = Object.fromEntries(rows.map((r) => [r.props.name, r.props.meta]));
-  assert.match(meta["Bayside Salon"], / · Brought by ada-co$/);
-  assert.doesNotMatch(meta["Nobody's"], /Brought by/, "a workspace nobody brought says nothing about partners");
 });
 
 test("who brought it and who decided, in the back office's words: a link, a handover or an owner's invitation; the nightly check, a person, or the rule as the partner joined (0020)", () => {
@@ -2113,15 +2093,15 @@ test("who brought it and who decided, in the back office's words: a link, a hand
   );
 });
 
-test("a deployment whose overview predates the partners draws no partner card, and the workspaces are still there", async () => {
+test("Partners that could not be read say so, and draw no rows", async () => {
   backOffice.verbs = partnerApi([live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" })], null);
-  const page = mount(Pane);
+  const page = mount(PartnersScreen, { me: ME, flash: () => {} });
   await page.settle();
-  assert.equal(byId(page.tree, "platform-partners"), null);
-  assert.ok(byId(page.tree, "platform-overview"));
+  assert.ok(byId(page.tree, "console-partners-failed"));
+  assert.equal(byId(page.tree, "platform-partner-rows"), null);
 });
 
-test("recording a payout is never one click, sends nothing, and waits for the payment's reference", async () => {
+test("recording a payout is never one click, sends nothing, and waits for the payment's reference and why", async () => {
   const calls = [];
   const P = partnerApi([], null, calls);
   let reloaded = 0;
@@ -2130,25 +2110,30 @@ test("recording a payout is never one click, sends nothing, and waits for the pa
   const view = mount(PlatformPartnerRow, {
     row,
     P,
+    role: "billing",
     onDone: () => {
       reloaded += 1;
     },
     flash: (t) => said.push(t),
   });
   assert.equal(textOf(byId(view.tree, "platform-partner-mark-ada-co")), "Mark $125.00 as paid");
+  assert.equal(byId(view.tree, "platform-partner-arm-paused-ada-co"), null, "Billing does not pause a partner");
   await view.press(byId(view.tree, "platform-partner-mark-ada-co").props.onClick);
   assert.equal(calls.filter((c) => c.startsWith("paid:")).length, 0, "arming is not doing");
-  assert.match(textOf(byId(view.tree, "platform-partner-pay-ada-co-confirm")), /Nothing is sent/);
+  assert.match(textOf(byId(view.tree, "platform-partner-pay-ada-co-why")), /Nothing is sent/);
   assert.equal(byId(view.tree, "platform-partner-pay-ada-co-yes").props.disabled, true, "not without a reference");
   view.type(byId(view.tree, "platform-partner-pay-ada-co-typed"), "  bank-ref-1  ");
   assert.equal(byId(view.tree, "platform-partner-pay-ada-co-yes").props.disabled, false);
   await view.press(byId(view.tree, "platform-partner-pay-ada-co-yes").props.onClick);
   assert.deepEqual(
     calls.filter((c) => c.startsWith("paid:")),
-    [`paid:${P1}:ada-co:usd:bank-ref-1:12500`],
+    [`paid:${P1}:ada-co:usd:bank-ref-1:12500:found`],
   );
   assert.equal(reloaded, 1);
   assert.equal(said.length, 1);
+  // Support is shown what is owed, and no payout button: the money is Billing's and the owner's.
+  const support = mount(PlatformPartnerRow, { row, P, role: "support", onDone() {}, flash() {} });
+  assert.equal(byId(support.tree, "platform-partner-mark-ada-co"), null);
 });
 
 test("a partner owed nothing, or owed less than refunds took, has no payout button", () => {
@@ -2157,14 +2142,14 @@ test("a partner owed nothing, or owed less than refunds took, has no payout butt
     balance({ payable_cents: -3000 }),
   ]);
   for (const row of [none, under]) {
-    const view = mount(PlatformPartnerRow, { row, P: partnerApi([], null), onDone() {}, flash() {} });
+    const view = mount(PlatformPartnerRow, { row, P: partnerApi([], null), role: "owner", onDone() {}, flash() {} });
     assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null);
   }
   assert.equal(none.money, "Nothing earned yet.");
   assert.match(under.money, /^-\$30\.00 to come off the next payout/);
 });
 
-test("a person's decision on a brought workspace asks why, and disqualifying is the red one", async () => {
+test("a person's decision on a brought workspace asks why, for the partner, and disqualifying is the red one", async () => {
   const calls = [];
   const P = partnerApi([], null, calls);
   let reloaded = 0;
@@ -2172,6 +2157,7 @@ test("a person's decision on a brought workspace asks why, and disqualifying is 
     ws: brought(),
     name: "Bayside Salon",
     P,
+    role: "owner",
     onDone: () => {
       reloaded += 1;
     },
@@ -2183,24 +2169,35 @@ test("a person's decision on a brought workspace asks why, and disqualifying is 
   await view.press(byId(view.tree, "platform-standing-arm-disqualified-b").props.onClick);
   const confirm = byId(view.tree, "platform-standing-disqualified-b-confirm");
   assert.match(confirm.props.className, /confirm-danger/);
-  assert.match(textOf(confirm), /What was paid stays paid/);
+  assert.match(textOf(byId(view.tree, "platform-standing-disqualified-b-why")), /What was paid stays paid/);
   assert.equal(byId(view.tree, "platform-standing-disqualified-b-yes").props.disabled, true, "not without why");
-  view.type(byId(view.tree, "platform-standing-disqualified-b-typed"), "Same owner as the partner.");
+  view.type(byId(view.tree, "platform-standing-disqualified-b-why-note"), "Same owner as the partner.");
   await view.press(byId(view.tree, "platform-standing-disqualified-b-yes").props.onClick);
   assert.deepEqual(calls, ["standing:b:disqualified:Same owner as the partner."]);
   assert.equal(reloaded, 1);
+  // Support may not rule on money: shown the standing, and no decision.
+  const support = mount(PlatformPartnerStandingRow, {
+    ws: brought(),
+    name: "Bayside Salon",
+    P,
+    role: "support",
+    onDone() {},
+    flash() {},
+  });
+  assert.equal(byId(support.tree, "platform-standing-arm-qualified-b"), null);
 });
 
 test("pausing a partner asks why, is the red one, and is offered once per partner, never on a second currency's line", async () => {
   const calls = [];
   const P = partnerApi([], null, calls);
   const [usd, eur] = platformPartnerRows([balance(), balance({ currency: "eur" })]);
-  const second = mount(PlatformPartnerRow, { row: eur, P, onDone() {}, flash() {} });
+  const second = mount(PlatformPartnerRow, { row: eur, P, role: "owner", onDone() {}, flash() {} });
   assert.equal(byId(second.tree, "platform-partner-arm-paused-ada-co"), null);
   let reloaded = 0;
   const view = mount(PlatformPartnerRow, {
     row: usd,
     P,
+    role: "support",
     onDone: () => {
       reloaded += 1;
     },
@@ -2211,10 +2208,13 @@ test("pausing a partner asks why, is the red one, and is offered once per partne
   await view.press(byId(view.tree, "platform-partner-arm-paused-ada-co").props.onClick);
   const confirm = byId(view.tree, "platform-partner-status-paused-ada-co-confirm");
   assert.match(confirm.props.className, /confirm-danger/);
-  assert.match(textOf(confirm), /become a viewer on every workspace they brought/);
+  assert.match(
+    textOf(byId(view.tree, "platform-partner-status-paused-ada-co-why")),
+    /become a viewer on every workspace they brought/,
+  );
   assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null, "one question at a time");
   assert.equal(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.disabled, true, "not without why");
-  view.type(byId(view.tree, "platform-partner-status-paused-ada-co-typed"), "Reported by an owner.");
+  view.type(byId(view.tree, "platform-partner-status-paused-ada-co-why-note"), "Reported by an owner.");
   await view.press(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.onClick);
   assert.deepEqual(calls, [`status:${P1}:ada-co:paused:Reported by an owner.`]);
   assert.equal(reloaded, 1);

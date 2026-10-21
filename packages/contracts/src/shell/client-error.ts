@@ -31,6 +31,23 @@ export const CLIENT_ERROR_LIMITS = {
 export const PAGE = /^[a-z][a-z0-9-]{0,31}$/;
 export const WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 
+/**
+ * An error's short name (decision 0066): four hex characters from its page, its name and its message's first line, so
+ * the same error on the same page is the same id in every browser that hits it, and Support groups the reports that
+ * name it. A hash of words, not a secret: two different errors may share one, and the page and words beside it tell
+ * them apart.
+ */
+export function errorIdOf(page: string | null, name: string, message: string): string {
+  const said = `${page ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
+  // FNV-1a, 32 bits: small, stable, and the same in every browser.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < said.length; i++) {
+    h ^= said.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return (h >>> 16).toString(16).padStart(4, "0");
+}
+
 /** The report a boundary sends, cut to the limits: what a caught error becomes before it leaves the browser. */
 export function clientErrorOf(
   boundary: ClientErrorBoundary,

@@ -1,7 +1,6 @@
 import { write, platform } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { PartnerPayoutSchema } from "@chanlytics/contracts";
 import { platformPartnerPayout } from "@/server/platform/platform";
-import { AppError } from "@chanlytics/contracts";
 
 /**
  * POST /api/v1/platform/partners/payout — record a payout sent to a partner by hand (decision 0012, P5).
@@ -19,24 +18,18 @@ export const POST = write({
   role: null,
   rate: "platform_partner_payout",
   fresh: true,
-  handle: async ({ req, office }) => {
-    const body = (await req.json().catch(() => ({}))) as {
-      partner_id?: unknown;
-      currency?: unknown;
-      reference?: unknown;
-      expected_cents?: unknown;
-    };
-    const partnerId = requireUuid(body.partner_id, "partner");
-    const currency = typeof body.currency === "string" ? body.currency.trim().toLowerCase() : "";
-    if (!/^[a-z]{3}$/.test(currency))
-      throw new AppError("validation", "Name the currency the payout was sent in.", 400);
-    const reference = typeof body.reference === "string" ? body.reference.trim() : "";
-    if (!reference || reference.length > 200)
-      throw new AppError("validation", "Give the payment's reference, so it can be found again.", 400);
-    // What the person saw on the card and sent: a total that moved since is refused, not recorded.
-    const expected = body.expected_cents;
-    if (expected !== undefined && !(typeof expected === "number" && Number.isSafeInteger(expected)))
-      throw new AppError("validation", "The expected amount must be a whole number of cents.", 400);
-    return { result: await platformPartnerPayout(office, partnerId, currency, reference, expected) };
-  },
+  act: "partner_payout",
+  input: PartnerPayoutSchema,
+  handle: async ({ office, input }) => ({
+    result: await platformPartnerPayout(
+      office,
+      input.partner_id,
+      {
+        currency: input.currency,
+        reference: input.reference,
+        ...(input.expected_cents !== undefined ? { expectedCents: input.expected_cents } : {}),
+      },
+      input.why,
+    ),
+  }),
 });

@@ -9,13 +9,17 @@
 import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
 import { AskLine } from "@/legacy-bridge/ask/line";
+import { REPORT_WORDS } from "@chanlytics/contracts";
+import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";
+import { reportDoor } from "../kit/empty/report-door";
 import { useHeadUnder } from "../kit/head/standing";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
 import { LiveCallBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
 import { PhoneTabs } from "./phone-tabs";
+import { ReportHost } from "./report-problem";
 import { ShortcutsSheet } from "./shortcuts";
 import { focusPage } from "./shell-hooks";
 import { NAV_ROUTE, shellAddress } from "./shell-routes";
@@ -59,6 +63,11 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
           <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
             Reload
           </button>
+          {reportDoor.open && (
+            <Button size="sm" variant="quiet" onClick={() => reportDoor.open?.("this page")}>
+              {REPORT_WORDS.doorShort}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -427,6 +436,8 @@ export const appChrome = (s: ChromeAt) => {
       </div>
       {askLine(s)}
       <Sheet />
+      {/* Report a problem (decision 0066): the sheet any failed card, the error screen and Profile open. */}
+      <ReportHost />
       {sheetHost("DealSheetHost")}
       {sheetHost("StepSheetHost")}
     </div>

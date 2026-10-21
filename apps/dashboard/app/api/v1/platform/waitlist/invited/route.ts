@@ -1,5 +1,5 @@
 import { write, platform } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { WaitlistInvitedSchema } from "@chanlytics/contracts";
 import { platformWaitlistInvited } from "@/server/platform/platform";
 
 /**
@@ -24,9 +24,7 @@ export const POST = write({
   scope: platform,
   role: null,
   rate: "platform_waitlist_invited",
-  handle: async ({ ctx, req, office }) => {
-    const body = (await req.json().catch(() => ({}))) as { id?: unknown };
-    const id = requireUuid(body.id, "person");
-    return { outcome: await platformWaitlistInvited(office, ctx, id) };
-  },
+  act: "waitlist_invited",
+  input: WaitlistInvitedSchema,
+  handle: async ({ office, input }) => ({ outcome: await platformWaitlistInvited(office, input.id, input.why) }),
 });

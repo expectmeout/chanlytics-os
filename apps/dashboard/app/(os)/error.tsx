@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { MIN_MS, routeOfAddress } from "@chanlytics/contracts";
-import { reportClientError } from "@/client/client-error";
+import { REPORT_WORDS } from "@chanlytics/contracts";
+import { REPORT_AFTER_KEY, lastClientError, reportClientError } from "@/client/client-error";
 
 const CHUNK_ERROR = /ChunkLoadError|Loading chunk|dynamically imported module|Failed to fetch/i;
 /** Two chunk failures closer together than this are a loop, not a new deploy. */
@@ -17,6 +18,16 @@ const LOOP_MS = MIN_MS;
  *  group the frame cannot count as loaded, so what it imports is downloaded twice on every page: the reporter holds
  *  its route's path, not the route table, and the route is read from the address through contracts, as
  *  workspace.ts routeOnScreen reads it. */
+/** Leave the error this screen showed for Report a problem, then reload: the frame opens the sheet with it. */
+function reportAfterReload() {
+  try {
+    sessionStorage.setItem(REPORT_AFTER_KEY, JSON.stringify(lastClientError() ?? { none: true }));
+  } catch {
+    /* storage blocked: the sheet opens from Settings › Profile instead */
+  }
+  window.location.reload();
+}
+
 export default function OsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     reportClientError("os", error, routeOfAddress(window.location), error.digest ?? null);
@@ -68,6 +79,10 @@ export default function OsError({ error, reset }: { error: Error & { digest?: st
           Retry without reloading
         </button>
       </div>
+      {/* Report a problem (decision 0066): the reload heals the frame, and the frame's sheet opens with this error. */}
+      <button className="auth-linkbtn" onClick={reportAfterReload} data-testid="os-error-report">
+        {REPORT_WORDS.door}
+      </button>
     </main>
   );
 }

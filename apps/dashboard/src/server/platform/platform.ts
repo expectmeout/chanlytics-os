@@ -1,12 +1,14 @@
 import "server-only";
 
 /**
- * The back office's server side: who may look across workspaces, and the reads
- * that do.
+ * The Console's server side (decision 0066, once the back office): who may look across workspaces, in which of the
+ * three roles, and the reads and acts that do.
  *
  * THE ONE RULE. Every path to cross-tenant data passes `backOffice(ctx)`, and
- * that function asks the DATABASE — `is_platform_admin()`, which reads
- * `platform_admins` for `auth.uid()` and can answer about nobody else. There is
+ * that function asks the DATABASE — `platform_staff_state()`, which reads
+ * `platform_admins` for `auth.uid()` and the session's second factor, and can
+ * answer about nobody else. Every act then goes through `takeAct()` (acts.ts),
+ * which asks the role and writes the Admin log's row before it runs. There is
  * no env var, no key, and no list in this file: an answer that lives in two
  * places is an answer that can disagree with itself, and the copy that says
  * "yes" wins by accident.
@@ -35,6 +37,7 @@ import {
   setPartnerStanding,
   recordPartnerSecondFactorReset,
   setPartnerStatus,
+  staffStateOf,
   waitlistWaiting,
   type PartnerPayoutAnswer,
 } from "@chanlytics/db";
@@ -43,6 +46,8 @@ import { requeueFailedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AppError,
+  SECOND_FACTOR_WORDS,
+  STAFF_STATES,
   platformHealthOf,
   QUEUE_SHOWN,
   type PlatformHealth,
@@ -51,16 +56,19 @@ import {
   type PlatformQueue,
   type PlatformTenantDto,
   type SweepHealthRow,
+  type StaffRole,
+  type StaffState,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { serviceDb } from "../service-db";
+import { takeAct } from "./acts";
 import { log } from "@/server/log";
 
 declare const backOfficeBrand: unique symbol;
 
 /**
- * Proof that the database said this session is a platform admin, carrying the
- * client that proof unlocks. Only `backOffice()` can make one.
+ * Proof that the database said this session is on the Console's staff and showed its second factor, carrying the
+ * client that proof unlocks and who it is. Only `backOffice()` can make one.
  */
 export interface BackOffice {
   readonly [backOfficeBrand]: true;
@@ -68,35 +76,55 @@ export interface BackOffice {
   readonly db: SupabaseClient<Database>;
   /** The session client, for the reads whose own RPC carries the same check. */
   readonly session: SupabaseClient<Database>;
+  /** What the database says they may do (decision 0066): owner, support or billing. */
+  readonly role: StaffRole;
+  /** Who: the act log's actor. */
+  readonly userId: string;
+  readonly email: string | null;
 }
 
 /**
- * Ask the database whether this session may look across workspaces.
+ * Ask the database what this session is to the Console (platform_staff_state, 00467): its role once it showed its
+ * second factor, `needs_second_factor` before, `none` for everybody else.
  *
- * Three answers, not two, and the third is the one that was wrong: a database
- * that cannot answer is not a "no". Telling a real admin "No such page" during
- * a Postgres hiccup is exactly the moment they opened the back office for.
+ * Three answers, not two, and the third is the one that was wrong: a database that cannot answer is not a "no".
+ * Telling a real admin "No such page" during a Postgres hiccup is exactly the moment they opened the Console for.
  */
-async function admitted(ctx: RouteContext): Promise<boolean> {
-  const { data, error } = await ctx.supabase.rpc("is_platform_admin");
+async function staffState(ctx: RouteContext): Promise<StaffState> {
+  const { data, error } = await staffStateOf(ctx.supabase);
   if (error) throw new AppError("internal", "Could not check that just now — try again in a moment.", 503);
-  return data === true;
+  return (STAFF_STATES as readonly string[]).includes(String(data)) ? (data as StaffState) : "none";
 }
 
 /**
- * The back office, or a refusal.
+ * The Console, or a refusal.
  *
- * 404, not 403: a customer who guessed the URL learns nothing about whether
- * there is a back office behind it. A real admin never sees this.
+ * 404, not 403: a customer who guessed the URL learns nothing about whether there is a Console behind it. Staff who
+ * have not shown their second factor this session are told so (mfa_required), and the tab goes to the second step,
+ * which sets an authenticator up for an account that has none (decision 0066: no grace).
  */
 export async function backOffice(ctx: RouteContext): Promise<BackOffice> {
-  if (!(await admitted(ctx))) throw new AppError("not_found", "No such page.", 404);
-  return { db: serviceDb(), session: ctx.supabase } as BackOffice;
+  const state = await staffState(ctx);
+  if (state === "none") throw new AppError("not_found", "No such page.", 404);
+  if (state === "needs_second_factor") throw new AppError("mfa_required", SECOND_FACTOR_WORDS.staffRequired, 403);
+  return {
+    db: serviceDb(),
+    session: ctx.supabase,
+    role: state,
+    userId: ctx.userId,
+    email: ctx.email ?? null,
+  } as BackOffice;
 }
 
-/** Whether the back office exists for this session. For the nav, which needs a boolean rather than a door. */
+/**
+ * Whether this session is on the Console's staff, its second factor shown or not: the bit the boot hands the nav, so
+ * Settings links to the Console, which asks for the factor itself.
+ */
 export async function isPlatformAdmin(ctx: RouteContext): Promise<boolean> {
-  return admitted(ctx).catch(() => false);
+  return staffState(ctx).then(
+    (state) => state !== "none",
+    () => false,
+  );
 }
 
 /**
@@ -184,13 +212,20 @@ export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN):
  */
 export async function platformWaitlistInvited(
   office: BackOffice,
-  ctx: RouteContext,
   id: string,
+  why: ConsoleWhy,
 ): Promise<"marked" | "already"> {
-  const { data, error } = await markWaitlistInvited(office.db, id, ctx.userId, new Date().toISOString());
-  if (error)
-    throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
-  return data && data.length > 0 ? "marked" : "already";
+  return takeAct(
+    office,
+    { act: "waitlist_invited", why, tenantId: null, target: "waitlist", targetId: id },
+    async () => {
+      const { data, error } = await markWaitlistInvited(office.db, id, office.userId, new Date().toISOString());
+      if (error)
+        throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+      return data && data.length > 0 ? ("marked" as const) : ("already" as const);
+    },
+    (out) => ({ outcome: "done", note: out === "already" ? "Someone had marked them already." : null }),
+  );
 }
 
 /** One workspace's identity, for the detail view's heading. */
@@ -261,7 +296,7 @@ export async function platformEvents(office: BackOffice, tenantId: string, limit
  * -------------------------------------------------------------------------- */
 
 import { EDGE_LINES_TIMEOUT_MS, edgeLines } from "../connections/lines";
-import type { PlatformLineAction } from "@chanlytics/contracts";
+import { LINE_ACTS, whyWords, type ConsoleWhy, type PlatformLineAction } from "@chanlytics/contracts";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => Record<string, unknown>> = {
@@ -284,31 +319,51 @@ interface PlatformActionResult {
 }
 
 /**
- * Do one thing to one workspace's line, and record who asked before doing it.
+ * The edge's answer in its own words, for the log: its detail, its code, or its status. A wait that ran out says so,
+ * since the edge may still have finished what it was asked.
+ */
+function edgeWords(r: PlatformActionResult): string {
+  if (r.body?.error === "edge_timeout")
+    return "The edge did not answer in time. It may still have finished: look at the line before trying again.";
+  const said = r.body?.detail ?? r.body?.error ?? r.body?.message;
+  return typeof said === "string" && said ? said : `The edge answered ${r.status}.`;
+}
+
+/**
+ * Do one thing to one workspace's line, and record who asked, and why, before doing it.
  *
- * The order is the point. The attribution is written FIRST and the action is
- * refused if it cannot be written — an action taken on somebody else's business
- * that nobody can be held to is worse than an action that did not happen. What
- * happened next is the line's own event, written by the edge moments later, so
- * the pair reads in order in one ledger.
+ * The order is the point. The Admin log's row and the workspace's own `platform.acted` event are written FIRST and
+ * the action is refused if either cannot be — an action taken on somebody else's business that nobody can be held to is
+ * worse than an action that did not happen. What happened next is the line's own event, written by the edge moments
+ * later, so the pair reads in order in the workspace's ledger, and the log row says what the edge answered.
  */
 export async function platformLineAct(
   office: BackOffice,
-  ctx: RouteContext,
   action: PlatformLineAction,
   tenantId: string,
   lineId: string,
+  why: ConsoleWhy,
 ): Promise<PlatformActionResult> {
-  const { error: auditErr } = await recordEvent(office.db, tenantId, "platform.acted", "line", lineId, {
-    action,
-    by: ctx.userId,
-    by_email: ctx.email ?? null,
-  });
-  if (auditErr)
-    throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
-
-  const a = await edgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
-  return { ok: a.status === 200, status: a.status, body: a.body };
+  return takeAct(
+    office,
+    { act: LINE_ACTS[action], why, tenantId, target: "line", targetId: lineId },
+    async () => {
+      const { error: auditErr } = await recordEvent(office.db, tenantId, "platform.acted", "line", lineId, {
+        action,
+        by: office.userId,
+        by_email: office.email,
+      });
+      if (auditErr)
+        throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+      const a = await edgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
+      return { ok: a.status === 200, status: a.status, body: a.body };
+    },
+    // Refused only when the edge said no (a 4xx), so nothing was done; a fault, or no answer, failed.
+    (r) =>
+      r.ok
+        ? { outcome: "done", note: null }
+        : { outcome: r.status >= 400 && r.status < 500 ? "refused" : "failed", note: edgeWords(r) },
+  );
 }
 
 /* ------------------------------------------------------------------------ partners (decision 0012, P5) */
@@ -333,6 +388,14 @@ export async function platformPartners(
 }
 
 /** The function's refusals, as the route answers them: its own words for a bad input, the page's for the rest. */
+/**
+ * What the partner verbs keep and a partner may read: the note the Console asks for on them (PartnerWhySchema), not the
+ * reason's kind or ticket, which are the log's.
+ */
+function partnerReads(why: ConsoleWhy): string {
+  return why.note ?? whyWords(why);
+}
+
 function partnerVerbError(r: { code: string; message: string }): AppError {
   if (r.code === "22023") return new AppError("validation", r.message, 400);
   if (r.code === "P0002") return new AppError("not_found", r.message, 404);
@@ -349,24 +412,41 @@ export async function platformPartnerStanding(
   office: BackOffice,
   tenantId: string,
   standing: string,
-  why: string,
+  why: ConsoleWhy,
 ): Promise<{ standing: string; from: string | null; voided: number; matured: number }> {
-  const r = await setPartnerStanding(office.session, tenantId, standing, why);
-  if (!r.ok) throw partnerVerbError(r);
-  return r.value;
+  return takeAct(
+    office,
+    { act: "partner_standing", why, tenantId, target: "workspace", targetId: tenantId },
+    async () => {
+      const r = await setPartnerStanding(office.session, tenantId, standing, partnerReads(why));
+      if (!r.ok) throw partnerVerbError(r);
+      return r.value;
+    },
+  );
 }
 
 /** Record a payout sent to a partner by hand: every payable earning in the currency, netted, into one payout. */
 export async function platformPartnerPayout(
   office: BackOffice,
   partnerId: string,
-  currency: string,
-  reference: string,
-  expectedCents?: number,
+  payout: { currency: string; reference: string; expectedCents?: number },
+  why: ConsoleWhy,
 ): Promise<PartnerPayoutAnswer> {
-  const r = await markPartnerPaid(office.session, partnerId, currency, reference, expectedCents);
-  if (!r.ok) throw partnerVerbError(r);
-  return r.value;
+  return takeAct(
+    office,
+    { act: "partner_payout", why, tenantId: null, target: "partner", targetId: partnerId },
+    async () => {
+      const r = await markPartnerPaid(
+        office.session,
+        partnerId,
+        payout.currency,
+        payout.reference,
+        payout.expectedCents,
+      );
+      if (!r.ok) throw partnerVerbError(r);
+      return r.value;
+    },
+  );
 }
 
 /**
@@ -377,11 +457,17 @@ export async function platformPartnerStatus(
   office: BackOffice,
   partnerId: string,
   status: string,
-  why: string,
+  why: ConsoleWhy,
 ): Promise<{ status: string; from: string; seats: number }> {
-  const r = await setPartnerStatus(office.session, partnerId, status, why);
-  if (!r.ok) throw partnerVerbError(r);
-  return r.value;
+  return takeAct(
+    office,
+    { act: "partner_status", why, tenantId: null, target: "partner", targetId: partnerId },
+    async () => {
+      const r = await setPartnerStatus(office.session, partnerId, status, partnerReads(why));
+      if (!r.ok) throw partnerVerbError(r);
+      return r.value;
+    },
+  );
 }
 
 /**
@@ -393,25 +479,32 @@ export async function platformPartnerStatus(
 export async function platformPartnerSecondFactorReset(
   office: BackOffice,
   partnerId: string,
-  why: string,
+  why: ConsoleWhy,
   svc: SupabaseClient<Database> = serviceDb(),
 ): Promise<{ removed: number }> {
-  const r = await recordPartnerSecondFactorReset(office.session, partnerId, why);
-  if (!r.ok) {
-    if (r.code === "55000") throw new AppError("conflict", r.message, 409);
-    throw partnerVerbError(r);
-  }
-  const userId = r.value;
-  const { data, error } = await listSecondFactors(svc, userId);
-  if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
-  let removed = 0;
-  for (const f of data?.factors ?? []) {
-    const gone = await deleteSecondFactor(svc, userId, f.id);
-    if (gone.error)
-      throw new AppError("upstream_auth", "Could not remove the authenticator. Try again in a moment.", 503);
-    removed += 1;
-  }
-  return { removed };
+  return takeAct(
+    office,
+    { act: "partner_second_factor", why, tenantId: null, target: "partner", targetId: partnerId },
+    async () => {
+      const r = await recordPartnerSecondFactorReset(office.session, partnerId, partnerReads(why));
+      if (!r.ok) {
+        if (r.code === "55000") throw new AppError("conflict", r.message, 409);
+        throw partnerVerbError(r);
+      }
+      const userId = r.value;
+      const { data, error } = await listSecondFactors(svc, userId);
+      if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
+      let removed = 0;
+      for (const f of data?.factors ?? []) {
+        const gone = await deleteSecondFactor(svc, userId, f.id);
+        if (gone.error)
+          throw new AppError("upstream_auth", "Could not remove the authenticator. Try again in a moment.", 503);
+        removed += 1;
+      }
+      return { removed };
+    },
+    (out) => ({ outcome: "done", note: out.removed ? null : "They had no authenticator to remove." }),
+  );
 }
 
 /* ------------------------------------------------------------------------ the ledger's dead letters */
@@ -425,15 +518,26 @@ export async function platformPartnerSecondFactorReset(
  */
 export async function platformJobRequeue(
   office: BackOffice,
-  ctx: RouteContext,
+  tenantId: string,
+  jobId: string,
+  why: ConsoleWhy,
+): Promise<{ ok: true; job_id: string; kind: string }> {
+  return takeAct(office, { act: "job_requeue", why, tenantId, target: "job", targetId: jobId }, () =>
+    requeueOnce(office, tenantId, jobId),
+  );
+}
+
+/** The requeue itself, its refusals in words: each one is the Admin log's outcome too. */
+async function requeueOnce(
+  office: BackOffice,
   tenantId: string,
   jobId: string,
 ): Promise<{ ok: true; job_id: string; kind: string }> {
   const r = await requeueFailedJob(office.db, tenantId, jobId, async (kind) => {
     const { error } = await recordEvent(office.db, tenantId, "platform.acted", "job", jobId, {
       action: `requeue:${kind}`,
-      by: ctx.userId,
-      by_email: ctx.email ?? null,
+      by: office.userId,
+      by_email: office.email,
     });
     if (error)
       throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);

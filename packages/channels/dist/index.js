@@ -6379,6 +6379,7 @@ export {
   noteTenant,
   noteTiming,
   noteTouch,
+  oneLine,
   oneTimeCodeOf,
   pageText,
   parseAccounts,

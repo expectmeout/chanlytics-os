@@ -63,6 +63,7 @@ const DOORS = [
   "setup-request",
   "signup-notify",
   "steer",
+  "support/report",
   "stop-call",
   "voice-converge",
   "voice-provision",

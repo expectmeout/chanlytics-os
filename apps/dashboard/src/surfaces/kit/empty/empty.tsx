@@ -20,7 +20,9 @@
  */
 import type { ReactNode } from "react";
 import { canRefreshSurfaces, navigate, refreshSurface } from "../../legacy-verbs";
+import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Icon } from "../icon/icon";
+import { reportDoor } from "./report-door";
 
 type Kind = "page" | "card" | "line" | "block";
 
@@ -169,6 +171,20 @@ function alsoButton(kind: Kind, also: NonNullable<FailedReadProps["also"]>) {
 }
 
 /** A read that failed, never "nothing there": the alert glyph, what stopped, and a Retry where there is one to press. */
+/**
+ * Report a problem (decision 0066): where the frame's host is there to open its sheet, a card with no second act of its
+ * own offers to tell a person at Chanlytics what failed; with no host (the Console, a test), none.
+ */
+function reportAct(what: string, testid: string | null): NonNullable<FailedReadProps["also"]> | null {
+  const open = reportDoor.open;
+  if (!open) return null;
+  return {
+    label: REPORT_WORDS.doorShort,
+    onClick: () => open(what),
+    ...(testid ? { testid: `${testid}-report` } : {}),
+  };
+}
+
 export function FailedRead({
   kind = "card",
   what = "this",
@@ -185,6 +201,7 @@ export function FailedRead({
   children = null,
 }: FailedReadProps) {
   const retry = onRetry || (surface && canRefreshSurfaces() ? () => void refreshSurface(surface) : null);
+  const second = also ?? reportAct(what, testid);
   const reason = why ? `${String(why).replace(/\.?\s*$/, "")}. ` : "";
   return (
     <div
@@ -209,7 +226,7 @@ export function FailedRead({
         </div>
         {children}
       </div>
-      {(retry || also) && (
+      {(retry || second) && (
         <div className="empty-acts">
           {retry &&
             retryButton({
@@ -218,7 +235,7 @@ export function FailedRead({
               onRetry: retry,
               testid: retryTestid || (testid ? `${testid}-retry` : undefined),
             })}
-          {also && alsoButton(kind, also)}
+          {second && alsoButton(kind, second)}
         </div>
       )}
     </div>

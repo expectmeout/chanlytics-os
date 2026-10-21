@@ -3,9 +3,10 @@
  *
  * A job that failed for good (its last try threw, or its kind was unknown for a day) is a row in `failed`, final
  * (jobs_guard), kept ninety days. When the cause is fixed, support runs it again: a fresh row of its kind and payload,
- * due now, with who asked written first. Run here as the door runs it: the real route module behind its admin check,
- * and the real verb over a ledger in memory. What is proved is what the ledger holds afterwards and what was recorded
- * before it, not the words of the source.
+ * due now, with who asked written first: the Admin log's row with why (decision 0066), then the workspace's own
+ * platform.acted event. Run here as the door runs it: the real route module behind its admin check, and the real verb
+ * over a ledger in memory. What is proved is what the ledger holds afterwards and what was recorded before it, not the
+ * words of the source.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -29,6 +30,8 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const J = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const ctx = { userId: "u1", email: "ada@example.com" };
+/** The Console's reason (decision 0066): every act carries one. */
+const WHY = { kind: "found", ticket: null, note: "The key was replaced." };
 
 /** A ledger with one job in workspace A, and the events table the record goes to. */
 function ledger(job = {}, { faults = {}, unique = [] } = {}) {
@@ -47,9 +50,10 @@ function ledger(job = {}, { faults = {}, unique = [] } = {}) {
       },
     ],
     events: [],
+    platform_acts: [],
   };
   const db = fakeDb(tables, faults, {}, { uniqueIndexes: unique });
-  return { db, tables, office: { db, session: db } };
+  return { db, tables, office: { db, session: db, role: "support", userId: "u1", email: "ada@example.com" } };
 }
 
 /** The order the ledger and the events saw their writes in. */
@@ -62,6 +66,7 @@ test("the door is on the platform scope with a support ceiling of its own, and a
     role: null,
     rate: "platform_job_requeue",
     spend: false,
+    act: "job_requeue",
   });
   assert.equal(RATE.platform_job_requeue.limit, 60);
 });
@@ -69,13 +74,18 @@ test("the door is on the platform scope with a support ceiling of its own, and a
 test("a failed job is run again as a fresh row of its kind and payload, due now, and who asked is written first", async () => {
   const l = ledger();
   const before = Date.now();
-  const out = await platformJobRequeue(l.office, ctx, A, J);
+  const out = await platformJobRequeue(l.office, A, J, WHY);
   assert.deepEqual(out, { ok: true, job_id: J, kind: "email_ingest" });
 
   assert.deepEqual(
     order(l.db),
-    ["events", "jobs"],
-    "the record, then the row: a record that cannot be written stops it",
+    ["platform_acts", "events", "jobs"],
+    "the log's row with why, the workspace's record, then the row: a record that cannot be written stops it",
+  );
+  const [act] = l.tables.platform_acts;
+  assert.deepEqual(
+    [act.act, act.actor_role, act.tenant_id, act.target_kind, act.target_id, act.reason_kind, act.outcome],
+    ["job_requeue", "support", A, "job", J, "found", "done"],
   );
   assert.equal(l.tables.events.length, 1);
   const [event] = l.tables.events;
@@ -95,9 +105,9 @@ test("a failed job is run again as a fresh row of its kind and payload, due now,
 
 test("a job of another workspace is not found there, and nothing is recorded or run", async () => {
   const l = ledger();
-  await assert.rejects(platformJobRequeue(l.office, ctx, B, J), (e) => e.code === "not_found" && e.status === 404);
+  await assert.rejects(platformJobRequeue(l.office, B, J, WHY), (e) => e.code === "not_found" && e.status === 404);
   await assert.rejects(
-    platformJobRequeue(l.office, ctx, A, "dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
+    platformJobRequeue(l.office, A, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", WHY),
     (e) => e.code === "not_found",
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1]);
@@ -107,7 +117,7 @@ test("only a failed job is run again: one still waiting, running or done is refu
   for (const state of ["scheduled", "fired", "done", "canceled"]) {
     const l = ledger({ state });
     await assert.rejects(
-      platformJobRequeue(l.office, ctx, A, J),
+      platformJobRequeue(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.status === 409 && e.message.includes(`is ${state}, not failed`),
       state,
     );
@@ -119,7 +129,7 @@ test("work that speaks to a person is never run again from here: it may have rea
   for (const kind of ["outbound_send", "broadcast_send"]) {
     const l = ledger({ kind, payload: { message_id: "m-1", broadcast_id: "b-1" } });
     await assert.rejects(
-      platformJobRequeue(l.office, ctx, A, J),
+      platformJobRequeue(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.message.includes("never run again from here"),
       kind,
     );
@@ -137,14 +147,14 @@ test("a job of any kind whose run put words on a wire before it failed is never 
     spoke_at: "2026-09-29T09:59:58.000Z",
   });
   await assert.rejects(
-    platformJobRequeue(spoke.office, ctx, A, J),
+    platformJobRequeue(spoke.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("never run again from here"),
   );
   assert.deepEqual([spoke.tables.events, spoke.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
 
   // One that failed before it spoke (its model's turn threw) put nothing on the wire, and is run again.
   const quiet = ledger({ kind: "inbound_answer", payload: { message_id: "m-8" }, spoke_at: null });
-  assert.deepEqual(await platformJobRequeue(quiet.office, ctx, A, J), { ok: true, job_id: J, kind: "inbound_answer" });
+  assert.deepEqual(await platformJobRequeue(quiet.office, A, J, WHY), { ok: true, job_id: J, kind: "inbound_answer" });
   assert.equal(quiet.tables.jobs.length, 2);
 });
 
@@ -154,7 +164,7 @@ test("an event's delivery is not run again from here: it goes again by its subsc
     payload: { event_id: "e-1", subscriber: "reach_out_booked", kind: "appointment.changed", lane: "2" },
   });
   await assert.rejects(
-    platformJobRequeue(l.office, ctx, A, J),
+    platformJobRequeue(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("event_deliveries_redrive('reach_out_booked')"),
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1], "nothing recorded, nothing run");
@@ -163,7 +173,7 @@ test("an event's delivery is not run again from here: it goes again by its subsc
 test("a kind this deploy does not know waits for the deploy that does", async () => {
   const l = ledger({ kind: "made_up_kind" });
   await assert.rejects(
-    platformJobRequeue(l.office, ctx, A, J),
+    platformJobRequeue(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("does not know that kind"),
   );
   assert.deepEqual([l.tables.events, l.tables.jobs.length], [[], 1]);
@@ -172,7 +182,7 @@ test("a kind this deploy does not know waits for the deploy that does", async ()
 test("a record that cannot be written leaves nothing run: an act on somebody else's business nobody can be held to did not happen", async () => {
   const l = ledger({}, { faults: { "events.insert": { message: "connection reset" } } });
   await assert.rejects(
-    platformJobRequeue(l.office, ctx, A, J),
+    platformJobRequeue(l.office, A, J, WHY),
     (e) => e.code === "internal" && e.status === 503 && e.message.includes("so it was not done"),
   );
   assert.equal(l.tables.jobs.length, 1, "no row was made");
@@ -202,7 +212,7 @@ test("work the ledger holds once per subject answers that it is on the ledger ag
     due_at: "2026-09-29T11:00:00.000Z",
   });
   await assert.rejects(
-    platformJobRequeue(l.office, ctx, A, J),
+    platformJobRequeue(l.office, A, J, WHY),
     (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
   );
   assert.equal(l.tables.jobs.length, 2, "no second row for the same subject");
@@ -210,10 +220,10 @@ test("work the ledger holds once per subject answers that it is on the ledger ag
 
 test("a dead letter is run again once: a second press, or a second person, finds the copy the first left and makes no other", async () => {
   const l = ledger();
-  await platformJobRequeue(l.office, ctx, A, J);
+  await platformJobRequeue(l.office, A, J, WHY);
   for (let again = 0; again < 2; again += 1)
     await assert.rejects(
-      platformJobRequeue(l.office, ctx, A, J),
+      platformJobRequeue(l.office, A, J, WHY),
       (e) => e.code === "conflict" && e.message.includes("on the ledger again already"),
     );
   assert.equal(l.tables.jobs.length, 2, "one failed row and one copy, however many times it was pressed");
@@ -221,7 +231,7 @@ test("a dead letter is run again once: a second press, or a second person, finds
   // A copy that itself failed does not count: the work can be run again, and the second copy is a fresh row.
   const copy = l.tables.jobs.find((j) => j.id !== J);
   copy.state = "failed";
-  const third = await platformJobRequeue(l.office, ctx, A, J);
+  const third = await platformJobRequeue(l.office, A, J, WHY);
   assert.deepEqual(third, { ok: true, job_id: J, kind: "email_ingest" });
   assert.equal(l.tables.jobs.length, 3);
 
@@ -236,7 +246,7 @@ test("a dead letter is run again once: a second press, or a second person, finds
     due_at: "2026-09-29T11:00:00.000Z",
     created_at: "2026-09-29T10:30:00.000Z",
   });
-  await platformJobRequeue(other.office, ctx, A, J);
+  await platformJobRequeue(other.office, A, J, WHY);
   assert.equal(other.tables.jobs.length, 3);
 });
 
@@ -263,7 +273,7 @@ test("the verb hands back what it did as data, and calls record only for a row i
 });
 
 test("the route asks the database whether this session is a platform admin, and answers a stranger as it answers any missing page", async () => {
-  const supabase = fakeDb({}, {}, { is_platform_admin: () => false });
+  const supabase = fakeDb({}, {}, { platform_staff_state: () => "none" });
   await assert.rejects(
     requeue.POST.run(new Request("http://localhost/api/v1/x", { method: "POST", body: "{}" }), {
       supabase,
@@ -275,16 +285,19 @@ test("the route asks the database whether this session is a platform admin, and 
 });
 
 test("an admin who names no workspace or no job, or one that cannot exist, is told which, as the lines' doors tell it", async () => {
-  const supabase = fakeDb({}, {}, { is_platform_admin: () => true });
+  const supabase = fakeDb({}, {}, { platform_staff_state: () => "owner" });
   const post = (body) =>
     requeue.POST.run(new Request("http://localhost/api/v1/x", { method: "POST", body: JSON.stringify(body) }), {
       supabase,
       ...ctx,
       params: {},
     });
+  // The body is judged by its schema (contracts JobRequeueSchema): each field it refuses is named, with why asked too.
   const missing = (what) => (e) =>
-    e.code === "not_found" && e.status === 404 && e.message === `That ${what} does not exist.`;
-  await assert.rejects(post({ job_id: J }), missing("workspace"));
-  await assert.rejects(post({ tenant_id: A }), missing("job"));
-  await assert.rejects(post({ tenant_id: "not-an-id", job_id: J }), missing("workspace"));
+    e.code === "validation" && e.status === 400 && e.message.includes(`That ${what} does not exist.`);
+  await assert.rejects(post({ job_id: J, why: WHY }), (e) => e.code === "validation" && /tenant_id/.test(e.message));
+  await assert.rejects(post({ tenant_id: A, why: WHY }), (e) => e.code === "validation" && /job_id/.test(e.message));
+  await assert.rejects(post({ tenant_id: "not-an-id", job_id: J, why: WHY }), missing("workspace"));
+  await assert.rejects(post({ tenant_id: A, job_id: "nope", why: WHY }), missing("job"));
+  await assert.rejects(post({ tenant_id: A, job_id: J }), (e) => e.code === "validation" && /why/.test(e.message));
 });

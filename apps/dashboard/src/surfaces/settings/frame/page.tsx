@@ -4,6 +4,7 @@
  * (settings/<pane>/), and AI memory is a pane that says it is not built.
  */
 import { Fragment, useState, useSyncExternalStore, type RefCallback } from "react";
+import { CONSOLE_PATH } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -12,7 +13,6 @@ import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
 import { activity } from "@/legacy-bridge/activity";
-import { backOffice } from "@/legacy-bridge/platform";
 import { reachFor } from "@/legacy-bridge/workspace";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
@@ -24,7 +24,6 @@ import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
-import { PanePlatform } from "../platform/pane";
 import { PaneProfile } from "../profile/pane";
 import { SettingsList } from "./list";
 import {
@@ -48,7 +47,6 @@ type Flash = (f: LegacyFlash) => void;
  */
 const WARM: Partial<Record<string, () => void>> = {
   activity: () => activity.warm({}),
-  platform: () => backOffice.verbs.warmList?.(),
   // Connections draws Google's listing, which is read only where it is drawn: reached for, it is read before the press.
   integrations: () => reachFor("admin/integrations"),
 };
@@ -145,10 +143,31 @@ function SetPane({
           <WorkspaceData />
         </>
       )}
-      {id === "platform" && <PanePlatform />}
+      {id === "platform" && <PaneConsole />}
       {/* Keyed by its row: the rail's Activity after a door to `activity/team` is the whole log again, not the team's. */}
       {id === "activity" && <PaneActivity key={row ?? ""} family={row} />}
     </>
+  );
+}
+
+/**
+ * The back office has its own place now, the Console (decision 0066): one copy, not two. An old address to it here says
+ * so and opens it; the rail's row opens it directly.
+ */
+function PaneConsole() {
+  return (
+    <section className="rec-card set-card" data-testid="set-console">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">The Console</h2>
+        <span className="rec-card-sub">Every workspace, support and requests, in their own place</span>
+      </div>
+      <RecordRow
+        id="console"
+        label="The Console"
+        value="The back office moved to the Console, with Home, Support, Requests and the Admin log beside it."
+        act={{ label: "Open the Console", onClick: () => window.location.assign(CONSOLE_PATH) }}
+      />
+    </section>
   );
 }
 
@@ -189,7 +208,7 @@ function SettingsRailRow({ t, on, gap, go }: { t: SetTab; on: boolean; gap: bool
       aria-current={on ? "page" : undefined}
       onPointerEnter={WARM[t.id]}
       onFocus={WARM[t.id]}
-      onClick={() => go(t.id)}
+      onClick={() => (t.id === "platform" ? window.location.assign(CONSOLE_PATH) : go(t.id))}
       data-testid={`set-nav-${t.id}`}
     >
       <Icon name={t.icon} size={14} />

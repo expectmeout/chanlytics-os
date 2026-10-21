@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
+import { CONSOLE_PATH, SECOND_FACTOR_WORDS, secondFactorAsked } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import AuthShell from "@/auth/AuthShell";
 import { signInReturnOf } from "@/auth/sign-in-return";
@@ -15,7 +15,8 @@ import { confirmEnrolment, secondStep, startEnrolment, verifyFactor, type Enrolm
  *
  * A partner account must have one (M3): a refusal sends the tab here with `?for=partner`, and an account without an
  * authenticator sets it up on this page, scanning and then typing its first code, which raises the session as the
- * code does. No other way in, and no later (no grace, Ruben's answer).
+ * code does. No other way in, and no later (no grace, Ruben's answer). The Console's staff the same (decision 0066):
+ * `?for=console` says it in their words, and the code lets them back into the Console.
  *
  * Sign out is on the page: a person without their phone has no other way off it, and the words say how to get back in.
  */
@@ -23,15 +24,19 @@ const W = SECOND_FACTOR_WORDS;
 type Supabase = ReturnType<typeof createClient>;
 type Phase = "reading" | "code" | "enrol";
 
-// In, with the return the sign-in carried here: the workspace and the route (sign-in-return.ts).
-const inside = () => window.location.assign("/" + signInReturnOf(window.location));
+/** Who the second step is asked of: the Console's staff, a partner, or a session whose account has a factor. */
+const askedFor = () => new URLSearchParams(window.location.search).get("for");
+
+// In, with the return the sign-in carried here: the workspace and the route (sign-in-return.ts); or the Console.
+const inside = () =>
+  window.location.assign(askedFor() === "console" ? CONSOLE_PATH : "/" + signInReturnOf(window.location));
 
 export default function VerifyPage() {
   const supabase = createClient();
   const [phase, setPhase] = useState<Phase>("reading");
 
   useEffect(() => {
-    const required = new URLSearchParams(window.location.search).has("for");
+    const required = askedFor() !== null;
     void secondStep(supabase, required).then((step) => {
       if (step === "in") inside();
       else setPhase(step);
@@ -157,7 +162,7 @@ function EnrolStep({ supabase }: { supabase: Supabase }) {
   return (
     <>
       <h1>{W.enrolTitle}</h1>
-      <p>{unavailable ? W.unavailable : W.enrolBody}</p>
+      <p>{unavailable ? W.unavailable : secondFactorAsked(askedFor()).enrolBody}</p>
       {enrolment ? (
         <form onSubmit={confirm} data-testid="verify-enrol">
           <p className="hint">{W.scan}</p>

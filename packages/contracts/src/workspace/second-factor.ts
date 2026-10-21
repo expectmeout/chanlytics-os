@@ -89,7 +89,21 @@ export const SECOND_FACTOR_WORDS = {
     "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
   /** Settings › Partner, before becoming one. */
   becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
+  /** The Console (decision 0066): staff show a code every session, no grace. */
+  staffRequired: "The Console asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
+  staffEnrolBody:
+    "The Console can act on every business on Chanlytics, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
 } as const;
+
+/** Where the Console sends a session that has not shown its code (decision 0066): the same page, in the staff's words. */
+export const SECOND_FACTOR_STAFF_PATH = "/verify?for=console";
+
+/** The second step's words for who it is asked of: the Console's staff, or a partner. */
+export function secondFactorAsked(forWhom: string | null | undefined): { required: string; enrolBody: string } {
+  return forWhom === "console"
+    ? { required: SECOND_FACTOR_WORDS.staffRequired, enrolBody: SECOND_FACTOR_WORDS.staffEnrolBody }
+    : { required: SECOND_FACTOR_WORDS.required, enrolBody: SECOND_FACTOR_WORDS.enrolBody };
+}
 
 /** How the Auth server's refusal of an enrolment reads: switched off for the project, or something else. */
 export function enrolRefusalWords(message: string | null | undefined): { unavailable: boolean; words: string } {
