@@ -8,7 +8,7 @@
  * a workspace whose answer rate fell to zero is found here (and paged by the health sweep) before its owner writes.
  * Field data's p75 (shell/vitals.ts) is the page's speed; this is the product's work, and the two are not mixed.
  */
-import { MIN_MS } from "../shared/time";
+import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 import type { Tone } from "../shell/tone";
 
 /** How many days the back office reads: a week, newest first. */
@@ -101,7 +101,18 @@ function failuresOf(m: Record<string, number>): string {
 /** The lanes' words (decision 0018): what a claim takes first. */
 const LANE_WORDS: Record<string, string> = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
 
-const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
+/** Past this a lag is said in minutes, hours or days, never "604800.0 s". */
+const SECONDS_UP_TO_MS = 100 * 1000;
+
+/** A lag as a person says it: seconds while it is short, then minutes, hours or days ("0.4 s", "12 min", "7 days"). */
+const seconds = (ms: number): string =>
+  ms < SECONDS_UP_TO_MS
+    ? `${(ms / 1000).toFixed(1)} s`
+    : ms < HOUR_MS
+      ? `${Math.round(ms / MIN_MS)} min`
+      : ms < 2 * DAY_MS
+        ? `${Math.round(ms / HOUR_MS)} h`
+        : `${Math.round(ms / DAY_MS)} days`;
 
 /** The spine's numbers in words, each only where the day has it; "" for a day rolled before they were counted. */
 function spineLine(r: PlatformDayRowDto): string {

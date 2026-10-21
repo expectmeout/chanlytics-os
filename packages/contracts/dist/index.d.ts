@@ -29846,7 +29846,7 @@ declare const HEALTH_SCOPE_WORDS: Record<HealthScope, string>;
 declare function inScope(ours: boolean, scope: HealthScope): boolean;
 /** Which workspaces are ours, by id, from the read. */
 declare function oursOf(workspaces: readonly HealthWorkspaceDto[] | null): Set<string>;
-/** A workspace's name for a row, by id; "Every workspace" for a row about none. */
+/** A workspace's name for a row, by id; the platform for a row about none. */
 declare function workspaceNamer(workspaces: readonly HealthWorkspaceDto[] | null): (id: string | null) => string;
 
 /**
@@ -30323,7 +30323,8 @@ interface ClockVM {
     };
     /** When it last spoke: its last ask for a clock judged by its asks, its last run for one judged by its runs. */
     lastMs: number | null;
-    judged: string;
+    /** How long it may be quiet before the health check calls it late: "20 min", "35 days"; "" for one with no limit. */
+    lateAfter: string;
     runs: number;
     failed: number;
     /** Why it is not running, in the health check's own words, or the newest failed run's. */
@@ -30360,7 +30361,7 @@ interface PageVM {
     /** Seen in the last day of the window: still going. */
     recent: boolean;
     alertedToday: boolean;
-    /** The workspace a key names (model_failures:<id>), else Every workspace. */
+    /** The workspace a key names (model_failures:<id>), else the platform. */
     where: string;
     ours: boolean;
 }
@@ -30559,9 +30560,11 @@ declare function sendsOf(parts: HealthPartsDto | null, scope: HealthScope): Send
 interface CallsVM {
     total: number;
     connected: number;
+    /** Each ending, the most first: its words in a sentence, and as a row's label. */
     reasons: Array<{
         reason: string;
         words: string;
+        label: string;
         n: number;
     }>;
     trouble: Array<{
@@ -30642,9 +30645,11 @@ declare function modelCallsOf(parts: HealthPartsDto | null, scope: HealthScope):
 interface DeliveriesVM {
     total: number;
     failed: number;
+    /** Each subscriber: its words in a sentence, and as a row's label. */
     subscribers: Array<{
         subscriber: string;
         words: string;
+        label: string;
         done: number;
         failed: number;
         waiting: number;
@@ -30785,6 +30790,11 @@ interface HealthLookVM {
     detail: string | null;
     /** A plain reading of the detail, where its shape says one (failureReadingOf). */
     reading: string | null;
+    /** What a row of several holds, named: the clocks one problem stopped. */
+    items: {
+        label: string;
+        rows: string[];
+    } | null;
 }
 /**
  * Everything that needs a person, worst first then newest: a clock not running, the ledger backing up, a model key out

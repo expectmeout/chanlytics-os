@@ -11,14 +11,14 @@ import { Figure } from "../../kit/figure/figure";
 import { Meter } from "../../kit/meter/meter";
 import { NoneRow, ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
-import { HealthLine, healthCount as n, utcWords as when } from "./line";
+import { HealthRow, HealthRows, healthCount as n, healthCountOf, utcWords as when } from "./line";
 
 const pct = (share: number | null) => (share === null ? "—" : `${Math.round(share * 100)}%`);
 
 function AskFigures({ a, scope }: { a: HealthAskVM; scope: HealthScope }) {
   return (
     <dl className="cs-h-figures" data-testid="console-health-ask-figures">
-      <Figure label="Answers" value={n(a.answers)} meta={`in ${n(a.threads)} conversations`} />
+      <Figure label="Answers" value={n(a.answers)} meta={`in ${healthCountOf(a.threads, "conversation")}`} />
       <Figure
         label="The whole answer, p95"
         value={secondsWords(a.latencyP95)}
@@ -33,7 +33,7 @@ function AskFigures({ a, scope }: { a: HealthAskVM; scope: HealthScope }) {
       <Figure
         label="Failed"
         value={n(a.failed)}
-        meta={`${n(a.ungrounded)} answered without the workspace's facts`}
+        meta={`${n(a.ungrounded)} without the workspace's facts`}
         {...(a.failed ? { tone: "warn" as const } : {})}
       />
       <Figure
@@ -51,34 +51,47 @@ function Stages({ a }: { a: HealthAskVM }) {
   return (
     <ScreenSection
       title="Where the time goes"
-      sub={`of ${n(a.traced)} answers with a trace · median and 95th percentile`}
+      sub={`of ${healthCountOf(a.traced, "answer")} with a trace · the cache held ${pct(a.cacheHit)} of the prompt`}
       testid="console-health-ask-stages"
     >
       {a.traced === 0 ? (
         <NoneRow words="No answer kept its trace in the window." />
       ) : (
-        <div className="cl-attn-list">
-          {a.stages.map((s) => (
-            <div className="set-row" key={s.key} data-testid={`console-health-ask-stage-${s.key}`}>
-              <div className="set-row-info">
-                <span className="set-row-label">{s.words}</span>
-                <span className="set-row-hint">{`median ${secondsWords(s.p50)} · p95 ${secondsWords(s.p95)}`}</span>
-                {whole && s.p95 !== null ? (
-                  <Meter
-                    size="sm"
-                    rest
-                    parts={[{ tone: "ok", share: Math.min(1, s.p95 / whole) }]}
-                    aria-label={`${s.words}: ${secondsWords(s.p95)} of ${secondsWords(whole)} at the 95th percentile`}
-                  />
-                ) : null}
-              </div>
-            </div>
-          ))}
-          <HealthLine
-            label="Rounds"
-            hint={`${n(a.rounds.one)} in one · ${n(a.rounds.two)} in two · ${n(a.rounds.more)} in more · the cache held ${pct(a.cacheHit)} of the prompt · ${n(a.fast)} in fast mode`}
-          />
-        </div>
+        <>
+          <HealthRows head={["Stage", "Median", "p95", { label: "", desk: true }]} label="Where the time goes">
+            {a.stages.map((s) => (
+              <HealthRow
+                key={s.key}
+                title={s.words}
+                testid={`console-health-ask-stage-${s.key}`}
+                cells={[
+                  { v: secondsWords(s.p50) },
+                  { v: secondsWords(s.p95) },
+                  {
+                    desk: true,
+                    v:
+                      whole && s.p95 !== null ? (
+                        <Meter
+                          size="sm"
+                          parts={[
+                            { tone: "ok", share: Math.min(1, s.p95 / whole) },
+                            { tone: "rest", share: 1 - Math.min(1, s.p95 / whole) },
+                          ]}
+                          aria-label={`${s.words}: ${secondsWords(s.p95)} of ${secondsWords(whole)} at the 95th percentile`}
+                        />
+                      ) : null,
+                  },
+                ]}
+              />
+            ))}
+          </HealthRows>
+          <HealthRows head={["How it answered", "Answers"]} label="How it answered">
+            <HealthRow title="In one round" cells={[{ v: n(a.rounds.one) }]} />
+            <HealthRow title="In two rounds" cells={[{ v: n(a.rounds.two) }]} />
+            <HealthRow title="In more" cells={[{ v: n(a.rounds.more) }]} />
+            <HealthRow title="In fast mode" cells={[{ v: n(a.fast) }]} />
+          </HealthRows>
+        </>
       )}
     </ScreenSection>
   );
@@ -90,17 +103,22 @@ function Tools({ a }: { a: HealthAskVM }) {
       {a.tools.length === 0 ? (
         <NoneRow words="No tool ran in the window." />
       ) : (
-        <div className="cl-attn-list">
+        <HealthRows head={["Tool", "Runs", "Average", "Slowest"]} label="Tools">
           {a.tools.map((t) => (
-            <HealthLine
+            <HealthRow
               key={t.name}
-              label={t.words}
-              hint={`${n(t.n)} runs · average ${secondsWords(t.avgMs)} · slowest ${secondsWords(t.maxMs)}${t.slow ? " · slow" : ""}`}
-              tone={t.slow ? "warn" : undefined}
+              title={t.words}
+              sub={t.slow ? "Slow" : undefined}
+              subTone="warn"
+              cells={[
+                { v: n(t.n) },
+                { v: secondsWords(t.avgMs), tone: t.slow ? "warn" : undefined },
+                { v: secondsWords(t.maxMs) },
+              ]}
               testid={`console-health-ask-tool-${t.name}`}
             />
           ))}
-        </div>
+        </HealthRows>
       )}
     </ScreenSection>
   );
@@ -110,6 +128,7 @@ function Tools({ a }: { a: HealthAskVM }) {
 function Failures({ a, h }: { a: HealthAskVM; h: ConsoleHealth }) {
   const nameOf = workspaceNamer(h.workspaces);
   const none = a.failures.length === 0 && a.apiFailures.length === 0;
+  const where = (tenantId: string, ours: boolean) => `${nameOf(tenantId)}${ours ? " · Ours" : ""}`;
   return (
     <ScreenSection
       title="What failed"
@@ -119,24 +138,26 @@ function Failures({ a, h }: { a: HealthAskVM; h: ConsoleHealth }) {
       {none ? (
         <NoneRow words="No answer failed in the window." />
       ) : (
-        <div className="cl-attn-list">
+        <HealthRows head={["What happened", "Workspace", "When, UTC"]} label="What failed" wide>
           {a.failures.map((f, i) => (
-            <HealthLine
+            <HealthRow
               key={`said:${f.atMs}:${i}`}
-              label={`“${f.said}”`}
-              hint={`${nameOf(f.tenantId)}${f.ours ? " · Ours" : ""} · ${when(f.atMs)} UTC${f.failure ? ` · ${f.failure}` : ""}`}
-              tone="warn"
+              title={`“${f.said}”`}
+              sub={f.failure ?? undefined}
+              subTone="warn"
+              cells={[{ v: where(f.tenantId, f.ours), desk: true }, { v: when(f.atMs) }]}
             />
           ))}
           {a.apiFailures.map((f, i) => (
-            <HealthLine
+            <HealthRow
               key={`api:${f.atMs}:${i}`}
-              label={f.reason ?? "No reason kept: this round came before the ledger kept them"}
-              hint={`The API, on a round · ${nameOf(f.tenantId)}${f.ours ? " · Ours" : ""} · ${when(f.atMs)} UTC`}
-              tone={f.reason ? "danger" : undefined}
+              title={f.reason ?? "No reason kept: this round came before the ledger kept them"}
+              sub="The API, on a round"
+              subTone={f.reason ? "danger" : undefined}
+              cells={[{ v: where(f.tenantId, f.ours), desk: true }, { v: when(f.atMs) }]}
             />
           ))}
-        </div>
+        </HealthRows>
       )}
     </ScreenSection>
   );
@@ -153,15 +174,19 @@ function ByWorkspace({ a, h }: { a: HealthAskVM; h: ConsoleHealth }) {
       {a.byWorkspace.length === 0 ? (
         <NoneRow words="No workspace asked anything in the window." />
       ) : (
-        <div className="cl-attn-list">
+        <HealthRows
+          head={["Workspace", "Cost", "Answers", { label: "Rounds", desk: true }]}
+          label="Each workspace's Ask"
+        >
           {a.byWorkspace.map((w) => (
-            <HealthLine
+            <HealthRow
               key={w.tenantId}
-              label={`${nameOf(w.tenantId)}${w.ours ? " · Ours" : ""}`}
-              hint={`${dollarsWords(w.usd)} · ${n(w.answers)} answers · ${n(w.rounds)} model rounds`}
+              title={nameOf(w.tenantId)}
+              sub={w.ours ? "Ours" : undefined}
+              cells={[{ v: dollarsWords(w.usd) }, { v: n(w.answers) }, { v: n(w.rounds), desk: true }]}
             />
           ))}
-        </div>
+        </HealthRows>
       )}
     </ScreenSection>
   );

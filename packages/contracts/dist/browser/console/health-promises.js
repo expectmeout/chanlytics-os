@@ -1,6 +1,6 @@
 import { PLATFORM_NUMBERS, pastTarget } from "../workspace/platform-days.js";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time.js";
-import { inScope } from "./health-scope.js";
+import { PLATFORM_WHERE, inScope } from "./health-scope.js";
 const PROMISE_WORDS = {
   brain_p95_ms: { title: "The receptionist answers within 10 s", small: "95th percentile", short: "the receptionist" },
   job_lag_ms: {
@@ -90,7 +90,7 @@ export function promiseDaysOf(rows, ours, scope, days) {
       last: w ? `${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)}` : judged ? "kept" : "not judged",
       worst: w ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}` : null,
       lastMissMs,
-      where: [...missedBy].join(", ") || "Every workspace"
+      where: [...missedBy].join(", ") || PLATFORM_WHERE
     };
   });
   return { days: span, rows: out };

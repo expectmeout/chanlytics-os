@@ -6,7 +6,7 @@
  */
 import { PLATFORM_NUMBERS, pastTarget, type PlatformDayRowDto } from "../workspace/platform-days";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
-import { inScope, type HealthScope } from "./health-scope";
+import { PLATFORM_WHERE, inScope, type HealthScope } from "./health-scope";
 
 type PromiseName = {
   [K in keyof typeof PLATFORM_NUMBERS]: (typeof PLATFORM_NUMBERS)[K] extends { promise: true } ? K : never;
@@ -152,7 +152,7 @@ export function promiseDaysOf(
         ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}`
         : null,
       lastMissMs,
-      where: [...missedBy].join(", ") || "Every workspace",
+      where: [...missedBy].join(", ") || PLATFORM_WHERE,
     };
   });
   return { days: span, rows: out };

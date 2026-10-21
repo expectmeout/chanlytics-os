@@ -13,12 +13,14 @@ import type { PageSpeedRowDto, PageSpotRowDto } from "../shell/page-speed";
 import { vitalVerdict } from "../shell/vitals";
 import type { PlatformDayRowDto } from "../workspace/platform-days";
 import { agoWords, DAY_MS, WEEK_MS } from "../shared/time";
+import { capitalize } from "../shared/words";
 import { CONSOLE_PATH } from "./console-path";
 import {
   clocksOf,
   pagesOf,
   failureReadingOf,
   jobWords,
+  type ClockVM,
   type HealthClockDto,
   type OperatorPageDto,
 } from "./health-clocks";
@@ -33,7 +35,14 @@ import {
   type HealthPartsDto,
 } from "./health-parts";
 import { healthAskOf } from "./health-ask";
-import { inScope, oursOf, workspaceNamer, type HealthScope, type HealthWorkspaceDto } from "./health-scope";
+import {
+  PLATFORM_WHERE,
+  inScope,
+  oursOf,
+  workspaceNamer,
+  type HealthScope,
+  type HealthWorkspaceDto,
+} from "./health-scope";
 
 // --------------------------------------------------------------------------------------------------- the read
 
@@ -172,8 +181,8 @@ function promisesTile(h: HealthDto, scope: HealthScope): HealthTileVM {
     line: !read
       ? "The nightly counts could not be read just now."
       : missed.length
-        ? missed.map((r) => `${r.short} late ${countPhrase(r.missedDays, "day")}`).join(" · ")
-        : "Every promise with a number was kept.",
+        ? capitalize(missed.map((r) => `${r.short} late on ${countPhrase(r.missedDays, "day")}`).join(" · "))
+        : "Every promise with a number was kept",
     tab: "promises",
   };
 }
@@ -197,12 +206,12 @@ function backgroundTile(h: HealthDto, scope: HealthScope, nowMs: number): Health
     key: "background",
     title: "Background work",
     state,
-    value: h.clocks === null ? "—" : `${clocks.rows.length - notRunning}/${clocks.rows.length}`,
+    value: h.clocks === null ? "—" : `${clocks.rows.length - notRunning} of ${clocks.rows.length}`,
     unit: "clocks running",
     line: [
-      h.backlog === null ? "the backlog unread" : late > 0 ? `${countPhrase(late, "job")} late` : "0 jobs late",
+      h.backlog === null ? "The backlog unread" : late > 0 ? `${countPhrase(late, "job")} late` : "No job late",
       failedJobs.length
-        ? `${countPhrase(failedJobs.length, "failed job")}${weekJobs ? `, ${weekJobs} this week` : ""}`
+        ? `${failedJobs.length} failed for good${weekJobs && weekJobs < failedJobs.length ? `, ${weekJobs} this week` : ""}`
         : null,
     ]
       .filter(Boolean)
@@ -224,7 +233,7 @@ function deliveriesTile(h: HealthDto, scope: HealthScope): HealthTileVM {
           .filter((x) => x.failed)
           .map((x) => `${x.words}: ${x.failed}`)
           .join(" · ")
-      : "Every change reached what reads it.",
+      : "Every change reached what reads it",
     tab: "background",
   };
 }
@@ -233,7 +242,7 @@ function sendsTile(h: HealthDto, scope: HealthScope): HealthTileVM {
   const s = sendsOf(h.parts, scope);
   const failing = s.channels
     .filter((c) => c.failed)
-    .map((c) => `${c.words} ${c.failed} of ${c.total}${c.topError ? `: ${c.topError}` : ""}`)
+    .map((c) => `${c.words} ${c.failed} of ${c.total.toLocaleString("en-US")}`)
     .join(" · ");
   return {
     key: "sends",
@@ -242,7 +251,7 @@ function sendsTile(h: HealthDto, scope: HealthScope): HealthTileVM {
     value: h.parts === null ? "—" : `${s.failed} of ${s.total.toLocaleString("en-US")}`,
     unit: "failed",
     line: !s.channels.length
-      ? "Nothing was sent."
+      ? "Nothing was sent"
       : failing || `${s.delivered.toLocaleString("en-US")} confirmed delivered`,
     tab: "messages",
   };
@@ -257,10 +266,10 @@ function callsTile(h: HealthDto, scope: HealthScope): HealthTileVM {
     value: h.parts === null ? "—" : `${c.connected} of ${c.total}`,
     unit: "connected",
     line: c.trouble.length
-      ? c.trouble.map((t) => `${t.n} ${t.words}`).join(" · ")
+      ? capitalize(c.trouble.map((t) => `${countPhrase(t.n, "call")}: ${t.words}`).join(" · "))
       : c.total
-        ? "No call failed on our side."
-        : "No call came in.",
+        ? "No call failed on our side"
+        : "No call came in",
     tab: "messages",
   };
 }
@@ -274,8 +283,8 @@ function webhooksTile(h: HealthDto, scope: HealthScope, nowMs: number): HealthTi
     value: h.parts === null ? "—" : w.total.toLocaleString("en-US"),
     unit: "this week",
     line: w.total
-      ? `${w.unverified} unverified · ${w.providers.map((p) => `${p.words} ${p.n}`).join(", ")}`
-      : "No provider delivered anything this week.",
+      ? `${w.providers.map((p) => `${p.words} ${p.n}`).join(" · ")}${w.unverified ? ` · ${w.unverified} unverified` : ""}`
+      : "No provider delivered anything this week",
     tab: "messages",
   };
 }
@@ -290,9 +299,9 @@ function askTile(h: HealthDto, scope: HealthScope): HealthTileVM {
     value: asked ? secondsWords(a.latencyP95) : "—",
     unit: `at p95, ${countPhrase(a.answers, "answer")}`,
     line: !asked
-      ? "Nobody asked Ask anything."
+      ? "Nobody asked Ask anything"
       : [
-          a.failed ? `${a.failed} failed` : "none failed",
+          a.failed ? `${a.failed} failed` : "None failed",
           a.usd !== null ? dollarsWords(a.usd) : null,
           a.oursShare !== null && scope !== "customers" ? `ours ${Math.round(a.oursShare * 100)}% of it` : null,
         ]
@@ -329,7 +338,7 @@ function speedTile(h: HealthDto): HealthTileVM {
       state: "unjudged",
       value: "—",
       unit: "LCP, p75",
-      line: h.vitals === null ? "The page timings could not be read just now." : "No page sent its timings yet.",
+      line: h.vitals === null ? "The page timings could not be read just now." : "No page sent its timings yet",
       tab: "speed",
     };
   const verdict = vitalVerdict("LCP", lcp.p75);
@@ -377,6 +386,8 @@ export interface HealthLookVM {
   detail: string | null;
   /** A plain reading of the detail, where its shape says one (failureReadingOf). */
   reading: string | null;
+  /** What a row of several holds, named: the clocks one problem stopped. */
+  items: { label: string; rows: string[] } | null;
 }
 
 const SEVERITY_RANK: Record<HealthSeverity, number> = { red: 0, amber: 1, plain: 2 };
@@ -392,10 +403,13 @@ interface LookCtx {
 }
 
 /** A row with what most rows leave unsaid: no one workspace, no door's answer, no reading. */
-const look = (r: Omit<HealthLookVM, "tenantId" | "detail" | "reading"> & Partial<HealthLookVM>): HealthLookVM => ({
+const look = (
+  r: Omit<HealthLookVM, "tenantId" | "detail" | "reading" | "items"> & Partial<HealthLookVM>,
+): HealthLookVM => ({
   tenantId: null,
   detail: null,
   reading: null,
+  items: null,
   ...r,
 });
 
@@ -403,23 +417,38 @@ const look = (r: Omit<HealthLookVM, "tenantId" | "detail" | "reading"> & Partial
 const onlyOne = (ids: readonly string[]): string | null => (ids.length === 1 ? (ids[0] ?? null) : null);
 const sideKey = (ours: boolean) => (ours ? "ours" : "customers");
 
+/**
+ * The clocks not running, one row for each problem: ten clocks one missing secret stopped are one thing to mend, said
+ * once, the clocks it stopped named in its panel; a clock stopped for a reason of its own is a row of its own.
+ */
 function clockLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
-  return clocksOf(h.clocks)
-    .rows.filter((x) => x.state === "stopped")
-    .map((c) =>
+  const byProblem = new Map<string, ClockVM[]>();
+  for (const c of clocksOf(h.clocks).rows.filter((x) => x.state === "stopped")) {
+    const k = c.problem ?? "";
+    byProblem.set(k, [...(byProblem.get(k) ?? []), c]);
+  }
+  return [...byProblem.values()].flatMap((group) => {
+    const [first] = group;
+    if (!first) return [];
+    const one = group.length === 1;
+    const spoke = group.map((c) => c.lastMs).filter((ms): ms is number => ms !== null);
+    const sinceMs = spoke.length ? Math.min(...spoke) : null;
+    return [
       look({
-        key: `clock:${c.sweep}`,
+        key: one ? `clock:${first.sweep}` : `clocks:${first.sweep}`,
         severity: "red",
-        what: `${c.words} isn't running`,
-        why: c.problem ?? "It has not reported in time.",
-        where: "Every workspace",
+        what: one ? `${first.words} isn't running` : `${group.length} clocks aren't running`,
+        why: first.problem ?? "It has not reported in time.",
+        where: PLATFORM_WHERE,
         ours: false,
-        sinceMs: c.lastMs ?? nowMs,
-        since: c.lastMs ? sinceWords(c.lastMs) : "",
+        sinceMs: sinceMs ?? nowMs,
+        since: sinceMs ? sinceWords(sinceMs) : "",
         act: { kind: "open", tab: "background" },
-        detail: c.problem,
+        detail: first.problem,
+        items: one ? null : { label: "The clocks", rows: group.map((c) => c.words) },
       }),
-    );
+    ];
+  });
 }
 
 function backlogLooks({ h, nowMs }: LookCtx): HealthLookVM[] {
@@ -430,7 +459,7 @@ function backlogLooks({ h, nowMs }: LookCtx): HealthLookVM[] {
       severity: "red",
       what: `${countPhrase(h.backlog, "job")} waiting unclaimed`,
       why: "Due jobs nobody has claimed for two minutes: the heartbeat is scheduled and not draining.",
-      where: "Every workspace",
+      where: PLATFORM_WHERE,
       ours: false,
       sinceMs: nowMs,
       since: "now",
@@ -505,8 +534,8 @@ function pageLooks({ h, nowMs, sinceWords }: LookCtx): HealthLookVM[] {
       look({
         key: `page:${p.key}`,
         severity: p.alertedToday ? "red" : "amber",
-        what: `The pager: ${p.words}`,
-        why: `Seen ${countPhrase(p.count, "time")} since ${p.first}${p.lastMailed ? `; last mailed ${p.lastMailed}` : ""}`,
+        what: p.words,
+        why: `The pager saw it ${countPhrase(p.count, "time")} since ${p.first}${p.lastMailed ? `, last mailed ${p.lastMailed}` : ""}`,
         where: p.where,
         ours: p.ours,
         sinceMs: p.firstMs,

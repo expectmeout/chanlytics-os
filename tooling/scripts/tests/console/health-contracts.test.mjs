@@ -141,7 +141,7 @@ test("whose numbers: customers' rows and the platform's own, ours apart, all of 
   const name = workspaceNamer(WORKSPACES);
   assert.equal(name(C), "Bloom Studio");
   assert.equal(name("dddddddd-0000-4000-8000-000000000009"), "A workspace since deleted");
-  assert.equal(name(null), "Every workspace");
+  assert.equal(name(null), "The platform", "a row about no one workspace is the platform's");
 });
 
 test("the query reads a week or a month, a month by default; Deliver again names a subscriber and why", () => {
@@ -200,8 +200,8 @@ test("the clocks: not running first, then unread, running, idle; a clock that as
   const [mail, part, health, calls] = c.rows;
   assert.equal(mail.problem, "No request for 45 minutes.", "the health check's own words");
   assert.equal(mail.words, "Connected mailboxes read");
-  assert.equal(mail.judged, "its asks, 20 min");
-  assert.equal(part.judged, "its runs, 35 days");
+  assert.equal(mail.lateAfter, "20 min");
+  assert.equal(part.lateAfter, "35 days");
   assert.equal(health.problem, null);
   assert.match(calls.note, /only while a call has run past five minutes/);
   assert.equal(calls.problem, "job startup timeout", "a failed start is said though the clock is idle");
@@ -570,6 +570,49 @@ test("what needs a look: worst first then newest, each with where and its act; o
     healthSentence(healthOf({ clocks: null, backlog: null }), NOW),
     "Nothing needs a look for customers · the clocks could not be read",
   );
+});
+
+test("clocks one problem stopped are one look, said once, the clocks named; a clock stopped for its own reason is its own", () => {
+  const vault = "the trigger could not send the request: missing cron_sweep_key or edge_base_url in Vault";
+  const clock = (sweep, detail, ago) => ({
+    sweep,
+    jobname: `${sweep}-sweep`,
+    schedule: "*/5 * * * *",
+    judged_by: "request",
+    max_silence: "00:20:00",
+    last_run: iso(NOW - ago),
+    runs: 12,
+    failed: 0,
+    last_failure: null,
+    healthy: false,
+    detail,
+    last_request_at: iso(NOW - ago),
+  });
+  const looks = healthLooksOf(
+    healthOf({
+      clocks: [
+        clock("sequences", vault, 5 * HOUR),
+        clock("lines", vault, 4 * HOUR),
+        clock("google", vault, 6 * HOUR),
+        clock("mailboxes", "No request for 45 minutes.", 45 * MIN),
+      ],
+    }),
+    "customers",
+    NOW,
+  ).filter((l) => l.key.startsWith("clock"));
+  assert.deepEqual(
+    looks.map((l) => [l.key, l.what, l.where]),
+    [
+      ["clock:mailboxes", "Connected mailboxes read isn't running", "The platform"],
+      ["clocks:google", "3 clocks aren't running", "The platform"],
+    ],
+    "the newest first, as every look",
+  );
+  const [one, three] = looks;
+  assert.equal(one.items, null, "one clock names itself");
+  assert.equal(three.why, vault, "the problem said once");
+  assert.equal(three.items.rows.length, 3);
+  assert.equal(three.sinceMs, NOW - 6 * HOUR, "since the first of them went quiet");
 });
 
 /* ---------------------------------------------------------------------------------------------- errors nobody reported */

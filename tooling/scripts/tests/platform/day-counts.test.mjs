@@ -213,6 +213,21 @@ test("the spine's numbers in words (decision 0031, Phase 0): each part only wher
     "the waiting claimed within 0.4 s; 0 duplicate sends; events relayed within 0.3 s; deliveries taken in within 41.0 s (meta, retell)",
     "intake lag (00337): the slowest provider's wait, and which providers stamped their deliveries",
   );
+  const week = platformDaysWords([
+    stored(A, "Harbor Moving", "2026-09-28", {
+      job_lag_ms: { 0: 12 * 60_000 },
+      first_answer_ms: {},
+      duplicate_sends: null,
+      dead_letters: {},
+      relay_lag_ms: 7 * 24 * 3_600_000,
+      intake_lag_ms: {},
+    }),
+  ]).lines[0];
+  assert.equal(
+    week.spine,
+    "replies claimed within 12 min; events relayed within 7 days",
+    "a long lag in minutes or days, never 604800.0 s",
+  );
   const before = platformDaysWords([
     stored(A, "Harbor Moving", "2026-09-28", {
       job_lag_ms: {},

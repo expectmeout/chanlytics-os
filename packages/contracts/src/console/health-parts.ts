@@ -6,6 +6,7 @@
  */
 import type { ModelPurpose } from "../ai/models";
 import { creditRanOut } from "../ai/usage";
+import { capitalize } from "../shared/words";
 import { inScope, type HealthScope } from "./health-scope";
 import { subscriberWords } from "./health-clocks";
 
@@ -228,7 +229,8 @@ const CALL_TROUBLE: Record<string, string> = {
 export interface CallsVM {
   total: number;
   connected: number;
-  reasons: Array<{ reason: string; words: string; n: number }>;
+  /** Each ending, the most first: its words in a sentence, and as a row's label. */
+  reasons: Array<{ reason: string; words: string; label: string; n: number }>;
   trouble: Array<{ reason: string; words: string; n: number; why: string; lastMs: number }>;
   troubleByScope: Array<{ reason: string; words: string; n: number; why: string; lastMs: number; ours: boolean }>;
 }
@@ -262,7 +264,7 @@ export function callsOf(parts: HealthPartsDto | null, scope: HealthScope): Calls
     total: rows.reduce((n, r) => n + r.n, 0),
     connected: rows.filter((r) => r.status === "ended").reduce((n, r) => n + r.n, 0),
     reasons: [...byReason.entries()]
-      .map(([reason, v]) => ({ reason, words: reasonWords(reason), n: v.n }))
+      .map(([reason, v]) => ({ reason, words: reasonWords(reason), label: capitalize(reasonWords(reason)), n: v.n }))
       .sort((a, b) => b.n - a.n),
     trouble: troubleRows(null),
     troubleByScope: [...troubleRows(true), ...troubleRows(false)],
@@ -436,7 +438,15 @@ export function modelCallsOf(parts: HealthPartsDto | null, scope: HealthScope): 
 export interface DeliveriesVM {
   total: number;
   failed: number;
-  subscribers: Array<{ subscriber: string; words: string; done: number; failed: number; waiting: number }>;
+  /** Each subscriber: its words in a sentence, and as a row's label. */
+  subscribers: Array<{
+    subscriber: string;
+    words: string;
+    label: string;
+    done: number;
+    failed: number;
+    waiting: number;
+  }>;
   failures: Array<{
     subscriber: string;
     words: string;
@@ -457,6 +467,7 @@ export function deliveriesOf(parts: HealthPartsDto | null, scope: HealthScope): 
     return {
       subscriber,
       words: subscriberWords(subscriber),
+      label: capitalize(subscriberWords(subscriber)),
       done: n("done"),
       failed: n("failed"),
       waiting: n("scheduled") + n("paused"),
