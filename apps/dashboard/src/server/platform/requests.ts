@@ -44,7 +44,7 @@ type RequestRow = {
 };
 
 /** The steps as kept: each a step this product names, with when it was done. */
-function stepsOf(raw: unknown): Partial<Record<RequestStep, string>> {
+function requestStepsOf(raw: unknown): Partial<Record<RequestStep, string>> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Partial<Record<RequestStep, string>> = {};
   for (const [k, v] of Object.entries(raw)) {
@@ -66,7 +66,7 @@ function requestDto(r: RequestRow): PrivacyRequestDto {
     ticket: r.ticket,
     note: r.note,
     due_at: r.due_at,
-    steps: stepsOf(r.steps),
+    steps: requestStepsOf(r.steps),
     closed_at: r.closed_at,
     created_at: r.created_at,
   };

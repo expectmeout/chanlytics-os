@@ -19,6 +19,7 @@ import { dashboardOrigin } from "./dashboard-origin.js";
 import { env } from "./env.js";
 import { logger } from "./log.js";
 import { reportToMail } from "./packages/db.js";
+import { oneLine } from "./packages/channels.js";
 import { CONSOLE_PATH, UUID, pageWords, reportCode } from "./packages/contracts.js";
 
 /** The support inbox: SUPPORT_TO, one address or several separated by commas; the platform's mailbox while unset. */
@@ -42,9 +43,6 @@ interface ReportToMail {
   created_at: string;
   tenant: { slug: string; name: string } | null;
 }
-
-/** Text a member or an owner typed, as one line: a subject holds no line break, whatever they wrote. */
-const oneLine = (s: string): string => s.replace(/\s+/g, " ").trim();
 
 /** The mail: the report's number and workspace in the subject, the words first, then what the page said. */
 function supportMail(r: ReportToMail, origin: string): { subject: string; text: string } {
