@@ -69,34 +69,43 @@ const ANY_SERVICE = "*";
 const crGlyph = (name: string) => <Icon name={name} size={13} />;
 
 /**
- * The legend: what each look on the board means, said once, where the switches that draw them are. An open time is said
- * for the service the picker filters by, and for a consultation where that service needs one first (C5b, the rule the
- * phone and the assistant follow), through the last day the receptionist offers (C1). On a phone, one short line under
- * the chips while open times are on, and none while they are off (Ruben, 21 Oct 2026: a quieter Settings).
+ * The legend, one short line under the switches while open times are drawn: for the service the picker filters by, and for
+ * a consultation where that service needs one first (C5b, the rule the phone and the assistant follow), through the last
+ * day the receptionist offers (C1), and the clock. On a desk too (Ruben, 21 Oct 2026: its three sentences, "Taken is from
+ * your calendar or your booking tool. Open is a time the receptionist would offer…", read as confusing).
  */
-function showLegend(vm: CalendarVM, serviceName: string, phone: boolean): string {
+function showLegend(vm: CalendarVM, serviceName: string): string {
   const service = vm.services.find((s) => s.name === serviceName) ?? null;
   const forWhat = service ? ` for ${service.consultFirst ? "a consultation" : service.name}` : "";
-  if (phone) return `Open times${forWhat} through ${vm.offer.label} · ${vm.zoneCity} time`;
-  return `Taken is from your calendar or your booking tool. Open is a time the receptionist would offer${forWhat}, through ${vm.offer.label}. Times are ${vm.zoneCity} time.`;
+  return `Open times${forWhat} through ${vm.offer.label} · ${vm.zoneCity} time`;
 }
 
 /**
- * Show's switches: open times; campaigns and cold email where it has them. On a desk, the rows say the workspace's word for
- * what is booked first, locked on; a phone's chips leave it out, since a chip that cannot be pressed was the board itself
- * said again ("Meetings · Always", Ruben, 21 Oct 2026), and its one line of chips fits the three that can.
+ * Whether the board has open times to draw: only from a calendar link that reads (contracts calendarSourceOf `times`; the
+ * server reads no window without one, calendar-week.ts). With none, Open times flipped and nothing on the board moved
+ * (Ruben, 21 Oct 2026), so neither it nor the service it filters by is offered.
  */
-function showGroup(p: BarProps): MenuGroup {
+const opensTimes = (p: BarProps): boolean => p.vm.source.times;
+
+/**
+ * Show's switches: open times where the board has them; campaigns and cold email where it has them; none at all where
+ * nothing can be switched. On a desk, the rows say the workspace's word for what is booked first, locked on; a phone's
+ * chips leave it out, since a chip that cannot be pressed was the board itself said again ("Meetings · Always", Ruben,
+ * 21 Oct 2026), and its one line of chips fits the three that can.
+ */
+function showGroup(p: BarProps): MenuGroup | null {
   const { show, setShow, offers } = p;
-  const items = [
-    ...(p.phone ? [] : [{ value: "visits", label: p.many, on: true, locked: SHOW.always }]),
-    { value: "open", label: SHOW.open, on: show.open },
+  const times = opensTimes(p);
+  const switches = [
+    ...(times ? [{ value: "open", label: SHOW.open, on: show.open }] : []),
     ...(offers.campaigns ? [{ value: "campaigns", label: SHOW.campaigns, on: show.campaigns }] : []),
     ...(offers.cold ? [{ value: "cold", label: SHOW.cold, on: show.cold }] : []),
   ];
+  if (!switches.length) return null;
+  const items = [...(p.phone ? [] : [{ value: "visits", label: p.many, on: true, locked: SHOW.always }]), ...switches];
   return {
     header: SHOW.label,
-    ...(p.phone && !show.open ? {} : { caption: showLegend(p.vm, p.serviceName, p.phone) }),
+    ...(times && show.open ? { caption: showLegend(p.vm, p.serviceName) } : {}),
     toggles: {
       items,
       tick: <Icon name="check" size={13} />,
@@ -117,7 +126,8 @@ function showGroup(p: BarProps): MenuGroup {
 function optionsGroups(p: BarProps): MenuGroup[] {
   const { vm, refreshing, refreshNow, openRules } = p;
   const link = vm.bookingLink;
-  const groups: MenuGroup[] = p.phone ? [showGroup(p)] : [];
+  const show = p.phone ? showGroup(p) : null;
+  const groups: MenuGroup[] = show ? [show] : [];
   groups.push({
     header: "Calendar settings",
     items: [
@@ -218,20 +228,25 @@ function whenPart(p: BarProps) {
 }
 
 /**
- * Show, a capsule of the bar's own glass on a desk: its value says what is on beside the visits. Drawn for every workspace,
- * one with no campaign too: its open times' switch and the legend are there (a phone's are at the head of Settings).
+ * Show, a capsule of the bar's own glass on a desk: its value says what is on beside the visits. Drawn wherever something
+ * can be switched (open times from a calendar that reads, campaigns, cold email; a phone's are at the head of Settings),
+ * and never where nothing can: a capsule whose only row is locked on says nothing.
  */
 function showCapsule(p: BarProps) {
   if (p.phone) return null;
+  const group = showGroup(p);
+  if (!group) return null;
+  // Open times are on only where the board has them to draw: the value never names what it cannot show.
+  const on = { ...p.show, open: p.show.open && opensTimes(p) };
   return (
     <Menu
       align="end"
       label={SHOW.label}
-      groups={[showGroup(p)]}
+      groups={[group]}
       trigger={
         <Button variant="quiet" className="cal-show" data-testid="cal-show">
           <span className="cal-show-key">{SHOW.label}</span>
-          <span className="cal-show-value">{SHOW.value(p.show, p.offers)}</span>
+          <span className="cal-show-value">{SHOW.value(on, p.offers)}</span>
           <Icon name="chevron-down" size={12} />
         </Button>
       }
@@ -239,10 +254,13 @@ function showCapsule(p: BarProps) {
   );
 }
 
-/** The service the open times must fit, "Open for · Any service": hidden while open times are off, all it filters (CAL-4). */
+/**
+ * The service the open times must fit, "Open for · Any service": hidden while open times are off, all it filters (CAL-4),
+ * and where the board has none to draw (`opensTimes`).
+ */
 function servicePick(p: BarProps) {
   const { vm, serviceName, setServiceName } = p;
-  if (!vm.services.length || !p.show.open) return null;
+  if (!vm.services.length || !p.show.open || !opensTimes(p)) return null;
   return (
     <Select
       value={serviceName || ANY_SERVICE}

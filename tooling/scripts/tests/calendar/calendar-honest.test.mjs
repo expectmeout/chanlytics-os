@@ -2151,7 +2151,7 @@ const withNext = (over = {}) =>
 test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
-  assert.match(legend(tree), /Open is a time the receptionist would offer, through/);
+  assert.match(legend(tree), /^Open times through /);
   assert.equal(
     byTestId(tree, "cal-service").props.label,
     "Open times that fit a service",
@@ -2333,6 +2333,15 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
     "REGRESSION: 'Paste the address', to a business that may have no address to paste: the one answer's own press, in its one word beside the sentence (Ruben, 21 Oct 2026)",
   );
   assert.match(textOf(card), /No calendar connected\./);
+  // Open times are a calendar link's that reads: with none the board draws no window, so Show offers no switch for them
+  // and the service they fit is not asked (Ruben, 21 Oct 2026: Open times flipped and nothing moved).
+  const noTimes = page();
+  assert.equal(
+    barMenu(noTimes, "Show")?.props.groups[0].toggles.items.some((i) => i.value === "open") ?? false,
+    false,
+    "REGRESSION: an Open times switch with nothing to draw",
+  );
+  assert.equal(byTestId(noTimes, "cal-service"), null, "no service to fit open times there are none of");
   assert.doesNotMatch(
     textOf(card),
     /Say what you book with/,
@@ -2382,7 +2391,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   fresh();
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
-  assert.match(legend(tree), /Times are New York time/, "REGRESSION: 'times in America/New_York'");
+  assert.match(legend(tree), /New York time$/, "REGRESSION: 'times in America/New_York'");
   assert.match(
     textOf(find(tree, (n) => n.props?.className === "cal-about-note")),
     /through your booking link/,
@@ -2495,7 +2504,8 @@ test("REGRESSION: the Calendar draws no key -- its legend said ← → move · T
     null,
     "the legend's keys",
   );
-  assert.match(legend(tree), /Times are New York time\.$/, "the zone, the legend's last word");
+  assert.match(legend(tree), / · New York time$/, "the zone, the legend's last words");
+  assert.doesNotMatch(legend(tree), /Taken is from/, "one short line, never the three sentences (Ruben, 21 Oct 2026)");
   assert.equal(
     find(tree, (n) => n.props?.testid === "cal-rules")?.props.sub,
     "Times are New York time",
@@ -2628,7 +2638,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onValueChange("Color correction");
   tree = page();
   assert.equal(openTimes(tree).length, 2, "REGRESSION: no open time fit Color correction");
-  assert.match(legend(tree), /would offer for a consultation, through Sep 21/);
+  assert.match(legend(tree), /Open times for a consultation through Sep 21/);
   assert.match(
     textOf(byTestId(tree, "cal-notice-consult")),
     /The open times here are for a consultation, about 30 minutes\./,
@@ -2648,7 +2658,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   byTestId(tree, "cal-service").props.onValueChange("Balayage");
   tree = page();
   assert.equal(openTimes(tree).length, 1);
-  assert.match(legend(tree), /would offer for Balayage,/);
+  assert.match(legend(tree), /Open times for Balayage through /);
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {
