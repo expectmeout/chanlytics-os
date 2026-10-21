@@ -34,7 +34,7 @@ const carriedMarks = new Map<string, SeenOf>();
 /** How a surface a mark changed is kept for the next load: the tab's cache, installed by the store (seen.ts keepsCarried). */
 let keep: (of: CarrierOf) => void = () => {};
 
-/** The store says how a surface that changed is kept for the next load (surface-cache.ts resnapshotSurface). */
+/** The store says how a surface that changed is kept for the next load (surface-cache.ts resnapshotHere). */
 export function keepsCarried(fn: (of: CarrierOf) => void): void {
   keep = fn;
 }

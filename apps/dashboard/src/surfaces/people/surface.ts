@@ -19,7 +19,7 @@ import {
   type AttentionRowVM,
   type ListRule,
 } from "@chanlytics/contracts";
-import { resnapshotSurface } from "@/legacy-bridge/surface-cache";
+import { resnapshotHere } from "@/legacy-bridge/surface-cache";
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { codeOnce } from "@/lib/code-once";
@@ -197,12 +197,7 @@ export function keepSavedView(page: string, view: Record<string, unknown>): () =
   // The published copy can be an earlier read's, equal and kept as it was (publishPeople, shareUnchanged): it takes it too.
   if (shown && shown !== views) shown[page] = view;
   // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
-  resnapshotSurface(
-    peopleOverride.key,
-    peopleOverride.globals ?? [],
-    (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
-    "people",
-  );
+  resnapshotHere(peopleOverride.key, peopleOverride.globals ?? [], "people");
   return landed;
 }
 

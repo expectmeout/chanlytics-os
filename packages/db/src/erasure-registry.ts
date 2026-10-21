@@ -419,8 +419,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
   segments: all(NOT_PERSONAL, "name", "rule"),
-  // A sequence (decision 0060): its name, the business's.
-  sequences: { name: NOT_PERSONAL },
+  // A sequence (decision 0060): its name, and a one-off kept as a draft (00465: who it goes to by list or everyone, when,
+  // its channels and its message as the owner wrote it), the business's.
+  sequences: all(NOT_PERSONAL, "name", "once"),
   // A batch's name, its audience (a list's or a step's name, a rule in the closed vocabulary), its channels, its template
   // and what fills its slots: the business's.
   sequence_batches: all(
