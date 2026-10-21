@@ -53,6 +53,7 @@ export const MODEL_CALL_OUTCOMES = [
   "unreachable",
   "unreadable"
 ];
+export const AI_USAGE_ERROR_CHARS = 300;
 export function aiUsageBodyOf(call) {
   return {
     tenant_id: call.tenantId,
@@ -67,6 +68,13 @@ export function aiUsageBodyOf(call) {
     usd: usageDollars(call.answered, call.usage),
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
-    subject_id: call.subjectId ?? null
+    subject_id: call.subjectId ?? null,
+    ...call.error ? {
+      error_type: call.error.type.slice(0, 80) || null,
+      error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null
+    } : {}
   };
+}
+export function creditRanOut(error) {
+  return !!error && /credit balance/i.test(error.message);
 }

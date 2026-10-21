@@ -56,7 +56,7 @@ export function consoleMe(office: BackOffice): ConsoleMe {
 }
 
 /** A side read: its answer, or null with the failure logged under the read's name. */
-async function side<T>(what: string, read: () => Promise<T>): Promise<T | null> {
+export async function side<T>(what: string, read: () => Promise<T>): Promise<T | null> {
   try {
     return await read();
   } catch (e) {

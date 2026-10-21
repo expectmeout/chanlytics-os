@@ -13,6 +13,7 @@ import { SUPPORT_KIND_FILTERS, SUPPORT_VIEWS } from "./support-queue";
 import { WORKSPACE } from "../shell/client-error";
 import { REPORT_KINDS } from "../shell/report-problem";
 import { PARTNER_STANDINGS, PARTNER_STATUSES } from "../workspace/partner";
+import { HEALTH_WINDOWS } from "./health";
 
 const uuid = (what: string) => z.uuid({ error: `That ${what} does not exist.` });
 
@@ -182,6 +183,25 @@ export const SupportResendSchema = z.object({ id: uuid("report") }).strict();
 
 /** `POST platform/support/kind`: a report moved between Support and Health, as what the member needed. */
 export const SupportKindSchema = z.object({ id: uuid("report"), kind: z.enum(REPORT_KINDS) }).strict();
+
+/** `GET platform/health?days=`: Health over the last week or month. */
+export const HealthQuerySchema = z
+  .object({
+    days: z.coerce
+      .number()
+      .int()
+      .refine((d) => (HEALTH_WINDOWS as readonly number[]).includes(d), "A week or a month: 7 or 30.")
+      .default(30),
+  })
+  .strict();
+
+/** `POST platform/deliveries/redrive`: every failed delivery of one subscriber scheduled again, with why. */
+export const DeliveryRedriveSchema = z
+  .object({
+    subscriber: z.string().regex(/^[a-z][a-z0-9_]{1,62}$/, "Name the subscriber."),
+    why: ConsoleWhySchema,
+  })
+  .strict();
 
 /** `GET platform/acts`: a page of the log, older than `before`, one person's or everyone's, as rows or a CSV. */
 export const ActsQuerySchema = z

@@ -53,7 +53,7 @@ import {
   RELAY_LIMIT,
   type ClaimedJob,
 } from "../packages/jobs.js";
-import { relayEvents } from "../packages/db.js";
+import { relayEvents, workspaceIsOurs } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
@@ -84,8 +84,14 @@ function replyLateBody(worstMs: number): string {
 }
 
 /** The operator's pager, for a failure that is the platform's (ledger PAGES_THE_PLATFORM): never an owner's bell. */
-const pagerOf = (db: SweepTick["db"]) => (key: string, subject: string, body: string) =>
-  pageOperator({ db }, key, subject, body);
+/**
+ * The ledger's pager: one page per condition per window, and none for a job of our own workspaces (the nightly suite's,
+ * the smoke test: decision 0068), whose failures Health shows under Ours instead.
+ */
+const pagerOf =
+  (db: SweepTick["db"]) =>
+  async (key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown> =>
+    tenantId && (await workspaceIsOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
 
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {

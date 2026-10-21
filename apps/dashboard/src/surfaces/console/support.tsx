@@ -10,7 +10,7 @@
  * Keys on a desk: ↑↓ move, Enter opens, Esc closes, T takes the workspace, A copies the reply, M marks it answered. On
  * a phone the queue is rows and the one opened is a sheet. Every sentence is contracts'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   SUPPORT_KIND_FILTERS,
   SUPPORT_KIND_FILTER_WORDS,
@@ -44,26 +44,21 @@ import { Segmented } from "../kit/segmented/segmented";
 import { Select } from "../kit/select/select";
 import { Sheet } from "../kit/sheet/sheet";
 import { SubTabs } from "../kit/sub-tabs/sub-tabs";
-import { NoneRow, ScreenFailed, ScreenReading, useConsoleRead, viewerZone, type Flash, type Go } from "./parts";
+import {
+  NoneRow,
+  ScreenFailed,
+  ScreenReading,
+  typingIn,
+  useBeside,
+  useConsoleRead,
+  viewerZone,
+  type Flash,
+  type Go,
+} from "./parts";
 import { consoleVerbs, type ConsoleMe, type ConsoleSupport, type SupportAsk } from "./verbs";
-
-/** Where the one opened stands beside the queue: from the kit's 900px down, it is a sheet over it. */
-const BESIDE = "(min-width: 901px)";
-function hearWidth(changed: () => void): () => void {
-  if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
-  const m = window.matchMedia(BESIDE);
-  m.addEventListener("change", changed);
-  return () => m.removeEventListener("change", changed);
-}
-const besideFits = (): boolean => !!window.matchMedia && window.matchMedia(BESIDE).matches;
-const useBeside = (): boolean => useSyncExternalStore(hearWidth, besideFits, () => true);
 
 /** How long the search waits for typing to stop before it reads again. */
 const SEARCH_WAIT_MS = 250;
-
-/** A key pressed where it types is the field's, never the queue's. */
-const typingIn = (t: EventTarget | null): boolean =>
-  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 /** The code a link opened Support on (`?open=R-1044`), read once. */
 function codeInAddress(): string | null {

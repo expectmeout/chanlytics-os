@@ -13,7 +13,7 @@ export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInli
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags.js";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models.js";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn.js";
-export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf } from "./ai/usage.js";
+export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, AI_USAGE_ERROR_CHARS, creditRanOut } from "./ai/usage.js";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message.js";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns.js";
 export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue, ASK_STYLE_PAGE, ASK_STYLE_MAX, answerStyleOf } from "./ask-proposals/follow-ups.js";
@@ -120,6 +120,13 @@ export { policyLinks, optInConfirmation, confirmationNameOf, verbalOptInScript, 
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsubscribe.js";
 export { STAFF_ROLES, STAFF_ROLE_WORDS, STAFF_STATES, staffName, CONSOLE_ACTS, CONSOLE_ACT_KEYS, LINE_ACTS, staffMay, staffCannotWords, staffSees, staffCannotSeeWords, staffSeesScreen, REASON_KINDS, REASON_WORDS, REASON_LIMITS, whyWords, ACT_LOG_PAGE, ACT_OUTCOMES, ACT_TARGETS, actRowOf, actsCsv, CONSOLE_SCREENS, CONSOLE_SCREEN_WORDS, CONSOLE_WORKSPACE_TABS, CONSOLE_WORKSPACE_TAB_WORDS, consoleAddressOf, consolePathOf, CONSOLE_GROUP_WORDS, consoleGroupOf, consoleGroups, verdictPill, CLAIM_MS, claimWords, consoleNumbersOf, consoleNumbersFrom, homeSentence, CONSOLE_WORDS } from "./console/console.js";
 export { CONSOLE_PATH } from "./console/console-path.js";
+export { HEALTH_WINDOWS, HEALTH_STATE_WORDS, HEALTH_TABS, HEALTH_TAB_WORDS, HEALTH_WORDS, secondsWords, dollarsWords, healthTilesOf, healthLooksOf, healthTabOf, healthPathOf, healthCounts, healthSentence, healthQuietWords } from "./console/health.js";
+export { healthAskOf } from "./console/health-ask.js";
+export { scheduleWords, clocksOf, pageKeyWords, subscriberWords, pagesOf, jobWords, failureReadingOf } from "./console/health-clocks.js";
+export { errorGroupsOf, errorGroupReport } from "./console/health-errors.js";
+export { sendsOf, callsOf, webhooksOf, modelCallsOf, deliveriesOf, connectionsOf } from "./console/health-parts.js";
+export { promiseDaysOf } from "./console/health-promises.js";
+export { HEALTH_SCOPES, HEALTH_SCOPE_WORDS, inScope, oursOf, workspaceNamer } from "./console/health-scope.js";
 export { REQUEST_KINDS, REQUEST_KIND_WORDS, REQUEST_STEP_KEYS, REQUEST_STEPS, requestDueAt, requestClock, requestCode, privacyRequestOf, requestDayWords, requestsInOrder, requestStepChange, REQUEST_WORDS } from "./console/requests.js";
 export { reportCode, pageWords, reportOf, supportClusters, SETUP_ASK_WORDS, askCode, askDoneOf, SUPPORT_TOPICS, supportTopicOf, SUPPORT_KIND_WORDS, supportPathOf, inboxSearchUrl, inboxHomeUrl, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, SUPPORT_WORDS } from "./console/support.js";
 export { playbookOf, setupAskMail, supportMeanwhile } from "./console/support-playbooks.js";

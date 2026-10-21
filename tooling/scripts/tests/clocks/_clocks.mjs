@@ -67,6 +67,7 @@ export const CLOCKS = {
     fn: "sequence_steps_due",
   },
   purge_ask: { kind: "keep", why: "retention: Ask threads untouched for ninety days" },
+  purge_client_errors: { kind: "keep", why: "retention: the errors pages hit, after thirty days (00469)" },
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },
   purge_events: { kind: "keep", why: "retention: evidence events after thirty days" },
   purge_google_reviews: { kind: "keep", why: "retention: a Google review the mirror has not seen for ninety days" },

@@ -310,6 +310,7 @@ export const LOG_EVENTS = [
   "media_no_credentials",
   "media_too_large",
   "media_too_large_after_read",
+  "model_credit_page_failed",
   "model_failures_unpageable",
   "model_failures_unreadable",
   "model_turn_write_failed",

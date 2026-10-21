@@ -2,7 +2,7 @@
  * What every Console screen shares (decision 0066): how a screen reads on demand and reads again after its own act,
  * and the two frames it draws while it has nothing to show: reading, or what could not be read, in the kit's card.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { CONSOLE_WORDS } from "@chanlytics/contracts";
 import { FailedRead } from "../kit/empty/empty";
 import type { LegacyFlash } from "../legacy-verbs";
@@ -18,11 +18,26 @@ export function viewerZone(): string {
   }
 }
 
+/** Where the one opened stands beside its list (Support's queue, Health's looks): from the kit's 900px down, a sheet. */
+const BESIDE = "(min-width: 901px)";
+function hearWidth(changed: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
+  const m = window.matchMedia(BESIDE);
+  m.addEventListener("change", changed);
+  return () => m.removeEventListener("change", changed);
+}
+const besideFits = (): boolean => !!window.matchMedia && window.matchMedia(BESIDE).matches;
+export const useBeside = (): boolean => useSyncExternalStore(hearWidth, besideFits, () => true);
+
+/** A key pressed where it types is the field's, never the list's. */
+export const typingIn = (t: EventTarget | null): boolean =>
+  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
 /** Moves the Console to one of its addresses, as a pushed entry the page follows. */
 export type Go = (path: string) => void;
 
 /** A screen's read: what it holds, why it could not be had, and a way to ask again (after an act, or by hand). */
-interface ConsoleRead<T> {
+export interface ConsoleRead<T> {
   data: T | null;
   problem: string | null;
   missing: boolean;

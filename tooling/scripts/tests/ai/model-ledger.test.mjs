@@ -99,6 +99,38 @@ test("a call that got no answer is written too, and a call for no workspace is a
   assert.equal(t.ai_usage.length, 1);
 });
 
+test("a call with no answer keeps what the API said (00469); a key out of credit pages the platform once as model_credit, any other refusal pages nobody", async () => {
+  const t = world();
+  t.operator_pages = [];
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    model(status(400, "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing."));
+    const refused = await callModel({ purpose: "receptionist", body }, { tenantId: T });
+    assert.notEqual(refused.outcome, "ok");
+    assert.deepEqual(
+      t.ai_usage.map((x) => [x.error_type, x.error_message.slice(0, 26)]),
+      [["invalid_request_error", "Your credit balance is too"]],
+      "the API's own type and words, kept on the row",
+    );
+    assert.deepEqual(
+      t.operator_pages.map((p) => p.key),
+      ["model_credit"],
+      "the platform's key is everyone's: paged whichever workspace asked",
+    );
+    model(status(529, "Overloaded"), status(529, "Overloaded"));
+    await callModel({ purpose: "receptionist", body }, { tenantId: T });
+    assert.equal(t.ai_usage.length, 2);
+    assert.equal(t.ai_usage[1].error_type, "overloaded_error");
+    assert.equal(t.operator_pages.length, 1, "an overloaded API is no page of its own");
+    model(said("Hello."));
+    await callModel({ purpose: "receptionist", body }, { tenantId: T });
+    assert.equal(t.ai_usage[2].error_type ?? null, null, "an answer keeps no error");
+  } finally {
+    console.error = quiet;
+  }
+});
+
 test("a workspace paused, ended, over or unread spends nothing on what a person asks for; a trial and a direct one do", async () => {
   for (const [over, may] of [
     [{ status: "paused" }, false],

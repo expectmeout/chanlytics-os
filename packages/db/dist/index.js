@@ -446,9 +446,9 @@ async function platformDay(db, day) {
   const ids = [...new Set(rows.map((r) => r.tenant_id))];
   const live = /* @__PURE__ */ new Map();
   for (let i = 0; i < ids.length; i += NAMES_PER_READ) {
-    const t = await db.from("tenants").select("id, name, status").in("id", ids.slice(i, i + NAMES_PER_READ));
+    const t = await db.from("tenants").select("id, name, status, ours").in("id", ids.slice(i, i + NAMES_PER_READ));
     if (t.error) throw new Error(t.error.message);
-    for (const w of t.data ?? []) if (w.status === "active") live.set(w.id, w.name);
+    for (const w of t.data ?? []) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
   }
   return rows.flatMap((r) => {
     const name = live.get(r.tenant_id);
@@ -494,9 +494,11 @@ var all = (strategy, ...names) => Object.fromEntries(names.map((n) => [n, strate
 var ERASURE_STRATEGIES = {
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
-  // writer puts there.
+  // writer puts there. A failed call's reason (00469) is the API's error type, and its words, which name no one but go
+  // at 400 days with the row.
   ai_usage: {
-    ...all(NOT_PERSONAL, "model", "model_asked", "prompt_hash"),
+    ...all(NOT_PERSONAL, "model", "model_asked", "prompt_hash", "error_type"),
+    error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer")
   },
   ask_messages: { content: scrubbedBy("ask_scrub") },
@@ -822,7 +824,7 @@ var ERASURE_STRATEGIES = {
   // the page and the error are the app's own.
   support_reports: {
     ...all(WITH_WORKSPACE, "email", "words"),
-    ...all(NOT_PERSONAL, "kind", "page", "error_id", "error_name", "error_message", "mail_error")
+    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error")
   },
   platform_metrics: all(
     NOT_PERSONAL,
@@ -6349,6 +6351,42 @@ async function listRequests(db, closedSinceIso, limit) {
   return db.from("privacy_requests").select(REQUEST_COLUMNS).or(`closed_at.is.null,closed_at.gte.${closedSinceIso}`).order("due_at", { ascending: true }).limit(limit);
 }
 
+// src/repositories/console/health.ts
+async function healthClocks(db, days) {
+  return db.rpc("platform_clocks", { p_days: days });
+}
+async function healthSweeps(db) {
+  return db.rpc("sweep_health");
+}
+async function healthBacklog(db) {
+  return db.rpc("jobs_backlog");
+}
+async function healthFailedJobs(db, q) {
+  return db.from("jobs").select("id, tenant_id, kind, lane, attempts, last_error, created_at, updated_at").eq("state", "failed").gte("updated_at", q.sinceIso).order("updated_at", { ascending: false }).limit(q.limit);
+}
+async function healthPages(db, limit) {
+  return db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false }).limit(limit);
+}
+async function healthParts(db, days) {
+  return db.rpc("platform_health_parts", { p_days: days });
+}
+async function healthWorkspaces(db, limit) {
+  return db.from("tenants").select("id, slug, name, status, ours").order("created_at").limit(limit);
+}
+async function workspaceIsOurs(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
+  return !error && data?.ours === true;
+}
+async function keepClientError(db, row) {
+  return db.from("client_errors").insert(row);
+}
+async function healthClientErrors(db, q) {
+  return db.from("client_errors").select("at, fingerprint, boundary, page, name, message, build, device, member_key").gte("at", q.sinceIso).order("at", { ascending: false }).limit(q.limit);
+}
+async function redriveDeliveries(db, subscriber) {
+  return db.rpc("event_deliveries_redrive", { p_subscriber: subscriber });
+}
+
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at, kind, source, facts";
 var jsonString = (v) => typeof v === "string" ? v : null;
@@ -7411,6 +7449,14 @@ export {
   handBackThread,
   handRun,
   hasNewerCopy,
+  healthBacklog,
+  healthClientErrors,
+  healthClocks,
+  healthFailedJobs,
+  healthPages,
+  healthParts,
+  healthSweeps,
+  healthWorkspaces,
   heldDraftsByIntent,
   heldMessageOf,
   heldNoticeDue,
@@ -7437,6 +7483,7 @@ export {
   keepAppointmentNotice,
   keepChannelQuality,
   keepChannelStanding,
+  keepClientError,
   keepForwardingConfirmation,
   keepIdeas,
   keepIdempotencyReceipt,
@@ -7639,6 +7686,7 @@ export {
   recordStatusByExternalId,
   recordSystemDecision,
   recordWhatsAppOffersStop,
+  redriveDeliveries,
   refreshWaitlistRow,
   relayEvents,
   releaseControl,
@@ -7812,6 +7860,7 @@ export {
   workspaceAbout,
   workspaceAnswersOnItsOwn,
   workspaceIdsOf,
+  workspaceIsOurs,
   workspaceMaySpend,
   workspaceMayUseModels,
   workspaceNameAndConfig,
