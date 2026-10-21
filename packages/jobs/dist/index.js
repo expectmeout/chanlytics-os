@@ -1293,7 +1293,7 @@ async function eventDeliver(ctx, job) {
     if (ctx.page) {
       try {
         const page = deliveryPage(job, why);
-        await ctx.page(deliveryPageKey(job), page.subject, page.body);
+        await ctx.page(deliveryPageKey(job), page.subject, page.body, job.tenant_id);
       } catch (e) {
         logger6().error("job_page_failed", {
           tenant_id: job.tenant_id,
@@ -1649,7 +1649,7 @@ async function conclude(ports, job, reason, certain, end) {
   if (PAGES_THE_PLATFORM.has(job.kind)) {
     try {
       const page = deliveryPage(job, reason, wreckage);
-      await ports.page(deliveryPageKey(job), page.subject, page.body);
+      await ports.page(deliveryPageKey(job), page.subject, page.body, job.tenant_id);
     } catch (e) {
       ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
     }

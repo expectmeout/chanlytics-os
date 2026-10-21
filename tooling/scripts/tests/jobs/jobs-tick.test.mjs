@@ -88,9 +88,9 @@ function fakes(jobs, o = {}) {
       if (o.alertThrows) throw new Error("mail down");
       calls.alert.push({ id: j.id, ...news });
     },
-    page: async (key, subject, body) => {
+    page: async (key, subject, body, tenantId) => {
       if (o.pageThrows) throw new Error("pager down");
-      calls.page.push({ id: j_of(key), key, subject, body });
+      calls.page.push({ id: j_of(key), key, subject, body, tenantId });
     },
     log: {
       info: (e, f) => calls.log.push(["info", e, f]),
@@ -390,6 +390,8 @@ test("a change's delivery that fails for good is the platform's: the operator is
   );
   assert.match(calls.page[0].body, /from event_deliveries where state = 'failed'/, "and where to look");
   assert.match(calls.page[0].body, /Reference: job d \(event_deliver\)\.$/);
+  // The workspace rides with the page, so the edge's pager can leave our own out (decision 0068).
+  assert.equal(calls.page[0].tenantId, "t1", "the page names the job's workspace to the pager");
   assert.ok(logged("info", "job_failed"), "the failure is said in the log");
   assert.equal(counts.failed, 1);
 

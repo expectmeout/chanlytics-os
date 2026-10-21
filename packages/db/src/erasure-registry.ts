@@ -88,9 +88,11 @@ const all = (strategy: ErasureStrategy, ...names: string[]): Record<string, Eras
 export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string, ErasureStrategy>>>> = {
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
-  // writer puts there.
+  // writer puts there. A failed call's reason (00469) is the API's error type, and its words, which name no one but go
+  // at 400 days with the row.
   ai_usage: {
-    ...all(NOT_PERSONAL, "model", "model_asked", "prompt_hash"),
+    ...all(NOT_PERSONAL, "model", "model_asked", "prompt_hash", "error_type"),
+    error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer"),
   },
   ask_messages: { content: scrubbedBy("ask_scrub") },
@@ -416,7 +418,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // the page and the error are the app's own.
   support_reports: {
     ...all(WITH_WORKSPACE, "email", "words"),
-    ...all(NOT_PERSONAL, "kind", "page", "error_id", "error_name", "error_message", "mail_error"),
+    ...all(NOT_PERSONAL, "page", "error_id", "error_name", "error_message", "mail_error"),
   },
   platform_metrics: all(
     NOT_PERSONAL,

@@ -10,7 +10,15 @@
  * The shell is script-mode JSX with no imports, so its boundary says what it caught as an event on the window
  * (SHELL_ERROR_EVENT), and the bridge's host listens (listenForShellErrors) and sends it.
  */
-import { clientErrorOf, errorIdOf, type ClientErrorBoundary, type ReportedError } from "@chanlytics/contracts";
+import {
+  PAGE_PHONE_QUERY,
+  clientErrorOf,
+  errorIdOf,
+  type ClientErrorBoundary,
+  type PageDevice,
+  type ReportedError,
+} from "@chanlytics/contracts";
+import { publicEnv } from "@/lib/public-env";
 
 /** The event the shell's pane boundary dispatches on window: `detail` is `{ error, page }`. */
 export const SHELL_ERROR_EVENT = "chanlytics:shell-error";
@@ -44,11 +52,18 @@ export function lastClientError(): (ReportedError & { page: string | null }) | n
  */
 export const REPORT_AFTER_KEY = "chanlytics.report-after";
 
+/** The build that ran and the device it ran on, as field data names them: Health groups an error by both (00469). */
+type RanOn = () => { build: string | null; device: PageDevice | null };
+
 /** A reporter for one page load: what it sent, so the same error twice is sent once. */
-export function clientErrorReporter(nav: Beacon, workspace: () => string | null = () => null) {
+export function clientErrorReporter(
+  nav: Beacon,
+  workspace: () => string | null = () => null,
+  ranOn: RanOn = () => ({ build: null, device: null }),
+) {
   const sent = new Set<string>();
   return (boundary: ClientErrorBoundary, error: unknown, page: string | null, digest?: string | null): boolean => {
-    const body = clientErrorOf(boundary, error, page, digest, workspace());
+    const body = { ...clientErrorOf(boundary, error, page, digest, workspace()), ...ranOn() };
     const firstLine = body.message.split(/\r?\n/)[0] ?? "";
     lastCaught = {
       id: errorIdOf(body.page, body.name, body.message),
@@ -72,10 +87,23 @@ export function clientErrorReporter(nav: Beacon, workspace: () => string | null 
 const heldWorkspace = (): string | null =>
   typeof window === "undefined" ? null : (/^\/w\/([^/]+)/.exec(window.location.pathname)?.[1] ?? null);
 
+/**
+ * This build's commit, cut as field data cuts it (page-speed.ts; the route holds it to PAGE_BUILD, whose module builds
+ * schemas this chunk would carry to every page), and the device by the shell's one phone width.
+ */
+const ranHere: RanOn = () => {
+  const sha = publicEnv.NEXT_PUBLIC_BUILD_SHA;
+  return {
+    build: /^[0-9a-z]{3,40}$/.test(sha) ? sha.slice(0, 12) : null,
+    device: typeof window === "undefined" ? null : window.matchMedia?.(PAGE_PHONE_QUERY).matches ? "phone" : "desk",
+  };
+};
+
 /** This page load's reporter, over the browser's own beacon. */
 export const reportClientError = clientErrorReporter(
   typeof navigator === "undefined" ? undefined : navigator,
   heldWorkspace,
+  ranHere,
 );
 
 /** Sends what the shell's boundary says it caught; answers the unhook. */

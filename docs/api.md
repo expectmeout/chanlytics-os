@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-306 handlers in 51 domains.
+308 handlers in 51 domains.
 
 ## activity
 
@@ -399,6 +399,8 @@ Writes; for any signed-in person, for themselves; counts against the `client_err
 | `stack` | string or null | yes |  |
 | `digest` | string or null | yes |  |
 | `workspace` | string or null | yes |  |
+| `build` | string or null | no |  |
+| `device` | one of `"desk"`, `"phone"` or null | no |  |
 
 ## consent
 
@@ -1590,6 +1592,15 @@ Writes; for platform staff; counts against the `platform_claim` rate; spends not
 | `tenant_id` | string (uuid) | yes |  |
 | `take` | boolean | yes |  |
 
+### `POST /api/v1/platform/deliveries/redrive`
+
+Writes; for platform staff; counts against the `platform_delivery_redrive` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `subscriber` | string | yes | matches `^[a-z][a-z0-9_]{1,62}$` |
+| `why` | object | yes |  |
+
 ### `GET /api/v1/platform/find`
 
 Reads; for platform staff; no rate bucket; spends nothing.
@@ -1597,6 +1608,14 @@ Reads; for platform staff; no rate bucket; spends nothing.
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `q` | string | yes | at least 2 characters; at most 80 characters |
+
+### `GET /api/v1/platform/health`
+
+Reads; for platform staff; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `days` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
 
 ### `GET /api/v1/platform/home`
 

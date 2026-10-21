@@ -24,7 +24,7 @@ import { Icon } from "../kit/icon/icon";
 import { LinkButton } from "../kit/link-button/link-button";
 import { useLegacyToast } from "../legacy-verbs";
 import { FindSheet } from "./find";
-import { HealthScreen } from "./health";
+import { HealthScreen } from "./health/health";
 import { HomeScreen } from "./home";
 import { LogScreen } from "./log";
 import { PartnersScreen } from "./partners";
@@ -95,8 +95,18 @@ function ConsoleRail({ screen, me, onFind }: { screen: ConsoleScreen; me: Consol
   );
 }
 
-/** The screen an address names. */
-function Screen({ address, me, flash }: { address: ConsoleAddress; me: ConsoleMe; flash: Flash }) {
+/** The screen an address names; Health reads its part from the rest of the address. */
+function Screen({
+  address,
+  pathname,
+  me,
+  flash,
+}: {
+  address: ConsoleAddress;
+  pathname: string;
+  me: ConsoleMe;
+  flash: Flash;
+}) {
   switch (address.screen) {
     case "home":
       return <HomeScreen me={me} go={go} flash={flash} />;
@@ -113,7 +123,7 @@ function Screen({ address, me, flash }: { address: ConsoleAddress; me: ConsoleMe
     case "partners":
       return <PartnersScreen me={me} flash={flash} />;
     case "health":
-      return <HealthScreen me={me} go={go} flash={flash} />;
+      return <HealthScreen me={me} go={go} flash={flash} pathname={pathname} />;
     case "log":
       return <LogScreen me={me} go={go} />;
   }
@@ -162,7 +172,7 @@ export function ConsoleRoute({ pathname }: { pathname: string }) {
     <div className="settings cs-frame" data-testid="console">
       <ConsoleRail screen={shown.screen} me={me.data} onFind={openFind} />
       <main className="set-pane cs-pane" key={`${shown.screen}/${shown.slug ?? ""}`}>
-        <Screen address={shown} me={me.data} flash={flash} />
+        <Screen address={shown} pathname={pathname} me={me.data} flash={flash} />
       </main>
       <FindSheet open={finding} onClose={() => setFinding(false)} go={go} />
       {toastNode}

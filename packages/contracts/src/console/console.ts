@@ -83,6 +83,7 @@ export const CONSOLE_ACTS = {
   ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
   ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
   ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES },
+  delivery_redrive: { words: "Deliver a subscriber's failures again", roles: SUPPORT_ROLES },
 } as const satisfies Record<string, ActRule>;
 export type ConsoleAct = keyof typeof CONSOLE_ACTS;
 export const CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS) as ConsoleAct[];

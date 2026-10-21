@@ -4,8 +4,8 @@ var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var JITTER_SPREAD = 0.2;
-function jittered(ms2, random = Math.random) {
-  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+function jittered(ms3, random = Math.random) {
+  return Math.round(ms3 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
 }
 function formatterOnUse(locales, options) {
   let built = null;
@@ -39,11 +39,11 @@ function numberFormat(locales, options) {
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 function isoMs(iso) {
   if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? null : ms2;
+  const ms3 = Date.parse(iso);
+  return Number.isNaN(ms3) ? null : ms3;
 }
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
+function spanUnits(ms3) {
+  const gap = Math.max(0, ms3);
   if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
   const minutes = Math.round(gap / MIN_MS);
   if (minutes < 60) return { n: minutes, unit: "m" };
@@ -51,12 +51,12 @@ function spanUnits(ms2) {
   if (hours < 24) return { n: hours, unit: "h" };
   return { n: Math.round(gap / DAY_MS), unit: "d" };
 }
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
+function spanLabel(ms3) {
+  const u = spanUnits(ms3);
   return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
 }
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
+function waitedLabel(ms3) {
+  const u = spanUnits(ms3);
   return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
 }
 function agoShort(atMs, nowMs) {
@@ -1737,15 +1737,15 @@ function zonedInputValue(atMs, tz) {
 function fromZonedInput(value, tz) {
   const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::[0-9]{2})?$/.exec(String(value ?? "").trim());
   if (!m) return null;
-  const ms2 = localToUtcMs(formatsFor(tz).zone, Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
-  return Number.isFinite(ms2) ? ms2 : null;
+  const ms3 = localToUtcMs(formatsFor(tz).zone, Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
+  return Number.isFinite(ms3) ? ms3 : null;
 }
-function mmss(ms2) {
-  const total = Number.isFinite(ms2) ? Math.max(0, Math.round(ms2 / 1e3)) : 0;
+function mmss(ms3) {
+  const total = Number.isFinite(ms3) ? Math.max(0, Math.round(ms3 / 1e3)) : 0;
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
-function callLength(ms2) {
-  return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
+function callLength(ms3) {
+  return ms3 != null && Number.isFinite(ms3) && ms3 > 0 ? mmss(ms3) : void 0;
 }
 function durationWords(seconds2) {
   const v = Math.max(0, Math.round(seconds2));
@@ -2028,12 +2028,12 @@ function viewState(ad, today) {
 }
 var plainSpaces = (text) => text.replace(/\s/g, " ");
 function timeOf(iso, timezone) {
-  const ms2 = isoMs(iso);
-  return ms2 === null ? "" : plainSpaces(clockTime(ms2, timezone));
+  const ms3 = isoMs(iso);
+  return ms3 === null ? "" : plainSpaces(clockTime(ms3, timezone));
 }
 function dayOfIso(iso, timezone) {
-  const ms2 = isoMs(iso);
-  return ms2 === null ? "" : zoneDayKey(ms2, timezone);
+  const ms3 = isoMs(iso);
+  return ms3 === null ? "" : zoneDayKey(ms3, timezone);
 }
 var readTime = (read) => timeOf(read.readAt, read.timezone);
 var adPersonWho = (name) => ({
@@ -3175,8 +3175,8 @@ function localMs(tz, v) {
   if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
   const day = new Date(Date.UTC(y, mo - 1, d));
   if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
-  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
-  return Number.isFinite(ms2) ? ms2 : null;
+  const ms3 = localToUtcMs(tz, y, mo, d, hh, mm);
+  return Number.isFinite(ms3) ? ms3 : null;
 }
 function trimmedText(v, max) {
   if (typeof v !== "string") return null;
@@ -4111,8 +4111,8 @@ function planBilling(before, sub, nowMs) {
 var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
 function dayWords(iso) {
   if (!iso) return "";
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? "" : DATE_FMT2.format(new Date(ms2));
+  const ms3 = Date.parse(iso);
+  return Number.isNaN(ms3) ? "" : DATE_FMT2.format(new Date(ms3));
 }
 function trialOffer(days, again = false) {
   if (!(days > 0)) {
@@ -8235,8 +8235,8 @@ function heldReplyNotice(n) {
 // src/playbooks/playbook-time.ts
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var SWEEP_TICK_MS = 5 * MIN_MS;
-function sweepTickAtOrAfter(ms2) {
-  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
+function sweepTickAtOrAfter(ms3) {
+  return Math.ceil((ms3 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
 }
 
 // src/playbooks/playbook-triggers.ts
@@ -8374,8 +8374,8 @@ function whenItGoes(receipt, when, nowMs) {
 }
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var SEND_ONCE_STOP_MS = 10 * MIN_MS;
-function delayWords(ms2) {
-  const minutes = Math.round(ms2 / MIN_MS);
+function delayWords(ms3) {
+  const minutes = Math.round(ms3 / MIN_MS);
   if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
@@ -10948,14 +10948,14 @@ function stepDayFor(day) {
 }
 function notNowDayOf(day, today) {
   const soonest = shiftKey(today, NOT_NOW_MIN_DAYS);
-  const latest = shiftKey(today, NOT_NOW_MAX_DAYS);
+  const latest2 = shiftKey(today, NOT_NOW_MAX_DAYS);
   const named = day ?? shiftKey(today, REPLY_NOT_NOW_DAYS);
-  return named < soonest ? soonest : named > latest ? latest : named;
+  return named < soonest ? soonest : named > latest2 ? latest2 : named;
 }
 function backDayOf(day, today, maxDays) {
-  const latest = shiftKey(today, maxDays);
+  const latest2 = shiftKey(today, maxDays);
   const named = day && day >= today ? day : shiftKey(today, REACH_OUT_AWAY_DAYS);
-  return named > latest ? latest : named;
+  return named > latest2 ? latest2 : named;
 }
 function awayUntilOf(day, today, tz) {
   return wallClockAt(tz, shiftKey(backDayOf(day, today, REACH_OUT_AWAY_MAX_DAYS), 1), 0, 0);
@@ -11646,6 +11646,7 @@ var MODEL_CALL_OUTCOMES = [
   "unreachable",
   "unreadable"
 ];
+var AI_USAGE_ERROR_CHARS = 300;
 function aiUsageBodyOf(call) {
   return {
     tenant_id: call.tenantId,
@@ -11660,8 +11661,15 @@ function aiUsageBodyOf(call) {
     usd: usageDollars(call.answered, call.usage),
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
-    subject_id: call.subjectId ?? null
+    subject_id: call.subjectId ?? null,
+    ...call.error ? {
+      error_type: call.error.type.slice(0, 80) || null,
+      error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null
+    } : {}
   };
+}
+function creditRanOut(error) {
+  return !!error && /credit balance/i.test(error.message);
 }
 
 // src/ai/turn.ts
@@ -13759,10 +13767,10 @@ function heldPill(holder, name) {
 }
 function standingOf(i, nowMs) {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const holds = holdWaits(i.open_escalation ? { reason: i.escalation_reason } : false);
-  const flagged = holds || i.state === "needs_human" || paused;
+  const holds2 = holdWaits(i.open_escalation ? { reason: i.escalation_reason } : false);
+  const flagged = holds2 || i.state === "needs_human" || paused;
   const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
-  const mine = !!i.assignee_user_id || paused && !holds;
+  const mine = !!i.assignee_user_id || paused && !holds2;
   const standing2 = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
   return { standing: standing2, flagged, paused, takenOver: standing2 === "yours", claimedByOther: standing2 === "theirs" };
 }
@@ -13806,8 +13814,8 @@ function isUnseen(heardAt2, seen) {
   return (typeof heardAt2 === "number" ? heardAt2 : Date.parse(heardAt2)) > Date.parse(seen.seen_at);
 }
 var msOf = (at3) => {
-  const ms2 = typeof at3 === "number" ? at3 : at3 ? Date.parse(at3) : 0;
-  return Number.isFinite(ms2) ? ms2 : 0;
+  const ms3 = typeof at3 === "number" ? at3 : at3 ? Date.parse(at3) : 0;
+  return Number.isFinite(ms3) ? ms3 : 0;
 };
 function readingOf(heardAt2, seen) {
   return { unseen: isUnseen(heardAt2, seen), heardAtMs: msOf(heardAt2), markAtMs: msOf(seen.marked_at) };
@@ -15794,8 +15802,8 @@ function abandonedCall(dto) {
     return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
   }
   if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;
-  const ms2 = dto.duration_ms;
-  return typeof ms2 === "number" && ms2 > 0 && ms2 < ABANDONED_MS;
+  const ms3 = dto.duration_ms;
+  return typeof ms3 === "number" && ms3 > 0 && ms3 < ABANDONED_MS;
 }
 function neverConnected(dto) {
   return dto.status === "not_connected";
@@ -16004,15 +16012,15 @@ var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS
 
 // src/conversations/thread-clock.ts
 function shortTime(iso, tz, now) {
-  const ms2 = iso ? Date.parse(iso) : Number.NaN;
-  return Number.isFinite(ms2) ? clockShort(ms2, tz, now.getTime()) : "";
+  const ms3 = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms3) ? clockShort(ms3, tz, now.getTime()) : "";
 }
 function bubbleTime(iso, tz, now) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
+  const ms3 = Date.parse(iso);
+  return Number.isFinite(ms3) ? clockStamp(ms3, tz, now.getTime()) : "";
 }
-function formatWaited(ms2) {
-  return waitedLabel(ms2);
+function formatWaited(ms3) {
+  return waitedLabel(ms3);
 }
 
 // src/conversations/call-vm.ts
@@ -16049,9 +16057,9 @@ function transcriptOf(turns) {
     };
   });
 }
-function spokenDuration(ms2) {
-  if (!ms2) return "Duration not recorded";
-  const total = Math.round(ms2 / 1e3);
+function spokenDuration(ms3) {
+  if (!ms3) return "Duration not recorded";
+  const total = Math.round(ms3 / 1e3);
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
@@ -19232,9 +19240,9 @@ function heardWithin(sendsAt, now) {
 }
 function breathTouchOf(times, sendsAt, now) {
   const within2 = heardWithin(sendsAt, now);
-  let latest = null;
-  for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest === null || at3 > latest)) latest = at3;
-  return latest;
+  let latest2 = null;
+  for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest2 === null || at3 > latest2)) latest2 = at3;
+  return latest2;
 }
 function leftOutBy(touches, sendsAt, now) {
   return new Set(
@@ -19376,8 +19384,8 @@ function finishedRunHeldWhy(counted3) {
 // src/people/person-helpers.ts
 var MONTH_MS = 30 * DAY_MS;
 var ts = (iso) => iso ? new Date(iso).getTime() : null;
-function fmtDate(ms2, tz, nowMs) {
-  return clockDate(ms2, tz, nowMs);
+function fmtDate(ms3, tz, nowMs) {
+  return clockDate(ms3, tz, nowMs);
 }
 function replyChannelOfThreads(conversations) {
   let own = null;
@@ -19391,8 +19399,8 @@ function replyChannelOfThreads(conversations) {
       if (isTheirOwnWords(m) && (!own || at3 > own.at)) own = { at: at3, channel: m.channel };
     }
   }
-  const latest = own ?? any2;
-  return latest ? writtenChannelOf(latest.channel) : null;
+  const latest2 = own ?? any2;
+  return latest2 ? writtenChannelOf(latest2.channel) : null;
 }
 function ourWireOfThreads(conversations) {
   let last = null;
@@ -20405,8 +20413,8 @@ function templateSends(src) {
   const went = (name, at3) => {
     const s = out[name] ??= { count: 0, lastAt: null };
     s.count += 1;
-    const ms2 = at3 === null ? NaN : Date.parse(at3);
-    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at3;
+    const ms3 = at3 === null ? NaN : Date.parse(at3);
+    if (Number.isFinite(ms3) && (s.lastAt === null || ms3 > Date.parse(s.lastAt))) s.lastAt = at3;
   };
   for (const r2 of src.recipients) {
     const name = r2.state === "sent" ? nameOf.get(r2.broadcast_id) : void 0;
@@ -20433,7 +20441,7 @@ function templateSentWords(s, tz, nowMs) {
   const at3 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
   return {
     count: s.count.toLocaleString("en-US"),
-    when: Number.isFinite(at3) ? agoWords(at3, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
+    when: Number.isFinite(at3) ? agoWords(at3, nowMs, { date: (ms3) => clockDate(ms3, tz, nowMs) }) : null
   };
 }
 
@@ -20979,8 +20987,8 @@ function runTitleOf(run) {
   return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;
 }
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
+  const ms3 = Date.parse(iso);
+  return Number.isFinite(ms3) ? clockWhen(ms3, tz, now.getTime()) : "";
 }
 function readShare(c) {
   const of = c.sent_by ? c.sent_by.whatsapp : c.sent;
@@ -22172,9 +22180,9 @@ var LIFECYCLE_TOAST = {
 function lifecycleClock(p) {
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
-var stated = (words3, tone, paused = false, short = words3) => ({
+var stated = (words3, tone, paused = false, short2 = words3) => ({
   words: words3,
-  short,
+  short: short2,
   tone,
   paused
 });
@@ -22801,7 +22809,7 @@ function runGoes(pl, data) {
   const asked = Number.isFinite(from) ? from : at3;
   return whenItGoes(
     { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
-    (ms2) => clockWhen(ms2, tz, asked),
+    (ms3) => clockWhen(ms3, tz, asked),
     asked
   );
 }
@@ -25119,8 +25127,8 @@ var listDeleteSpec = {
 };
 
 // src/people/person-row-facts.ts
-function ago(ms2, tz, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
+function ago(ms3, tz, nowMs) {
+  return agoWords(ms3, nowMs, { dateAfterMs: WEEK_MS, date: (at3) => clockDate(at3, tz, nowMs) });
 }
 function theirTurnWords(last) {
   if (last.who !== "they") return null;
@@ -26558,14 +26566,14 @@ function threadWait(t, nowMs) {
   return t.send && replyWaitsOnYou({ endsAtMs: t.send.endsAtMs, held: t.send.held }, nowMs) ? "send" : null;
 }
 function threadWaits(input) {
-  let holds = input.unreadHolds;
+  let holds2 = input.unreadHolds;
   let sends2 = 0;
   for (const t of input.threads) {
     const wait = threadWait(t, input.nowMs);
-    if (wait === "hold") holds += 1;
+    if (wait === "hold") holds2 += 1;
     else if (wait === "send") sends2 += 1;
   }
-  return { holds, sends: sends2 };
+  return { holds: holds2, sends: sends2 };
 }
 function waitsOf(input) {
   return { ...threadWaits(input), runs: runsThatWait(input.runs, input.days).length };
@@ -27060,8 +27068,8 @@ function nextRunWords(c, tz, now) {
 var clock = (iso, tz) => clockTime(Date.parse(iso), tz);
 function firstSendWhen(firstAt, tz, now) {
   if (!firstAt) return null;
-  const ms2 = Date.parse(firstAt);
-  return zoneDayKey(ms2, tz) === zoneDayKey(now, tz) ? clock(firstAt, tz) : clockWhen(ms2, tz, now);
+  const ms3 = Date.parse(firstAt);
+  return zoneDayKey(ms3, tz) === zoneDayKey(now, tz) ? clock(firstAt, tz) : clockWhen(ms3, tz, now);
 }
 function runFromOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
@@ -27394,15 +27402,15 @@ function reachOutRunWordsOf(r2, p) {
     skipped: skippedWordsOf(r2.skipped),
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
     list: checked.map((x) => {
-      const ms2 = Date.parse(x.send_at);
-      const retimed = earlier || Number.isNaN(ms2) || ms2 <= p.now;
+      const ms3 = Date.parse(x.send_at);
+      const retimed = earlier || Number.isNaN(ms3) || ms3 <= p.now;
       return {
         id: x.send_id,
         name: x.business_name,
         // Its lead's id, which the name opens over the page; none from a read before the lead was carried.
         leadId: x.lead_id ?? null,
         // An owner's email is handed to them once checked, at any hour (00429), never re-timed to the lead's.
-        at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms2, p.timezone, p.now),
+        at: owner ? HANDED : retimed ? RETIMED : clockWhen(ms3, p.timezone, p.now),
         // Whether `at` is a time on the clock, which is set in figures; the words that stand for one are not.
         clock: !owner && !retimed
       };
@@ -29814,17 +29822,17 @@ function reachedBefore(e, sends2) {
 }
 var isLaterEvent = (a, b) => a.atMs !== b.atMs ? a.atMs > b.atMs : a.id > b.id;
 function answersToRuns(sends2, events) {
-  const sendsOf = /* @__PURE__ */ new Map();
+  const sendsOf2 = /* @__PURE__ */ new Map();
   for (const s of sends2) {
     if (!s.live) continue;
-    const had = sendsOf.get(s.contactId);
+    const had = sendsOf2.get(s.contactId);
     if (had) had.push(s);
-    else sendsOf.set(s.contactId, [s]);
+    else sendsOf2.set(s.contactId, [s]);
   }
   const standing2 = /* @__PURE__ */ new Map();
   for (const raw of events) {
     const e = countedOf2(raw);
-    const theirs3 = e ? sendsOf.get(e.contactId) : void 0;
+    const theirs3 = e ? sendsOf2.get(e.contactId) : void 0;
     if (!e || !theirs3) continue;
     const exact = e.key !== null;
     for (const s of e.key ? namedBy(e.key, theirs3) : reachedBefore(e, theirs3)) {
@@ -30248,8 +30256,8 @@ function instantsOf(lines, fallbackTz) {
   for (const e of lines) {
     for (const v of e.value.split(",")) {
       if (v.includes("/")) continue;
-      const ms2 = toMs(v, e.params, fallbackTz);
-      if (ms2 !== null) out.push(ms2);
+      const ms3 = toMs(v, e.params, fallbackTz);
+      if (ms3 !== null) out.push(ms3);
     }
   }
   return out;
@@ -30303,14 +30311,14 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const rid = r2.props["RECURRENCE-ID"];
     const uid = r2.props.UID?.value.trim();
     if (!rid || !uid) continue;
-    const ms2 = toMs(rid.value, rid.params, fallbackTz);
-    if (ms2 === null) continue;
+    const ms3 = toMs(rid.value, rid.params, fallbackTz);
+    if (ms3 === null) continue;
     let set = overridden.get(uid);
     if (!set) {
       set = /* @__PURE__ */ new Set();
       overridden.set(uid, set);
     }
-    set.add(ms2);
+    set.add(ms3);
   }
   for (const r2 of raws) {
     events++;
@@ -30346,7 +30354,7 @@ function parseIcs(text, fallbackTz, opts = {}) {
     };
     if (p.RRULE && !isOverride && rule2 && local) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
-      for (const ms2 of uid ? overridden.get(uid) ?? [] : []) ex.add(ms2);
+      for (const ms3 of uid ? overridden.get(uid) ?? [] : []) ex.add(ms3);
       const seen = /* @__PURE__ */ new Set();
       const occ = occurrences(local, dur, rule2, ex, horizon);
       for (const o of occ) {
@@ -30355,20 +30363,20 @@ function parseIcs(text, fallbackTz, opts = {}) {
           push(o, o.start);
         }
       }
-      for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
-        if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
-        seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur }, ms2);
+      for (const ms3 of instantsOf(r2.rdates, fallbackTz)) {
+        if (ex.has(ms3) || seen.has(ms3) || ms3 > horizon.to || ms3 + dur < horizon.from) continue;
+        seen.add(ms3);
+        push({ start: ms3, end: ms3 + dur }, ms3);
       }
       recurringExpanded++;
     } else if (!p.RRULE && r2.rdates.length && !isOverride) {
       const ex = new Set(instantsOf(r2.exdates, fallbackTz));
       const seen = /* @__PURE__ */ new Set([start]);
       push({ start, end }, start);
-      for (const ms2 of instantsOf(r2.rdates, fallbackTz)) {
-        if (ex.has(ms2) || seen.has(ms2) || ms2 > horizon.to || ms2 + dur < horizon.from) continue;
-        seen.add(ms2);
-        push({ start: ms2, end: ms2 + dur }, ms2);
+      for (const ms3 of instantsOf(r2.rdates, fallbackTz)) {
+        if (ex.has(ms3) || seen.has(ms3) || ms3 > horizon.to || ms3 + dur < horizon.from) continue;
+        seen.add(ms3);
+        push({ start: ms3, end: ms3 + dur }, ms3);
       }
       recurringExpanded++;
     } else {
@@ -30529,8 +30537,8 @@ function wholeDaysSince(atMs, nowMs) {
 }
 function dealSinceMs(d) {
   const at3 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at3 ? Date.parse(at3) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
+  const ms3 = at3 ? Date.parse(at3) : NaN;
+  return Number.isFinite(ms3) ? ms3 : null;
 }
 function validUntilOf(day, tz, nowMs) {
   if (!day || !isRealDate(day)) return null;
@@ -31144,15 +31152,15 @@ function visitTitleWithout(title, names3) {
 }
 
 // src/calendar/calendar.ts
-function hoursOf2(tz, ms2) {
-  const c = clockInZone(tz, ms2);
+function hoursOf2(tz, ms3) {
+  const c = clockInZone(tz, ms3);
   return c.hh + c.mm / 60;
 }
 function nextOpenWords(startIso, tz, todayKey) {
-  const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
-  if (!Number.isFinite(ms2)) return "\u2014";
-  const day = dayInZone(tz, ms2);
-  const clock3 = clockLabel(hoursOf2(tz, ms2));
+  const ms3 = startIso ? Date.parse(startIso) : Number.NaN;
+  if (!Number.isFinite(ms3)) return "\u2014";
+  const day = dayInZone(tz, ms3);
+  const clock3 = clockLabel(hoursOf2(tz, ms3));
   if (day.key === todayKey) return `today ${clock3}`;
   if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock3}`;
   if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock3}`;
@@ -32256,8 +32264,8 @@ var CALENDAR_RUN_SHEET_WORDS = {
   schedule: "Schedule a message"
 };
 var RUN_WORDS = CALENDAR_RUN_SHEET_WORDS;
-function hoursIn(tz, ms2) {
-  const c = clockInZone(tz, ms2);
+function hoursIn(tz, ms3) {
+  const c = clockInZone(tz, ms3);
   return c.hh + c.mm / 60;
 }
 var placedAt = (r2) => Date.parse(r2.finished_at ?? r2.started_at ?? r2.scheduled_for);
@@ -33663,9 +33671,9 @@ var TRY_IT_WORDS = {
 };
 var SPEND_TRY = { before: "trying your receptionist", can: "try your receptionist" };
 var SECOND_MS = MIN_MS / 60;
-var tryHoldWords = (ms2) => {
-  if (ms2 >= MIN_MS) return delayWords(ms2);
-  const s = Math.max(1, Math.round(ms2 / SECOND_MS));
+var tryHoldWords = (ms3) => {
+  if (ms3 >= MIN_MS) return delayWords(ms3);
+  const s = Math.max(1, Math.round(ms3 / SECOND_MS));
   return `${s} second${s === 1 ? "" : "s"}`;
 };
 function yoursBecause(then) {
@@ -34016,9 +34024,9 @@ function reviewDraftsBell(drafted2, tz) {
       body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`
     };
   }
-  const holds = drafted2.some((r2) => r2.posts_at);
+  const holds2 = drafted2.some((r2) => r2.posts_at);
   return {
-    title: `${drafted2.length} replies to reviews ${holds ? "post unless you stop them" : "wait for your OK"}`,
+    title: `${drafted2.length} replies to reviews ${holds2 ? "post unless you stop them" : "wait for your OK"}`,
     body: "Each is on Reports, under its review."
   };
 }
@@ -34230,7 +34238,7 @@ function ratingCompareWords(rating, before, rangeLabel) {
 function whenWords(iso, tz, nowMs) {
   const at3 = isoMs(iso);
   if (at3 === null) return "";
-  return agoWords(at3, nowMs, { dateAfterMs: WEEK_MS, date: (ms2) => clockDate(ms2, tz, nowMs) });
+  return agoWords(at3, nowMs, { dateAfterMs: WEEK_MS, date: (ms3) => clockDate(ms3, tz, nowMs) });
 }
 function reviewIsNew(r2, linkedAt, nowMs) {
   const seen = isoMs(r2.first_seen_at);
@@ -34337,8 +34345,8 @@ function toGoogleVM(dto, period, nowMs, tz) {
       table: googleReviewsTable([]),
       todayLine: null
     };
-  const latest = [...dto.reviews].sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, tz, nowMs));
-  const source = reviewsFromProfile(c) ? "every review, from your Business Profile" : `the ${latest.length === 1 ? "one" : latest.length} Google shows first`;
+  const latest2 = [...dto.reviews].sort((a, b) => (isoMs(b.published_at) ?? 0) - (isoMs(a.published_at) ?? 0)).map((r2) => toGoogleReviewVM(r2, l.linked_at, tz, nowMs));
+  const source = reviewsFromProfile(c) ? "every review, from your Business Profile" : `the ${latest2.length === 1 ? "one" : latest2.length} Google shows first`;
   const days = dto.days.filter((d) => until === null || d.day <= until).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
   const { current, previous } = gainedOver(days, periodDays);
   const gained = {
@@ -34357,7 +34365,7 @@ function toGoogleVM(dto, period, nowMs, tz) {
   })();
   const rangeLabel = rangeLabelOf(periodDays);
   const ratingCompare = typeof l.rating === "number" && typeof baselineRating === "number" ? ratingCompareWords(l.rating, baselineRating, rangeLabel) : null;
-  const newest = latest[0] ?? null;
+  const newest = latest2[0] ?? null;
   const checked = checkedWords(l, nowMs);
   const tiles = [
     {
@@ -34402,7 +34410,7 @@ function toGoogleVM(dto, period, nowMs, tz) {
       compare: null
     }
   ];
-  const news = latest.find((r2) => r2.isNew && !r2.replied) ?? null;
+  const news = latest2.find((r2) => r2.isNew && !r2.replied) ?? null;
   const todayLine = news ? {
     text: `${NEW_REVIEW_NEWS} ${news.stars} from ${news.author}${news.text ? ` \u2014 \u201C${reviewSnippet(news.text)}\u201D` : ""}`,
     to: reviewRoute(news.id),
@@ -34423,9 +34431,9 @@ function toGoogleVM(dto, period, nowMs, tz) {
     reply,
     tiles,
     gained,
-    latest,
+    latest: latest2,
     source,
-    table: googleReviewsTable(latest),
+    table: googleReviewsTable(latest2),
     todayLine
   };
 }
@@ -34509,8 +34517,8 @@ var LOOK_THEME_INK = {
   glass: { light: "#1b1c20", dark: "#f4f4f6" }
 };
 var THEME_INK = LOOK_THEME_INK[DEFAULT_LOOK_PREF];
-function themeColorOf(theme, look = DEFAULT_LOOK_PREF) {
-  return LOOK_THEME_COLORS[lookPrefOf(look)][theme === "light" ? "light" : "dark"];
+function themeColorOf(theme, look2 = DEFAULT_LOOK_PREF) {
+  return LOOK_THEME_COLORS[lookPrefOf(look2)][theme === "light" ? "light" : "dark"];
 }
 var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
@@ -34695,7 +34703,7 @@ function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
   const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
-  const ms2 = Math.min(
+  const ms3 = Math.min(
     TOAST_MAX_MS,
     Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])))
   );
@@ -34703,7 +34711,7 @@ function toastShape(p) {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
     role: tone === "danger" ? "alert" : "status",
-    ms: ms2,
+    ms: ms3,
     // Only an Undo is worth keeping through a tap besides: a toast that stays with nothing to press is one in the way.
     stays: p.stays === true && !!p.undo
   };
@@ -35120,8 +35128,8 @@ var PLATFORM_NEW_DAYS = 1;
 var PLATFORM_QUIET_DAYS = 14;
 var at = (iso) => {
   if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? ms2 : null;
+  const ms3 = Date.parse(iso);
+  return Number.isFinite(ms3) ? ms3 : null;
 };
 var OURS_TO_FIX = ["failed"];
 var THEIRS_TO_FIX = ["needs_record", "otp_waiting", "rejected"];
@@ -35367,7 +35375,8 @@ var CONSOLE_ACTS = {
   report_moved: { words: "Move a report between Support and Health", roles: SUPPORT_ROLES },
   ask_answered: { words: "Mark a setup ask answered", roles: SUPPORT_ROLES },
   ask_done: { words: "Mark a setup ask done", roles: SUPPORT_ROLES },
-  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES }
+  ask_reopened: { words: "Open a setup ask again", roles: SUPPORT_ROLES },
+  delivery_redrive: { words: "Deliver a subscriber's failures again", roles: SUPPORT_ROLES }
 };
 var CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS);
 var LINE_ACTS = {
@@ -35726,8 +35735,8 @@ function requestsInOrder(rows2, nowMs, tz) {
   return [...open, ...closed].map((r2) => privacyRequestOf(r2, nowMs, tz));
 }
 function requestDayWords(iso, tz) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockDateYear(ms2, tz) : "";
+  const ms3 = Date.parse(iso);
+  return Number.isFinite(ms3) ? clockDateYear(ms3, tz) : "";
 }
 function requestHasStep(kind, step2) {
   return REQUEST_STEPS[kind].includes(step2);
@@ -36166,7 +36175,7 @@ function whoLine(who, email) {
 var roleWords = (role) => ROLES.includes(role) ? ROLE_SAYS[role].label : void 0;
 var firstName2 = (name) => (name ?? "").trim().split(/\s+/)[0] || null;
 function sentWords(atMs, nowMs, zone, theirs3) {
-  const ago3 = agoWords(atMs, nowMs, { date: (ms2) => clockDate(ms2, zone, nowMs) });
+  const ago3 = agoWords(atMs, nowMs, { date: (ms3) => clockDate(ms3, zone, nowMs) });
   const yours = `${clockTime(atMs, zone)} yours`;
   if (!theirs3 || theirs3 === zone) return `${ago3} \xB7 ${clockTime(atMs, zone)}`;
   return `${ago3} \xB7 ${yours} \xB7 ${clockTime(atMs, theirs3)} in ${timezoneCity(theirs3)}`;
@@ -36280,7 +36289,7 @@ function supportQueueOf(book, p) {
 function settledWait(r2, p) {
   const at3 = r2.answeredAtMs;
   return {
-    words: at3 ? `answered ${agoWords(at3, p.nowMs, { date: (ms2) => clockDate(ms2, p.zone, p.nowMs) })}` : "",
+    words: at3 ? `answered ${agoWords(at3, p.nowMs, { date: (ms3) => clockDate(ms3, p.zone, p.nowMs) })}` : "",
     tone: null,
     part: null
   };
@@ -36371,6 +36380,1584 @@ function supportQuietWords(rows2, nowMs) {
 function supportWorkspaceOf(tenants, tenantId, nowMs) {
   const row2 = tenants.find((t) => t.tenant_id === tenantId);
   return row2 ? platformRows([row2], nowMs)[0] ?? null : null;
+}
+
+// src/console/health-scope.ts
+var HEALTH_SCOPES = ["customers", "ours", "all"];
+var HEALTH_SCOPE_WORDS = { customers: "Customers", ours: "Ours", all: "All" };
+function inScope(ours, scope) {
+  return scope === "all" || scope === "ours" === ours;
+}
+function oursOf(workspaces) {
+  return new Set((workspaces ?? []).filter((w) => w.ours).map((w) => w.id));
+}
+function workspaceNamer(workspaces) {
+  const by = new Map((workspaces ?? []).map((w) => [w.id, w.name]));
+  return (id) => id ? by.get(id) ?? "A workspace since deleted" : "Every workspace";
+}
+
+// src/shell/vitals.ts
+import * as z12 from "zod/mini";
+
+// src/shell/vitals-pages.ts
+var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
+var PAGE_SPEED = ["READY", "SETTLED"];
+var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
+var PAGE_DEVICES = ["desk", "phone"];
+var PAGE_PHONE_QUERY = "(max-width: 900px)";
+var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+var PAGE_VITALS_PER_BEACON = 100;
+var PEOPLE_SCOPES = [
+  [/^leads(:|$)/, "leads"],
+  [/^pipeline(:|$)/, "pipeline"],
+  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/|$)/i, "person"]
+];
+function vitalsPageOf(route) {
+  const path = (route ?? "").split("?")[0] ?? "";
+  const at3 = path.indexOf("/");
+  const head = at3 < 0 ? path : path.slice(0, at3);
+  const rest = at3 < 0 ? "" : path.slice(at3 + 1);
+  if (head === "") return "today";
+  if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
+  const word = ROUTE_WORDS[head] ?? head;
+  return PAGE_NAME.test(word) ? word : "other";
+}
+var PRIMARY_PART = {
+  today: "queue",
+  inbox: "list",
+  conversations: "list",
+  live: "list",
+  people: "table",
+  leads: "table",
+  pipeline: "board",
+  person: "hero",
+  calendar: "board",
+  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
+  campaigns: "list",
+  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
+  templates: "list"
+};
+
+// src/shell/vitals.ts
+var PAGE_VITAL_BANDS = {
+  LCP: [2500, 4e3],
+  INP: [200, 500],
+  CLS: [0.1, 0.25],
+  FCP: [1800, 3e3],
+  TTFB: [800, 1800]
+};
+var PAGE_VITAL_WORDS = {
+  LCP: "Drawn",
+  INP: "Answers a tap",
+  CLS: "Holds still",
+  FCP: "First paint",
+  TTFB: "First byte"
+};
+var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
+var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
+var VITAL_CEILING = 10 * MIN_MS;
+var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
+var detailWord = () => z12.optional(z12.string().check(z12.regex(DETAIL_WORD)));
+var detailMs = () => z12.optional(z12.number().check(z12.minimum(0), z12.maximum(VITAL_CEILING)));
+var PageVitalDetail = z12.object({
+  wait: detailWord(),
+  wait_ms: detailMs(),
+  server_ms: detailMs(),
+  db_ms: detailMs(),
+  db_n: z12.optional(z12.int().check(z12.minimum(0), z12.maximum(1e4))),
+  chunk_ms: detailMs(),
+  render_ms: detailMs(),
+  el: detailWord(),
+  type: z12.optional(z12.enum(["pointer", "keyboard"])),
+  input_ms: detailMs(),
+  processing_ms: detailMs(),
+  presentation_ms: detailMs(),
+  script_ms: detailMs(),
+  ttfb_ms: detailMs(),
+  load_delay_ms: detailMs(),
+  load_ms: detailMs(),
+  render_delay_ms: detailMs(),
+  shift: z12.optional(z12.number().check(z12.minimum(0), z12.maximum(100))),
+  state: z12.optional(z12.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  phase: detailWord()
+});
+var PageVitalReport = z12.object({
+  id: z12.string().check(z12.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z12.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z12.number().check(z12.minimum(0), z12.maximum(VITAL_CEILING)),
+  page: z12.optional(z12.string().check(z12.regex(PAGE_NAME))),
+  part: z12.optional(z12.string().check(z12.regex(PAGE_NAME))),
+  from: z12.optional(z12.string().check(z12.regex(PAGE_NAME))),
+  warm: z12.optional(z12.boolean()),
+  detail: z12.optional(PageVitalDetail)
+});
+var PAGE_VITALS_READ = { days: 7, most: 25e3 };
+var PAGE_VITALS_MIN_LOADS = 20;
+var PAGES_SHOWN = 8;
+var VERDICT_TONES = { good: "ok", "needs work": "warn", poor: "danger" };
+function isVital(m) {
+  return PAGE_VITALS.includes(m);
+}
+function loadsWords(n) {
+  return `${n.toLocaleString("en-US")} load${n === 1 ? "" : "s"}`;
+}
+function vitalValueWords(metric, value) {
+  if (metric === "CLS") return value.toFixed(2);
+  if (value < 1e3) return `${Math.round(value)} ms`;
+  return `${(value / 1e3).toFixed(1)} s`;
+}
+function vitalVerdict(metric, p75) {
+  const [good, poor] = PAGE_VITAL_BANDS[metric];
+  if (p75 <= good) return "good";
+  return p75 <= poor ? "needs work" : "poor";
+}
+function vitalLinesOf(overall) {
+  return PAGE_VITALS.flatMap((metric) => {
+    const r2 = overall.get(metric);
+    if (!r2) return [];
+    const verdict = vitalVerdict(metric, r2.p75);
+    const value = vitalValueWords(metric, r2.p75);
+    const counted3 = `${loadsWords(r2.samples)}${metric === "INP" ? " with a tap" : ""}`;
+    return [
+      {
+        metric,
+        label: `${PAGE_VITAL_WORDS[metric]} (${metric})`,
+        value,
+        verdict,
+        tone: VERDICT_TONES[verdict],
+        samples: r2.samples,
+        hint: `${value} \xB7 ${verdict} \xB7 ${counted3}`
+      }
+    ];
+  });
+}
+function sentenceOf(overall) {
+  const loads = Math.max(...[...overall.values()].map((r2) => r2.samples));
+  const counted3 = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
+  const drawn = overall.get("LCP");
+  const tap = overall.get("INP");
+  const said = [
+    drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
+    tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null
+  ].filter(Boolean);
+  return said.length ? `Of ${counted3}, three in four ${said.join(" and ")}.` : `${counted3}; none has drawn its page yet.`;
+}
+function pagesOf(rows2) {
+  const byPage = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    if (r2.page === null || r2.metric !== "LCP" && r2.metric !== "INP") continue;
+    const held = byPage.get(r2.page) ?? {};
+    if (r2.metric === "LCP") held.drawn = r2;
+    else held.tap = r2;
+    byPage.set(r2.page, held);
+  }
+  return [...byPage.entries()].flatMap(
+    ([page2, h]) => h.drawn && h.drawn.samples >= PAGE_VITALS_MIN_LOADS ? [{ page: page2, ...h, drawn: h.drawn }] : []
+  ).sort((a, b) => b.drawn.p75 - a.drawn.p75 || a.page.localeCompare(b.page)).slice(0, PAGES_SHOWN).map((p) => {
+    const drawn = vitalValueWords("LCP", p.drawn.p75);
+    const tap = p.tap ? vitalValueWords("INP", p.tap.p75) : null;
+    const said = `Drawn within ${drawn}${tap ? `, a tap answered within ${tap}` : ""}`;
+    return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} \xB7 ${loadsWords(p.drawn.samples)}` };
+  });
+}
+function pageVitalsWords(rows2) {
+  if (rows2 === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
+  const overall = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
+  if (overall.size === 0) {
+    return {
+      sentence: `No page has sent its timings in the last ${PAGE_VITALS_READ.days} days.`,
+      lines: [],
+      pages: []
+    };
+  }
+  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows2) };
+}
+
+// src/console/health-clocks.ts
+var SWEEP_WORDS = {
+  calendar: "Calendars read for the people booked",
+  calls: "Calls reconciled",
+  channel_quality: "WhatsApp's quality read",
+  deadman: "Replies that went quiet",
+  google: "Google listings read",
+  health: "The health check",
+  jobs: "The job runner",
+  leads: "The lead finder",
+  lines: "Phone lines checked",
+  mailboxes: "Connected mailboxes read",
+  notes: "Notes suggested from calls",
+  partitions: "The events' months made ahead",
+  partners: "Partners' earnings counted",
+  pauses: "Paused threads released",
+  platform_metrics_roll: "The day's numbers counted",
+  playbooks: "Sequences' clock",
+  purge_ask: "Old Ask threads removed",
+  purge_client_errors: "Old browser errors removed",
+  purge_config_versions: "Old settings versions removed",
+  purge_cron_history: "Old clock history removed",
+  purge_events: "Old evidence removed",
+  purge_google_reviews: "Old Google reviews removed",
+  purge_idempotency_keys: "Old repeat guards removed",
+  purge_invitations: "Closed invitations removed",
+  purge_jobs: "Finished jobs removed",
+  purge_leads: "Untouched leads removed",
+  purge_model_turns: "Old receptionist turns removed",
+  purge_notifications: "Old alerts removed",
+  purge_page_vitals: "Old page timings removed",
+  purge_provider_events: "Old provider deliveries removed",
+  purge_rate_hits: "Old rate counts removed",
+  reach_out: "Reach-outs sent on time",
+  reach_out_check: "Reach-outs checked before they go",
+  registration: "Texting registrations followed",
+  snoozes: "Snoozed threads woken",
+  sweep_voice_sessions: "Ended voice sessions removed"
+};
+var ASKS_ONLY_WITH_WORK = {
+  calls: "asks the edge only while a call has run past five minutes"
+};
+function scheduleWords(schedule) {
+  if (!schedule) return "";
+  if (/seconds?$/.test(schedule)) return `every ${schedule}`;
+  const parts2 = schedule.trim().split(/\s+/);
+  if (parts2.length !== 5) return schedule;
+  const [min, hour, dom] = parts2;
+  if (min === "*" && hour === "*") return "every minute";
+  const every = /^(?:\d+-\d+)?\*?\/(\d+)$/.exec(min ?? "");
+  if (every && hour === "*") return `every ${every[1]} min`;
+  if (dom && dom !== "*") return `the ${dom}${dom === "1" ? "st" : dom === "2" ? "nd" : dom === "3" ? "rd" : "th"}`;
+  if (hour === "*" && min)
+    return min.split(",").map((m) => `:${m.padStart(2, "0")}`).join(" and ");
+  const every6 = /^\*\/(\d+)$/.exec(hour ?? "");
+  if (every6) return `every ${every6[1]} h`;
+  if (/^\d+$/.test(hour ?? "") && /^\d+$/.test(min ?? ""))
+    return `daily ${hour?.padStart(2, "0")}:${min?.padStart(2, "0")}`;
+  return schedule;
+}
+var CLOCK_STATE_WORDS = {
+  running: { label: "Running", tone: "ok" },
+  stopped: { label: "Not running", tone: "danger" },
+  idle: { label: "Idle", tone: "plain" },
+  unknown: { label: "Unread", tone: "plain" }
+};
+function clocksOf(rows2) {
+  const vms = (rows2 ?? []).map((c) => {
+    const asks = c.judged_by === "request";
+    const lastIso = asks ? c.last_request_at : c.last_run ?? c.last_request_at;
+    const lastMs = lastIso ? Date.parse(lastIso) : null;
+    const idleNote = ASKS_ONLY_WITH_WORK[c.sweep] ?? null;
+    const state = c.healthy === null ? "unknown" : !c.healthy ? "stopped" : asks && !c.last_request_at && (idleNote || !c.max_silence) ? "idle" : "running";
+    return {
+      sweep: c.sweep,
+      words: SWEEP_WORDS[c.sweep] ?? c.sweep.replace(/_/g, " "),
+      machine: c.jobname ?? c.sweep,
+      schedule: scheduleWords(c.schedule),
+      state,
+      stateWords: CLOCK_STATE_WORDS[state],
+      lastMs: lastMs !== null && Number.isFinite(lastMs) ? lastMs : null,
+      judged: asks ? c.max_silence ? `its asks, ${silenceWords(c.max_silence)}` : "its asks" : `its runs, ${silenceWords(c.max_silence)}`,
+      runs: c.runs,
+      failed: c.failed,
+      problem: !c.healthy && c.healthy !== null ? c.detail || "It has not reported in time." : c.failed ? c.last_failure : null,
+      note: state === "idle" ? idleNote ?? "asks only when there is work" : null
+    };
+  });
+  const order = { stopped: 0, unknown: 1, running: 2, idle: 3 };
+  vms.sort((a, b) => order[a.state] - order[b.state] || a.words.localeCompare(b.words));
+  return {
+    rows: vms,
+    runs: vms.reduce((n, c) => n + c.runs, 0),
+    failed: vms.reduce((n, c) => n + c.failed, 0)
+  };
+}
+function silenceWords(interval) {
+  if (!interval) return "";
+  const days = /^(\d+) days?$/.exec(interval);
+  if (days) return `${days[1]} days`;
+  const hms = /^(\d+):(\d+):(\d+)$/.exec(interval);
+  if (!hms) return interval;
+  const h = Number(hms[1]);
+  const m = Number(hms[2]);
+  return h ? m ? `${h} h ${m} min` : `${h} h` : `${m} min`;
+}
+var PAGE_KEY_WORDS = {
+  answer_rate_zero: "A workspace answered nobody",
+  numbers_past_target: "Numbers past a target",
+  jobs_backlog: "Jobs waiting unclaimed",
+  jobs_mass_failure: "Many jobs failing at once",
+  jobs_replies_late: "Replies claimed late",
+  whatsapp_no_receipt: "WhatsApp with no receipts",
+  mail_domain: "The mail domain stopped verifying",
+  campaigns_domain: "The campaigns' mail domain stopped verifying",
+  event_deliver_failed: "A delivery failing",
+  model_failures: "A workspace's model calls failing",
+  model_credit: "The model key's credit ran out",
+  provider_auth: "A provider refusing our credentials",
+  outside: "A check outside the product"
+};
+function pageKeyWords(key) {
+  const [head, rest] = key.split(/:(.*)/s);
+  const words3 = PAGE_KEY_WORDS[head ?? key] ?? key.replace(/_/g, " ");
+  if (!rest) return words3;
+  if (head === "event_deliver_failed") return `${words3}: ${subscriberWords(rest)}`;
+  if (head === "model_failures") return words3;
+  return `${words3}: ${rest.replace(/_/g, " ")}`;
+}
+function subscriberWords(subscriber) {
+  const words3 = {
+    consent_notice: "consent notices",
+    owner_notice: "the owner's notices",
+    visit_notice: "booking notices",
+    reach_out_booked: "reach-outs that booked",
+    audit: "the audit trail"
+  };
+  return words3[subscriber] ?? subscriber.replace(/_/g, " ");
+}
+function pagesOf2(rows2, workspaces, nowMs) {
+  const date = (ms3) => new Date(ms3).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const when = (ms3) => agoWords(ms3, nowMs, { dateAfterMs: DAY_MS, date });
+  const byId2 = new Map((workspaces ?? []).map((w) => [w.id, w]));
+  return {
+    read: rows2 !== null,
+    rows: (rows2 ?? []).map((p) => {
+      const firstMs = Date.parse(p.first_at);
+      const lastMs = Date.parse(p.last_at);
+      const alertedMs = p.alerted_at ? Date.parse(p.alerted_at) : null;
+      const id = /^model_failures:(.+)$/.exec(p.key)?.[1] ?? null;
+      const w = id ? byId2.get(id) : void 0;
+      return {
+        key: p.key,
+        words: pageKeyWords(p.key),
+        count: p.count,
+        firstMs,
+        first: date(firstMs),
+        last: when(lastMs),
+        lastMailed: alertedMs ? when(alertedMs) : null,
+        recent: nowMs - lastMs <= DAY_MS,
+        alertedToday: alertedMs !== null && nowMs - alertedMs <= DAY_MS,
+        where: w ? w.name : "Every workspace",
+        ours: w?.ours ?? false
+      };
+    })
+  };
+}
+var JOB_WORDS = {
+  outbound_send: "A message's send",
+  broadcast_send: "A campaign's run",
+  line_provision: "Setting up a phone line",
+  email_ingest: "Taking in an email",
+  lead_round_start: "Starting a lead search",
+  lead_collect: "A lead search's page",
+  lead_check: "Checking a search's emails",
+  push_send: "An alert to a phone",
+  push_receipts: "Checking a phone was told",
+  reply_read: "Reading a lead's reply",
+  booking_read: "Reading a booking notice",
+  event_deliver: "Passing on a change",
+  inbound_answer: "Answering a text"
+};
+function jobWords(kind) {
+  return JOB_WORDS[kind] ?? kind.replace(/_/g, " ");
+}
+function failureReadingOf(lastError, attempts) {
+  if (!lastError) return null;
+  const sameEveryTry = attempts > 1 ? "It failed the same way on every try, and a" : "A";
+  if (/answered 4\d\d\b|\b4\d\d\b.*(invalid|valid|not found|unauthor|forbidden)/i.test(lastError))
+    return `${sameEveryTry} 4xx from the provider means the request itself is wrong: running it again will likely fail the same way.`;
+  if (/answered 5\d\d\b|timed? ?out|timeout|ECONNRESET|unreachable/i.test(lastError))
+    return "The provider failed or didn't answer in time: running it again once it's back is likely to work.";
+  if (/did not finish|outcome is unknown/i.test(lastError))
+    return "It stopped before it finished, so what it did isn't known: look at what it was doing before running it again.";
+  if (/out of time/i.test(lastError)) return "It ran out of time: running it again at a quieter moment may work.";
+  if (/restricted|not allowed|permission|api key/i.test(lastError))
+    return "The provider refused our key for this: it needs the key's rights fixed, not another try.";
+  return null;
+}
+
+// src/workspace/platform-days.ts
+var PLATFORM_DAYS_READ = { days: 7 };
+var sum2 = (m) => Object.values(m).reduce((a, n) => a + n, 0);
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var FAILURE_WORDS = {
+  refused: "refused",
+  retryable: "not taken",
+  unknown: "may have gone"
+};
+function failuresOf(m) {
+  const n = sum2(m);
+  if (n === 0) return "";
+  const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
+  return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
+}
+var LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
+var seconds = (ms3) => `${(ms3 / 1e3).toFixed(1)} s`;
+function spineLine(r2) {
+  const parts2 = [];
+  const lanes = Object.entries(r2.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
+  const [first, ...rest] = lanes;
+  if (first) {
+    const [lane0, ms0] = first;
+    parts2.push(
+      [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`].concat(rest.map(([lane, ms3]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms3)}`)).join(", ")
+    );
+  }
+  const channels = Object.keys(r2.first_answer_ms).sort();
+  if (channels.length) {
+    const worst = Math.max(...Object.values(r2.first_answer_ms));
+    parts2.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
+  }
+  if (r2.duplicate_sends !== null) parts2.push(plural2(r2.duplicate_sends, "duplicate send", "duplicate sends"));
+  const died = sum2(r2.dead_letters);
+  if (died > 0) {
+    const kinds = Object.entries(r2.dead_letters).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([kind, n]) => `${kind} ${n}`);
+    parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
+  }
+  if (r2.relay_lag_ms !== null) parts2.push(`events relayed within ${seconds(r2.relay_lag_ms)}`);
+  const providers = Object.keys(r2.intake_lag_ms).sort();
+  if (providers.length) {
+    const worst = Math.max(...Object.values(r2.intake_lag_ms));
+    parts2.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
+  }
+  return parts2.join("; ");
+}
+function receptionistLine(r2) {
+  const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
+  if (replies === 0) return "the receptionist did not reply";
+  const parts2 = [
+    `${r2.replies_answered} answered at once`,
+    ...r2.replies_held ? [`${r2.replies_held} held`] : [],
+    ...r2.replies_handed_off ? [`${r2.replies_handed_off} handed over`] : []
+  ];
+  const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
+  return `${parts2.join(", ")}${pace}`;
+}
+function platformDaysWords(rows2) {
+  if (!rows2) return { day: null, sentence: "Could not be read just now.", lines: [] };
+  const day = rows2.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
+  if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
+  const lines = rows2.filter((r2) => r2.day === day).map((r2) => ({
+    tenantId: r2.tenant_id,
+    name: r2.name,
+    day: r2.day,
+    answers: `${r2.asks} asked, ${r2.answered} answered`,
+    receptionist: receptionistLine(r2),
+    failures: failuresOf(r2.provider_failures),
+    spine: spineLine(r2),
+    silent: r2.asks > 0 && r2.answered === 0,
+    tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
+    asks: r2.asks
+  })).sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name)).map(({ asks: _asks, ...line }) => line);
+  const silent = lines.filter((l) => l.silent).length;
+  const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
+  return { day, sentence: sentence2, lines };
+}
+var heldToNothing = (why) => ({ promise: false, why });
+var PLATFORM_NUMBERS = {
+  messages_in: heldToNothing("what customers sent, by channel"),
+  messages_out: heldToNothing("what left, by channel"),
+  asks: heldToNothing("the customers' messages; with answered, the answer rate, whose alarm is answer_rate_zero"),
+  answered: heldToNothing("the customers' messages anyone answered"),
+  replies_answered: heldToNothing("the receptionist's replies sent at once"),
+  replies_held: heldToNothing("the receptionist's replies held for a person: the hold rate, invariant 11's"),
+  replies_handed_off: heldToNothing("the receptionist's replies that handed the thread to a person"),
+  brain_p95_ms: {
+    promise: true,
+    most: 1e4,
+    unit: "ms",
+    alarm: true,
+    why: "the receptionist's model answers within ten seconds, at the 95th percentile"
+  },
+  provider_failures: heldToNothing(
+    "a provider's verdict on a send, by what it came to: a number's, read beside what left"
+  ),
+  tokens: heldToNothing("the model's tokens"),
+  handled: heldToNothing("how the customers' messages ended"),
+  topics: heldToNothing("what the customers asked about"),
+  ai_tokens: heldToNothing("the model's tokens by purpose"),
+  ai_usd: heldToNothing("the model's cost by purpose, at list price"),
+  voice_usd: heldToNothing("the calls' cost"),
+  job_lag_ms: {
+    promise: true,
+    most: { "0": 1e4, "1": 3e4, "2": 5 * MIN_MS },
+    otherwise: 5 * MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile"
+  },
+  first_answer_ms: {
+    promise: true,
+    most: { email: 15 * MIN_MS },
+    otherwise: 3e4,
+    unit: "ms",
+    alarm: false,
+    why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged"
+  },
+  duplicate_sends: {
+    promise: true,
+    most: 0,
+    unit: "count",
+    alarm: true,
+    why: "nobody is sent the same words twice (invariant 4)"
+  },
+  dead_letters: { promise: true, most: {}, otherwise: 0, unit: "count", alarm: true, why: "no job dies" },
+  relay_lag_ms: {
+    promise: true,
+    most: 15e3,
+    unit: "ms",
+    alarm: true,
+    why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile"
+  },
+  intake_lag_ms: {
+    promise: true,
+    most: {},
+    otherwise: MIN_MS,
+    unit: "ms",
+    alarm: true,
+    why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile"
+  }
+};
+function mostFor(t, key) {
+  if (typeof t.most === "number") return t.most;
+  return (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : void 0) ?? t.otherwise ?? Number.POSITIVE_INFINITY;
+}
+function breachesOf(name, t, v) {
+  if (typeof v === "number") {
+    const most = mostFor(t, null);
+    return v > most ? [{ number: name, key: null, value: v, most }] : [];
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
+  return Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).flatMap(([key, x]) => {
+    const most = mostFor(t, key);
+    return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
+  });
+}
+function pastTarget(row2, { all = false } = {}) {
+  const values = row2;
+  return Object.entries(PLATFORM_NUMBERS).flatMap(
+    ([name, n]) => n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : []
+  );
+}
+function figure(name, v) {
+  const n = PLATFORM_NUMBERS[name];
+  return n.promise && n.unit === "ms" ? seconds(v) : String(v);
+}
+function pastTargetPage(day, workspaces) {
+  const lines = workspaces.map(
+    (w) => `  ${w.name} (${w.tenantId}): ` + w.breaches.map(
+      (b) => `${b.number}${b.key === null ? "" : ` ${b.key}`} ${figure(b.number, b.value)}, target ${figure(b.number, b.most)}`
+    ).join("; ")
+  );
+  return {
+    subject: `${plural2(workspaces.length, "workspace", "workspaces")} past a target on ${day}`,
+    body: `On ${day} (UTC) these numbers went past the targets the platform answers for (decision 0031, invariant 12; contracts PLATFORM_NUMBERS):
+
+${lines.join("\n")}
+
+The day's counts are in platform_metrics (the back office's day by workspace).
+`
+  };
+}
+
+// src/console/health-promises.ts
+var PROMISE_WORDS = {
+  brain_p95_ms: { title: "The receptionist answers within 10 s", small: "95th percentile", short: "the receptionist" },
+  job_lag_ms: {
+    title: "A job is claimed on time",
+    small: "a reply 10 s, a waiting person 30 s, bulk 5 min",
+    short: "jobs"
+  },
+  first_answer_ms: {
+    title: "A customer's first answer comes fast",
+    small: "30 s by text, 15 min by email \xB7 shown, not paged",
+    short: "first answer"
+  },
+  duplicate_sends: {
+    title: "Nobody gets the same words twice",
+    small: "sends of one text within a minute",
+    short: "duplicates"
+  },
+  dead_letters: { title: "No job dies", small: "jobs that failed for good", short: "dead jobs" },
+  relay_lag_ms: {
+    title: "An event reaches its deliveries within 15 s",
+    small: "95th percentile",
+    short: "event relay"
+  },
+  intake_lag_ms: {
+    title: "A provider's delivery is kept within a minute",
+    small: "95th percentile",
+    short: "intake"
+  }
+};
+var PROMISES = Object.keys(PROMISE_WORDS);
+var MS_PER_SECOND = 1e3;
+function promiseFigureWords(name, v) {
+  if (PLATFORM_NUMBERS[name].unit === "count") return String(v);
+  if (v >= 2 * HOUR_MS) return `${Math.round(v / HOUR_MS)} h`;
+  if (v >= MIN_MS) return `${(v / MIN_MS).toFixed(1)} min`;
+  return `${(v / MS_PER_SECOND).toFixed(1)} s`;
+}
+function holds(row2, name) {
+  const v = row2[name];
+  if (typeof v === "number") return true;
+  return !!v && typeof v === "object" && Object.keys(v).length > 0;
+}
+function windowDays(rows2, days) {
+  const newest = rows2.reduce((m, r2) => r2.day > m ? r2.day : m, "");
+  if (!newest) return [];
+  const end = Date.parse(`${newest}T00:00:00Z`);
+  return Array.from({ length: days }, (_, i) => new Date(end - (days - 1 - i) * DAY_MS).toISOString().slice(0, 10));
+}
+function promiseDaysOf(rows2, ours, scope, days) {
+  const inView = (rows2 ?? []).filter((r2) => inScope(ours.has(r2.tenant_id), scope));
+  const span2 = windowDays(rows2 ?? [], days);
+  const byDay = /* @__PURE__ */ new Map();
+  for (const r2 of inView) byDay.set(r2.day, [...byDay.get(r2.day) ?? [], r2]);
+  const out = PROMISES.map((name) => {
+    const target = PLATFORM_NUMBERS[name];
+    let worst = null;
+    const missedBy = /* @__PURE__ */ new Set();
+    let lastMissMs = null;
+    const cells2 = span2.map((day) => {
+      const dayRows = byDay.get(day) ?? [];
+      if (!dayRows.some((r2) => holds(r2, name))) return { day, state: "none", words: null };
+      let dayWorst = null;
+      for (const r2 of dayRows)
+        for (const b of pastTarget(r2, { all: true }).filter((x) => x.number === name)) {
+          missedBy.add(r2.name);
+          if (!dayWorst || b.value > dayWorst.v) dayWorst = { v: b.value, most: b.most, key: b.key };
+          if (!worst || b.value > worst.v) worst = { v: b.value, most: b.most, key: b.key, name: r2.name, day };
+        }
+      if (!dayWorst) return { day, state: "kept", words: null };
+      lastMissMs = Date.parse(`${day}T23:59:59Z`);
+      return {
+        day,
+        state: "missed",
+        words: `${dayWorst.key ? `${dayWorst.key} ` : ""}${promiseFigureWords(name, dayWorst.v)}, target ${promiseFigureWords(name, dayWorst.most)}`
+      };
+    });
+    const missedDays = cells2.filter((c) => c.state === "missed").length;
+    const judged2 = cells2.some((c) => c.state !== "none");
+    const w = worst;
+    return {
+      key: name,
+      ...PROMISE_WORDS[name],
+      alarm: target.alarm,
+      state: missedDays ? "missed" : judged2 ? "kept" : "unjudged",
+      missedDays,
+      cells: cells2,
+      last: w ? `${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)}` : judged2 ? "kept" : "not judged",
+      worst: w ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}` : null,
+      lastMissMs,
+      where: [...missedBy].join(", ") || "Every workspace"
+    };
+  });
+  return { days: span2, rows: out };
+}
+
+// src/console/health-parts.ts
+var inScopeRows = (rows2, scope) => (rows2 ?? []).filter((r2) => inScope(r2.ours, scope));
+var latest = (iso) => iso.reduce((m, s) => Math.max(m, Date.parse(s) || 0), 0);
+var SEND_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Texts",
+  email: "Email",
+  voice: "Calls",
+  system: "The system"
+};
+var SEND_CODE_WORDS = {
+  "131026": "Undeliverable: the number can't take WhatsApp messages",
+  "131047": "Over 24 hours since they wrote: only a template may go",
+  "131049": "Held back by Meta to keep engagement healthy",
+  "131050": "They stopped marketing messages",
+  "30003": "The phone is unreachable",
+  "30005": "The number doesn't exist",
+  "30006": "A landline, or a carrier that won't take texts",
+  "30007": "The carrier filtered it",
+  "21610": "They replied STOP"
+};
+var SENDS_TROUBLE_SHARE = 0.05;
+var SENDS_TROUBLE_MIN = 20;
+function sendsOf(parts2, scope) {
+  const rows2 = inScopeRows(parts2?.sends, scope);
+  const errs = inScopeRows(parts2?.send_errors, scope);
+  const codeWords = (code2, title) => SEND_CODE_WORDS[code2] ?? title ?? `code ${code2}`;
+  const channelOf2 = (channel, side) => {
+    const mine = rows2.filter((r2) => r2.channel === channel && (side === null || r2.ours === side));
+    const mineErrs = errs.filter((e) => e.channel === channel && (side === null || e.ours === side));
+    const top = [...mineErrs].sort((a, b) => b.n - a.n)[0];
+    return {
+      channel,
+      words: SEND_CHANNEL_WORDS[channel] ?? channel,
+      total: mine.reduce((n, r2) => n + r2.n, 0),
+      failed: mine.filter((r2) => r2.status === "failed").reduce((n, r2) => n + r2.n, 0),
+      delivered: mine.filter((r2) => r2.status === "delivered" || r2.status === "read").reduce((n, r2) => n + r2.n, 0),
+      topError: top ? `${codeWords(top.code, top.title)} (${top.code})` : null,
+      lastMs: mineErrs.length ? latest(mineErrs.map((e) => e.last_at)) : null,
+      ours: side ?? scope === "ours"
+    };
+  };
+  const channels = [...new Set(rows2.map((r2) => r2.channel))].map((c) => channelOf2(c, null)).sort((a, b) => b.total - a.total);
+  const troubled = [true, false].flatMap(
+    (side) => [...new Set(rows2.filter((r2) => r2.ours === side).map((r2) => r2.channel))].map((c) => channelOf2(c, side)).filter((c) => c.total >= SENDS_TROUBLE_MIN && c.failed / c.total >= SENDS_TROUBLE_SHARE)
+  );
+  return {
+    total: channels.reduce((n, c) => n + c.total, 0),
+    failed: channels.reduce((n, c) => n + c.failed, 0),
+    delivered: channels.reduce((n, c) => n + c.delivered, 0),
+    channels,
+    troubled,
+    errors: errs.map((e) => ({ channel: e.channel, code: e.code, words: codeWords(e.code, e.title), n: e.n })).sort((a, b) => b.n - a.n)
+  };
+}
+var CALL_REASON_WORDS = {
+  user_hangup: "hung up",
+  agent_hangup: "the receptionist ended it",
+  voicemail_reached: "reached voicemail",
+  call_transfer: "passed to a person",
+  dial_no_answer: "nobody answered",
+  dial_busy: "the line was busy",
+  credit_exhausted: "the voice provider's credit ran out",
+  error_unknown: "an error the provider didn't name",
+  inactivity: "went quiet",
+  max_duration_reached: "ran past the longest a call may last",
+  concurrency_limit_reached: "too many calls at once"
+};
+var CALL_TROUBLE = {
+  credit_exhausted: "Top up the voice provider's credit: every call fails until it is.",
+  error_unknown: "The voice provider's log has the call: look it up by its time.",
+  concurrency_limit_reached: "The voice provider's plan takes too few calls at once for this workspace."
+};
+function callsOf2(parts2, scope) {
+  const rows2 = inScopeRows(parts2?.calls, scope);
+  const reasonWords = (r2) => CALL_REASON_WORDS[r2] ?? (r2 ? r2.replace(/_/g, " ") : "no reason given");
+  const byReason = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    const k = r2.reason;
+    const was = byReason.get(k) ?? { n: 0, last: [] };
+    byReason.set(k, { n: was.n + r2.n, last: [...was.last, r2.last_at] });
+  }
+  const troubleRows = (side) => [
+    ...new Set(rows2.filter((r2) => r2.status === "error" && (side === null || r2.ours === side)).map((r2) => r2.reason))
+  ].map((reason) => {
+    const mine = rows2.filter(
+      (r2) => r2.status === "error" && r2.reason === reason && (side === null || r2.ours === side)
+    );
+    return {
+      reason,
+      words: reasonWords(reason),
+      n: mine.reduce((n, r2) => n + r2.n, 0),
+      why: CALL_TROUBLE[reason] ?? "The call failed on the voice provider's side.",
+      lastMs: latest(mine.map((r2) => r2.last_at)),
+      ours: side ?? false
+    };
+  });
+  return {
+    total: rows2.reduce((n, r2) => n + r2.n, 0),
+    connected: rows2.filter((r2) => r2.status === "ended").reduce((n, r2) => n + r2.n, 0),
+    reasons: [...byReason.entries()].map(([reason, v]) => ({ reason, words: reasonWords(reason), n: v.n })).sort((a, b) => b.n - a.n),
+    trouble: troubleRows(null),
+    troubleByScope: [...troubleRows(true), ...troubleRows(false)]
+  };
+}
+var PROVIDER_WORDS = {
+  resend: "Resend",
+  retell: "Retell",
+  twilio: "Twilio",
+  meta: "Meta",
+  stripe: "Stripe",
+  google: "Google",
+  microsoft: "Microsoft"
+};
+function webhooksOf(parts2, scope, _nowMs) {
+  const rows2 = inScopeRows(parts2?.webhooks, scope);
+  const providers = [...new Set(rows2.map((r2) => r2.provider))].map((provider) => {
+    const mine = rows2.filter((r2) => r2.provider === provider);
+    return {
+      provider,
+      words: PROVIDER_WORDS[provider] ?? provider,
+      n: mine.reduce((n, r2) => n + r2.n, 0),
+      unverified: mine.reduce((n, r2) => n + r2.unverified, 0),
+      lastMs: latest(mine.map((r2) => r2.last_at)),
+      doors: [...new Set(mine.map((r2) => r2.door))]
+    };
+  });
+  providers.sort((a, b) => b.n - a.n);
+  return {
+    total: providers.reduce((n, p) => n + p.n, 0),
+    unverified: providers.reduce((n, p) => n + p.unverified, 0),
+    providers,
+    billing: (parts2?.billing ?? []).map((b) => ({ type: b.type, state: b.state, n: b.n }))
+  };
+}
+var PURPOSE_WORDS = {
+  receptionist: "The receptionist",
+  reply_draft: "Reply drafts",
+  ask: "Ask",
+  ask_warm: "Ask, kept warm",
+  lead_json: "The lead finder's reads",
+  template_draft: "Template drafts",
+  review_reply: "Review replies",
+  lead_judge: "The lead finder's judge",
+  note_suggest: "Notes from calls",
+  reach_out_check: "Reach-out checks",
+  reply_read: "Reading leads' replies",
+  booking_read: "Reading booking notices",
+  lead_suggest: "Lead search suggestions"
+};
+function purposeWords(purpose) {
+  return PURPOSE_WORDS[purpose] ?? purpose.replace(/_/g, " ");
+}
+var NO_ANSWER = /* @__PURE__ */ new Set(["rejected", "unreachable"]);
+function failureReasonOf(f) {
+  if (!f.error_type && !f.error_message) return null;
+  return [f.error_type, f.error_message].filter(Boolean).join(": ");
+}
+function modelCallsOf(parts2, scope) {
+  const rows2 = inScopeRows(parts2?.model, scope);
+  const ws = inScopeRows(parts2?.model_by_workspace, scope);
+  const fails = inScopeRows(parts2?.model_failures, scope);
+  const purposes = [...new Set(rows2.map((r2) => r2.purpose))].map((purpose) => {
+    const mine = rows2.filter((r2) => r2.purpose === purpose);
+    return {
+      purpose,
+      words: purposeWords(purpose),
+      n: mine.reduce((n, r2) => n + r2.n, 0),
+      noAnswer: mine.filter((r2) => NO_ANSWER.has(r2.outcome)).reduce((n, r2) => n + r2.n, 0),
+      usd: mine.reduce((n, r2) => n + Number(r2.usd), 0)
+    };
+  });
+  purposes.sort((a, b) => b.usd - a.usd || b.n - a.n);
+  const tenants = [...new Set(ws.map((r2) => r2.tenant_id))].map((tenantId) => {
+    const mine = ws.filter((r2) => r2.tenant_id === tenantId);
+    return {
+      tenantId,
+      ours: mine[0]?.ours ?? false,
+      n: mine.reduce((n, r2) => n + r2.n, 0),
+      usd: mine.reduce((n, r2) => n + Number(r2.usd), 0),
+      askN: mine.filter((r2) => r2.purpose === "ask").reduce((n, r2) => n + r2.n, 0),
+      askUsd: mine.filter((r2) => r2.purpose === "ask").reduce((n, r2) => n + Number(r2.usd), 0)
+    };
+  });
+  tenants.sort((a, b) => b.usd - a.usd);
+  const groups = [true, false].flatMap(
+    (side) => [...new Set(fails.filter((f) => f.ours === side).map((f) => f.purpose))].map((purpose) => {
+      const mine = fails.filter((f) => f.ours === side && f.purpose === purpose);
+      const newest = [...mine].sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+      const reason = newest ? failureReasonOf(newest) : null;
+      return {
+        purpose,
+        words: purposeWords(purpose),
+        ours: side,
+        n: mine.length,
+        lastMs: latest(mine.map((f) => f.at)),
+        reason,
+        credit: mine.some((f) => creditRanOut({ type: f.error_type ?? "", message: f.error_message ?? "" })),
+        where: [...new Set(mine.map((f) => f.tenant_id))]
+      };
+    })
+  );
+  return {
+    total: purposes.reduce((n, p) => n + p.n, 0),
+    usd: purposes.reduce((n, p) => n + p.usd, 0),
+    noAnswer: purposes.reduce((n, p) => n + p.noAnswer, 0),
+    byPurpose: purposes,
+    byWorkspace: tenants,
+    failures: fails.map((f) => ({
+      atMs: Date.parse(f.at),
+      tenantId: f.tenant_id,
+      ours: f.ours,
+      purpose: f.purpose,
+      words: purposeWords(f.purpose),
+      outcome: f.outcome,
+      reason: failureReasonOf(f)
+    })),
+    failureGroups: groups
+  };
+}
+function deliveriesOf(parts2, scope) {
+  const rows2 = inScopeRows(parts2?.deliveries, scope);
+  const fails = inScopeRows(parts2?.delivery_failures, scope);
+  const subs = [...new Set(rows2.map((r2) => r2.subscriber))].map((subscriber) => {
+    const mine = rows2.filter((r2) => r2.subscriber === subscriber);
+    const n = (state) => mine.filter((r2) => r2.state === state).reduce((s, r2) => s + r2.n, 0);
+    return {
+      subscriber,
+      words: subscriberWords(subscriber),
+      done: n("done"),
+      failed: n("failed"),
+      waiting: n("scheduled") + n("paused")
+    };
+  });
+  subs.sort((a, b) => b.failed - a.failed || b.done - a.done);
+  const groups = [true, false].flatMap(
+    (side) => [...new Set(fails.filter((f) => f.ours === side).map((f) => f.subscriber))].map((subscriber) => {
+      const mine = fails.filter((f) => f.ours === side && f.subscriber === subscriber);
+      const newest = [...mine].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0];
+      return {
+        subscriber,
+        words: subscriberWords(subscriber),
+        ours: side,
+        n: rows2.filter((r2) => r2.ours === side && r2.subscriber === subscriber && r2.state === "failed").reduce((s, r2) => s + r2.n, 0) || mine.length,
+        lastMs: latest(mine.map((f) => f.updated_at)),
+        reason: newest?.last_error || "No reason was kept.",
+        where: [...new Set(mine.map((f) => f.tenant_id))]
+      };
+    })
+  );
+  return {
+    total: subs.reduce((n, s) => n + s.done + s.failed + s.waiting, 0),
+    failed: subs.reduce((n, s) => n + s.failed, 0),
+    subscribers: subs,
+    failures: groups
+  };
+}
+var ms2 = (iso) => iso ? Date.parse(iso) || null : null;
+function connectionsOf(parts2) {
+  return [
+    ...(parts2?.lines ?? []).map((l) => ({
+      key: `line:${l.tenant_id}:${l.kind}`,
+      what: l.voice_state === "failed" ? "A phone line's calls failed to set up" : l.whatsapp_state === "failed" ? "A line's WhatsApp failed to connect" : "A phone line reports an error",
+      why: l.error || "The line's own state says it failed.",
+      tenantId: l.tenant_id,
+      ours: l.ours,
+      sinceMs: ms2(l.since)
+    })),
+    ...(parts2?.channels ?? []).map((c) => ({
+      key: `channel:${c.tenant_id}:${c.kind}`,
+      what: `${SEND_CHANNEL_WORDS[c.kind] ?? c.kind} is turned off`,
+      why: "Its routing row is disabled: messages to it reach no workspace.",
+      tenantId: c.tenant_id,
+      ours: c.ours,
+      sinceMs: ms2(c.updated_at)
+    })),
+    ...(parts2?.google ?? []).map((g) => ({
+      key: `google:${g.tenant_id}`,
+      what: "Google Business Profile isn't syncing",
+      why: g.error,
+      tenantId: g.tenant_id,
+      ours: g.ours,
+      sinceMs: ms2(g.last_synced_at)
+    })),
+    ...(parts2?.mailboxes ?? []).map((b) => ({
+      key: `mailbox:${b.tenant_id}:${b.provider}`,
+      what: b.state === "reconnect" ? `A ${b.provider === "google" ? "Gmail" : "Microsoft"} mailbox needs connecting again` : `A mailbox is ${b.state}`,
+      why: b.held_why ? `Held for ${b.held_why}.` : b.error || "Its state says so.",
+      tenantId: b.tenant_id,
+      ours: b.ours,
+      sinceMs: ms2(b.last_error_at)
+    }))
+  ];
+}
+
+// src/console/health-ask.ts
+var ASK_SLOW_P95_MS = 3e4;
+var ASK_TOOL_SLOW_MS = 1e3;
+var TOOL_WORDS = {
+  today: "Today",
+  "people.search": "Finding people",
+  search_people: "Finding people",
+  "people.pipeline": "The pipeline",
+  "inbox.thread": "A conversation",
+  "inbox.search": "Searching the inbox",
+  "calendar.week": "The week's calendar",
+  signals: "What needs you",
+  report: "Reports",
+  guide: "How the app works",
+  "propose_reply.draft": "Drafting a reply",
+  "propose_sequence.batch": "Drafting a sequence"
+};
+function toolWords(name) {
+  return TOOL_WORDS[name] ?? name.replace(/[._]/g, " ");
+}
+var sideOf = (scope) => scope === "all" ? null : scope === "ours";
+var NO_ANSWERS = {
+  ours: null,
+  answers: 0,
+  failed: 0,
+  ungrounded: 0,
+  latency_p50: null,
+  latency_p95: null,
+  latency_max: null
+};
+var NO_TRACES = {
+  ours: null,
+  traced: 0,
+  first_text_p50: null,
+  first_text_p95: null,
+  context_p50: null,
+  context_p95: null,
+  first_byte_p50: null,
+  first_byte_p95: null,
+  rounds_p50: null,
+  rounds_p95: null,
+  tools_p50: null,
+  tools_p95: null,
+  final_p50: null,
+  final_p95: null,
+  one_round: 0,
+  two_rounds: 0,
+  more_rounds: 0,
+  cache_hit: null,
+  fast: 0
+};
+var STAGES = [
+  ["context", "Reading the workspace"],
+  ["first_byte", "Until the model's first byte"],
+  ["rounds", "The model's rounds, all of them"],
+  ["tools", "Tools, all of them"],
+  ["final", "The whole answer"]
+];
+function workspacesOf(parts2, scope, model) {
+  const ws = /* @__PURE__ */ new Map();
+  for (const w of model.byWorkspace)
+    if (w.askN) ws.set(w.tenantId, { tenantId: w.tenantId, ours: w.ours, answers: 0, rounds: w.askN, usd: w.askUsd });
+  for (const r2 of (parts2?.ask_by_workspace ?? []).filter((x) => inScope(x.ours, scope))) {
+    const was = ws.get(r2.tenant_id) ?? { tenantId: r2.tenant_id, ours: r2.ours, answers: 0, rounds: 0, usd: 0 };
+    ws.set(r2.tenant_id, { ...was, answers: r2.answers });
+  }
+  return [...ws.values()].sort((x, y) => y.usd - x.usd || y.answers - x.answers);
+}
+var askUsdOf = (m) => m.byPurpose.filter((p) => p.purpose === "ask").reduce((n, p) => n + p.usd, 0);
+function healthAskOf(parts2, scope) {
+  const side = sideOf(scope);
+  const a = (parts2?.ask ?? []).find((r2) => r2.ours === side) ?? NO_ANSWERS;
+  const t = (parts2?.ask_traced ?? []).find((r2) => r2.ours === side) ?? NO_TRACES;
+  const model = modelCallsOf(parts2, scope);
+  const everyone = modelCallsOf(parts2, "all");
+  const allUsd = askUsdOf(everyone);
+  const oursUsd = everyone.byWorkspace.filter((w) => w.ours).reduce((n, w) => n + w.askUsd, 0);
+  return {
+    answers: a.answers,
+    threads: (parts2?.ask_threads ?? []).filter((r2) => inScope(r2.ours, scope)).reduce((n, r2) => n + r2.n, 0),
+    failed: a.failed,
+    ungrounded: a.ungrounded,
+    latencyP50: a.latency_p50,
+    latencyP95: a.latency_p95,
+    latencyMax: a.latency_max,
+    traced: t.traced,
+    firstTextP50: t.first_text_p50,
+    firstTextP95: t.first_text_p95,
+    stages: STAGES.map(([key, words3]) => ({ key, words: words3, p50: t[`${key}_p50`], p95: t[`${key}_p95`] })),
+    rounds: { one: t.one_round, two: t.two_rounds, more: t.more_rounds },
+    cacheHit: t.cache_hit,
+    fast: t.fast,
+    tools: mergeTools(parts2, scope),
+    failures: (parts2?.ask_failures ?? []).filter((f) => inScope(f.ours, scope)).map((f) => ({ atMs: Date.parse(f.at), tenantId: f.tenant_id, ours: f.ours, said: f.said, failure: f.failure })),
+    apiFailures: model.failures.filter((f) => f.purpose === "ask").map((f) => ({ atMs: f.atMs, tenantId: f.tenantId, ours: f.ours, reason: f.reason })),
+    byWorkspace: workspacesOf(parts2, scope, model),
+    usd: model.byPurpose.some((p) => p.purpose === "ask") ? askUsdOf(model) : null,
+    oursShare: allUsd > 0 ? oursUsd / allUsd : null,
+    slow: a.latency_p95 !== null && a.latency_p95 > ASK_SLOW_P95_MS
+  };
+}
+function mergeTools(parts2, scope) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r2 of (parts2?.ask_tools ?? []).filter((x) => inScope(x.ours, scope))) {
+    const was = by.get(r2.name) ?? { n: 0, total: 0, max: 0 };
+    by.set(r2.name, {
+      n: was.n + r2.n,
+      total: was.total + Number(r2.avg_ms) * r2.n,
+      max: Math.max(was.max, Number(r2.max_ms))
+    });
+  }
+  return [...by.entries()].map(([name, v]) => {
+    const avgMs = v.n ? v.total / v.n : 0;
+    return { name, words: toolWords(name), n: v.n, avgMs, maxMs: v.max, slow: avgMs > ASK_TOOL_SLOW_MS };
+  }).sort((x, y) => y.avgMs - x.avgMs);
+}
+
+// src/console/health.ts
+var HEALTH_WINDOWS = [7, 30];
+var HEALTH_STATE_WORDS = {
+  kept: { label: "Kept", tone: "ok" },
+  look: { label: "A look", tone: "warn" },
+  missed: { label: "Missed", tone: "danger" },
+  unjudged: { label: "Not judged", tone: "plain" },
+  plain: { label: "Spend", tone: "plain" }
+};
+var HEALTH_TABS = ["overview", "promises", "background", "messages", "ask", "model", "speed", "bugs"];
+var HEALTH_TAB_WORDS = {
+  overview: "Overview",
+  promises: "Promises",
+  background: "Background work",
+  messages: "Messages and calls",
+  ask: "Ask",
+  model: "Model calls",
+  speed: "App speed",
+  bugs: "Bugs"
+};
+var HEALTH_PATH = `${CONSOLE_PATH}/health`;
+function healthTabOf(pathname) {
+  const parts2 = ((pathname ?? "").split(/[?#]/)[0] ?? "").split("/").filter(Boolean);
+  const tab = parts2[0] === CONSOLE_PATH.slice(1) && parts2[1] === "health" ? parts2[2] : void 0;
+  return HEALTH_TABS.includes(tab ?? "") ? tab : "overview";
+}
+function healthPathOf(tab) {
+  return tab === "overview" ? HEALTH_PATH : `${HEALTH_PATH}/${tab}`;
+}
+var countPhrase = (n, one, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+function secondsWords(ms3) {
+  if (ms3 === null || ms3 === void 0 || !Number.isFinite(ms3)) return "\u2014";
+  const s = ms3 / 1e3;
+  return `${s >= 100 ? Math.round(s) : s.toFixed(1)} s`;
+}
+function dollarsWords(usd) {
+  return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+var partState = (read, failing, any2) => !read ? "unjudged" : failing ? "look" : any2 ? "kept" : "unjudged";
+function promisesTile(h, scope) {
+  const promises = promiseDaysOf(h.day_rows, oursOf(h.workspaces), scope, h.days);
+  const kept = promises.rows.filter((r2) => r2.state === "kept").length;
+  const missed = promises.rows.filter((r2) => r2.state === "missed");
+  const read = h.day_rows !== null;
+  return {
+    key: "promises",
+    title: "Promises",
+    state: !read ? "unjudged" : missed.length ? "missed" : kept ? "kept" : "unjudged",
+    value: read ? `${kept} of ${promises.rows.length}` : "\u2014",
+    unit: "kept every day",
+    line: !read ? "The nightly counts could not be read just now." : missed.length ? missed.map((r2) => `${r2.short} late ${countPhrase(r2.missedDays, "day")}`).join(" \xB7 ") : "Every promise with a number was kept.",
+    tab: "promises"
+  };
+}
+function backgroundTile(h, scope, nowMs) {
+  const ours = oursOf(h.workspaces);
+  const clocks = clocksOf(h.clocks);
+  const failedJobs = (h.failed_jobs ?? []).filter((j) => inScope(ours.has(j.tenant_id), scope));
+  const weekJobs = failedJobs.filter((j) => Date.parse(j.updated_at) >= nowMs - WEEK_MS).length;
+  const notRunning = clocks.rows.filter((c) => c.state === "stopped").length;
+  const late = h.backlog ?? 0;
+  const state = h.clocks === null || h.backlog === null ? "unjudged" : notRunning || late > 0 ? "missed" : failedJobs.length ? "look" : "kept";
+  return {
+    key: "background",
+    title: "Background work",
+    state,
+    value: h.clocks === null ? "\u2014" : `${clocks.rows.length - notRunning}/${clocks.rows.length}`,
+    unit: "clocks running",
+    line: [
+      h.backlog === null ? "the backlog unread" : late > 0 ? `${countPhrase(late, "job")} late` : "0 jobs late",
+      failedJobs.length ? `${countPhrase(failedJobs.length, "failed job")}${weekJobs ? `, ${weekJobs} this week` : ""}` : null
+    ].filter(Boolean).join(" \xB7 "),
+    tab: "background"
+  };
+}
+function deliveriesTile(h, scope) {
+  const d = deliveriesOf(h.parts, scope);
+  return {
+    key: "deliveries",
+    title: "Deliveries",
+    state: partState(h.parts !== null, d.failed > 0, d.total > 0),
+    value: h.parts === null ? "\u2014" : d.failed.toLocaleString("en-US"),
+    unit: `of ${d.total.toLocaleString("en-US")} failed`,
+    line: d.failed ? d.subscribers.filter((x) => x.failed).map((x) => `${x.words}: ${x.failed}`).join(" \xB7 ") : "Every change reached what reads it.",
+    tab: "background"
+  };
+}
+function sendsTile(h, scope) {
+  const s = sendsOf(h.parts, scope);
+  const failing = s.channels.filter((c) => c.failed).map((c) => `${c.words} ${c.failed} of ${c.total}${c.topError ? `: ${c.topError}` : ""}`).join(" \xB7 ");
+  return {
+    key: "sends",
+    title: "Sends",
+    state: partState(h.parts !== null, s.failed > 0, s.total > 0),
+    value: h.parts === null ? "\u2014" : `${s.failed} of ${s.total.toLocaleString("en-US")}`,
+    unit: "failed",
+    line: !s.channels.length ? "Nothing was sent." : failing || `${s.delivered.toLocaleString("en-US")} confirmed delivered`,
+    tab: "messages"
+  };
+}
+function callsTile2(h, scope) {
+  const c = callsOf2(h.parts, scope);
+  return {
+    key: "calls",
+    title: "Calls",
+    state: partState(h.parts !== null, c.trouble.length > 0, c.total > 0),
+    value: h.parts === null ? "\u2014" : `${c.connected} of ${c.total}`,
+    unit: "connected",
+    line: c.trouble.length ? c.trouble.map((t) => `${t.n} ${t.words}`).join(" \xB7 ") : c.total ? "No call failed on our side." : "No call came in.",
+    tab: "messages"
+  };
+}
+function webhooksTile(h, scope, nowMs) {
+  const w = webhooksOf(h.parts, scope, nowMs);
+  return {
+    key: "webhooks",
+    title: "Webhooks in",
+    state: partState(h.parts !== null, w.unverified > 0, w.total > 0),
+    value: h.parts === null ? "\u2014" : w.total.toLocaleString("en-US"),
+    unit: "this week",
+    line: w.total ? `${w.unverified} unverified \xB7 ${w.providers.map((p) => `${p.words} ${p.n}`).join(", ")}` : "No provider delivered anything this week.",
+    tab: "messages"
+  };
+}
+function askTile(h, scope) {
+  const a = healthAskOf(h.parts, scope);
+  const asked = h.parts !== null && a.answers > 0;
+  return {
+    key: "ask",
+    title: "Ask",
+    state: !asked ? "unjudged" : a.slow ? "missed" : a.failed ? "look" : "kept",
+    value: asked ? secondsWords(a.latencyP95) : "\u2014",
+    unit: `at p95, ${countPhrase(a.answers, "answer")}`,
+    line: !asked ? "Nobody asked Ask anything." : [
+      a.failed ? `${a.failed} failed` : "none failed",
+      a.usd !== null ? dollarsWords(a.usd) : null,
+      a.oursShare !== null && scope !== "customers" ? `ours ${Math.round(a.oursShare * 100)}% of it` : null
+    ].filter(Boolean).join(" \xB7 "),
+    tab: "ask"
+  };
+}
+function healthTilesOf(h, scope, nowMs) {
+  return [
+    promisesTile(h, scope),
+    backgroundTile(h, scope, nowMs),
+    deliveriesTile(h, scope),
+    sendsTile(h, scope),
+    callsTile2(h, scope),
+    webhooksTile(h, scope, nowMs),
+    askTile(h, scope),
+    speedTile(h)
+  ];
+}
+function speedTile(h) {
+  const all = (metric) => (h.vitals ?? []).find((r2) => r2.metric === metric && r2.page === null) ?? null;
+  const lcp = all("LCP");
+  const inp = all("INP");
+  const ttfb = all("TTFB");
+  if (!lcp)
+    return {
+      key: "speed",
+      title: "App speed",
+      state: "unjudged",
+      value: "\u2014",
+      unit: "LCP, p75",
+      line: h.vitals === null ? "The page timings could not be read just now." : "No page sent its timings yet.",
+      tab: "speed"
+    };
+  const verdict = vitalVerdict("LCP", lcp.p75);
+  return {
+    key: "speed",
+    title: "App speed",
+    state: verdict === "good" ? "kept" : verdict === "poor" ? "missed" : "look",
+    value: secondsWords(lcp.p75),
+    unit: "LCP, p75",
+    line: [
+      inp ? `INP ${Math.round(inp.p75)} ms` : null,
+      ttfb ? `TTFB ${Math.round(ttfb.p75)} ms` : null,
+      countPhrase(lcp.samples, "timing")
+    ].filter(Boolean).join(" \xB7 "),
+    tab: "speed"
+  };
+}
+var SEVERITY_RANK = { red: 0, amber: 1, plain: 2 };
+var look = (r2) => ({
+  tenantId: null,
+  detail: null,
+  reading: null,
+  ...r2
+});
+var onlyOne = (ids) => ids.length === 1 ? ids[0] ?? null : null;
+var sideKey = (ours) => ours ? "ours" : "customers";
+function clockLooks({ h, nowMs, sinceWords: sinceWords3 }) {
+  return clocksOf(h.clocks).rows.filter((x) => x.state === "stopped").map(
+    (c) => look({
+      key: `clock:${c.sweep}`,
+      severity: "red",
+      what: `${c.words} isn't running`,
+      why: c.problem ?? "It has not reported in time.",
+      where: "Every workspace",
+      ours: false,
+      sinceMs: c.lastMs ?? nowMs,
+      since: c.lastMs ? sinceWords3(c.lastMs) : "",
+      act: { kind: "open", tab: "background" },
+      detail: c.problem
+    })
+  );
+}
+function backlogLooks({ h, nowMs }) {
+  if (h.backlog === null || h.backlog <= 0) return [];
+  return [
+    look({
+      key: "backlog",
+      severity: "red",
+      what: `${countPhrase(h.backlog, "job")} waiting unclaimed`,
+      why: "Due jobs nobody has claimed for two minutes: the heartbeat is scheduled and not draining.",
+      where: "Every workspace",
+      ours: false,
+      sinceMs: nowMs,
+      since: "now",
+      act: { kind: "open", tab: "background" }
+    })
+  ];
+}
+function promiseLooks({ h, scope, nowMs, ours, sinceWords: sinceWords3 }) {
+  return promiseDaysOf(h.day_rows, ours, scope, h.days).rows.filter((r2) => r2.state === "missed" && r2.alarm).map(
+    (p) => look({
+      key: `promise:${p.key}`,
+      severity: "red",
+      what: `${p.title}: missed on ${countPhrase(p.missedDays, "day")}`,
+      why: p.worst ?? "",
+      where: p.where,
+      ours: scope === "ours",
+      sinceMs: p.lastMissMs ?? nowMs,
+      since: p.lastMissMs ? sinceWords3(p.lastMissMs) : "",
+      act: { kind: "open", tab: "promises" }
+    })
+  );
+}
+function jobLooks({ h, ours, nameOf, sinceWords: sinceWords3 }) {
+  return (h.failed_jobs ?? []).map((j) => {
+    const at3 = Date.parse(j.updated_at);
+    return look({
+      key: `job:${j.id}`,
+      severity: "amber",
+      what: `${jobWords(j.kind)} failed${j.attempts > 1 ? `, ${j.attempts} tries` : ""}`,
+      why: `Job ${j.kind}${j.last_error ? ` \xB7 ${j.last_error.slice(0, 120)}` : ""}`,
+      where: nameOf(j.tenant_id),
+      ours: ours.has(j.tenant_id),
+      sinceMs: at3,
+      since: sinceWords3(at3),
+      act: { kind: "run_again", jobId: j.id, tenantId: j.tenant_id },
+      tenantId: j.tenant_id,
+      detail: j.last_error,
+      reading: failureReadingOf(j.last_error, j.attempts)
+    });
+  });
+}
+function deliveryLooks({ h, nameOf, sinceWords: sinceWords3 }) {
+  return deliveriesOf(h.parts, "all").failures.map(
+    (d) => look({
+      key: `delivery:${d.subscriber}:${sideKey(d.ours)}`,
+      severity: "red",
+      what: `${d.words}: ${countPhrase(d.n, "delivery", "deliveries")} failed`,
+      why: d.reason,
+      where: d.where.map(nameOf).join(", "),
+      ours: d.ours,
+      sinceMs: d.lastMs,
+      since: sinceWords3(d.lastMs),
+      act: { kind: "redrive", subscriber: d.subscriber },
+      tenantId: onlyOne(d.where),
+      detail: d.reason,
+      reading: /no longer holds the event/.test(d.reason) ? "The event was removed before its delivery ran, so delivering it again can't work: the row stays as the record." : null
+    })
+  );
+}
+function pageLooks({ h, nowMs, sinceWords: sinceWords3 }) {
+  return pagesOf2(h.pages, h.workspaces, nowMs).rows.filter((x) => x.recent).map(
+    (p) => look({
+      key: `page:${p.key}`,
+      severity: p.alertedToday ? "red" : "amber",
+      what: `The pager: ${p.words}`,
+      why: `Seen ${countPhrase(p.count, "time")} since ${p.first}${p.lastMailed ? `; last mailed ${p.lastMailed}` : ""}`,
+      where: p.where,
+      ours: p.ours,
+      sinceMs: p.firstMs,
+      since: sinceWords3(p.firstMs),
+      act: { kind: "open", tab: "background" }
+    })
+  );
+}
+function modelLooks({ h, nameOf, sinceWords: sinceWords3 }) {
+  return modelCallsOf(h.parts, "all").failureGroups.map(
+    (f) => look({
+      key: `model:${f.purpose}:${sideKey(f.ours)}`,
+      severity: f.credit ? "red" : "amber",
+      what: `${f.words}: ${countPhrase(f.n, "model call")} got no answer`,
+      why: f.reason ?? "No reason was kept: the call came before the ledger kept them.",
+      where: f.where.map(nameOf).join(", "),
+      ours: f.ours,
+      sinceMs: f.lastMs,
+      since: sinceWords3(f.lastMs),
+      act: { kind: "open", tab: f.purpose === "ask" ? "ask" : "model" },
+      tenantId: onlyOne(f.where),
+      detail: f.reason,
+      reading: f.credit ? "The key's credit ran out: every model call stops until it is topped up." : null
+    })
+  );
+}
+function sendLooks({ h, nowMs, sinceWords: sinceWords3 }) {
+  return sendsOf(h.parts, "all").troubled.map(
+    (c) => look({
+      key: `sends:${c.channel}:${sideKey(c.ours)}`,
+      severity: "amber",
+      what: `${c.words}: ${c.failed} of ${c.total} sends failed`,
+      why: c.topError ?? "The provider said why on each message.",
+      where: c.ours ? "Ours" : "Customers",
+      ours: c.ours,
+      sinceMs: c.lastMs ?? nowMs,
+      since: c.lastMs ? sinceWords3(c.lastMs) : "",
+      act: { kind: "open", tab: "messages" }
+    })
+  );
+}
+function callLooks({ h, sinceWords: sinceWords3 }) {
+  return callsOf2(h.parts, "all").troubleByScope.map(
+    (t) => look({
+      key: `calls:${t.reason}:${sideKey(t.ours)}`,
+      severity: "amber",
+      what: `${countPhrase(t.n, "call")}: ${t.words}`,
+      why: t.why,
+      where: t.ours ? "Ours" : "Customers",
+      ours: t.ours,
+      sinceMs: t.lastMs,
+      since: sinceWords3(t.lastMs),
+      act: { kind: "open", tab: "messages" }
+    })
+  );
+}
+function connectionLooks({ h, nowMs, nameOf, sinceWords: sinceWords3 }) {
+  return connectionsOf(h.parts).map(
+    (c) => look({
+      key: `connection:${c.key}`,
+      severity: "amber",
+      what: c.what,
+      why: c.why,
+      where: nameOf(c.tenantId),
+      ours: c.ours,
+      sinceMs: c.sinceMs ?? nowMs,
+      since: c.sinceMs ? sinceWords3(c.sinceMs) : "",
+      act: { kind: "open", tab: "messages" },
+      tenantId: c.tenantId,
+      detail: c.why
+    })
+  );
+}
+var LOOK_SOURCES = [
+  clockLooks,
+  backlogLooks,
+  promiseLooks,
+  jobLooks,
+  deliveryLooks,
+  pageLooks,
+  modelLooks,
+  sendLooks,
+  callLooks,
+  connectionLooks
+];
+function healthLooksOf(h, scope, nowMs) {
+  const ctx = {
+    h,
+    scope,
+    nowMs,
+    ours: oursOf(h.workspaces),
+    nameOf: workspaceNamer(h.workspaces),
+    sinceWords: (ms3) => agoWords(ms3, nowMs, { dateAfterMs: 2 * DAY_MS, date: dateWords })
+  };
+  return LOOK_SOURCES.flatMap((source) => source(ctx)).filter((r2) => inScope(r2.ours, scope)).sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.sinceMs - a.sinceMs);
+}
+function dateWords(ms3) {
+  return new Date(ms3).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+function healthCounts(h, nowMs) {
+  return {
+    customers: healthLooksOf(h, "customers", nowMs).length,
+    ours: healthLooksOf(h, "ours", nowMs).length,
+    all: healthLooksOf(h, "all", nowMs).length
+  };
+}
+function healthSentence(h, nowMs) {
+  const n = healthCounts(h, nowMs);
+  const clocks = clocksOf(h.clocks);
+  const stopped = clocks.rows.filter((c) => c.state === "stopped").length;
+  return [
+    n.customers === 0 ? "Nothing needs a look for customers" : `${n.customers} need${n.customers === 1 ? "s" : ""} a look for customers`,
+    n.ours ? `${n.ours} in ours` : null,
+    h.clocks === null ? "the clocks could not be read" : stopped ? `${countPhrase(stopped, "clock")} not running` : "every clock running",
+    h.backlog === null ? null : h.backlog > 0 ? `${countPhrase(h.backlog, "job")} late` : "nothing late"
+  ].filter(Boolean).join(" \xB7 ");
+}
+function healthQuietWords(scope) {
+  return scope === "ours" ? "Nothing needs a look in our own workspaces." : "Nothing needs a look. Every promise with a number was kept, and every clock is running.";
+}
+var HEALTH_WORDS = {
+  title: "Health",
+  scope: "Whose numbers",
+  window: "How far back",
+  windowWords: (d) => d === 7 ? "7 days" : "30 days",
+  tabs: "Health's parts",
+  needsALook: "Needs a look",
+  needsALookSub: "worst first",
+  keys: "\u2191\u2193 move \xB7 Enter opens \xB7 R run again",
+  failed: "the platform's health",
+  runAgain: "Run again",
+  runAgainAsk: "Run this job again?",
+  runAgainDetail: "A fresh job of the same kind and payload, due now. A send is never run again from here.",
+  redrive: "Deliver again",
+  redriveAsk: (s) => `Deliver every failed ${s} again?`,
+  redriveDetail: "Each failed delivery of this subscriber is scheduled once more; one whose event is gone stays failed.",
+  open: "Open",
+  copyForBug: "Copy for a bug report",
+  readFirst: "Read this first",
+  whatItAnswered: "What it answered",
+  where: "Where",
+  close: "Close",
+  ranAgain: "It's on the ledger again.",
+  redriven: (n) => n === 0 ? "Nothing was left to deliver again." : `${n} scheduled again.`,
+  oursNote: "Ours: our own workspaces (the nightly suite's, the smoke test), counted apart and never paged."
+};
+
+// src/console/health-errors.ts
+var short = (build) => build ? build.slice(0, 9) : null;
+function errorGroupsOf(rows2, reports, nowMs) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r2 of rows2 ?? []) by.set(r2.fingerprint, [...by.get(r2.fingerprint) ?? [], r2]);
+  const date = (ms3) => new Date(ms3).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  const groups = [...by.entries()].map(([fingerprint, list2]) => {
+    const times = list2.map((r2) => Date.parse(r2.at)).sort((a, b) => a - b);
+    const firstMs = times[0] ?? nowMs;
+    const lastMs = times[times.length - 1] ?? nowMs;
+    const earliest3 = [...list2].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
+    const head = list2[0];
+    return {
+      fingerprint,
+      name: head?.name ?? "Error",
+      message: (head?.message ?? "").split(/\r?\n/)[0] ?? "",
+      page: pageWords(head?.page),
+      boundary: head?.boundary ?? "",
+      events: list2.length,
+      people: new Set(list2.map((r2) => r2.member_key).filter(Boolean)).size,
+      builds: [...new Set(list2.map((r2) => short(r2.build)).filter((b) => !!b))],
+      since: short(earliest3?.build ?? null),
+      devices: {
+        desk: list2.filter((r2) => r2.device === "desk").length,
+        phone: list2.filter((r2) => r2.device === "phone").length
+      },
+      firstMs,
+      lastMs,
+      first: date(firstMs),
+      last: agoWords(lastMs, nowMs, { dateAfterMs: 2 * DAY_MS, date }),
+      quiet: nowMs - lastMs > DAY_MS,
+      reports: (reports ?? []).filter((x) => x.error_id === fingerprint).map((x) => reportCode(x.number))
+    };
+  });
+  groups.sort((a, b) => Number(a.quiet) - Number(b.quiet) || b.people - a.people || b.events - a.events);
+  const builds = /* @__PURE__ */ new Map();
+  for (const r2 of rows2 ?? []) {
+    const b = short(r2.build) ?? "unknown";
+    const was = builds.get(b) ?? { events: 0, groups: /* @__PURE__ */ new Set(), lastMs: 0 };
+    was.events += 1;
+    was.groups.add(r2.fingerprint);
+    was.lastMs = Math.max(was.lastMs, Date.parse(r2.at));
+    builds.set(b, was);
+  }
+  return {
+    groups,
+    events: (rows2 ?? []).length,
+    people: new Set((rows2 ?? []).map((r2) => r2.member_key).filter(Boolean)).size,
+    builds: [...builds.entries()].sort((a, b) => b[1].lastMs - a[1].lastMs).map(([build, v]) => ({ build, events: v.events, groups: v.groups.size })),
+    read: rows2 !== null
+  };
+}
+function errorGroupReport(g) {
+  return [
+    `${g.name}: ${g.message}`,
+    `Page: ${g.page} \xB7 boundary ${g.boundary}`,
+    `Seen ${g.events} times by ${g.people} ${g.people === 1 ? "person" : "people"}, first ${g.first}, last ${g.last}`,
+    `Builds: ${g.builds.join(", ") || "unknown"} \xB7 desk ${g.devices.desk}, phone ${g.devices.phone}`,
+    g.reports.length ? `Reported by members: ${g.reports.join(", ")}` : null,
+    `Fingerprint: ${g.fingerprint}`
+  ].filter(Boolean).join("\n");
 }
 
 // src/console/support-playbooks.ts
@@ -36604,7 +38191,7 @@ function supportMeanwhile(topic) {
 }
 
 // src/console/console-schema.ts
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 
 // src/shell/client-error.ts
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
@@ -37141,15 +38728,15 @@ var LETTER_SUBJECTS = [
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money2(sharesOf(n))}`]
 ];
 function letterSubject(news) {
-  const rule2 = LETTER_SUBJECTS.find(([holds]) => holds(news));
+  const rule2 = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
   return rule2 ? rule2[1](news) : "What changed in your partner account";
 }
 
 // src/console/console-schema.ts
-var uuid = (what) => z12.uuid({ error: `That ${what} does not exist.` });
-var wordsUpTo = (max) => z12.string().trim().max(max, `At most ${max} characters.`).transform((s) => s ? s : null).nullable().optional().transform((s) => s ?? null);
-var ConsoleWhySchema = z12.object({
-  kind: z12.enum(REASON_KINDS, { error: "Say why." }),
+var uuid = (what) => z13.uuid({ error: `That ${what} does not exist.` });
+var wordsUpTo = (max) => z13.string().trim().max(max, `At most ${max} characters.`).transform((s) => s ? s : null).nullable().optional().transform((s) => s ?? null);
+var ConsoleWhySchema = z13.object({
+  kind: z13.enum(REASON_KINDS, { error: "Say why." }),
   ticket: wordsUpTo(REASON_LIMITS.ticket),
   note: wordsUpTo(REASON_LIMITS.note)
 }).strict().refine((w) => w.kind !== "ticket" || !!w.ticket, {
@@ -37160,68 +38747,75 @@ var PartnerWhySchema = ConsoleWhySchema.refine((w) => !!w.note, {
   message: "Say why in a sentence: the partner reads it.",
   path: ["note"]
 });
-var LineActSchema = z12.object({ tenant_id: uuid("workspace"), line_id: uuid("line"), why: ConsoleWhySchema }).strict();
-var JobRequeueSchema = z12.object({ tenant_id: uuid("workspace"), job_id: uuid("job"), why: ConsoleWhySchema }).strict();
-var WaitlistInvitedSchema = z12.object({ id: uuid("place"), why: ConsoleWhySchema }).strict();
-var PartnerStandingSchema = z12.object({
+var LineActSchema = z13.object({ tenant_id: uuid("workspace"), line_id: uuid("line"), why: ConsoleWhySchema }).strict();
+var JobRequeueSchema = z13.object({ tenant_id: uuid("workspace"), job_id: uuid("job"), why: ConsoleWhySchema }).strict();
+var WaitlistInvitedSchema = z13.object({ id: uuid("place"), why: ConsoleWhySchema }).strict();
+var PartnerStandingSchema = z13.object({
   tenant_id: uuid("workspace"),
-  standing: z12.enum(PARTNER_STANDINGS, { error: "Choose qualified, review or disqualified." }),
+  standing: z13.enum(PARTNER_STANDINGS, { error: "Choose qualified, review or disqualified." }),
   why: PartnerWhySchema
 }).strict();
-var PartnerStatusSchema = z12.object({
+var PartnerStatusSchema = z13.object({
   partner_id: uuid("partner"),
-  status: z12.enum(PARTNER_STATUSES, { error: "Choose active, paused or closed." }),
+  status: z13.enum(PARTNER_STATUSES, { error: "Choose active, paused or closed." }),
   why: PartnerWhySchema
 }).strict();
-var PartnerPayoutSchema = z12.object({
+var PartnerPayoutSchema = z13.object({
   partner_id: uuid("partner"),
-  currency: z12.string().trim().toLowerCase().regex(/^[a-z]{3}$/, "Name the currency the payout was sent in."),
-  reference: z12.string().trim().min(1, "Give the payment's reference, so it can be found again.").max(200, "At most 200 characters."),
+  currency: z13.string().trim().toLowerCase().regex(/^[a-z]{3}$/, "Name the currency the payout was sent in."),
+  reference: z13.string().trim().min(1, "Give the payment's reference, so it can be found again.").max(200, "At most 200 characters."),
   /** The total the card showed: a total that moved since is refused, not recorded. */
-  expected_cents: z12.number({ error: "The expected amount must be a whole number of cents." }).int("The expected amount must be a whole number of cents.").optional(),
+  expected_cents: z13.number({ error: "The expected amount must be a whole number of cents." }).int("The expected amount must be a whole number of cents.").optional(),
   why: ConsoleWhySchema
 }).strict();
-var PartnerSecondFactorSchema = z12.object({ partner_id: uuid("partner"), why: PartnerWhySchema }).strict();
-var RequestFileSchema = z12.object({
-  kind: z12.enum(REQUEST_KINDS, { error: "Say what they asked for." }),
+var PartnerSecondFactorSchema = z13.object({ partner_id: uuid("partner"), why: PartnerWhySchema }).strict();
+var RequestFileSchema = z13.object({
+  kind: z13.enum(REQUEST_KINDS, { error: "Say what they asked for." }),
   /** The workspace it is about, by its address: a request is kept by its name after the workspace is gone. */
-  workspace: z12.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "Give the workspace's address, as /w/ says it."),
-  asked_by: z12.string().trim().min(3, "Say who asked: their email, as it came in.").max(200, "At most 200 characters."),
-  asked_at: z12.iso.datetime({ offset: true, error: "Say when they asked." }),
+  workspace: z13.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "Give the workspace's address, as /w/ says it."),
+  asked_by: z13.string().trim().min(3, "Say who asked: their email, as it came in.").max(200, "At most 200 characters."),
+  asked_at: z13.iso.datetime({ offset: true, error: "Say when they asked." }),
   why: ConsoleWhySchema
 }).strict();
-var RequestStepSchema = z12.object({
+var RequestStepSchema = z13.object({
   id: uuid("request"),
-  step: z12.union([z12.enum(REQUEST_STEP_KEYS), z12.literal("close")], { error: "Say which step." }),
-  done: z12.boolean(),
+  step: z13.union([z13.enum(REQUEST_STEP_KEYS), z13.literal("close")], { error: "Say which step." }),
+  done: z13.boolean(),
   why: ConsoleWhySchema
 }).strict();
-var ClaimSchema = z12.object({ tenant_id: uuid("workspace"), take: z12.boolean() }).strict();
-var FindQuerySchema = z12.object({
-  q: z12.string().trim().min(FIND_LIMITS.min, `At least ${FIND_LIMITS.min} characters.`).max(FIND_LIMITS.max, `At most ${FIND_LIMITS.max} characters.`)
+var ClaimSchema = z13.object({ tenant_id: uuid("workspace"), take: z13.boolean() }).strict();
+var FindQuerySchema = z13.object({
+  q: z13.string().trim().min(FIND_LIMITS.min, `At least ${FIND_LIMITS.min} characters.`).max(FIND_LIMITS.max, `At most ${FIND_LIMITS.max} characters.`)
 }).strict();
-var SupportQuerySchema = z12.object({
-  view: z12.enum(SUPPORT_VIEWS).default("needs"),
-  kind: z12.enum(SUPPORT_KIND_FILTERS).default("all"),
-  topic: z12.enum(SUPPORT_TOPICS).optional(),
-  workspace: z12.string().regex(WORKSPACE).optional(),
-  q: z12.string().trim().max(FIND_LIMITS.max).default(""),
-  page: z12.coerce.number().int().min(1).max(20).default(1)
+var SupportQuerySchema = z13.object({
+  view: z13.enum(SUPPORT_VIEWS).default("needs"),
+  kind: z13.enum(SUPPORT_KIND_FILTERS).default("all"),
+  topic: z13.enum(SUPPORT_TOPICS).optional(),
+  workspace: z13.string().regex(WORKSPACE).optional(),
+  q: z13.string().trim().max(FIND_LIMITS.max).default(""),
+  page: z13.coerce.number().int().min(1).max(20).default(1)
 }).strict();
-var SupportMarkSchema = z12.object({
-  target: z12.enum(["report", "ask"]),
+var SupportMarkSchema = z13.object({
+  target: z13.enum(["report", "ask"]),
   id: uuid("row"),
-  mark: z12.enum(["answered", "done", "reopened"])
+  mark: z13.enum(["answered", "done", "reopened"])
 }).strict().refine((m) => m.target === "ask" || m.mark !== "done", {
   message: "A question is done once it is answered.",
   path: ["mark"]
 });
-var SupportResendSchema = z12.object({ id: uuid("report") }).strict();
-var SupportKindSchema = z12.object({ id: uuid("report"), kind: z12.enum(REPORT_KINDS) }).strict();
-var ActsQuerySchema = z12.object({
-  who: z12.uuid().optional(),
-  before: z12.iso.datetime({ offset: true }).optional(),
-  format: z12.enum(["rows", "csv"]).default("rows")
+var SupportResendSchema = z13.object({ id: uuid("report") }).strict();
+var SupportKindSchema = z13.object({ id: uuid("report"), kind: z13.enum(REPORT_KINDS) }).strict();
+var HealthQuerySchema = z13.object({
+  days: z13.coerce.number().int().refine((d) => HEALTH_WINDOWS.includes(d), "A week or a month: 7 or 30.").default(30)
+}).strict();
+var DeliveryRedriveSchema = z13.object({
+  subscriber: z13.string().regex(/^[a-z][a-z0-9_]{1,62}$/, "Name the subscriber."),
+  why: ConsoleWhySchema
+}).strict();
+var ActsQuerySchema = z13.object({
+  who: z13.uuid().optional(),
+  before: z13.iso.datetime({ offset: true }).optional(),
+  format: z13.enum(["rows", "csv"]).default("rows")
 }).strict();
 
 // src/conversations/thread-dto.ts
@@ -37392,9 +38986,9 @@ function threadsWaitingOnYou(conversations, escalations, now) {
 var HELD_BY_ID_MAX = 100;
 function heldThreadIds(listed, open) {
   const ids = /* @__PURE__ */ new Set();
-  const holds = open.filter((e) => (e.state ?? "open") === "open" && !listed.has(e.conversation_id));
-  for (const e of holds) if (waitsOnAPerson(e.reason)) ids.add(e.conversation_id);
-  for (const e of holds) ids.add(e.conversation_id);
+  const holds2 = open.filter((e) => (e.state ?? "open") === "open" && !listed.has(e.conversation_id));
+  for (const e of holds2) if (waitsOnAPerson(e.reason)) ids.add(e.conversation_id);
+  for (const e of holds2) ids.add(e.conversation_id);
   return [...ids].slice(0, HELD_BY_ID_MAX);
 }
 function heldDraftWaits(vm, nowMs) {
@@ -37618,9 +39212,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
 }
 function bubbleWhen(iso, tz, now) {
   const at3 = bubbleTime(iso, tz, now);
-  const ms2 = Date.parse(iso);
-  if (!Number.isFinite(ms2)) return { at: at3, day: "", time: "" };
-  return { at: at3, day: clockHistoryDay(ms2, tz, now.getTime()), time: clockTime(ms2, tz) };
+  const ms3 = Date.parse(iso);
+  if (!Number.isFinite(ms3)) return { at: at3, day: "", time: "" };
+  return { at: at3, day: clockHistoryDay(ms3, tz, now.getTime()), time: clockTime(ms3, tz) };
 }
 function quietWordsOf(dto, state, tz, now) {
   if (state !== "done" || dto.state === "archived") return { lastWord: null, unanswered: null };
@@ -37902,7 +39496,7 @@ function toDealReportVM(dto, within2) {
 // src/deals/pace.ts
 var SAME_SITTING_MS = HOUR_MS;
 function yesWaits(rows2) {
-  return rows2.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
+  return rows2.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms3) => Number.isFinite(ms3) && ms3 >= SAME_SITTING_MS).map((ms3) => Math.floor(ms3 / DAY_MS)).sort((a, b) => a - b);
 }
 function medianWait(waits) {
   const m = quantile([...waits], 0.5);
@@ -38245,8 +39839,8 @@ function followUpStandOf(r2, f, tz, nowMs, pace, ready) {
   if (reachFor(r2, purposeOfPlaybook("follow_up"), how).channel === null) return null;
   if (f.purpose === "marketing" && reachFor(r2, "marketing", how).channel === null) return null;
   const when = (m) => {
-    const ms2 = m[r2.id] ? Date.parse(m[r2.id]) : Number.NaN;
-    return Number.isFinite(ms2) ? ms2 : null;
+    const ms3 = m[r2.id] ? Date.parse(m[r2.id]) : Number.NaN;
+    return Number.isFinite(ms3) ? ms3 : null;
   };
   const had = when(f.had);
   if (had !== null && followUpIsFor(r2, had)) return { kind: "had", atMs: had };
@@ -38545,7 +40139,7 @@ function consultationStepOf(p, nowMs, tz) {
   };
 }
 function stepsOf(p, deal, tz, nowMs, consultation) {
-  const day = (ms2) => ms2 === null ? null : clockDate(ms2, tz, nowMs);
+  const day = (ms3) => ms3 === null ? null : clockDate(ms3, tz, nowMs);
   const won = deal.stage === "won";
   const steps = [];
   if (consultation) {
@@ -39079,14 +40673,14 @@ function aheadRow(r2, c, tz, nowMs) {
     track: [step("consultation", "current", "info"), step("proposal", "ahead"), step("client", "ahead")]
   };
 }
-function inOrder(xs, at3, latest = false) {
+function inOrder(xs, at3, latest2 = false) {
   return [...xs].sort((a, b) => {
     const x = at3(a);
     const y = at3(b);
     if (x === y) return a.r.name.localeCompare(b.r.name) || a.r.id.localeCompare(b.r.id);
     if (x === null) return 1;
     if (y === null) return -1;
-    return latest ? y - x : x - y;
+    return latest2 ? y - x : x - y;
   });
 }
 function openOf(r2) {
@@ -39396,32 +40990,32 @@ function pipelineBoardMore(n) {
 }
 
 // src/deals/deal-body.ts
-import { z as z13 } from "zod";
-var DealMoveBody = z13.object({
-  stage: z13.enum(DEAL_STAGES),
+import { z as z14 } from "zod";
+var DealMoveBody = z14.object({
+  stage: z14.enum(DEAL_STAGES),
   /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-  deal_id: z13.uuid().optional(),
-  version: z13.number().int().min(1).optional(),
-  service: z13.string().trim().min(1).max(80).optional(),
+  deal_id: z14.uuid().optional(),
+  version: z14.number().int().min(1).optional(),
+  service: z14.string().trim().min(1).max(80).optional(),
   /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
-  when: z13.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
-  amount_cents: z13.number().int().min(0).max(1e9).optional(),
-  per: z13.enum(DEAL_PERS).optional(),
-  note: z13.string().trim().max(200).optional(),
+  when: z14.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
+  amount_cents: z14.number().int().min(0).max(1e9).optional(),
+  per: z14.enum(DEAL_PERS).optional(),
+  note: z14.string().trim().max(200).optional(),
   /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-  message_id: z13.uuid().optional(),
-  form_note: z13.string().trim().min(1).max(200).optional(),
+  message_id: z14.uuid().optional(),
+  form_note: z14.string().trim().min(1).max(200).optional(),
   /**
    * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
    * Blank says nothing, as absent does: an emptied link is `clear`.
    */
-  proposal_url: z13.string().max(600).optional(),
+  proposal_url: z14.string().max(600).optional(),
   /** The last day the proposal stands; null says nothing, as absent does (an emptied day is `clear`). */
-  valid_until: z13.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
+  valid_until: z14.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
   /** Why they passed, on a move to lost. */
-  lost_reason: z13.enum(DEAL_LOST_REASONS).optional(),
+  lost_reason: z14.enum(DEAL_LOST_REASONS).optional(),
   /** The fields a person emptied: a move keeps everything it is not told. */
-  clear: z13.array(z13.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
+  clear: z14.array(z14.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
 }).strict();
 
 // src/email/mailbox.ts
@@ -39761,41 +41355,41 @@ function journeyGuide(input) {
 }
 
 // src/leads/search/plan-schema.ts
-import { z as z14 } from "zod";
-var words2 = (min, max) => z14.string().transform((s) => stripUnsafe(s).trim()).pipe(z14.string().min(min).max(max));
-var LeadSearchPlanSchema = z14.object({
-  version: z14.number().int().min(1),
-  card: z14.literal("local_businesses"),
+import { z as z15 } from "zod";
+var words2 = (min, max) => z15.string().transform((s) => stripUnsafe(s).trim()).pipe(z15.string().min(min).max(max));
+var LeadSearchPlanSchema = z15.object({
+  version: z15.number().int().min(1),
+  card: z15.literal("local_businesses"),
   name: words2(2, 80),
-  category_key: z14.string().regex(KEY).optional(),
-  from: z14.literal("idea").optional(),
+  category_key: z15.string().regex(KEY).optional(),
+  from: z15.literal("idea").optional(),
   asked: words2(1, 400),
-  terms: z14.array(words2(2, 60)).min(1).max(5),
-  area: z14.object({
-    kind: z14.enum(["zip", "city", "radius"]),
+  terms: z15.array(words2(2, 60)).min(1).max(5),
+  area: z15.object({
+    kind: z15.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z14.string().regex(/^[A-Z]{2}$/),
-    center: z14.object({ lat: z14.number().min(-90).max(90), lng: z14.number().min(-180).max(180) }).nullable(),
-    radius_m: z14.number().int().min(500).max(2e5),
-    zip: z14.string().regex(/^\d{5}$/).optional(),
+    state: z15.string().regex(/^[A-Z]{2}$/),
+    center: z15.object({ lat: z15.number().min(-90).max(90), lng: z15.number().min(-180).max(180) }).nullable(),
+    radius_m: z15.number().int().min(500).max(2e5),
+    zip: z15.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z14.enum(["phone", "email"]),
-  criteria: z14.array(
-    z14.object({
-      key: z14.string().regex(KEY),
+  count: z15.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z15.enum(["phone", "email"]),
+  criteria: z15.array(
+    z15.object({
+      key: z15.string().regex(KEY),
       text: words2(2, 120),
-      standard: z14.enum(["likely", "seen"]),
-      required: z14.boolean()
+      standard: z15.enum(["likely", "seen"]),
+      required: z15.boolean()
     })
   ).max(8),
-  exclusions: z14.array(
-    z14.object({
-      key: z14.string().regex(KEY),
+  exclusions: z15.array(
+    z15.object({
+      key: z15.string().regex(KEY),
       text: words2(2, 80),
-      origin: z14.enum(["claude", "you_said"]),
-      category_key: z14.string().regex(KEY).optional()
+      origin: z15.enum(["claude", "you_said"]),
+      category_key: z15.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -39937,12 +41531,12 @@ function peopleSheetProblems(t) {
   const out = {};
   const titles = listTyped(t.titles, Infinity);
   const long = titles.find((x) => x.length > PEOPLE_TITLE_CHARS);
-  const short = titles.find((x) => x.length < 2);
+  const short2 = titles.find((x) => x.length < 2);
   if (!titles.length) out.titles = PEOPLE_FIND_WORDS.needTitle;
   else if (titles.length > PEOPLE_TITLES_MAX)
     out.titles = PEOPLE_FIND_WORDS.tooMany("titles", PEOPLE_TITLES_MAX, titles.length);
   else if (long) out.titles = PEOPLE_FIND_WORDS.titleLong(long);
-  else if (short) out.titles = PEOPLE_FIND_WORDS.titleShort(short);
+  else if (short2) out.titles = PEOPLE_FIND_WORDS.titleShort(short2);
   else if (t.titles.trim().length > PEOPLE_ASKED_CHARS) out.titles = PEOPLE_FIND_WORDS.titlesLong;
   const industries = listTyped(t.industries, Infinity);
   const odd = industries.find((x) => x.length < 2 || x.length > PEOPLE_INDUSTRY_CHARS);
@@ -40040,7 +41634,7 @@ function peoplePlanSentence(p) {
 }
 
 // src/leads/search/people-plan-schema.ts
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 
 // src/leads/search/people-industries.ts
 var PEOPLE_INDUSTRIES = [
@@ -40227,47 +41821,47 @@ function peopleIndustriesNear(typed) {
 }
 
 // src/leads/search/people-plan-schema.ts
-var industry = z15.string().transform((typed, ctx) => {
+var industry = z16.string().transform((typed, ctx) => {
   const name = peopleIndustryOf(typed);
   if (name) return name;
   ctx.addIssue({
     code: "custom",
     message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
   });
-  return z15.NEVER;
+  return z16.NEVER;
 });
-var LeadPeoplePlanSchema = z15.object({
-  version: z15.literal(1),
-  card: z15.literal(PEOPLE_CARD),
+var LeadPeoplePlanSchema = z16.object({
+  version: z16.literal(1),
+  card: z16.literal(PEOPLE_CARD),
   name: words2(2, 80),
   asked: words2(1, PEOPLE_ASKED_CHARS),
-  count: z15.number().int().min(1).max(PEOPLE_COUNT_MAX),
-  titles: z15.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  seniority: z15.array(z15.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
+  count: z16.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  titles: z16.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
-  industries: z15.array(industry).max(PEOPLE_INDUSTRIES_MAX),
-  sizes: z15.array(z15.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
-  states: z15.array(
-    z15.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
+  industries: z16.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
+  states: z16.array(
+    z16.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
   ).max(PEOPLE_STATES_MAX),
-  contact: z15.literal("email"),
+  contact: z16.literal("email"),
   // Made by peoplePlanFrom: no phrases, and the states as an area every page reads.
-  terms: z15.tuple([]),
-  criteria: z15.tuple([]),
-  exclusions: z15.tuple([]),
-  area: z15.object({
-    kind: z15.literal("city"),
+  terms: z16.tuple([]),
+  criteria: z16.tuple([]),
+  exclusions: z16.tuple([]),
+  area: z16.object({
+    kind: z16.literal("city"),
     label: words2(2, 400),
-    state: z15.string().max(2),
-    center: z15.null(),
-    radius_m: z15.number().int().min(0).max(0),
+    state: z16.string().max(2),
+    center: z16.null(),
+    radius_m: z16.number().int().min(0).max(0),
     query: words2(2, 420)
   })
 });
-var LeadPeopleSearchSchema = z15.object({
+var LeadPeopleSearchSchema = z16.object({
   plan: LeadPeoplePlanSchema,
-  via: z15.enum(["people", "ask"]),
-  thread_id: z15.uuid().nullable().optional()
+  via: z16.enum(["people", "ask"]),
+  thread_id: z16.uuid().nullable().optional()
 });
 
 // src/leads/search/question.ts
@@ -40323,96 +41917,96 @@ function questionAfterProbe(plan, members) {
 }
 
 // src/leads/lead-plan-schema.ts
-import { z as z16 } from "zod";
-var LeadsQuerySchema = z16.object({
-  list: z16.enum(LEAD_LISTS).default("all"),
-  search: z16.string().uuid().optional(),
-  class: z16.enum(LEAD_CLASSES).optional(),
-  sort: z16.enum(LEAD_SORTS).default("fit"),
-  dir: z16.enum(["asc", "desc"]).default("asc"),
-  after_key: z16.string().max(80).optional(),
-  after_id: z16.string().uuid().optional(),
-  limit: z16.coerce.number().int().min(1).max(500).default(500),
+import { z as z17 } from "zod";
+var LeadsQuerySchema = z17.object({
+  list: z17.enum(LEAD_LISTS).default("all"),
+  search: z17.string().uuid().optional(),
+  class: z17.enum(LEAD_CLASSES).optional(),
+  sort: z17.enum(LEAD_SORTS).default("fit"),
+  dir: z17.enum(["asc", "desc"]).default("asc"),
+  after_key: z17.string().max(80).optional(),
+  after_id: z17.string().uuid().optional(),
+  limit: z17.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
-  pile_list: z16.uuid().optional()
+  pile_list: z17.uuid().optional()
 });
-var LeadOneQuerySchema = z16.object({ search: z16.string().uuid().optional() });
+var LeadOneQuerySchema = z17.object({ search: z17.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z16.discriminatedUnion("kind", [
-  z16.object({ kind: z16.literal("stage"), stage: z16.enum(["ready", "nurture", "converted"]) }),
-  z16.object({ kind: z16.literal("not_a_fit"), why: z16.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z16.object({ kind: z16.literal("said_no") }),
-  z16.object({
-    kind: z16.literal("outcome"),
-    outcome: z16.enum(LEAD_CALL_OUTCOMES),
-    note: z16.string().trim().max(280).optional(),
+var LeadStageInputSchema = z17.discriminatedUnion("kind", [
+  z17.object({ kind: z17.literal("stage"), stage: z17.enum(["ready", "nurture", "converted"]) }),
+  z17.object({ kind: z17.literal("not_a_fit"), why: z17.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z17.object({ kind: z17.literal("said_no") }),
+  z17.object({
+    kind: z17.literal("outcome"),
+    outcome: z17.enum(LEAD_CALL_OUTCOMES),
+    note: z17.string().trim().max(280).optional(),
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
-    spoke_with: z16.string().trim().max(80).optional()
+    spoke_with: z17.string().trim().max(80).optional()
   }),
   /** "Did you send it?" Yes. */
-  z16.object({ kind: z16.literal("emailed") })
+  z17.object({ kind: z17.literal("emailed") })
 ]);
-var LeadsBulkSchema = z16.discriminatedUnion("by", [
+var LeadsBulkSchema = z17.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z16.object({
-    by: z16.literal("ids"),
-    action: z16.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z16.array(z16.string().uuid()).min(1).max(500),
-    search_id: z16.string().uuid().optional()
+  z17.object({
+    by: z17.literal("ids"),
+    action: z17.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z17.array(z17.string().uuid()).min(1).max(500),
+    search_id: z17.string().uuid().optional()
   }),
-  z16.object({ by: z16.literal("view"), action: z16.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z17.object({ by: z17.literal("view"), action: z17.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z16.object({ ids: z16.array(z16.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z16.object({
-  tone: z16.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z16.object({ subject: z16.string().max(200), body: z16.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z17.object({ ids: z17.array(z17.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z17.object({
+  tone: z17.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z17.object({ subject: z17.string().max(200), body: z17.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z16.object({ name: z16.string().trim().min(1).max(80) });
-var BusinessLineSchema = z16.object({ business_line: z16.string().trim().min(3).max(160) });
-var planChip = (max) => z16.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z16.object({
+var RenameLeadSearchSchema = z17.object({ name: z17.string().trim().min(1).max(80) });
+var BusinessLineSchema = z17.object({ business_line: z17.string().trim().min(3).max(160) });
+var planChip = (max) => z17.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z17.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
    * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
-  looking_for: z16.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z16.string().trim().min(2).max(40),
-  count: z16.number().int().min(1).max(LEAD_MAX_PLACES),
+  looking_for: z17.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z17.string().trim().min(2).max(40),
+  count: z17.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z16.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z16.array(planChip(60)).min(1).max(5),
-  city: z16.string().trim().max(60).nullable().default(null),
-  region: z16.string().trim().min(2).max(40),
-  zip: z16.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z16.enum(["phone", "email"]),
-  criteria: z16.array(z16.object({ text: planChip(120), standard: z16.enum(["likely", "seen"]), required: z16.boolean() })).max(6).default([]),
-  leave_out: z16.array(z16.object({ words: planChip(40) })).max(6).default([]),
-  asked: z16.string().trim().min(1).max(400)
+  category_key: z17.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z17.array(planChip(60)).min(1).max(5),
+  city: z17.string().trim().max(60).nullable().default(null),
+  region: z17.string().trim().min(2).max(40),
+  zip: z17.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z17.enum(["phone", "email"]),
+  criteria: z17.array(z17.object({ text: planChip(120), standard: z17.enum(["likely", "seen"]), required: z17.boolean() })).max(6).default([]),
+  leave_out: z17.array(z17.object({ words: planChip(40) })).max(6).default([]),
+  asked: z17.string().trim().min(1).max(400)
 });
-var ProposePeopleSearchSchema = z16.object({
-  looking_for: z16.literal("people_at_companies"),
-  country: z16.string().trim().min(2).max(40),
-  count: z16.number().int().min(1).max(PEOPLE_COUNT_MAX),
+var ProposePeopleSearchSchema = z17.object({
+  looking_for: z17.literal("people_at_companies"),
+  country: z17.string().trim().min(2).max(40),
+  count: z17.number().int().min(1).max(PEOPLE_COUNT_MAX),
   /** What to call the search: "Marketing managers at agencies". */
   who: planChip(80),
-  terms: z16.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  region: z16.string().trim().min(2).max(200),
-  asked: z16.string().trim().min(1).max(400),
-  seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
-  industries: z16.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
-  company_sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
+  terms: z17.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  region: z17.string().trim().min(2).max(200),
+  asked: z17.string().trim().min(1).max(400),
+  seniority: z17.array(z17.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
+  industries: z17.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  company_sizes: z17.array(z17.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
 });
-var ProposeAnySearchSchema = z16.discriminatedUnion("looking_for", [
+var ProposeAnySearchSchema = z17.discriminatedUnion("looking_for", [
   ProposeLeadSearchSchema,
   ProposePeopleSearchSchema
 ]);
-var LeadDraftAnswerSchema = z16.object({
-  subject: z16.string().trim().min(3).max(120),
-  body: z16.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z17.object({
+  subject: z17.string().trim().min(3).max(120),
+  body: z17.string().trim().min(20).max(2e3)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -41076,29 +42670,29 @@ function ideaAreaPhrase(label) {
 }
 
 // src/leads/lead-ideas-read.ts
-import { z as z17 } from "zod";
-var cut = (max) => z17.string().transform((s) => s.trim().slice(0, max));
-var LeadIdeasAnswerSchema = z17.object({
-  line: z17.string().trim().min(3).transform((s) => s.slice(0, 160)),
-  ideas: z17.array(
-    z17.object({
+import { z as z18 } from "zod";
+var cut = (max) => z18.string().transform((s) => s.trim().slice(0, max));
+var LeadIdeasAnswerSchema = z18.object({
+  line: z18.string().trim().min(3).transform((s) => s.slice(0, 160)),
+  ideas: z18.array(
+    z18.object({
       words: cut(80),
       why: cut(140),
       who: cut(60),
       who_one: cut(60),
       category_key: cut(40),
-      terms: z17.array(z17.string()).catch([]),
-      place: z17.string().catch(""),
-      count: z17.number().int().catch(IDEA_SIZES[1]),
-      contact: z17.enum(["email", "phone"]).catch("email"),
-      criteria: z17.array(
-        z17.object({
-          text: z17.string(),
-          standard: z17.enum(["likely", "seen"]).catch("likely"),
-          required: z17.boolean().catch(false)
+      terms: z18.array(z18.string()).catch([]),
+      place: z18.string().catch(""),
+      count: z18.number().int().catch(IDEA_SIZES[1]),
+      contact: z18.enum(["email", "phone"]).catch("email"),
+      criteria: z18.array(
+        z18.object({
+          text: z18.string(),
+          standard: z18.enum(["likely", "seen"]).catch("likely"),
+          required: z18.boolean().catch(false)
         })
       ).catch([]),
-      leave_out: z17.array(z17.string()).catch([])
+      leave_out: z18.array(z18.string()).catch([])
     })
   ).min(1)
 });
@@ -41174,25 +42768,25 @@ function ideasFrom(answer, p) {
 }
 
 // src/leads/lead-import-schema.ts
-import { z as z18 } from "zod";
-var nullableText = (max) => z18.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z18.object({
-  name: z18.string().trim().min(1).max(200),
-  email: z18.string().trim().min(3).max(254),
+import { z as z19 } from "zod";
+var nullableText = (max) => z19.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z19.object({
+  name: z19.string().trim().min(1).max(200),
+  email: z19.string().trim().min(3).max(254),
   phone: nullableText(16),
   website_host: nullableText(120),
   city: nullableText(120),
   region: nullableText(2),
   category: nullableText(120)
 });
-var LeadImportSchema = z18.object({
-  name: z18.string().trim().min(1).max(120),
-  asked: z18.string().trim().max(400).optional(),
-  rows: z18.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+var LeadImportSchema = z19.object({
+  name: z19.string().trim().min(1).max(120),
+  asked: z19.string().trim().max(400).optional(),
+  rows: z19.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
 });
-var LeadChooseSchema = z18.object({
-  name: z18.string().trim().min(1).max(120),
-  lead_ids: z18.array(z18.string().uuid()).min(1).max(LEAD_LIST_MAX)
+var LeadChooseSchema = z19.object({
+  name: z19.string().trim().min(1).max(120),
+  lead_ids: z19.array(z19.string().uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/leads/lead-pile.ts
@@ -42717,8 +44311,8 @@ var UNSURE_WORDS = {
   right_kind: "kind unclear"
 };
 var leadSheetExceptionWords = (key, label) => {
-  const short = UNSURE_WORDS[key];
-  return short ? short.charAt(0).toUpperCase() + short.slice(1) : label;
+  const short2 = UNSURE_WORDS[key];
+  return short2 ? short2.charAt(0).toUpperCase() + short2.slice(1) : label;
 };
 function leadSheetSubOf(vm) {
   if (vm.company) return vm.sub;
@@ -42804,8 +44398,8 @@ function channelFor(rows2, kind) {
   return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
 }
 var QUIET_AFTER_MS = 7 * DAY_MS;
-function ago2(ms2, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at3) => DATE_FMT.format(new Date(at3)) });
+function ago2(ms3, nowMs) {
+  return agoWords(ms3, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at3) => DATE_FMT.format(new Date(at3)) });
 }
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
@@ -43738,8 +45332,8 @@ function lineReleaseAfterDays(raw) {
 }
 var msOf2 = (iso) => {
   if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? ms2 : null;
+  const ms3 = Date.parse(iso);
+  return Number.isFinite(ms3) ? ms3 : null;
 };
 function billingEndedAt(b) {
   if (!b || b.mode !== "stripe" || receptionistOn(b.status)) return null;
@@ -45423,39 +47017,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z19 } from "zod";
-var PersonDraftInputSchema = z19.object({
-  how: z19.enum(DRAFT_HOWS),
-  wire: z19.enum(CONSENT_CHANNELS).optional(),
-  about: z19.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z19.array(
-    z19.object({
-      key: z19.string().min(1).max(40),
-      question: z19.string().max(200),
-      words: z19.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z20 } from "zod";
+var PersonDraftInputSchema = z20.object({
+  how: z20.enum(DRAFT_HOWS),
+  wire: z20.enum(CONSENT_CHANNELS).optional(),
+  about: z20.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z20.array(
+    z20.object({
+      key: z20.string().min(1).max(40),
+      question: z20.string().max(200),
+      words: z20.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z19.object({ text: z19.string().max(4e3), subject: z19.string().max(200).optional() }).strict().optional(),
-  tone: z19.enum(DRAFT_TONES).optional()
+  previous: z20.object({ text: z20.string().max(4e3), subject: z20.string().max(200).optional() }).strict().optional(),
+  tone: z20.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z19.object({
-  asks: z19.array(z19.object({ key: z19.string().trim().min(1).max(40), question: z19.string().trim().min(3).max(200) })).max(4),
-  text: z19.string().trim().max(4e3),
-  subject: z19.string().trim().max(200),
-  note: z19.string().trim().max(600),
-  opening: z19.string().trim().max(400),
-  points: z19.array(z19.string().trim().max(300)).max(6),
-  avoid: z19.array(z19.string().trim().max(300)).max(6),
-  ask: z19.string().trim().max(300)
+var PersonDraftAnswerSchema = z20.object({
+  asks: z20.array(z20.object({ key: z20.string().trim().min(1).max(40), question: z20.string().trim().min(3).max(200) })).max(4),
+  text: z20.string().trim().max(4e3),
+  subject: z20.string().trim().max(200),
+  note: z20.string().trim().max(600),
+  opening: z20.string().trim().max(400),
+  points: z20.array(z20.string().trim().max(300)).max(6),
+  avoid: z20.array(z20.string().trim().max(300)).max(6),
+  ask: z20.string().trim().max(300)
 });
-var PersonMessageBodySchema = z19.object({
-  wire: z19.enum(CONSENT_CHANNELS),
-  text: z19.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z19.string().trim().min(1).max(200).optional(),
-  template: z19.object({ name: z19.string().min(1).max(512), language: z19.string().min(2).max(15) }).strict().optional(),
-  email_to: z19.string().max(320).optional(),
-  then: z19.enum(["receptionist", "me"]),
-  note: z19.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z20.object({
+  wire: z20.enum(CONSENT_CHANNELS),
+  text: z20.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z20.string().trim().min(1).max(200).optional(),
+  template: z20.object({ name: z20.string().min(1).max(512), language: z20.string().min(2).max(15) }).strict().optional(),
+  email_to: z20.string().max(320).optional(),
+  then: z20.enum(["receptionist", "me"]),
+  note: z20.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -46109,9 +47703,9 @@ function clippedLine(text, max) {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
-function clock2(ms2, tz, nowMs) {
-  const time = clockTime(ms2, tz);
-  return nowMs - ms2 < DAY_MS ? time : `${fmtDate(ms2, tz, nowMs)} ${time}`;
+function clock2(ms3, tz, nowMs) {
+  const time = clockTime(ms3, tz);
+  return nowMs - ms3 < DAY_MS ? time : `${fmtDate(ms3, tz, nowMs)} ${time}`;
 }
 function attentionRow(p, tz, nowMs, word) {
   const lc = p.lastContact;
@@ -46164,7 +47758,7 @@ var DOUBT_WORDS = {
 };
 
 // src/people/lists/list-rules.ts
-import * as z20 from "zod/mini";
+import * as z21 from "zod/mini";
 var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
 var CHANNELS = ["whatsapp", "sms", "voice", "email"];
 var CAME_FROM = [
@@ -46177,37 +47771,37 @@ var CAME_FROM = [
   "import",
   "lead"
 ];
-var Days = { op: z20.enum(LIST_DAY_OPS), days: z20.optional(z20.int().check(z20.minimum(1), z20.maximum(3650))) };
-var YesNo = { op: z20.literal("is"), yes: z20.boolean() };
-var Count = { op: z20.enum(["at_least", "at_most"]), n: z20.int().check(z20.minimum(0), z20.maximum(1e4)) };
-var IsOrNot = z20.enum(["is", "is_not"]);
-var Token = z20.string().check(z20.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
-var fact = (shape) => z20.strictObject(shape);
-var ListFactSchema = z20.discriminatedUnion("field", [
-  fact({ field: z20.literal("last_visit"), ...Days }),
-  fact({ field: z20.literal("next_visit"), ...Days }),
-  fact({ field: z20.literal("missed_visit"), ...Days }),
-  fact({ field: z20.literal("booked"), ...YesNo }),
-  fact({ field: z20.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z20.literal("last_heard"), ...Days }),
-  fact({ field: z20.literal("first_contact"), ...Days }),
-  fact({ field: z20.literal("channel"), op: IsOrNot, channel: z20.enum(CHANNELS) }),
-  fact({ field: z20.literal("came_from"), op: IsOrNot, from: z20.enum(CAME_FROM) }),
-  fact({ field: z20.literal("calls"), ...Count }),
-  fact({ field: z20.literal("conversations"), ...Count }),
-  fact({ field: z20.literal("has_chat"), ...YesNo }),
-  fact({ field: z20.literal("said_yes"), ...YesNo, to: z20.enum(LIST_PURPOSES) }),
-  fact({ field: z20.literal("can_receive"), ...YesNo, to: z20.enum(LIST_PURPOSES) }),
-  fact({ field: z20.literal("stopped"), ...YesNo }),
-  fact({ field: z20.literal("standing"), op: IsOrNot, value: z20.enum(LIST_STANDINGS) }),
-  fact({ field: z20.literal("assigned"), op: IsOrNot, value: z20.enum(LIST_ASSIGNED) }),
-  fact({ field: z20.literal("deal_stage"), op: IsOrNot, value: z20.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z20.literal("consultation"), ...YesNo }),
-  fact({ field: z20.literal("step_due"), ...YesNo }),
-  fact({ field: z20.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z21.enum(LIST_DAY_OPS), days: z21.optional(z21.int().check(z21.minimum(1), z21.maximum(3650))) };
+var YesNo = { op: z21.literal("is"), yes: z21.boolean() };
+var Count = { op: z21.enum(["at_least", "at_most"]), n: z21.int().check(z21.minimum(0), z21.maximum(1e4)) };
+var IsOrNot = z21.enum(["is", "is_not"]);
+var Token = z21.string().check(z21.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
+var fact = (shape) => z21.strictObject(shape);
+var ListFactSchema = z21.discriminatedUnion("field", [
+  fact({ field: z21.literal("last_visit"), ...Days }),
+  fact({ field: z21.literal("next_visit"), ...Days }),
+  fact({ field: z21.literal("missed_visit"), ...Days }),
+  fact({ field: z21.literal("booked"), ...YesNo }),
+  fact({ field: z21.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z21.literal("last_heard"), ...Days }),
+  fact({ field: z21.literal("first_contact"), ...Days }),
+  fact({ field: z21.literal("channel"), op: IsOrNot, channel: z21.enum(CHANNELS) }),
+  fact({ field: z21.literal("came_from"), op: IsOrNot, from: z21.enum(CAME_FROM) }),
+  fact({ field: z21.literal("calls"), ...Count }),
+  fact({ field: z21.literal("conversations"), ...Count }),
+  fact({ field: z21.literal("has_chat"), ...YesNo }),
+  fact({ field: z21.literal("said_yes"), ...YesNo, to: z21.enum(LIST_PURPOSES) }),
+  fact({ field: z21.literal("can_receive"), ...YesNo, to: z21.enum(LIST_PURPOSES) }),
+  fact({ field: z21.literal("stopped"), ...YesNo }),
+  fact({ field: z21.literal("standing"), op: IsOrNot, value: z21.enum(LIST_STANDINGS) }),
+  fact({ field: z21.literal("assigned"), op: IsOrNot, value: z21.enum(LIST_ASSIGNED) }),
+  fact({ field: z21.literal("deal_stage"), op: IsOrNot, value: z21.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z21.literal("consultation"), ...YesNo }),
+  fact({ field: z21.literal("step_due"), ...YesNo }),
+  fact({ field: z21.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z20.strictObject({ any: z20.array(ListFactSchema).check(z20.minLength(2), z20.maxLength(LIST_ANY_MAX)) });
-var ListConditionSchema = z20.union([AnySchema, ListFactSchema]);
+var AnySchema = z21.strictObject({ any: z21.array(ListFactSchema).check(z21.minLength(2), z21.maxLength(LIST_ANY_MAX)) });
+var ListConditionSchema = z21.union([AnySchema, ListFactSchema]);
 var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
   if (!isDayFact(f)) return null;
@@ -46215,11 +47809,11 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
-var ListRuleSchema = z20.strictObject({
-  v: z20.optional(z20.literal(2)),
-  all: z20.array(ListConditionSchema).check(z20.minLength(1), z20.maxLength(LIST_RULE_MAX))
+var ListRuleSchema = z21.strictObject({
+  v: z21.optional(z21.literal(2)),
+  all: z21.array(ListConditionSchema).check(z21.minLength(1), z21.maxLength(LIST_RULE_MAX))
 }).check(
-  z20.superRefine((r2, ctx) => {
+  z21.superRefine((r2, ctx) => {
     for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
       const p = factProblem(f);
       if (p) ctx.addIssue({ code: "custom", message: p });
@@ -46292,7 +47886,7 @@ var DEAL_STAGE_LIST_WORDS = {
   lost: "passed",
   ended: "ended"
 };
-var PURPOSE_WORDS = { offers: "offers", messages: "messages" };
+var PURPOSE_WORDS2 = { offers: "offers", messages: "messages" };
 var DAY_FACT_ENDS = {
   last_visit: { never: "Never on the calendar", ever: "On the calendar before" },
   missed_visit: { never: "Never missed one", ever: "Has missed one" },
@@ -46318,7 +47912,7 @@ function listFactWords(f, listName = () => null) {
       return f.yes ? label : `Not: ${lower(label)}`;
     case "said_yes":
     case "can_receive":
-      return f.yes ? `${label} ${PURPOSE_WORDS[f.to]}` : `Not: ${lower(label)} ${PURPOSE_WORDS[f.to]}`;
+      return f.yes ? `${label} ${PURPOSE_WORDS2[f.to]}` : `Not: ${lower(label)} ${PURPOSE_WORDS2[f.to]}`;
     case "channel":
       return `${f.op === "is" ? label : "Never reaches you by"} ${PERSON_CHANNEL_WORDS[f.channel]}`;
     case "came_from":
@@ -47061,7 +48655,7 @@ function tileOf(name, b) {
 }
 function personHeadOf(h, tz, nowMs) {
   const standIn = h.nameSource === "lead";
-  const day = (ms2) => clockDate(ms2, tz, nowMs);
+  const day = (ms3) => clockDate(ms3, tz, nowMs);
   const offered = h.signers.find((s) => s.state === "offered" && s.intent !== "no" && s.claim === "person");
   const signer = offered && (standIn || !h.givenName) ? {
     name: offered.name,
@@ -48240,14 +49834,14 @@ function heldDraftWaiting(messages, thread, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z21 } from "zod";
-var PeopleExportQuerySchema = z21.object({
-  list: z21.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z22 } from "zod";
+var PeopleExportQuerySchema = z22.object({
+  list: z22.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z21.object({
-  name: z21.string().trim().min(1).max(60),
-  cannot: z21.string().trim().max(200),
-  all: z21.array(z21.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z22.object({
+  name: z22.string().trim().min(1).max(60),
+  cannot: z22.string().trim().max(200),
+  all: z22.array(z22.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/lists.ts
@@ -48514,53 +50108,53 @@ function legacyLeadSuppressionHash(tenantId, value) {
 }
 
 // src/people/doors/person-bodies.ts
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z22.array(z22.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-var CONSENT = z22.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-var MODE = z22.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
-var ConsentAnswerBody = z22.object({
+var SOME_PEOPLE = z23.array(z23.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var CONSENT = z23.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
+var MODE = z23.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+var ConsentAnswerBody = z23.object({
   consent: CONSENT,
-  source: z22.string().optional(),
-  note: z22.string().optional(),
-  message_id: z22.uuid({ message: "Choose one of their messages." }).optional()
+  source: z23.string().optional(),
+  note: z23.string().optional(),
+  message_id: z23.uuid({ message: "Choose one of their messages." }).optional()
 });
-var ConsentManyBody = z22.object({
+var ConsentManyBody = z23.object({
   ids: SOME_PEOPLE,
   consent: CONSENT,
-  source: z22.string().optional(),
-  note: z22.string().optional()
+  source: z23.string().optional(),
+  note: z23.string().optional()
 });
-var ReceptionistModeBody = z22.object({ mode: MODE });
-var ReceptionistManyBody = z22.object({ ids: SOME_PEOPLE, mode: MODE });
-var NotesAppendManyBody = z22.object({
+var ReceptionistModeBody = z23.object({ mode: MODE });
+var ReceptionistManyBody = z23.object({ ids: SOME_PEOPLE, mode: MODE });
+var NotesAppendManyBody = z23.object({
   ids: SOME_PEOPLE,
-  append: z22.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
+  append: z23.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
 });
-var PersonMergeBody = z22.object({
-  merge: z22.uuid({ message: "Choose the record to merge into this one." })
+var PersonMergeBody = z23.object({
+  merge: z23.uuid({ message: "Choose the record to merge into this one." })
 });
-var PersonAddBody = z22.object({
-  phone: z22.string().optional(),
-  email: z22.string().optional(),
-  name: z22.string().optional(),
-  source: z22.string().optional()
+var PersonAddBody = z23.object({
+  phone: z23.string().optional(),
+  email: z23.string().optional(),
+  name: z23.string().optional(),
+  source: z23.string().optional()
 });
-var NoteWriteBody = z22.object({
-  body: z22.string().trim().min(1).max(NOTE_MAX),
+var NoteWriteBody = z23.object({
+  body: z23.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z22.uuid().nullable().optional(),
+  for_user_id: z23.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
-  team_only: z22.boolean().optional(),
+  team_only: z23.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z22.uuid().optional(),
-  version: z22.number().int().min(1).optional(),
+  note_id: z23.uuid().optional(),
+  version: z23.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
-  due_on: z22.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z23.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z22.uuid().nullable().optional(),
+  deal_id: z23.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
-  clear_due: z22.boolean().optional()
+  clear_due: z23.boolean().optional()
 }).strict();
 
 // src/people/doors/say-it.ts
@@ -48650,24 +50244,24 @@ function noteSheetFill(sheet, fill2) {
 }
 
 // src/people/doors/say-it-schema.ts
-import { z as z23 } from "zod";
-var SayItInputSchema = z23.object({
-  verb: z23.enum(SAY_IT_VERBS),
-  words: z23.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
+import { z as z24 } from "zod";
+var SayItInputSchema = z24.object({
+  verb: z24.enum(SAY_IT_VERBS),
+  words: z24.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
 }).strict();
-var SayItDealAnswerSchema = z23.object({
-  service: z23.string(),
-  value: z23.string(),
-  per: z23.string(),
-  link: z23.string(),
-  valid_until: z23.string(),
-  lost_reason: z23.string(),
-  note: z23.string()
+var SayItDealAnswerSchema = z24.object({
+  service: z24.string(),
+  value: z24.string(),
+  per: z24.string(),
+  link: z24.string(),
+  valid_until: z24.string(),
+  lost_reason: z24.string(),
+  note: z24.string()
 });
-var SayItNoteAnswerSchema = z23.object({
-  body: z23.string(),
-  day: z23.string(),
-  team_only: z23.boolean()
+var SayItNoteAnswerSchema = z24.object({
+  body: z24.string(),
+  day: z24.string(),
+  team_only: z24.boolean()
 });
 
 // src/person-page/head-state.ts
@@ -48929,26 +50523,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z24 } from "zod";
-var PersonNameActSchema = z24.discriminatedUnion("act", [
-  z24.object({ act: z24.literal("adopt"), message_id: z24.uuid({ message: "Name the reply whose signer to use." }) }),
-  z24.object({ act: z24.literal("undo") }),
-  z24.object({ act: z24.literal("decline"), message_id: z24.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z25 } from "zod";
+var PersonNameActSchema = z25.discriminatedUnion("act", [
+  z25.object({ act: z25.literal("adopt"), message_id: z25.uuid({ message: "Name the reply whose signer to use." }) }),
+  z25.object({ act: z25.literal("undo") }),
+  z25.object({ act: z25.literal("decline"), message_id: z25.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z24.object({
-  lead_id: z24.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z25.object({
+  lead_id: z25.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z24.object({
-  outcome: z24.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z24.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z25.object({
+  outcome: z25.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z25.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z24.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z25.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z24.boolean().optional(),
+  tell: z25.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z24.string().trim().max(80).optional(),
+  spoke_with: z25.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z24.boolean().optional()
+  closes_call_back: z25.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -49893,8 +51487,8 @@ function stageSummaryOf(own) {
   if (own.length > 1) return tallyWords(own.length, tallyOf(own));
   const p = own.at(0);
   if (!p) return null;
-  const short = lifecycleStateOf(p).short;
-  return `${p.name} \xB7 ${short.charAt(0).toLowerCase()}${short.slice(1)}`;
+  const short2 = lifecycleStateOf(p).short;
+  return `${p.name} \xB7 ${short2.charAt(0).toLowerCase()}${short2.slice(1)}`;
 }
 function barOf(own) {
   if (own.length < 2) return null;
@@ -50247,55 +51841,55 @@ function zoneOfRegion(region) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z25 } from "zod";
-var ReachOutRepliesQuerySchema = z25.object({
-  since: z25.string().datetime({ offset: true }).optional(),
-  conversation_id: z25.string().uuid().optional()
+import { z as z26 } from "zod";
+var ReachOutRepliesQuerySchema = z26.object({
+  since: z26.string().datetime({ offset: true }).optional(),
+  conversation_id: z26.string().uuid().optional()
 });
-var ReachOutStepSchema = z25.object({
+var ReachOutStepSchema = z26.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z25.string().uuid().nullable().optional(),
-  subject: z25.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z25.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z25.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z26.string().uuid().nullable().optional(),
+  subject: z26.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z26.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z26.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z25.object({ kind: z25.enum(HAND_KINDS), words: z25.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z26.object({ kind: z26.enum(HAND_KINDS), words: z26.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z25.object({
-  name: z25.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z25.string().uuid(),
-  include_unconfirmed: z25.boolean(),
+var ReachOutChainSchema = z26.object({
+  name: z26.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z26.string().uuid(),
+  include_unconfirmed: z26.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z25.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z26.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z25.array(z25.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z26.array(z26.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
-  owner_sends: z25.boolean().default(false),
-  signed_by: z25.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z25.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  owner_sends: z26.boolean().default(false),
+  signed_by: z26.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z26.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z25.object({
-  search_id: z25.string().uuid(),
-  index: z25.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z25.boolean(),
-  words: z25.object({
-    subject: z25.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z25.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z26.object({
+  search_id: z26.string().uuid(),
+  index: z26.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z26.boolean(),
+  words: z26.object({
+    subject: z26.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z26.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z25.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z25.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z26.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z26.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z25.object({ decision: z25.enum(REACH_OUT_DECISIONS) });
-var ReachOutSaidSchema = z25.object({ outcome: z25.enum(REACH_OUT_SAID_OUTCOMES) });
-var ReachOutReplySaidSchema = z25.object({
-  intent: z25.enum(OWNER_SAID_INTENTS),
-  day: z25.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  refer_to: z25.string().trim().max(120).nullable().optional()
+var ReachOutDecideSchema = z26.object({ decision: z26.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z26.object({ outcome: z26.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z26.object({
+  intent: z26.enum(OWNER_SAID_INTENTS),
+  day: z26.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z26.string().trim().max(120).nullable().optional()
 });
-var ReachOutAddSchema = z25.object({
-  lead_ids: z25.array(z25.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutAddSchema = z26.object({
+  lead_ids: z26.array(z26.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -51331,36 +52925,36 @@ var NEW_DRAFT_JSON_SCHEMA = {
 };
 
 // src/sequences/new-draft-schema.ts
-import { z as z26 } from "zod";
-var LONG_WORDS = z26.string().max(2e3);
-var NewDraftAnswerSchema = z26.object({
-  kind: z26.enum(NEW_KINDS),
-  audience: z26.enum(NEW_AUDIENCES),
-  who: z26.string().trim().max(60),
-  name: z26.string().trim().max(120),
-  hour: z26.number().int(),
-  when: z26.string().trim().max(40),
-  steps: z26.array(
-    z26.object({
-      does: z26.enum(NEW_STEP_DOES),
-      after_days: z26.number().int(),
-      only_if: z26.array(z26.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
-      message: z26.string().trim().max(10),
-      texts: z26.array(z26.string().max(300)).max(10),
-      write: z26.object({
-        title: z26.string().trim().max(80),
-        offer: z26.boolean(),
+import { z as z27 } from "zod";
+var LONG_WORDS = z27.string().max(2e3);
+var NewDraftAnswerSchema = z27.object({
+  kind: z27.enum(NEW_KINDS),
+  audience: z27.enum(NEW_AUDIENCES),
+  who: z27.string().trim().max(60),
+  name: z27.string().trim().max(120),
+  hour: z27.number().int(),
+  when: z27.string().trim().max(40),
+  steps: z27.array(
+    z27.object({
+      does: z27.enum(NEW_STEP_DOES),
+      after_days: z27.number().int(),
+      only_if: z27.array(z27.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
+      message: z27.string().trim().max(10),
+      texts: z27.array(z27.string().max(300)).max(10),
+      write: z27.object({
+        title: z27.string().trim().max(80),
+        offer: z27.boolean(),
         whatsapp: LONG_WORDS,
-        email_subject: z26.string().max(200),
+        email_subject: z27.string().max(200),
         email_body: LONG_WORDS,
-        text: z26.string().max(600)
+        text: z27.string().max(600)
       }),
-      subject: z26.string().max(200),
+      subject: z27.string().max(200),
       body: LONG_WORDS,
-      words: z26.string().max(600)
+      words: z27.string().max(600)
     })
   ).max(8),
-  cannot: z26.string().trim().max(300)
+  cannot: z27.string().trim().max(300)
 });
 
 // src/sequences/new-words.ts
@@ -52245,7 +53839,7 @@ function reviewsWaitingOf(ledger, linkedAt, tz, nowMs) {
   });
   return { total: ledger.waiting_total, rows: rows2 };
 }
-var latestEmptyWords = (google, latest) => latest.length ? null : google.latest.length ? LATEST_ALL_WAIT_WORDS : LATEST_NONE_WORDS;
+var latestEmptyWords = (google, latest2) => latest2.length ? null : google.latest.length ? LATEST_ALL_WAIT_WORDS : LATEST_NONE_WORDS;
 function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
   const { days, timezone } = dto;
   const last = dto.end ?? dto.today;
@@ -52254,7 +53848,7 @@ function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
   const weekly = sumOf(weeks.map((w) => w.written)) ? { points: weeks } : null;
   const waiting = reviewsWaitingOf(ledger, l.linked_at, timezone, nowMs);
   const waitingIds = new Set(waiting.rows.map((r2) => r2.id));
-  const latest = google.latest.filter((r2) => !waitingIds.has(r2.id));
+  const latest2 = google.latest.filter((r2) => !waitingIds.has(r2.id));
   const onRecord = ledger.on_record.profile + ledger.on_record.places;
   const startsAt = p.exact && p.prior !== null ? null : historyWords(history);
   return {
@@ -52267,8 +53861,8 @@ function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
     stars: p.exact && p.mix.rated ? { rated: p.mix.rated, rows: p.mix.rows, table: p.mix.table } : null,
     weekly,
     waiting,
-    latest,
-    latestTable: googleReviewsTable(latest),
+    latest: latest2,
+    latestTable: googleReviewsTable(latest2),
     lines: {
       ...noLines(),
       head: reviewsNoneHead(l, onRecord, nowMs) ?? `${reviewsStandingWords(l)}; ${profileHeadTail(p)}.`,
@@ -52278,7 +53872,7 @@ function reviewsFromLedger({ dto, google, l, nowMs }, ledger) {
       historyTitle: startsAt ? `${capitalize(startsAt)}.` : null,
       waiting: waiting.total > waiting.rows.length ? `Showing the oldest ${waiting.rows.length}.` : null,
       waitingEmpty: waiting.rows.length ? null : WAITING_EMPTY_WORDS,
-      latestEmpty: latestEmptyWords(google, latest)
+      latestEmpty: latestEmptyWords(google, latest2)
     }
   };
 }
@@ -53300,13 +54894,13 @@ function runsWaitingOf(runs, at3) {
   };
 }
 function runsFailedOf(runs) {
-  const latest = runs.reduce((top, run) => {
+  const latest2 = runs.reduce((top, run) => {
     if (Number.isNaN(Date.parse(run.finished_at))) return top;
     return top === null || Date.parse(run.finished_at) > Date.parse(top.finished_at) ? run : top;
   }, null);
   return {
     n: runs.length,
-    latest: latest === null ? null : { name: latest.name, failure: latest.failure, at: latest.finished_at },
+    latest: latest2 === null ? null : { name: latest2.name, failure: latest2.failure, at: latest2.finished_at },
     capped: runs.length >= CAMPAIGN_ROWS_LISTED
   };
 }
@@ -57726,6 +59320,7 @@ var ROUTE_KEYS = [
   "GET people/list-counts",
   "GET platform/acts",
   "GET platform/find",
+  "GET platform/health",
   "GET platform/home",
   "GET platform/me",
   "GET platform/overview",
@@ -57874,6 +59469,7 @@ var ROUTE_KEYS = [
   "POST people/[id]/name",
   "POST people/[id]/say",
   "POST platform/claims",
+  "POST platform/deliveries/redrive",
   "POST platform/jobs/requeue",
   "POST platform/lines/refile",
   "POST platform/lines/release",
@@ -58169,185 +59765,6 @@ var SEE_WORDS = {
   toSend: "To send"
 };
 
-// src/shell/vitals.ts
-import * as z27 from "zod/mini";
-
-// src/shell/vitals-pages.ts
-var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
-var PAGE_SPEED = ["READY", "SETTLED"];
-var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
-var PAGE_DEVICES = ["desk", "phone"];
-var PAGE_PHONE_QUERY = "(max-width: 900px)";
-var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
-var PAGE_VITALS_PER_BEACON = 100;
-var PEOPLE_SCOPES = [
-  [/^leads(:|$)/, "leads"],
-  [/^pipeline(:|$)/, "pipeline"],
-  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\/|$)/i, "person"]
-];
-function vitalsPageOf(route) {
-  const path = (route ?? "").split("?")[0] ?? "";
-  const at3 = path.indexOf("/");
-  const head = at3 < 0 ? path : path.slice(0, at3);
-  const rest = at3 < 0 ? "" : path.slice(at3 + 1);
-  if (head === "") return "today";
-  if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
-  if (head === "campaigns" && /^messages(\/|$)/.test(rest)) return ROUTE_WORDS.messages ?? "templates";
-  const word = ROUTE_WORDS[head] ?? head;
-  return PAGE_NAME.test(word) ? word : "other";
-}
-var PRIMARY_PART = {
-  today: "queue",
-  inbox: "list",
-  conversations: "list",
-  live: "list",
-  people: "table",
-  leads: "table",
-  pipeline: "board",
-  person: "hero",
-  calendar: "board",
-  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
-  campaigns: "list",
-  // Messages, Campaigns' view beside Sequences: its list of messages, drawn as the view is shown.
-  templates: "list"
-};
-
-// src/shell/vitals.ts
-var PAGE_VITAL_BANDS = {
-  LCP: [2500, 4e3],
-  INP: [200, 500],
-  CLS: [0.1, 0.25],
-  FCP: [1800, 3e3],
-  TTFB: [800, 1800]
-};
-var PAGE_VITAL_WORDS = {
-  LCP: "Drawn",
-  INP: "Answers a tap",
-  CLS: "Holds still",
-  FCP: "First paint",
-  TTFB: "First byte"
-};
-var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
-var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
-var VITAL_CEILING = 10 * MIN_MS;
-var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
-var detailWord = () => z27.optional(z27.string().check(z27.regex(DETAIL_WORD)));
-var detailMs = () => z27.optional(z27.number().check(z27.minimum(0), z27.maximum(VITAL_CEILING)));
-var PageVitalDetail = z27.object({
-  wait: detailWord(),
-  wait_ms: detailMs(),
-  server_ms: detailMs(),
-  db_ms: detailMs(),
-  db_n: z27.optional(z27.int().check(z27.minimum(0), z27.maximum(1e4))),
-  chunk_ms: detailMs(),
-  render_ms: detailMs(),
-  el: detailWord(),
-  type: z27.optional(z27.enum(["pointer", "keyboard"])),
-  input_ms: detailMs(),
-  processing_ms: detailMs(),
-  presentation_ms: detailMs(),
-  script_ms: detailMs(),
-  ttfb_ms: detailMs(),
-  load_delay_ms: detailMs(),
-  load_ms: detailMs(),
-  render_delay_ms: detailMs(),
-  shift: z27.optional(z27.number().check(z27.minimum(0), z27.maximum(100))),
-  state: z27.optional(z27.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
-  phase: detailWord()
-});
-var PageVitalReport = z27.object({
-  id: z27.string().check(z27.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z27.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
-  value: z27.number().check(z27.minimum(0), z27.maximum(VITAL_CEILING)),
-  page: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
-  part: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
-  from: z27.optional(z27.string().check(z27.regex(PAGE_NAME))),
-  warm: z27.optional(z27.boolean()),
-  detail: z27.optional(PageVitalDetail)
-});
-var PAGE_VITALS_READ = { days: 7, most: 25e3 };
-var PAGE_VITALS_MIN_LOADS = 20;
-var PAGES_SHOWN = 8;
-var VERDICT_TONES = { good: "ok", "needs work": "warn", poor: "danger" };
-function isVital(m) {
-  return PAGE_VITALS.includes(m);
-}
-function loadsWords(n) {
-  return `${n.toLocaleString("en-US")} load${n === 1 ? "" : "s"}`;
-}
-function vitalValueWords(metric, value) {
-  if (metric === "CLS") return value.toFixed(2);
-  if (value < 1e3) return `${Math.round(value)} ms`;
-  return `${(value / 1e3).toFixed(1)} s`;
-}
-function vitalVerdict(metric, p75) {
-  const [good, poor] = PAGE_VITAL_BANDS[metric];
-  if (p75 <= good) return "good";
-  return p75 <= poor ? "needs work" : "poor";
-}
-function vitalLinesOf(overall) {
-  return PAGE_VITALS.flatMap((metric) => {
-    const r2 = overall.get(metric);
-    if (!r2) return [];
-    const verdict = vitalVerdict(metric, r2.p75);
-    const value = vitalValueWords(metric, r2.p75);
-    const counted3 = `${loadsWords(r2.samples)}${metric === "INP" ? " with a tap" : ""}`;
-    return [
-      {
-        metric,
-        label: `${PAGE_VITAL_WORDS[metric]} (${metric})`,
-        value,
-        verdict,
-        tone: VERDICT_TONES[verdict],
-        samples: r2.samples,
-        hint: `${value} \xB7 ${verdict} \xB7 ${counted3}`
-      }
-    ];
-  });
-}
-function sentenceOf(overall) {
-  const loads = Math.max(...[...overall.values()].map((r2) => r2.samples));
-  const counted3 = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
-  const drawn = overall.get("LCP");
-  const tap = overall.get("INP");
-  const said = [
-    drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
-    tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null
-  ].filter(Boolean);
-  return said.length ? `Of ${counted3}, three in four ${said.join(" and ")}.` : `${counted3}; none has drawn its page yet.`;
-}
-function pagesOf(rows2) {
-  const byPage = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) {
-    if (r2.page === null || r2.metric !== "LCP" && r2.metric !== "INP") continue;
-    const held = byPage.get(r2.page) ?? {};
-    if (r2.metric === "LCP") held.drawn = r2;
-    else held.tap = r2;
-    byPage.set(r2.page, held);
-  }
-  return [...byPage.entries()].flatMap(
-    ([page2, h]) => h.drawn && h.drawn.samples >= PAGE_VITALS_MIN_LOADS ? [{ page: page2, ...h, drawn: h.drawn }] : []
-  ).sort((a, b) => b.drawn.p75 - a.drawn.p75 || a.page.localeCompare(b.page)).slice(0, PAGES_SHOWN).map((p) => {
-    const drawn = vitalValueWords("LCP", p.drawn.p75);
-    const tap = p.tap ? vitalValueWords("INP", p.tap.p75) : null;
-    const said = `Drawn within ${drawn}${tap ? `, a tap answered within ${tap}` : ""}`;
-    return { page: p.page, loads: p.drawn.samples, drawn, tap, hint: `${said} \xB7 ${loadsWords(p.drawn.samples)}` };
-  });
-}
-function pageVitalsWords(rows2) {
-  if (rows2 === null) return { sentence: "Page timings could not be read just now.", lines: [], pages: [] };
-  const overall = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) if (r2.page === null && isVital(r2.metric)) overall.set(r2.metric, r2);
-  if (overall.size === 0) {
-    return {
-      sentence: `No page has sent its timings in the last ${PAGE_VITALS_READ.days} days.`,
-      lines: [],
-      pages: []
-    };
-  }
-  return { sentence: sentenceOf(overall), lines: vitalLinesOf(overall), pages: pagesOf(rows2) };
-}
-
 // src/shell/vitals-schema.ts
 import { z as z28 } from "zod";
 var PageVitalsInput = z28.object({
@@ -58585,7 +60002,10 @@ var ClientErrorInput = z29.object({
   /** Next's digest for a server component's error: the key to its server-side line. */
   digest: z29.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z29.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z29.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable(),
+  /** The build that ran, and the device it ran on, as field data names them (00469); a page from before sends neither. */
+  build: z29.string().regex(PAGE_BUILD).nullable().optional(),
+  device: z29.enum(PAGE_DEVICES).nullable().optional()
 });
 
 // src/shell/report-problem-schema.ts
@@ -59975,9 +61395,9 @@ function lookOf(kind) {
   return kind && Object.hasOwn(SERVER_LOOK, kind) ? SERVER_LOOK[kind] ?? null : null;
 }
 function kindListDoor(kind) {
-  const look = lookOf(kind);
-  if (!look) return null;
-  return { to: look.to, action: look.own ? look.action : verbForRoute(look.to) ?? look.action };
+  const look2 = lookOf(kind);
+  if (!look2) return null;
+  return { to: look2.to, action: look2.own ? look2.action : verbForRoute(look2.to) ?? look2.action };
 }
 function noticeRoute(kind, route) {
   return route || (lookOf(kind) ?? ALERT_LOOK).to;
@@ -60053,7 +61473,7 @@ function serverNotificationRows(dto) {
   if (!dto) return [];
   const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
   return dto.notifications.filter((n) => !n.dismissed).map((n) => {
-    const look = lookOf(n.kind) ?? ALERT_LOOK;
+    const look2 = lookOf(n.kind) ?? ALERT_LOOK;
     const tone = noticeTone(n.kind, n.title);
     const at3 = Date.parse(n.created_at);
     const job = jobRowWords(n);
@@ -60065,9 +61485,9 @@ function serverNotificationRows(dto) {
       title: job ? job.title : n.title,
       message: job ? job.message : firstLine(n.body),
       to: noticeRoute(n.kind, route),
-      icon: tone === "ok" ? "check" : look.icon,
-      tone: tone ?? look.tone,
-      action: look.own ? look.action : verbForRoute(route) ?? look.action,
+      icon: tone === "ok" ? "check" : look2.icon,
+      tone: tone ?? look2.tone,
+      action: look2.own ? look2.action : verbForRoute(route) ?? look2.action,
       unread: at3 > seen && !n.read,
       about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
     };
@@ -60845,10 +62265,10 @@ function holdMarksOf(derivedKey, kept) {
 }
 function bellOlderOf(dto, seenMs, drawn) {
   const older = olderUnreadOf(dto, seenMs);
-  const holds = dto?.older_holds ?? [];
-  if (!older || !holds.length) return older;
+  const holds2 = dto?.older_holds ?? [];
+  if (!older || !holds2.length) return older;
   const waiting = new Set(drawn.map((r2) => conversationOfNeedsKey(r2.key)).filter((c) => !!c));
-  return Math.max(0, older - holds.filter((c) => waiting.has(c)).length);
+  return Math.max(0, older - holds2.filter((c) => waiting.has(c)).length);
 }
 function bellFeed(input) {
   const { device, kept } = input;
@@ -62113,189 +63533,6 @@ var PartnerInviteSchema = z34.object({
 // src/workspace/activation.ts
 var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
 
-// src/workspace/platform-days.ts
-var PLATFORM_DAYS_READ = { days: 7 };
-var sum2 = (m) => Object.values(m).reduce((a, n) => a + n, 0);
-var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-var FAILURE_WORDS = {
-  refused: "refused",
-  retryable: "not taken",
-  unknown: "may have gone"
-};
-function failuresOf(m) {
-  const n = sum2(m);
-  if (n === 0) return "";
-  const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
-  return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
-}
-var LANE_WORDS = { "0": "replies", "1": "the waiting", "2": "bulk", none: "the rest" };
-var seconds = (ms2) => `${(ms2 / 1e3).toFixed(1)} s`;
-function spineLine(r2) {
-  const parts2 = [];
-  const lanes = Object.entries(r2.job_lag_ms).sort(([a], [b]) => a.localeCompare(b));
-  if (lanes.length) {
-    const [[lane0, ms0], ...rest] = lanes;
-    parts2.push(
-      [`${LANE_WORDS[lane0] ?? `lane ${lane0}`} claimed within ${seconds(ms0)}`].concat(rest.map(([lane, ms2]) => `${LANE_WORDS[lane] ?? `lane ${lane}`} within ${seconds(ms2)}`)).join(", ")
-    );
-  }
-  const channels = Object.keys(r2.first_answer_ms).sort();
-  if (channels.length) {
-    const worst = Math.max(...Object.values(r2.first_answer_ms));
-    parts2.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
-  }
-  if (r2.duplicate_sends !== null) parts2.push(plural2(r2.duplicate_sends, "duplicate send", "duplicate sends"));
-  const died = sum2(r2.dead_letters);
-  if (died > 0) {
-    const kinds = Object.entries(r2.dead_letters).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([kind, n]) => `${kind} ${n}`);
-    parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
-  }
-  if (r2.relay_lag_ms !== null) parts2.push(`events relayed within ${seconds(r2.relay_lag_ms)}`);
-  const providers = Object.keys(r2.intake_lag_ms).sort();
-  if (providers.length) {
-    const worst = Math.max(...Object.values(r2.intake_lag_ms));
-    parts2.push(`deliveries taken in within ${seconds(worst)} (${providers.join(", ")})`);
-  }
-  return parts2.join("; ");
-}
-function receptionistLine(r2) {
-  const replies = r2.replies_answered + r2.replies_held + r2.replies_handed_off;
-  if (replies === 0) return "the receptionist did not reply";
-  const parts2 = [
-    `${r2.replies_answered} answered at once`,
-    ...r2.replies_held ? [`${r2.replies_held} held`] : [],
-    ...r2.replies_handed_off ? [`${r2.replies_handed_off} handed over`] : []
-  ];
-  const pace = r2.brain_p95_ms === null ? "" : ` \xB7 95% within ${(r2.brain_p95_ms / 1e3).toFixed(1)} s`;
-  return `${parts2.join(", ")}${pace}`;
-}
-function platformDaysWords(rows2) {
-  if (!rows2) return { day: null, sentence: "Could not be read just now.", lines: [] };
-  const day = rows2.reduce((d, r2) => d === null || r2.day > d ? r2.day : d, null);
-  if (day === null) return { day: null, sentence: "No day has been counted yet.", lines: [] };
-  const lines = rows2.filter((r2) => r2.day === day).map((r2) => ({
-    tenantId: r2.tenant_id,
-    name: r2.name,
-    day: r2.day,
-    answers: `${r2.asks} asked, ${r2.answered} answered`,
-    receptionist: receptionistLine(r2),
-    failures: failuresOf(r2.provider_failures),
-    spine: spineLine(r2),
-    silent: r2.asks > 0 && r2.answered === 0,
-    tone: r2.asks > 0 && r2.answered === 0 ? "danger" : "plain",
-    asks: r2.asks
-  })).sort((a, b) => Number(b.silent) - Number(a.silent) || b.asks - a.asks || a.name.localeCompare(b.name)).map(({ asks: _asks, ...line }) => line);
-  const silent = lines.filter((l) => l.silent).length;
-  const sentence2 = `${plural2(lines.length, "workspace", "workspaces")} worked on ${day}` + (silent ? `; ${silent} answered nobody.` : "; every one written to answered.");
-  return { day, sentence: sentence2, lines };
-}
-var heldToNothing = (why) => ({ promise: false, why });
-var PLATFORM_NUMBERS = {
-  messages_in: heldToNothing("what customers sent, by channel"),
-  messages_out: heldToNothing("what left, by channel"),
-  asks: heldToNothing("the customers' messages; with answered, the answer rate, whose alarm is answer_rate_zero"),
-  answered: heldToNothing("the customers' messages anyone answered"),
-  replies_answered: heldToNothing("the receptionist's replies sent at once"),
-  replies_held: heldToNothing("the receptionist's replies held for a person: the hold rate, invariant 11's"),
-  replies_handed_off: heldToNothing("the receptionist's replies that handed the thread to a person"),
-  brain_p95_ms: {
-    promise: true,
-    most: 1e4,
-    unit: "ms",
-    alarm: true,
-    why: "the receptionist's model answers within ten seconds, at the 95th percentile"
-  },
-  provider_failures: heldToNothing(
-    "a provider's verdict on a send, by what it came to: a number's, read beside what left"
-  ),
-  tokens: heldToNothing("the model's tokens"),
-  handled: heldToNothing("how the customers' messages ended"),
-  topics: heldToNothing("what the customers asked about"),
-  ai_tokens: heldToNothing("the model's tokens by purpose"),
-  ai_usd: heldToNothing("the model's cost by purpose, at list price"),
-  voice_usd: heldToNothing("the calls' cost"),
-  job_lag_ms: {
-    promise: true,
-    most: { "0": 1e4, "1": 3e4, "2": 5 * MIN_MS },
-    otherwise: 5 * MIN_MS,
-    unit: "ms",
-    alarm: true,
-    why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile"
-  },
-  first_answer_ms: {
-    promise: true,
-    most: { email: 15 * MIN_MS },
-    otherwise: 3e4,
-    unit: "ms",
-    alarm: false,
-    why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged"
-  },
-  duplicate_sends: {
-    promise: true,
-    most: 0,
-    unit: "count",
-    alarm: true,
-    why: "nobody is sent the same words twice (invariant 4)"
-  },
-  dead_letters: { promise: true, most: {}, otherwise: 0, unit: "count", alarm: true, why: "no job dies" },
-  relay_lag_ms: {
-    promise: true,
-    most: 15e3,
-    unit: "ms",
-    alarm: true,
-    why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile"
-  },
-  intake_lag_ms: {
-    promise: true,
-    most: {},
-    otherwise: MIN_MS,
-    unit: "ms",
-    alarm: true,
-    why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile"
-  }
-};
-function mostFor(t, key) {
-  if (typeof t.most === "number") return t.most;
-  return (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : void 0) ?? t.otherwise ?? Number.POSITIVE_INFINITY;
-}
-function breachesOf(name, t, v) {
-  if (typeof v === "number") {
-    const most = mostFor(t, null);
-    return v > most ? [{ number: name, key: null, value: v, most }] : [];
-  }
-  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
-  return Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).flatMap(([key, x]) => {
-    const most = mostFor(t, key);
-    return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
-  });
-}
-function pastTarget(row2, { all = false } = {}) {
-  const values = row2;
-  return Object.entries(PLATFORM_NUMBERS).flatMap(
-    ([name, n]) => n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : []
-  );
-}
-function figure(name, v) {
-  const n = PLATFORM_NUMBERS[name];
-  return n.promise && n.unit === "ms" ? seconds(v) : String(v);
-}
-function pastTargetPage(day, workspaces) {
-  const lines = workspaces.map(
-    (w) => `  ${w.name} (${w.tenantId}): ` + w.breaches.map(
-      (b) => `${b.number}${b.key === null ? "" : ` ${b.key}`} ${figure(b.number, b.value)}, target ${figure(b.number, b.most)}`
-    ).join("; ")
-  );
-  return {
-    subject: `${plural2(workspaces.length, "workspace", "workspaces")} past a target on ${day}`,
-    body: `On ${day} (UTC) these numbers went past the targets the platform answers for (decision 0031, invariant 12; contracts PLATFORM_NUMBERS):
-
-${lines.join("\n")}
-
-The day's counts are in platform_metrics (the back office's day by workspace).
-`
-  };
-}
-
 // src/activity/tones.ts
 var TONES2 = {
   // danger -- it failed, it was refused, or something is gone
@@ -63005,6 +64242,7 @@ export {
   ADS_WINDOW_DAYS,
   ADS_WORDS,
   ADS_ZIP_DIGITS,
+  AI_USAGE_ERROR_CHARS,
   ALERT_ADDRESSES_MAX,
   ALERT_ADDRESSES_MIN,
   ALERT_KINDS,
@@ -63283,6 +64521,7 @@ export {
   DRAFT_WHYS,
   DRAWER,
   DealMoveBody,
+  DeliveryRedriveSchema,
   E1642 as E164,
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
@@ -63383,6 +64622,13 @@ export {
   HAND_KINDS,
   HAND_WORDS_MAX,
   HEAD,
+  HEALTH_SCOPES,
+  HEALTH_SCOPE_WORDS,
+  HEALTH_STATE_WORDS,
+  HEALTH_TABS,
+  HEALTH_TAB_WORDS,
+  HEALTH_WINDOWS,
+  HEALTH_WORDS,
   HEARD_UNREAD_WORDS,
   HELD_BY_ID_MAX,
   HELD_DRAFTS_DAYS,
@@ -63397,6 +64643,7 @@ export {
   HOUR_MS,
   HandoverCreateSchema,
   HandoverResendSchema,
+  HealthQuerySchema,
   HoursSchema,
   IDENTITY_ASSURANCES,
   INBOX_BUCKET_WORDS,
@@ -64539,6 +65786,7 @@ export {
   callerName,
   callerSentence,
   callsAnswer,
+  callsOf2 as callsOf,
   callsStillUp,
   callsToday,
   cameFromOf,
@@ -64624,6 +65872,7 @@ export {
   clockStamp,
   clockTime,
   clockWhen,
+  clocksOf,
   closeSettledNotices,
   closedOf,
   closedOn,
@@ -64642,6 +65891,7 @@ export {
   connectModel,
   connectionRows,
   connectionWords,
+  connectionsOf,
   consentAnswerWords,
   consentChangeOf,
   consentChangeWords,
@@ -64678,6 +65928,7 @@ export {
   coversSpan,
   craftSystem,
   craftedVersions,
+  creditRanOut,
   csvCell,
   currencySymbol,
   customerDomainOf,
@@ -64728,6 +65979,7 @@ export {
   defaultTemplate,
   defaultWriteWire,
   delayWords,
+  deliveriesOf,
   deltaOf,
   deniesAutomated,
   describeNow,
@@ -64740,6 +65992,7 @@ export {
   deviceTimezone,
   disclosureFacts,
   divertedNumbers,
+  dollarsWords,
   doorNeeds,
   draftAd,
   draftExcerpt,
@@ -64787,6 +66040,8 @@ export {
   enrolRefusalWords,
   eraseSlot,
   err,
+  errorGroupReport,
+  errorGroupsOf,
   errorIdOf,
   escapeHtml,
   estimateRoundUsd,
@@ -64808,6 +66063,7 @@ export {
   factorCodeWords,
   factorStepNeeded,
   failedAnswer,
+  failureReadingOf,
   failureWordsOf,
   fallbackMessages,
   fallbackModel,
@@ -64926,6 +66182,14 @@ export {
   hasProfile,
   hasPublicPages,
   headlineOf,
+  healthAskOf,
+  healthCounts,
+  healthLooksOf,
+  healthPathOf,
+  healthQuietWords,
+  healthSentence,
+  healthTabOf,
+  healthTilesOf,
   heardFor,
   heardSinceProposal,
   heardTooWords,
@@ -64988,6 +66252,7 @@ export {
   inAppFrom,
   inLastSendingHour,
   inLocalWeek,
+  inScope,
   inboxBlankOf,
   inboxBucketWord,
   inboxHomeUrl,
@@ -65104,6 +66369,7 @@ export {
   jittered,
   jobNewsWords,
   jobRecordOf,
+  jobWords,
   joinedWords,
   journeyGuide,
   journeyOf,
@@ -65378,6 +66644,7 @@ export {
   missedCall,
   missedCallIsNews,
   mmss,
+  modelCallsOf,
   modelRoute,
   modelTakes,
   modelTurnRequestOf,
@@ -65503,6 +66770,7 @@ export {
   optOutNotice,
   optOutOf,
   optOutWords,
+  oursOf,
   outcomeMove,
   outreachRefusalOf,
   overLimitRefusal,
@@ -65514,11 +66782,13 @@ export {
   ownedDomainOf,
   ownerPaceWords,
   paceWords,
+  pageKeyWords,
   pageSpeedWords,
   pageTitle,
   pageTotals,
   pageVitalsWords,
   pageWords,
+  pagesOf2 as pagesOf,
   paramLabel,
   paramSaid,
   parseAds,
@@ -65740,6 +67010,7 @@ export {
   priorOf,
   privacyRequestOf,
   profileRefusal,
+  promiseDaysOf,
   promptBlocks,
   promptCostWords,
   promptSafeName,
@@ -66006,12 +67277,14 @@ export {
   scheduleStepState,
   scheduleStepSub,
   scheduleWait,
+  scheduleWords,
   scopeFromRoute,
   seasonHorizon,
   seatNeedsSecondFactor,
   secondFactorAsked,
   secondFactorResetWords,
   secondFactorShown,
+  secondsWords,
   seeHomeOf,
   seeRefOf,
   seeRefOfRoute,
@@ -66025,6 +67298,7 @@ export {
   senderLanguage,
   senderWords,
   sendingEndsAt,
+  sendsOf,
   sendsWaitWords,
   sentByWords,
   sentResultsOfSource,
@@ -66188,6 +67462,7 @@ export {
   stoppedAnswer,
   stoppedRunFix,
   storedAnswer,
+  subscriberWords,
   suggestLocalPart,
   sum,
   sumMoney,
@@ -66425,6 +67700,7 @@ export {
   wallClockAt,
   warningsMendedBy,
   wayOff,
+  webhooksOf,
   websiteHostOf,
   weekHoursOf,
   weekOf,
@@ -66472,6 +67748,7 @@ export {
   workspaceInitials,
   workspaceLogoPath,
   workspaceLogoSrc,
+  workspaceNamer,
   workspacePartnerVM,
   workspacePath,
   writeReachOf,

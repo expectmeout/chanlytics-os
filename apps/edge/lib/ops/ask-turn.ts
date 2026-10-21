@@ -118,7 +118,17 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   if (!up) return refuse(503, "no_model_key");
   if (up.outcome !== "ok") {
     const forWhom = { tenantId, userId };
-    await recordCall(modelPurpose, { asked: up.asked, model: up.model, outcome: up.outcome, usage: NO_USAGE }, forWhom);
+    await recordCall(
+      modelPurpose,
+      {
+        asked: up.asked,
+        model: up.model,
+        outcome: up.outcome,
+        usage: NO_USAGE,
+        error: { type: up.errorType, message: up.error },
+      },
+      forWhom,
+    );
     if (up.outcome === "unreachable") {
       L.error("ask_gateway_unreachable", { status: up.status, error: up.error.slice(0, 200), fell_back: up.fellBack });
       return refuse(503, "model_unreachable", `model ${up.status || "timeout"}`);

@@ -41,8 +41,9 @@ export interface PlatformDayPromises {
 const NAMES_PER_READ = 100;
 
 /**
- * The rollup's day for every live workspace that worked in it (status active, as the silence alarm reads it: a paused
- * or test workspace pages nobody), with its name: what the health sweep holds to contracts' PLATFORM_NUMBERS once a day.
+ * The rollup's day for every live customer's workspace that worked in it (status active and not ours, as the silence
+ * alarm reads it: a paused, test or ours workspace pages nobody, 00469), with its name: what the health sweep holds to
+ * contracts' PLATFORM_NUMBERS once a day.
  * A read that fails throws, with the database's words.
  */
 export async function platformDay(db: Db, day: string): Promise<PlatformDayPromises[]> {
@@ -58,10 +59,10 @@ export async function platformDay(db: Db, day: string): Promise<PlatformDayPromi
   for (let i = 0; i < ids.length; i += NAMES_PER_READ) {
     const t = await db
       .from("tenants")
-      .select("id, name, status")
+      .select("id, name, status, ours")
       .in("id", ids.slice(i, i + NAMES_PER_READ));
     if (t.error) throw new Error(t.error.message);
-    for (const w of t.data ?? []) if (w.status === "active") live.set(w.id, w.name);
+    for (const w of t.data ?? []) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
   }
   return rows.flatMap((r) => {
     const name = live.get(r.tenant_id);

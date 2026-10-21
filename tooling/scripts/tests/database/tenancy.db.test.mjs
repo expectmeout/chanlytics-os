@@ -987,6 +987,7 @@ const OTHER_TABLES = {
   push_devices: "own", // a person's phones (00162): read by user_id; written only through the two definer doors
   profiles: "people", // a person's own row, and the rows of people who share a workspace with them: not tenancy
   operator_pages: "none",
+  client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone
   platform_admins: "none",
   rate_hits: "none",
   sweep_status: "none",

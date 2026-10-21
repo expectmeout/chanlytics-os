@@ -43,9 +43,9 @@ export interface JobContext {
   /**
    * The platform's own pager, for a condition that is the platform's: a
    * provider refusing sends with 401 or 403 is credentials, not content.
-   * Optional so a test context need not supply one.
+   * Optional so a test context need not supply one. The workspace rides along, so the pager can leave ours out (00469).
    */
-  page?: (key: string, subject: string, body: string) => Promise<unknown>;
+  page?: (key: string, subject: string, body: string, tenantId?: string | null) => Promise<unknown>;
   /**
    * Run a line's provisioning saga, or resume it. INJECTED, not imported:
    * the provider and the receptionist's credentials live on the edge, and a
