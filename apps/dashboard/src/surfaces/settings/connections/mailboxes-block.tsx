@@ -1,6 +1,6 @@
 /**
- * Chanlytics — Connections › Email › Mailboxes you write from (decision 0056): the mailboxes a business connected at
- * Google or Microsoft for its reach-outs, under the Email row. Each row is contracts' words (`connectedMailboxes.words`),
+ * Chanlytics — Connections › Mailboxes you write from (decision 0056): the mailboxes a business connected at Google or
+ * Microsoft for its sequences to leads, under their own row (contracts connections.ts mailboxRow). Each row is contracts' words (`connectedMailboxes.words`),
  * so what it says is what the doors and the mailboxes clock decided: its day, its ramp, a hold and what to do about it,
  * a sign-out to reconnect. Its domain's records are listed while one is missing. The owner connects, pauses, resumes,
  * sets, tests, checks and removes; anyone may read.
@@ -437,8 +437,8 @@ interface ConnectedMailboxesProps {
 }
 
 /**
- * The mailboxes a workspace writes its reach-outs from, under the Email row (decision 0056; the plan's Connections
- * board). Drawn when this deployment offers a provider or the workspace has a mailbox connected.
+ * The mailboxes a workspace writes its sequences to leads from, under their own row, which names them (decision 0056).
+ * Drawn when this deployment offers a provider or the workspace has a mailbox connected; otherwise the row is Later.
  */
 export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMailboxesProps) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -452,10 +452,6 @@ export function ConnectedMailboxes({ email, flash, note, onNote }: ConnectedMail
   const now = Date.now();
   return (
     <div className="set-domains" data-testid="connected-mailboxes">
-      <div className="set-domains-head">
-        <span>Mailboxes you write from</span>
-        <span className="k">emails to leads leave from these · replies come back to them and to your Inbox</span>
-      </div>
       {note && (
         <div className="set-dom set-dom-note" data-testid="mailbox-note" data-ok={note.ok ? "yes" : "no"}>
           <span />

@@ -1388,7 +1388,7 @@ var REACH_OUT_SHEET_WORDS = {
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
   checkLater: "Each email is checked before it goes. The first run waits for you.",
-  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections \u203A Email.",
+  noMailbox: "Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings \u203A Connections.",
   /** From, when its owner sends it (00429): what they are handed, and how. */
   ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */

@@ -1012,7 +1012,7 @@ chain end with a call or a note for the team.
   stop; the one-click unsubscribe is in its header, never a link in its words (contracts `emailFoot`, its `cold` kind).
   A first email carries no link at all (contracts `validateReachOutChain`, `first_has_a_link`).
 - **Connected mailboxes** (`mailbox_connections`, 00423, 00424; decision 0056). Up to ten per workspace and three on one
-  domain, connected from Connections › Email with OAuth: the dashboard's `/api/v1/mailbox-connections` routes sign the
+  domain, connected from Connections' own row, Mailboxes you write from (Later while no provider is offered), with OAuth: the dashboard's `/api/v1/mailbox-connections` routes sign the
   round trip and hand the code to the edge's `/api/admin/mailboxes` (ops `readiness | connect | remove | pause | unpause
 | resume | settings | test | check`), which holds both providers' clients, refuses a free mailbox (Gmail.com,
   Outlook.com and the like) and one without the scopes to send and read, and keeps the token in Vault

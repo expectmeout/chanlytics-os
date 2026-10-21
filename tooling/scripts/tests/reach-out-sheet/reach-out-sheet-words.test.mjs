@@ -113,7 +113,7 @@ test("Start says what really happened, each reason in its own words; within the 
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
   assert.equal(
     said("held", "no_mailbox"),
-    "Saved. Nothing is planned yet. Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.",
+    "Saved. Nothing is planned yet. Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections.",
   );
   assert.equal(
     said("held", "no_room"),
@@ -579,7 +579,7 @@ test("the chain row's own words: its pace from its mailboxes, its path, the held
   assert.equal(report(CHAIN, REPORT, REACH, { from: null, share: 30 }).waiting, null);
   assert.match(
     report(CHAIN, REPORT, REACH, { from: null, share: 0 }).sentence,
-    /^Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email\. 72 written/,
+    /^Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections. 72 written/,
     "no mailbox: never a pace of 0 a day",
   );
   assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");

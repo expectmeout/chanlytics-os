@@ -1372,7 +1372,7 @@ const emailSeam = (sending, mailbox = null) =>
     },
   });
 
-test("the mailboxes you write from: under the Email row, each in contracts' words, and a Connect for each provider offered", () => {
+test("the mailboxes you write from: under their own row, each in contracts' words, and a Connect for each provider offered", () => {
   asRole("owner");
   const went = [];
   Object.assign(connectedMailboxes, { connect: (p) => went.push(p) });
@@ -1398,8 +1398,11 @@ test("the mailboxes you write from: under the Email row, each in contracts' word
   });
   let tree = render(Connections);
   const block = byTestId(tree, "connected-mailboxes");
-  assert.ok(block, "drawn under the Email row, with no hosted mailbox needed");
-  assert.match(textOf(block), /Mailboxes you write from/);
+  assert.ok(block, "drawn under its row, with no hosted mailbox needed");
+  const row = byTestId(tree, "connection-mailbox");
+  assert.match(textOf(row), /Mailboxes you write from/);
+  assert.equal(row.props["data-state"], "attention", "one held and one signed out: the row says so, not a green On");
+  assert.match(textOf(row), /2 to look at/);
   const sam = byTestId(tree, "mailbox-sam@getharbor.com");
   // The ramp reads the days it sent (D15): nine, so its second step's 20 a day, and 30 after five more.
   assert.match(textOf(sam), /Up to 20 a day/);
@@ -1420,11 +1423,21 @@ test("the mailboxes you write from: under the Email row, each in contracts' word
   assert.equal(byTestId(tree, "mailbox-records-sam@getharbor.com"), null, "every record found: none to add");
 });
 
-test("the block is not drawn where no provider is offered and none is connected, nor where the mailboxes could not be read", () => {
+test("no provider offered and none connected: the row is there, Later and greyed, with nothing to press and no block under it", () => {
   asRole("owner");
   for (const sending of [{ providers: [], mailboxes: [] }, null]) {
     emailSeam(sending);
-    assert.equal(byTestId(render(Connections), "connected-mailboxes"), null, JSON.stringify(sending));
+    let tree = render(Connections);
+    assert.equal(byTestId(tree, "connected-mailboxes"), null, JSON.stringify(sending));
+    const row = byTestId(tree, "connection-mailbox");
+    assert.ok(row, `the row is drawn: ${JSON.stringify(sending)}`);
+    assert.equal(row.props["data-state"], "later");
+    assert.equal(byTestId(tree, "mailbox-connect-google"), null, "nothing to connect yet");
+    // What is coming, and what happens meanwhile, waits behind the row's quiet press, as every row's sentence does.
+    press(byTestId(tree, "connection-mailbox-why"));
+    tree = settle(Connections);
+    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /Google Workspace or Microsoft 365/);
+    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /handed to you to send/);
   }
   // Ten is the most: no Connect is offered past it.
   emailSeam({
@@ -1504,7 +1517,7 @@ test("the owner's acts: pause at once, settings judged before they are sent, rem
   asRole("owner");
 });
 
-test("back from the provider: what it came to is said once under the Email row, in contracts' words", () => {
+test("back from the provider: what it came to is said once under the mailboxes' row, in contracts' words", () => {
   asRole("owner");
   Object.assign(connectedMailboxes, {
     outcome: () => ({ ok: false, words: "A free mailbox isn't for writing to businesses." }),

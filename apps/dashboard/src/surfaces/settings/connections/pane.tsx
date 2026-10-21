@@ -265,7 +265,7 @@ export const PaneIntegrationsReal = () => {
   const [emailOpen, setEmailOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   const [note, setNote] = useState<string | null>(googleNote);
-  // What the browser came back from a mailbox's provider with, said once under the Email row.
+  // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
   const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.
@@ -368,7 +368,7 @@ export const PaneIntegrationsReal = () => {
           onClose={() => setEmailOpen(false)}
         />
       )}
-      {r.kind === "email" && S && email && (
+      {r.body === "mailboxes" && S && email && (
         <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={() => setMailboxNote(null)} />
       )}
     </Fragment>
