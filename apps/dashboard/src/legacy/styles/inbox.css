@@ -1893,6 +1893,9 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   background: var(--bg);
 }
 .ix-th-status:empty { display: none; }
+/* The foot that holds it and the reply box (thread.tsx) is no box of its own here: its parts are the pane's rows. On a
+   phone it is one box over the screen's foot (mobile.css, "The window scrolls"). */
+.ix-th-foot { display: contents; }
 .ix-th-status + .ix-composer { border-top: none; padding-top: 12px; }
 /* Each state is its words and its buttons on the pane's own ground: no border, fill or rounded card. */
 .ix-th-status .ix-take,

@@ -278,7 +278,17 @@ test.describe("The thread, in the nightly's own workspace", () => {
                 const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
                 const all = el.querySelectorAll(".ix-timeline > *");
                 const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
-                return !scroller || !last || (last.bottom <= scroller.bottom + 1 && last.bottom > scroller.top);
+                if (!scroller || !last) return true;
+                // On a phone the window scrolls the conversation, and what shows of it ends at the screen's foot, over
+                // the thread's foot standing there (mobile.css, "The window scrolls"); on a desk the foot is no box.
+                const foot = el.querySelector(".ix-th-foot")?.getBoundingClientRect();
+                const top = Math.max(scroller.top, 0);
+                const bottom = Math.min(
+                  scroller.bottom,
+                  window.innerHeight,
+                  foot && foot.height > 0 ? foot.top : Infinity,
+                );
+                return last.bottom <= bottom + 1 && last.bottom > top;
               }),
             { message: `the newest entry on screen at ${size.width}x${size.height}` },
           )

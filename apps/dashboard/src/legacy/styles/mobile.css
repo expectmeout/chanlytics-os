@@ -346,10 +346,11 @@
   .cal-month-taken, .cal-month-open, .cal-month-closed, .cal-month-none { font-size: 9.5px; }
   .cal-month-allday { display: none; }
   .cal-agenda-day { padding: 10px 12px; }
-  /* The Calendar on a phone holds still under its bar (8 Oct 2026): the pane is the column the page leaves, and the
+  /* The Calendar under 900px holds still under its bar (8 Oct 2026): the pane is the column the page leaves, and the
      board takes the room in it (calendar.css, the phone block: the week's seven days across the pane, the hours
      sharing the height). The bar stands over it, as every page's strip does, and a scroll inside it (the agenda's list,
-     a day too tall for its floor) never takes the range, the steps and the views off the screen (25 Sep). */
+     a day too tall for its floor) never takes the range, the steps and the views off the screen (25 Sep). On a phone
+     the window scrolls the days instead, and the bar sticks (below, "The window scrolls", 21 Oct 2026). */
   .calendar { overflow-y: hidden; }
   .cal-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
   /* The head on a phone, under the frame's strip of views (Settings stands beside the views, calendar.css): the range,
@@ -824,12 +825,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane :is(.ix-threads, .cv-rows) {
     padding-bottom: var(--page-foot);
   }
-  /* The Calendar holds still and scrolls inside its own boxes (calendar.css, the phone block), and they run to the
-     screen's foot: the room is the end of the one that scrolls, the agenda's and the month's body or the board's own
-     scroller. Kept on the pane around them, it stopped the days 90px up the screen and the bar stood on a band of the
-     page's light, cut straight across the day under it (Ruben, 20 Oct 2026). The board fits its hours over the room
-     (blocks.tsx useHourFit), so a day that fits still ends clear of the bar, and what a scroller brings into view stops
-     over it. */
+  /* The Calendar's days run to the screen's foot: the room is the end of what holds them, the agenda's and the month's
+     body or the board's own box. Kept on the pane around them, it stopped the days 90px up the screen and the bar stood
+     on a band of the page's light, cut straight across the day under it (Ruben, 20 Oct 2026). The board fits its hours
+     over the room (blocks.tsx useHourFit), so a day that fits still ends clear of the bar, and what is brought into
+     view stops over it. */
   .main-scroll.pane .cal-body:not(:has(> .cal-scroll)),
   .main-scroll.pane .cal-body > .cal-scroll {
     padding-bottom: var(--page-foot);
@@ -856,9 +856,9 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
    it, the route view and a pane's list are as tall as what they hold, and the window is their scroller (kit
    motion/page-scroll.ts says so to whatever reads or moves a page's scroll). What stays on the screen is the frame's
    top (.frame-top: the date, the bell, a call, the shell's status, and a pane's name and strip), fixed to the
-   window's top with the page passing under it, and the tab bar and Ask's circle, fixed at the foot as they were. A
-   page that holds still keeps its own scroller and fills what the top leaves of the screen, as before: the route view
-   still grows to the screen's foot.
+   window's top with the page passing under it, and the tab bar and Ask's circle, fixed at the foot as they were. Since
+   21 Oct 2026 that is every page, the ones that held still in a box of their own too (the Calendar, an open thread,
+   Live, an open sequence or message: the end of this section): what of them must stay on the screen sticks.
    ==================================================================== */
 @media (max-width: 720px) {
   /* Where the frame's top stands from the window's top (below): what sticks under it sticks that far down, plus its
@@ -979,13 +979,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   html.legacy-on:has(:is([aria-modal="true"], .side-wrap.open)) {
     overflow: hidden;
   }
-  /* A pull past the page's end: the page gives way under the thumb and the frame holds, as the Calendar's board does
+  /* A pull past the page's end: the page gives way under the thumb and the frame holds, as the Calendar's board did
      inside its own box (Ruben, 19 Oct 2026: on the Inbox and People the date, the name and the strip came down with
      the rows). The screen's own band dragged the frame's top, the tab bar and Ask's circle with the page, fixed as they
      are, so the screen holds (here, the document's root and its body, as Settings' were), and the page moves alone, by
      kit motion/page-give.ts: on the band's curve while the thumb is down (data-give="held"), and back on the house's
-     settle once it lets go ("back"), at once where motion is reduced. Where the view holds a scroller of its own (the
-     Calendar, an open thread, Live) that box gives as it always did. */
+     settle once it lets go ("back"), at once where motion is reduced. Where a box under the thumb scrolls itself (a
+     sheet's, a reply box's words) that box gives as it always did. */
   html.legacy-on,
   html.legacy-on body {
     overscroll-behavior-y: none;
@@ -1056,14 +1056,234 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     max-height: none;
     overflow: clip;
   }
-  /* A page that holds still keeps what every page had: the screen's height under the top, and its own scroller. The
-     Calendar's board shares the screen's height between its hours (8 Oct 2026), an open thread keeps its reply box at
-     the foot and its last message over it, Live is its cockpit, and an open sequence or message is its head, its body
-     and its foot, as a thread is. */
-  .app-root .main-scroll.pane:has(> :is(.calendar, .live-monitor, .inbox[data-takeover], .conversations[data-takeover], .cm-split[data-open])) {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow: hidden;
+  /* No page holds still in a box of its own any more (21 Oct 2026). The Calendar, an open thread, Live and an open
+     sequence or message kept their own scroller under a page one screen tall, and there Safari's toolbar stood at its full
+     size on a flat band of the page, the days and the reply box cut straight across over it, where the Inbox's rows
+     passed under its glass and tucked it away (Ruben, 21 Oct 2026: "these pages still have like a static background on
+     the bottom of screen"). Each is now as long as what it holds and the window scrolls it. What must stay on the screen
+     stays by sticking: a head under the frame's top, a foot over the screen's foot, resting where the tab bar rests
+     (--bar-foot), where Safari's glass already floats under the tab bar on every other page. A page that is one screen by
+     design (the Calendar's board, its month) is one screen of the largest the browser shows, so at rest its foot runs on
+     under the toolbar's glass and a short scroll tucks the toolbar away. */
+
+  /* An open thread is the conversation, at least a screen under the top so a short one keeps its reply box at the foot.
+     Its head (the person's capsule) sticks where it stands, 10px under the top, a pane of glass over what passes under
+     it; its foot (what it needs from you, the reply box; thread.tsx .ix-th-foot) stands where the tab bar rests, or on
+     the keyboard once a field is typed in, as a sheet does (kit/motion/keyboard.ts: --kb, and --kb-last from the moment
+     the field is focused, so the browser has no reason to move the page for it). The page ends that far under its last
+     message, so the newest stops over the foot. Conversations' call opened alone is the same pane. */
+  .main-scroll.pane > :is(.inbox, .conversations)[data-takeover] {
+    grid-template-rows: auto;
+    overflow: visible;
+    overflow-x: clip;
+  }
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    --thread-keys: var(--kb, 0px);
+    --thread-foot: max(var(--bar-foot), calc(var(--thread-keys) + 8px));
+    padding-bottom: var(--thread-foot);
+    overflow: visible;
+  }
+  html.kb-expected :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
+    --thread-keys: var(--kb-last, 0px);
+  }
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll {
+    flex: 1 0 auto;
+    overflow: visible;
+  }
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head {
+    position: sticky;
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 10px);
+    z-index: 3;
+  }
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-head::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    backdrop-filter: var(--surface-control-blur);
+    pointer-events: none;
+  }
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
+    position: sticky;
+    bottom: var(--thread-foot);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+  }
+  :is(.inbox, .conversations)[data-takeover] .ix-th-foot > .ix-composer.ix-composer-row {
+    margin-bottom: 0;
+  }
+  /* A pull past either end moves the conversation alone (page-give.ts), as the Inbox's rows give under its strip: the
+     head and the foot hold, as the frame's top does. The same for an open pane's body and a call's transcript, below. */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll,
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body,
+  .main-scroll.pane > .live-monitor[data-takeover] .lm-scroll {
+    --page-gives: rows;
+  }
+
+  /* The Calendar: the window scrolls its days (the agenda's list, a month of dots and its day, the board), and its bar
+     (the range and the steps) sticks under the frame's top on the page's own ground and light, as the top stands, so a
+     scroll never takes them off the screen (25 Sep 2026); a week's and a day's heads stick under the bar (blocks.tsx
+     says where, --cal-heads-at). The bar takes the top's band for itself: the band lies under the bar once the page has
+     gone under it (data-under, kit/head/frame-top.ts), never over the range. The page is at least the screen at its
+     largest (100lvh, the browser's toolbar tucked away): the board's hours share what the window shows at rest
+     (blocks.tsx useHourFit) and its pane runs on to that foot, under the toolbar's glass, and a short scroll tucks the
+     toolbar away. The board's pane clips its rounded top without being a box that scrolls (clip), so its heads stick to
+     the window. */
+  .app-root:has(> .main > .main-scroll > .calendar) {
+    min-height: 100lvh;
+  }
+  .main-scroll.pane > .calendar,
+  .main-scroll.pane > .calendar .cal-pane,
+  .main-scroll.pane > .calendar .cal-body {
+    overflow: visible;
+  }
+  .main-scroll.pane > .calendar .cal-body:has(> .cal-scroll) {
+    overflow: clip;
+  }
+  .main-scroll.pane > .calendar .cal-scroll {
+    overflow: visible;
+    overflow-x: clip;
+  }
+  .main-scroll.pane > .calendar :is(.cal-corner, .cal-dayhead) {
+    top: var(--cal-heads-at, 0px);
+  }
+  .main-scroll.pane > .calendar > .cal-head {
+    position: sticky;
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    z-index: 4;
+  }
+  .main-scroll.pane > .calendar > .cal-head::before,
+  .main-scroll.pane > .calendar > .cal-head::after {
+    content: "";
+    position: absolute;
+    left: calc(50% - 50vw);
+    width: 100vw;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+  }
+  .main-scroll.pane > .calendar > .cal-head::before {
+    top: calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px)));
+    bottom: 0;
+  }
+  .main-scroll.pane > .calendar > .cal-head::after {
+    top: 100%;
+    height: 14px;
+    /* The light where the band stands on the screen, under a bar of its usual height. */
+    background-position: 0 calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px) + 50px));
+    opacity: 0;
+    mask-image: linear-gradient(#000, transparent);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .main:has(> .frame-top[data-under]) > .main-scroll > .calendar > .cal-head::after {
+    opacity: 1;
+  }
+  .main:has(> .main-scroll > .calendar) > .frame-top::after {
+    display: none;
+  }
+
+  /* An open sequence or message (Campaigns' split, data-open) is its head, its body and its foot, as a thread is, and
+     the window scrolls it as it does a thread: the head's capsule sticks where it stands, 12px under the top, a pane of
+     glass over what passes under it; the foot (the composer's line and its acts) stands where the tab bar rests, or on
+     the keyboard; the body is as long as what it holds and ends that far over the foot. */
+  .main-scroll.pane > .cm-split[data-open] {
+    grid-template-rows: auto;
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane {
+    --pane-keys: var(--kb, 0px);
+    --pane-foot: max(var(--bar-foot), calc(var(--pane-keys) + 8px));
+    overflow: visible;
+  }
+  html.kb-expected .main-scroll.pane > .cm-split[data-open] > .cm-pane {
+    --pane-keys: var(--kb-last, 0px);
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body {
+    flex: 1 0 auto;
+    overflow: visible;
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane:not(:has(> .cm-pane-foot)) {
+    padding-bottom: var(--pane-foot);
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane {
+    --cm-head-at: calc(var(--frame-top-at) + var(--frame-top, 0px) + 12px);
+    --cm-head-h: 52px;
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-head {
+    position: sticky;
+    top: var(--cm-head-at);
+    z-index: 3;
+    height: var(--cm-head-h);
+  }
+  /* What sticks in the body (a sequence's tabs, sequences.css) sticks under the capsule, 4px under it as it stands. */
+  .main-scroll.pane > .cm-split[data-open] .sq-strip-stand {
+    top: calc(var(--cm-head-at) + var(--cm-head-h) + 4px);
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > :is(.cm-pane-head, .cm-pane-foot)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    backdrop-filter: var(--surface-control-blur);
+    pointer-events: none;
+  }
+  .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-foot {
+    position: sticky;
+    bottom: var(--pane-foot);
+    z-index: 3;
+    margin-bottom: var(--pane-foot);
+  }
+
+  /* Live: the calls and the call are each as tall as what they say, their corners clipped without a box that scrolls,
+     and the window scrolls them. A call on the line, opened (data-takeover), is a thread: its capsule sticks where it
+     stands, 10px under the top, its transcript is as long as what was said, and its whisper stands where the tab bar
+     rests, or on the keyboard (panel.tsx follows the newest line in the window). */
+  .main-scroll.pane > .live-monitor,
+  .main-scroll.pane > .live-monitor > .lm-body {
+    overflow: visible;
+  }
+  .main-scroll.pane > .live-monitor > .lm-body > :is(.lm-list, .lm-call) {
+    max-height: none;
+    overflow: clip;
+  }
+  .main-scroll.pane > .live-monitor[data-takeover] > .lm-body > .lm-call {
+    --call-keys: var(--kb, 0px);
+    --call-foot: max(var(--bar-foot), calc(var(--call-keys) + 8px));
+    padding-bottom: var(--call-foot);
+    overflow: visible;
+  }
+  html.kb-expected .main-scroll.pane > .live-monitor[data-takeover] > .lm-body > .lm-call {
+    --call-keys: var(--kb-last, 0px);
+  }
+  .main-scroll.pane > .live-monitor[data-takeover] .lm-scroll {
+    flex: 1 0 auto;
+    overflow: visible;
+  }
+  .main-scroll.pane > .live-monitor[data-takeover] .lm-head {
+    position: sticky;
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 10px);
+    z-index: 3;
+  }
+  .main-scroll.pane > .live-monitor[data-takeover] .lm-whisper {
+    position: sticky;
+    bottom: var(--call-foot);
+    z-index: 3;
+    margin-bottom: 0;
+  }
+  .main-scroll.pane > .live-monitor[data-takeover] :is(.lm-head, .lm-whisper-row)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    backdrop-filter: var(--surface-control-blur);
+    pointer-events: none;
   }
 }
 @media (max-width: 720px) and (display-mode: standalone) {

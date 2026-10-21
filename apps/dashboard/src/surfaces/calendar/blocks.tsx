@@ -21,7 +21,7 @@ import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { calendar } from "./verbs";
-import { crPhone } from "./board-dom";
+import { boardRoomInWindow, crPhone, windowScrollsBoard } from "./board-dom";
 import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
 import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
@@ -406,7 +406,9 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
  * the grid before the first paint and again as the room changes. A phone's is words.ts fitHourPx; a desk's is
  * fitDeskHourPx, the stylesheet's 64px where the day fits at it and never under 48, so a desk's day holds still where it
  * fits. A day that cannot opens at the hour before now on a day it holds today in (CAL-7): the morning a desk scrolled
- * past every time is above it, a scroll away.
+ * past every time is above it, a scroll away. On a phone the window scrolls the board (mobile.css, "The window
+ * scrolls"): the room is what the window shows under the board's top, and the heads stick under the Calendar's bar,
+ * which sticks under the frame's top, so the grid is told where (`--cal-heads-at`).
  */
 function useHourFit(
   scroller: RefObject<HTMLDivElement | null>,
@@ -419,16 +421,27 @@ function useHourFit(
     const el = scroller.current;
     const grid = el?.firstElementChild as HTMLElement | null | undefined;
     if (!el || !grid) return undefined;
+    const page = el.closest(".calendar");
     const fit = () => {
       const box = getComputedStyle(el);
       const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
-      const room = el.clientHeight - heads - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom);
+      const inWindow = windowScrollsBoard(el);
+      const tall = inWindow ? boardRoomInWindow(el) : el.clientHeight;
+      const room = tall - heads - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom);
       grid.style.setProperty("--cal-hour", `${crPhone() ? fitHourPx(room, span) : fitDeskHourPx(room, span)}px`);
+      const bar = inWindow ? page?.querySelector<HTMLElement>(":scope > .cal-head") : null;
+      if (bar)
+        grid.style.setProperty(
+          "--cal-heads-at",
+          `${(parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight}px`,
+        );
     };
     fit();
     if (typeof ResizeObserver === "undefined") return undefined;
     const watch = new ResizeObserver(fit);
     watch.observe(el);
+    // Where the window scrolls it, a notice coming or going over the board moves its top, and so its room.
+    if (page) watch.observe(page);
     return () => watch.disconnect();
   }, [scroller, span, laneRows]);
   // Open at now, once for the view: a scroller with room to scroll, whose now line is below what its top shows, is put an
@@ -440,13 +453,22 @@ function useHourFit(
     const el = scroller.current;
     if (opened.current || !el || nowAt === null) return;
     opened.current = true;
-    if (el.scrollHeight <= el.clientHeight + 1) return;
     const grid = el.firstElementChild as HTMLElement;
     const hour = parseFloat(getComputedStyle(grid).getPropertyValue("--cal-hour")) || 64;
     const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
     // A phone's board runs on under the tab bar, the room kept for it at the scroller's foot (mobile.css): a now line
     // under the bar is not shown.
     const bar = crPhone() ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
+    if (windowScrollsBoard(el)) {
+      // The window scrolls the board: the hour before now is brought to the top, under the heads stuck there.
+      const top = grid.getBoundingClientRect().top + window.scrollY;
+      if (top + heads + nowAt * hour + CR_NOW_CLEAR <= window.innerHeight - bar) return;
+      const corner = grid.querySelector<HTMLElement>(".cal-corner");
+      const stuck = corner ? parseFloat(getComputedStyle(corner).top) || 0 : 0;
+      window.scrollTo(0, Math.max(0, top + (nowAt - 1) * hour - stuck));
+      return;
+    }
+    if (el.scrollHeight <= el.clientHeight + 1) return;
     if (nowAt * hour + CR_NOW_CLEAR <= el.clientHeight - heads - bar) return;
     el.scrollTop = Math.max(0, (nowAt - 1) * hour);
   }, [scroller, nowAt]);
