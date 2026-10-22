@@ -711,19 +711,12 @@ a.lm-head-door:active { opacity: 0.72; }
     display: none;
   }
   /* A call carried back to the calls by a thumb, or pushed in over them (panel.tsx, kit/motion/held-list.ts carriedOver):
-     it wears the page's own ground and stands over the calls drawn under it and the frame's chrome drawn again over them,
-     as an open thread and a person's page do (components.css, clients.css), laid where the window's ground lies
-     (--going-at). */
+     it stands over the calls drawn under it, the frame's chrome drawn again over them, and the sheet of ground that
+     slides with it (components.css .carry-ground), as an open thread and a person's page do (components.css,
+     clients.css); it wears no ground of its own. */
   .live-monitor[data-takeover] > .lm-body > .lm-call[data-going] {
     position: relative;
     z-index: 202;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    background-size: 100vw 100dvh;
-    background-position: 0 calc(-1 * var(--going-at, 0px));
-    box-shadow: var(--shadow-lg);
   }
   .live-monitor[data-takeover] > .lm-body > .lm-call {
     align-self: stretch;

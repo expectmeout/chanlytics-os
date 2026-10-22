@@ -883,33 +883,40 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .app-root {
     background: transparent;
   }
-  /* Laid a screen wide and a screen tall from the window's top, as every copy of it is (the frame's top, a carried page,
-     the band over the top, the Calendar's bar): one picture, wherever it is drawn. */
   .pg-light {
     display: block;
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    background-size: 100vw 100dvh;
   }
   .pg-light > span {
     display: none;
   }
-  /* One ground for every page of the app, and one colour at the window's edges (Ruben, 22 Oct 2026; tokens.css,
-     --surface-page-list, says the rule). Every page's top carries the list's wash under its paper, and the pools lie on
-     the list's own ground under the rows (--surface-page-under), so the window's layer of light, the frame's top, a
-     carried page and the band it takes over the top draw it alike; the band is drawn on the body, past the app's root,
-     so it is named with it. Nothing here touches the document's ground or the page's fill: both stay the paper, which
-     the light is at both edges of the window. The Inbox and People had the wash alone, and every other page the paper:
-     each move between them changed the canvas and the colour Safari read over the clock, and the bar flashed white. */
-  .app-root[data-theme],
-  .held-band {
-    --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
-    --surface-page-under: var(--surface-page-list-ground);
+  /* ONE PICTURE, EVERY PAINTER (tokens.css, --surface-page-ground; styles/page-light/paper-at-the-edges.test.mjs holds
+     it). The page's ground is one picture, a screen wide and the largest screen tall (100lvh: the screen with the
+     browser's own bar tucked away) from the window's top, and this rule alone paints it: the window's layer of light
+     (above), the frame's top and its ground under it (below), the sheet a carried page slides over (components.css
+     .carry-ground), the Calendar's bar (below), and the document itself. Each lays the whole picture where the window's
+     lies and only clips it, so a carried page, a head, a bar and the light they stand over are one surface; none offsets
+     it by a measure of a page (a thread pushed in once laid its own copy by how far down the screen it stood, read a
+     microtask before the frame's top was measured for it, and opened without its light; Ruben, 22 Oct 2026).
+     The document paints it in flow, at its own top: on the screen the window's layer covers it exactly, and under
+     Safari's toolbar, where only the document is drawn, the canvas's copy shows, so the toolbar is glass over the light
+     on every page, not the flat paper it stood on where a page held nothing under it (a thread; Ruben, 22 Oct 2026).
+     The canvas's own colour stays the paper, which Safari reads for its bar over the clock. */
+  html:has(.app-root),
+  .pg-light,
+  .frame-top::before,
+  .frame-top::after,
+  .carry-ground,
+  .main-scroll.pane > .calendar > .cal-head::before,
+  .main-scroll.pane > .calendar > .cal-head::after {
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-ground);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100lvh;
   }
   /* At least the screen at its largest (100lvh: as the browser shows it with its own bar tucked away), and as long as the
      page. A page that held less than the screen it showed (100dvh) had nothing to scroll, so Safari never tucked its
@@ -961,14 +968,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 200;
     background-color: var(--surface-page-fill);
   }
-  /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
-     above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
-     rows gone under it, and hides them; up over the phone's bar's room too. It was the paper alone, turned on as the
-     page moved, and the head went a flat dark block over its light the moment a row passed under it (Ruben, 17 Oct
-     2026). It ends at the top's edge. Once the page has gone under (data-under, frame-top.ts) the same ground reaches
-     14px further and fades there (::after), so the rows come out from under it rather than from behind an edge; at
-     rest that band lay over what the page drew there, the Today page's name and every pane's first row (Ruben, 17 Oct
-     2026). Where something sticks under the top, the band is shorter, as long as the gap over it (below). */
+  /* What it stands on: the page's own ground and light (the one picture, above), laid where the window's layer of light
+     has it, so the top reads the same over the page at rest and over rows gone under it, and hides them; up over the
+     phone's bar's room too. It was the paper alone, turned on as the page moved, and the head went a flat dark block
+     over its light the moment a row passed under it (Ruben, 17 Oct 2026). It ends at the top's edge. Once the page has
+     gone under (data-under, frame-top.ts) the same ground reaches 14px further and fades there (::after), so the rows
+     come out from under it rather than from behind an edge; at rest that band lay over what the page drew there, the
+     Today page's name and every pane's first row (Ruben, 17 Oct 2026). Where something sticks under the top, the band
+     is shorter, as long as the gap over it (below). */
   .frame-top::before,
   .frame-top::after {
     content: "";
@@ -976,11 +983,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     inset: calc(-1 * var(--frame-top-at)) 0 0;
     z-index: -1;
     pointer-events: none;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    background-size: 100vw 100dvh;
   }
   .frame-top::after {
     bottom: calc(-1 * var(--frame-top-fade));
@@ -1175,11 +1177,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     width: 100vw;
     z-index: -1;
     pointer-events: none;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    background-size: 100vw 100dvh;
   }
   .main-scroll.pane > .calendar > .cal-head::before {
     top: calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px)));

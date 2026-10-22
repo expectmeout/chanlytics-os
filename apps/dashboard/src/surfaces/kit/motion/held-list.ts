@@ -50,7 +50,7 @@ const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "
 /** The frame's own chrome over every page (its top, the tab bar, Ask's circle), which comes in with the list held under it. */
 const CHROME = "[data-chrome]";
 /**
- * Over the page carried (202, components.css data-going) and the band it takes over the frame's top (203, .held-band):
+ * Over the page carried (202, components.css data-going) and the sheet of ground it slides over (201, .carry-ground):
  * a page scrolled down passes under the top, and drew over what went with it as it moved.
  */
 const ALONG_LAYER = "204";
@@ -414,17 +414,19 @@ export function heldAlong(): HTMLElement[] {
 }
 
 /**
- * The page's own band over the frame's top while it is carried (components.css .held-band): the ground the page stands on,
- * as tall as the top it stands under, moved with the page, so the head drawn again under it is uncovered as the page goes,
- * as the list is, and what the page drew in the top goes on it, as an iOS bar crosses with its page. People's date and
- * bell stood across the top beside a person's ‹ People as the person came in and went.
+ * The sheet of ground the page slides over while it is carried (components.css .carry-ground): the window's own picture
+ * of the page's light, fixed to the window and moved with the page, so the page, which wears no ground of its own, covers
+ * the list and the head drawn again under it, and uncovers them as it goes, and lands on the light it carried to the
+ * pixel; what the page drew in the top goes over it, as an iOS bar crosses with its page. It was a band as tall as the
+ * frame's top, with the page laying the rest of its ground itself, offset by a measure of where it stood that was read a
+ * microtask before the frame's top was measured for it: a thread pushed in opened without its light (Ruben, 22 Oct 2026).
  */
-function bandOver(): HTMLElement {
-  const band = document.createElement("div");
-  band.className = "held-band";
-  band.setAttribute("aria-hidden", "true");
-  document.body.append(band);
-  return band;
+function groundOver(): HTMLElement {
+  const sheet = document.createElement("div");
+  sheet.className = "carry-ground";
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.append(sheet);
+  return sheet;
 }
 
 /** A still copy of what the page drew in the frame's top, laid where it stands, over the head the frame draws again. */
@@ -446,24 +448,11 @@ function goesWith(part: HTMLElement): HTMLElement {
 }
 
 /**
- * Where a carried page lays the ground it wears (`--going-at`, components.css data-going): how far down the screen it stood
- * as it was taken up, so the window's ground it paints, a screen tall from the screen's top, lies where the window's own
- * layer of light lies under the list it uncovers. Laid from its own top, a head down the screen, the paper's grey stood
- * across the rows as it moved (Ruben, 22 Oct 2026).
- */
-export function goingAt(el: Element, on: boolean): void {
-  const style = (el as Partial<HTMLElement>).style;
-  if (!style || typeof style.setProperty !== "function") return;
-  if (on) style.setProperty("--going-at", `${Math.round(el.getBoundingClientRect().top)}px`);
-  else style.removeProperty("--going-at");
-}
-
-/**
  * A page carried over the list held under it, by a thumb or as it is pushed in (its swipe's `onGrab`): it wears
- * `data-going` (its ground and its edge, clients.css) and the screen it goes back to shows under it.
+ * `data-going` (its place over the list, clients.css) and the screen it goes back to shows under it, with the sheet of
+ * ground it slides over (showHeld).
  */
 export function carriedOver(el: Element, on: boolean): void {
-  goingAt(el, on);
   el.toggleAttribute("data-going", on);
   showHeld(on);
 }
@@ -480,7 +469,7 @@ export function showHeld(on: boolean): void {
   const standIn = heldStandIn();
   if (!standIn || carrying || !holding) return;
   // Taken before the frame draws its head again, as the page has it now.
-  carrying = { standIn, along: [bandOver(), ...pagesOwnTop().map(goesWith)] };
+  carrying = { standIn, along: [groundOver(), ...pagesOwnTop().map(goesWith)] };
   standIn.dataset.held = "shown";
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);

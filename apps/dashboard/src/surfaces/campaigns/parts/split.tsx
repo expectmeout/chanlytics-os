@@ -13,7 +13,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { goingAt, showHeld } from "../../kit/motion/held-list";
+import { showHeld } from "../../kit/motion/held-list";
 import { Panel } from "../../kit/panel/panel";
 import { useRecSheetEscape } from "../../kit/record/focus";
 import { cx } from "../../kit/variants";
@@ -41,7 +41,6 @@ export const cmGoing = (el: Element, on: boolean) => {
   if (!host) return;
   if (on) goingHosts.set(el, host);
   else goingHosts.delete(el);
-  goingAt(el, on);
   host.toggleAttribute("data-going", on);
   showHeld(on);
 };
