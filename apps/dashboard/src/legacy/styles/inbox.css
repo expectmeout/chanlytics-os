@@ -2717,8 +2717,12 @@ button.tl-stamp:focus-visible {
 .ix-tpl-blank::placeholder {
   color: var(--ink-faint);
 }
-.ix-tpl-unpicked {
-  visibility: hidden;
+/* A template's blank in the picker's line under its name (template-box.tsx templateSaid): its label, underlined as the
+   place the member's words go. */
+.ix-tpl-said-blank {
+  color: var(--ink-muted);
+  text-decoration: underline dashed var(--line-strong);
+  text-underline-offset: 3px;
 }
 
 /* The badges of a row and of a draft, as the one-badge rules say (Appendix A, item 8): words at the small step and in

@@ -104,7 +104,9 @@ export const THREAD_PANE_WORDS = {
   pickTitle: (first) => `Reopen the chat with ${first}`,
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
-  others: "Others"
+  others: "Others",
+  /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+  sample: "Sample"
 };
 const wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {

@@ -607,9 +607,12 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
   // The deal's group and the seeded chip are made before the markup, as they were: a role gate is asked for each in that order.
   const dealActs = dealGroup(thread, facts);
   const alsoLeads = alsoInLeads(thread) ?? (thread.real && !demoSession() ? worksAtDoor(facts, setBusiness) : null);
+  // A line under the head's row (a reply's signer offered, a step due): on a phone the bar holds two rows, and is a card.
+  const signer = person && person.signer && !demoSession() ? person.signer : null;
+  const step = person && person.nextStep && !demoSession() ? person.nextStep : null;
 
   return (
-    <header className="ix-th-head capsule">
+    <header className="ix-th-head capsule" data-stacked={signer || step ? "" : undefined}>
       {headerMain(props, facts, alsoLeads)}
       <div className="ix-th-actions">
         {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
@@ -641,25 +644,25 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
         />
       </div>
       {thread.fromAd ? fromAdLine(thread.fromAd) : null}
-      {/* A reply's signer offered as their name (0052): said here, where the owner is reading the reply. */}
-      {person && person.signer && !demoSession() ? (
+      {/* A reply's signer offered as their name (0052): said here, where the owner is reading the reply, on one row, its
+          acts beside the fact: stacked under it, the head stood 140px tall over the conversation on a phone. */}
+      {person && signer ? (
         <div className="ix-th-offer">
           <NameOffer
             personId={person.id}
-            messageId={person.signer.messageId}
-            name={person.signer.name}
-            fact={person.signer.fact}
-            source={person.signer.day}
+            messageId={signer.messageId}
+            name={signer.name}
+            fact={signer.fact}
+            source={signer.day}
             canRecord={mayAtLeast("operator")}
             say={flash}
             onChanged={() => undefined}
+            line
             testid="ix-th-name-offer"
           />
         </div>
       ) : null}
-      {person && person.nextStep && !demoSession() ? (
-        <IxThreadStep key={person.nextStep.id} personId={person.id} step={person.nextStep} flash={flash} />
-      ) : null}
+      {person && step ? <IxThreadStep key={step.id} personId={person.id} step={step} flash={flash} /> : null}
       <ThreadBusinessSheet asked={business} onClose={() => setBusiness(null)} />
       {toastNode}
     </header>

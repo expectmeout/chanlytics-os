@@ -747,6 +747,70 @@ a.chip:focus-visible {
 .more-item-two > .icon ~ .more-item-meta {
   padding-left: 27px;
 }
+/* A set whose options say a line under their words (the Menu's choose with `sub`: the Inbox's templates, each with what
+   it says). Two lines an option, each cut with "…": its name with a word about its kind after it ("Sample"), and the line
+   in the dim ink under it; the tick at its end, and the one chosen the pick's lilac, as a chosen chip or segment is. Beside
+   the name, the line took the row and squeezed the name to nothing, one word a line (21 Oct 2026). On a desk the menu is
+   wider, so the line can be read. */
+.more-item-lines {
+  gap: 12px;
+  min-height: 48px;
+  padding-block: 7px;
+}
+.more-item-words {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.more-item-line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+.more-item-line > .more-item-label {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.more-item-line > .more-item-hint {
+  margin-left: 0;
+  padding-left: 0;
+  font-size: var(--text-xs);
+}
+.more-item-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.more-item-lines[aria-checked="true"] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+.more-item-lines[aria-checked="true"] .more-item-label {
+  font-weight: var(--weight-semibold);
+}
+.more-item-lines > .icon {
+  color: var(--ink);
+}
+/* A key's focus draws the house's ring over the picked option's own depth, as a lit chip's does. */
+.more-item-lines:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.more-menu-lines .more-cap {
+  padding-left: 10px;
+}
+@media (width > 900px) {
+  .more-menu-lines {
+    width: 352px;
+    max-width: calc(100vw - 32px);
+  }
+}
 .more-item.danger {
   color: var(--danger);
 }
@@ -1002,20 +1066,36 @@ a.more-item {
     width: 18px;
     height: 18px;
   }
-  /* What a choice does, under its words (MoreMenu: a sentence beside them goes under on a phone), at a size a phone
-     reads, the row a thumb's height round both lines. */
-  .more-menu[data-sheet] .more-item-two {
+  /* What a choice does, under its words (a sentence beside them goes under: MoreMenu's on a phone, the kit Menu's at
+     every width), at a size a phone reads, the row a thumb's height round both lines. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two {
     padding-block: 9px;
   }
-  .more-menu[data-sheet] .more-item-two > .more-item-meta {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two > .more-item-meta {
     font-size: var(--text-sm);
   }
-  .more-menu[data-sheet] .more-item-two > .icon ~ .more-item-meta {
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-two > .icon ~ .more-item-meta {
     padding-left: 27px;
   }
   /* A line written to follow a dash ("asks you first") starts a sentence of its own under the words. */
   .more-menu[data-sheet] .more-item-two > .more-item-meta::first-letter {
     text-transform: uppercase;
+  }
+  /* A set's two-line options: a thumb's height round both lines, the line at a size a phone reads, and what is said of
+     them all at the options' edge. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item-lines {
+    min-height: 58px;
+    padding-block: 9px;
+    gap: 12px;
+  }
+  .more-menu .more-item-lines .more-item-sub {
+    font-size: var(--text-sm);
+  }
+  .more-menu .more-item-line > .more-item-hint {
+    font-size: var(--text-sm);
+  }
+  .more-menu-lines :is(.more-header, .more-cap) {
+    padding-left: 12px;
   }
   .more-backdrop[data-open] {
     background: var(--surface-veil);
@@ -3647,6 +3727,24 @@ select.rec-input :is(option, optgroup) {
   .notice-acts > .notice-x {
     width: var(--control-h-touch);
   }
+  /* The one-row form stands in a head or under a list, where a thumb's 44px press made the row 60px tall (a thread's head
+     on a phone, Ruben, 22 Oct 2026): its presses keep the row's 32px and reach past it for the thumb, as a step's Done
+     does, so the row is no taller than its words. */
+  .notice-line {
+    padding: 6px 6px 6px 12px;
+  }
+  .notice-line .notice-acts > .btn {
+    position: relative;
+    min-height: var(--control-h-md);
+  }
+  .notice-line .notice-acts > .notice-x {
+    width: var(--control-h-md);
+  }
+  .notice-line .notice-acts > .btn::before {
+    content: "";
+    position: absolute;
+    inset: -6px -3px;
+  }
 }
 
 /* ---------- The quiet link button: words that act, with no ground ----------
@@ -4399,6 +4497,12 @@ a.list-row {
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
     box-shadow: var(--surface-float-depth);
+  }
+  /* A bar that holds a line under its row (data-stacked: a thread's head with a reply's signer offered, or a step due)
+     is a card: its round ends bent round both rows into an oval, and what the second row held stood past the curve, the
+     conversation showing through at its corners (Ruben, 22 Oct 2026). Its corners are a sheet's, near the bar's own. */
+  [data-takeover] .capsule[data-stacked] {
+    border-radius: var(--radius-sheet);
   }
   /* A docked bar stands under :root, for its weight: the page's own dock (a flat row on the screen's edge, clients.css)
      is a page rule of equal weight, and its position is the page's own (absolute at the foot), which the rim below stands on. */
@@ -5364,6 +5468,57 @@ footer.rec-sheet-foot .btn {
   }
   .rec-sheet[data-phone="true"] .rec-sheet-head {
     padding-top: 16px;
+  }
+}
+/* A menu's head (the Menu's `head`: the Inbox's template picker, "Reopen the chat with Fern"). On a desk its name is a
+   quiet line at its top, and a press outside or Escape closes it, so it has no Close. On a phone it is the sheet's one
+   head, as a kicker's is: the name a quiet line, and the one Close under the handle, 8px in from the right, its handle
+   the Sheet's 16px (8 over it, 4 under), and the name centred on the Close. */
+.more-head {
+  --sheet-close: 34px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.more-head-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.more-head .rec-sheet-close {
+  display: none;
+}
+@media (pointer: coarse) {
+  .more-head {
+    --sheet-close: 44px;
+  }
+}
+@media (max-width: 900px) {
+  .pop-place > .more-menu-titled {
+    padding-top: 0;
+  }
+  .pop-place > .more-menu-titled::before {
+    margin: 8px auto 4px;
+  }
+  /* The sheet's rows stand 10px in; its head 16px in from the left and its Close 8px from the right. */
+  .more-head {
+    margin: 0 -2px 4px 6px;
+  }
+  .more-head-title {
+    padding: 0;
+    line-height: var(--sheet-close);
+  }
+  .more-head .rec-sheet-close {
+    display: inline-grid;
+    width: var(--sheet-close);
+    height: var(--sheet-close);
   }
 }
 

@@ -8,6 +8,7 @@ import {
   NEW_CONVERSATION_WORDS as W,
   PLAN_NOTE_MAX,
   REPLY_LIMITS,
+  THREAD_PANE_WORDS,
   approvedWordsFor,
   writeWayWords,
   writeWireName,
@@ -162,7 +163,11 @@ function approvedPart(s: SheetState, reach: PersonReachDto) {
           <Select
             value={approvedKey(chosen.template)}
             onValueChange={(approvedPick) => s.patch({ approved: approvedPick })}
-            options={choice.sendable.map((x) => ({ value: approvedKey(x.template), label: x.label }))}
+            options={choice.sendable.map((x) => ({
+              value: approvedKey(x.template),
+              label: x.label,
+              ...(x.sample ? { meta: THREAD_PANE_WORDS.sample } : {}),
+            }))}
             chevron={<Icon name="chevron-down" size={12} />}
             data-testid="ix-new-approved-pick"
           />
