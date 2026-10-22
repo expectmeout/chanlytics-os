@@ -5,7 +5,7 @@
  * swipe across the page is no tap (Ruben, 7 Oct 2026: "the date picker highlight"). Each such rule stands under
  * `@media (hover: hover)`, where a pointer that hovers is the one reading it.
  *
- * Read from the sheet's syntax tree (lightningcss, the build's own parser), as page-light-drift.test.mjs reads.
+ * Read from the sheet's syntax tree (lightningcss, the build's own parser), as page-light/drift.test.mjs reads.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

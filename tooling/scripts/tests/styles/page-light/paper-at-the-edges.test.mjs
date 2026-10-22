@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { transform } from "lightningcss";
-import { ROOT } from "../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const STYLES = "apps/dashboard/src";
 const TOKENS = "apps/dashboard/src/legacy/styles/tokens.css";

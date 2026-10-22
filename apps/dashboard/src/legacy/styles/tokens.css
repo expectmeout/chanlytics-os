@@ -429,7 +429,7 @@
      components.css, the band a carried page takes over it). Safari paints its bar over the clock in the background
      colour of the boxes fixed at the top edge, falls back to the canvas where two disagree or one blurs, and draws its
      toolbar over the canvas alone, where nothing fixed is drawn: with one colour every path agrees, and no moment of a
-     page's arrival can show another (WebKit, LocalFrameView::fixedContainerEdges; styles/paper-at-the-edges.test.mjs
+     page's arrival can show another (WebKit, LocalFrameView::fixedContainerEdges; styles/page-light/paper-at-the-edges.test.mjs
      holds it). Three fixes before this one each moved one colour and left another behind: the canvas lightened for the
      toolbar, which lightened the bar over the clock; the frame's top made the paper whole, on two pages; then every
      page given this ground with a lighter fill, which left the frame's top and its own ground disagreeing. Measured
