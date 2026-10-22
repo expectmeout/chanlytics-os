@@ -8,7 +8,9 @@
  * capsule (Back, its name and state, what starts it and who approves, More), the frame's bar and bell standing down; its
  * tabs are the kit's capsule of views, stuck under the head as the tab scrolls, a swipe across the tab walking them (kit
  * viewPager) and each move replacing the address, so Back is the list; a swipe right from the first carries the whole pane
- * back to the list, drawn under it as it goes (split.tsx cmGoing). A tab's read starts as a finger reaches it, so the
+ * back to the list, drawn under it as it goes, at the rows it was left on, with the frame's chrome over it as it stood
+ * (split.tsx cmGoing, kit/motion/held-list.ts). Opened from the list, it was pushed in over it the same way
+ * (sequences-page.tsx); one still being read as it opened comes in as it arrives. A tab's read starts as a finger reaches it, so the
  * view arrives with its rows. What needs you is the dock at the foot, where a question an act asks and a step's Save
  * stand too (record-foot.ts RecordFootContext); the notice above the tabs is a desk's.
  */
@@ -27,6 +29,7 @@ import {
   type SequenceTab,
 } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
+import { heldAlong, heldUnder } from "../../kit/motion/held-list";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -131,8 +134,9 @@ function OpenRecord(p: {
   moved: () => void;
   again: number;
   toast: ReactNode;
+  over: boolean;
 }) {
-  const { rec, tab, flash, moved, again, toast } = p;
+  const { rec, tab, flash, moved, again, toast, over } = p;
   const row = rec.sequence;
   const phone = useCmPhone();
   // The step open to be changed, held here so the dock's Edit step N opens it (on Steps, where it stands).
@@ -170,9 +174,18 @@ function OpenRecord(p: {
   ) : (
     <RecordNotice a={a} tab={tab} />
   );
-  // The swipe is the pane's: its head, body and dock go back to the list together, the list drawn under them.
+  // The swipe is the pane's: its head, body and dock go back to the list together, the list drawn under them where it was
+  // held, coming in from a little to the left, as a thread's goes back to the Inbox's.
   const swipe = phone
-    ? touchSwipe({ onBack: close, pages: tabPages, when: () => phone, onGrab: cmGoing, backNavigates: true })
+    ? touchSwipe({
+        onBack: close,
+        pages: tabPages,
+        when: () => phone,
+        onGrab: cmGoing,
+        under: heldUnder,
+        along: heldAlong,
+        backNavigates: true,
+      })
     : undefined;
   return (
     <CmPane
@@ -184,6 +197,7 @@ function OpenRecord(p: {
       onClose={close}
       closeLabel={wayBack ? SEQUENCE_WORDS.backToLeadsLabel : undefined}
       swipe={swipe}
+      over={over}
       testid="sq-record"
       className="sq-record"
     >
@@ -217,9 +231,13 @@ function OpenRecord(p: {
 interface SequenceRecordProps {
   id: string;
   tab: SequenceTab;
+  /** Opened over the list it was opened from, on a phone (sequences-page.tsx): its record comes in over it. */
+  over?: boolean;
 }
 
-export function SequenceRecord({ id, tab }: SequenceRecordProps) {
+export function SequenceRecord({ id, tab, over = false }: SequenceRecordProps) {
+  // Said only by the draw that opens it, and kept: a record still being read as it opened arrives over the list later.
+  const [cameOver] = useState(over);
   const [again, setAgain] = useState(0);
   const moved = useCallback(() => setAgain((n) => n + 1), []);
   const [toast, flash] = useLegacyToast();
@@ -255,6 +273,7 @@ export function SequenceRecord({ id, tab }: SequenceRecordProps) {
       moved={moved}
       again={again}
       toast={toast}
+      over={cameOver}
     />
   );
 }

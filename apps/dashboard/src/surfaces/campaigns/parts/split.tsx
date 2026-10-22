@@ -13,6 +13,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { showHeld } from "../../kit/motion/held-list";
 import { Panel } from "../../kit/panel/panel";
 import { useRecSheetEscape } from "../../kit/record/focus";
 import { cx } from "../../kit/variants";
@@ -28,8 +29,10 @@ const cmPhoneQuery = () =>
 const goingHosts = new WeakMap<Element, Element>();
 
 /**
- * While a thumb carries an open pane back to its list, the list is drawn under it (campaigns.css, data-going on the split),
- * so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
+ * While a thumb carries an open pane back to its list, or the pane is pushed in over it, the list is drawn under it
+ * (campaigns.css, data-going on the split), so what shows behind the pane is what it goes back to, as an open thread's list
+ * does in the Inbox: where the list was held as the pane opened (a sequence's record on a phone, sequences-page.tsx), at
+ * the rows it was left on, with the frame's chrome over it as it stood (kit/motion/held-list.ts showHeld).
  */
 export const cmGoing = (el: Element, on: boolean) => {
   // The pane is let go of after it has left (kit/motion/swipe.ts swipeLeave closes it first), when it has no parent: the split it
@@ -39,6 +42,7 @@ export const cmGoing = (el: Element, on: boolean) => {
   if (on) goingHosts.set(el, host);
   else goingHosts.delete(el);
   host.toggleAttribute("data-going", on);
+  showHeld(on);
 };
 
 /** Whether the window is a phone's, kept current as it changes size. */
@@ -130,6 +134,11 @@ interface CmPaneProps {
    * the foot go back to the list together under the thumb.
    */
   swipe?: HTMLAttributes<HTMLElement>;
+  /**
+   * Opened over the list it was opened from (kit/motion/held-list.ts), where the pane was not there yet to be pushed in
+   * over it (still being read): it comes in over the list as it arrives (`data-over`, sequences.css).
+   */
+  over?: boolean;
 }
 
 /**
@@ -140,11 +149,19 @@ interface CmPaneProps {
  */
 export function CmPane(p: CmPaneProps) {
   const { title, badge, sub, mark, tools, onClose, closeLabel = "Close", foot, children, testid, className } = p;
-  const { id, closeTestid = "cm-pane-close", swipe } = p;
+  const { id, closeTestid = "cm-pane-close", swipe, over } = p;
   const phone = useCmPhone();
   useRecSheetEscape(true, onClose);
   return (
-    <Panel {...swipe} as="section" size="flush" className={cx("cm-pane", className)} id={id} data-testid={testid}>
+    <Panel
+      {...swipe}
+      as="section"
+      size="flush"
+      className={cx("cm-pane", className)}
+      id={id}
+      data-testid={testid}
+      data-over={over || undefined}
+    >
       <header className="cm-pane-head capsule">
         {/* Back is a thumb's circle, as More beside the name is: the head's only two glyphs. */}
         {phone ? (

@@ -1060,7 +1060,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     flex: none;
     overflow: visible;
   }
-  .main-scroll.pane > .cm-split:not([data-open]) > .cm-list {
+  .main-scroll.pane > .cm-split:not([data-open]) > .cm-list,
+  .main-scroll.pane > .cm-split > .cm-list[data-held] {
     max-height: none;
     overflow: clip;
   }
