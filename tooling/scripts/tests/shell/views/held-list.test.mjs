@@ -849,3 +849,48 @@ test("a list put back where the window scrolls it comes back hidden under a pict
     delete win.requestAnimationFrame;
   }
 });
+
+test("a list left at its top lands at its top: the frame's top grown by a line while away is drawn in its room, the list's head in view", () => {
+  // Ruben, 22 Oct 2026: Conversations came back from a thread with its channels under the frame's top, and stayed so. A
+  // line had joined the top while the thread stood (a newer version ready, after the day's deploys): held to the row you
+  // were on, the list was scrolled by the line's height to keep that row still, and its own head went under the top.
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = 134;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stopTop = watchFrameTop(top);
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  // While away the top grows by 40px, and the column under it starts that much further down.
+  top.offsetHeight = 174;
+  for (const r of rows) r.at += 40;
+  calls.length = 0;
+  p.draw(false);
+  assert.equal(html.style["--frame-top"], "174px", "the top as it will be painted");
+  assert.equal(win.scrollY, 0, "the list at its top, its head in view under the taller top");
+  assert.equal(
+    row.getBoundingClientRect().top,
+    was + 40,
+    "the row you were on stands under the line, not held over it",
+  );
+  stopTop();
+  p.leave();
+});
+
+test("a list left at its top lands at its top: a row added above while away shows at the top, the rows under it a row lower", () => {
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  for (const r of rows) r.at += 80; // a new conversation at the top
+  p.draw(false);
+  assert.equal(win.scrollY, 0);
+  assert.equal(row.getBoundingClientRect().top, was + 80, "a row lower, with the new one in view above it");
+  p.leave();
+});
