@@ -657,6 +657,21 @@ export async function readSuggestions(wait = 0): Promise<void> {
 }
 
 /**
+ * New ideas from the same line (decision 0070, option B): what was shown is passed on, and four others are written now
+ * (POST with again), laid on the view on screen as a read's are, and asked for again while another write holds them. A
+ * refusal is the caller's to say.
+ */
+export async function newSuggestions(): Promise<ApiResult<LeadSuggestionsDto>> {
+  const r = await leadCall<LeadSuggestionsDto>("POST lead-suggestions", { body: { again: true } });
+  if (!r.ok || !leadsLoaded) return r;
+  leadsLoaded = { ...leadsLoaded, suggestions: r.data };
+  publishLeads();
+  window.dispatchEvent(new CustomEvent("surface:leads"));
+  if (r.data.pending) setTimeout(() => void readSuggestions(), IDEAS_WAITS_MS[0]);
+  return r;
+}
+
+/**
  * The ideas as written; where they are due and this member may find, asked to be written (POST, which may ask a model), else
  * what was read. Null where nothing answered (S11-8).
  */

@@ -26,9 +26,6 @@ export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./email-address
 export { normalizeLink, whyNotALink, linkHost, publicObjectSrc } from "./link";
 export {
   optInPurposeOf,
-  optInLink,
-  waMeDigits,
-  waMeLink,
   TENANT_STATUSES,
   MEMBERSHIP_ROLES,
   CHANNEL_KINDS,

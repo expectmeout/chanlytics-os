@@ -122,6 +122,33 @@
       "where": null
     },
     {
+      "table": "ask_journal_days",
+      "name": "ask_journal_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_memory_lines",
+      "name": "ask_memory_lines_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ask_messages",
       "name": "ask_messages_pkey",
       "primary": true,
@@ -129,6 +156,24 @@
       "keys": [
         {
           "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_mornings",
+      "name": "ask_mornings_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "user_id"
+        },
+        {
+          "column": "day"
         }
       ],
       "where": null

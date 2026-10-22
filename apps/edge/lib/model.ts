@@ -60,6 +60,8 @@ const ASKED_BY_A_PERSON: ReadonlySet<ModelPurpose> = new Set<ModelPurpose>([
   "template_draft",
   "review_reply",
   "note_suggest",
+  // Ask's journal (decision 0070): a paused, ended or unbilled workspace's day is not written.
+  "ask_journal",
 ]);
 
 let deps: ModelDeps = {};
@@ -250,9 +252,16 @@ interface JsonAsk {
   maxTokens: number;
   /** Added to the system prompt when the API refuses the schema and the answer is asked for as plain JSON. */
   plainJsonHint: string;
+  /**
+   * How hard the model thinks (output_config.effort), where the caller says: a model that thinks by default spends its
+   * thinking inside maxTokens, so a short answer asks for less of it. Unsaid, the model's own default.
+   */
+  effort?: "low" | "medium" | "high";
   /** A sooner bound than the purpose's, and a signal that ends the call sooner. */
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** The whole call's end, its fallback's try included (the port asks none with too little left), in ms from its start. */
+  deadlineMs?: number;
   /** Who it is for: the ledger's row. */
   for: ModelCallFor;
 }
@@ -263,17 +272,30 @@ export async function askJson(a: JsonAsk): Promise<JsonAnswer | null> {
     purpose: a.purpose,
     ...(a.timeoutMs ? { timeoutMs: a.timeoutMs } : {}),
     ...(a.signal ? { signal: a.signal } : {}),
+    ...(a.deadlineMs ? { deadlineMs: a.deadlineMs } : {}),
   };
   const body = { max_tokens: a.maxTokens, messages: [{ role: "user", content: a.user }] };
+  const effort = a.effort ? { effort: a.effort } : {};
   let r = await callModel(
     {
       ...base,
-      body: { ...body, system: a.system, output_config: { format: { type: "json_schema", schema: a.schema } } },
+      body: {
+        ...body,
+        system: a.system,
+        output_config: { format: { type: "json_schema", schema: a.schema }, ...effort },
+      },
     },
     a.for,
   );
+  // The plain retry keeps the effort: only the format was refused.
   if (r && r.outcome !== "held" && formatRejected(r)) {
-    r = await callModel({ ...base, body: { ...body, system: `${a.system}\n${a.plainJsonHint}` } }, a.for);
+    r = await callModel(
+      {
+        ...base,
+        body: { ...body, system: `${a.system}\n${a.plainJsonHint}`, ...(a.effort ? { output_config: effort } : {}) },
+      },
+      a.for,
+    );
   }
   if (!r || r.outcome === "held") return null;
   if (r.outcome !== "ok") throw new ModelUnavailable(r);

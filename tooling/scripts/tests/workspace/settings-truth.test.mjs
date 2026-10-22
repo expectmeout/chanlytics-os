@@ -221,13 +221,10 @@ test("Settings is ordered you, then the business, then the people", () => {
     "and the account menu points where it says",
   );
 
-  // AI memory is not in the rail: it renders the not-built pane for every real
-  // workspace, so as a rail item it promised nothing. The route still answers.
-  assert.ok(!/\{ id: "memory",[^\n]*group:/.test(frame["tabs.ts"]), "no rail item that never becomes content");
-  assert.ok(
-    frame["tabs.ts"].includes('const SET_TABS_UNLISTED: readonly SetTab[] = [{ id: "memory"'),
-    "but an old link still lands somewhere honest",
-  );
+  // Memory is in the rail since it became content (decision 0070): what Ask remembers, beside the workspace's other
+  // records, and every rail item is a pane the page draws.
+  assert.match(frame["tabs.ts"], /\{ id: "memory", label: "Memory", icon: "sparkle", group: "Workspace" \}/);
+  assert.ok(frame["page.tsx"].includes('{id === "memory" && <PaneMemory flash={flash} />}'), "and it becomes content");
 });
 
 test("the workspace timezone is visible and an owner can change it", () => {

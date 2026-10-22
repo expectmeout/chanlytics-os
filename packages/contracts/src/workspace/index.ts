@@ -52,13 +52,18 @@ export {
   REACH_OUT_EMAILED_WORDS,
   CALL_MISSED_WORDS,
   CALL_UNANSWERED_WORDS,
+} from "./activity";
+export type { ActivityRowDto, ActivityPageDto, ActivityMemberDto, ActivityVerb } from "./activity";
+export {
   isActivityMoney,
   isActivityNoise,
   ACTIVITY_NOISE_PREFIXES,
   ACTIVITY_NOISE_KINDS,
   ACTIVITY_KINDS,
-} from "./activity";
-export type { ActivityRowDto, ActivityPageDto, ActivityMemberDto, ActivityVerb } from "./activity";
+  activityRowOfDecision,
+  activityRowOfEvent,
+} from "./activity-rows";
+export type { ActivityDecisionRow, ActivityEventRow } from "./activity-rows";
 export {
   SHARED_EVENT_VERSIONS,
   SHARED_EVENT_SHAPES,

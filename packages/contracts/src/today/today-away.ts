@@ -115,6 +115,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   member_left: ["teammate left", "teammates left"],
   // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
   note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
+  // One a morning, the member's own: a second is another day's.
+  ask_cards: ["morning from Ask", "mornings from Ask"],
 };
 
 /**
@@ -250,6 +252,9 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   // printed again and a call's row never could be covered.
   const door = (r: T) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : undefined);
   const aboutQueued = (r: T) => {
+    // Ask's morning cards are Ask for you, on this page (decision 0070); the bell's line about them says it again, and a
+    // morning's cards lapse with its day, so an older line is about nothing left to press.
+    if (r.kind === "ask_cards") return true;
     // A run waiting for a word is a row of the queue; the bell's "is ready" about the same run says it again.
     if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
     // A search waiting on its answer is a row of the queue; the bell's question row about it opens the same pile (00163).

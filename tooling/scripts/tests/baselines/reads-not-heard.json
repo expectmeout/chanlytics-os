@@ -857,6 +857,33 @@
           "policies"
         ]
       }
+    },
+    {
+      "kind": "seat",
+      "why": "A member's own morning with Ask (decision 0070): the day they claimed (ask_mornings) and the newest answer of its thread (ask_messages), both theirs alone by RLS. Ask for you reads them as Today comes on screen, again every few seconds while Ask writes, and again once what it holds has aged; nothing anyone else does changes them.",
+      "reads": {
+        "ask_morning": [
+          "ask_messages",
+          "ask_mornings"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "What Ask remembers and its journal (decision 0070), which Settings › Memory lists. The feed does not tell of ask_memory_lines or ask_journal_days: a line is kept as a turn is saved, a day by the note sweep each night, and Ask reads both fresh with every question. The pane's own Add, Change and Forget read it again behind their verbs; a line kept elsewhere is read as the pane comes on screen once what it holds has aged.",
+      "reads": {
+        "ask_memory": [
+          "ask_journal_days",
+          "ask_memory_lines"
+        ]
+      },
+      "rereadAfter": {
+        "ask_memory": [
+          "DELETE ask/memory/[id]",
+          "PATCH ask/memory/[id]",
+          "POST ask/memory"
+        ]
+      }
     }
   ]
 }

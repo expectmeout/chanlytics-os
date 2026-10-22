@@ -1,4 +1,5 @@
-import { OFFERS_OPT_IN_PHRASES, optInLink } from "../shared/enums.js";
+import { OFFERS_OPT_IN_PHRASES } from "../shared/enums.js";
+import { optInLink } from "./wa-links.js";
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { notFoundPageMetadata } from "../shell/chrome.js";
 import { takesSignUps, WORKSPACE_PAUSED_FACT } from "../workspace/billing.js";

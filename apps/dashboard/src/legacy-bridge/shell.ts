@@ -214,6 +214,8 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   calendar: "Calendar",
   calendar_runs: "Campaigns on the Calendar",
   today_pins: "Lists pinned to Today",
+  ask_morning: "Ask for you",
+  ask_memory: "What Ask remembers",
   notifications: "Notifications",
   setup: "Setup",
   google: "Google",

@@ -705,6 +705,7 @@ packages/contracts/src/
   ads/
   ai/
   ask/
+  ask-memory/
   ask-proposals/
   ask-skills/
   broadcasts/

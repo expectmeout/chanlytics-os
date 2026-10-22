@@ -3,8 +3,8 @@
  * are written from it (lead_suggest_history: counts, moments and the plan's own words, never a business's name); a
  * round that ends adding to its kind's platform-wide counts (lead_niche_priors, by the plan's category_key); and the
  * one writer of the ideas, lead_suggestions_write, by act: a second claim refused while the first stands, a keep under
- * a claim since let go refused, a failure under a stale claim changing nothing, the owner's line clearing a claim, and
- * the event a keep and a line write. Both doors are the service's alone. Local stack only: it makes a workspace.
+ * a claim since let go refused, a failure under a stale claim changing nothing, the owner's line clearing a claim, New
+ * ideas (00471's again) keeping what was shown, and the event a keep, a line and an again write. Both doors are the service's alone. Local stack only: it makes a workspace.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -313,10 +313,66 @@ test("the owner's line clears a claim in flight, and a keep and a line each writ
     ],
   );
   const bad = await write({ p_act: "eat" });
-  assert.match(bad.error?.message ?? "", /act is claim, keep, fail or line/);
+  assert.match(bad.error?.message ?? "", /act is claim, keep, fail, line or again/);
   const short = await write({ p_act: "line", p_line: "no" });
   assert.match(short.error?.message ?? "", /at least three characters/);
 });
+
+test(
+  "New ideas (00471's again) keeps the ideas shown to be passed on, lets the claim go and asks at once",
+  { skip },
+  async () => {
+    const claim = ok(await write({ p_act: "claim", p_line: "x" })).claim;
+    const items = [
+      {
+        words: "Physical therapists near 78704",
+        who_for: "why",
+        category_key: KIND,
+        reach: null,
+        plan: null,
+        ask: "Find 50",
+      },
+    ];
+    ok(
+      await write({
+        p_act: "keep",
+        p_claim: claim,
+        p_line: "A back care supplier, Austin",
+        p_items: items,
+        p_basis: "b",
+      }),
+    );
+    const inFlight = ok(await write({ p_act: "claim", p_line: "x" })).claim;
+    assert.ok(inFlight, "a write is in flight");
+    assert.deepEqual(ok(await write({ p_act: "again" })), { again: true });
+    const after = ok(await row());
+    assert.deepEqual(
+      [after.business_line, after.by_owner, after.basis, after.making_at, after.failed_at],
+      ["A back care supplier, Austin", false, null, null, null],
+      "the same line, no basis (so the next read writes), no claim and no failure",
+    );
+    assert.deepEqual(after.items, items, "what was shown stays, for the next write to pass on");
+    const late = ok(await write({ p_act: "keep", p_claim: inFlight, p_line: "late", p_items: [], p_basis: "b" }));
+    assert.equal(late.kept, false, "the write in flight finds its claim gone");
+    const [event] = ok(
+      await db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", A)
+        .eq("kind", "lead.ideas_written")
+        .order("created_at", { ascending: false })
+        .limit(1),
+    );
+    assert.deepEqual([event.data.how, event.data.count], ["again", 0]);
+    // A workspace with no ideas yet has nothing to write again.
+    assert.deepEqual(
+      ok(await db.rpc("lead_suggestions_write", { p_tenant_id: globalThis.crypto.randomUUID(), p_act: "again" })),
+      {
+        again: false,
+      },
+    );
+  },
+);
 
 test("the two doors are the service's alone", { skip }, async () => {
   const anon = createClient(URL_, ANON, { auth: { persistSession: false } });

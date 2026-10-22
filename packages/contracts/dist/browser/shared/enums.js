@@ -163,6 +163,12 @@ export const EVENT_KINDS = [
   "settings.fact_suggested",
   "settings.fact_kept",
   "settings.fact_dismissed",
+  // What Ask remembers (00471, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
+  "ask.memory_kept",
+  "ask.memory_changed",
+  "ask.memory_forgotten",
+  "ask.journal_written",
+  "ask.morning_claimed",
   "policy.changed",
   "billing.updated",
   "billing.paused",
@@ -385,18 +391,6 @@ export function optInPurposeOf(text) {
   return null;
 }
 export const OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
-export function waMeDigits(number) {
-  const digits = String(number ?? "").replace(/\D/g, "");
-  return digits.length < 8 ? null : digits;
-}
-export function waMeLink(number, text) {
-  const digits = waMeDigits(number);
-  if (!digits) return null;
-  return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
-}
-export function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  return waMeLink(numberE164, phrase);
-}
 export const ESCALATION_REASONS = [
   "human_token",
   "non_text",

@@ -234,6 +234,9 @@ const HEARD_BEFORE = {
   reach_out_replies: ["sequence_replies", "mailboxes", "mailbox_connections"],
   partner: [],
   alerts: [],
+  // Ask's morning for the member and what Ask remembers (decision 0070): no record the feed carries; read where drawn.
+  ask_morning: [],
+  ask_memory: [],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
   // And the mailbox the Business tab's forwarding code is kept on (R6: S4-4).
   calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],

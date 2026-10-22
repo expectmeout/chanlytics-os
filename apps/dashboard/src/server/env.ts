@@ -79,6 +79,8 @@ const SCHEMA = {
   ASK_SPEED: optionalText,
   ASK_DRAFT_EFFORT: optionalText,
   ASK_ANSWER_TOOL: optionalText,
+  // Ask's morning on Today (decision 0070): on runs it; unset, Today offers none and nothing is spent.
+  ASK_MORNINGS: oneOf(["on"]),
 
   // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md): the key a voice session's access token is
   // sealed under at rest, and the secret the voice agent sends the brain door with every custom LLM request.
@@ -133,6 +135,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   ASK_SPEED: () => process.env.ASK_SPEED,
   ASK_DRAFT_EFFORT: () => process.env.ASK_DRAFT_EFFORT,
   ASK_ANSWER_TOOL: () => process.env.ASK_ANSWER_TOOL,
+  ASK_MORNINGS: () => process.env.ASK_MORNINGS,
   ASK_VOICE_SECRET: () => process.env.ASK_VOICE_SECRET,
   ELEVENLABS_LLM_SECRET: () => process.env.ELEVENLABS_LLM_SECRET,
   CANONICAL_HOST: () => process.env.CANONICAL_HOST,

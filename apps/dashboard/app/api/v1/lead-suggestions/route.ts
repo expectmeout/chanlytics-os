@@ -1,6 +1,6 @@
 import { BusinessLineSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
-import { setBusinessLine, suggestionsKept, suggestionsWritten } from "@/server/leads/leads";
+import { newIdeas, setBusinessLine, suggestionsKept, suggestionsWritten } from "@/server/leads/leads";
 
 /**
  * GET /api/v1/lead-suggestions — the ideas for a new search (§8.9, 00398): four
@@ -18,13 +18,18 @@ export const GET = read({
 /**
  * POST /api/v1/lead-suggestions — the ideas written, where they are due: kept until
  * a round ends, the line is saved or a month passes, so a model is asked rarely.
+ * With { again: true }, New ideas (decision 0070): the same line written again now,
+ * what was shown passed on, so the four that come back are new ones.
  * For a member who may find (the owner and the partner), as a search is.
  */
 export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "lead_suggest",
-  handle: ({ ctx, member }) => suggestionsWritten(ctx, member.tenantId),
+  handle: async ({ ctx, req, member }) => {
+    const body = (await req.json().catch(() => null)) as { again?: unknown } | null;
+    return body?.again === true ? newIdeas(ctx, member.tenantId) : suggestionsWritten(ctx, member.tenantId);
+  },
 });
 
 /**

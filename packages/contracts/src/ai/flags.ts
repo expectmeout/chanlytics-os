@@ -217,6 +217,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "ASK_JOURNAL",
+    mechanism: "edge_env",
+    does: "Ask's journal (decision 0070): the note sweep writes each active day of a workspace for an owner's Ask; off unless 'on'.",
+    owner: "Ruben",
+    sunset: "2026-12-31",
+  },
+  {
     name: "TYPESAFE_SHADOW",
     mechanism: "edge_env",
     does: "'1' (every workspace) or a list of workspace ids (a pilot), with TYPESAFE_API_KEY set, asks TypeSafe's Jev the receptionist's, the reply reader's and the lead judge's closed-set questions beside the primary, in shadow (decision 0023); its answers are never used.",
@@ -267,6 +274,13 @@ export const FLAGS: readonly Flag[] = [
     does: "Ask writes its answer through the answer tool, whose input streams after a read; on unless it says off (the eval pair, 17 Oct 2026; ask-model.ts).",
     owner: "Ruben",
     sunset: "2026-11-30",
+  },
+  {
+    name: "ASK_MORNINGS",
+    mechanism: "dashboard_env",
+    does: "Ask's morning on Today (decision 0070): on runs one turn a member a day when a member who acts arrives; unset, Today offers none and nothing is spent.",
+    owner: "Ruben",
+    sunset: "2026-12-31",
   },
   {
     name: "EDGE_PROVIDERS",

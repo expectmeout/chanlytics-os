@@ -6,11 +6,13 @@
  * answer, and the eval runs the same functions over made-up workspaces.
  *
  * The code decides and the model writes (Ruben, 10 Oct 2026). A kind's verdict (it worked, it did not, its leads are
- * not reached yet, too early to say) is counted here and never judged by the model. The model never names a place of
- * its own, only one of those listed by its id: the workspace's home, an area it searched, an area Claude named beside
- * one. A kind is never planned again in a place it was searched in or ran dry in, whatever the model wrote. What the
- * model may say of the history is the numbers it is given; nothing here hands it a business's name, a person, a lead's
- * address or a reply's words.
+ * not reached yet, too early to say) is counted here and never judged by the model. Since decision 0070's option B an
+ * idea may be either card's (places on Maps, or named people at companies) and anywhere in the US: the places listed
+ * here (the home, an area searched, an area Claude named beside one) are offered by their ids, and any other US place is
+ * named by its city, state or ZIP and planned by the same planner Ask's tool uses. A kind is never planned again in a
+ * place it was searched in or ran dry in, whatever the model wrote. What the model may say of the history is the
+ * numbers it is given; nothing here hands it a business's name, a person, a lead's address or a reply's words. The
+ * question itself is lead-ideas-ask.ts.
  */
 import { DAY_MS, MIN_MS } from "../shared/time";
 import type { LeadIdeaDto } from "./lead-dtos";
@@ -244,7 +246,11 @@ const INTERESTED_TO_SAY = 2;
 /** Emails sent with no reply at all that say a kind did not work, once the last of them has had this long. */
 const SENT_WITH_NONE = 10;
 const SILENCE_DAYS = 7;
-/** An idea offered this many times and not started is passed on: not offered again. */
+/**
+ * An idea offered this many times and not started is passed on: not offered again, whatever the model wrote. The question
+ * asks for none offered before at all (decision 0070: New ideas keeps what was shown to pass it on, so each press is new
+ * ideas); the code's own stop is the second showing, so a model that repeats one still leaves the others standing.
+ */
 export const IDEA_PASSED_ENOUGH = 2;
 /** Said no or not a fit, over those contacted, that say a kind did not work, once there are this many. */
 const CLOSED_THAT_FAIL = 0.4;
@@ -558,8 +564,12 @@ export interface IdeaPassed {
   times: number;
 }
 
-/** The language the ideas are written in: the workspace's (tenants.locale), English where it is not Spanish. */
-export type IdeaLanguage = "en" | "es";
+/** The language the ideas are written in: the workspace's own tag (tenants.locale, "en", "es-MX"); the model writes it. */
+export type IdeaLanguage = string;
+
+/** Where an idea finds, as the page names it: its places plan's area, or the states its people plan covers. */
+export const ideaWhere = (i: Pick<LeadIdeaDto, "plan" | "people">): string | null =>
+  (i.plan ?? i.people)?.area.label ?? null;
 
 /**
  * The ideas offered before and not started since, each counted once more (IDEA_PASSED_ENOUGH says when that is a no),
@@ -582,15 +592,16 @@ export function ideaPassed(
   const out = new Map<string, IdeaPassed>();
   for (const x of prev.passed) out.set(`${x.key}@${x.place}`, { ...x });
   for (const i of prev.items) {
-    if (!i.plan) continue;
-    const place = i.plan.area.label.toLowerCase();
+    const label = ideaWhere(i);
+    if (!label) continue;
+    const place = label.toLowerCase();
     const at = `${i.category_key}@${place}`;
     if (startedSince(i.category_key, place)) {
       out.delete(at);
       continue;
     }
     const before = out.get(at);
-    out.set(at, { key: i.category_key, place, label: i.plan.area.label, times: (before?.times ?? 0) + 1 });
+    out.set(at, { key: i.category_key, place, label, times: (before?.times ?? 0) + 1 });
   }
   return [...out.values()].slice(-12);
 }
@@ -607,9 +618,19 @@ export function ideaPassedOf(raw: unknown): IdeaPassed[] {
   });
 }
 
+/** What the workspace says of itself beyond its line: its services, its notes and its website (its business profile). */
+export interface IdeaAbout {
+  services: string[];
+  notes: string[];
+  website: string | null;
+}
+
 export interface IdeaPacket {
   /** The business, as its owner said it or as the workspace says it is. */
   line: string;
+  about: IdeaAbout;
+  /** What the team told Ask about the business (decision 0070): its memory's lines, the newest first. */
+  memory: string[];
   /** The Google listing's own type, when one is linked: "plumber". */
   listingType: string | null;
   /** The workspace's own kind, keyed, when its listing says one: never an idea, since those are its competitors. */
@@ -628,6 +649,8 @@ export interface IdeaPacket {
 /** Everything the model is told, decided here. */
 export function ideaPacket(x: {
   line: string;
+  about?: IdeaAbout;
+  memory?: string[];
   history: IdeaHistory;
   profileAddress: string;
   leadsLeft: number;
@@ -640,6 +663,8 @@ export function ideaPacket(x: {
   const type = x.history.listing && x.history.listing.type ? x.history.listing.type : "";
   return {
     line: x.line,
+    about: x.about ?? { services: [], notes: [], website: null },
+    memory: x.memory ?? [],
     listingType: type ? type.replace(/_/g, " ") : null,
     ownKind: type ? leadKindKey(type) : null,
     passed: x.passed,
@@ -651,140 +676,4 @@ export function ideaPacket(x: {
     kinds: ideaKinds(x.history.searches, x.now),
     now: x.now,
   };
-}
-
-const homeLabel = (h: IdeaHome | null) =>
-  !h ? "not known" : [h.city, h.zip ? `${h.state} ${h.zip}` : h.state].filter(Boolean).join(", ");
-
-/** The question, in words: the business, where it is, what is left, the places, and each kind and how it went. */
-export function ideaPacketText(p: IdeaPacket): string {
-  const places = p.places.length
-    ? p.places.map((x) => `${x.id} · ${x.area.label} · ${x.note}`)
-    : ["None known: write the ideas without a place (place: none)."];
-  const kinds = p.kinds.length
-    ? p.kinds.flatMap((k) => [`- ${k.name} (${k.key})`, ...k.lines.map((l) => `  ${l}`)])
-    : ["No searches yet."];
-  const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
-  const passed = p.passed.length
-    ? [
-        "",
-        "Offered before and not started (passed on; never again once offered twice):",
-        ...p.passed.map((x) => `- ${x.key} ${ideaAreaPhrase(x.label)} · offered ${times(x.times)}`),
-      ]
-    : [];
-  return [
-    `The business: ${p.line}`,
-    ...(p.listingType
-      ? [`Its own kind, from its Google listing: ${p.listingType}. Never suggest this kind: those are its competitors.`]
-      : []),
-    `Where it is: ${homeLabel(p.home)}`,
-    `Leads left this month: ${p.leadsLeft}. Sizes a search may be: ${p.sizes.join(", ")}.`,
-    "",
-    "Places (each idea names one by its id):",
-    ...places,
-    "",
-    "What its searches found, by kind, newest first:",
-    ...kinds,
-    ...passed,
-    ...(p.language === "es" ? ["", "Write words, why and line in Spanish; keys and terms stay as they are."] : []),
-  ].join("\n");
-}
-
-/**
- * What the model answers, as a schema it is held to: the places by their ids and the sizes this month allows, so an
- * idea cannot name another. A workspace with no place known is written without one ("none") and opens Ask instead.
- */
-export function ideaJsonSchema(p: IdeaPacket): Record<string, unknown> {
-  const words = { type: "string" };
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["line", "ideas"],
-    properties: {
-      line: words,
-      ideas: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "words",
-            "why",
-            "who",
-            "who_one",
-            "category_key",
-            "terms",
-            "place",
-            "count",
-            "contact",
-            "criteria",
-            "leave_out",
-          ],
-          properties: {
-            words,
-            why: words,
-            who: words,
-            who_one: words,
-            category_key: words,
-            terms: { type: "array", items: words },
-            place: { type: "string", enum: p.places.length ? p.places.map((x) => x.id) : ["none"] },
-            count: { type: "integer", enum: p.sizes },
-            contact: { type: "string", enum: ["email", "phone"] },
-            criteria: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["text", "standard", "required"],
-                properties: {
-                  text: words,
-                  standard: { type: "string", enum: ["likely", "seen"] },
-                  required: { type: "boolean" },
-                },
-              },
-            },
-            leave_out: { type: "array", items: words },
-          },
-        },
-      },
-    },
-  };
-}
-
-/** What the model is asked to do: the rules the code has not already decided, and how each field is written. */
-export const LEAD_IDEAS_SYSTEM = [
-  `You write ${LEAD_IDEAS_MAX} ideas for a small business's next search for local businesses to reach out to. Each idea is a search the owner can start as it is.`,
-  "",
-  "Which kinds:",
-  "- A kind of business with a listing and a front door that would buy what this business sells, or send it customers. Never people at home, never a job title, never one named company.",
-  '- Read what its searches found. A kind whose verdict is "worked" earns at least one idea that builds on it: the same kind in another listed place, or a close kind.',
-  '- A kind whose verdict is "did not work" is not suggested again. A close kind may be, with what went wrong left out (for example "chains" when chains were left out or not a fit).',
-  '- A kind whose leads are "not reached yet", or where it is "too early to say", is not searched again where it was searched.',
-  "- Never a kind in a place it was searched in, or ran dry in.",
-  "- With no searches yet, start from the business itself and where it is.",
-  `- ${LEAD_IDEAS_MAX} different ideas: never two of the same kind in the same place.`,
-  "",
-  "Each idea:",
-  '- words: what to search for, plural, without the place: "independent plumbers".',
-  "- why: one short line on why this one, for the owner. Cite only numbers given here; with none, say why the kind is a fit, in plain words, with no number.",
-  "- who and who_one: the kind, plural and one of them. category_key: one lowercase_snake word for the kind, the key listed when it is a listed kind.",
-  "- terms: one to three things to type into a map search, the widest first.",
-  "- place: the id of one listed place. Prefer the home, and places beside what worked.",
-  "- count: one of the sizes given: smaller for a kind not tried, larger for one that worked.",
-  "- contact: email when the business writes first or replies came by email; phone when most of a kind's leads list only a phone.",
-  "- criteria: at most three. seen only for what a listing shows (a website, a rating, reviews, open or closed); what a business is or does is likely. required only when the owner would turn a place down without it.",
-  '- leave_out: short chips in plain words ("chains"), from what was left out or not a fit before.',
-  "- line: the business you were told about, as its owner would say it, in one line.",
-  "- An idea offered before and not started is passed on: do not offer it again.",
-  "- Never the business's own kind.",
-  "",
-  "No slogans, and no numbers you were not given.",
-  "",
-  "One idea, as an example of the voice (the numbers are the owner's, never invented):",
-  'words "independent plumbers" · why "Plumbers nearby fit what you offer and most list an email" · who "plumbers" · who_one "plumber" · category_key "plumber" · terms ["plumber", "plumbing company"] · place "P1" · count 50 · contact "email" · criteria [{ "text": "has a website", "standard": "seen", "required": false }] · leave_out ["chains"]',
-].join("\n");
-
-/** An area's label as a sentence says it: "near 78701", "in Austin, TX". */
-export function ideaAreaPhrase(label: string): string {
-  return /^(near|in|around|within)\b/i.test(label) ? label : `in ${label}`;
 }

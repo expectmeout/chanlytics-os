@@ -237,6 +237,14 @@ function embedTarget(schema, table, name, hint) {
 }
 
 const EMBED = /^(\.\.\.)?(?:([\w$]+):)?([\w$]+)((?:![\w$]+)*)\s*\(([\s\S]*)\)$/;
+
+/** The keys a select's embeds are drawn under (an alias, else the relation's name): what a filter on an embed names. */
+export function embedsOf(columns) {
+  return splitTop(columns == null ? "*" : String(columns)).flatMap((item) => {
+    const e = EMBED.exec(item);
+    return e ? [e[2] ?? e[3]] : [];
+  });
+}
 const PATH_KEY = String.raw`(?:"[^"]*"|'[^']*'|[\w$]+)`;
 const COLUMN = new RegExp(String.raw`^(?:([\w$]+):)?([\w$]+)((?:\s*->>?\s*${PATH_KEY})*)(?:::([\w$ ]+))?$`);
 

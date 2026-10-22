@@ -513,17 +513,14 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
 });
 
-test("REGRESSION (S19): the AI memory pane points at How it answers by name -- it said 'Open Workspace'", () => {
+test("Settings › Memory is what Ask remembers, drawn from its own read (decision 0070): it says so while the read is out, and S19's placeholder is gone", () => {
   workspace();
   const tree = settings("memory");
-  // What the receptionist knows beyond the business's details is How it answers' since 17 Oct 2026.
-  assert.ok(buttonSaying(tree, "Open How it answers"), "REGRESSION: the button named the route, not the page");
-  assert.ok(!textOf(tree).includes("Workspace:"), "nor does the sentence");
-  // And it names what Business holds in the tab's own row names (spec §10): "notes" and "extra instructions" are
-  // nothing an owner finds there.
-  assert.ok(!/extra instructions|\bnotes\b/.test(textOf(tree)), "REGRESSION: words the Business tab no longer says");
-  assert.match(textOf(tree), /things it should know/);
-  assert.match(textOf(tree), /in your own words/);
+  // The pane draws its read (GET ask/memory, the ask_memory surface): until it lands it says it is reading, never
+  // that the memory is not built (S19's "AI memory" placeholder, which pointed at How it answers, went with it).
+  assert.match(textOf(tree), /Reading what Ask remembers|What Ask remembers/);
+  assert.ok(!textOf(tree).includes("Not built yet"), "nothing says it is not built");
+  assert.equal(buttonSaying(tree, "Open How it answers"), null, "the placeholder's door went with it");
 });
 
 test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in contracts' words -- the card listed values nothing on the page could change", () => {

@@ -152,16 +152,18 @@ test("the workspace's own kind, from its listing, is never an idea; and the lang
   );
   const es = workspaceOf(fx("una-linea-en-espanol"), NOW);
   assert.equal(es.packet.language, "es");
-  assert.match(es.text, /Write words, why and line in Spanish/);
-  assert.doesNotMatch(own.text, /Spanish/);
+  // The workspace's own tag, which the model writes in (decision 0070): no table of languages in the question.
+  assert.match(es.text, /^Language: es$/m);
+  assert.match(own.text, /^Language: en$/m);
 });
 
-test("the schema holds the model to the listed places and the sizes the month allows", () => {
+test("the schema holds the model to the listed places or another US place it names, and the sizes the month allows", () => {
   const { schema, packet } = workspaceOf(fx("a-kind-nobody-answered"), NOW);
   const item = schema.properties.ideas.items;
   assert.deepEqual(
     item.properties.place.enum,
-    packet.places.map((p) => p.id),
+    [...packet.places.map((p) => p.id), "other"],
+    "a listed place by its id, or any other US place by its city, state or ZIP (decision 0070)",
   );
   assert.deepEqual(item.properties.count.enum, [25], "40 left this month offers 25 alone");
   assert.deepEqual([...item.required].sort(), Object.keys(item.properties).sort());
@@ -215,8 +217,10 @@ test("an idea offered before and not started is passed on: counted once more eac
   const again = workspaceOf({ ...fx("a-kind-that-worked"), passed: twice }, NOW);
   assert.match(again.text, /Offered before and not started[\s\S]*cafe near 78702 · offered twice/);
   assert.deepEqual(ideasRead(answer([kindOf("cafe", { place: "P3" })]), again.packet).dropped, { passed: 1 });
-  // Offered once, it may still be offered.
+  // Offered once, the question asks for it no more (decision 0070), and the code lets one through: a model that repeats
+  // an idea leaves the others standing, never an empty page.
   const onceMore = workspaceOf({ ...fx("a-kind-that-worked"), passed: once }, NOW);
+  assert.match(onceMore.text, /Offered before and not started \(passed on: never offer these again\)/);
   assert.equal(ideasFrom(answer([kindOf("cafe", { place: "P3" })]), onceMore.packet).length, 1);
 });
 

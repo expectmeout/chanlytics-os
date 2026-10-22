@@ -33,7 +33,9 @@ const AWAY_NOUN = {
   member_joined: ["teammate joined", "teammates joined"],
   member_left: ["teammate left", "teammates left"],
   // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
-  note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"]
+  note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
+  // One a morning, the member's own: a second is another day's.
+  ask_cards: ["morning from Ask", "mornings from Ask"]
 };
 function groupTitle(members, noun, idOf) {
   const subjects = new Set(members.map((m) => m.about ? `${m.about.type}:${m.about.id}` : idOf(m))).size;
@@ -69,6 +71,7 @@ export function todayAwayGrouped(rows, inQueue = [], max = 5, older = 0) {
   const idOf = (r) => r.id ?? r.key ?? "";
   const door = (r) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : void 0);
   const aboutQueued = (r) => {
+    if (r.kind === "ask_cards") return true;
     if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
     if (r.kind === "leads_question" && searchesQueued.has(door(r) ?? "")) return true;
     if (r.kind === "review" && reviewsDrawn.some((review) => reviewNoticeIsAbout(r.about, review))) return true;

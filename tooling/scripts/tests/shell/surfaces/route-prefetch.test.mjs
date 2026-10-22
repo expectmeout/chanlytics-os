@@ -708,6 +708,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/legacy-bridge/reach-out/replies.ts`)).repliesOverride,
       // And the counts of the lists pinned there (R10), which ask nothing where nothing is pinned.
       (await importSrc(`${S}/surfaces/today/pins-surface.ts`)).todayPinsOverride,
+      // And Ask for you: the member's morning as it stands (decision 0070).
+      (await importSrc(`${S}/surfaces/today/ask-morning-surface.ts`)).askMorningOverride,
     ].map((o) => [o.key, o]),
   );
   const settle = async () => {

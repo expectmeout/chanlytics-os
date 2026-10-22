@@ -608,6 +608,18 @@ export function rawTurn(
 }
 
 /**
+ * The raw turn with the outcomes its own cards arrived with added to what it told (decision 0070): a line Ask kept as
+ * the turn was saved is no news to the turn after it, which would otherwise say the person acted on it (Chain.since).
+ */
+export function toldWithArrived(raw: RawTurn | null, cards: readonly AskProposal[]): RawTurn | null {
+  const arrived = cards.flatMap((p) =>
+    p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [],
+  );
+  if (!raw || arrived.length === 0) return raw;
+  return { ...raw, told: [...(raw.told ?? []), ...arrived] };
+}
+
+/**
  * The raw turn as the answer's row keeps it, at content.raw: its messages and blocks as ONE JSON string, beside its
  * scalars. jsonb does not keep an object's keys in their order -- it writes them back shortest first, then by their
  * bytes -- so a turn kept as objects would come back reordered (a call's input `{action, words}` as `{words, action}`),

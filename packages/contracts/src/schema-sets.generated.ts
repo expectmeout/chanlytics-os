@@ -11,7 +11,7 @@ export const SCHEMA_SETS = {
   "ai_usage.port": ["anthropic", "typesafe"],
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
-    "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest",
+    "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
   ],
   "appointment_notices.hold_reason": [
     "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",
@@ -19,6 +19,8 @@ export const SCHEMA_SETS = {
   "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
   "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person", "receptionist"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
+  "ask_journal_days.state": ["looking", "written", "quiet", "failed"],
+  "ask_memory_lines.source": ["ask", "pane"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
@@ -147,7 +149,7 @@ export const SCHEMA_SETS = {
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
     "reach_out_day", "booking_notice", "opted_out", "booking", "member_joined", "member_left",
-    "note_to_keep", "reply_held",
+    "note_to_keep", "reply_held", "ask_cards",
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],

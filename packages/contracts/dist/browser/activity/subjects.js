@@ -2,6 +2,7 @@ import { addressOf } from "./record-address.js";
 const byId = (route) => (id) => id ? route(id) : null;
 const page = (route) => () => route;
 const CONNECTIONS = addressOf({ kind: "channel" });
+const MEMORY = "admin/memory";
 export const ACTIVITY_SUBJECT_HOMES = {
   // The subjects with a page of their own.
   contact: { door: byId((id) => addressOf({ kind: "person", id })) },
@@ -58,6 +59,10 @@ const WORKSPACE_CHANGE_DOORS = /* @__PURE__ */ new Map([
   ["settings.fact_suggested", addressOf({ kind: "rules" })],
   ["settings.fact_kept", addressOf({ kind: "rules" })],
   ["settings.fact_dismissed", addressOf({ kind: "rules" })],
+  // What Ask remembers is listed, changed and forgotten on Settings › Memory (decision 0070).
+  ["ask.memory_kept", MEMORY],
+  ["ask.memory_changed", MEMORY],
+  ["ask.memory_forgotten", MEMORY],
   ["capability.activated", CONNECTIONS],
   ["capability.deactivated", CONNECTIONS],
   ["member.left", addressOf({ kind: "team" })]

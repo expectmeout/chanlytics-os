@@ -1692,8 +1692,9 @@ test("the page is its bands and nothing seeded", () => {
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   // What is left to set up sits above the queue in its column, never across the page (canvas R10).
   const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
-  // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064).
-  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand"]);
+  // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064); what Ask would do
+  // first sits under it, since nothing Ask suggests outranks a person who has been waiting (decision 0070).
+  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand", "TodayAsk"]);
   assert.equal(
     buttons(byTestId(tree, "today-card"), "Reports").length,
     1,

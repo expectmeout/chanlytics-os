@@ -270,16 +270,15 @@ export {
 } from "./lead-plan-schema";
 export {
   LEAD_SUGGEST_RETRY_MS,
-  LEAD_IDEAS_SYSTEM,
   ideaHistoryOf,
   ideaBasisOf,
   ideaPacket,
-  ideaPacketText,
-  ideaJsonSchema,
   ideaPassed,
   ideaPassedOf,
+  ideaWhere,
 } from "./lead-ideas";
-export type { IdeaHistory, IdeaSearch, IdeaPacket, IdeaPassed, IdeaLanguage } from "./lead-ideas";
+export type { IdeaHistory, IdeaSearch, IdeaPacket, IdeaPassed, IdeaLanguage, IdeaAbout } from "./lead-ideas";
+export { LEAD_IDEAS_SYSTEM, ideaPacketText, ideaJsonSchema } from "./lead-ideas-ask";
 export { LeadIdeasAnswerSchema, ideaAsk, ideasFrom, ideasRead } from "./lead-ideas-read";
 export type { LeadIdeasAnswer, IdeaDropped } from "./lead-ideas-read";
 export type {
@@ -319,6 +318,7 @@ export type {
   LeadMonthDto,
   LeadSuggestionsDto,
   LeadIdeaDto,
+  LeadIdeaRole,
   LeadPlanFacts,
   LeadReviewGroupId,
   LeadReviewAct,

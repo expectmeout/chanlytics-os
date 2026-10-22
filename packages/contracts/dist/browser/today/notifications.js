@@ -98,9 +98,7 @@ export function applyReadState(items, state) {
 export function unreadCount(rows) {
   return rows.filter((r) => r.unread).length;
 }
-export function agoLabel(atMs, now) {
-  return spanAgo(atMs, now);
-}
+export const agoLabel = (atMs, now) => spanAgo(atMs, now);
 export const ALERT_KINDS = ["needs_you", "held_draft", "missed_call", "leads_question"];
 export const SERVER_NOTIFICATION_KINDS = [
   "handoff",
@@ -162,7 +160,9 @@ export const SERVER_NOTIFICATION_KINDS = [
    * that opens the thread; closed when the reply goes or is stopped (00462 messages_reply_held_closes). No mail: it waits
    * minutes, not hours.
    */
-  "reply_held"
+  "reply_held",
+  // Ask's morning left cards on Today (decision 0070): the member's own line, once a morning; no mail, no phone.
+  "ask_cards"
 ];
 export function settledRow(row) {
   return { ...row, unread: false, tone: row.tone === "warn" ? "" : row.tone };
@@ -275,6 +275,7 @@ const SERVER_LOOK = {
   member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
+  ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
   alert: ALERT_LOOK
 };
 function lookOf(kind) {

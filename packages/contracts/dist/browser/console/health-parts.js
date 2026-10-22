@@ -149,7 +149,8 @@ const PURPOSE_WORDS = {
   reach_out_check: "Reach-out checks",
   reply_read: "Reading leads' replies",
   booking_read: "Reading booking notices",
-  lead_suggest: "Lead search suggestions"
+  lead_suggest: "Lead search suggestions",
+  ask_journal: "Ask's journal"
 };
 function purposeWords(purpose) {
   return PURPOSE_WORDS[purpose] ?? purpose.replace(/_/g, " ");

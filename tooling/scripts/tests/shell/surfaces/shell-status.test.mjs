@@ -708,11 +708,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/clients/seg:lapsed-60").title, "List · People · Chanlytics");
 
   assert.equal(mount("#/admin").title, "Details · Settings · Chanlytics", "the pane the bare route opens, by name");
-  assert.equal(
-    mount("#/admin/memory").title,
-    "AI memory · Settings · Chanlytics",
-    "a retired route still answers, and says which",
-  );
+  assert.equal(mount("#/admin/memory").title, "Memory · Settings · Chanlytics", "what Ask remembers (decision 0070)");
   assert.equal(
     mount("#/admin/platform").title,
     "Profile · Settings · Chanlytics",

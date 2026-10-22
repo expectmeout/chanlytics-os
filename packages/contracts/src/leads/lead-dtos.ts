@@ -214,11 +214,21 @@ export interface LeadIdeaDto {
   reach: string | null;
   /** The platform-wide counts behind `reach`, for the plan sheet's likely line; null for a kind not searched enough. */
   prior?: LeadNichePrior | null;
-  /** The search, ready to approve. */
+  /** The search, ready to approve: a places search (the Maps card). */
   plan?: LeadSearchPlan | null;
+  /**
+   * Or a people search, ready to approve (the people card, decision 0070's option B): named people at companies, by title,
+   * industry, size and state. An idea holds one of the two; the page opens this one in the people sheet.
+   */
+  people?: LeadPeoplePlan | null;
+  /** Where it sits in the four (option B's mix): it builds on what worked, a group not searched yet, or it goes wider. */
+  role?: LeadIdeaRole;
   /** The same search as Ask is asked for it: Ask's Leads chip. */
   ask?: string;
 }
+
+/** Where an idea sits in the four: one builds on what worked, two are new groups, one goes wider. */
+export type LeadIdeaRole = "proven" | "new" | "wider";
 
 export interface LeadSuggestionsDto {
   business_line: string;

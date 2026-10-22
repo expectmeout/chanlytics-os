@@ -38,7 +38,8 @@
  * Pure: the page feeds it the workspace's public facts, the tests feed it
  * fixtures.
  */
-import { OFFERS_OPT_IN_PHRASES, optInLink } from "../shared/enums";
+import { OFFERS_OPT_IN_PHRASES } from "../shared/enums";
+import { optInLink } from "./wa-links";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { AskedPurpose } from "./consent";
 import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";

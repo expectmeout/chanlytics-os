@@ -283,14 +283,34 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
 
 /**
  * The ideas for a new search as Leads' finder keeps them (§8.9, GET lead-suggestions' own read): what each finds and
- * where, why this one, and the same search as Ask is asked for it. It writes nothing and asks no model.
+ * where, why this one, which card it is on, and the same search as Ask is asked for it; a people idea (decision 0070)
+ * with its plan's fields, so the same search can be proposed as it is. It writes nothing and asks no model.
  */
 async function readIdeas(t: ToolContext): Promise<unknown> {
   const kept = await suggestionsKept(t.ctx, t.tenantId);
   return {
     route: "clients/leads",
     business_line: kept.business_line,
-    ideas: kept.items.map((i) => ({ finds: i.words, why: i.who_for, kind: i.category_key, ask: i.ask ?? null })),
+    ideas: kept.items.map((i) => ({
+      finds: i.words,
+      why: i.who_for,
+      kind: i.category_key,
+      card: i.people ? "people" : "places",
+      ...(i.role ? { role: i.role } : {}),
+      ask: i.ask ?? null,
+      ...(i.people
+        ? {
+            people: {
+              titles: i.people.titles,
+              states: i.people.states,
+              seniority: i.people.seniority,
+              industries: i.people.industries,
+              company_sizes: i.people.sizes,
+              companies: i.people.count,
+            },
+          }
+        : {}),
+    })),
     ...(kept.note ? { note: kept.note } : {}),
   };
 }
@@ -389,7 +409,7 @@ export const leadsTool = defineActions({
       examples: [{}],
       label: "Reading the search ideas",
       words:
-        "Action ideas reads the ideas for a new search Leads keeps for this business: what each finds and where, why this one, and the same search as you would be asked for it. Call it when they ask what to look for, before planning a search.",
+        "Action ideas reads the ideas for a new search Leads keeps for this business: what each finds and where, why this one, which card (places, or people at companies with its titles, states and filters), and the same search as you would be asked for it. Call it when they ask what to look for, before planning a search.",
       run: readIdeas,
     }),
     back: readAction({

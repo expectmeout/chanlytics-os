@@ -53,7 +53,7 @@
   "reports": "reports",
   "reports/lenses": "",
   "see": "",
-  "settings": "alerts billing channels google partner settings setup workspace",
+  "settings": "alerts ask_memory billing channels google partner settings setup workspace",
   "settings/activity": "",
   "settings/autonomy": "settings",
   "settings/billing": "billing",
@@ -61,6 +61,7 @@
   "settings/business": "settings workspace",
   "settings/connections": "channels google setup",
   "settings/frame": "partner settings workspace",
+  "settings/memory": "ask_memory",
   "settings/notifications": "alerts settings",
   "settings/partner": "partner workspace",
   "settings/profile": "partner",
@@ -68,7 +69,7 @@
   "setup": "live settings setup",
   "setup/first-run": "live settings setup",
   "setup/rows": "",
-  "today": "broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
-  "today/pages": "broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins",
+  "today": "ask_morning broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins workspace",
+  "today/pages": "ask_morning broadcasts calendar google inbox live people playbooks reach_out_replies reports_headline setup today today_pins",
   "waits": "today"
 }

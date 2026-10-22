@@ -264,6 +264,9 @@ const SEAT = new Set([
   "contact_reads",
   "notification_marks",
   "notification_reads",
+  // A member's own morning with Ask and the turns of their own threads (decision 0070): private to them by RLS.
+  "ask_mornings",
+  "ask_messages",
 ]);
 const ACCOUNT = new Set([
   "tenants",
@@ -278,7 +281,7 @@ const FINDING = /^(R\d+|[SX]\d+-\d+|W-[a-z-]+-\d+)$/;
 const watched = new Set(watchedTables());
 
 /** The pages a claim's write is asked from: the coverage pages, and the pages whose own rows name a surface there (ifDrawn). */
-const CLAIM_PAGES = [...PAGES, "clients/leads", "broadcasts", "messages", "admin/workspace", "start"];
+const CLAIM_PAGES = [...PAGES, "clients/leads", "broadcasts", "messages", "admin/workspace", "admin/memory", "start"];
 /** The surfaces a write's row names from any page a claim may mean. */
 function rereadAnywhere(write) {
   const keys = new Set();

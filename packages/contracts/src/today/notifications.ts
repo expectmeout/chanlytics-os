@@ -228,13 +228,9 @@ export function unreadCount(rows: readonly { unread: boolean }[]): number {
   return rows.filter((r) => r.unread).length;
 }
 
-/** "now", "5m", "2h", "3d" — the bell's clock (the Inbox has its own `ago`). */
-/** The bell's time: one family with every other surface (time.ts). */
-export function agoLabel(atMs: number, now: number): string {
-  return spanAgo(atMs, now);
-}
+/** The bell's time, "now", "5m", "2h", "3d": one family with every other surface (time.ts). */
+export const agoLabel = (atMs: number, now: number): string => spanAgo(atMs, now);
 
-/** The kinds a device is woken for; an invitation can wait for the bell. */
 /**
  * A search waiting on its question is one of them: it waits a day and then ends, and nothing else tells the owner
  * while the tab is not in view (the bridge alerts on kept rows of these kinds as on derived ones).
@@ -305,6 +301,8 @@ export const SERVER_NOTIFICATION_KINDS = [
    * minutes, not hours.
    */
   "reply_held",
+  // Ask's morning left cards on Today (decision 0070): the member's own line, once a morning; no mail, no phone.
+  "ask_cards",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -562,6 +560,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
+  ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
   alert: ALERT_LOOK,
 };
 

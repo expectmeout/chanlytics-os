@@ -136,6 +136,7 @@ export const MODEL_PURPOSES = [
   "reply_read",
   "booking_read",
   "lead_suggest",
+  "ask_journal",
 ] as const;
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
@@ -217,6 +218,10 @@ export const MODEL_ROUTES = {
   // The ideas for a new search (00398): four ready plans written from what a workspace's searches found, a page waiting
   // on them (Ruben, 11 Oct 2026: Sonnet 5.5 for now). The fallback is the small drafts' own model.
   lead_suggest: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: DRAFT_TRY_MS, retries: 0, maxTokens: 1800 },
+  // Ask's journal (decision 0070): a workspace's day, written in a few sentences from its ledgers' lines, by the note
+  // sweep inside its minute, asked at low effort (its thinking counts against the tokens). No retry: a day not written
+  // in time is let go as failed, never asked twice.
+  ask_journal: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 0, maxTokens: 1500 },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 
 /** A purpose's route. */

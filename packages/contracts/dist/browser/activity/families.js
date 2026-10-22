@@ -1,4 +1,5 @@
-import { ACTIVITY_KINDS, activityKindWords, isActivityNoise } from "../workspace/activity.js";
+import { activityKindWords } from "../workspace/activity.js";
+import { ACTIVITY_KINDS, isActivityNoise } from "../workspace/activity-rows.js";
 import { activityTone } from "./tones.js";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words.js";
 export const ACTIVITY_FAMILIES = [
@@ -116,6 +117,8 @@ const PREFIX_FAMILY = {
   platform: "settings",
   billing: "billing",
   partner: "partner",
+  // What Ask remembers is kept on Settings › Memory (decision 0070); its journal and mornings are noise, never shown.
+  ask: "settings",
   usage: "records",
   webhook: "records",
   ingest: "records"

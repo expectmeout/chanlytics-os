@@ -30,6 +30,7 @@ import { workspaceTool } from "./read/settings";
 import { calendarTool } from "./read/calendar";
 import { sequencesTool } from "./read/campaigns";
 import { leadsTool } from "./read/leads";
+import { recallTool } from "./read/recall";
 import { propose_reply } from "./act/reply";
 import { propose_thread_verb } from "./act/thread-verb";
 import { propose_call } from "./act/call";
@@ -44,6 +45,7 @@ import { propose_sequence } from "./act/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
 import { propose_follow_up } from "./act/follow-up";
+import { rememberAct } from "./act/remember";
 
 /**
  * The registry: one definition per tool, in a file of its family; the JSON schema the model is shown generated
@@ -78,6 +80,7 @@ export const READ_DEFS: readonly ReadTool[] = [
   calendarTool,
   sequencesTool,
   leadsTool,
+  recallTool,
 ];
 
 /**
@@ -105,13 +108,15 @@ export const ACT_DEFS: readonly ActTool[] = [
   propose_review,
   propose_plan,
   propose_follow_up,
+  rememberAct,
 ];
 
 /**
  * The tools loaded on every question (the operator, 15 Oct 2026, D11): the day, what stands out, how it works, the
- * conversations, People, a reply, one person and a plan. The rest are found by tool search: the core never changes from
- * page to page, so the cached prefix holds, and the open page is said in the turn's own words so the search finds its
- * tools first.
+ * conversations, People, a reply, one person and a plan; and what was said before and what to keep of it (decision
+ * 0070), since a person tells Ask a lasting fact, or refers to an earlier one, on any page. The rest are found by tool
+ * search: the core never changes from page to page, so the cached prefix holds, and the open page is said in the turn's
+ * own words so the search finds its tools first.
  */
 export const CORE_TOOLS: ReadonlySet<string> = new Set([
   todayTool.name,
@@ -122,6 +127,8 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   propose_reply.name,
   propose_person.name,
   propose_plan.name,
+  recallTool.name,
+  rememberAct.name,
 ]);
 
 /* ----------------------------------------------------------- the actions */

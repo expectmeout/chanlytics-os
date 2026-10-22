@@ -2,6 +2,7 @@
 
 /** Every handler under /api/v1, keyed the way route-policy.json keys it. */
 export const ROUTES = {
+  "DELETE ask/memory/[id]": { method: "DELETE", path: "/api/v1/ask/memory/[id]" },
   "DELETE ask/threads/[id]": { method: "DELETE", path: "/api/v1/ask/threads/[id]" },
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
@@ -25,6 +26,8 @@ export const ROUTES = {
   "DELETE workspaces/logo": { method: "DELETE", path: "/api/v1/workspaces/logo" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
+  "GET ask/memory": { method: "GET", path: "/api/v1/ask/memory" },
+  "GET ask/morning": { method: "GET", path: "/api/v1/ask/morning" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
   "GET ask/threads/[id]": { method: "GET", path: "/api/v1/ask/threads/[id]" },
@@ -116,13 +119,16 @@ export const ROUTES = {
   "GET today": { method: "GET", path: "/api/v1/today" },
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
+  "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
+  "POST ask/memory": { method: "POST", path: "/api/v1/ask/memory" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
+  "POST ask/morning": { method: "POST", path: "/api/v1/ask/morning" },
   "POST ask/quick": { method: "POST", path: "/api/v1/ask/quick" },
   "POST ask/speech": { method: "POST", path: "/api/v1/ask/speech" },
   "POST ask/voice": { method: "POST", path: "/api/v1/ask/voice" },
@@ -314,6 +320,7 @@ export const ROUTES = {
 
 /** The handler each key names, as a type: what it takes and answers rides on it (route.ts, Shape). */
 export type Routes = {
+  "DELETE ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").DELETE;
   "DELETE ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").DELETE;
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
@@ -337,6 +344,8 @@ export type Routes = {
   "DELETE workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
+  "GET ask/memory": typeof import("../../app/api/v1/ask/memory/route").GET;
+  "GET ask/morning": typeof import("../../app/api/v1/ask/morning/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
   "GET ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").GET;
@@ -428,13 +437,16 @@ export type Routes = {
   "GET today": typeof import("../../app/api/v1/today/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
+  "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
+  "POST ask/memory": typeof import("../../app/api/v1/ask/memory/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
+  "POST ask/morning": typeof import("../../app/api/v1/ask/morning/route").POST;
   "POST ask/quick": typeof import("../../app/api/v1/ask/quick/route").POST;
   "POST ask/speech": typeof import("../../app/api/v1/ask/speech/route").POST;
   "POST ask/voice": typeof import("../../app/api/v1/ask/voice/route").POST;

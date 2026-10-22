@@ -230,6 +230,8 @@ const ANNOUNCES = {
     "Its door is the page the failed job's work lives on (JOB_WORK); not traced to the depth the others were.",
   alert: "It opens Today, which hears messages, escalations, calls and lead rounds; not traced further.",
   reach_out_day: "Campaigns' Reach-outs read their own numbers where they are on screen; not traced further.",
+  ask_cards:
+    "Today, which the row opens, reads the member's morning with Ask for you as it comes on screen and while Ask writes; the feed does not tell of ask_mornings (decision 0070).",
 };
 
 test("every kind the edge keeps says what it announces and who hears it", () => {

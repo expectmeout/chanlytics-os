@@ -149,6 +149,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
   // (sent or stopped: 00461 messages_reply_held_closes).
   reply_held: { ends: "send", server: "reply_gone" },
+  ask_cards: {
+    ends: "news",
+    why: "Ask's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

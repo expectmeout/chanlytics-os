@@ -33,6 +33,7 @@ import {
   sequenceWordsSpec
 } from "./sequences.js";
 import { settingsSpec } from "./workspace.js";
+import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory.js";
 export const PAGE_SPECS = {
   // People's: a person's answers, mode, notes and deal, many at once, added and merged, and a list's members.
   answer: answerSpec,
@@ -78,7 +79,12 @@ export const PAGE_SPECS = {
   answer_style: answerStyleSpec,
   // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence
   // canvas: "a field in the step sheet, saved to Settings").
-  settings: settingsSpec
+  settings: settingsSpec,
+  // What Ask remembers (decision 0070): a line kept by Ask's card or added on Settings › Memory, and the pane's change
+  // and forget.
+  memory: memorySpec,
+  memory_change: memoryChangeSpec,
+  memory_forget: memoryForgetSpec
 };
 const more = {};
 export function proposalSpec(kind) {

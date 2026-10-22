@@ -42,7 +42,8 @@
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
     "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
     "00428": "the silent records are told (the wiring's second audit, R6) took it and was applied to production on 14 Oct before its merge; main's head passed it (#1588), and it landed as 00431, production's ledger row re-keyed to it by migration repair",
-    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447"
+    "00445": "claimed by the sequences phone lane (cm-phone, sequences/phone-and-wiring), not on main when 00446 took the next number and production applied it; the lane landed above it as 00447",
+    "00470": "held by the hear-it lane as its working name (decision 0069); this lane renumbers at push, whichever lands first"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -471,6 +472,7 @@
     "00466_a_mailbox_is_held_for_its_own_mail_not_its_noes.sql": "b6f2563f0c8c967368dff3e26ee8f1775b530ffb712912e80a76da64db331fa5",
     "00467_the_console.sql": "d743c30e1ebc7ff836cc9288ac74aa09487ead7821e09d359a7074819e607304",
     "00468_support_is_the_help_desk.sql": "e7f418acbe4954cb86f8313a5bee99de3435d05a0cbeee713eabd69bb3364a83",
-    "00469_health_sees_what_broke.sql": "8f095f9199bd7d1f746d6c5b30d39fa58f8df54126317e2c468336a1d44bec3e"
+    "00469_health_sees_what_broke.sql": "8f095f9199bd7d1f746d6c5b30d39fa58f8df54126317e2c468336a1d44bec3e",
+    "00471_ask_remembers_the_business_and_its_days.sql": "e78f06bc28217db1d8eb95744cb697d1431e9d94dbb2fc1e3c4444a306c203c8"
   }
 }

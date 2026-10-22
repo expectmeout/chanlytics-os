@@ -13,7 +13,8 @@ export const SCHEMA_SETS = {
     "reach_out_check",
     "reply_read",
     "booking_read",
-    "lead_suggest"
+    "lead_suggest",
+    "ask_journal"
   ],
   "appointment_notices.hold_reason": [
     "no_model",
@@ -27,6 +28,8 @@ export const SCHEMA_SETS = {
   "appointment_notices.outcome": ["booked", "changed", "cancelled", "held", "dismissed"],
   "appointments.source": ["calendar_feed", "booking_email", "booking_tool", "person", "receptionist"],
   "appointments.status": ["proposed", "booked", "kept", "missed", "cancelled"],
+  "ask_journal_days.state": ["looking", "written", "quiet", "failed"],
+  "ask_memory_lines.source": ["ask", "pane"],
   "ask_messages.role": ["user", "assistant"],
   "ask_voice_sessions.end_reason": ["button", "typed", "superseded", "navigated", "vendor", "start", "idle"],
   "ask_voice_sessions.language": ["en", "es", "other"],
@@ -316,7 +319,8 @@ export const SCHEMA_SETS = {
     "member_joined",
     "member_left",
     "note_to_keep",
-    "reply_held"
+    "reply_held",
+    "ask_cards"
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],

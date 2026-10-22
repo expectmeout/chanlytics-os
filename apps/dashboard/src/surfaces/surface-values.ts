@@ -16,6 +16,8 @@
  * holds it sees it change by identity (React's `useSyncExternalStore` asks for exactly that).
  */
 import type { ReportsSurface } from "./reports/surface";
+import type { AskMorningSurface } from "./today/ask-morning-surface";
+import type { AskMemorySurface } from "./settings/memory/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { ReceptionistSurface } from "./reports/receptionist-surface";
 import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
@@ -76,6 +78,10 @@ export interface SurfaceValues {
   calendar_runs: CalendarRunsSurface;
   /** The counts of the lists pinned to Today, read where Today draws them (today/pins-surface.ts; R10). */
   today_pins: TodayPinsSurface;
+  /** Ask's morning for this member, read where Today draws Ask for you (today/ask-morning-surface.ts; decision 0070). */
+  ask_morning: AskMorningSurface;
+  /** What Ask remembers, read where Settings › Memory is drawn (settings/memory/surface.ts; decision 0070); null when it failed. */
+  ask_memory: AskMemorySurface | null;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -230,6 +236,8 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   calendar: true,
   calendar_runs: true,
   today_pins: true,
+  ask_morning: true,
+  ask_memory: true,
   leads: true,
   setup: true,
   billing: true,

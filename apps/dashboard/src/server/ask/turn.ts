@@ -23,9 +23,10 @@ import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { memberViews } from "../readers/notifications";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
-import { storedRaw, threadForTurn } from "./memory";
+import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
 import { appendMessage, touchThread } from "./store";
+import { keepRememberCards } from "./companion/remembered";
 
 /**
  * One turn of the assistant, kept in one place for its two doors: POST /api/v1/ask (the typed Line) and the voice
@@ -50,6 +51,11 @@ interface AskTurnAsk {
   spoken?: boolean;
   /** The column the Line draws the answer in, as the tab measured it (contracts AskColumn); none from an older tab. */
   column?: AskColumn | null;
+  /**
+   * The language to answer in, where the words are not the member's own (the morning's fixed question, decision 0070:
+   * the page's language); otherwise the question's own (detectLanguage).
+   */
+  language?: AskLanguage;
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -142,7 +148,7 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   // the same person does not read them again. The GET routes keep nothing.
   const rc = readerContext(ctx, member, undefined, { keep: true });
   const { facts, timezone } = await turnFacts(rc);
-  const language = detectLanguage(text);
+  const language = ask.language ?? detectLanguage(text);
   const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
   return {
     ctx,
@@ -251,10 +257,17 @@ export async function finishAskTurn(
   const v1 = v1FromAnswer(result.answer);
   // A new search's card carries the thread it was planned in, so the search keeps it (00172) and the answer
   // to its question lands back here. An answer's card needs none: its search already has one or never will.
-  const proposals: AskProposal[] = result.proposals.map((p) =>
-    (p.kind === "lead_search" || p.kind === "people_search") && !p.payload.amends
-      ? { ...p, payload: { ...p.payload, thread_id: turn.id } }
-      : p,
+  // A line Ask remembers is kept as the turn is saved, as the member it answers (decision 0070): its card arrives kept,
+  // with its Undo.
+  const proposals: AskProposal[] = await keepRememberCards(
+    ctx,
+    tenantId,
+    turn.id,
+    result.proposals.map((p) =>
+      (p.kind === "lead_search" || p.kind === "people_search") && !p.payload.amends
+        ? { ...p, payload: { ...p.payload, thread_id: turn.id } }
+        : p,
+    ),
   );
   const content = {
     v: 2,
@@ -273,7 +286,10 @@ export async function finishAskTurn(
   };
   let saved: { id: string; created_at: string } | null = null;
   try {
-    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", { ...content, raw: storedRaw(result.raw) });
+    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", {
+      ...content,
+      raw: storedRaw(toldWithArrived(result.raw, proposals)),
+    });
     // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
     // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
     await touchThread(ctx, turn.id, scope);

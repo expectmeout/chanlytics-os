@@ -225,9 +225,9 @@ function opensStart(param: string): Opened | null {
 function opensSettings(param: string): Opened | null {
   if (param === "") return { view: "admin" };
   const section = param.slice(0, param.includes("/") ? param.indexOf("/") : param.length);
-  // The back office is for the people who run Chanlytics, and the retired AI memory still answers: found by who is looking
-  // (SET_TAB asks the window), so a shape here and not a lookup.
-  if (section === "platform" || section === "memory") return param === section ? { view: `admin/${section}` } : null;
+  // The back office is for the people who run Chanlytics: found by who is looking (SET_TAB asks the window), so a shape
+  // here and not a lookup.
+  if (section === "platform") return param === section ? { view: `admin/${section}` } : null;
   // A pane the rail lists. SET_TAB falls to Profile for anything else, which opens, but is no address a writer should write.
   if (!SET_TABS.some((t) => t.id === section)) return null;
   const record = PANE_RECORDS.get(section);

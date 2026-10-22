@@ -166,6 +166,14 @@ export async function saveIdeasLine(db: Db, tenantId: string, line: string): Pro
 }
 
 /**
+ * New ideas (00471, act again): the same line written again, so the next write asks the model, with the ideas shown
+ * kept to be passed on (ideaPassed), so the four it writes are new ones. Like a line, it clears any claim.
+ */
+export async function againIdeas(db: Db, tenantId: string): Promise<void> {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "again" });
+}
+
+/**
  * The workspace's clock and language as its row says them (tenants.timezone, tenants.locale), or null where the row
  * cannot be read: the month the ideas' room is counted in, and the language they are written in (00399). Read on the
  * member's session; the server's tenantFactsOf says the clock where the row says none.

@@ -44,6 +44,7 @@ import {
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
 import { settingsSpec } from "./workspace";
+import { memoryChangeSpec, memoryForgetSpec, memorySpec } from "./memory";
 
 /**
  * The verbs a page presses (commitVerb, legacy-bridge/verbs), each a card Ask may propose too. Each keeps its own type,
@@ -95,6 +96,11 @@ export const PAGE_SPECS = {
   // A setting put in where it is missing: the booking link, from a sequence to leads' step sheet (the lead-to-sequence
   // canvas: "a field in the step sheet, saved to Settings").
   settings: settingsSpec,
+  // What Ask remembers (decision 0070): a line kept by Ask's card or added on Settings › Memory, and the pane's change
+  // and forget.
+  memory: memorySpec,
+  memory_change: memoryChangeSpec,
+  memory_forget: memoryForgetSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;
 
 /** A verb a page presses: commitVerb takes no other. */

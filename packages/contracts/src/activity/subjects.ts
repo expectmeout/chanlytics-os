@@ -24,6 +24,8 @@ const page = (route: string) => (): string => route;
 
 // Every door is the record's own address (record-address.ts addressOf), said once there, never again here.
 const CONNECTIONS = addressOf({ kind: "channel" });
+/** Settings › Memory (decision 0070): what Ask remembers is no record the feed carries, so it has no record address. */
+const MEMORY = "admin/memory";
 
 export const ACTIVITY_SUBJECT_HOMES = {
   // The subjects with a page of their own.
@@ -88,6 +90,10 @@ const WORKSPACE_CHANGE_DOORS: ReadonlyMap<string, string> = new Map([
   ["settings.fact_suggested", addressOf({ kind: "rules" })],
   ["settings.fact_kept", addressOf({ kind: "rules" })],
   ["settings.fact_dismissed", addressOf({ kind: "rules" })],
+  // What Ask remembers is listed, changed and forgotten on Settings › Memory (decision 0070).
+  ["ask.memory_kept", MEMORY],
+  ["ask.memory_changed", MEMORY],
+  ["ask.memory_forgotten", MEMORY],
   ["capability.activated", CONNECTIONS],
   ["capability.deactivated", CONNECTIONS],
   ["member.left", addressOf({ kind: "team" })],

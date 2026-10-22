@@ -583,6 +583,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "reach_out_replies",
     "channels",
     "today_pins",
+    "ask_morning",
   ];
   const draws = ROUTE_DRAWS.today;
   for (const k of ["calendar", "broadcasts", "reports_headline"])
@@ -619,6 +620,8 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "reach-out/replies",
         "../surfaces/channels/surface",
         "../surfaces/today/pins-surface",
+        // Ask for you's morning (decision 0070).
+        "../surfaces/today/ask-morning-surface",
       ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
     );
     known = new Set(
