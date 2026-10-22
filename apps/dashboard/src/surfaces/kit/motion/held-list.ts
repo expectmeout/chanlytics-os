@@ -446,10 +446,24 @@ function goesWith(part: HTMLElement): HTMLElement {
 }
 
 /**
+ * Where a carried page lays the ground it wears (`--going-at`, components.css data-going): how far down the screen it stood
+ * as it was taken up, so the window's ground it paints, a screen tall from the screen's top, lies where the window's own
+ * layer of light lies under the list it uncovers. Laid from its own top, a head down the screen, the paper's grey stood
+ * across the rows as it moved (Ruben, 22 Oct 2026).
+ */
+export function goingAt(el: Element, on: boolean): void {
+  const style = (el as Partial<HTMLElement>).style;
+  if (!style || typeof style.setProperty !== "function") return;
+  if (on) style.setProperty("--going-at", `${Math.round(el.getBoundingClientRect().top)}px`);
+  else style.removeProperty("--going-at");
+}
+
+/**
  * A page carried over the list held under it, by a thumb or as it is pushed in (its swipe's `onGrab`): it wears
  * `data-going` (its ground and its edge, clients.css) and the screen it goes back to shows under it.
  */
 export function carriedOver(el: Element, on: boolean): void {
+  goingAt(el, on);
   el.toggleAttribute("data-going", on);
   showHeld(on);
 }

@@ -1836,7 +1836,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    own on a phone (inbox.css: the page's light shows through it), so while it moves it wears the page's, as the app's
    root paints it there: the list under it showed through the thread, both sets of words at once (Ruben, 17 Oct 2026).
    It moves over the frame's chrome, which is drawn again under it with the list (the top, 200, and the Inbox's sending
-   strip, 201; mobile.css, data-carrying), and under the drawer (210). */
+   strip, 201; mobile.css, data-carrying), and under the drawer (210). The ground is the window's, measured from the
+   screen's top: a screen tall and laid as far up as the thread stood down the screen as it was taken up (--going-at,
+   kit/motion/held-list.ts goingAt), so it lies where the window's own layer of light lies under the list and the two
+   meet with no step. Laid from the thread's own top it stood a head lower, the paper's grey across the rows. */
 @media (max-width: 720px) {
   .inbox[data-takeover][data-going] > .ix-list,
   .conversations[data-takeover][data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
@@ -1845,8 +1848,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     grid-area: 1 / 1;
     z-index: 202;
     background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
     background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+    background-position: 0 calc(-1 * var(--going-at, 0px));
     box-shadow: -12px 0 32px oklch(0 0 0 / 0.18);
   }
 }
@@ -1887,9 +1893,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   z-index: 203;
   pointer-events: none;
   background-color: var(--surface-page-fill);
-  background-image: var(--surface-page-top), var(--surface-page-light);
+  background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
   background-repeat: no-repeat;
   background-size: 100vw 100vh;
+  background-size: 100vw 100dvh;
   box-shadow: var(--shadow-lg);
   clip-path: inset(0 0 0 -64px);
 }

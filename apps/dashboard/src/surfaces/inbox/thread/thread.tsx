@@ -21,7 +21,7 @@ import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
-import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
+import { goingAt, heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
@@ -71,6 +71,7 @@ export const ixGoing = (el: Element | null, on: boolean) => {
   if (!host) return;
   if (on) goingHosts.set(el, host);
   else goingHosts.delete(el);
+  goingAt(el, on);
   host.toggleAttribute("data-going", on);
   showHeld(on);
 };
