@@ -19,6 +19,7 @@ import {
   businessNameOf,
   setupCardOf,
   TRY_SKIPPED,
+  REMIND_SKIPPED,
   receptionistCardOf,
   shouldLandOnFirstRun,
   setupLaterOf,
@@ -326,9 +327,15 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
   const after = setupCardOf(setupSteps(live(), NOW));
   assert.equal(after.start, null);
   assert.deepEqual(ids(after.rows), ["keep"], "the one thing a workspace answering everywhere has left");
-  assert.equal(after.left, "1 left");
-  assert.deepEqual(after.hide, { put: "Hide", said: "Put off. It stays in Setting up for when you're ready." });
+  assert.equal(after.left, "2 left", "the row, and the reminder's row its calendar offers");
+  assert.deepEqual(after.hide, {
+    put: "Hide",
+    said: "All 2 put off. They stay in Setting up, and the reminder in Sequences.",
+  });
   assert.deepEqual(after.skip, { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." });
+  const alone = setupCardOf(setupSteps(live({ later: [REMIND_SKIPPED] }), NOW));
+  assert.equal(alone.left, "1 left");
+  assert.deepEqual(alone.hide, { put: "Hide", said: "Put off. It stays in Setting up for when you're ready." });
   assert.equal(setupCardOf(setupSteps(live({ later: ["keep"] }), NOW)), null, "nothing left once it is put off");
 
   const quiet = live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 } });
@@ -344,14 +351,76 @@ test("after the first run, with the calendar in, Today's card carries one door t
   assert.equal(before.remind, null, "while a step is open, the card is the first run's");
   const after = setupCardOf(setupSteps(liveWithCalendar(), NOW));
   assert.deepEqual(after.remind, {
+    // A row of the card: its name, its state's words, its sentence, its button, and what its Skip puts off and says.
     // No word for the appointment: New sequence, which it opens, says the workspace's own (a meeting where deals are on).
-    words: "Your calendar is in. Remind each customer the day before?",
+    id: REMIND_SKIPPED,
+    name: "The day-before reminder",
+    stateWords: "Not started",
+    words: "Your calendar is in. Remind each customer the day before.",
+    said: "Put off. Turn it on any time in Sequences.",
     label: "Turn on",
     to: "campaigns/sequences/new:moment:visit_tomorrow",
   });
-  assert.doesNotMatch(after.remind.words, /appointment|visit|meeting|session|lesson/i);
+  assert.doesNotMatch(`${after.remind.name} ${after.remind.words}`, /appointment|visit|meeting|session|lesson/i);
   const noCalendar = setupCardOf(setupSteps(liveWithoutCalendar(), NOW));
   assert.equal(noCalendar?.remind ?? null, null, "no calendar: no reminder to offer");
+});
+
+test("the reminder is not offered once a day-before reminder runs: the routes refuse a second", () => {
+  const running = setupSteps(live({ reminders: { day_before: true } }), NOW);
+  assert.equal(running.dayBeforeOn, true);
+  assert.equal(setupCardOf(running).remind, null);
+  assert.equal(setupCardOf(running).left, "1 left", "and it is not counted");
+  // A read from before the field, or one that could not be read: offered, as it was; the route still refuses.
+  assert.ok(setupCardOf(setupSteps(live(), NOW)).remind);
+  assert.ok(setupCardOf(setupSteps(live({ reminders: { day_before: false } }), NOW)).remind);
+});
+
+test("the card holds what waits on the owner: a row waiting on Meta, Google or a first booking email stays on Setting up", () => {
+  // WhatsApp connected, its first messages with Meta: the row waits on them, and drew the card's coral "Open the Inbox".
+  const meta = setupSteps(live({ templates: { approved: 0, pending: 3, startersApproved: 0 } }), NOW);
+  assert.equal(meta.rows.find((r) => r.id === "whatsapp").state, "waiting_them");
+  assert.ok(!ids(setupCardOf(meta).rows).includes("whatsapp"));
+  // A booking tool named, its first email not in yet.
+  const emails = { address: true, forwarding: false, last_at: null, held: 0 };
+  const tool = setupSteps(live({ calendar: { state: "none", tool: "square", emails } }), NOW);
+  assert.equal(tool.rows.find((r) => r.id === "calendar").state, "waiting_them");
+  assert.ok(!ids(setupCardOf(tool).rows).includes("calendar"));
+});
+
+test("a payment that failed after setting up is said as the plan, never as a step of setting up", () => {
+  const billing = (status) => ({
+    ready: true,
+    livemode: true,
+    mode: "stripe",
+    status,
+    trial_end: null,
+    current_period_end: "2026-10-01T00:00:00Z",
+    trial_days: 14,
+    cancel_at: null,
+    cancel_at_period_end: false,
+    price: { unit_amount: 14900, currency: "usd", interval: "month" },
+  });
+  // Billing is the phone step's need, so the card read "Your receptionist is answering · Next: your phone".
+  const failed = setupCardOf(setupSteps(live({ billing: billing("past_due") }), NOW));
+  assert.equal(failed.title, "Your plan");
+  assert.equal(failed.left, "Needs you");
+  assert.equal(failed.start, null);
+  assert.deepEqual(ids(failed.rows), ["billing"]);
+  assert.deepEqual(failed.rows[0].verb, { label: "Update the card", to: "verb:billing-portal" });
+  assert.equal(failed.hide, null, "a plan cannot be put off");
+  assert.equal(failed.remind, null);
+  const paused = setupCardOf(setupSteps(live({ billing: billing("paused") }), NOW));
+  assert.deepEqual(paused.rows[0].verb, { label: "Resume in Billing", to: "admin/billing" });
+  // Paid: the card is setting up's again.
+  assert.equal(setupCardOf(setupSteps(live({ billing: billing("active") }), NOW)).title, "Finish setting up");
+});
+
+test("the reminder's row, skipped, is put off as a row is: the member's, on every device, and back with its Undo", () => {
+  const skipped = setupSteps(live({ later: [REMIND_SKIPPED] }), NOW);
+  assert.equal(skipped.remindSkipped, true);
+  assert.equal(setupCardOf(skipped).remind, null, "skipped: no reminder on the card");
+  assert.ok(setupCardOf(setupSteps(live({ later: [] }), NOW)).remind, "taken back: the reminder again");
 });
 
 test("Today's reminder door stands only where Campaigns can make the reminder: a calendar link connected", () => {

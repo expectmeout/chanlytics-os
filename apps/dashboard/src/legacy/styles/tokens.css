@@ -770,6 +770,25 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
     --surface-wash: var(--surface-veil);
   }
 }
+/* What stands over a phone's foot keeps clear of the one point Safari looks at (iOS 26). Safari paints a flat band under
+   its bottom bar, in place of its glass, while a box fixed to the window (or sticky) covers the middle of the window's
+   foot 4px up, and it keeps the band for as long as that box stays drawn, wherever the box has moved to since (WebKit,
+   LocalFrameView::fixedContainerEdges and Page::updateFixedContainerEdges; Ruben, 21 Oct 2026: the drawer brought the
+   strip back). So a phone's sheet floats --sheet-float clear of the screen's sides and foot, as iOS 26's own do, and is
+   cut at that line while it rises, drops or is pulled (kit.css, --sheet-down); and in an iPhone's browser the wash
+   behind a sheet, a menu or the drawer stops --foot-clear short of the foot, fading out over the last 30px, as a
+   sticky foot rests at least that far up (mobile.css). Only an iPhone's browsers say -webkit-touch-callout. */
+@media (max-width: 900px) {
+  :root {
+    --sheet-float: 8px;
+  }
+  @supports (-webkit-touch-callout: none) {
+    :root {
+      --foot-clear: 6px;
+      --foot-fade: linear-gradient(to top, transparent, #000 30px);
+    }
+  }
+}
 /* Every native select's open list is the browser's own, drawn on the box's fill: on a clear or translucent box that was
    the device's white list under the page's light ink. Its options take the pop's ground and the ink, as the kit's
    Select draws its list (kit.css says the same for its own box, select.rec-input). A phone draws its own picker. */

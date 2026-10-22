@@ -167,7 +167,7 @@
         "reports_campaigns": "reports, reports/campaigns",
         "sequences": "every page",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "setup": "admin/integrations, start, today",
+        "setup": "start, today",
         "today_pins": "today"
       }
     },
@@ -1445,7 +1445,7 @@
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
         "sequences": "every page",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "POST playbooks/[id]/run": {
@@ -1750,7 +1750,7 @@
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "POST sequences/[id]/steps/[step]/words": {
@@ -1764,7 +1764,7 @@
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "POST sequences/new": {
@@ -1860,7 +1860,7 @@
         "reach_outs": "every page",
         "reports_campaigns": "reports, reports/campaigns",
         "sequences": "every page",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "POST templates/starter": {
@@ -1878,7 +1878,7 @@
         "reach_outs": "every page",
         "reports_campaigns": "reports, reports/campaigns",
         "sequences": "every page",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "POST templates/sync": {
@@ -2150,7 +2150,7 @@
         "reach_out_replies": "inbox, today",
         "sequences": "every page",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "PUT policies": {
@@ -2230,7 +2230,7 @@
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "PUT settings": {
@@ -2265,7 +2265,7 @@
         "reach_outs": "every page",
         "reports_campaigns": "reports, reports/campaigns",
         "sequences": "every page",
-        "setup": "admin/integrations, start, today"
+        "setup": "start, today"
       }
     },
     "PUT workspaces/logo": {

@@ -13,6 +13,7 @@ import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
   heldThreadIds,
+  inboxThreadClock,
   OPEN_HOLDS_READ_MAX,
   toInboxThreadVM,
   waitsOnAPerson,
@@ -21,13 +22,31 @@ import {
 } from "@chanlytics/contracts";
 import { followSettings, heldBackOf, offeredWhatsApp } from "../offered-templates";
 import { carriedReading, carriesMark } from "../seen-carry";
-import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
+import {
+  declareSurfaceValue,
+  revivesFromCache,
+  setSurfaceValue,
+  shareUnchanged,
+  surfaceValue,
+} from "../surface-values";
 import { namedByRoute } from "./address";
 import { readHeldThreads } from "./held-threads";
 import { inboxData, REAL_BUCKETS, REAL_CHANNEL_LABELS } from "./store";
 
 // The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
 declareSurfaceValue("inbox", "INBOX_DATA");
+
+// A refresh paints the Inbox from the tab's cache before anything is read (legacy-bridge/surface-cache.ts): each real
+// thread's times are said again by the clock that paints them, from the moments it keeps, in the zone the read said them
+// in (contracts inboxThreadClock). The cache's words were the read's: "9:00 AM" on yesterday's thread and "waiting 2h" on a
+// wait of 22, until the next read landed a beat later and moved the rows (Ruben, 21 Oct 2026). A snapshot that keeps no
+// zone is painted as it was kept, since a zone guessed would move them the other way.
+revivesFromCache("inbox", (held) => {
+  const zone = held.zone;
+  if (!zone) return held;
+  const now = Date.now();
+  return { ...held, THREADS: held.THREADS.map((t) => (t.real ? { ...t, ...inboxThreadClock(t, zone, now) } : t)) };
+});
 
 /**
  * Slice 2: the Inbox flips to the real escalations queue. Open escalations + needs_human conversations land in the
@@ -147,6 +166,8 @@ export const inboxOverride: SurfaceOverride = {
       // The wires a real thread travels: the demo's labels are never laid under them (X6-1).
       CHANNEL_LABELS: REAL_CHANNEL_LABELS,
       INBOX_BASELINE: { doneThisWeek: 0 },
+      // The zone every time on the threads was said in: a refresh says them again in it (revivesFromCache, above).
+      zone: tz,
       UNREAD_ESCALATED: unreadEscalated,
       UNREAD_HOLDS: unreadHolds,
       readAt,

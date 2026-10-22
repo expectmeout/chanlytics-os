@@ -22,6 +22,7 @@ import {
   Figure as KitFigure,
   Menu,
   MenuTrigger,
+  type MenuOption,
   Picker,
   Popover,
   Segmented,
@@ -171,6 +172,12 @@ function MenuKit() {
                 hint: "until 10:00",
                 onSelect: () => setSaid("Pause the receptionist"),
               },
+              {
+                label: "Send a reminder",
+                glyph: glyph("calendar", 13),
+                meta: "Goes the day before, at the time they booked",
+                onSelect: () => setSaid("Send a reminder"),
+              },
             ],
           },
           {
@@ -223,6 +230,43 @@ function MenuKitCaption() {
 }
 
 /** The sheet with a mark: a business's tile before its name, the line under it muted. */
+/** The kit's Sheet whose mark and title open what it is of (`opens`: a deal sheet's person, to their page). */
+function SheetKitOpens() {
+  const [open, setOpen] = useState(false);
+  const [went, setWent] = useState(0);
+  const opens = { label: "Open Dana Whitfield's page", press: () => setWent((n) => n + 1) };
+  return (
+    <Figure id="sheet-kit-opens" about="the kit's Sheet, its mark and title a press to what it is of">
+      <Button data-testid="sheet-opens-open" onClick={() => setOpen(true)}>
+        Open the deal
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        mark={
+          <span className="face face-lg" aria-hidden="true">
+            DW
+          </span>
+        }
+        opens={opens}
+        title="Dana Whitfield"
+        sub={`Growth plan · $797 a month${went ? ` · opened ${went}` : ""}`}
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        testid="sheet-opens"
+      >
+        {SHEET_SERVICES.map(([name, long]) => (
+          <div key={name} className="rec-row" data-empty="false">
+            <span className="rec-row-key">{name}</span>
+            <div className="rec-row-val">
+              <span className="rec-row-value">{long}</span>
+            </div>
+          </div>
+        ))}
+      </Sheet>
+    </Figure>
+  );
+}
+
 function SheetKitMark() {
   const [open, setOpen] = useState(false);
   return (
@@ -477,6 +521,53 @@ function MenuKitSet() {
                 { value: "name", label: "By name" },
               ],
             },
+          },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/**
+ * A set whose options say a line under their words (the Inbox's templates), under the menu's head with its Close, what
+ * fits now first, a sample's name with its word, and what was kept back said once under them.
+ */
+function MenuKitLines() {
+  const [at, setAt] = useState("0");
+  const set = (options: MenuOption[]) => ({ value: at, onChoose: setAt, tick: glyph("check", 13), options });
+  return (
+    <Figure id="menu-kit-lines" about={`the kit's Menu, options of two lines; chosen: ${at}`}>
+      <Menu
+        align="start"
+        head={{ title: "Reopen the chat with Fern", close: glyph("x", 13) }}
+        trigger={
+          <Button size="sm" data-testid="menu-lines-open">
+            Visit reminder {glyph("chevron-down", 10)}
+          </Button>
+        }
+        groups={[
+          {
+            header: "Fits now",
+            choose: set([
+              {
+                value: "0",
+                label: "Visit reminder",
+                sub: "Hi Fern, a reminder of your visit tomorrow at 2:00 PM. Reply C to confirm.",
+              },
+              { value: "1", label: "A quick note", sub: "Hi Fern, a quick note from Luna Studio." },
+            ]),
+          },
+          {
+            header: "Others",
+            caption: "Not offered: 2 promotions (Fern hasn't said yes to offers).",
+            choose: set([
+              {
+                value: "2",
+                label: "After the discovery call",
+                hint: "Sample",
+                sub: "Hi Fern, thanks for your time on the call today. Any questions, just reply here.",
+              },
+            ]),
           },
         ]}
       />
@@ -978,9 +1069,11 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
   { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
+  { id: "sheet-kit-opens", Draw: SheetKitOpens, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
+  { id: "menu-kit-lines", Draw: MenuKitLines, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
   { id: "menu-kit-shared", Draw: MenuKitShared, closed: false },
   { id: "popover-kit", Draw: PopoverKit, closed: false },

@@ -1,8 +1,9 @@
 /**
  * Say it (the sheets as verbs, 14 Oct 2026, step 5): the line at the top of the deal sheet and the note sheet where a
  * member says what happened in their own words, and the sheet's fields are filled from it (POST people/[id]/say,
- * legacy-bridge/verbs/say.ts). It fills; it never saves: the sheet says what it filled, the member reads the fields, and
- * Save is theirs, through the verb the sheet always commits. Its words are contracts' (SAY_IT_WORDS).
+ * legacy-bridge/verbs/say.ts). Its Fill stands inside the box's end (21 Oct 2026), where it hung on a line of its own.
+ * It fills; it never saves: the sheet says what it filled, the member reads the fields, and Save is theirs, through the
+ * verb the sheet always commits. Its words are contracts' (SAY_IT_WORDS).
  */
 import { useState } from "react";
 import { SAY_IT_MAX, SAY_IT_WORDS, sayItFilled, type SayItDto, type SayItVerb } from "@chanlytics/contracts";
@@ -68,16 +69,18 @@ export function SayItLine({
         hint={said?.tone === "ok" ? said.words : null}
         data-testid={`${testid}-input`}
         testid={`${testid}-words`}
+        action={
+          <Button
+            size="sm"
+            disabled={busy || !words.trim()}
+            aria-busy={reading || undefined}
+            onClick={() => void read()}
+            data-testid={`${testid}-go`}
+          >
+            {reading ? W.busy : W.go}
+          </Button>
+        }
       />
-      <Button
-        size="sm"
-        disabled={busy || !words.trim()}
-        aria-busy={reading || undefined}
-        onClick={() => void read()}
-        data-testid={`${testid}-go`}
-      >
-        {reading ? W.busy : W.go}
-      </Button>
     </div>
   );
 }

@@ -95,7 +95,7 @@ test("a receptionist answering with nothing to answer with says so, and points a
   const bare = row(setupSteps(withLine, NOW), "receptionist");
   assert.equal(bare.state, "waiting_you");
   assert.ok(bare.sentence.includes("no facts to answer with yet"));
-  assert.equal(bare.verb.to, "admin/workspace");
+  assert.equal(bare.verb.to, "admin/workspace/name", "the first fact it lacks, open on the page that holds it");
   const filled = row(setupSteps({ ...withLine, business: facts }, NOW), "receptionist");
   assert.equal(filled.state, "ready");
   assert.ok(filled.sentence.startsWith("Answering on"));
@@ -144,7 +144,7 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   assert.equal(vm.total, 9);
   assert.deepEqual(vm.next, {
     label: "Start in Business",
-    to: "admin/workspace",
+    to: "admin/workspace/name",
     row: "facts",
     title: "Business facts",
   });
@@ -478,6 +478,8 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
       "lines.select",
       // The mailboxes a reach-out writes from (decision 0056): read with the email line, whatever the hosted one.
       "mailbox_connections.select",
+      // Whether a day-before reminder runs (runningStepsOn): Today's card stops offering one.
+      "sequence_steps.select",
       "tenant_channels.select",
       "templates.select",
       "contacts.select",
@@ -541,6 +543,23 @@ test("Setup asks for each source once, in one order, whichever viewer reads -- a
     if (was === undefined) delete process.env.EMAIL_DOMAIN;
     else process.env.EMAIL_DOMAIN = was;
   }
+});
+
+test("a running day-before reminder is said on Setup's read, and a read of it that failed says nothing rather than failing Setup", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const step = { id: "s1", tenant_id: T, name: "Day-before reminder", state: "running", trigger: "visit_tomorrow" };
+  const on = await setupDtoFor(fakeDb({ sequence_steps: [step] }), T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual(on.reminders, { day_before: true });
+  const paused = { ...step, state: "paused" };
+  const off = await setupDtoFor(fakeDb({ sequence_steps: [paused] }), T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual(off.reminders, { day_before: false }, "a paused one sends nothing: offered again");
+  const failed = await setupDtoFor(
+    fakeDb({ sequence_steps: [step] }, { "sequence_steps.select": { message: "timed out" } }),
+    T,
+    { kind: "back_office" },
+    new Date(NOW),
+  );
+  assert.equal("reminders" in failed, false, "unread: the card offers, and the route still refuses a second");
 });
 
 test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {
@@ -694,7 +713,8 @@ test("business facts: partly there says what is missing; a broken config is its 
   const part = setupSteps(empty({ business: { ...facts, hours: false, services: 0 } }), NOW);
   assert.equal(row(part, "facts").state, "waiting_you");
   assert.equal(row(part, "facts").sentence, "Still missing: hours and services.");
-  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace" });
+  // The first fact missing, open where it is now: the hours left Details for Hours & booking (17 Oct 2026).
+  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace/hours" });
   const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /could not be read/);
@@ -1062,6 +1082,8 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
       "person",
       "deal",
       "conversation",
+      // A sequence turned on: Today's card stops offering the day-before reminder (SetupDto.reminders).
+      "campaign",
     ],
     "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );

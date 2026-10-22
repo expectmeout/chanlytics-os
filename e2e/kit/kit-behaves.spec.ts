@@ -130,6 +130,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-lines", bring: (p) => p.getByTestId("menu-lines-open").click(), ready: ".more-menu .more-head" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-shared", bring: (p) => p.getByTestId("shared-call-1").click(), ready: ".more-menu" },
   { entry: "popover-kit", bring: (p) => p.getByTestId("popover-open").click(), ready: ".panel-pop" },
@@ -438,6 +439,40 @@ const menuSwitches: Check = async (page) => {
     out.push("the switches: Escape left the menu open");
   else if ((await focused(page)) !== "menu-switches-open")
     out.push(`the switches: focus went to ${await focused(page)} after Escape`);
+  return out;
+};
+
+/**
+ * A set whose options say a line under their words (the Inbox's templates): a press on one picks it and closes the
+ * menu, the one picked is marked when it opens again, and on a phone its head's Close closes it and gives focus back to
+ * its control.
+ */
+const menuLines: Check = async (page, run) => {
+  const out: string[] = [];
+  const isOpen = () => met(page, () => !!document.querySelector(".more-menu"), null);
+  const gone = () => met(page, () => !document.querySelector(".more-menu"), null);
+  await page.getByTestId("menu-lines-open").click();
+  if (!(await isOpen())) return ["the two-line set: a press did not open the menu"];
+  await page.locator(".more-item", { hasText: "A quick note" }).click();
+  if (!(await captionSays(page, "menu-kit-lines", "chosen: 1")))
+    out.push("the two-line set: a press on an option did not pick it");
+  if (!(await gone())) out.push("the two-line set: it stayed open after a pick");
+  if (out.length) return out;
+  await page.getByTestId("menu-lines-open").click();
+  if (!(await isOpen())) return ["the two-line set: a press did not open the menu again"];
+  const picked = await page.evaluate(
+    () => document.querySelector(".more-menu [aria-checked=true] .more-item-label")?.textContent ?? null,
+  );
+  if (picked !== "A quick note") out.push(`the two-line set: the one marked picked is ${picked}`);
+  if (run.width === "phone") {
+    await page.locator(".more-head .rec-sheet-close").click();
+    if (!(await gone())) out.push("the two-line set: its head's Close left the sheet open");
+    else if ((await focused(page)) !== "menu-lines-open")
+      out.push(`the two-line set: focus went to ${await focused(page)} after its Close`);
+  } else {
+    await page.keyboard.press("Escape");
+    if (!(await gone())) out.push("the two-line set: Escape left the menu open");
+  }
   return out;
 };
 
@@ -927,6 +962,7 @@ const CHECKS: [string, Check][] = [
   ["the menu's arrows and typing", menuKeys],
   ["the menu acts, opens a page as a link, and closes for a press outside", menuActs],
   ["a menu of switches stays open as each flips, the one kept on refuses, Escape closes it", menuSwitches],
+  ["a set of two-line options picks, marks the one picked, and its head's Close closes it on a phone", menuLines],
   ["a menu its rows share opens with each row's words and gives focus back to the row's control", menuShared],
   ["the popover stays for a press inside and closes for one outside", popoverPresses],
   ["the date picker's keys walk its days and choose", datePickerKeys],
@@ -1046,8 +1082,11 @@ async function heldByNothing(page: Page, pop: (typeof POPS)[number]): Promise<st
         const a = document.querySelector(root)!.getBoundingClientRect();
         const b = document.querySelector(control)!.getBoundingClientRect();
         const gap = Math.min(Math.abs(a.top - b.bottom), Math.abs(b.top - a.bottom));
-        // A phone's menu is the action sheet, on the window's bottom edge: it stands by its thumb, not its control.
-        const sheet = Math.abs(a.bottom - window.innerHeight) < 2 && a.width >= window.innerWidth - 2;
+        // A phone's menu is the action sheet, floating just clear of the window's sides and foot (tokens.css
+        // --sheet-float): it stands by its thumb, not its control.
+        const float = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-float")) || 0;
+        const sheet =
+          Math.abs(a.bottom - (window.innerHeight - float)) < 2 && a.width >= window.innerWidth - 2 * float - 2;
         return { gap, reach: b.height * 1.5 + 12, sheet };
       },
       { root: pop.root, control: pop.control },

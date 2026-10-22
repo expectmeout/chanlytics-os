@@ -52,7 +52,8 @@ export const setupOverride: SurfaceOverride = {
   // read once as one of them comes back (surface-registry.ts PAGE_HEARS; the wiring's second audit, S4-3):
   // the templates' verdicts ("Add the starters", W-campaign-run-template-reachout-5), the settings and the rules, a visit
   // read from the calendar, a person's answer and their deals (who can receive an offer: offers_email_reach; a person made is no
-  // answer), and the first WhatsApp message (awaitsFirstMessage, W-thread-wait-step-3).
+  // answer), the first WhatsApp message (awaitsFirstMessage, W-thread-wait-step-3), and a sequence turned on or off: Today's
+  // card stops offering the day-before reminder once one runs (SetupDto.reminders, its sequence_steps).
   ...declareReads("setup", {
     reads: [
       "channel",
@@ -67,6 +68,7 @@ export const setupOverride: SurfaceOverride = {
       "person",
       "deal",
       "conversation",
+      "campaign",
     ],
     fresh: "its-page",
     always: ["channel", "billing", "review", "call", "team"],

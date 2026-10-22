@@ -67,6 +67,8 @@ interface NameOfferProps {
   say: NameSay;
   /** The door answered: the page reads what it draws again. */
   onChanged: () => void;
+  /** The notice's one-row form, its acts beside the fact: where it stands in a head, under a name. */
+  line?: boolean;
   testid?: string;
 }
 
@@ -80,6 +82,7 @@ export function NameOffer({
   canRecord,
   say,
   onChanged,
+  line = false,
   testid,
 }: NameOfferProps) {
   const [busy, setBusy] = useState<"use" | "decline" | null>(null);
@@ -122,8 +125,19 @@ export function NameOffer({
   return (
     <Notice
       label={fact}
-      fact={fact}
+      // On one row it says the name it offers, in bold, as the bell does: "Signed Priya Nair · Oct 6", where "Priya Nair
+      // signed the reply" broke onto two lines and left its day alone under them.
+      fact={
+        line ? (
+          <>
+            {PERSON_NAME_WORDS.signedAs} <b>{name}</b>
+          </>
+        ) : (
+          fact
+        )
+      }
       source={source}
+      line={line}
       act={
         canRecord ? (
           <Button

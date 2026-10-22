@@ -732,6 +732,8 @@ test("your phone (canvas R3): keeping the listing's number first, the plan the n
   assert.equal(textOf(go), "Start my plan");
   assert.ok(byTestId(tree, "fr-back"), "Back, in the step's own foot");
   await go.props.onClick();
+  // The choice is said to the member's view first (the number, and the kept number's row), then Stripe.
+  await tick();
   assert.deepEqual(asked.checkout, ["start"], "Stripe comes back to the first run");
   assert.equal(replaced.at(-1), "start/phone", "the step's own address, so it stays once its line answers");
   assert.equal(draftOf("first-run-phone").pending, true, "the choice waits in the tab for Stripe's round trip");
@@ -798,6 +800,7 @@ test("your phone on a free trial: the trial covers no number, so the button star
   const go = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(go), "Start my plan");
   await go.props.onClick();
+  await tick();
   assert.equal(asked.startNow, 1, "the plan started from here, not Stripe's checkout");
   assert.deepEqual(asked.checkout, []);
   assert.equal(draftOf("first-run-phone").pending, true, "the choice waits for the plan");
@@ -1310,9 +1313,14 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
   const { asked } = phoneWorld();
   const order = [];
   const wasWant = setupVerbs.want;
+  const wasLater = setupVerbs.later;
   const checkout = billingVerbs.checkout;
   setupVerbs.want = async (w) => {
     order.push(["want", w]);
+    return { ok: true, message: "" };
+  };
+  setupVerbs.later = async (ids, on) => {
+    order.push(["later", ids, on]);
     return { ok: true, message: "" };
   };
   billingVerbs.checkout = async (back) => {
@@ -1330,6 +1338,8 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
       order,
       [
         ["want", { way: "keep", number: "+13055550100" }],
+        // A number kept asks for its forwarding again, wherever a new number had put it off.
+        ["later", "keep", false],
         ["checkout", "start"],
       ],
       "kept first: a save still out when checkout leaves would be dropped with the page",
@@ -1353,9 +1363,14 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
     tree = mount();
     await byTestId(tree, "fr-phone-go").props.onClick();
     await tick();
-    assert.deepEqual(order, [["want", null]]);
+    // A new number keeps none: the choice puts "The number you already have" off, so Today's card stops asking.
+    assert.deepEqual(order, [
+      ["want", null],
+      ["later", "keep", true],
+    ]);
   } finally {
     setupVerbs.want = wasWant;
+    setupVerbs.later = wasLater;
   }
 });
 

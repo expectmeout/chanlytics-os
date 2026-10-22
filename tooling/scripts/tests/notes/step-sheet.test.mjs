@@ -106,6 +106,42 @@ test("the sheet opens a new step on its deal, or a change to one of theirs with 
   assert.equal(edit.blocked, null);
 });
 
+test("a new step on a deal opens filled from the act its card leads with: a send today, a follow-up tomorrow, any other empty", () => {
+  const now = Date.parse("2026-09-24T15:00:00Z");
+  const person = { id: "p1", name: "Tove Lind", deals: [{ id: "d1", service: "Website" }], noteList: [] };
+  const today = zoneDayKey(now, ZONE);
+  const opened = (lead, ask = {}) => stepSheetFor(person, { dealId: "d1", lead, ...ask }, now, ZONE).draft;
+  assert.deepEqual(opened("send"), {
+    what: "Send the proposal",
+    day: today,
+    picking: false,
+    forId: null,
+    teamOnly: false,
+  });
+  const follow = opened("follow-up");
+  assert.equal(follow.what, "Follow up on the proposal");
+  assert.equal(
+    follow.day,
+    stepSheetFor(person, { dealId: "d1" }, now, ZONE).days[1].key,
+    "tomorrow, the second choice",
+  );
+  for (const lead of ["won", "edit", null, undefined])
+    assert.deepEqual([opened(lead).what, opened(lead).day], ["", null], `${lead}: nothing suggested`);
+  // A suggestion is a new step's on a deal: about the person, or as a note, it opens as it always did.
+  assert.deepEqual(stepSheetFor(person, { lead: "send" }, now, ZONE).draft.what, "", "no deal: nothing suggested");
+  assert.equal(opened("send", { note: true }).what, "", "a note: nothing suggested");
+  // What it was opened with is what Cancel weighs: a suggestion taken as it stands asks nothing on the way out.
+  const sheet = stepSheetFor(person, { dealId: "d1", lead: "send" }, now, ZONE);
+  assert.equal(stepSheetDirty(sheet.draft, sheet.draft), false);
+  assert.deepEqual(stepSheetBody(sheet, sheet.draft).body, {
+    body: "Send the proposal",
+    due_on: today,
+    for_user_id: null,
+    team_only: true,
+    deal_id: "d1",
+  });
+});
+
 test("opened as a note, the sheet's first day is No day, a note of theirs with none opens as a note, and its Save says which", () => {
   const now = Date.parse("2026-09-24T15:00:00Z");
   const person = {
@@ -402,7 +438,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   assert.equal(title(tree), "Set a next step");
   tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(sub(tree), "Tove Lind · Website");
-  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /Only your team sees it/);
+  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /Your team and Ask see it; the receptionist doesn't/);
 
   // Nothing typed, no day: each is said under its field, and nothing is sent.
   press(saveOf(tree));

@@ -811,18 +811,21 @@
 @keyframes poly-fade { from { opacity: 0; } }
 @keyframes grow-x { from { transform: scaleX(0.4); opacity: 0.4; } }
 
-/* --- Entrance stagger for list rows & cards (replays on remount/tab switch) --- */
-.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt {
+/* --- Entrance stagger for list rows & cards (replays on remount/tab switch). The Inbox's and Conversations' rows rise
+   by the kit instead (kit/motion/use-rows-arrive.ts), on their list's first draw alone: here every row rose as it was
+   drawn, so a row the window drew as the list was scrolled (kit/rows/shown-rows.ts) came in from nothing, see-through
+   for a beat (Ruben, 21 Oct 2026). --- */
+.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt {
   animation: rise-in 0.26s var(--ease-out) backwards;
 }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(4) { animation-delay: 0.09s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(5) { animation-delay: 0.12s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(6) { animation-delay: 0.15s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(7) { animation-delay: 0.18s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(8) { animation-delay: 0.21s; }
-:is(.dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(4) { animation-delay: 0.09s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(5) { animation-delay: 0.12s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(6) { animation-delay: 0.15s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(7) { animation-delay: 0.18s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(8) { animation-delay: 0.21s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
 
 /* --- Pane entrances --- */
 .ix-thread-pane { animation: route-in 0.24s var(--ease-out); }
@@ -887,7 +890,7 @@
 
 /* --- Reduced motion: everything settles instantly --- */
 @media (prefers-reduced-motion: reduce) {
-  .dec, .ix-thread, .cv-row, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt,
+  .dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt,
   .rp-body > section, .rp-body > .rp-row, .fl-detail, .tbl tbody tr,
   .rp-revbar, .rp-mix-fill, .rp-chart-dot,
   .ix-thread-pane, .lm-banner, .ix-exp-panel, .cl-triage-tab.active::after,
@@ -1103,13 +1106,16 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   /* Behind the notes the page wears the phone's one veil, the drawer's (tokens.css --surface-veil; Ruben, 7 Oct 2026:
      every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
      2 Oct: no fade, no lightening). A tap on it closes the sheet. */
-  .tbn-backdrop { background: var(--surface-veil); }
+  .tbn-backdrop { bottom: var(--foot-clear, 0px); background: var(--surface-veil); mask-image: var(--foot-fade, none); }
   /* The glass of every sheet and menu (kit.css, "What pops over the page"; the popover's own panel-pop), at the corners
-     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. */
+     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. It floats
+     clear of the sides and the foot, and is cut at its rest's line as it rises, drops and is pulled, as every phone
+     sheet is (tokens.css --sheet-float, kit.css --sheet-down). */
   .tbn-pop {
-    top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
+    top: auto; right: var(--sheet-float, 0px); bottom: var(--sheet-float, 0px); left: var(--sheet-float, 0px); max-width: none; max-height: 82vh; max-height: 82dvh;
+    border-radius: var(--radius-sheet);
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float, 0px)); overscroll-behavior-y: none;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
     animation: sheet-in 260ms var(--ease-out);
     --tbn-out: sheet-out;
     --tbn-out-ms: 180ms;
@@ -1473,15 +1479,18 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   [data-sb-wash="foot"] {
     background: var(--surface-veil);
   }
+  /* Floating clear of the sides and the foot, and cut at its rest's line as it rises, as the kit's menu is (tokens.css
+     --sheet-float, kit.css --sheet-down). */
   [data-sb-place="foot"] {
-    inset: auto 0 0 0;
+    inset: auto var(--sheet-float) var(--sheet-float);
     width: auto;
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
-    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-float)));
+    border-radius: var(--radius-sheet);
     border-bottom: 0;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
     animation: more-sheet-in 220ms var(--ease-out);
   }
   [data-sb-place="foot"]::before {
@@ -1536,8 +1545,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 @media (hover: hover) { .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); } }
 .sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
 
-/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash). */
-.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: var(--surface-wash); }
+/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash),
+   which in an iPhone's browser stops short of the foot (tokens.css --foot-clear). */
+.sb-sheet-backdrop { position: fixed; inset: 0 0 var(--foot-clear, 0px); z-index: 400; background: var(--surface-wash); mask-image: var(--foot-fade, none); }
 .sb-sheet {
   /* Centred in what the phone shows over its keyboard (--kb, kit/motion/keyboard.ts watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
@@ -1859,12 +1869,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   visibility: visible !important;
 }
 /* A picture of a list (a still copy: inert) is the list as it stood, drawn whole the frame it is shown: none of its rows
-   plays an entrance, and each is drawn at once. A copy is a new element, so the Inbox's rows rose in again from nothing
-   (rise-in, above), and a row below the fold kept no size it had been drawn at (content-visibility, inbox.css) and stood
-   at its guess: the picture a list lands under (kit motion/held-list.ts coverLanding) came in blank, its rows off. */
+   plays an entrance. A copy is a new element, so a row with an entrance of its own (rise-in, above) rose in again from
+   nothing: the picture a list lands under (kit motion/held-list.ts coverLanding) came in blank, its rows off. */
 [data-held][inert] * {
   animation: none !important;
-  content-visibility: visible !important;
 }
 /* The band a carried page takes over the frame's top with it (kit motion/held-list.ts bandOver): the page's ground, as tall
    as the top it stands under, over the page (whose content passes under the top when it is scrolled down) and the head

@@ -17,10 +17,10 @@ import {
   type TemplateHolds,
   type TemplatePart,
 } from "@chanlytics/contracts";
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
+import { Menu, type MenuGroup, type MenuOption } from "../../kit/menu/menu";
 import { Button } from "../../kit/button/button";
 import { canDo, gate } from "../shell";
 import { inboxData } from "../store";
@@ -135,24 +135,39 @@ function templateGap(p: {
 }
 
 /** The templates the menu lists: the ones this person can be sent, else every one approved. */
-function templateOptions(have: TemplateChoice): Array<{ template: ApprovedTemplate; label: string; fits: boolean }> {
+function templateOptions(
+  have: TemplateChoice,
+): Array<{ template: ApprovedTemplate; label: string; fits: boolean; sample: boolean }> {
   const { choice, list } = have;
   return choice
     ? choice.sendable
-    : (list || []).map((t) => ({ template: t, label: `${t.name} · ${t.language}`, fits: false }));
+    : (list || []).map((t) => ({ template: t, label: `${t.name} · ${t.language}`, fits: false, sample: false }));
 }
 
-/** A template's words as this person reads them, its blank said by its label: the menu's second line under its name. */
-const templateSaid = (t: ApprovedTemplate, facts: ReturnType<typeof factsFor>): string | undefined =>
-  inboxTemplateParts(t, facts)
-    .map((part) => (part.blank !== undefined ? `[${THREAD_PANE_WORDS.blank(part.blank)}]` : part.words))
-    .join("") || undefined;
+/**
+ * A template's words as this person reads them, its blank said by its label, underlined as a place the member's words go:
+ * the menu's line under its name. Nothing where the template says nothing it can show.
+ */
+function templateSaid(t: ApprovedTemplate, facts: ReturnType<typeof factsFor>): ReactNode {
+  const parts = inboxTemplateParts(t, facts);
+  if (!parts.length) return undefined;
+  return parts.map((part, i) =>
+    part.blank !== undefined ? (
+      <span key={i} className="ix-tpl-said-blank">
+        {THREAD_PANE_WORDS.blank(part.blank)}
+      </span>
+    ) : (
+      <Fragment key={i}>{part.words}</Fragment>
+    ),
+  );
+}
 
 /**
- * What the chosen message's name opens: the messages this person can be sent, each with what it says under its name
- * (they were names alone, so a template went out unread), what fits now first under its heading, the chosen one ticked,
- * and under them, in the menu's quiet heading, which were not offered and why. On a phone it is the kit's sheet. A person
- * who can be sent one message is offered no menu unless something was kept back.
+ * What the chosen message's name opens: the messages this person can be sent, one row each, its name on one line and what
+ * it says under it (they were names alone, so a template went out unread; then the words stood beside the name and
+ * squeezed it to nothing, 21 Oct 2026), a sample's name with the quiet word, what fits now first under its heading, the
+ * chosen one picked, and under them, once, which were not offered and why. On a phone it is the kit's sheet. A person who
+ * can be sent one message is offered no menu unless something was kept back.
  */
 function templateMenu(
   have: TemplateChoice,
@@ -163,23 +178,37 @@ function templateMenu(
   const W = THREAD_PANE_WORDS;
   const groups: MenuGroup[] = [];
   if (options.length > 1) {
-    const item = (o: (typeof options)[number], at: number): MenuItem => ({
+    const option = (o: (typeof options)[number], at: number): MenuOption => ({
+      value: String(at),
       label: o.label,
-      meta: templateSaid(o.template, facts),
-      glyph: <Icon name="check" size={13} className={at === have.chosenAt ? "" : "ix-tpl-unpicked"} />,
-      onSelect: () => choose(at),
+      ...(o.sample ? { hint: W.sample } : {}),
+      sub: templateSaid(o.template, facts),
     });
-    const fits = options.flatMap((o, at) => (o.fits ? [item(o, at)] : []));
-    const rest = options.flatMap((o, at) => (o.fits ? [] : [item(o, at)]));
+    const set = (list: MenuOption[], header?: string): MenuGroup => ({
+      ...(header ? { header } : {}),
+      choose: {
+        value: String(have.chosenAt),
+        onChoose: (value) => choose(Number(value)),
+        tick: <Icon name="check" size={13} />,
+        options: list,
+      },
+    });
+    const fits = options.flatMap((o, at) => (o.fits ? [option(o, at)] : []));
+    const rest = options.flatMap((o, at) => (o.fits ? [] : [option(o, at)]));
     // A heading only where it parts two kinds: one kind is just the list.
-    if (fits.length && rest.length) groups.push({ header: W.fitsNow, items: fits }, { header: W.others, items: rest });
-    else groups.push({ items: [...fits, ...rest] });
+    if (fits.length && rest.length) groups.push(set(fits, W.fitsNow), set(rest, W.others));
+    else groups.push(set([...fits, ...rest]));
   }
-  if (have.choice && have.choice.hidden) groups.push({ header: have.choice.hidden, items: [] });
+  // Why the rest were not offered, said once under the list; alone, where one message is offered and some were kept back.
+  const hidden = have.choice?.hidden;
+  if (hidden) {
+    const last = groups.pop();
+    groups.push(last ? { ...last, caption: hidden } : { items: [], caption: hidden });
+  }
   return groups;
 }
 
-/** The chosen message's name, a door to the others where there are others. */
+/** The chosen message's name, a door to the others where there are others: the menu named for what sending does. */
 function templatePick(shown: string, more: MenuGroup[], first: string) {
   const name = (
     <>
@@ -190,7 +219,8 @@ function templatePick(shown: string, more: MenuGroup[], first: string) {
   );
   return more.length > 0 ? (
     <Menu
-      label={THREAD_PANE_WORDS.pickTitle(first)}
+      align="start"
+      head={{ title: THREAD_PANE_WORDS.pickTitle(first), close: <Icon name="x" size={13} /> }}
       trigger={
         <Button
           variant="quiet"

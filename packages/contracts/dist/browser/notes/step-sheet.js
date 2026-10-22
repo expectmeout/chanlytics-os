@@ -8,7 +8,14 @@ export const STEP_SHEET_WORDS = {
   noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
   when: { label: "When", pick: "The day", none: "No day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
+  // Who sees a step: the team, and Ask, which reads each person's next step (its people and Pipeline reads); never the
+  // receptionist, since a step is the team's whatever a note's switch says (00166).
+  teamOnly: "Your team and Ask see it; the receptionist doesn't.",
+  /**
+   * What a new step on a deal opens with, from the act its card leads with (dealNextAct): its send, today, or its
+   * follow-up, tomorrow. Any other act opens it empty.
+   */
+  suggested: { send: "Send the proposal", "follow-up": "Follow up on the proposal" },
   /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
   reads: { label: "Team only", hint: "The receptionist won't read it" },
   save: { add: "Set it", edit: "Save", note: "Add it" },
@@ -41,10 +48,13 @@ export const STEP_SHEET_WORDS = {
   }
 };
 export const NO_DAY = "none";
-function openedWith(note, kind, days) {
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+const SUGGESTED_DAY = { send: 0, "follow-up": 1 };
+const isSuggested = (lead) => !!lead && Object.prototype.hasOwnProperty.call(SUGGESTED_DAY, lead);
+function openedWith(note, kind, days, lead) {
+  const suggested = !note && kind === "step" && isSuggested(lead) ? lead : null;
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : suggested ? days[SUGGESTED_DAY[suggested]]?.key ?? null : null;
   return {
-    what: note ? note.body : "",
+    what: note ? note.body : suggested ? STEP_SHEET_WORDS.suggested[suggested] : "",
     day,
     picking: !!day && !days.some((c) => c.key === day),
     forId: note ? note.forUserId : null,
@@ -71,7 +81,7 @@ export function stepSheetFor(p, ask, nowMs, tz) {
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
     ],
-    draft: openedWith(note, kind, days),
+    draft: openedWith(note, kind, days, dealId ? ask.lead ?? null : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,

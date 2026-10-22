@@ -12,7 +12,16 @@
  */
 import type { ComponentProps, ReactElement, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { MenuChoice, MenuGroup, MenuItem, MenuProps, MenuToggles, SharedMenuProps } from "../index";
+import type {
+  MenuChoice,
+  MenuGroup,
+  MenuHead,
+  MenuItem,
+  MenuOption,
+  MenuProps,
+  MenuToggles,
+  SharedMenuProps,
+} from "../index";
 import { Menu, MenuTrigger, SharedMenu, menuHandle } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
@@ -32,7 +41,30 @@ function _menuTakes(
     Holds<Exactly<MenuChoice["onChoose"], (value: string) => void>>,
     Holds<Exactly<MenuToggles["onToggle"], (value: string) => void>>,
     Holds<Exactly<MenuToggles["items"][number]["locked"], string | undefined>>,
+    Holds<Exactly<MenuChoice["options"][number], MenuOption>>,
+    Holds<Exactly<MenuHead["title"], string>>,
   ];
+  // A set whose options say a line under their words (the Inbox's templates), under the menu's head with its Close, and
+  // what was kept back said once under them.
+  Menu({
+    trigger,
+    head: { title: "Reopen the chat with Fern", close: glyph },
+    groups: [
+      {
+        header: "Fits now",
+        caption: "Not offered: 2 promotions (Fern hasn't said yes to offers).",
+        choose: {
+          value: "0",
+          onChoose: act,
+          tick: glyph,
+          options: [
+            { value: "0", label: "Visit reminder", sub: "Hi Fern, a reminder of your visit tomorrow at 2:00 PM." },
+            { value: "1", label: "After the discovery call", hint: "Sample", sub: "Hi Fern, thanks for your time." },
+          ],
+        },
+      },
+    ],
+  });
   // A set of switches the menu stays open over (a table's columns), one locked on with its word.
   Menu({
     trigger,
@@ -112,4 +144,8 @@ function _menuTakes(
   Menu({ trigger, align: "center", groups: [] });
   // @ts-expect-error a menu opens from the page's control, which it is drawn as
   Menu({ groups: [] });
+  // @ts-expect-error a head's name is words, said to a screen reader as the menu's name
+  Menu({ trigger, head: { title: glyph, close: glyph }, groups: [] });
+  // @ts-expect-error a head's Close is drawn by the page's glyph
+  Menu({ trigger, head: { title: "Reopen the chat" }, groups: [] });
 }

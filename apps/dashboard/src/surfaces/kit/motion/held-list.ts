@@ -38,7 +38,7 @@ import { pagesOwnTop } from "../head/frame-head";
 import { frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
-import { inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
+import { clearOfFoot, inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
 import { motionReduced, pushIn } from "./swipe";
 
 /** What a row of a list is, to the place: a table's row, a list's item, a listbox's option, one marked so (Live's calls). */
@@ -46,7 +46,7 @@ const ROW = 'tr, li, [role="option"], [role="row"], [data-row]';
 /** How long a still picture of a list kept out of the document waits for the phone to be idle. */
 const COPY_WAIT_MS = 1000;
 /** The inline styles a held list is given, by the hold and by a thumb's carrying (kit/motion/swipe.ts `under`). */
-const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "transition"];
+const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "transition", "clip-path"];
 /** The frame's own chrome over every page (its top, the tab bar, Ask's circle), which comes in with the list held under it. */
 const CHROME = "[data-chrome]";
 /**
@@ -298,6 +298,7 @@ function coverOf(was: Held): HTMLElement | null {
  */
 function coverLanding(cover: HTMLElement, list: HTMLElement): void {
   cover.dataset.held = "shown";
+  cover.style.clipPath = clearOfFoot(cover.getBoundingClientRect().bottom);
   list.style.visibility = "hidden";
   const uncover = (): void => {
     list.style.removeProperty("visibility");
@@ -461,6 +462,7 @@ export function showHeld(on: boolean): void {
   // Taken before the frame draws its head again, as the page has it now.
   carrying = { standIn, along: [bandOver(), ...pagesOwnTop().map(goesWith)] };
   standIn.dataset.held = "shown";
+  standIn.style.clipPath = clearOfFoot(standIn.getBoundingClientRect().bottom);
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);
   headUnder(holding.place.head);
@@ -472,6 +474,7 @@ function endCarry(): void {
   if (!was) return;
   carrying = null;
   if (was.standIn.dataset.held === "shown") was.standIn.dataset.held = "";
+  was.standIn.style.clipPath = "";
   for (const copy of was.along) copy.remove();
   document.documentElement.removeAttribute("data-carrying");
   headUnder(null);
