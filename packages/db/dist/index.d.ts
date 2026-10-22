@@ -5708,148 +5708,6 @@ type Database = {
                     }
                 ];
             };
-            sending_domain_days: {
-                Row: {
-                    bounced: number | null;
-                    checked_at: string | null;
-                    complaints: number | null;
-                    day: string;
-                    domain_id: string;
-                    held_why: string | null;
-                    host: string;
-                    kept_at: string;
-                    sent: number | null;
-                    sent_days: number | null;
-                    state: string;
-                    tenant_id: string;
-                };
-                Insert: {
-                    bounced?: number | null;
-                    checked_at?: string | null;
-                    complaints?: number | null;
-                    day: string;
-                    domain_id: string;
-                    held_why?: string | null;
-                    host: string;
-                    kept_at?: string;
-                    sent?: number | null;
-                    sent_days?: number | null;
-                    state: string;
-                    tenant_id: string;
-                };
-                Update: {
-                    bounced?: number | null;
-                    checked_at?: string | null;
-                    complaints?: number | null;
-                    day?: string;
-                    domain_id?: string;
-                    held_why?: string | null;
-                    host?: string;
-                    kept_at?: string;
-                    sent?: number | null;
-                    sent_days?: number | null;
-                    state?: string;
-                    tenant_id?: string;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sending_domain_days_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
-            sending_domains: {
-                Row: {
-                    bounced_recent: number | null;
-                    checked_at: string | null;
-                    clean_since: string | null;
-                    complaints: number | null;
-                    counted_since: string | null;
-                    created_at: string;
-                    created_by: string | null;
-                    dmarc: string | null;
-                    from_local: string;
-                    from_name: string;
-                    held_at: string | null;
-                    held_why: string | null;
-                    host: string;
-                    id: string;
-                    provider_domain_id: string | null;
-                    provider_status: string | null;
-                    records: Json;
-                    resume_by: string;
-                    sent_days: number | null;
-                    sent_recent: number | null;
-                    state: string;
-                    tenant_id: string;
-                    updated_at: string;
-                    verified_at: string | null;
-                };
-                Insert: {
-                    bounced_recent?: number | null;
-                    checked_at?: string | null;
-                    clean_since?: string | null;
-                    complaints?: number | null;
-                    counted_since?: string | null;
-                    created_at?: string;
-                    created_by?: string | null;
-                    dmarc?: string | null;
-                    from_local: string;
-                    from_name: string;
-                    held_at?: string | null;
-                    held_why?: string | null;
-                    host: string;
-                    id?: string;
-                    provider_domain_id?: string | null;
-                    provider_status?: string | null;
-                    records?: Json;
-                    resume_by?: string;
-                    sent_days?: number | null;
-                    sent_recent?: number | null;
-                    state?: string;
-                    tenant_id: string;
-                    updated_at?: string;
-                    verified_at?: string | null;
-                };
-                Update: {
-                    bounced_recent?: number | null;
-                    checked_at?: string | null;
-                    clean_since?: string | null;
-                    complaints?: number | null;
-                    counted_since?: string | null;
-                    created_at?: string;
-                    created_by?: string | null;
-                    dmarc?: string | null;
-                    from_local?: string;
-                    from_name?: string;
-                    held_at?: string | null;
-                    held_why?: string | null;
-                    host?: string;
-                    id?: string;
-                    provider_domain_id?: string | null;
-                    provider_status?: string | null;
-                    records?: Json;
-                    resume_by?: string;
-                    sent_days?: number | null;
-                    sent_recent?: number | null;
-                    state?: string;
-                    tenant_id?: string;
-                    updated_at?: string;
-                    verified_at?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sending_domains_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
             sequence_batches: {
                 Row: {
                     audience: Json;
@@ -6212,7 +6070,6 @@ type Database = {
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
-                    domain_id: string | null;
                     draft: Json | null;
                     drafted_at: string | null;
                     facts: Json | null;
@@ -6250,7 +6107,6 @@ type Database = {
                     claimed_at?: string | null;
                     contact_id?: string | null;
                     created_at?: string;
-                    domain_id?: string | null;
                     draft?: Json | null;
                     drafted_at?: string | null;
                     facts?: Json | null;
@@ -6288,7 +6144,6 @@ type Database = {
                     claimed_at?: string | null;
                     contact_id?: string | null;
                     created_at?: string;
-                    domain_id?: string | null;
                     draft?: Json | null;
                     drafted_at?: string | null;
                     facts?: Json | null;
@@ -6324,13 +6179,6 @@ type Database = {
                         columns: ["tenant_id", "contact_id"];
                         isOneToOne: false;
                         referencedRelation: "contacts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_domain_id_same_workspace";
-                        columns: ["tenant_id", "domain_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sending_domains";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -6386,7 +6234,6 @@ type Database = {
                     channels: string[];
                     created_at: string;
                     created_by: string | null;
-                    domain_ids: string[];
                     gap_days: number;
                     gap_minutes: number | null;
                     hand: Json | null;
@@ -6431,7 +6278,6 @@ type Database = {
                     channels?: string[];
                     created_at?: string;
                     created_by?: string | null;
-                    domain_ids?: string[];
                     gap_days?: number;
                     gap_minutes?: number | null;
                     hand?: Json | null;
@@ -6476,7 +6322,6 @@ type Database = {
                     channels?: string[];
                     created_at?: string;
                     created_by?: string | null;
-                    domain_ids?: string[];
                     gap_days?: number;
                     gap_minutes?: number | null;
                     hand?: Json | null;
@@ -7505,18 +7350,6 @@ type Database = {
                     p_tenant: string;
                 };
                 Returns: boolean;
-            };
-            cold_receipts_owed: {
-                Args: {
-                    p_from: string;
-                    p_to: string;
-                };
-                Returns: {
-                    host: string;
-                    sent: number;
-                    tenant_id: string;
-                    unanswered: number;
-                }[];
             };
             consent_channels_of: {
                 Args: {
@@ -9031,17 +8864,6 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: number;
-            };
-            outreach_facts: {
-                Args: {
-                    p_contact_id: string;
-                    p_host: string;
-                    p_lead_id?: string;
-                    p_since: string;
-                    p_tenant_id: string;
-                    p_to: string;
-                };
-                Returns: Json;
             };
             outreach_lead_facts: {
                 Args: {
@@ -10735,25 +10557,6 @@ type Database = {
                     snippet: string;
                 }[];
             };
-            sending_domain_capacity: {
-                Args: {
-                    p_at: string;
-                    p_domain_id: string;
-                };
-                Returns: Json;
-            };
-            sending_domain_counts: {
-                Args: {
-                    p_host: string;
-                    p_since: string;
-                    p_tenant_id: string;
-                };
-                Returns: Json;
-            };
-            sending_domain_days_keep: {
-                Args: never;
-                Returns: number;
-            };
             sequence_batch_cancel: {
                 Args: {
                     p_batch_id: string;
@@ -10796,7 +10599,6 @@ type Database = {
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
-                    domain_id: string | null;
                     draft: Json | null;
                     drafted_at: string | null;
                     facts: Json | null;
@@ -10848,7 +10650,6 @@ type Database = {
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
-                    domain_id: string | null;
                     draft: Json | null;
                     drafted_at: string | null;
                     facts: Json | null;
@@ -10987,7 +10788,6 @@ type Database = {
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
-                    domain_id: string | null;
                     draft: Json | null;
                     drafted_at: string | null;
                     facts: Json | null;
@@ -11172,7 +10972,6 @@ type Database = {
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
-                    domain_id: string | null;
                     draft: Json | null;
                     drafted_at: string | null;
                     facts: Json | null;
@@ -11683,10 +11482,6 @@ type Database = {
                 Returns: number;
             };
             trigger_deadman_sweep: {
-                Args: never;
-                Returns: number;
-            };
-            trigger_domains_sweep: {
                 Args: never;
                 Returns: number;
             };
@@ -18084,144 +17879,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 referencedColumns: ["id"];
             }];
         };
-        sending_domain_days: {
-            Row: {
-                bounced: number | null;
-                checked_at: string | null;
-                complaints: number | null;
-                day: string;
-                domain_id: string;
-                held_why: string | null;
-                host: string;
-                kept_at: string;
-                sent: number | null;
-                sent_days: number | null;
-                state: string;
-                tenant_id: string;
-            };
-            Insert: {
-                bounced?: number | null;
-                checked_at?: string | null;
-                complaints?: number | null;
-                day: string;
-                domain_id: string;
-                held_why?: string | null;
-                host: string;
-                kept_at?: string;
-                sent?: number | null;
-                sent_days?: number | null;
-                state: string;
-                tenant_id: string;
-            };
-            Update: {
-                bounced?: number | null;
-                checked_at?: string | null;
-                complaints?: number | null;
-                day?: string;
-                domain_id?: string;
-                held_why?: string | null;
-                host?: string;
-                kept_at?: string;
-                sent?: number | null;
-                sent_days?: number | null;
-                state?: string;
-                tenant_id?: string;
-            };
-            Relationships: [{
-                foreignKeyName: "sending_domain_days_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
-        sending_domains: {
-            Row: {
-                bounced_recent: number | null;
-                checked_at: string | null;
-                clean_since: string | null;
-                complaints: number | null;
-                counted_since: string | null;
-                created_at: string;
-                created_by: string | null;
-                dmarc: string | null;
-                from_local: string;
-                from_name: string;
-                held_at: string | null;
-                held_why: string | null;
-                host: string;
-                id: string;
-                provider_domain_id: string | null;
-                provider_status: string | null;
-                records: Json;
-                resume_by: string;
-                sent_days: number | null;
-                sent_recent: number | null;
-                state: string;
-                tenant_id: string;
-                updated_at: string;
-                verified_at: string | null;
-            };
-            Insert: {
-                bounced_recent?: number | null;
-                checked_at?: string | null;
-                clean_since?: string | null;
-                complaints?: number | null;
-                counted_since?: string | null;
-                created_at?: string;
-                created_by?: string | null;
-                dmarc?: string | null;
-                from_local: string;
-                from_name: string;
-                held_at?: string | null;
-                held_why?: string | null;
-                host: string;
-                id?: string;
-                provider_domain_id?: string | null;
-                provider_status?: string | null;
-                records?: Json;
-                resume_by?: string;
-                sent_days?: number | null;
-                sent_recent?: number | null;
-                state?: string;
-                tenant_id: string;
-                updated_at?: string;
-                verified_at?: string | null;
-            };
-            Update: {
-                bounced_recent?: number | null;
-                checked_at?: string | null;
-                clean_since?: string | null;
-                complaints?: number | null;
-                counted_since?: string | null;
-                created_at?: string;
-                created_by?: string | null;
-                dmarc?: string | null;
-                from_local?: string;
-                from_name?: string;
-                held_at?: string | null;
-                held_why?: string | null;
-                host?: string;
-                id?: string;
-                provider_domain_id?: string | null;
-                provider_status?: string | null;
-                records?: Json;
-                resume_by?: string;
-                sent_days?: number | null;
-                sent_recent?: number | null;
-                state?: string;
-                tenant_id?: string;
-                updated_at?: string;
-                verified_at?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sending_domains_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
         sequence_batches: {
             Row: {
                 audience: Json;
@@ -18565,7 +18222,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at: string | null;
                 contact_id: string | null;
                 created_at: string;
-                domain_id: string | null;
                 draft: Json | null;
                 drafted_at: string | null;
                 facts: Json | null;
@@ -18603,7 +18259,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at?: string | null;
                 contact_id?: string | null;
                 created_at?: string;
-                domain_id?: string | null;
                 draft?: Json | null;
                 drafted_at?: string | null;
                 facts?: Json | null;
@@ -18641,7 +18296,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at?: string | null;
                 contact_id?: string | null;
                 created_at?: string;
-                domain_id?: string | null;
                 draft?: Json | null;
                 drafted_at?: string | null;
                 facts?: Json | null;
@@ -18675,12 +18329,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 columns: ["tenant_id", "contact_id"];
                 isOneToOne: false;
                 referencedRelation: "contacts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_domain_id_same_workspace";
-                columns: ["tenant_id", "domain_id"];
-                isOneToOne: false;
-                referencedRelation: "sending_domains";
                 referencedColumns: ["tenant_id", "id"];
             }, {
                 foreignKeyName: "sequence_sends_lead_id_same_workspace";
@@ -18729,7 +18377,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 channels: string[];
                 created_at: string;
                 created_by: string | null;
-                domain_ids: string[];
                 gap_days: number;
                 gap_minutes: number | null;
                 hand: Json | null;
@@ -18774,7 +18421,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 channels?: string[];
                 created_at?: string;
                 created_by?: string | null;
-                domain_ids?: string[];
                 gap_days?: number;
                 gap_minutes?: number | null;
                 hand?: Json | null;
@@ -18819,7 +18465,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 channels?: string[];
                 created_at?: string;
                 created_by?: string | null;
-                domain_ids?: string[];
                 gap_days?: number;
                 gap_minutes?: number | null;
                 hand?: Json | null;
@@ -19821,18 +19466,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 p_tenant: string;
             };
             Returns: boolean;
-        };
-        cold_receipts_owed: {
-            Args: {
-                p_from: string;
-                p_to: string;
-            };
-            Returns: {
-                host: string;
-                sent: number;
-                tenant_id: string;
-                unanswered: number;
-            }[];
         };
         consent_channels_of: {
             Args: {
@@ -21347,17 +20980,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 p_tenant_id: string;
             };
             Returns: number;
-        };
-        outreach_facts: {
-            Args: {
-                p_contact_id: string;
-                p_host: string;
-                p_lead_id?: string;
-                p_since: string;
-                p_tenant_id: string;
-                p_to: string;
-            };
-            Returns: Json;
         };
         outreach_lead_facts: {
             Args: {
@@ -23051,25 +22673,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 snippet: string;
             }[];
         };
-        sending_domain_capacity: {
-            Args: {
-                p_at: string;
-                p_domain_id: string;
-            };
-            Returns: Json;
-        };
-        sending_domain_counts: {
-            Args: {
-                p_host: string;
-                p_since: string;
-                p_tenant_id: string;
-            };
-            Returns: Json;
-        };
-        sending_domain_days_keep: {
-            Args: never;
-            Returns: number;
-        };
         sequence_batch_cancel: {
             Args: {
                 p_batch_id: string;
@@ -23112,7 +22715,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at: string | null;
                 contact_id: string | null;
                 created_at: string;
-                domain_id: string | null;
                 draft: Json | null;
                 drafted_at: string | null;
                 facts: Json | null;
@@ -23164,7 +22766,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at: string | null;
                 contact_id: string | null;
                 created_at: string;
-                domain_id: string | null;
                 draft: Json | null;
                 drafted_at: string | null;
                 facts: Json | null;
@@ -23303,7 +22904,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at: string | null;
                 contact_id: string | null;
                 created_at: string;
-                domain_id: string | null;
                 draft: Json | null;
                 drafted_at: string | null;
                 facts: Json | null;
@@ -23488,7 +23088,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
                 claimed_at: string | null;
                 contact_id: string | null;
                 created_at: string;
-                domain_id: string | null;
                 draft: Json | null;
                 drafted_at: string | null;
                 facts: Json | null;
@@ -23999,10 +23598,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             Returns: number;
         };
         trigger_deadman_sweep: {
-            Args: never;
-            Returns: number;
-        };
-        trigger_domains_sweep: {
             Args: never;
             Returns: number;
         };
@@ -29587,144 +29182,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
-    sending_domain_days: {
-        Row: {
-            bounced: number | null;
-            checked_at: string | null;
-            complaints: number | null;
-            day: string;
-            domain_id: string;
-            held_why: string | null;
-            host: string;
-            kept_at: string;
-            sent: number | null;
-            sent_days: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Insert: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day: string;
-            domain_id: string;
-            held_why?: string | null;
-            host: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Update: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day?: string;
-            domain_id?: string;
-            held_why?: string | null;
-            host?: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state?: string;
-            tenant_id?: string;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domain_days_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
-    sending_domains: {
-        Row: {
-            bounced_recent: number | null;
-            checked_at: string | null;
-            clean_since: string | null;
-            complaints: number | null;
-            counted_since: string | null;
-            created_at: string;
-            created_by: string | null;
-            dmarc: string | null;
-            from_local: string;
-            from_name: string;
-            held_at: string | null;
-            held_why: string | null;
-            host: string;
-            id: string;
-            provider_domain_id: string | null;
-            provider_status: string | null;
-            records: Json;
-            resume_by: string;
-            sent_days: number | null;
-            sent_recent: number | null;
-            state: string;
-            tenant_id: string;
-            updated_at: string;
-            verified_at: string | null;
-        };
-        Insert: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local: string;
-            from_name: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Update: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local?: string;
-            from_name?: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host?: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id?: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domains_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
     sequence_batches: {
         Row: {
             audience: Json;
@@ -30068,7 +29525,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at: string | null;
             contact_id: string | null;
             created_at: string;
-            domain_id: string | null;
             draft: Json | null;
             drafted_at: string | null;
             facts: Json | null;
@@ -30106,7 +29562,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -30144,7 +29599,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -30178,12 +29632,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             columns: ["tenant_id", "contact_id"];
             isOneToOne: false;
             referencedRelation: "contacts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_domain_id_same_workspace";
-            columns: ["tenant_id", "domain_id"];
-            isOneToOne: false;
-            referencedRelation: "sending_domains";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_lead_id_same_workspace";
@@ -30232,7 +29680,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels: string[];
             created_at: string;
             created_by: string | null;
-            domain_ids: string[];
             gap_days: number;
             gap_minutes: number | null;
             hand: Json | null;
@@ -30277,7 +29724,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;
@@ -30322,7 +29768,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;
@@ -36315,144 +35760,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
-    sending_domain_days: {
-        Row: {
-            bounced: number | null;
-            checked_at: string | null;
-            complaints: number | null;
-            day: string;
-            domain_id: string;
-            held_why: string | null;
-            host: string;
-            kept_at: string;
-            sent: number | null;
-            sent_days: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Insert: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day: string;
-            domain_id: string;
-            held_why?: string | null;
-            host: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Update: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day?: string;
-            domain_id?: string;
-            held_why?: string | null;
-            host?: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state?: string;
-            tenant_id?: string;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domain_days_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
-    sending_domains: {
-        Row: {
-            bounced_recent: number | null;
-            checked_at: string | null;
-            clean_since: string | null;
-            complaints: number | null;
-            counted_since: string | null;
-            created_at: string;
-            created_by: string | null;
-            dmarc: string | null;
-            from_local: string;
-            from_name: string;
-            held_at: string | null;
-            held_why: string | null;
-            host: string;
-            id: string;
-            provider_domain_id: string | null;
-            provider_status: string | null;
-            records: Json;
-            resume_by: string;
-            sent_days: number | null;
-            sent_recent: number | null;
-            state: string;
-            tenant_id: string;
-            updated_at: string;
-            verified_at: string | null;
-        };
-        Insert: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local: string;
-            from_name: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Update: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local?: string;
-            from_name?: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host?: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id?: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domains_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
     sequence_batches: {
         Row: {
             audience: Json;
@@ -36796,7 +36103,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at: string | null;
             contact_id: string | null;
             created_at: string;
-            domain_id: string | null;
             draft: Json | null;
             drafted_at: string | null;
             facts: Json | null;
@@ -36834,7 +36140,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -36872,7 +36177,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -36906,12 +36210,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             columns: ["tenant_id", "contact_id"];
             isOneToOne: false;
             referencedRelation: "contacts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_domain_id_same_workspace";
-            columns: ["tenant_id", "domain_id"];
-            isOneToOne: false;
-            referencedRelation: "sending_domains";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_lead_id_same_workspace";
@@ -36960,7 +36258,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels: string[];
             created_at: string;
             created_by: string | null;
-            domain_ids: string[];
             gap_days: number;
             gap_minutes: number | null;
             hand: Json | null;
@@ -37005,7 +36302,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;
@@ -37050,7 +36346,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;
@@ -43043,144 +42338,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
-    sending_domain_days: {
-        Row: {
-            bounced: number | null;
-            checked_at: string | null;
-            complaints: number | null;
-            day: string;
-            domain_id: string;
-            held_why: string | null;
-            host: string;
-            kept_at: string;
-            sent: number | null;
-            sent_days: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Insert: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day: string;
-            domain_id: string;
-            held_why?: string | null;
-            host: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state: string;
-            tenant_id: string;
-        };
-        Update: {
-            bounced?: number | null;
-            checked_at?: string | null;
-            complaints?: number | null;
-            day?: string;
-            domain_id?: string;
-            held_why?: string | null;
-            host?: string;
-            kept_at?: string;
-            sent?: number | null;
-            sent_days?: number | null;
-            state?: string;
-            tenant_id?: string;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domain_days_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
-    sending_domains: {
-        Row: {
-            bounced_recent: number | null;
-            checked_at: string | null;
-            clean_since: string | null;
-            complaints: number | null;
-            counted_since: string | null;
-            created_at: string;
-            created_by: string | null;
-            dmarc: string | null;
-            from_local: string;
-            from_name: string;
-            held_at: string | null;
-            held_why: string | null;
-            host: string;
-            id: string;
-            provider_domain_id: string | null;
-            provider_status: string | null;
-            records: Json;
-            resume_by: string;
-            sent_days: number | null;
-            sent_recent: number | null;
-            state: string;
-            tenant_id: string;
-            updated_at: string;
-            verified_at: string | null;
-        };
-        Insert: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local: string;
-            from_name: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Update: {
-            bounced_recent?: number | null;
-            checked_at?: string | null;
-            clean_since?: string | null;
-            complaints?: number | null;
-            counted_since?: string | null;
-            created_at?: string;
-            created_by?: string | null;
-            dmarc?: string | null;
-            from_local?: string;
-            from_name?: string;
-            held_at?: string | null;
-            held_why?: string | null;
-            host?: string;
-            id?: string;
-            provider_domain_id?: string | null;
-            provider_status?: string | null;
-            records?: Json;
-            resume_by?: string;
-            sent_days?: number | null;
-            sent_recent?: number | null;
-            state?: string;
-            tenant_id?: string;
-            updated_at?: string;
-            verified_at?: string | null;
-        };
-        Relationships: [{
-            foreignKeyName: "sending_domains_tenant_id_fkey";
-            columns: ["tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "tenants";
-            referencedColumns: ["id"];
-        }];
-    };
     sequence_batches: {
         Row: {
             audience: Json;
@@ -43524,7 +42681,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at: string | null;
             contact_id: string | null;
             created_at: string;
-            domain_id: string | null;
             draft: Json | null;
             drafted_at: string | null;
             facts: Json | null;
@@ -43562,7 +42718,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -43600,7 +42755,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             claimed_at?: string | null;
             contact_id?: string | null;
             created_at?: string;
-            domain_id?: string | null;
             draft?: Json | null;
             drafted_at?: string | null;
             facts?: Json | null;
@@ -43634,12 +42788,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             columns: ["tenant_id", "contact_id"];
             isOneToOne: false;
             referencedRelation: "contacts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_domain_id_same_workspace";
-            columns: ["tenant_id", "domain_id"];
-            isOneToOne: false;
-            referencedRelation: "sending_domains";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_lead_id_same_workspace";
@@ -43688,7 +42836,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels: string[];
             created_at: string;
             created_by: string | null;
-            domain_ids: string[];
             gap_days: number;
             gap_minutes: number | null;
             hand: Json | null;
@@ -43733,7 +42880,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;
@@ -43778,7 +42924,6 @@ declare function builderOf<T extends TenantTable>(db: Db$S, table: T): _supabase
             channels?: string[];
             created_at?: string;
             created_by?: string | null;
-            domain_ids?: string[];
             gap_days?: number;
             gap_minutes?: number | null;
             hand?: Json | null;

@@ -6,6 +6,10 @@ likely to damage our domain than benefiting users. your plan is approved end to 
 `Claude Video/docs/2026-10-13-chanlytics-cold-email-own-mailbox-review.md`. Written against commit `38d3f2529`
 (main, 13 October 2026, after #1578). Where this note and the code disagree, the code wins.
 
+The cold lane's SQL this note left inert (the sending domains and their days, a send's `domain_id`, a step's
+`domain_ids`, and the six doors only an edge from before it called) was dropped by 00472 on 22 October 2026, once
+production's edge had run this note's code for a week.
+
 This note supersedes:
 
 - decision 3 of `docs/superpowers/specs/2026-09-25-reach-out-design.md` ("a second Resend account for cold mail");

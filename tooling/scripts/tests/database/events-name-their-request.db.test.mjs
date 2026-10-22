@@ -99,7 +99,7 @@ after(async () => {
 });
 
 test(
-  "a signed-in session's insert into events is refused by row-level security, not by the default's function",
+  "a signed-in session's insert into events is refused for want of the privilege (00471), not by the default's function",
   { skip: skip || (!ANON && "no SUPABASE_ANON_KEY in env") },
   async () => {
     const email = `request-names-${RUN}@example.com`;
@@ -112,7 +112,9 @@ test(
     assert.equal(signedIn.error, null, signedIn.error?.message);
     const r = await member.from("events").insert({ tenant_id: T, kind: `test.request_member_${RUN}` });
     assert.ok(r.error, "a member wrote to the ledger directly");
-    assert.match(r.error.message, /row-level security/, "the policy says no");
+    // No member INSERT on events since 00471: the privilege refuses it before row security, or a default, is reached.
+    assert.equal(r.error.code, "42501");
+    assert.match(r.error.message, /permission denied for table events/, "the grant says no");
     assert.doesNotMatch(r.error.message, /request_id_of_caller/, "and the default's function is not what refused it");
   },
 );

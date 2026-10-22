@@ -4562,11 +4562,6 @@ declare const SCHEMA_SETS: {
     readonly "privacy_requests.kind": readonly ["delete_workspace", "delete_person", "copy"];
     readonly "provider_events.provider": readonly ["meta", "twilio", "retell", "resend", "stripe"];
     readonly "push_devices.platform": readonly ["ios", "android"];
-    readonly "sending_domain_days.state": readonly ["verified", "held"];
-    readonly "sending_domains.dmarc": readonly ["found", "missing"];
-    readonly "sending_domains.held_why": readonly ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"];
-    readonly "sending_domains.resume_by": readonly ["owner", "platform"];
-    readonly "sending_domains.state": readonly ["records", "verifying", "verified", "held"];
     readonly "sequence_batches.state": readonly ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
     readonly "sequence_enrollments.state": readonly ["in", "done", "left"];
     readonly "sequence_replies.claim": readonly ["person", "automated", "auto_reply", "owner"];

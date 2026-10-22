@@ -407,14 +407,6 @@ const rowsFor = async (kind, value) =>
   );
 const wroteBack = async (contact) =>
   ok(await db.rpc("outreach_lead_facts", { p_tenant_id: A, p_contact_id: contact, p_to: "x@example.com" })).wrote_back;
-const unsubscribed = async () =>
-  ok(
-    await db.rpc("sending_domain_counts", {
-      p_tenant_id: A,
-      p_host: SEND_HOST,
-      p_since: iso(Date.now() - 2 * DAY),
-    }),
-  ).unsubscribed;
 const eventsOf = async (subject, kind) =>
   ok(await db.from("events").select("data").eq("tenant_id", A).eq("subject_id", subject).eq("kind", kind)).map(
     (e) => e.data,
@@ -555,7 +547,9 @@ test(
 );
 
 test(
-  "no, from the business's own domain: opted out by reply, the addresses and the domain on the list, the leads closed, D18 counts it",
+  // D18 (a reply's no counted beside an unsubscribe, a person once, an undone no not at all) is a mailbox's count since
+  // 00466: email/mailboxes/mailbox-connections.db.test.mjs holds it, and 00472 took the domains' count away.
+  "no, from the business's own domain: opted out by reply, the addresses and the domain on the list, the leads closed",
   { skip },
   async () => {
     const host = `own-${stamp}.example`;
@@ -571,7 +565,6 @@ test(
         contact_id: ro.person,
       }),
     );
-    const before = await unsubscribed();
     const msg = await replied(ro, { from: `gerencia@${host}`, text: "Gracias, pero no nos interesa." });
     const { plan } = await readAs(msg, NO);
     assert.equal(plan.suppressFrom, `gerencia@${host}`);
@@ -597,7 +590,6 @@ test(
       const l = await leadRow(id);
       assert.deepEqual([l.stage, l.closed_reason], ["archived", "said_no"]);
     }
-    assert.equal(await unsubscribed(), before + 1, "D18: a reply's no counts beside an unsubscribe");
     const changed = (await reading(msg)).plan.changed;
     assert.equal(changed.consent_was, "unknown");
     assert.equal(
@@ -947,7 +939,6 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
       .from("lead_suppressions")
       .insert({ tenant_id: A, kind: "email", hash: await legacyLeadSuppressionHash(A, before), what: "email_opt_out" }),
   );
-  const count0 = await unsubscribed();
   // Their first no answers the second email, from another address of theirs; their second answers the first email.
   const first = await replied(ro, { from: before, cites: step2 });
   await readAs(first, NO);
@@ -967,7 +958,6 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
     (await reading(theirs)).plan.changed.holds.filter((h) => h.kind === "domain"),
     [domainRow],
   );
-  assert.equal(await unsubscribed(), count0 + 2, "D18 counts a person once");
 
   // Undo the first while the second no of the same person stands: nothing of theirs moves.
   const kept = ok(await owner.c.rpc("reach_out_reply_undo", { p_message_id: first }));
@@ -996,11 +986,6 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
     [{ what: "said_no" }],
     "the domain stays: the neighbour's standing no holds it",
   );
-  assert.equal(
-    await unsubscribed(),
-    count0 + 1,
-    "D18 no longer counts the undone no: the undo names the email the no it reverses named (the second email)",
-  );
   const undone = (await eventsOf(ro.person, "contact.consent_changed")).find((d) => d.source === "reply_undone");
   assert.equal(undone.message_id, step2.sent);
   assert.equal(await wroteBack(ro.person), true, "a person's reply keeps the chain stopped: they wrote back");
@@ -1023,7 +1008,6 @@ test("the undo puts back exactly what the no wrote, while nothing else holds it"
     [{ what: "email_opt_out" }],
     "and the opt-out from before still stays",
   );
-  assert.equal(await unsubscribed(), count0);
 });
 
 test(

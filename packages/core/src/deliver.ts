@@ -372,9 +372,9 @@ interface OutreachFacts {
 }
 
 /**
- * The facts outreach adds, in one question to the database (00177 outreach_facts), and only for an outreach email: a
- * conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is not
- * "yes".
+ * The facts outreach adds, in one question to the database (00424 outreach_mailbox_facts), and only for an outreach
+ * email: a conversational send never pays for it. A read that fails throws, as wireFacts does: "we could not check" is
+ * not "yes".
  */
 async function outreachFacts(db: Db, d: Delivery, f: WireFacts): Promise<OutreachFacts> {
   const headers = d.email?.headers ?? {};
