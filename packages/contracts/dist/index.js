@@ -31020,7 +31020,6 @@ function daysWithAppointments(days, rows2, tz, people) {
 
 // src/people/person-reach.ts
 var EMAIL_STOPPED_TAG = "stopped accepting mail";
-var EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 var NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 function bookingLinkAction(reach, stop) {
