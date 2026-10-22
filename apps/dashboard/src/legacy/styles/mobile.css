@@ -73,7 +73,9 @@
      the page's own colour instead, which is why .ask-overlay never touches it. A blur of zero changes nothing on
      the page; it is the filter's presence that counts. At the foot it is flat all the same, where the glass is
      wanted, so in an iPhone's browser the wash stops short of the foot and fades out there (tokens.css
-     --foot-clear), and Safari's bottom bar stays glass while the drawer is open (Ruben, 21 Oct 2026). */
+     --foot-clear), and Safari's bottom bar stays glass while the drawer is open (Ruben, 21 Oct 2026). It fades in as
+     every wash does, never rising as a page does (route-in): from 4px lower it stood on that point as it came, and
+     Safari kept the band it read then for as long as the drawer stayed open. */
   .nav-backdrop {
     display: block;
     position: fixed;
@@ -82,7 +84,7 @@
     background: rgb(0 0 0 / 0.45);
     backdrop-filter: blur(0);
     mask-image: var(--foot-fade, none);
-    animation: route-in 160ms var(--ease-out);
+    animation: wash-in 160ms var(--ease-out);
   }
   .tb-menu { display: inline-flex; }
 
