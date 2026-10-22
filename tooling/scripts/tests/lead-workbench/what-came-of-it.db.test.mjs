@@ -278,9 +278,12 @@ test(
     );
     assert.equal(loose.lead_id, null, "a visit naming nobody names no lead");
 
-    // Late tonight in Austin: past 6 PM, the visit made today.
+    // Late tonight in Austin: past 6 PM, on the day the visit was made, and after it. 23:30 alone came before the visit on
+    // a run between 23:30 and midnight there, which counted nothing (main's Database run of 22 Oct 2026, at 23:38): the
+    // line counts what was made from midnight to the moment asked, so the moment is never earlier than now.
     const local = new Date().toLocaleString("en-CA", { timeZone: ZONE, hour12: false }).slice(0, 10);
-    const due = ok(await db.rpc("reach_out_day_due", { p_now: `${local}T23:30:00-05:00`, p_limit: 1000 }));
+    const late = Math.max(Date.parse(`${local}T23:30:00-05:00`), Date.now() + 1000);
+    const due = ok(await db.rpc("reach_out_day_due", { p_now: new Date(late).toISOString(), p_limit: 1000 }));
     const mine = due.find((d) => d.tenant_id === A);
     assert.ok(mine, "today has something to say");
     assert.equal(mine.numbers.booked, 1);
