@@ -452,9 +452,10 @@ function goesWith(part: HTMLElement): HTMLElement {
  * across the rows as it moved (Ruben, 22 Oct 2026).
  */
 export function goingAt(el: Element, on: boolean): void {
-  if (!(el instanceof HTMLElement)) return;
-  if (on) el.style.setProperty("--going-at", `${Math.round(el.getBoundingClientRect().top)}px`);
-  else el.style.removeProperty("--going-at");
+  const style = (el as Partial<HTMLElement>).style;
+  if (!style || typeof style.setProperty !== "function") return;
+  if (on) style.setProperty("--going-at", `${Math.round(el.getBoundingClientRect().top)}px`);
+  else style.removeProperty("--going-at");
 }
 
 /**
