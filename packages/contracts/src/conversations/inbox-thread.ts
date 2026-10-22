@@ -3,7 +3,6 @@
  * draws (`toInboxThreadVM`) in the shape inbox-thread-vm.ts declares, with a quiet thread's last word. Its
  * words come from the thread-*, message-* and escalations modules beside it.
  */
-import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
@@ -13,7 +12,7 @@ import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./
 import { mayRing } from "../consent/consent";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
-import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
+import { shortTime, bubbleTime, inboxThreadClock, waitedSince, type ThreadMoments } from "./thread-clock";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock";
 import { mediaVM } from "./message-media";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
@@ -369,9 +368,9 @@ export function toInboxThreadVM(
     else timeline.splice(idx, 0, entry);
   }
 
-  const waitingMin = escalation
-    ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS))
-    : undefined;
+  // The moments its times are said from, and their words by this read's clock: one rule with a page that says them again
+  // for a thread read earlier (thread-clock.ts inboxThreadClock).
+  const moments = threadMoments(dto, escalation, state);
   const ask = askOf(escalation, lastInbound);
 
   const { lastWord, unanswered } = quietWordsOf(dto, state, tz, now);
@@ -417,7 +416,6 @@ export function toInboxThreadVM(
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...(waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {}),
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
@@ -441,18 +439,31 @@ export function toInboxThreadVM(
           : lastWord
             ? lastWord.text
             : "The receptionist answered this on its own. Nothing is owed.",
-    lastAt: shortTime(dto.last_message_at, tz, now),
-    lastAtFull: shortTime(dto.last_message_at, tz, now),
-    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
-    ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
+    ...moments,
+    ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
     ...inboxReading(dto),
     pinned: false,
     tags: [],
     priority: "P2",
-    ...(waitingMin !== undefined ? { waitingMin } : {}),
-    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {}),
     timeline,
+  };
+}
+
+/**
+ * The moments a thread's times are said from (thread-clock.ts inboxThreadClock): when it last moved, when the hold it
+ * waits on was opened, and when a snooze wakes.
+ */
+function threadMoments(
+  dto: ConversationDto,
+  escalation: EscalationDto | null,
+  state: InboxThreadVM["state"],
+): ThreadMoments {
+  const wakeAtMs = state === "snoozed" && dto.snooze_until ? Date.parse(dto.snooze_until) : Number.NaN;
+  return {
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
+    ...(Number.isFinite(wakeAtMs) ? { wakeAtMs } : {}),
   };
 }
 
@@ -526,7 +537,7 @@ function unansweredOf(dto: ConversationDto, tz: string, now: Date): InboxThreadV
     closed: Number.isFinite(closedMs)
       ? `Closed ${clockDate(closedMs, tz, now.getTime())} without a reply`
       : "Closed without a reply",
-    waited: formatWaited(Math.max(0, now.getTime() - sinceMs)),
+    waited: waitedSince(sinceMs, now.getTime()),
     sinceMs,
   };
 }

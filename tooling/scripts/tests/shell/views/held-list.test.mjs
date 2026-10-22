@@ -639,13 +639,11 @@ test("a list coming back from under the row it opened is where it was left: its 
     table.querySelectorAll = (sel) => (sel === ":scope > tbody > tr" ? [row] : []);
     return table;
   };
-  /** The table's hook drawn on its mount, its layout effect run as React runs it. */
+  /** The table's hook drawn on its mount, its ref given the table as React gives it. */
   const arrives = (table) => {
-    let mount = null;
     react.useRef = (v) => ({ current: v });
-    react.useLayoutEffect = (fn) => (mount = fn);
-    useRowsArrive().current = table;
-    mount();
+    react.useCallback = (fn) => fn;
+    useRowsArrive()(table);
   };
   const { list } = inbox();
   const p = page(list);

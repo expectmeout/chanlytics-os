@@ -68,9 +68,8 @@
   /* The row was a button, whose lines are the font's own height: an option in a listbox now, it keeps them. */
   line-height: normal;
   cursor: pointer;
-  /* A row below the fold is not laid out or painted until it is near (as the Inbox's are, inbox.css .ix-thread). */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 112px;
+  /* The rows near the screen are the ones drawn (cv-shown.ts over kit/rows/shown-rows.ts), never a row kept out of sight
+     by content-visibility: inbox.css .ix-thread says what that drew. */
   transition: background 100ms;
   min-width: 0;
 }
