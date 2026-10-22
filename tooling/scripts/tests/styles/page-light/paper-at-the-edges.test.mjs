@@ -130,7 +130,8 @@ function gradientStops(tokens) {
 
 const isTransparent = (t) => t?.type === "token" && t.value.type === "ident" && t.value.value === "transparent";
 const isVar = (t, name) => t?.type === "var" && t.value.name.ident === name;
-const isWhole = (t) => t?.type === "token" && t.value.type === "percentage" && t.value.value === 1;
+/** The window's foot as a gradient stop: `100dvh`, the screen as the browser shows it, with its bar up or tucked away. */
+const isFoot = (t) => t?.type === "length" && t.value.unit === "dvh" && t.value.value === 100;
 
 const tokens = parse(TOKENS);
 const mobile = parse(MOBILE);
@@ -156,7 +157,10 @@ test("the page's light is the paper at both edges of the window", () => {
     const stops = gradientStops(value);
     assert.ok(isTransparent(stops[0].colour), "the wash begins transparent, so the paper shows over the frame's top");
     assert.ok(isTransparent(stops.at(-1).colour), "the wash ends transparent, so the paper shows at the window's foot");
-    assert.ok(isWhole(stops.at(-1).position), "and ends at the foot itself, 100%");
+    assert.ok(
+      isFoot(stops.at(-1).position),
+      "and ends at the window's foot itself, 100dvh, wherever the browser's bar is",
+    );
   }
   // The ground under the pools: the paper at the top, the paper at the foot.
   const grounds = props.get("--surface-page-list-ground") ?? [];
@@ -165,7 +169,7 @@ test("the page's light is the paper at both edges of the window", () => {
     const stops = gradientStops(value);
     assert.ok(isVar(stops[0].colour, PAPER), "the ground under the pools begins as the paper");
     assert.ok(isVar(stops.at(-1).colour, PAPER), "and ends as the paper");
-    assert.ok(isWhole(stops.at(-1).position), "at the foot itself, 100%");
+    assert.ok(isFoot(stops.at(-1).position), "at the window's foot itself, 100dvh");
   }
   // The paper under the phone's own bar is the paper by name.
   const papers = props.get("--surface-page-paper") ?? [];
@@ -216,8 +220,9 @@ test("every box fixed at the top edge carries the paper whole", () => {
   // The frame's top, and its own ground under it (::before, ::after): Safari reads each box in the stack, and two that
   // disagree lose the colour altogether.
   assert.ok(carries(mobile.sheet, "frame-top", MOBILE) >= 2, "the frame's top and its ground both carry the paper");
-  // The band a carried page takes over the frame's top, drawn on the body (kit/motion/held-list.ts bandOver).
-  assert.ok(carries(components.sheet, "held-band", COMPONENTS) >= 1, "the carried page's band carries the paper");
+  // The sheet of ground a carried page slides over, fixed to the window (kit/motion/held-list.ts groundOver).
+  assert.ok(carries(mobile.sheet, "carry-ground", MOBILE) >= 1, "the carry sheet carries the paper");
+  assert.equal(carries(components.sheet, "carry-ground", COMPONENTS), 0, "and paints nothing of its own");
 });
 
 /** Every custom property a value reads, by name, however deep it is (in a calc, in a fallback). */
@@ -281,36 +286,84 @@ test("the light gives way at one line on the screen, whatever page stands on it"
   }
 });
 
-test("every layer that paints the page's ground lays it a screen wide and a screen tall", () => {
+/** A selector written as its parts read: `html:has(.app-root)`, `.frame-top::before`, `.main-scroll.pane > .calendar > .cal-head::after`. */
+function selectorText(selector) {
+  return selector
+    .map((c) => {
+      if (c.type === "combinator") return c.value === "descendant" ? " " : ` ${c.value === "child" ? ">" : c.value} `;
+      if (c.type === "type") return c.name;
+      if (c.type === "class") return `.${c.name}`;
+      if (c.type === "pseudo-element") return `::${c.kind}`;
+      if (c.type === "pseudo-class") return `:${c.kind}(…)`;
+      return `[${c.type}]`;
+    })
+    .join("");
+}
+
+// ONE PICTURE, EVERY PAINTER (Ruben, 22 Oct 2026: a thread pushed in opened without the aurora, which came in as it landed;
+// the painters of the ground were six, each aligned to the window by its own means, one by a measure of the page taken a
+// microtask too soon). The picture is declared once (tokens.css --surface-page-ground), painted by one rule whose
+// subjects are every painter, a screen wide and the largest screen tall (100lvh) from the window's top, and no painter
+// offsets it by a measure of a page.
+test("the picture is painted by one rule, whose subjects are every painter, a screen wide and the largest screen tall", () => {
   const isScreen = (d) =>
     d.property === "background-size" &&
     d.value.length === 1 &&
     d.value[0].type === "explicit" &&
     d.value[0].width.value?.value?.unit === "vw" &&
     d.value[0].width.value.value.value === 100 &&
-    d.value[0].height.value?.value?.unit === "dvh" &&
+    d.value[0].height.value?.value?.unit === "lvh" &&
     d.value[0].height.value.value.value === 100;
-  let painters = 0;
+  const pictures = customPropertiesOf(tokens.sheet).get("--surface-page-ground") ?? [];
+  assert.equal(pictures.length, 1, "tokens.css declares the picture once");
+  assert.deepEqual(
+    varsIn(pictures[0].tokens),
+    ["--surface-page-top", "--surface-page-light", "--surface-page-under"],
+    "the paper over the pools, the pools, and what lies under them",
+  );
+  const painters = [];
   for (const { file, sheet } of allSheets()) {
     if (!sheet) continue;
     for (const rule of styleRules(sheet)) {
       const decls = rule.declarations?.declarations ?? [];
-      // The whole ground is the stack that ends on what lies under the pools: the window's layer of light and each of
-      // its copies (the frame's top, a carried page, the band over the top, the Calendar's bar).
-      const paints = decls.some(
-        (d) =>
-          d.property === "unparsed" &&
-          d.value.propertyId.property === "background-image" &&
-          varsIn(d.value.value).includes("--surface-page-under"),
-      );
-      if (!paints) continue;
-      painters += 1;
-      const sizes = decls.filter((d) => d.property === "background-size");
-      assert.ok(
-        sizes.length > 0 && isScreen(sizes.at(-1)),
-        `${file} paints the ground without laying it 100vw by 100dvh: one picture, wherever it is drawn`,
-      );
+      const image = decls.find((d) => d.property === "unparsed" && d.value.propertyId.property === "background-image");
+      const read = image ? varsIn(image.value.value) : [];
+      if (!read.includes("--surface-page-ground") && !read.includes("--surface-page-under")) continue;
+      painters.push({ file, rule, decls });
     }
   }
-  assert.ok(painters >= 6, `every painter of the ground is found (${painters})`);
+  assert.equal(painters.length, 1, `one rule paints the ground (${painters.map((p) => p.file).join(", ")})`);
+  const [{ file, rule, decls }] = painters;
+  assert.equal(file, MOBILE, "in the phone's sheet");
+  assert.deepEqual(
+    rule.selectors.map(selectorText),
+    [
+      "html:has(…)",
+      ".pg-light",
+      ".frame-top::before",
+      ".frame-top::after",
+      ".carry-ground",
+      ".main-scroll.pane > .calendar > .cal-head::before",
+      ".main-scroll.pane > .calendar > .cal-head::after",
+    ],
+    "its subjects: the document, the window's layer, the frame's top, the carry sheet, the Calendar's bar",
+  );
+  const sizes = decls.filter((d) => d.property === "background-size");
+  assert.ok(sizes.length > 0 && isScreen(sizes.at(-1)), "laid 100vw by 100lvh: one picture, wherever it is drawn");
+  assert.ok(
+    !decls.some(
+      (d) =>
+        d.property === "background-position" ||
+        (d.property === "unparsed" && d.value.propertyId.property === "background-position"),
+    ),
+    "from the window's top, with no offset",
+  );
+  // No sheet reads a measure of a page into the picture's place.
+  for (const { file: f, sheet } of allSheets()) {
+    if (!sheet) continue;
+    for (const r of styleRules(sheet))
+      for (const d of r.declarations?.declarations ?? [])
+        if (d.property === "unparsed")
+          assert.ok(!varsIn(d.value.value).includes("--going-at"), `${f} offsets the ground by --going-at`);
+  }
 });

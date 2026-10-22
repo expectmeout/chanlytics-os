@@ -484,10 +484,14 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   p.draw(false);
   p.draw(true);
   showHeld(true);
-  const [band, copy] = heldAlong();
-  assert.equal(band.className, "held-band", "the page's own band over the frame's top goes first (components.css)");
+  const [ground, copy] = heldAlong();
+  assert.equal(
+    ground.className,
+    "carry-ground",
+    "the sheet of ground the page slides over goes first (components.css)",
+  );
   assert.ok(
-    band.parentElement === body && band.hasAttribute("aria-hidden"),
+    ground.parentElement === body && ground.hasAttribute("aria-hidden"),
     "on the body, hidden from a screen reader",
   );
   assert.ok(copy && copy !== date, "then a copy of what it drew there");
@@ -500,7 +504,7 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   );
   showHeld(false);
   assert.equal(copy.isConnected, false, "gone once the page is let go or settles back, when the frame draws it again");
-  assert.equal(band.isConnected, false, "the band too");
+  assert.equal(ground.isConnected, false, "the sheet too");
   assert.deepEqual(heldAlong(), []);
   delete frame.ids["pg-dateline"];
   p.leave();
@@ -713,13 +717,15 @@ test("on a phone the row's page is pushed in over the list it was opened from, o
   assert.equal(list.dataset.held, "shown", "the list shows under it");
   assert.ok(html.attrs.has("data-carrying"), "with the frame's chrome over it");
   assert.equal(list.style.translate, "-112px 0", "going under, to the left");
-  assert.equal(heldAlong()[0].className, "held-band", "the page's band over the frame's top comes in with it");
+  assert.equal(heldAlong()[0].className, "carry-ground", "the sheet of ground it slides over comes in with it");
+  // The page itself wears nothing of the ground: the sheet is the ground, laid where the window's is (components.css).
+  assert.equal(el.style["--going-at"], undefined, "no measure of the page is written to it");
   assert.equal(p.draw(true), false, "a draw after it opens nothing");
   await landed();
   assert.equal(el.hasAttribute("data-going"), false, "landed");
   assert.equal(list.dataset.held, "", "the list out of sight again");
   assert.ok(!html.attrs.has("data-carrying"));
-  assert.deepEqual(heldAlong(), [], "the band gone");
+  assert.deepEqual(heldAlong(), [], "the sheet gone");
   assert.deepEqual([el.style.transform, list.style.translate], ["", ""], "nothing left on either");
   assert.ok(el.hasAttribute("data-pushed"), "still marked while it stands over the list");
   p.draw(false);

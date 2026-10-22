@@ -425,17 +425,24 @@
      eases back over the last of the window, the pools showing through again around the tab bar, softer than over the
      head (his "a bit of the highlight around the menu, not as strong"), to the paper itself at the window's foot.
      ONE COLOUR AT THE EDGES: the paper (--surface-page-fill) is the document's canvas, what this light is at the
-     window's top and at its foot, and the plain colour of every box fixed at an edge (mobile.css, the frame's top;
-     components.css, the band a carried page takes over it). Safari paints its bar over the clock in the background
-     colour of the boxes fixed at the top edge, falls back to the canvas where two disagree or one blurs, and draws its
-     toolbar over the canvas alone, where nothing fixed is drawn: with one colour every path agrees, and no moment of a
-     page's arrival can show another (WebKit, LocalFrameView::fixedContainerEdges; styles/page-light/paper-at-the-edges.test.mjs
-     holds it). Three fixes before this one each moved one colour and left another behind: the canvas lightened for the
-     toolbar, which lightened the bar over the clock; the frame's top made the paper whole, on two pages; then every
-     page given this ground with a lighter fill, which left the frame's top and its own ground disagreeing. Measured
-     from the screen's top, as every layer that paints the light is, so the top and the rows passing under it match.
-     The pools lie on the paper over the frame's top and on the list's own ground under the rows (--surface-page-under),
-     so the head is lit as it always was. The dark side calms its pools to its own ground.
+     window's top and at its foot, and the plain colour of every box fixed at an edge (mobile.css, the frame's top and
+     the sheet of ground a carried page slides over). Safari paints its bar over the clock in the background colour of
+     the boxes fixed at the top edge, and falls back to the canvas where two disagree or one blurs: with one colour
+     every path agrees, and no moment of a page's arrival can show another (WebKit,
+     LocalFrameView::fixedContainerEdges; styles/page-light/paper-at-the-edges.test.mjs holds it). Three fixes before
+     this one each moved one colour and left another behind: the canvas lightened for the toolbar, which lightened the
+     bar over the clock; the frame's top made the paper whole, on two pages; then every page given this ground with a
+     lighter fill, which left the frame's top and its own ground disagreeing.
+     ONE PICTURE, EVERY PAINTER: the light is one picture (--surface-page-ground, below), a screen wide and the largest
+     screen tall from the window's top, which every painter lays as it is (mobile.css, the one rule): the window's layer
+     of light, the frame's top, the Calendar's bar, the sheet a carried page slides over, and the document itself. Six
+     painters once aligned it each by their own means, one by a measure of the page read a microtask too soon, so a
+     thread pushed in opened without its light and lit as it landed (Ruben, 22 Oct 2026). The foot's stops read the
+     window as the browser shows it (100dvh), so the glow sits by the tab bar wherever the browser's own bar is; the
+     picture runs on to the largest screen under that bar, which is what Safari's toolbar blurs, since it draws the
+     document there and nothing fixed. The pools lie on the paper over the frame's top and on the list's own ground
+     under the rows (--surface-page-under), so the head is lit as it always was. The dark side calms its pools to its
+     own ground.
      ONE GROUND FOR EVERY PAGE: where the light gives way is one line on the screen, under the head the Inbox's lists
      stand under (--list-wash-line), whatever head the page on the screen measures. It was that page's own head
      (--frame-top), which differs page to page, and a thread measures none, since it draws its own: the wash ran from
@@ -450,18 +457,21 @@
   --surface-page-list: linear-gradient(
     transparent calc(var(--list-wash-at) - 24px),
     var(--surface-list-wash) calc(var(--list-wash-at) + 112px),
-    var(--surface-list-wash) calc(100% - 300px),
-    var(--surface-list-glow) calc(100% - 120px),
-    transparent 100%
+    var(--surface-list-wash) calc(100dvh - 300px),
+    var(--surface-list-glow) calc(100dvh - 120px),
+    transparent 100dvh
   );
   --surface-page-list-ground: linear-gradient(
     var(--surface-page-fill) calc(var(--list-wash-at) - 24px),
     var(--surface-list-ground) calc(var(--list-wash-at) + 112px),
-    var(--surface-list-ground) calc(100% - 300px),
-    var(--surface-page-fill) 100%
+    var(--surface-list-ground) calc(100dvh - 300px),
+    var(--surface-page-fill) 100dvh
   );
   /* What lies under the pools where a page lays its own ground under them (a list's, above); none elsewhere. */
   --surface-page-under: none;
+  /* The picture every painter of the page's ground lays (mobile.css, the one rule): the paper over the pools, the
+     pools, and what lies under them. */
+  --surface-page-ground: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
   /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
      the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
      lets most of the tint through; the dark side's pools are faint, so it keeps more. */
@@ -833,6 +843,16 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
       --foot-clear: 6px;
       --foot-fade: linear-gradient(to top, transparent, #000 30px);
     }
+  }
+}
+/* A phone's ground, every page of the app's (above, ONE GROUND FOR EVERY PAGE): the list's wash under the paper, and the
+   list's own ground under the pools. Said for the document and the theme alike, so the document's canvas, the app's root
+   and a sheet drawn on the body paint one picture (mobile.css, the one rule). */
+@media (max-width: 720px) {
+  :root,
+  [data-theme] {
+    --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
+    --surface-page-under: var(--surface-page-list-ground);
   }
 }
 /* Every native select's open list is the browser's own, drawn on the box's fill: on a clear or translucent box that was
