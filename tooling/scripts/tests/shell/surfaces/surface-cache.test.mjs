@@ -40,6 +40,8 @@ globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const heard = {};
+/** The Inbox's threads and open holds as GET conversations and GET escalations answer them. */
+const inboxWire = { conversations: [], escalations: [] };
 /** This member's views as the server holds them (a read always answers with these), every view saved to it, and while `held`, a save's reply waits for it. */
 const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [], held: null };
 globalThis.window = {
@@ -76,6 +78,10 @@ globalThis.window = {
       });
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists: [] } });
     if (u.pathname === "/api/v1/views") return json(200, { ok: true, data: { views: server.views } });
+    if (u.pathname === "/api/v1/conversations")
+      return json(200, { ok: true, data: { conversations: inboxWire.conversations } });
+    if (u.pathname === "/api/v1/escalations")
+      return json(200, { ok: true, data: { escalations: inboxWire.escalations } });
     if (u.pathname === "/api/v1/views/people" && init.method === "PUT") {
       const { view } = JSON.parse(init.body);
       server.saved.push(view);
@@ -95,8 +101,9 @@ const quietly = async (fn) => {
   }
 };
 const { peopleOverride } = await quietly(() => import("../../../../../apps/dashboard/src/surfaces/people/surface.ts"));
+const { inboxOverride } = await quietly(() => import("../../../../../apps/dashboard/src/surfaces/inbox/surface.ts"));
 const { saveView } = await import("../../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
-const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../../../apps/dashboard/src/surfaces/surface-values.ts");
 const {
   snapshotSurface,
   hydrateSurfaceCache,
@@ -534,4 +541,151 @@ test("a clear (a sign-in, a sign-out, a 401, a switch) drops every workspace's s
   assert.equal(globalThis.localStorage.getItem("chanlytics.theme"), "dark", "and only the cache's own");
   globalThis.localStorage.removeItem("chanlytics.theme");
   delete w.__TODAY_PROBE;
+});
+
+/* ------------------------------ a refresh says the time it is ------------------------------ */
+
+const ZONE = "America/New_York";
+/** When the Inbox was read: 10:00 AM in the salon's zone, on 15 Sep. */
+const READ_AT = Date.parse("2026-09-15T14:00:00Z");
+/** When the tab is refreshed: 6:00 AM the next morning, inside the day a snapshot is drawn for. */
+const PAINT_AT = READ_AT + 20 * 3_600_000;
+const iso = (ms) => new Date(ms).toISOString();
+const HOUR = 3_600_000;
+const customer = (id, name) => ({
+  id,
+  display_name: name,
+  wa_profile_name: null,
+  phone_e164: "+16465550123",
+  email: null,
+  consent: "opted_in",
+  dnc: false,
+  marketing_consent: null,
+  proposal_url: null,
+});
+/** A conversation as GET conversations answers it: the customer wrote an hour before the read. */
+const thread = (id, name, over = {}) => ({
+  id,
+  state: "open",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: iso(READ_AT - HOUR),
+  last_message_at: iso(READ_AT - HOUR),
+  last_inbound_at: iso(READ_AT - HOUR),
+  contact: customer(`p-${id}`, name),
+  messages: [
+    {
+      id: `m-${id}`,
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Can I move my appointment?",
+      media: null,
+      meta: null,
+      status: "received",
+      created_at: iso(READ_AT - HOUR),
+      channel_ts: iso(READ_AT - HOUR),
+    },
+  ],
+  ...over,
+});
+
+test("REGRESSION: a refresh paints the Inbox's times as the clock says them when it paints -- a row said '9:00 AM' on yesterday's thread and 'waiting 2h' on a wait of 22, until the read landed a beat later and moved the rows", async () => {
+  const { toInboxThreadVM } = await import("@chanlytics/contracts");
+  // Handled, waiting on you for two hours, and snoozed until 7:00 the next morning.
+  const quiet = thread("c-quiet", "Sam Example");
+  const waiting = thread("c-wait", "Rosa Example", { state: "needs_human" });
+  const hold = {
+    id: "e-wait",
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: iso(READ_AT - 2 * HOUR),
+  };
+  const napping = thread("c-nap", "Kim Example", { state: "snoozed", snooze_until: iso(READ_AT + 21 * HOUR) });
+  inboxWire.conversations = [quiet, waiting, napping];
+  inboxWire.escalations = [{ ...hold, conversation_id: waiting.id }];
+  const holdOf = (dto) => (dto === waiting ? hold : null);
+  const timesOf = (t) => [t.lastAt, t.lastAtFull, t.waited, t.waitingMin, t.wake];
+  mock.timers.enable({ apis: ["Date"], now: READ_AT });
+  try {
+    clearSurfaceCache();
+    await quietly(() => inboxOverride.apply());
+    snapshotSurface(
+      inboxOverride.key,
+      inboxOverride.globals ?? [],
+      TID,
+      inboxOverride.trimSnapshot,
+      inboxOverride.value,
+    );
+    flushSurfaceCache();
+    const read = surfaceValue("inbox").THREADS;
+    assert.deepEqual(
+      read.map(timesOf),
+      [
+        ["9:00 AM", "9:00 AM", undefined, undefined, undefined],
+        ["9:00 AM", "9:00 AM", "2h", 120, undefined],
+        ["9:00 AM", "9:00 AM", undefined, undefined, "Sep 16"],
+      ],
+      "the read says its clock's words",
+    );
+
+    // F5 the next morning: the cache is drawn before anything is read again.
+    mock.timers.setTime(PAINT_AT);
+    setSurfaceValue("inbox", undefined);
+    assert.deepEqual([...hydrateSurfaceCache()], ["inbox"]);
+    const painted = surfaceValue("inbox").THREADS;
+    const now = inboxWire.conversations.map((dto) => toInboxThreadVM(dto, holdOf(dto), ZONE, new Date(PAINT_AT)));
+    assert.deepEqual(
+      painted.map(timesOf),
+      now.map(timesOf),
+      "REGRESSION: the rows painted the words of the clock that read them, until the next read",
+    );
+    assert.deepEqual(
+      painted.map(timesOf),
+      [
+        ["Sep 15", "Sep 15", undefined, undefined, undefined],
+        ["Sep 15", "Sep 15", "22h", 1320, undefined],
+        ["Sep 15", "Sep 15", undefined, undefined, "7:00 AM"],
+      ],
+      "yesterday's time is its date, the wait is the morning's, and the snooze wakes at seven today",
+    );
+    assert.deepEqual(
+      painted.map((t) => t.lastAtMs),
+      read.map((t) => t.lastAtMs),
+      "the moments are the read's: only the words are said again",
+    );
+  } finally {
+    mock.timers.reset();
+    inboxWire.conversations = [];
+    inboxWire.escalations = [];
+    setSurfaceValue("inbox", undefined);
+    clearSurfaceCache();
+  }
+});
+
+test("a snapshot that does not say the zone its times were said in is painted as it was kept: a zone guessed would move the rows the other way", async () => {
+  clearSurfaceCache();
+  const { toInboxThreadVM } = await import("@chanlytics/contracts");
+  const kept = toInboxThreadVM(thread("c-old", "Lee Example"), null, ZONE, new Date(READ_AT));
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    THREADS: [kept],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: { doneThisWeek: 0 },
+  });
+  snapshotSurface("inbox", [], TID, undefined, "inbox");
+  flushSurfaceCache();
+  setSurfaceValue("inbox", undefined);
+  hydrateSurfaceCache();
+  assert.equal(
+    surfaceValue("inbox").THREADS[0].lastAt,
+    "9:00 AM",
+    "a snapshot written before the zone was kept with it",
+  );
+  setSurfaceValue("inbox", undefined);
+  clearSurfaceCache();
 });

@@ -591,8 +591,8 @@
    lozenges with no line between them, which on a phone left the eye nothing to follow from a name to its time or its
    state. The line is the kit's list row's (kit.css), drawn on the Inbox's, Conversations', Live's and People's and
    Leads' rows, which are their pages' own: at the top of every row but a list's first, from under the name
-   (--row-rule-start) to the row's far padding, inside the row, since a row out of sight is painted only inside its box
-   (content-visibility). A row in a fill of its own (under the pointer or the last a finger opened, picked, a call
+   (--row-rule-start) to the row's far padding, inside the row's own box. A row in a fill of its own (under the pointer
+   or the last a finger opened, picked, a call
    going on) stands clear of the lines on either side of it, which fade with the fill, and only while the fill is
    there: a row's hover fill stands under a finger too (the list's selection, Ruben, 19 Oct 2026), so its lines go
    with it at both kinds of pointer (touch-hover.test.mjs holds the two together). Above 900px each list keeps the

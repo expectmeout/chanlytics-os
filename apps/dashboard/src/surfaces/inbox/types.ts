@@ -247,6 +247,7 @@ export interface SeededThread extends ThreadBase {
   heardAtMs?: undefined;
   markAtMs?: undefined;
   escalatedAtMs?: undefined;
+  wakeAtMs?: undefined;
 }
 
 export type Thread = RealThread | SeededThread;
@@ -318,6 +319,8 @@ export interface InboxSurface {
   UNREAD_HOLDS?: number;
   /** When this read was asked, epoch ms: the bell judges a hold's kept notice only by a read that began after it. */
   readAt?: number;
+  /** The business's zone the threads' times were said in: a refresh says them again in it (surface.ts revivesFromCache). */
+  zone?: string;
   /**
    * Whether every open hold that waits on a person was read with its thread: the bell judges a hold's kept notice by the
    * threads only then, since a hold the read did not take would read as no longer waiting.
