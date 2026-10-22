@@ -144,11 +144,20 @@ const asksForPointer = (query) => /"name":"(hover|pointer|any-hover|any-pointer)
 
 /*
  * The exception, by name: a list's row a finger opens (the Inbox's, Conversations', Live's, People's, Leads' and the
- * Pipeline's, Messages', Today's queue, Settings' sections, People's lists). On a phone the row last opened stays lit
- * until the next tap, the list's selection, which a button's stuck fill is not (Ruben, 19 Oct 2026: "i do not see the
- * hover over select color we had before"; #1718 had held them to a pointer with every button).
+ * Pipeline's, Messages', Sequences', Today's queue, Settings' sections, People's lists). On a phone the row last opened
+ * stays lit until the next tap, the list's selection, which a button's stuck fill is not (Ruben, 19 Oct 2026: "i do not
+ * see the hover over select color we had before"; #1718 had held them to a pointer with every button).
  */
-const ROW_CLASSES = new Set(["ix-thread", "cv-row", "lm-row", "msg-row", "cl-attn-row", "set-nav-row", "cl-rail-row"]);
+const ROW_CLASSES = new Set([
+  "ix-thread",
+  "cv-row",
+  "lm-row",
+  "msg-row",
+  "sq-row",
+  "cl-attn-row",
+  "set-nav-row",
+  "cl-rail-row",
+]);
 const ROW_TABLES = new Set(["pl-table", "cl-table"]);
 const compoundsOf = (selector) => {
   let compound = [];
@@ -282,7 +291,7 @@ test("a list's row keeps its hover fill under a finger: the row last opened is t
         if (row && !guarded) under.set(row, true);
       }
     });
-  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "cl-table", "msg-row"])
+  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "cl-table", "msg-row", "sq-row"])
     assert.ok(
       under.get(row),
       `.${row}'s hover fill stands under @media (hover: hover), so a phone's tapped row is not lit`,

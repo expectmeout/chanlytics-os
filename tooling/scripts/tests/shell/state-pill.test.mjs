@@ -268,6 +268,9 @@ globalThis.React = {
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
+  // The list's rows take one ref, the kit's arrival and the list's window together (kit/motion/use-rows-arrive.ts): a
+  // callback, as the shared stub's (_legacy-react.mjs), so it reaches the stub and never the react-server module's own.
+  useCallback: (fn) => fn,
   useEffect: (fn) => {
     const k = frames.key();
     if (!(k in cells)) {

@@ -11,6 +11,9 @@
  * who and when (new.tsx, lane 6), the list keeping its search alone.
  * Opened from a lead (the lead sheet's hand-off), the head's way back names the lead and returns to it, across a record's
  * tabs; a new sequence to leads is a draft made by name where its leads are chosen, written on its record.
+ * On a phone a record opened from the list is pushed in over it as iOS pushes a page, as a thread is over the Inbox's and a
+ * person over People (Ruben, 22 Oct 2026: "like iphone imessage"), and the list is held where it was under it, so a
+ * thumb carrying the record back, or its Back, lands on the row it was opened from (kit/motion/held-list.ts).
  */
 import {
   CAMPAIGN_ROOMS,
@@ -25,10 +28,11 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
+import { useHeldList, type Arrival } from "../../kit/motion/held-list";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
-import { CmSplit, type CmView } from "../parts/split";
-import { SequencesList } from "./list";
+import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
+import { SequencesList, sequencesList } from "./list";
 import { NewSequence } from "./new/new-page";
 import { SequenceRecord } from "./record";
 import { SequenceRun } from "./run-pane";
@@ -84,9 +88,23 @@ function backWayOf(back: string | null) {
   return { label: (t && t.leadName) || SEQUENCE_WORDS.backToLeads, go: () => navigate(back) };
 }
 
+/**
+ * How a record comes in over the list it was opened from (kit/motion/held-list.ts): its pane once read, which a thumb
+ * carries back (record.tsx), worn as a thumb carrying it wears it (split.tsx cmGoing). A record still being read has
+ * no such pane yet, and comes in as it arrives (sequences.css, data-over).
+ */
+const RECORD_ARRIVES: Arrival = {
+  page: () => document.querySelector<HTMLElement>(".sq-page > .cm-pane.sq-record"),
+  going: cmGoing,
+};
+
 /** Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView). */
 export function SequencesPage({ route, view }: { route: string; view?: CmView }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
+  // On a phone a sequence open, its record or a run of it, is the screen: the list is held where it was under it, and put
+  // back there as it goes, by any Back; a record opened from it is pushed in over it. A desk keeps the list beside it.
+  const phone = useCmPhone();
+  const over = useHeldList(phone && place.view === "record", sequencesList, RECORD_ARRIVES);
   // Campaigns' first part (client/page-speed.ts, contracts PRIMARY_PART): Sequences' list, drawn with its rows, or with
   // what could not be read. Timed from the press, so the page's own chunk and its read are in it, not the gate's frame alone.
   const list = useSurface("sequences");
@@ -101,7 +119,7 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
     place.view === "record" && place.run ? (
       <SequenceRun sequenceId={place.id} runId={place.run} />
     ) : place.view === "record" ? (
-      <SequenceRecord id={place.id} tab={place.tab} />
+      <SequenceRecord id={place.id} tab={place.tab} over={over} />
     ) : place.view === "new" ? (
       // A door's moment opens its own New, so the line it wrote in is never another moment's.
       <NewSequence
