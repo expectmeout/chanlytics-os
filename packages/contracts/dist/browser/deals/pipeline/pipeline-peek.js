@@ -2,7 +2,6 @@ import { isIdentifierName, shortName } from "../../conversations/thread-contact.
 import { dealIsOpen } from "../deal-vm.js";
 import { DEAL_STAGE_WORDS } from "../deal-words.js";
 import { clockDate } from "../../shared/clock.js";
-import { EMAIL_CANT_REACH, EMAIL_STOPPED_LINE, repliesWords } from "../../people/person-reach.js";
 import { act, consultedService } from "../sheet/deal-acts.js";
 import { DEAL_CARD_WORDS, consultationStepOf, dealCardsOf } from "../sheet/deal-card.js";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words.js";
@@ -26,24 +25,6 @@ export function pipelinePeekOf(row, group, deals = null) {
     group,
     facts
   };
-}
-export function pipelinePeekDetail(p) {
-  const W = PIPELINE_WORDS.peek.reach;
-  const reach = [];
-  if (p.phone && !(p.consent && p.consent.dnc))
-    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
-  if (p.email)
-    reach.push({
-      id: "email",
-      label: W.email,
-      words: p.email,
-      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
-      copy: p.email
-    });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
-  if (replies && !(p.email && replies === EMAIL_CANT_REACH))
-    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
-  return { reach };
 }
 function stepsOf(track, card, held) {
   const label = {
@@ -73,10 +54,9 @@ export function pipelineSheetOf(row, p, nowMs, tz) {
   const d = row.deal;
   const held = p ? consultationStepOf(p, nowMs, tz) : null;
   const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
-  const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
   const consulted = !d && p ? consultedService(p) : null;
   const sub = consulted ? `${DEAL_CARD_WORDS.consultation} \xB7 ${consulted}` : null;
-  const base = { sub, steps: stepsOf(row.track, card, held), others };
+  const base = { sub, steps: stepsOf(row.track, card, held) };
   if (card) {
     const asks = card.next?.id === "follow-up";
     const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };

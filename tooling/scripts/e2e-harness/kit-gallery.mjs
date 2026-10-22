@@ -508,6 +508,23 @@ const kitMarkSheet = () =>
   `<div class="rec-sheet-body">${KIT_ROWS}</div></section>`;
 
 /**
+ * The kit's Sheet whose mark and title open what it is of (`opens`: a deal sheet's person, to their page): the title's
+ * words a press named for where it goes, the tile the same press out of the tab order, both drawn as they are.
+ */
+const kitOpensSheet = () =>
+  `<button type="button" class="btn">Open the deal</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head" data-marked="true"><span class="sheet-mark">` +
+  `<button type="button" class="rec-sheet-opens" tabindex="-1" aria-hidden="true"><span class="face face-lg" aria-hidden="true">DW</span></button></span>` +
+  `<div class="rec-sheet-heading"><h2 class="rec-sheet-title">` +
+  `<button type="button" class="rec-sheet-opens" aria-label="Open Dana Whitfield's page">Dana Whitfield</button></h2>` +
+  `<p class="rec-sheet-sub">Growth plan · $797 a month</p></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div></section>`;
+
+/**
  * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
  * its end and no rule under it, over one pane of rows that carry their own name, which the body's column gives way under
  * the cap, and a foot that closes it (`footCloses`: its Cancel), where on a phone the corner's Close steps out of sight.
@@ -1895,6 +1912,28 @@ export const FAMILIES = [
           `</label><span class="rec-hint">Empty means no rule.</span></div>`,
       },
       {
+        id: "rec-seg-line",
+        html:
+          `<div class="rec-seg" role="radiogroup" aria-label="When" data-look="chips-sm" data-line="true">` +
+          ["Today", "Tomorrow", "Thu", "Fri", "Next week"]
+            .map(
+              (d) =>
+                `<button type="button" role="radio" class="rec-seg-btn" aria-checked="${d === "Fri"}" ` +
+                `tabindex="${d === "Fri" ? 0 : -1}">${d}</button>`,
+            )
+            .join("") +
+          `<button type="button" role="radio" class="rec-seg-btn" aria-checked="false" tabindex="-1" ` +
+          `aria-label="Pick a day">${icon("calendar", 16)}</button></div>`,
+      },
+      {
+        id: "rec-field-action",
+        html:
+          `<div class="rec-field"><label class="rec-field-label" for="gallery-say">Say it</label>` +
+          `<span class="rec-input-group rec-input-acts"><input type="text" class="rec-input" id="gallery-say" ` +
+          `placeholder="Prefers mornings; call them back Friday">` +
+          `<button type="button" class="btn btn-sm">Fill</button></span></div>`,
+      },
+      {
         id: "rec-field-wrong",
         html:
           `<div class="rec-field"><label><span class="rec-field-label">Website</span>` +
@@ -2505,6 +2544,7 @@ export const FAMILIES = [
     entries: [
       { id: "sheet-kit", stage: "sheet", html: kitSheet() },
       { id: "sheet-kit-mark", stage: "sheet", html: kitMarkSheet() },
+      { id: "sheet-kit-opens", stage: "sheet", html: kitOpensSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
       { id: "sheet-kit-rests", stage: "sheet", html: kitRestsSheet() },

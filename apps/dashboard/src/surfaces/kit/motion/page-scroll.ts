@@ -89,6 +89,16 @@ export function shownHeight(box: Element): number {
   return isDocumentScroller(box) ? document.documentElement.clientHeight : box.clientHeight;
 }
 
+/**
+ * The cut that keeps a copy of a page, fixed to the screen a moment with its foot at `bottom` (from the screen's top), off
+ * the point over the window's foot that Safari reads (tokens.css --foot-clear): the page leaving as the next arrives, a
+ * list shown under a page a thumb carries back. Safari paints a band under its bar for a box it reads there, and keeps it
+ * for as long as that box is drawn, wherever it stands since: a list put back in its page kept it there for good.
+ */
+export function clearOfFoot(bottom: number): string {
+  return `inset(0 0 max(0px, ${Math.round(bottom)}px - 100dvh + var(--foot-clear, 0px)) 0)`;
+}
+
 /** Where `el` stands from the top of what `box` scrolls, in pixels: its offset in the box's content. */
 export function offsetIn(box: Element, el: Element): number {
   const top = isDocumentScroller(box) ? 0 : box.getBoundingClientRect().top - box.clientTop;

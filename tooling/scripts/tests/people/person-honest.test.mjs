@@ -3514,7 +3514,9 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     const set = byTestId(tree, "person-deal-set-nextstep");
     assert.equal(textOf(set), S.setNext);
     press(set);
-    assert.deepEqual(asked.at(-1), { personId: "p1", dealId: "d1" });
+    // With the act the card leads with, which suggests the step (contracts stepSheetFor's lead): Edit, no link yet, so
+    // nothing is suggested here.
+    assert.deepEqual(asked.at(-1), { personId: "p1", dealId: "d1", lead: "edit" });
 
     // A viewer reads the step and acts on none of it.
     globalThis.window.__ME = { role: "viewer" };

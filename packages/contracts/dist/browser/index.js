@@ -155,9 +155,9 @@ export { dealFactsOf, pickCurrentDeal, dealIsOpen, proposalLinkOf, wholeDaysSinc
 export { heardSinceProposal, isYes, waitAfterDays, yesWaitWords, dealPaceWords, dealPaceOf, waitingOnProposal, proposalsWaiting, WAITING_AFTER_DAYS, PACE_AFTER_YESES, PACE_WINDOW_DAYS } from "./deals/deal-waits.js";
 export { isDealStage, isDealLostReason, isDealPer, DEAL_STAGES, DEAL_PERS, DEAL_SOURCES, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, DEAL_PER_WORDS, DEAL_LINE_NONE, DEAL_CLEARABLE, DEAL_ACT_WORDS, DEAL_REFUSALS } from "./deals/deal-words.js";
 export { yesWaits, medianWait, dealPaceFrom, SAME_SITTING_MS } from "./deals/pace.js";
-export { pipelineOf } from "./deals/pipeline/pipeline.js";
+export { pipelineOf, pipelineWorth } from "./deals/pipeline/pipeline.js";
 export { pipelineMove, pipelineSorted, pipelineCsv, PIPELINE_PHONE_SORTS, pipelinePassMany, pipelinePassDone, pipelineBoardMore, PIPELINE_SORTS, PIPELINE_PASS_MAX, PIPELINE_BOARD_CAP } from "./deals/pipeline/pipeline-board.js";
-export { pipelinePeekOf, pipelinePeekDetail, pipelineSheetOf } from "./deals/pipeline/pipeline-peek.js";
+export { pipelinePeekOf, pipelineSheetOf } from "./deals/pipeline/pipeline-peek.js";
 export { isPipelineView, pipelineViewLabel, pipelineRoute, parsePipelineRoute, pipelineRail, PIPELINE_RAIL_SERVICES } from "./deals/pipeline/pipeline-views.js";
 export { PIPELINE_GROUPS, pipelinePersonOf, pipelineRowId, pipelineRowNow } from "./deals/pipeline/pipeline-vm.js";
 export { PIPELINE_WORDS } from "./deals/pipeline/pipeline-words.js";

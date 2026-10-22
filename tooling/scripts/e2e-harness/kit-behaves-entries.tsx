@@ -230,6 +230,43 @@ function MenuKitCaption() {
 }
 
 /** The sheet with a mark: a business's tile before its name, the line under it muted. */
+/** The kit's Sheet whose mark and title open what it is of (`opens`: a deal sheet's person, to their page). */
+function SheetKitOpens() {
+  const [open, setOpen] = useState(false);
+  const [went, setWent] = useState(0);
+  const opens = { label: "Open Dana Whitfield's page", press: () => setWent((n) => n + 1) };
+  return (
+    <Figure id="sheet-kit-opens" about="the kit's Sheet, its mark and title a press to what it is of">
+      <Button data-testid="sheet-opens-open" onClick={() => setOpen(true)}>
+        Open the deal
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        mark={
+          <span className="face face-lg" aria-hidden="true">
+            DW
+          </span>
+        }
+        opens={opens}
+        title="Dana Whitfield"
+        sub={`Growth plan · $797 a month${went ? ` · opened ${went}` : ""}`}
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        testid="sheet-opens"
+      >
+        {SHEET_SERVICES.map(([name, long]) => (
+          <div key={name} className="rec-row" data-empty="false">
+            <span className="rec-row-key">{name}</span>
+            <div className="rec-row-val">
+              <span className="rec-row-value">{long}</span>
+            </div>
+          </div>
+        ))}
+      </Sheet>
+    </Figure>
+  );
+}
+
 function SheetKitMark() {
   const [open, setOpen] = useState(false);
   return (
@@ -1032,6 +1069,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
   { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
+  { id: "sheet-kit-opens", Draw: SheetKitOpens, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
