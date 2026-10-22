@@ -435,8 +435,15 @@
      page given this ground with a lighter fill, which left the frame's top and its own ground disagreeing. Measured
      from the screen's top, as every layer that paints the light is, so the top and the rows passing under it match.
      The pools lie on the paper over the frame's top and on the list's own ground under the rows (--surface-page-under),
-     so the head is lit as it always was. The dark side calms its pools to its own ground. */
-  --list-wash-at: calc(var(--frame-top-at, 0px) + var(--frame-top, 0px));
+     so the head is lit as it always was. The dark side calms its pools to its own ground.
+     ONE GROUND FOR EVERY PAGE: where the light gives way is one line on the screen, under the head the Inbox's lists
+     stand under (--list-wash-line), whatever head the page on the screen measures. It was that page's own head
+     (--frame-top), which differs page to page, and a thread measures none, since it draws its own: the wash ran from
+     the screen's top and put the light over its head out, and Back lit it again in the frame the list's head was
+     measured, as the thumb let go (Ruben, 22 Oct 2026: "when i open a thread and swipe back i see the background shift
+     in color"). */
+  --list-wash-line: 134px;
+  --list-wash-at: calc(var(--frame-top-at, 0px) + var(--list-wash-line));
   --surface-list-ground: oklch(0.993 0.002 275);
   --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 86%, transparent);
   --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 45%, transparent);

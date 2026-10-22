@@ -219,3 +219,98 @@ test("every box fixed at the top edge carries the paper whole", () => {
   // The band a carried page takes over the frame's top, drawn on the body (kit/motion/held-list.ts bandOver).
   assert.ok(carries(components.sheet, "held-band", COMPONENTS) >= 1, "the carried page's band carries the paper");
 });
+
+/** Every custom property a value reads, by name, however deep it is (in a calc, in a fallback). */
+function varsIn(value) {
+  const names = [];
+  const walk = (list) => {
+    for (const t of list ?? []) {
+      if (t.type === "var") {
+        names.push(t.value.name.ident);
+        walk(t.value.fallback);
+      } else if (t.type === "function") walk(t.value.arguments);
+    }
+  };
+  walk(value);
+  return names;
+}
+
+/** Every stylesheet of the app, parsed (the three read above as they were). */
+function allSheets() {
+  return fs
+    .readdirSync(path.join(ROOT, STYLES), { recursive: true })
+    .map(String)
+    .filter((f) => f.endsWith(".css"))
+    .map((f) => path.posix.join(STYLES, f.split(path.sep).join("/")))
+    .map((file) => ({
+      file,
+      sheet: (file === TOKENS ? tokens : file === MOBILE ? mobile : file === COMPONENTS ? components : parse(file))
+        .sheet,
+    }));
+}
+
+// One ground for every page (Ruben, 22 Oct 2026: "when i open a thread and swipe back i see the background shift in
+// color"): the light gave way under each page's own head as measured (--frame-top), which a thread has none of, so the
+// wash ran from the screen's top there and put out the light over its head, and Back lit it again as it landed.
+test("the light gives way at one line on the screen, whatever page stands on it", () => {
+  const props = customPropertiesOf(tokens.sheet);
+  const at = props.get("--list-wash-at") ?? [];
+  assert.ok(at.length > 0, "where the wash begins is declared");
+  for (const { tokens: value } of at) {
+    const read = varsIn(value);
+    assert.ok(read.includes("--list-wash-line"), "the wash begins at the one line");
+    assert.ok(!read.includes("--frame-top"), "never at the head the page on the screen measures");
+  }
+  const lines = props.get("--list-wash-line") ?? [];
+  assert.ok(lines.length > 0, "the line is declared");
+  for (const { tokens: value } of lines)
+    assert.deepEqual(
+      value.map((t) => t.type),
+      ["length"],
+      "the line is a length, no measure of a page",
+    );
+  for (const { file, sheet } of allSheets()) {
+    if (file === TOKENS || !sheet) continue;
+    const own = customPropertiesOf(sheet);
+    for (const name of ["--list-wash-at", "--list-wash-line"])
+      assert.equal(
+        (own.get(name) ?? []).length,
+        0,
+        `${file} declares ${name}: a page with its own line draws its own ground`,
+      );
+  }
+});
+
+test("every layer that paints the page's ground lays it a screen wide and a screen tall", () => {
+  const isScreen = (d) =>
+    d.property === "background-size" &&
+    d.value.length === 1 &&
+    d.value[0].type === "explicit" &&
+    d.value[0].width.value?.value?.unit === "vw" &&
+    d.value[0].width.value.value.value === 100 &&
+    d.value[0].height.value?.value?.unit === "dvh" &&
+    d.value[0].height.value.value.value === 100;
+  let painters = 0;
+  for (const { file, sheet } of allSheets()) {
+    if (!sheet) continue;
+    for (const rule of styleRules(sheet)) {
+      const decls = rule.declarations?.declarations ?? [];
+      // The whole ground is the stack that ends on what lies under the pools: the window's layer of light and each of
+      // its copies (the frame's top, a carried page, the band over the top, the Calendar's bar).
+      const paints = decls.some(
+        (d) =>
+          d.property === "unparsed" &&
+          d.value.propertyId.property === "background-image" &&
+          varsIn(d.value.value).includes("--surface-page-under"),
+      );
+      if (!paints) continue;
+      painters += 1;
+      const sizes = decls.filter((d) => d.property === "background-size");
+      assert.ok(
+        sizes.length > 0 && isScreen(sizes.at(-1)),
+        `${file} paints the ground without laying it 100vw by 100dvh: one picture, wherever it is drawn`,
+      );
+    }
+  }
+  assert.ok(painters >= 6, `every painter of the ground is found (${painters})`);
+});

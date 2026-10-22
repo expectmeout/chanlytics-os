@@ -883,6 +883,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .app-root {
     background: transparent;
   }
+  /* Laid a screen wide and a screen tall from the window's top, as every copy of it is (the frame's top, a carried page,
+     the band over the top, the Calendar's bar): one picture, wherever it is drawn. */
   .pg-light {
     display: block;
     position: fixed;
@@ -891,6 +893,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     pointer-events: none;
     background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
     background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
   }
   .pg-light > span {
     display: none;
