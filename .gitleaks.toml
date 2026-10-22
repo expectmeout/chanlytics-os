@@ -26,6 +26,10 @@
 #   sixteen letters, a line after "organizationLinkedinUrl", which is the shape
 #   of the linkedin-client-secret rule (a 16-character token near the word). A
 #   field name, not a credential (#1593, 14 Oct 2026).
+# - What Ask may never remember (decision 0070): a test proves a line that holds
+#   a key is refused by its shape, so it plants a made-up Stripe secret key
+#   (tooling/scripts/tests/ask/remembers/what-ask-keeps.test.mjs). The scan read
+#   it as real on #1792 (22 Oct 2026).
 
 [extend]
 useDefault = true
@@ -36,6 +40,7 @@ regexes = [
   '''Abcdefghij12kl''',
   '''ChIJN1t_tDeuEmsRUsoyG83frY4''',
   '''sk_live_51NabcDEFghijkLMNop''',
+  '''sk_live_51Habcdefghijklmnopqrstu''',
   '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1c2VyLTEifQ\.c2lnbmF0dXJlLXBsYW50ZWQ''',
   '''sk-ts-live-Zk9xQ2mV7rT4nB8wL1pC6hD3fG5j''',
   '''^organizationCity$''',
