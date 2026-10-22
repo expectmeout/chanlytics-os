@@ -40,7 +40,7 @@ import { dealSheetCode } from "./pipeline/peek-code";
 import { peekPerson, profileCode, warmPerson } from "./people-detail";
 import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { FailedRead } from "../kit/empty/empty";
-import { carriedOver, pushesOver, useHeldList, type Arrival } from "../kit/motion/held-list";
+import { PUSH_WAIT_MS, carriedOver, pushesOver, useHeldList, type Arrival } from "../kit/motion/held-list";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -188,8 +188,6 @@ const PERSON_ARRIVES: Arrival = {
   going: carriedOver,
 };
 
-/** How long a press on a phone waits for a person the tab has not read, so the page pushed in over the list is theirs. */
-const PUSH_WAIT_MS = 300;
 /** Presses on a person, counted: the one waiting is the last, and a later one takes its place. */
 let presses = 0;
 

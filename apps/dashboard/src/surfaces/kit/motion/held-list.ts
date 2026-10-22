@@ -179,8 +179,14 @@ const cancelIdle = (id: number): void => {
 const pushesOverBox = (scroller: HTMLElement): boolean => isDocumentScroller(scroller) && !motionReduced();
 
 /**
+ * How long a press on a phone waits for a row's page the tab has not read, where it would be pushed in (pushesOver), so
+ * the page the push takes is drawn whole: a person (people-route.tsx openPerson), a sequence (campaigns' list.tsx).
+ */
+export const PUSH_WAIT_MS = 300;
+
+/**
  * Whether a row's page opened from `list` now would be pushed in over it (holdList): what a press may wait for, so the
- * page is drawn whole as the push takes it (people-route.tsx openPerson).
+ * page is drawn whole as the push takes it (people-route.tsx openPerson, campaigns' list.tsx openRecord).
  */
 export function pushesOver(list: HTMLElement | null): boolean {
   const place = list ? listPlace(list) : null;

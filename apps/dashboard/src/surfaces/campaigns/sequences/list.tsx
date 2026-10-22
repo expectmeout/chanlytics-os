@@ -30,7 +30,7 @@ import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { ListRow } from "../../kit/list-row/list-row";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { pushesOver } from "../../kit/motion/held-list";
+import { PUSH_WAIT_MS, pushesOver } from "../../kit/motion/held-list";
 import { Search } from "../../kit/search/search";
 import { StatePill } from "../../kit/pill/state-pill";
 import { navigate, routeDoor } from "../../legacy-verbs";
@@ -55,8 +55,6 @@ interface SequencesListProps {
 /** The list's pane as it stands on the screen: what a record opened from it is pushed in over (sequences-page.tsx). */
 export const sequencesList = () => document.querySelector<HTMLElement>(".sq-page > .cm-list");
 
-/** How long a press on a phone waits for a sequence the tab has not read, so the record pushed in over the list is its own. */
-const PUSH_WAIT_MS = 300;
 /** Presses on a sequence, counted: the one waiting is the last, and a later one takes its place. */
 let presses = 0;
 
