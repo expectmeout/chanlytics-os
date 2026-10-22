@@ -65,6 +65,8 @@ import { warmSequenceRoute } from "@/surfaces/campaigns/sequences/verbs";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride, readRunsSoon } from "@/surfaces/calendar/runs-surface";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
+import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
+import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -259,6 +261,9 @@ const SURFACES = [
   calendarRunsOverride,
   // The counts of the lists pinned to Today, read where Today draws them (surfaces/today/pins-surface.ts; R10).
   todayPinsOverride,
+  // Ask's morning, read where Today draws Ask for you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
+  askMorningOverride,
+  askMemoryOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,

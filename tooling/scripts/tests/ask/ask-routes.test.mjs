@@ -53,6 +53,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const T1 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 const T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
 const T3 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd3";
+const PAST_MORNING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd4";
 const M1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const USER = "u1";
 const membership = (tenant_id, role, slug, created_at) => ({
@@ -753,6 +754,21 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
     409,
     "That card was already approved.",
   );
+  // An approved card is only undone after: a Not now or a failure from a page that drew it before (another tab, Today's
+  // morning read a while ago) would hide what was sent and lose its Undo (decision 0070).
+  for (const state of ["dismissed", "failed"])
+    await refused(
+      proposals.POST.run(send("POST", { state, receipt: "Not now", atMs: 0 }), ctxFor(tables, { id: M1, pid: "p-1" })),
+      "conflict",
+      409,
+      "That card was already approved.",
+    );
+  assert.equal(tables.ask_messages[0].content.proposals[0].outcome.state, "done", "still what was done");
+  const undone = await proposals.POST.run(
+    send("POST", { state: "undone", receipt: "Undone", atMs: 0 }),
+    ctxFor(tables, { id: M1, pid: "p-1" }),
+  );
+  assert.equal(undone.proposal.outcome.state, "undone", "and its Undo is kept");
 });
 
 test("a card's outcome keeps what its commit made, so a plan's made is read back after a reload; an outcome that says none, as every one before did, is kept as having made nothing", async () => {
@@ -800,6 +816,12 @@ test("the openings and the threads answer the workspace the tab named; one threa
       threadRow(T1, A, { last_at: "2026-09-09T00:00:00Z" }),
       threadRow(T2, A, { last_at: "2026-09-10T00:00:00Z", title: "Newer" }),
       threadRow(T3, B),
+      // A morning past its day (decision 0070), touched last: the rail leaves it out, and today's keeps its place.
+      threadRow(PAST_MORNING, A, {
+        last_at: "2026-09-11T00:00:00Z",
+        title: "Tuesday, September 8",
+        ask_mornings: [{ made_at: "2026-09-08T12:00:00Z" }],
+      }),
     ],
     ask_messages: [turn(M1, T1, A, "user", { text: "Who booked this week?" })],
   };

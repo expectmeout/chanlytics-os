@@ -1,4 +1,4 @@
-import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS, type DecisionVerb } from "../shared/enums";
+import { EVENT_KINDS, type DecisionVerb } from "../shared/enums";
 import { reasonShort } from "../conversations/escalations";
 import { bookingToolName } from "../calendar/booking-notice";
 import { LEAD_ENDING_WORDS } from "../leads/search/endings";
@@ -47,7 +47,7 @@ export interface ActivityRowDto {
   text: string;
   /**
    * The family its emitter filed an event under (events.category: billing, contact, lead, ...), as it was written;
-   * null for a decision, which has none. What says a row is about money (isActivityMoney).
+   * null for a decision, which has none. What says a row is about money (activity-rows.ts isActivityMoney).
    */
   category: string | null;
 }
@@ -89,39 +89,6 @@ export interface ActivityPageDto {
   /** The kinds the page may filter by, both ledgers', for the picker. */
   kinds: string[];
 }
-
-/** Ledger families that are evidence rather than activity: hidden unless asked for by name. */
-export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as const;
-
-/**
- * Kinds, one by one, that are a record kept for Reports and that no owner reads as activity: hidden unless asked for by
- * name. Each is named, never its family, so an owner-facing kind added under the same prefix later (an `escalation.` one)
- * is shown and not hidden with them.
- */
-export const ACTIVITY_NOISE_KINDS = [
-  "escalation.changed",
-  "lead.set_aside",
-  // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
-  "lead.later",
-  // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
-  "lead.ideas_written",
-  "call.transferred",
-  "booking_link.sent",
-  "channel.quality_rating",
-  // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
-  "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
-  "appointment.changed",
-] as const;
-
-/**
- * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
- * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
- * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
- * own category, which every emitter writes beside the kind, so a money kind added later is money here without a list
- * to keep; a decision carries none. Ask leaves these out (the charter: anything about money), and the page shows them.
- */
-export const isActivityMoney = (row: Pick<ActivityRowDto, "category">): boolean => row.category === "billing";
 
 const WORDS: Record<string, string> = {
   // decisions
@@ -318,6 +285,11 @@ const WORDS: Record<string, string> = {
   "settings.fact_suggested": "The receptionist suggested a note from your correction",
   "settings.fact_kept": "A note from a correction was kept",
   "settings.fact_dismissed": "A note from a correction was dismissed",
+  "ask.memory_kept": "Ask kept something to remember",
+  "ask.memory_changed": "Something Ask remembers was changed",
+  "ask.memory_forgotten": "Something Ask remembered was forgotten",
+  "ask.journal_written": "Ask wrote its journal",
+  "ask.morning_claimed": "Ask looked at the day",
   "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed",
   "billing.paused": "Billing paused the workspace",
@@ -780,21 +752,6 @@ export function activityWords(kind: string, payload: unknown): string {
       break;
   }
   return bits.length ? `${base} · ${bits.join(" · ")}` : base;
-}
-
-/** Every kind either ledger may hold, for the picker: the verbs, the event kinds, and Meta's own news of the account. */
-export const ACTIVITY_KINDS: readonly string[] = [
-  ...DECISION_VERBS,
-  ...EVENT_KINDS,
-  ...WABA_FIELDS.map((field) => `channel.${field}`),
-];
-
-/** true for a kind an owner is not shown unless they ask for it by name. */
-export function isActivityNoise(kind: string): boolean {
-  return (
-    ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) ||
-    (ACTIVITY_NOISE_KINDS as readonly string[]).includes(kind)
-  );
 }
 
 export type { DecisionVerb as ActivityVerb };

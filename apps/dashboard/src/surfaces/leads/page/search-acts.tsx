@@ -19,6 +19,7 @@ import type { FinderMore, FinderSet, FinderState } from "../finder/types";
 import type { LeadRail } from "../scope/rail";
 import {
   moreForSearch,
+  newSuggestions,
   removeRoundLeads,
   removeSearch,
   renameSearch,
@@ -64,6 +65,7 @@ export const leadFinderActs = ({
   openFinder,
   closeFinder,
   setFinder,
+  openFindPeople,
 }: {
   leadView: LeadView;
   nav: LeadsNav;
@@ -72,6 +74,8 @@ export const leadFinderActs = ({
   openFinder: (card: Partial<FinderState>) => void;
   closeFinder: () => void;
   setFinder: (fields: Partial<FinderState>) => void;
+  /** Find people, filled in with a people idea's plan (decision 0070): the people card's own sheet. */
+  openFindPeople?: (from?: LeadPeoplePlan | null) => void;
 }) => {
   // What leadAnswerPlan and leadFinderApprove take: a setter for each field, the panel's one close (closeFinder, which
   // lets go of `more` as it shuts), and `more`, which says whose round an approval belongs to when the plan was opened
@@ -119,6 +123,8 @@ export const leadFinderActs = ({
   // what I asked is Ask, with the plan in words. One kept from before ideas were plans opens Ask with its words.
   const openIdea = (idea: LeadIdeaDto, left: number | null) => {
     const words = idea.ask || idea.words;
+    // A people idea (decision 0070, option B) opens the people sheet filled in with its plan, as Search again does.
+    if (idea.people && openFindPeople) return openFindPeople(idea.people);
     if (!idea.plan) return openFind(words);
     const count = left && left < idea.plan.count ? left : idea.plan.count;
     // The plan says it came from an idea (plan.from): the ideas' own measure of whether they are followed.
@@ -238,17 +244,12 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     // The saved line clears the ideas on the server; read the new ones now, not at the next cold read.
     void readSuggestions();
   };
-  // New ideas from the same line (00399): the line saved again clears the ideas on the server, as a changed line does,
-  // and the read that follows writes others. The line is the one the page shows, so nothing of the owner's changes.
+  // New ideas from the same line (decision 0070): the ideas shown are passed on and four others written now, so a
+  // press is never the same four again. Nothing of the owner's line changes.
   const newIdeas = async () => {
-    const line = leads.suggestions ? leads.suggestions.business_line.trim() : "";
-    if (!line) return;
-    const r = await setBusinessLine(line);
-    if (!r.ok) {
-      plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
-      return;
-    }
-    void readSuggestions();
+    if (!leads.suggestions) return;
+    const r = await newSuggestions();
+    if (!r.ok) plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
   };
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).
   const findNewOnes = (s: RailSearch) => {

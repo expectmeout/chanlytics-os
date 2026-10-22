@@ -1115,6 +1115,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
       ["people", ["search", "get", "lists", "winners", "pipeline"]],
+      ["recall", []],
       ["report", []],
       ["sequences", ["list", "sequence", "moments", "lists", "messages", "sent", "batch", "journey", "cold_emails"]],
       ["signals", []],
@@ -1471,6 +1472,9 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     review_reply_stop: "approve",
     follow_up: "approve",
     answer_style: "approve",
+    memory: "approve",
+    memory_change: "settings",
+    memory_forget: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1524,6 +1528,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ],
       ["propose_settings", ["change", "answers", "autonomy", "goal", "answer_style"]],
       ["propose_thread_verb", []],
+      // A fact the person tells Ask to keep (decision 0070).
+      ["remember", []],
     ],
   );
   // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.

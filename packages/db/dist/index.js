@@ -477,7 +477,7 @@ var ERASURE_LEGS = {
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00440)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
-  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
+  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238), and the lines Ask remembers and the days of its journal that name them (00470)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
@@ -501,6 +501,10 @@ var ERASURE_STRATEGIES = {
     error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer")
   },
+  // What Ask remembers (00470, decision 0070): a line a member told it, and a day of its journal, which may name a customer
+  // as the team does; one that names them goes with their turns. Where each came from is a closed set.
+  ask_journal_days: { text: scrubbedBy("ask_scrub") },
+  ask_memory_lines: { text: scrubbedBy("ask_scrub") },
   ask_messages: { content: scrubbedBy("ask_scrub") },
   // A thread that one of their turns makes theirs, or whose title or scope holds their id, number or address, is
   // cleared, and removed once empty (00238). A title that names them by name alone stays, as 0036 leaves names; purge_ask
@@ -4537,6 +4541,19 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function askCardsTold(db, p) {
+  const { error } = await db.from("notifications").insert({
+    tenant_id: p.tenantId,
+    kind: "ask_cards",
+    title: p.title.slice(0, 200),
+    body: p.body.slice(0, 4e3),
+    route: "today",
+    subject_type: "ask_thread",
+    subject_id: p.threadId,
+    recipient_user_id: p.userId
+  });
+  if (error) throw new Error(`cannot tell the member their morning: ${error.message}`);
+}
 async function noticeFor(db, p) {
   const base = db.from("notifications").select("id, kind, mail_due_at").eq("tenant_id", p.tenantId);
   const found = p.sourceEvent ? await base.eq("source_event", p.sourceEvent).limit(1) : p.subjectType && p.subjectId && p.title ? await base.eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).eq("title", p.title).not("mail_due_at", "is", null).order("created_at", { ascending: false }).limit(1) : null;
@@ -6465,6 +6482,9 @@ async function failIdeas(db, tenantId, claim) {
 async function saveIdeasLine(db, tenantId, line) {
   await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
 }
+async function againIdeas(db, tenantId) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "again" });
+}
 async function ideasClockAndLanguage(db, tenantId) {
   const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`tenants: ${error.message}`);
@@ -7289,6 +7309,165 @@ async function heldDraftsByIntent(db, tenantId, days) {
     person_first: r.person_first ?? 0
   }));
 }
+
+// src/repositories/ask/memory.ts
+var memorySource = (v) => v === "pane" ? "pane" : "ask";
+async function askMemoryLines(db, tenantId, limit) {
+  const { data, error } = await db.from("ask_memory_lines").select("id, text, source, made_at, updated_at, kept_by, thread_id").eq("tenant_id", tenantId).is("forgotten_at", null).order("made_at", { ascending: false }).order("id", { ascending: false }).limit(limit);
+  if (error) throw new Error(`ask_memory_lines: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    text: r.text,
+    source: memorySource(r.source),
+    made_at: r.made_at,
+    updated_at: r.updated_at,
+    kept_by: r.kept_by ?? null,
+    thread_id: r.thread_id ?? null
+  }));
+}
+async function askJournalDays(db, tenantId, limit) {
+  const { data, error } = await db.from("ask_journal_days").select("day, text").eq("tenant_id", tenantId).eq("state", "written").order("day", { ascending: false }).limit(limit);
+  if (error) throw new Error(`ask_journal_days: ${error.message}`);
+  return (data ?? []).flatMap((r) => r.text ? [{ day: r.day, text: r.text }] : []);
+}
+function doorAnswer(fn, data) {
+  const d = data && typeof data === "object" ? data : {};
+  if (typeof d.error === "string") return { refused: d.error };
+  const m = d.memory && typeof d.memory === "object" ? d.memory : {};
+  if (typeof m.id !== "string") throw new Error(`${fn}: answered no line`);
+  return { id: m.id, text: typeof m.text === "string" ? m.text : "", again: d.again === true };
+}
+async function keepAskMemory(db, p) {
+  const { data, error } = await db.rpc("ask_memory_write", {
+    p_tenant_id: p.tenantId,
+    p_act: "keep",
+    p_text: p.text,
+    p_source: p.source,
+    ...p.threadId ? { p_thread_id: p.threadId } : {}
+  });
+  if (error) throw error;
+  return doorAnswer("ask_memory_write keep", data);
+}
+async function changeAskMemory(db, p) {
+  const { data, error } = await db.rpc("ask_memory_write", {
+    p_tenant_id: p.tenantId,
+    p_act: "change",
+    p_id: p.id,
+    p_text: p.text
+  });
+  if (error) throw error;
+  return doorAnswer("ask_memory_write change", data);
+}
+async function forgetAskMemory(db, p) {
+  const { data, error } = await db.rpc("ask_memory_write", { p_tenant_id: p.tenantId, p_act: "forget", p_id: p.id });
+  if (error) throw error;
+  const answer2 = doorAnswer("ask_memory_write forget", data);
+  if ("refused" in answer2) throw new Error(`ask_memory_write forget: ${answer2.refused}`);
+  return answer2;
+}
+async function searchAsk(db, tenantId, words, limit) {
+  const { data, error } = await db.rpc("search_ask", { p_tenant: tenantId, p_words: words, p_limit: limit });
+  if (error) throw new Error(`search_ask: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => r.kind === "turn" || r.kind === "memory" || r.kind === "journal" ? [{ kind: r.kind, id: r.id ?? null, thread_id: r.thread_id ?? null, at: r.at, snippet: r.snippet ?? "" }] : []
+  );
+}
+
+// src/repositories/ask/journal.ts
+import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES } from "../../contracts/dist/index.js";
+async function askJournalDue(db, limit) {
+  const { data, error } = await db.rpc("ask_journal_write", { p_act: "due", p_limit: limit });
+  if (error) throw new Error(`ask_journal_write due: ${error.message}`);
+  const days = (data && typeof data === "object" && !Array.isArray(data) ? data.days : null) ?? [];
+  if (!Array.isArray(days)) return [];
+  return days.flatMap((d) => {
+    const r = d && typeof d === "object" && !Array.isArray(d) ? d : {};
+    const text2 = (k) => {
+      const v = r[k];
+      return typeof v === "string" ? v : "";
+    };
+    return text2("tenant_id") && text2("day") ? [
+      {
+        tenant_id: text2("tenant_id"),
+        day: text2("day"),
+        day_from: text2("day_from"),
+        day_to: text2("day_to"),
+        timezone: text2("timezone") || "UTC",
+        locale: text2("locale") || "en"
+      }
+    ] : [];
+  });
+}
+async function askJournalDayRows(db, p) {
+  let events = db.from("events").select("id, kind, category, subject_type, subject_id, data, created_at").eq("tenant_id", p.tenantId).gte("created_at", p.from).lt("created_at", p.to);
+  for (const prefix of ACTIVITY_NOISE_PREFIXES) events = events.not("kind", "like", `${prefix}%`);
+  for (const kind of ACTIVITY_NOISE_KINDS) events = events.neq("kind", kind);
+  const [d, e] = await Promise.all([
+    db.from("decisions").select("id, verb, subject_type, subject_id, actor_type, actor_user_id, payload, created_at").eq("tenant_id", p.tenantId).gte("created_at", p.from).lt("created_at", p.to).order("created_at", { ascending: false }).limit(p.limit),
+    events.order("created_at", { ascending: false }).limit(p.limit)
+  ]);
+  if (d.error) throw new Error(`decisions: ${d.error.message}`);
+  if (e.error) throw new Error(`events: ${e.error.message}`);
+  return { decisions: d.data ?? [], events: e.data ?? [] };
+}
+async function journalMemberNames(db, userIds) {
+  if (!userIds.length) return {};
+  const { data, error } = await db.from("profiles").select("user_id, display_name").in("user_id", [...userIds]);
+  if (error) throw new Error(`profiles: ${error.message}`);
+  const out = {};
+  for (const r of data ?? []) if (r.display_name?.trim()) out[r.user_id] = r.display_name.trim();
+  return out;
+}
+async function keepAskJournal(db, p) {
+  const { data, error } = await db.rpc("ask_journal_write", {
+    p_act: "keep",
+    p_tenant_id: p.tenantId,
+    p_day: p.day,
+    p_text: p.failed ? "" : p.text ?? "",
+    p_rows_read: p.failed ? -1 : p.rowsRead
+  });
+  if (error) throw new Error(`ask_journal_write keep: ${error.message}`);
+  const refused = data?.error;
+  return { refused: typeof refused === "string" ? refused : null };
+}
+
+// src/repositories/ask/mornings.ts
+async function askMorningWrite(db, tenantId, day, a) {
+  const { data, error } = await db.rpc("ask_morning_write", {
+    p_tenant_id: tenantId,
+    p_day: day,
+    p_act: a.act,
+    ...a.act === "thread" ? { p_thread_id: a.threadId } : {},
+    ...a.act === "answered" ? { p_cards: a.cards } : {}
+  });
+  if (error) throw new Error(`ask_morning_write: ${error.message}`);
+  const d = data && typeof data === "object" ? data : {};
+  if (typeof d.error === "string") return { refused: d.error };
+  return {
+    ...typeof d.claimed === "boolean" ? { claimed: d.claimed } : {},
+    ..."thread_id" in d ? { thread_id: typeof d.thread_id === "string" ? d.thread_id : null } : {},
+    ..."cards" in d ? { cards: typeof d.cards === "number" ? d.cards : null } : {},
+    ...typeof d.named === "boolean" ? { named: d.named } : {},
+    ...typeof d.recorded === "boolean" ? { recorded: d.recorded } : {}
+  };
+}
+async function askMorningOf(db, tenantId, userId, day) {
+  const { data, error } = await db.from("ask_mornings").select("thread_id, cards, made_at").eq("tenant_id", tenantId).eq("user_id", userId).eq("day", day).maybeSingle();
+  if (error) throw new Error(`ask_mornings: ${error.message}`);
+  return data ? { thread_id: data.thread_id ?? null, cards: data.cards ?? null, made_at: data.made_at } : null;
+}
+async function askFirstAnswer(db, threadId) {
+  const { data, error } = await db.from("ask_messages").select("id, created_at, answer:content->answer, proposals:content->proposals, failed:content->failed").eq("thread_id", threadId).eq("role", "assistant").order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error(`ask_messages: ${error.message}`);
+  if (!data) return null;
+  return {
+    id: data.id,
+    created_at: data.created_at,
+    answer: data.answer ?? null,
+    proposals: data.proposals ?? null,
+    failed: data.failed === true
+  };
+}
 export {
   AnswerNotKept,
   CALL_CONTROL_S,
@@ -7313,6 +7492,7 @@ export {
   addToWaitlist,
   addressesSuppressed,
   adoptPersonName,
+  againIdeas,
   aiFailuresHour,
   aimSearchAt,
   answerBookingRequest,
@@ -7333,6 +7513,14 @@ export {
   approveBroadcast,
   archiveConversation,
   archiveList,
+  askCardsTold,
+  askFirstAnswer,
+  askJournalDayRows,
+  askJournalDays,
+  askJournalDue,
+  askMemoryLines,
+  askMorningOf,
+  askMorningWrite,
   assembleBroadcast,
   assembleHistory,
   becomePartner,
@@ -7349,6 +7537,7 @@ export {
   cancelBroadcastFrom,
   cancelSequenceBatch,
   chainDraftLoad,
+  changeAskMemory,
   claimCallActivity,
   claimCallNotification,
   claimControl,
@@ -7433,6 +7622,7 @@ export {
   followUpTouchesSince,
   followUpsDue,
   forgetActivityTokens,
+  forgetAskMemory,
   forgetEveryPhone,
   forgetNotification,
   forwardingVerified,
@@ -7485,7 +7675,10 @@ export {
   isMissingDoor,
   isWorkspaceCall,
   joinPersonToLead,
+  journalMemberNames,
   keepAppointmentNotice,
+  keepAskJournal,
+  keepAskMemory,
   keepChannelQuality,
   keepChannelStanding,
   keepClientError,
@@ -7746,6 +7939,7 @@ export {
   scrubModelTurns,
   scrubPersonNotes,
   scrubProviderEvents,
+  searchAsk,
   searchMessages,
   searchesByIds,
   seePersonNote,

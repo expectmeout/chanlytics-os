@@ -9,6 +9,7 @@ import {
   type AskScope,
   type AskThreadVM,
   type AskTurnShape,
+  DAY_MS,
   citationRoute,
   storedAnswer,
   v1FromAnswer,
@@ -82,11 +83,19 @@ export function toMessageVM(r: MessageRow): AskMessageVM {
   };
 }
 
+/**
+ * The caller's threads in the workspace, newest first. A morning's thread (decision 0070) is on the list for the day it
+ * was made, and left out once a day has passed, so the mornings never push the member's own conversations off it: the
+ * thread's morning, read beside it only where it was made before then, must be none (an anti-join the database does,
+ * so a year of mornings is left out as surely as one).
+ */
 export async function listThreads(ctx: RouteContext, tenantId: string): Promise<AskThreadVM[]> {
   const { data, error } = await ctx.supabase
     .from("ask_threads")
-    .select("id, title, scope, last_at, created_at")
+    .select("id, title, scope, last_at, created_at, ask_mornings(made_at)")
     .eq("tenant_id", tenantId)
+    .lt("ask_mornings.made_at", new Date(Date.now() - DAY_MS).toISOString())
+    .is("ask_mornings", null)
     .order("last_at", { ascending: false })
     .limit(THREADS_CAP);
   if (error) throw new Error(error.message);
@@ -284,7 +293,9 @@ export async function setProposalOutcome(
   const idx = proposals.findIndex((p) => p.id === proposalId);
   if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
   const current = proposals[idx].outcome;
-  if (current && current.state === "done" && outcome.state === "done") {
+  // An approved card is approved once, and after it only undone: a Not now or a failure sent by a page that drew the card
+  // before it was approved (another tab, Today's morning read a while ago) would hide what was done and lose its Undo.
+  if (current && current.state === "done" && outcome.state !== "undone") {
     throw new AppError("conflict", "That card was already approved.", 409);
   }
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));

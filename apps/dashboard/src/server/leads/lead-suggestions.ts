@@ -8,8 +8,13 @@
  * business line, or a month passes; two reads at once write them once (lead_suggestions_claim), and what a read wrote
  * is kept only while its claim stands (lead_suggestions_keep: a line saved meanwhile wins). A model that would not
  * answer is not asked again for a few minutes (failed_at). An idea offered before and not started is passed on
- * (lead_suggestions.passed), and not offered again once it has been offered twice. A member who may not find reads
- * what was written and asks for nothing.
+ * (lead_suggestions.passed), and not offered again. A member who may not find reads what was written and asks for
+ * nothing.
+ *
+ * Since decision 0070 (option B) the model reads the whole of what the workspace says of itself (its services, notes
+ * and website) and what the team told Ask (its memory), decides who buys, and writes four ideas across both finder
+ * cards and anywhere in the US, at medium effort; and New ideas is its own act (again): the same line, with what was
+ * shown passed on, so each press is four new ideas.
  */
 import {
   AppError,
@@ -31,6 +36,7 @@ import {
   leadMonth,
   leadReachLine,
   MODEL_ROUTES,
+  type IdeaAbout,
   type IdeaHistory,
   type IdeaLanguage,
   type IdeaPassed,
@@ -39,6 +45,8 @@ import {
   type LeadSuggestionsDto,
 } from "@chanlytics/contracts";
 import {
+  againIdeas,
+  askMemoryLines,
   claimIdeas,
   failIdeas,
   ideasBasis,
@@ -84,6 +92,8 @@ interface IdeaStore {
   history: (tenantId: string) => Promise<unknown>;
   /** The owner's own line, saved with no ideas: unconditional, since it is the owner's word over any write in flight. */
   saveLine: (tenantId: string, line: string) => Promise<void>;
+  /** New ideas from the same line: what was shown kept to be passed on, and the next write due at once. */
+  again: (tenantId: string) => Promise<void>;
 }
 
 const SERVICE_STORE: IdeaStore = {
@@ -92,6 +102,7 @@ const SERVICE_STORE: IdeaStore = {
   fail: (tenantId, claim) => failIdeas(serviceDb(), tenantId, claim),
   history: (tenantId) => readIdeaHistory(serviceDb(), tenantId),
   saveLine: (tenantId, line) => saveIdeasLine(serviceDb(), tenantId, line),
+  again: (tenantId) => againIdeas(serviceDb(), tenantId),
 };
 /** A test's store: the claim always granted, every keep kept, a failure kept nowhere, and no search found. */
 const TEST_STORE: IdeaStore = {
@@ -100,6 +111,7 @@ const TEST_STORE: IdeaStore = {
   fail: () => Promise.resolve(),
   history: () => Promise.resolve({}),
   saveLine: () => Promise.resolve(),
+  again: () => Promise.resolve(),
 };
 let ideaStore: IdeaStore = SERVICE_STORE;
 
@@ -156,9 +168,14 @@ const stands = (kept: SuggestionRow, items: LeadIdeaDto[], basis: string): boole
   kept.basis === basis &&
   Date.now() - Date.parse(kept.made_at) < LEAD_SUGGEST_DAYS * DAY_MS;
 
-/** Each idea gains how reachable its kind has been, from what past searches measured, and the counts behind it. */
+/**
+ * Each places idea gains how reachable its kind has been, from what past searches measured, and the counts behind it. A
+ * people idea has none: the prior is the places card's.
+ */
 async function withReach(ctx: Pick<RouteContext, "supabase">, items: LeadIdeaDto[]): Promise<LeadIdeaDto[]> {
-  const priors = await Promise.all(items.map((i) => nichePrior(ctx, i.category_key).catch(() => null)));
+  const priors = await Promise.all(
+    items.map((i) => (i.people ? Promise.resolve(null) : nichePrior(ctx, i.category_key).catch(() => null))),
+  );
   return items.map((i, n) => {
     const prior = priors[n] ?? null;
     return { ...i, reach: leadReachLine(prior), prior };
@@ -171,8 +188,19 @@ async function withReach(ctx: Pick<RouteContext, "supabase">, items: LeadIdeaDto
 const offerLine = (offer: { name: string; services: string[] }) =>
   `${offer.name}${offer.services.length ? `: ${offer.services.join(", ")}` : ""}`;
 
-/** The language the ideas are written in: the workspace's, English where it is not Spanish. */
-const languageOf = (locale: string): IdeaLanguage => (/^es\b/i.test(locale) ? "es" : "en");
+/** The language the ideas are written in: the workspace's own tag, which the model writes in; English where none is set. */
+const languageOf = (locale: string): IdeaLanguage => locale.trim().slice(0, 35) || "en";
+
+/** How many of Ask's memory lines the ideas read: the newest, which say most of who the business sells to. */
+const IDEA_MEMORY_LINES = 20;
+
+/** What the team told Ask about the business (decision 0070), as the member's own session reads it; none if it cannot. */
+async function memoryOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
+  return askMemoryLines(ctx.supabase, tenantId, IDEA_MEMORY_LINES).then(
+    (lines) => lines.map((l) => l.text),
+    () => [],
+  );
+}
 
 /**
  * The month's room and the workspace's language, read together: how many leads this month still covers is what a
@@ -207,15 +235,26 @@ const previousOf = (kept: SuggestionRow | null, items: LeadIdeaDto[]) => ({
 async function writeIdeas(
   ctx: Pick<RouteContext, "supabase" | "userId">,
   tenantId: string,
-  x: { line: string; address: string; previous: { items: LeadIdeaDto[]; madeAt: string; passed: IdeaPassed[] } },
+  x: {
+    line: string;
+    address: string;
+    about: IdeaAbout;
+    previous: { items: LeadIdeaDto[]; madeAt: string; passed: IdeaPassed[] };
+  },
 ): Promise<{ line: string; items: LeadIdeaDto[]; passed: IdeaPassed[] }> {
   const now = new Date();
-  const [history, room] = await Promise.all([ideaStore.history(tenantId), roomOf(ctx, tenantId, now)]);
+  const [history, room, memory] = await Promise.all([
+    ideaStore.history(tenantId),
+    roomOf(ctx, tenantId, now),
+    memoryOf(ctx, tenantId),
+  ]);
   const read: IdeaHistory = ideaHistoryOf(history);
   const searches: IdeaSearch[] = read.searches;
   const passed = ideaPassed(x.previous, searches);
   const packet = ideaPacket({
     line: x.line,
+    about: x.about,
+    memory,
     history: read,
     profileAddress: x.address,
     leadsLeft: room.leadsLeft,
@@ -228,6 +267,8 @@ async function writeIdeas(
       tenantId,
       userId: ctx.userId,
       purpose: "lead_suggest",
+      // Who buys is decided before the four are written: more thought than a draft's (option B, decision 0070).
+      effort: "medium",
       request: {
         max_tokens: MODEL_ROUTES.lead_suggest.maxTokens,
         system: LEAD_IDEAS_SYSTEM,
@@ -246,6 +287,8 @@ async function writeIdeas(
     dropped,
     kinds: packet.kinds.length,
     places: packet.places.length,
+    people: items.filter((i) => i.people).length,
+    memory: memory.length,
   });
   if (!items.length) throw new AppError("upstream_anthropic", "The ideas came back unreadable. Try again.");
   return { line: answer.line, items, passed };
@@ -315,6 +358,7 @@ export async function suggestionsWritten(ctx: IdeasCtx, tenantId: string): Promi
     const written = await writeIdeas(ctx, tenantId, {
       line,
       address: offer.address,
+      about: offer.about,
       previous: previousOf(kept, items),
     });
     const businessLine = byOwner && kept ? kept.business_line : written.line;
@@ -355,4 +399,14 @@ export async function setBusinessLine(
 ): Promise<{ business_line: string }> {
   await ideaStore.saveLine(tenantId, line);
   return { business_line: line };
+}
+
+/**
+ * New ideas (decision 0070, option B): the same line written again with what was shown kept to be passed on, then the
+ * four written now, so the next four are new ones. For a member who may find, as the write is; the claim and every
+ * rule after it are the write's.
+ */
+export async function newIdeas(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
+  await ideaStore.again(tenantId);
+  return suggestionsWritten(ctx, tenantId);
 }

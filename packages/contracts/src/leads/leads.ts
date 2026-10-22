@@ -154,6 +154,7 @@ export type {
   LeadMonthDto,
   LeadSuggestionsDto,
   LeadIdeaDto,
+  LeadIdeaRole,
   LeadPlanFacts,
 } from "./lead-dtos";
 export {

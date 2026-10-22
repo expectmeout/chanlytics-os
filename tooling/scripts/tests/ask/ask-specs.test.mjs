@@ -110,6 +110,10 @@ const KINDS = [
   "review_reply_stop",
   "follow_up",
   "answer_style",
+  // What Ask remembers (decision 0070): Ask's line kept, and the Memory pane's change and forget.
+  "memory",
+  "memory_change",
+  "memory_forget",
   "teleport",
 ];
 
@@ -184,6 +188,11 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     review_reply_stop: "approve",
     follow_up: "approve",
     answer_style: "approve",
+    // A line Ask keeps is the approve permission's, as the door's keep is; changing one is the settings', forgetting the
+    // approve permission's, the door letting the keeper forget their own (decision 0070).
+    memory: "approve",
+    memory_change: "settings",
+    memory_forget: "approve",
   });
 });
 
@@ -403,6 +412,8 @@ const ANSWERS = {
   sequence_words: { ...ANSWER_ALL, was: { template_id: "t0", params: [] } },
   // POST sequences/[id]/leave's (SequenceDoorAnswer): one taken out, which its undo puts back.
   sequence_leave: { ...ANSWER_ALL, sequence_id: "q1", left: 1 },
+  // POST ask/memory's (AskMemoryDoorDto): the line kept, which its undo forgets.
+  memory: { ...ANSWER_ALL, memory: { id: "m1", text: "We close at noon on Fridays." }, again: false },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -585,6 +596,15 @@ const SHAPES = {
     }),
   ],
   answer_style: [card("answer_style", { words: "Short answers, in Spanish", previous: "" })],
+  memory: [card("memory", { text: "We close at noon on Fridays.", thread_id: "t1" })],
+  memory_change: [
+    card("memory_change", {
+      memory_id: "m1",
+      text: "We close at one on Fridays.",
+      previous: "We close at noon on Fridays.",
+    }),
+  ],
+  memory_forget: [card("memory_forget", { memory_id: "m1", text: "We close at noon on Fridays." })],
 };
 
 /**
@@ -808,6 +828,9 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     review_reply_stop: ["POST google/reviews/[id]/stop"],
     follow_up: ["PUT views/[page]"],
     answer_style: ["PUT views/[page]"],
+    memory: ["DELETE ask/memory/[id]", "POST ask/memory"],
+    memory_change: ["PATCH ask/memory/[id]"],
+    memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
@@ -847,6 +870,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["lead_search", "partner"],
       ["lead_search_more", "partner"],
       ["leads_check", "partner"],
+      ["memory_change", "partner"],
       ["people_search", "partner"],
       ["person_merge", "owner"],
       ["person_mode", "owner"],

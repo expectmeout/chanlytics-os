@@ -1,4 +1,5 @@
 /** May we contact this person: the one predicate, and the public page where a yes is said. */
+export { optInLink, waMeDigits, waMeLink } from "./wa-links";
 export {
   isOptedOutContact,
   mayRing,

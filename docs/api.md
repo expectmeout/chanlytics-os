@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-308 handlers in 51 domains.
+314 handlers in 51 domains.
 
 ## activity
 
@@ -47,11 +47,47 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/follow-ups/route.ts`).
 
+### `GET /api/v1/ask/memory`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/memory/route.ts`).
+
+### `POST /api/v1/ask/memory`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/memory/route.ts`).
+
+### `PATCH /api/v1/ask/memory/[id]`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/memory/[id]/route.ts`).
+
+### `DELETE /api/v1/ask/memory/[id]`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/memory/[id]/route.ts`).
+
 ### `POST /api/v1/ask/messages/[id]/proposals/[pid]`
 
 Writes; for any signed-in person, for themselves; no rate bucket; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts`).
+
+### `GET /api/v1/ask/morning`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/morning/route.ts`).
+
+### `POST /api/v1/ask/morning`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/morning/route.ts`).
 
 ### `GET /api/v1/ask/openings`
 

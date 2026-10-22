@@ -1,5 +1,6 @@
 /**
- * What a person is told, as the edge reads and writes it: a kept notification taken back (apps/edge/lib/ops/notify.ts),
+ * What a person is told, as the edge reads and writes it, and the one line the dashboard writes (a member's morning cards
+ * from Ask, askCardsTold): a kept notification taken back (apps/edge/lib/ops/notify.ts),
  * what each notice is read from (a hold's, a customer's no, a booking's, a teammate's), the bell's number for each reader
  * (unreadOfReaders: the push job's badge, and the older rows the page does not list), and the warnings a mend closes
  * (closeMendedNotices). The members' phones and their choices for them are member-alerts.ts. A read or write that fails
@@ -36,6 +37,30 @@ type Db = SupabaseClient<Database>;
 export async function forgetNotification(db: Db, p: { tenantId: string; id: string }): Promise<void> {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
+}
+
+/**
+ * A member's morning cards on their own bell (decision 0070, kind ask_cards): one line addressed to them alone, opening
+ * Today, about the morning's thread. Told once a morning: the morning's door records the count once (ask_morning_write's
+ * answered) and only the call it answered `recorded` tells. Written with the service role, since a member writes no
+ * bell row: the line is the member's own, and the route that asks has already checked who they are. No phone is told:
+ * the member asked for the morning by arriving on Today.
+ */
+export async function askCardsTold(
+  db: Db,
+  p: { tenantId: string; userId: string; threadId: string; title: string; body: string },
+): Promise<void> {
+  const { error } = await db.from("notifications").insert({
+    tenant_id: p.tenantId,
+    kind: "ask_cards",
+    title: p.title.slice(0, 200),
+    body: p.body.slice(0, 4000),
+    route: "today",
+    subject_type: "ask_thread",
+    subject_id: p.threadId,
+    recipient_user_id: p.userId,
+  });
+  if (error) throw new Error(`cannot tell the member their morning: ${error.message}`);
 }
 
 /** A kept notice as its retry finds it: which row, and whether its mail is still owed. */

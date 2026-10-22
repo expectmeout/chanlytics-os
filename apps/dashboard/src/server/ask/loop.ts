@@ -46,6 +46,7 @@ import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts 
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead, withSkillGuides } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
+import { remembered, rememberedBlock } from "./companion/remembered";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
@@ -217,12 +218,27 @@ export interface AskPorts {
   round: typeof runRound;
   /** The page's context, built through the page's readers or taken from the warm's cache (context.ts). */
   context: (rc: ReaderContext, context: PageContext) => Promise<BuiltContext>;
-  /** The shape of the workspace, as the second system block (readers/shape.ts, kept five minutes). */
+  /**
+   * The shape of the workspace, as the second system block (readers/shape.ts, kept five minutes), and after it what Ask
+   * remembers (companion/remembered.ts, read every turn): a memory that cannot be read costs its lines, never the shape.
+   */
   shape: (rc: ReaderContext) => Promise<string>;
   tool: typeof runTool;
   propose: typeof buildProposal;
 }
-const shapeOf = async (rc: ReaderContext): Promise<string> => shapeBlock((await load(rc, shapeReader, undefined)).data);
+const shapeOf = async (rc: ReaderContext): Promise<string> => {
+  const [shape, kept] = await Promise.all([
+    load(rc, shapeReader, undefined).then((r) => shapeBlock(r.data)),
+    load(rc, remembered, undefined).then(
+      (r) => rememberedBlock(r.data),
+      (e: unknown) => {
+        log.error("ask_remembered_failed", { error: e, tenant_id: rc.tenantId });
+        return "";
+      },
+    ),
+  ]);
+  return kept ? `${shape}\n\n${kept}` : shape;
+};
 let overrides: Partial<AskPorts> | null = null;
 export function setAskPorts(p: Partial<AskPorts> | null): void {
   overrides = p;

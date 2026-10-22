@@ -34,5 +34,6 @@
   "apps/dashboard/src/surfaces/settings/notifications/verbs.ts": 2,
   "apps/dashboard/src/surfaces/settings/partner/surface.ts": 8,
   "apps/dashboard/src/surfaces/setup/surface.ts": 9,
+  "apps/dashboard/src/surfaces/today/ask-morning-surface.ts": 1,
   "apps/dashboard/src/surfaces/visit-line.tsx": 1
 }

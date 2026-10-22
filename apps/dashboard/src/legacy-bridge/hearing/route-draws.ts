@@ -44,6 +44,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
     // last read, which nothing on Today reads again.
     "today_pins",
+    // Ask for you: the member's morning with Ask, read on its own (surfaces/today/ask-morning-surface.ts; decision 0070).
+    "ask_morning",
   ],
   // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole
   // book here for one pill and the deal beside a visit; the visit's person now carries those facts on the board's own read
@@ -113,6 +115,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "admin/integrations": ["google", "channels"],
   // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
   "admin/notifications": ["alerts"],
+  // Settings' Memory pane draws what Ask remembers and its journal beside the settings read (decision 0070).
+  "admin/memory": ["ask_memory"],
 };
 
 /**

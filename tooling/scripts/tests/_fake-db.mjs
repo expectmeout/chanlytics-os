@@ -39,6 +39,7 @@ import {
   unknownRelation,
   unknownColumn,
   selectOf,
+  embedsOf,
   asSent,
   onTheWire,
   refusedRow,
@@ -1586,6 +1587,13 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     };
     const rows = () => (tables[table] ??= []);
 
+    /**
+     * A filter that names one of the select's embeds (`ask_mornings`, `ask_mornings.made_at`): PostgREST reads it on the
+     * embed, not on this relation. Its column is not judged here (the embed's relation is the stack's to refuse).
+     */
+    const onEmbed = (op, col) =>
+      op !== "or" && typeof col === "string" && embedsOf(q.columns).includes(col.split(".")[0]);
+
     /** The columns a request's filters and orders name, each judged against the relation. */
     const namedColumns = () => [
       ...q.filters.flatMap(([op, col, val]) =>
@@ -1594,10 +1602,33 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
               .split(",")
               .filter((c) => !/^(and|or|not)\(/.test(c))
               .map((c) => c.split(".")[0])
-          : [col],
+          : onEmbed(op, col)
+            ? []
+            : [col],
       ),
       ...q.orders.map((o) => o.col),
     ];
+
+    /**
+     * A row with its embeds as PostgREST reads them: a filter on an embed's column (`embed.col`) keeps those of its rows
+     * (as the fixture joined them) that match, and `.is(embed, null)` keeps the row only when none is left (the
+     * anti-join). Null when that leaves the row out; a copy, so the fixture is never filtered itself.
+     */
+    const throughEmbeds = (row) => {
+      const out = { ...row };
+      for (const [op, col, val] of q.filters.filter(([op, col]) => onEmbed(op, col) && col.includes("."))) {
+        const [key, inner] = [col.slice(0, col.indexOf(".")), col.slice(col.indexOf(".") + 1)];
+        const v = out[key];
+        if (Array.isArray(v)) out[key] = v.filter((e) => matches(e, [[op, inner, val]]));
+        else if (v && typeof v === "object" && !matches(v, [[op, inner, val]])) out[key] = null;
+      }
+      for (const [op, col, val] of q.filters.filter(([op, col]) => onEmbed(op, col) && !col.includes("."))) {
+        if (op !== "is" || val !== null) throw new Error(`fakeDb: ${op}(${col}) on an embed is not modelled`);
+        const v = out[col];
+        if (Array.isArray(v) ? v.length : v != null) return null;
+      }
+      return out;
+    };
 
     /** What PostgREST refuses before a statement runs, or null. */
     const refused = () => {
@@ -1652,7 +1683,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       }
 
       if (q.op === "select") {
-        let out = rows().filter((r) => matches(r, q.filters, SCHEMA.defaults?.[table]));
+        const own = q.filters.filter(([op, col]) => !onEmbed(op, col));
+        let out = rows()
+          .map(throughEmbeds)
+          .filter((r) => r !== null && matches(r, own, SCHEMA.defaults?.[table]));
         if (q.orders.length) {
           // Sentinels of the SAME TYPE as the values, because the columns this
           // orders on hold ISO timestamps: comparing -Infinity against a string

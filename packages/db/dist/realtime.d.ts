@@ -305,6 +305,95 @@ type Database = {
                     }
                 ];
             };
+            ask_journal_days: {
+                Row: {
+                    day: string;
+                    made_at: string;
+                    rows_read: number;
+                    state: string;
+                    tenant_id: string;
+                    text: string | null;
+                };
+                Insert: {
+                    day: string;
+                    made_at?: string;
+                    rows_read?: number;
+                    state?: string;
+                    tenant_id: string;
+                    text?: string | null;
+                };
+                Update: {
+                    day?: string;
+                    made_at?: string;
+                    rows_read?: number;
+                    state?: string;
+                    tenant_id?: string;
+                    text?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_journal_days_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            ask_memory_lines: {
+                Row: {
+                    forgotten_at: string | null;
+                    forgotten_by: string | null;
+                    id: string;
+                    kept_by: string | null;
+                    made_at: string;
+                    source: string;
+                    tenant_id: string;
+                    text: string;
+                    thread_id: string | null;
+                    updated_at: string;
+                };
+                Insert: {
+                    forgotten_at?: string | null;
+                    forgotten_by?: string | null;
+                    id?: string;
+                    kept_by?: string | null;
+                    made_at?: string;
+                    source: string;
+                    tenant_id: string;
+                    text: string;
+                    thread_id?: string | null;
+                    updated_at?: string;
+                };
+                Update: {
+                    forgotten_at?: string | null;
+                    forgotten_by?: string | null;
+                    id?: string;
+                    kept_by?: string | null;
+                    made_at?: string;
+                    source?: string;
+                    tenant_id?: string;
+                    text?: string;
+                    thread_id?: string | null;
+                    updated_at?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_memory_lines_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "ask_memory_lines_thread_id_same_workspace";
+                        columns: ["tenant_id", "thread_id"];
+                        isOneToOne: false;
+                        referencedRelation: "ask_threads";
+                        referencedColumns: ["tenant_id", "id"];
+                    }
+                ];
+            };
             ask_messages: {
                 Row: {
                     content: Json;
@@ -343,6 +432,48 @@ type Database = {
                     },
                     {
                         foreignKeyName: "ask_messages_thread_id_same_workspace";
+                        columns: ["tenant_id", "thread_id"];
+                        isOneToOne: false;
+                        referencedRelation: "ask_threads";
+                        referencedColumns: ["tenant_id", "id"];
+                    }
+                ];
+            };
+            ask_mornings: {
+                Row: {
+                    cards: number | null;
+                    day: string;
+                    made_at: string;
+                    tenant_id: string;
+                    thread_id: string | null;
+                    user_id: string;
+                };
+                Insert: {
+                    cards?: number | null;
+                    day: string;
+                    made_at?: string;
+                    tenant_id: string;
+                    thread_id?: string | null;
+                    user_id: string;
+                };
+                Update: {
+                    cards?: number | null;
+                    day?: string;
+                    made_at?: string;
+                    tenant_id?: string;
+                    thread_id?: string | null;
+                    user_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "ask_mornings_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "ask_mornings_thread_id_same_workspace";
                         columns: ["tenant_id", "thread_id"];
                         isOneToOne: false;
                         referencedRelation: "ask_threads";
@@ -7061,6 +7192,57 @@ type Database = {
                 Args: never;
                 Returns: boolean;
             };
+            ask_journal_open_days: {
+                Args: {
+                    p_limit?: number;
+                };
+                Returns: {
+                    day: string;
+                    day_from: string;
+                    day_to: string;
+                    locale: string;
+                    tenant_id: string;
+                    timezone: string;
+                }[];
+            };
+            ask_journal_write: {
+                Args: {
+                    p_act: string;
+                    p_day?: string;
+                    p_limit?: number;
+                    p_rows_read?: number;
+                    p_tenant_id?: string;
+                    p_text?: string;
+                };
+                Returns: Json;
+            };
+            ask_memory_write: {
+                Args: {
+                    p_act: string;
+                    p_id?: string;
+                    p_source?: string;
+                    p_tenant_id: string;
+                    p_text?: string;
+                    p_thread_id?: string;
+                };
+                Returns: Json;
+            };
+            ask_message_words: {
+                Args: {
+                    p_content: Json;
+                };
+                Returns: string;
+            };
+            ask_morning_write: {
+                Args: {
+                    p_act: string;
+                    p_cards?: number;
+                    p_day: string;
+                    p_tenant_id: string;
+                    p_thread_id?: string;
+                };
+                Returns: Json;
+            };
             ask_tokens_day: {
                 Args: {
                     p_tenant: string;
@@ -10517,6 +10699,20 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: number;
+            };
+            search_ask: {
+                Args: {
+                    p_limit: number;
+                    p_tenant: string;
+                    p_words: string;
+                };
+                Returns: {
+                    at: string;
+                    id: string;
+                    kind: string;
+                    snippet: string;
+                    thread_id: string;
+                }[];
             };
             search_messages: {
                 Args: {

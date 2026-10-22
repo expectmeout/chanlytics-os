@@ -12,6 +12,7 @@ import { propose_leads } from "../act/leads/leads";
 import { propose_list } from "../act/people/list";
 import { propose_people } from "../act/people/people";
 import { propose_person } from "../act/person";
+import { rememberAct } from "../act/remember";
 import { propose_reply } from "../act/reply";
 import { propose_review } from "../act/review";
 import { propose_sequence } from "../act/sequence";
@@ -40,6 +41,7 @@ const ACT_TOOLS: readonly ActTool[] = [
   propose_sequence,
   propose_review,
   propose_follow_up,
+  rememberAct,
 ];
 
 /** How a member asks for a kind of card: "tool with action", each that makes it and is offered to their role. */

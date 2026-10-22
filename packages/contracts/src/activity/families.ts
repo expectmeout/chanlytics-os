@@ -1,5 +1,6 @@
 import type { DecisionVerb, EVENT_KINDS } from "../shared/enums";
-import { ACTIVITY_KINDS, activityKindWords, isActivityNoise } from "../workspace/activity";
+import { activityKindWords } from "../workspace/activity";
+import { ACTIVITY_KINDS, isActivityNoise } from "../workspace/activity-rows";
 import { activityTone } from "./tones";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words";
 
@@ -136,6 +137,8 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   platform: "settings",
   billing: "billing",
   partner: "partner",
+  // What Ask remembers is kept on Settings › Memory (decision 0070); its journal and mornings are noise, never shown.
+  ask: "settings",
   usage: "records",
   webhook: "records",
   ingest: "records",

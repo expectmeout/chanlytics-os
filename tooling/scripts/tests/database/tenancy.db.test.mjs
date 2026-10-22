@@ -190,6 +190,12 @@ before(async () => {
     role: "user",
     content: { text: "hi" },
   });
+  // What Ask remembers (00470, decision 0070): a line every member reads, a day of the journal its owners read, and the
+  // viewer's own morning.
+  await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
+  // Keyed by their workspace and day, so no id to pick.
+  await seed("ask_journal_days", { tenant_id: A, day: "2026-10-20", state: "written", text: "A quiet day." }, null);
+  await seed("ask_mornings", { tenant_id: A, user_id: ctx.viewerId, day: "2026-10-21" }, null);
   // The viewer's own voice session on their thread (00287): a member reads their own, nobody else's.
   await seed("ask_voice_sessions", {
     id: (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, ""),
@@ -663,6 +669,10 @@ const TENANT_TABLES = {
   contact_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   contact_marks: ["own", () => ({ tenant_id: A, contact_id: ctx.contact, user_id: ctx.strangerId })],
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
+  // What Ask remembers (00470): the memory is the workspace's, its journal its owners', a morning the member's own.
+  ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
+  ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
+  ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
   ask_messages: [
     "own",
     () => ({

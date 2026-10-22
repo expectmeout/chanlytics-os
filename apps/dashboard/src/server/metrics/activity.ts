@@ -10,9 +10,9 @@ import {
   DECISION_VERBS,
   activityFamilyKinds,
   activityLines,
-  activityWords,
+  activityRowOfDecision,
+  activityRowOfEvent,
   isActivityNoise,
-  isUuid,
   memberWords,
   shiftKey,
   visitDateKey,
@@ -146,12 +146,6 @@ const isActor = (v: string): v is ActivityActor => (ACTIVITY_ACTORS as readonly 
 /** The stored hand each actor that is not a member is: the receptionist is `ai`, the system `system`. */
 const ACTOR_TYPE: Record<ActivityActor, string> = { receptionist: "ai", system: "system" };
 
-/** The member an event's own data names (`by`, contracts event-data.ts), where it names one. */
-function eventBy(data: unknown): string | null {
-  const by = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>).by : null;
-  return typeof by === "string" && isUuid(by) ? by : null;
-}
-
 /** What one read is asked for: the workspace, the filter as parsed, and what it resolves to. */
 interface Ask {
   ctx: RouteContext;
@@ -184,18 +178,7 @@ async function decisionsFrom(a: Ask, cut: Cut | null): Promise<ActivityRowDto[]>
   if (subjects) q = q.in("subject_id", subjects);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((d) => ({
-    id: `d-${d.id}`,
-    at: d.created_at,
-    source: "decision" as const,
-    kind: d.verb,
-    subject_type: d.subject_type,
-    subject_id: d.subject_id,
-    actor_user_id: d.actor_user_id,
-    actor_type: d.actor_type,
-    text: activityWords(d.verb, d.payload),
-    category: null,
-  }));
+  return (data ?? []).map(activityRowOfDecision);
 }
 
 /**
@@ -229,22 +212,8 @@ async function eventsFrom(a: Ask, cut: Cut | null): Promise<ActivityRowDto[]> {
     (data ?? [])
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
       .filter((e) => narrowed.kinds !== null || !isActivityNoise(e.kind))
-      .map((e) => {
-        const by = eventBy(e.data);
-        return {
-          id: `e-${e.id}`,
-          at: e.created_at,
-          source: "event" as const,
-          kind: e.kind,
-          subject_type: e.subject_type,
-          subject_id: e.subject_id,
-          // The member an event's data names did it (contact.added's `by`, a consent answer's): the log says who.
-          actor_user_id: by,
-          actor_type: by ? "user" : null,
-          text: activityWords(e.kind, e.data),
-          category: e.category,
-        };
-      })
+      // The member an event's data names did it (contact.added's `by`, a consent answer's): the log says who.
+      .map(activityRowOfEvent)
   );
 }
 

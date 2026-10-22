@@ -40,6 +40,8 @@ const WHY = {
   end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
+  memory:
+    "it changes or forgets a line of what Ask remembers, which a member does on Settings › Memory where every line is listed; Ask keeps a line with its own card and its Undo",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -170,8 +172,18 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Settings",
     route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion", "answer_style"],
+    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), what Ask remembers (Memory), connections, notifications, team and billing.",
+    verbs: [
+      "settings",
+      "policy",
+      "invite",
+      "follow_up",
+      "fact_suggestion",
+      "answer_style",
+      "memory",
+      "memory_change",
+      "memory_forget",
+    ],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
       { what: "Billing and the plan", why: WHY.money },
@@ -196,4 +208,6 @@ export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   sequence_move: WHY.add,
   lead_search_aim: WHY.add,
   review_reply_stop: WHY.stop,
+  memory_change: WHY.memory,
+  memory_forget: WHY.memory,
 };

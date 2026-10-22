@@ -77,7 +77,11 @@ const TABLES = [
   "ai_usage",
   "appointment_notices",
   "appointments",
+  // What Ask remembers, its journal and each member's mornings (00470, decision 0070).
+  "ask_journal_days",
+  "ask_memory_lines",
   "ask_messages",
+  "ask_mornings",
   "ask_threads",
   "ask_voice_sessions",
   "billing_accounts",

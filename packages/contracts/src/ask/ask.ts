@@ -283,7 +283,11 @@ export interface AskProposal {
     | "review_reply"
     | "review_reply_stop"
     | "follow_up"
-    | "answer_style";
+    | "answer_style"
+    // What Ask remembers (decision 0070): a line kept (Ask's own card, kept as the turn is saved), changed, forgotten.
+    | "memory"
+    | "memory_change"
+    | "memory_forget";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;

@@ -38,6 +38,8 @@ import { settingsOverride } from "./surfaces/settings";
 import { channelsOverride } from "@/surfaces/channels/surface";
 import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
+import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
+import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
 import { billingOverride } from "@/surfaces/settings/billing/surface";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
@@ -86,6 +88,12 @@ const headlineIfDrawn = ifDrawn(headline);
 // The counts of the lists pinned to Today (surfaces/today/pins-surface.ts; R10), where Today is on screen, and left for it elsewhere:
 // a write the feed does not tell (a person erased takes their messages) moves them.
 const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([todayPinsOverride]) : []);
+// What Ask remembers (settings/memory/surface.ts; decision 0070), where Settings › Memory is on screen: a line kept, changed or
+// forgotten there, or by a card's Undo in the Line. Elsewhere the pane reads it as it comes on screen, once it has aged.
+const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
+// Ask for you's morning (today/ask-morning-surface.ts; decision 0070), where Today is on screen: a card of the morning's turn
+// pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
+const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
 // The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
 // is drawn, left for its page elsewhere.
 const sequencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([sequencesOverride]) : []);
@@ -484,6 +492,14 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // receptionist reads (Keep adds one, through the settings' own write) and the Autonomy pane's list of what waits (each
   // answer leaves it one shorter), so Settings reads again. A note is read by nothing else a page draws.
   "POST fact-suggestions/[id]": settings,
+  // A line of what Ask remembers kept, changed or forgotten (decision 0070): the Memory pane's own read, where it is drawn.
+  // Nothing else a page draws reads the memory: Ask reads it fresh with every question.
+  "POST ask/memory": memoryIfDrawn,
+  // A card's outcome, kept on Ask's own message: the card's own call refreshed what it changed, and Today's morning, which
+  // offers the cards of one turn, reads again where it is drawn.
+  "POST ask/messages/[id]/proposals/[pid]": morningIfDrawn,
+  "PATCH ask/memory/[id]": memoryIfDrawn,
+  "DELETE ask/memory/[id]": memoryIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
@@ -606,6 +622,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
+  "POST ask/morning":
+    "the member's morning asked for (decision 0070): Ask for you lays the answer on Today itself, and reads again while Ask writes",
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   "POST sequences/[id]/leads/check":
@@ -622,7 +640,6 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ask/voice/page":
     "where the page went, kept on the session's row for the next spoken turn; nothing on screen moves",
   "POST ask/voice/end": "the end of a conversation, kept on its row; the Line already shows the mic at rest",
-  "POST ask/messages/[id]/proposals/[pid]": "a card's outcome, kept on Ask's own message; the card's call refreshed",
   "DELETE ask/threads/[id]": "one of Ask's own threads, which Ask's list drops itself",
   // The reader's own mark on a person (00349). The rows that say it are drawn from the tab's own word at once
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread

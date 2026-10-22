@@ -10,7 +10,7 @@
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
  */
 import { useCallback, useSyncExternalStore } from "react";
-import type { SpeechPurpose } from "@chanlytics/contracts";
+import type { AskProposal, AskProposalOutcome, SpeechPurpose } from "@chanlytics/contracts";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
@@ -76,6 +76,25 @@ export function askSpeech(): AskSpeech | undefined {
   )
     return undefined;
   return a.canSpeak() ? (a as AskSpeech) : undefined;
+}
+
+/* ------------------------------- Ask's cards ------------------------------- */
+
+/** What a card's press commits, as Ask's door answers (legacy-bridge/ask/commit.ts CommitResult). */
+type AskCardCommit =
+  | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
+  | { ok: false; message: string };
+
+/** Ask's cards, pressed where the Line is not open (`window.__ask`): the verb walk a card commits by, and its outcome kept. */
+interface AskCardDoor {
+  commit(p: AskProposal): Promise<AskCardCommit>;
+  outcome(messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean>;
+}
+
+/** Ask's card door where the shell has wired it (Ask for you, decision 0070); nothing in a stand-in window. */
+export function askCards(): AskCardDoor | undefined {
+  const a = object<Partial<AskCardDoor>>("__ask");
+  return a && typeof a.commit === "function" && typeof a.outcome === "function" ? (a as AskCardDoor) : undefined;
 }
 
 /* ------------------------------ the surfaces ------------------------------ */

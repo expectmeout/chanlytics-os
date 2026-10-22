@@ -65,6 +65,8 @@ const NOTIFICATION_DELIVERY = {
   note_to_keep: "bell",
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
   reply_held: "bell",
+  // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
+  ask_cards: "bell",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -307,6 +309,7 @@ export const BELL_LINE_KINDS = [
   "member_joined",
   "member_left",
   "note_to_keep",
+  "ask_cards",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

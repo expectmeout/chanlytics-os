@@ -34,7 +34,9 @@ const NOTIFICATION_DELIVERY = {
   // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
   note_to_keep: "bell",
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
-  reply_held: "bell"
+  reply_held: "bell",
+  // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
+  ask_cards: "bell"
 };
 export const EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 export function emailsNotificationKind(kind) {
@@ -214,7 +216,8 @@ export const BELL_LINE_KINDS = [
   "booking",
   "member_joined",
   "member_left",
-  "note_to_keep"
+  "note_to_keep",
+  "ask_cards"
 ];
 const EMAIL_CHOICE_KINDS = ALERT_TOPICS.flatMap(
   (t) => t.email === "choice" ? t.kinds : []

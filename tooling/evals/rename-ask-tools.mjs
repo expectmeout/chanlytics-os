@@ -77,6 +77,9 @@ export const ADDED_SINCE = [
   "propose_settings.answer_style",
   "propose_settings.answers",
   "propose_settings.goal",
+  // Decision 0070: what was said before, found by its words, and a fact the person tells Ask to keep.
+  "recall",
+  "remember",
   "sequences.cold_emails",
   "signals",
   "workspace.activity",

@@ -66,7 +66,11 @@ export const NOTICE_ENDS = {
   },
   // A reply counting down: it waits while its thread has one, and the server closes it once the reply leaves the queue
   // (sent or stopped: 00461 messages_reply_held_closes).
-  reply_held: { ends: "send", server: "reply_gone" }
+  reply_held: { ends: "send", server: "reply_gone" },
+  ask_cards: {
+    ends: "news",
+    why: "Ask's morning is told once, to the member it is for; its cards wait on Today, where each is approved or let go."
+  }
 };
 export function kindsEndedBy(source) {
   return Object.keys(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);

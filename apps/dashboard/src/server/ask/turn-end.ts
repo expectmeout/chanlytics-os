@@ -217,6 +217,13 @@ const STYLE_ANSWER_WORDS =
   "The note on how they like answers is proposed as its card, which is theirs to press. Now answer the rest of what they asked, already written the way the note says; where they asked nothing else, say in one sentence that the card keeps it for their next questions. Never say it is kept.";
 
 /**
+ * What the round after a line Ask keeps is told (decision 0070): the line is kept as the answer is saved, on its card with
+ * an Undo, so the cards' own sentence ("nothing happens until you do") would be false of it.
+ */
+const MEMORY_ANSWER_WORDS =
+  "What you keep is kept as your answer is saved, on its card with an Undo. Now answer the rest of what they asked; where they asked nothing else, say in one short sentence that you will remember it, without repeating it. Any other card of yours is still theirs to press: say so.";
+
+/**
  * What a turn's cards leave out of what was asked (the operator stress run, 15 Oct 2026: "turn the receptionist off, add
  * a note that she prefers mornings, and put her on a new list called Mornings" made two cards, 4 times of 4, and "2 cards
  * to review" answered over the list's refusal a round before): a proposal refused, until a later call of the same tool
@@ -228,6 +235,8 @@ export function turnUnmade() {
   const refused = new Map<string, string>();
   const noted: string[] = [];
   let styleAlone = false;
+  // A line Ask keeps is kept, not proposed: a round with one is never answered by the cards' count alone.
+  let keptOne = false;
   return {
     /** A proposal's outcome, under the name its call is recorded by (`propose_list.make`). */
     heard(name: string, o: { isError: boolean; refusal?: string; noted?: string; result: string }): void {
@@ -250,11 +259,13 @@ export function turnUnmade() {
     }): "answer" | "owed" | null {
       if (r.acts !== r.calls || r.refused || r.made.length === 0) return null;
       styleAlone = r.made.every((p) => p.kind === "answer_style");
-      return refused.size > 0 || noted.length > 0 || styleAlone ? "owed" : "answer";
+      keptOne = r.made.some((p) => p.kind === "memory");
+      return refused.size > 0 || noted.length > 0 || styleAlone || keptOne ? "owed" : "answer";
     },
     /** What the round after cards alone is told: each part no card carries, and that the answer says it. */
     words(): string {
       if (styleAlone && refused.size === 0 && noted.length === 0) return STYLE_ANSWER_WORDS;
+      if (keptOne && refused.size === 0 && noted.length === 0) return MEMORY_ANSWER_WORDS;
       const parts = [...[...refused].map(([name, why]) => `${name} was refused (${why})`), ...noted];
       return `Part of what they asked is no card: ${parts.join("; ")}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`;
     },

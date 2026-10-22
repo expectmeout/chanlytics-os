@@ -10,7 +10,7 @@ export function injectionQuestion() {
     }
   };
 }
-function defang(text) {
+export function defang(text) {
   return text.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
 export function fenceActed(text) {

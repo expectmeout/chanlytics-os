@@ -19,7 +19,10 @@ what the script writes.
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`ask_messages`](#ask_messages) | none | on, 4 policies |
+| [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
+| [`ask_memory_lines`](#ask_memory_lines) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
+| [`ask_messages`](#ask_messages) | `packages/db/src/repositories/ask/mornings.ts` | on, 4 policies |
+| [`ask_mornings`](#ask_mornings) | `packages/db/src/repositories/ask/mornings.ts` | on, 1 policy |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
@@ -35,13 +38,13 @@ what the script writes.
 | [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`decisions`](#decisions) | `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts` | on, 2 policies |
+| [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
@@ -92,7 +95,7 @@ what the script writes.
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
-| [`profiles`](#profiles) | `packages/db/src/repositories/console/support.ts` | on, 1 policy |
+| [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
@@ -249,9 +252,66 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `appointments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### ask_journal_days
+
+Ask's journal (decision 0070): one entry for each day of a workspace something happened in, by its own clock, written by the note sweep from the day's two ledgers (what Settings › Activity reads) an hour after the day ends, money left out. The newest written days ride into an owner's turns. Owners read, as the Activity log is theirs; only the service writes.
+
+- Owned by: `packages/db/src/repositories/ask/memory.ts`
+- Primary key: `tenant_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `state` | text | no | `'looking'::text` |  |
+| `text` | text | yes |  |  |
+| `rows_read` | integer | no | `0` |  |
+| `made_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_journal_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |  |
+
+### ask_memory_lines
+
+What Ask remembers about the business (decision 0070): a fact a member told it, kept by Ask as the turn is saved, or a line a member wrote on Settings › Memory. The live lines ride into every turn's cached shape. Members read their workspace's; only the doors write.
+
+- Owned by: `packages/db/src/repositories/ask/memory.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `text` | text | no |  |  |
+| `source` | text | no |  |  |
+| `thread_id` | uuid | yes |  |  |
+| `kept_by` | uuid | yes |  |  |
+| `made_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `forgotten_at` | timestamp with time zone | yes |  |  |
+| `forgotten_by` | uuid | yes |  |  |
+
+Foreign keys:
+
+- `forgotten_by` → `auth.users` (`id`), on delete set null
+- `kept_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_memory_lines_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### ask_messages
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/ask/mornings.ts`
 - Primary key: `id`
 - Row-level security: on, 4 policies
 
@@ -277,6 +337,33 @@ Foreign keys:
 | `ask_messages_own_insert` | insert | authenticated |  | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM ask_threads t WHERE ((t.id = ask_messages.thread_id) AND (t.user_id = auth.uid()) AND (t.tenant_id = ask_me…` |
 | `ask_messages_own_select` | select | authenticated | `((user_id = auth.uid()) AND (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.tenant_id = ask_messages.tenant_id)))))` |  |
 | `ask_messages_own_update` | update | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
+
+### ask_mornings
+
+The day's first turn, which Ask asks itself when a member who acts arrives (decision 0070): one a member a day, its thread the member's own, its cards waiting on Today. Written through ask_morning_write; the member reads their own.
+
+- Owned by: `packages/db/src/repositories/ask/mornings.ts`
+- Primary key: `tenant_id`, `user_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `thread_id` | uuid | yes |  |  |
+| `cards` | integer | yes |  |  |
+| `made_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `tenant_id`, `thread_id` → [`ask_threads`](#ask_threads) (`tenant_id`, `id`), on delete set null
+- `user_id` → `auth.users` (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_mornings_own_select` | select | authenticated | `(user_id = auth.uid())` |  |
 
 ### ask_threads
 
@@ -788,7 +875,7 @@ Foreign keys:
 
 ### decisions
 
-- Owned by: `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`
+- Owned by: `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -925,7 +1012,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -2515,7 +2602,7 @@ Foreign keys:
 
 A person's own name. Readable by the members of any workspace they share; written only by them, through profile_set.
 
-- Owned by: `packages/db/src/repositories/console/support.ts`
+- Owned by: `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/console/support.ts`
 - Primary key: `user_id`
 - Row-level security: on, 1 policy
 

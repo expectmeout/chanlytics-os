@@ -41,8 +41,11 @@ export function injectionQuestion(): SystemOneQuestion {
 export type FenceTag =
   "customer" | "profile_name" | "transcript" | "review" | "reply" | "record" | "conversation" | "places" | "note";
 
-/** A tag-like run neutralised: the angle brackets become their look-alikes, so nothing inside can open or close a tag. */
-function defang(text: string): string {
+/**
+ * A tag-like run neutralised: the angle brackets become their look-alikes, so nothing inside can open or close a tag.
+ * Exported for a prompt that builds its own tags around someone else's words (the journal's <day> and <log>).
+ */
+export function defang(text: string): string {
   return text.replace(/</g, "‹").replace(/>/g, "›");
 }
 

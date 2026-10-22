@@ -83,6 +83,7 @@ export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody } from "./us
 export {
   DATA_NOT_INSTRUCTIONS,
   PROFILE_NAME_MAX,
+  defang,
   fenceActed,
   fenced,
   fencedInline,

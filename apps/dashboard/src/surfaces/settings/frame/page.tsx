@@ -22,6 +22,7 @@ import { PaneBillingReal } from "../billing/pane";
 import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
+import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
 import { PaneProfile } from "../profile/pane";
@@ -50,37 +51,6 @@ const WARM: Partial<Record<string, () => void>> = {
   // Connections draws Google's listing, which is read only where it is drawn: reached for, it is read before the press.
   integrations: () => reachFor("admin/integrations"),
 };
-
-// ---------- Not built yet: AI memory, said in the pane ----------
-// Outside a demo this tab used to fall through the shell's gate, which replaced the WHOLE settings page with a bare
-// card and a "Back to Today" button — the owner lost the settings nav for clicking a tab. It is a pane like the others
-// now: it says what is true, keeps the nav, and points at the pane that holds what exists instead.
-const SET_SOON = {
-  memory: {
-    title: "AI memory",
-    chip: "Not built yet",
-    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from your settings: who you are, when you're open, what you offer, the things it should know and what you tell it in your own words.",
-    action: { label: "Open How it answers", tab: "receptionist", icon: "chat" },
-  },
-};
-
-function PaneSoon({ which, onTab }: { which: keyof typeof SET_SOON; onTab: (tab: string) => void }) {
-  const m = SET_SOON[which];
-  return (
-    <section className="rec-card set-card" data-testid={`soon-${which}`}>
-      <div className="rec-card-head">
-        <h2 className="rec-card-title">{m.title}</h2>
-        <span className="rec-card-sub">{m.chip}</span>
-      </div>
-      <RecordRow
-        id={`soon-${which}`}
-        label={m.chip}
-        value={m.body}
-        act={{ label: m.action.label, onClick: () => onTab(m.action.tab) }}
-      />
-    </section>
-  );
-}
 
 // The open section's row, brought into view in the rail. A callback ref, not an effect: it runs when a row becomes
 // the open one and at no other time.
@@ -112,17 +82,7 @@ const watchPhone = (fn: () => void): (() => void) => {
 const useSettingsPhone = (): boolean => useSyncExternalStore(watchPhone, settingsOnPhone, () => false);
 
 /** The pane the route names, and the row it names after it: a business page's, Autonomy's, or Activity's part. */
-function SetPane({
-  id,
-  row,
-  flash,
-  onTab,
-}: {
-  id: string;
-  row: string | null;
-  flash: Flash;
-  onTab: (tab: string) => void;
-}) {
+function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Flash }) {
   return (
     <>
       {id === "profile" && <PaneProfile flash={flash} />}
@@ -134,7 +94,8 @@ function SetPane({
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
       {id === "integrations" && <PaneIntegrationsReal />}
-      {id === "memory" && <PaneSoon which="memory" onTab={onTab} />}
+      {/* What Ask remembers about the business, and its journal (decision 0070). */}
+      {id === "memory" && <PaneMemory flash={flash} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
       {/* The plan, then the workspace's own records: the account itself. */}
       {id === "billing" && (
@@ -287,7 +248,7 @@ export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onT
             onNo={() => setLeaving(null)}
           />
         )}
-        <SetPane id={active.id} row={settingsRowOf(tab)} flash={flash} onTab={onTab} />
+        <SetPane id={active.id} row={settingsRowOf(tab)} flash={flash} />
       </div>
 
       {toastNode}

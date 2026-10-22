@@ -1,4 +1,4 @@
-import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS } from "../shared/enums.js";
+import { EVENT_KINDS } from "../shared/enums.js";
 import { reasonShort } from "../conversations/escalations.js";
 import { bookingToolName } from "../calendar/booking-notice.js";
 import { LEAD_ENDING_WORDS } from "../leads/search/endings.js";
@@ -17,23 +17,6 @@ import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replie
 import { plural } from "../shared/words.js";
 import { partnerEventBits } from "./partner.js";
 import { broadcastFailureWords } from "../broadcasts/broadcast-failure-words.js";
-export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
-export const ACTIVITY_NOISE_KINDS = [
-  "escalation.changed",
-  "lead.set_aside",
-  // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
-  "lead.later",
-  // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
-  "lead.ideas_written",
-  "call.transferred",
-  "booking_link.sent",
-  "channel.quality_rating",
-  // A door's own record of a match (00342, decision 0034): the owner reads contact.added, not every arrival.
-  "person.resolved",
-  // The calendar's hourly read, one row per appointment it kept (00348, decision 0002): the calendar is where they read it.
-  "appointment.changed"
-];
-export const isActivityMoney = (row) => row.category === "billing";
 const WORDS = {
   // decisions
   approve: "Approved a reply",
@@ -229,6 +212,11 @@ const WORDS = {
   "settings.fact_suggested": "The receptionist suggested a note from your correction",
   "settings.fact_kept": "A note from a correction was kept",
   "settings.fact_dismissed": "A note from a correction was dismissed",
+  "ask.memory_kept": "Ask kept something to remember",
+  "ask.memory_changed": "Something Ask remembers was changed",
+  "ask.memory_forgotten": "Something Ask remembered was forgotten",
+  "ask.journal_written": "Ask wrote its journal",
+  "ask.morning_claimed": "Ask looked at the day",
   "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed",
   "billing.paused": "Billing paused the workspace",
@@ -551,12 +539,4 @@ export function activityWords(kind, payload) {
       break;
   }
   return bits.length ? `${base} \xB7 ${bits.join(" \xB7 ")}` : base;
-}
-export const ACTIVITY_KINDS = [
-  ...DECISION_VERBS,
-  ...EVENT_KINDS,
-  ...WABA_FIELDS.map((field) => `channel.${field}`)
-];
-export function isActivityNoise(kind) {
-  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || ACTIVITY_NOISE_KINDS.includes(kind);
 }

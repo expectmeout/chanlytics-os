@@ -7,7 +7,7 @@
  * number's wa.me link asks WhatsApp afresh and the chat opens, so the link is the test: the row offers it to press, and the
  * toast a connection ends with opens the same one.
  */
-import { waMeDigits, waMeLink } from "../shared/enums";
+import { waMeDigits, waMeLink } from "../consent/wa-links";
 import { DAY_MS } from "../shared/time";
 import type { ChannelVM } from "./channels";
 import type { ConnectionNote } from "./connection-note";

@@ -1,7 +1,7 @@
 /**
  * The helpers server/leads/leads.ts and its lead modules share. Internal: leads.ts re-exports only what was public.
  */
-import { clockDate, leadMonth, parseTenantConfig, wallClockAt } from "@chanlytics/contracts";
+import { clockDate, leadMonth, parseTenantConfig, wallClockAt, type IdeaAbout } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
@@ -60,19 +60,36 @@ export async function monthUsed(
   return { allowance: taken("allowance"), budget: taken("budget") };
 }
 
-/** The workspace's own facts a draft may quote: its name, the address the law asks for at the foot, and what it offers. */
+/** How much of the profile the ideas read beyond the line: the services, the notes and each note's length. */
+const ABOUT_SERVICES = 12;
+const ABOUT_NOTES = 5;
+const ABOUT_NOTE_CHARS = 200;
+
+/**
+ * The workspace's own facts a draft may quote: its name, the address the law asks for at the foot, and what it offers;
+ * and what the ideas read of it beyond the line (decision 0070's option B: the model saw the line alone): every
+ * service by its name, the notes it keeps for the receptionist, and its website.
+ */
 export async function workspaceOffer(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-): Promise<{ name: string; address: string; services: string[] }> {
+): Promise<{ name: string; address: string; services: string[]; about: IdeaAbout }> {
   const [facts, config] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     storedConfigOf(ctx.supabase, tenantId),
   ]);
   const profile = parseTenantConfig(config)?.brain?.profile ?? null;
+  const names = (profile?.services ?? []).map((s) => s.name);
   return {
     name: facts.name,
     address: (profile?.address ?? "").trim(),
-    services: (profile?.services ?? []).slice(0, 5).map((s) => s.name),
+    services: names.slice(0, 5),
+    about: {
+      services: names.slice(0, ABOUT_SERVICES),
+      notes: (profile?.notes ?? [])
+        .slice(0, ABOUT_NOTES)
+        .map((n) => `${n.title}: ${n.text}`.replace(/\s+/g, " ").slice(0, ABOUT_NOTE_CHARS)),
+      website: profile?.website ?? null,
+    },
   };
 }

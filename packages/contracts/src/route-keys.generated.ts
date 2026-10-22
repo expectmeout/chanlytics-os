@@ -5,6 +5,7 @@
  * (client/routes.generated.ts), for a contract that names a route. What each takes and answers is the dashboard's.
  */
 export const ROUTE_KEYS = [
+  "DELETE ask/memory/[id]",
   "DELETE ask/threads/[id]",
   "DELETE capabilities/[kind]",
   "DELETE contacts/[id]",
@@ -28,6 +29,8 @@ export const ROUTE_KEYS = [
   "DELETE workspaces/logo",
   "GET activity",
   "GET ask/follow-ups",
+  "GET ask/memory",
+  "GET ask/morning",
   "GET ask/openings",
   "GET ask/threads",
   "GET ask/threads/[id]",
@@ -119,13 +122,16 @@ export const ROUTE_KEYS = [
   "GET today",
   "GET views",
   "GET workspaces",
+  "PATCH ask/memory/[id]",
   "PATCH lead-searches/[id]",
   "PATCH mailbox-connections/[id]",
   "PATCH partner",
   "PATCH team/[id]",
   "PATCH workspaces",
   "POST ask",
+  "POST ask/memory",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/morning",
   "POST ask/quick",
   "POST ask/speech",
   "POST ask/voice",

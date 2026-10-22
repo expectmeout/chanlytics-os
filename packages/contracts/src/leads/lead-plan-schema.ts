@@ -158,7 +158,7 @@ export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
  * (`region`: US states, or the US), how many companies, and how senior, which industries and what size of company, none
  * of which is any. Nothing of a places plan is asked of it: no kind's key, no city, no standard, no criteria.
  */
-const ProposePeopleSearchSchema = z.object({
+export const ProposePeopleSearchSchema = z.object({
   looking_for: z.literal("people_at_companies"),
   country: z.string().trim().min(2).max(40),
   count: z.number().int().min(1).max(PEOPLE_COUNT_MAX),

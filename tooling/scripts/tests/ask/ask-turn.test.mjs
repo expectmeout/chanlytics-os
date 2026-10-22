@@ -516,6 +516,8 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "propose_sequence",
     "propose_settings",
     "propose_thread_verb",
+    // A fact the person tells Ask to keep (decision 0070).
+    "remember",
   ]);
   assert.deepEqual(
     acts("partner").filter((n) => !acts("operator").includes(n)),
@@ -3040,6 +3042,7 @@ test("every read, each an action of the read tools, runs against the database in
       "people.pipeline",
       "people.search",
       "people.winners",
+      "recall",
       "report",
       "sequences.batch",
       "sequences.cold_emails",
@@ -3057,7 +3060,7 @@ test("every read, each an action of the read tools, runs against the database in
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, and the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails)",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails), and recall (decision 0070)",
   );
   // The operator's reads (15 Oct 2026) answer an empty workspace in their shape, never as a failure.
   for (const key of ["guide", "signals", "leads.ideas", "leads.back", "people.winners", "sequences.cold_emails"])
@@ -8785,8 +8788,10 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.deepEqual(t7.r.raw.told, ["p-1:done:3000"]);
   await keep(ctx, "And?", t7.r);
 
-  // Dismissed, and asked cold (another role): the chain had it to tell, but a rebuilt turn tells nothing in its words --
-  // its lines carry the outcome (PR 5.5) -- and keeps what they said as its `told`, which no live turn after it tells.
+  // Undone, then let go (an approved card is only undone after, decision 0070), and asked cold (another role): the chain
+  // had it to tell, but a rebuilt turn tells nothing in its words -- its lines carry the outcome (PR 5.5) -- and keeps
+  // what they said as its `told`, which no live turn after it tells.
+  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", atMs: 3_500 });
   await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 4_000 });
   const cold = await nextTurn(ctx, [ROUND([answer("Fine.")])], {
     role: "owner",

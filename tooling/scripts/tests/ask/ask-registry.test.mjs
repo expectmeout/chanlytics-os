@@ -220,6 +220,7 @@ const READS = [
   "inbox",
   "leads",
   "people",
+  "recall",
   "report",
   "sequences",
   "signals",
@@ -243,6 +244,8 @@ const OPERATOR_ACTS = [
   "propose_sequence",
   "propose_settings",
   "propose_thread_verb",
+  // What the person tells Ask to keep (decision 0070): an operator's, as approving a card is.
+  "remember",
 ];
 /**
  * Each role's tools, sorted by name (D11), the acts a role may approve among the reads (D12, amended for the partner),
@@ -250,14 +253,16 @@ const OPERATOR_ACTS = [
  * people's mode, the activity log), so an owner and a partner are offered the same tools.
  */
 const PARTNER_ACTS = [...OPERATOR_ACTS, "propose_lead_search"].sort();
+/** A role's reads and acts, sorted by name as the registry sorts them, the acts among the reads. */
+const withReads = (acts) => [...READS, ...acts].sort();
 const OFFERED = {
   viewer: [...READS, SEARCH],
-  operator: [...READS.slice(0, 6), ...OPERATOR_ACTS, ...READS.slice(6), SEARCH],
-  partner: [...READS.slice(0, 6), ...PARTNER_ACTS, ...READS.slice(6), SEARCH],
-  owner: [...READS.slice(0, 6), ...PARTNER_ACTS, ...READS.slice(6), SEARCH],
+  operator: [...withReads(OPERATOR_ACTS), SEARCH],
+  partner: [...withReads(PARTNER_ACTS), SEARCH],
+  owner: [...withReads(PARTNER_ACTS), SEARCH],
 };
 
-test("each role is offered its tools, sorted by name, the tool search last, the same bytes every build and the bytes the fixture froze: a viewer the eleven reads, an operator thirteen acts more, a partner and an owner the lead search too", () => {
+test("each role is offered its tools, sorted by name, the tool search last, the same bytes every build and the bytes the fixture froze: a viewer the twelve reads, an operator fourteen acts more, a partner and an owner the lead search too", () => {
   for (const role of ROLES) {
     const tools = toApiTools(role, true);
     assert.deepEqual(
@@ -280,8 +285,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [12, 25, 26, 26],
-    "a viewer eleven reads and the search, an operator thirteen acts more, a partner and an owner the lead search too",
+    [13, 27, 28, 28],
+    "a viewer twelve reads and the search, an operator fourteen acts more, a partner and an owner the lead search too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

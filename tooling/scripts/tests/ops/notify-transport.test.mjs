@@ -620,6 +620,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     BELL,
     // A booking that arrived and a teammate who joined (00410): told on the bell from their events, and no mail follows.
     [
+      // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.
+      "ask_cards",
       "booking",
       "booking_notice",
       "calendar_people",

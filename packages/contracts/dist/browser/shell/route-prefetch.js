@@ -88,7 +88,9 @@ export const PREFETCH_BESIDE = {
     "playbooks",
     "notifications",
     "google",
-    "reach-out-replies"
+    "reach-out-replies",
+    // Ask for you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
+    "ask/morning"
   ]
 };
 export const PREFETCH_OPEN = ["today"];

@@ -14,22 +14,52 @@
  * hold, each looked at once (fact_candidates), and the clock asks when one waits too (00448). A note for the receptionist
  * waits on Settings › Autonomy for Keep or Dismiss. Each step's counts are their own line; one that fails leaves the other.
  *
- * NOTE_SUGGESTIONS=off stops both without a deploy of the database: the clock still asks, and this answers that it is
- * off. Auth: the shared cron secret, as every sweep (lib/cron-auth.ts).
+ * Last, Ask's journal (decision 0070): the days of a workspace that ended an hour ago with something in them, written for
+ * an owner's Ask, while the run has time for another before its ceiling (vercel.json's sixty seconds), and the clock
+ * asks when a day is due too (00470). It runs after the notes, so a slow model there costs the journal a day, never the
+ * notes their look.
+ *
+ * NOTE_SUGGESTIONS=off stops the notes and the corrections without a deploy of the database: the clock still asks, and
+ * this answers that they are off. The journal is its own switch, ASK_JOURNAL=on, off until it says on. Auth: the shared
+ * cron secret, as every sweep (lib/cron-auth.ts).
  */
 import { json } from "../http.js";
 import { env } from "../env.js";
-import { askFactModel, askNoteModel, factsDbOf, suggestFacts, suggestNotes } from "../notes.js";
+import {
+  askFactModel,
+  askJournalModel,
+  askNoteModel,
+  factsDbOf,
+  journalDbOf,
+  suggestFacts,
+  suggestNotes,
+  writeJournal,
+} from "../notes.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
-export async function sweepNotes({ db, L }: SweepTick): Promise<Response> {
-  if ((env.NOTE_SUGGESTIONS ?? "").toLowerCase() === "off") {
-    L.info("notes_sweep_off");
-    return json(200, { ok: true, off: true });
+/** How long a run may go before it stops taking work: under the function's sixty seconds, with room to answer. */
+const SWEEP_CEILING_MS = 55_000;
+
+export async function sweepNotes({ db, L, started }: SweepTick): Promise<Response> {
+  const notesOff = (env.NOTE_SUGGESTIONS ?? "").toLowerCase() === "off";
+  const journalOn = (env.ASK_JOURNAL ?? "").toLowerCase() === "on";
+  let notes: Record<string, unknown> = { off: true };
+  if (notesOff) L.info("notes_sweep_off");
+  else {
+    const out = await suggestNotes({ db, L, ask: askNoteModel, nowMs: Date.now() });
+    L.info("notes_swept", { looked: out.looked, asked: out.asked, suggested: out.suggested, ended: out.ended });
+    const facts = await suggestFacts({ db: factsDbOf(db), L, ask: askFactModel });
+    L.info("facts_swept", { looked: facts.looked, asked: facts.asked, suggested: facts.suggested, ended: facts.ended });
+    notes = { ...out, facts };
   }
-  const out = await suggestNotes({ db, L, ask: askNoteModel, nowMs: Date.now() });
-  L.info("notes_swept", { looked: out.looked, asked: out.asked, suggested: out.suggested, ended: out.ended });
-  const facts = await suggestFacts({ db: factsDbOf(db), L, ask: askFactModel });
-  L.info("facts_swept", { looked: facts.looked, asked: facts.asked, suggested: facts.suggested, ended: facts.ended });
-  return json(200, { ok: true, ...out, facts });
+  if (!journalOn) return json(200, { ok: true, ...notes });
+  const journal = await writeJournal({
+    db: journalDbOf(db),
+    L,
+    ask: askJournalModel,
+    deadlineMs: started + SWEEP_CEILING_MS,
+    now: Date.now,
+  });
+  L.info("journal_swept", { ...journal });
+  return json(200, { ok: true, ...notes, journal });
 }

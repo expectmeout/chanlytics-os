@@ -1,4 +1,4 @@
-import { waMeDigits, waMeLink } from "../shared/enums.js";
+import { waMeDigits, waMeLink } from "../consent/wa-links.js";
 import { DAY_MS } from "../shared/time.js";
 const TRY_IT_TEXT = "Hi";
 const TRY_IT_LIVE_WITHIN_MS = DAY_MS;

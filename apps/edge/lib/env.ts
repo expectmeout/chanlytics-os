@@ -238,6 +238,10 @@ export const env = {
   get NOTE_SUGGESTIONS() {
     return trimmedEnv(process.env.NOTE_SUGGESTIONS);
   },
+  /** Switch: Ask's journal (decision 0070), written by the note sweep each night; off unless 'on'. */
+  get ASK_JOURNAL() {
+    return trimmedEnv(process.env.ASK_JOURNAL);
+  },
 
   // The lead finder
   get APIFY_TOKEN() {

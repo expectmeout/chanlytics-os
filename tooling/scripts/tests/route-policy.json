@@ -16,11 +16,53 @@
       "rate": null,
       "spend": false
     },
+    "PATCH ask/memory/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "DELETE ask/memory/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET ask/memory": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST ask/memory": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
     "POST ask/messages/[id]/proposals/[pid]": {
       "kind": "write",
       "scope": "account",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "GET ask/morning": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST ask/morning": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
       "spend": false
     },
     "GET ask/openings": {

@@ -526,6 +526,14 @@ async function seed() {
   ])
     await insert("ask_messages", { thread_id: thread, tenant_id: T, user_id: U, role: "user", content: { text } });
 
+  // What Ask remembers (00470, decision 0070): a line the team kept and a day of its journal, each quoting them. Both go
+  // with their turns.
+  await insert("ask_memory_lines", { tenant_id: T, text: WORDS, source: "pane" });
+  ok(
+    await db.from("ask_journal_days").insert({ tenant_id: T, day: "2026-10-20", state: "written", text: WORDS }),
+    "ask_journal_days",
+  );
+
   const pe = `pe-${RUN}`;
   made.providerEvents.push(pe);
   ok(

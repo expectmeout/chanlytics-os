@@ -58,11 +58,13 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "notifications", label: "Notifications", icon: "bell", group: "Workspace" },
   // The plan, and the workspace's own records: what the account itself is.
   { id: "billing", label: "Billing", icon: "money", group: "Workspace" },
+  // What Ask remembers about the business, and its journal of the days (decision 0070): every member's Ask reads it.
+  { id: "memory", label: "Memory", icon: "sparkle", group: "Workspace" },
   // Both ledgers, readable by the owner: who did what, and what happened (its tab warms its read: page.tsx WARM).
   { id: "activity", label: "Activity", icon: "clock", group: "Workspace" },
 ];
 /** Routes that still answer but no longer earn a place in the rail. */
-const SET_TABS_UNLISTED: readonly SetTab[] = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
+const SET_TABS_UNLISTED: readonly SetTab[] = [];
 /**
  * The Console (decision 0066, once the back office): a link to its own place. Not in SET_TABS: it exists for the two or three people who run Chanlytics and for nobody else, and a
  * customer who types the route lands on Profile rather than on a locked door they now know about.
