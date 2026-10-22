@@ -1199,14 +1199,17 @@
      steps aside while it moves. It wears the page's own ground and stands over the list coming in under it (kit
      motion/held-list.ts, components.css [data-held]), as an open thread does (components.css): the page has no ground of
      its own, and the list showed through it. It moves over the frame's chrome drawn again under it with the list, as the
-     thread does. */
+     thread does. Its ground lies where the window's does, laid up by how far down the screen the page stood as it was
+     taken up (--going-at), as the thread's (components.css). */
   .cl-profile[data-going] {
     position: relative;
     z-index: 202;
     background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
     background-repeat: no-repeat;
     background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+    background-position: 0 calc(-1 * var(--going-at, 0px));
     box-shadow: var(--shadow-lg);
   }
   body:has(.cl-profile[data-going]) .cl-prof-dock {

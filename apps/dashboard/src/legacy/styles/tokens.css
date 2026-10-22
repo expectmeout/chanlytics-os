@@ -420,8 +420,9 @@
     transparent calc(env(safe-area-inset-top, 0px) + 64px)
   );
   --surface-page-top: var(--surface-page-paper);
-  /* A list's ground on a phone (the Inbox's and People's rows): the light holds over the frame's top and gives way, over
-     a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026). Near the foot it
+  /* The page's ground on a phone, every page of the app's (mobile.css; first the Inbox's and People's, for their rows,
+     then all of them, so a move between pages changes nothing under them): the light holds over the frame's top and
+     gives way, over a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026). Near the foot it
      comes back around the tab bar, softer than the page's own (his "a bit of the highlight around the menu, not as
      strong"): a ground halfway to the page's under the light coming through again, and that ground flat at the window's
      foot, where Safari's toolbar begins. Nothing fixed is drawn under that toolbar, only the document's ground, which on
