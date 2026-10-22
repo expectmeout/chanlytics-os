@@ -273,6 +273,7 @@ const { CALENDAR_PAGE, CR_WARM_MS, fitDeskHourPx, fitHourPx } = await import(`${
 // The floor an hour never goes under on a phone: what the fit answers for no room at all (words.ts keeps the number).
 const CR_HOUR_MIN_PX = fitHourPx(0, 1);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { setStatus } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-status.ts");
 const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { calendarAddress, calendarParam } = await import(`${S}/calendar/address.ts`);
 const realVerbs = { ...calendar };
@@ -1275,6 +1276,47 @@ test("(A1) a window the tab held does not decide for a visit it lacks: the fresh
     assert.match(openName(tree), /Gloss/);
   } finally {
     honourDeps = false;
+  }
+});
+
+test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past 600 ms from its weeks' landing, so their rows never come in between the meetings after them; a board in hand never waits", async () => {
+  // The campaigns' read, here answering no runs: what the board draws its marks from (runs-surface.ts).
+  const runs = {
+    dto: { timezone: "America/New_York", from: "2026-09-07", days: 63, paused: false, runs: [], moments: [] },
+    fetchedAt: 1,
+  };
+  /** A page that comes on screen before its weeks, as a load does; Show draws campaigns (its default). */
+  const cold = () => {
+    fresh();
+    setSurfaceValue("calendar", undefined);
+    setSurfaceValue("calendar_runs", undefined);
+    assert.ok(byTestId(page(), "calendar-cold"), "its frame while the weeks are read");
+    setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: 1 });
+  };
+  honourDeps = true;
+  try {
+    cold();
+    assert.ok(byTestId(page(), "calendar-cold"), "the weeks in and the campaigns still out: still the frame");
+    setSurfaceValue("calendar_runs", runs);
+    assert.ok(byTestId(page(), "calendar-real"), "both in: the board, drawn once, with its campaigns");
+    // The campaigns slow to come: the board draws without them once 600 ms have passed.
+    cold();
+    assert.ok(byTestId(page(), "calendar-cold"));
+    await new Promise((r) => setTimeout(r, 650));
+    assert.ok(byTestId(page(), "calendar-real"), "REGRESSION: a board that waited for its campaigns for ever");
+    // Their read failed: there is nothing to wait for, and the board draws at once.
+    cold();
+    setStatus("calendar_runs", "seeded");
+    assert.ok(byTestId(page(), "calendar-real"), "a failed read is not waited for");
+    setStatus("calendar_runs", "live");
+    // In hand as the page came on screen (the tab's cache, a held window): the board at once, whatever the campaigns.
+    fresh();
+    setSurfaceValue("calendar_runs", undefined);
+    assert.ok(byTestId(page(), "calendar-real"), "a board in hand never waits");
+  } finally {
+    honourDeps = false;
+    setSurfaceValue("calendar_runs", undefined);
+    setStatus("calendar_runs", "live");
   }
 });
 

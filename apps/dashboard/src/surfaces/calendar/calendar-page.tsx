@@ -15,7 +15,7 @@
  * A real workspace draws what the seam gives (`useSurface("calendar")`); a demo session draws the same page from the sample
  * (sample.ts); before either, the board's frame, still, so the page has its shape while the weeks are read (CAL-25).
  */
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   MIN_MS,
   appointmentWords,
@@ -31,7 +31,7 @@ import { keepHeightOn } from "../kit/motion/page-scroll";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { canDo, navigate, onAPhone } from "../legacy-verbs";
-import { usePartShown, useSurface } from "../use-surface";
+import { usePartShown, useSurface, useSurfaceFailed } from "../use-surface";
 import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";
 import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
@@ -39,7 +39,7 @@ import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks"
 import { calendarAct, calendarHead, heldEmailsSheet, noticeSlot, rulesSheet } from "./board-parts";
 import { crPhone } from "./board-dom";
 import { RunSheet } from "./marks";
-import { wantRuns } from "./runs-surface";
+import { keptShow, wantRuns } from "./runs-surface";
 import { useCalendarDemo } from "./demo";
 import { touchSwipeStaying } from "./shell-verbs";
 import type { CalendarSurface } from "./surface";
@@ -96,14 +96,50 @@ function ColdFrame() {
   );
 }
 
+/**
+ * The longest a board whose weeks have just landed waits for its campaigns before it draws without them: the field's gap
+ * between the two on a cold load (page_vitals, 14-21 Oct 2026: 0 to 840 ms, about 450 at the middle).
+ */
+const RUNS_WAIT_MS = 600;
+
+/**
+ * Whether a cold board holds its first draw for its campaigns, so the two come in as one and no row of campaigns lands
+ * between the meetings after them, pushing them down (Ruben, 21 Oct 2026). Only a page that had nothing to draw as it came
+ * on screen (a load, or a tab that had not read the weeks), only while Show draws campaigns, only while their read is out
+ * (not failed), and never past RUNS_WAIT_MS from the weeks' landing (`boardIn`: the real read). A page that drew at once (its
+ * weeks in hand, or a demo's sample a read then replaces) draws at once, as it always did, and never goes back to its frame.
+ */
+function useRunsHold(boardIn: boolean, drewAtStart: boolean): boolean {
+  const coldAtStart = useRef(!drewAtStart);
+  const wanted = useRef(keptShow());
+  const runsIn = !!useSurface("calendar_runs");
+  const runsFailed = useSurfaceFailed("calendar_runs");
+  const [waited, setWaited] = useState(false);
+  const holding =
+    coldAtStart.current &&
+    (wanted.current.campaigns || wanted.current.cold) &&
+    boardIn &&
+    !runsIn &&
+    !runsFailed &&
+    !waited;
+  useEffect(() => {
+    if (!holding) return undefined;
+    const t = setTimeout(() => setWaited(true), RUNS_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [holding]);
+  return holding;
+}
+
 /** The Calendar: what a real workspace's read gives, else a demo's sample, else its frame while the read is out. */
 export function CalendarPage(props: CalendarAddress) {
   const live = useSurface("calendar");
   const demo = useCalendarDemo();
   const C = live ?? (demo ? demo.calendarSample() : undefined);
-  // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in.
-  usePartShown("calendar", "board", !!C);
-  if (!C) return <ColdFrame />;
+  // Only a real read is waited for: a demo's runs are the sample's, in hand with its weeks.
+  const hold = useRunsHold(!!live, !!C);
+  // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in (and, cold, its campaigns).
+  usePartShown("calendar", "board", !!C && !hold);
+  if (!C || hold) return <ColdFrame />;
   return <CalendarReal {...props} C={C} />;
 }
 

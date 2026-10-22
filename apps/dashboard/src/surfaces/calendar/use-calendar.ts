@@ -15,29 +15,15 @@ import {
 import { askOnScreenKey, demoSession, navigate, replaceRoute, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
 import { historyBack } from "../kit/sheet/back";
 import { calendarPlaceRoute, keepCalendarView } from "./address";
+import { keptShow, type CalendarShow } from "./runs-surface";
 import { crTyping } from "./board-dom";
 import { calendar } from "./verbs";
 import { CR_OVERLAY, CR_WARM_MS } from "./words";
 
 type Span = { from: string; days: number };
 
-/** What Show draws over the visits, which are always drawn: the open times, the campaigns, and cold email. */
-export interface CalendarShow {
-  open: boolean;
-  campaigns: boolean;
-  cold: boolean;
-}
-
-/** Show as it opens for a member who never picked (D2): open times and campaigns on, cold email off. */
-const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false };
-
-/** Show as this tab last kept it (tab-memory.ts, its own place, never the view's), else the default. */
-function keptShow(): CalendarShow {
-  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
-  const was = mem?.place("calendar", "show");
-  const on = (k: keyof CalendarShow) => (typeof was?.[k] === "boolean" ? was[k] : SHOW_DEFAULT[k]);
-  return { open: on("open"), campaigns: on("campaigns"), cold: on("cold") };
-}
+// What Show draws, and how this tab last kept it: the campaigns' surface reads it too, to read them before the page opens.
+export type { CalendarShow } from "./runs-surface";
 
 /**
  * The day the board looks at (the anchor), and everything else the page keeps: the open appointment, a read on its way, the
