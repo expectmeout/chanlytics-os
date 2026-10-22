@@ -297,8 +297,13 @@ test("a row opened from a list scrolled down: the list is held where it stood, o
   showHeld(true);
   assert.equal(list.dataset.held, "shown", "a thumb carrying the page away shows it");
   assert.ok(html.attrs.has("data-carrying"), "and the document says so: the frame lets go of none of its chrome");
+  // Fixed and the screen's width while it shows, it is cut clear of the point over the window's foot Safari reads
+  // (page-scroll.ts clearOfFoot): a list Safari read there kept its bar's band once back in its page.
+  const bottom = Math.round(list.getBoundingClientRect().bottom);
+  assert.equal(list.style.clipPath, `inset(0 0 max(0px, ${bottom}px - 100dvh + var(--foot-clear, 0px)) 0)`);
   showHeld(false);
   assert.equal(list.dataset.held, "");
+  assert.equal(list.style.clipPath, "", "and whole again once the carry is over");
   assert.ok(!html.attrs.has("data-carrying"));
   assert.ok(rows[17].isConnected);
   p.leave();

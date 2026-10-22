@@ -195,6 +195,21 @@ export const washBehind = (el: Element | null | undefined): HTMLElement | null =
   return prev && /backdrop/.test(String(prev.className || "")) ? (prev as HTMLElement) : null;
 };
 
+/**
+ * How far a pull down has taken an element under where it rests, which a phone's sheet is cut by at its rest's line
+ * (kit.css --sheet-down): nothing of it then stands over the window's foot, where Safari 26 reads a box to paint its bar's
+ * band from, and keeps the band for as long as that box is drawn. Said with the move, so it eases as the move does.
+ */
+const SHEET_DOWN = "--sheet-down";
+const pulledDown = (el: HTMLElement, by: string | null): void => {
+  if (typeof el.style.setProperty !== "function") return;
+  if (by === null) el.style.removeProperty(SHEET_DOWN);
+  else el.style.setProperty(SHEET_DOWN, by);
+};
+/** What a move of the element eases: its transform, and how far down it is pulled where the move is a pull down. */
+const movesOf = (way: Way | null | undefined, move: string): string =>
+  way === "down" ? `transform ${move}, ${SHEET_DOWN} ${move}` : `transform ${move}`;
+
 const GRAB_AT = 8;
 /** The longest a let-go takes to leave, and the shortest: a fast finger's is shorter, never shorter than this. */
 const LEAVE_MS = 180;
@@ -299,7 +314,7 @@ const clearAlong = (along: readonly HTMLElement[]) => {
   }
 };
 /** What a settle moves: the element, the wash behind it, what lies under it and goes with it, and whom it tells. */
-type Settling = Pick<Held, "el" | "wash" | "below" | "along" | "onGrab">;
+type Settling = Pick<Held, "el" | "wash" | "below" | "along" | "onGrab"> & { way?: Way | null };
 // Back where it was, on `curve` (the settle's own); its inline styles go when it is there, so the page's own rules
 // (an entrance, a sheet's frame) own it again. What lay under it goes back with it, and out of sight once it is covered.
 const swipeSettle = (g: Settling, curve: { ms: number; easing: string } = SETTLE) => {
@@ -317,8 +332,9 @@ const swipeSettle = (g: Settling, curve: { ms: number; easing: string } = SETTLE
   }
   const now = motionReduced();
   const move = `${curve.ms}ms ${curve.easing}`;
-  el.style.transition = now ? "none" : `transform ${move}`;
+  el.style.transition = now ? "none" : movesOf(g.way, move);
   el.style.transform = "translate3d(0, 0, 0)";
+  if (g.way === "down") pulledDown(el, "0px");
   if (wash && wash.style) {
     wash.style.transition = now ? "none" : `opacity ${move}`;
     wash.style.opacity = "";
@@ -330,6 +346,7 @@ const swipeSettle = (g: Settling, curve: { ms: number; easing: string } = SETTLE
     () => {
       el.style.transition = "";
       el.style.transform = "";
+      pulledDown(el, null);
       if (wash && wash.style) wash.style.transition = "";
       covered();
     },
@@ -397,6 +414,7 @@ const swipeClear = (g: Held) => {
   if (!g.el.style) return;
   g.el.style.transition = "";
   g.el.style.transform = "";
+  pulledDown(g.el, null);
   if (g.wash && g.wash.style) {
     g.wash.style.transition = "";
     g.wash.style.opacity = "";
@@ -455,8 +473,9 @@ const swipeLeave = (g: Held, close: () => unknown, curve: { ms: number; easing: 
     return;
   }
   const move = `${curve.ms}ms ${curve.easing}`;
-  el.style.transition = `transform ${move}`;
+  el.style.transition = movesOf(way, move);
   el.style.transform = leaveTo(g, width);
+  if (way === "down") pulledDown(el, "100%");
   if (wash && wash.style) {
     wash.style.transition = `opacity ${move}`;
     wash.style.opacity = "0";
@@ -530,6 +549,7 @@ const swipeFollow = (g: Held, dx: number, dy: number) => {
   if (g.way === "down") {
     const d = Math.max(0, dy);
     el.style.transform = `translate3d(0, ${d}px, 0)`;
+    pulledDown(el, `${d}px`);
     if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || DEFAULT_SIZE)));
   } else if (g.way === "back") {
     el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;

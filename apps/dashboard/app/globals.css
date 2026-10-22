@@ -77,6 +77,15 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
+/* On a phone every page is at least the screen at its largest, as the app's frame is (mobile.css .app-root): the doors,
+   creating a workspace, the Console, a legal page and the pages a link opens held one screen's height, so a short one
+   had nothing to scroll and Safari on iOS 26 never tucked its bar away into its pill (Ruben, 21 Oct 2026). */
+@media (max-width: 720px) {
+  body {
+    min-height: 100vh;
+    min-height: 100lvh;
+  }
+}
 
 /* ------------------------------------------------------ fields under a thumb */
 
