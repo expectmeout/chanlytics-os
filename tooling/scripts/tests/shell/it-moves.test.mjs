@@ -101,6 +101,45 @@ test("let go short of a third, it settles back; past it, it leaves the way it wa
   assert.deepEqual(closed, [1]);
 });
 
+test("a pull down says how far it took the sheet under its rest, which a phone's sheet is cut by, eased as the move is", async () => {
+  // A style that keeps custom properties as a browser's does: the sheet's rule reads --sheet-down (kit.css), so nothing of
+  // it stands lower than its rest, over the point at the window's foot Safari 26 paints its bar's band from.
+  const withProps = () => ({
+    props: {},
+    setProperty(name, value) {
+      this.props[name] = value;
+    },
+    removeProperty(name) {
+      delete this.props[name];
+    },
+  });
+  const el = element({ style: withProps(), previousElementSibling: wash() });
+  const h = touchSwipe({ onDown: () => {} });
+  h.onTouchStart({ touches: [{ clientX: 100, clientY: 100 }], currentTarget: el, target: el });
+  h.onTouchMove({ touches: [{ clientX: 102, clientY: 104 }], currentTarget: el });
+  h.onTouchMove({ touches: [{ clientX: 102, clientY: 160 }], currentTarget: el });
+  assert.equal(el.style.props["--sheet-down"], "60px", "as far as the finger took it");
+  h.onTouchCancel({ currentTarget: el });
+  assert.equal(el.style.props["--sheet-down"], "0px", "settling, back at its rest");
+  assert.equal(el.style.transition, "transform 240ms var(--ease-out), --sheet-down 240ms var(--ease-out)");
+  await wait(280);
+  assert.equal(el.style.props["--sheet-down"], undefined, "and the sheet's own rule owns it again");
+
+  const gone = element({ style: withProps(), previousElementSibling: wash(), isConnected: false });
+  drag(h, gone, [100, 100], [100, 200], [100, 400]);
+  assert.equal(gone.style.transform, "translate3d(0, 100%, 0)");
+  assert.equal(gone.style.props["--sheet-down"], "100%", "leaving, cut whole as it goes");
+  await wait(220);
+
+  // A pull across says nothing of it.
+  const thread = element({ style: withProps() });
+  const back = touchSwipe({ onBack: () => {}, when: () => true });
+  back.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: thread, target: thread });
+  back.onTouchMove({ touches: [{ clientX: 140, clientY: 302 }], currentTarget: thread });
+  assert.equal(thread.style.props["--sheet-down"], undefined);
+  back.onTouchCancel({ currentTarget: thread });
+});
+
 test("a page that asks first keeps its sheet: it leaves, the page asks, and it settles back to show the question", async () => {
   const el = element();
   let asked = 0;

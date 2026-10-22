@@ -27,7 +27,7 @@
  * by a copy of itself, drawn as it stood, and the view itself is left as React keeps it; a hidden view is never the one a
  * gesture or a press moves.
  */
-import { documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
+import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
 export const TIMELINE_MS = 460;
@@ -407,7 +407,8 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
   if (pin) {
     // A page the window scrolled is pinned to the screen where it stood, and cut to what the screen showed of it: the
     // window goes back to the top under it as the next page arrives (or to the place that page kept), and a page of a
-    // hundred rows is no layer to move. What had gone up past the screen's top is scrolled off inside it.
+    // hundred rows is no layer to move. What had gone up past the screen's top is scrolled off inside it, and its foot is
+    // cut clear of the point Safari reads (page-scroll.ts clearOfFoot).
     const top = Math.max(pin.top, 0);
     Object.assign(gone.style, {
       position: "fixed",
@@ -418,6 +419,7 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
       margin: "0",
       boxSizing: "border-box",
       overflow: "hidden",
+      clipPath: clearOfFoot(Math.max(pin.screen, top)),
     });
     gone.scrollTop = top - pin.top;
   } else {
