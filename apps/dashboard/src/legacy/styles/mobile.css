@@ -889,17 +889,23 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
     background-repeat: no-repeat;
   }
   .pg-light > span {
     display: none;
   }
   /* The Inbox's views and People's lists read on a whiter ground: the page's top carries the list's wash under its paper
-     (tokens.css, --surface-page-list), so the window's layer of light, the frame's top and whatever paints the light
-     again draw it alike. */
+     (tokens.css, --surface-page-list) and the pools lie on the list's own ground under the rows, so the window's layer
+     of light, the frame's top and whatever paints the light again draw it alike. The document's ground is the list's
+     foot: Safari draws nothing fixed under its toolbar, only the document, and the page's grey stood there as a band
+     under the white rows (Ruben, 22 Oct 2026). */
   .app-root:has(> .main > main[data-strip="inbox"], > .main > main[data-strip="people"]) {
     --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
+    --surface-page-under: var(--surface-page-list-ground);
+  }
+  html:has(> body .app-root > .main > main[data-strip="inbox"], > body .app-root > .main > main[data-strip="people"]) {
+    background-color: var(--surface-list-foot);
   }
   /* At least the screen at its largest (100lvh: as the browser shows it with its own bar tucked away), and as long as the
      page. A page that held less than the screen it showed (100dvh) had nothing to scroll, so Safari never tucked its
@@ -964,7 +970,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: -1;
     pointer-events: none;
     background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-image: var(--surface-page-top), var(--surface-page-light), var(--surface-page-under);
     background-repeat: no-repeat;
     background-size: 100vw 100vh;
     background-size: 100vw 100dvh;
