@@ -372,11 +372,19 @@ function keepRow(place: Place): void {
   keeping = end;
 }
 
-/** The list put where it stood, against the frame's top as it will be painted, not as its observer last measured it. */
+/**
+ * The list put where it stood, against the frame's top as it will be painted, not as its observer last measured it. A list
+ * left at its top lands at its top: whatever grew over it while the row's page stood (a line in the frame's top saying a
+ * newer version is ready, a call's bar, a row added above) is drawn in its own room, and the list's head stays in view.
+ * Held to the row you were on instead, the list was scrolled by the growth to keep that row still, and its head went under
+ * the frame's top: Conversations came back with its channels hidden, and stayed so once the line had gone (Ruben, 22 Oct
+ * 2026). Only a list scrolled into its rows keeps the row where it stood, since there the rows are what you were looking at.
+ */
 function placeList({ list, scroller, row, rowAt, scrolled }: Place): void {
   if (!list.isConnected || list.getClientRects().length === 0) return;
   measureFrameTop();
-  if (row && row.isConnected && list.contains(row)) scrollBoxBy(scroller, row.getBoundingClientRect().top - rowAt);
+  if (scrolled === 0) scrollBoxTo(scroller, 0);
+  else if (row && row.isConnected && list.contains(row)) scrollBoxBy(scroller, row.getBoundingClientRect().top - rowAt);
   else scrollBoxTo(scroller, scrolled);
 }
 
