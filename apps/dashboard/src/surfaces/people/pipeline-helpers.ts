@@ -15,7 +15,6 @@ import {
   pipelineSorted,
   pipelinePassMany,
   pipelinePassDone,
-  pipelinePeekDetail,
   pipelineSheetOf,
   pipelineBoardMore,
   pipelinePersonOf,
@@ -39,13 +38,12 @@ export const pipelineHelpers = () => ({
   rowId: pipelineRowId,
   rowNow: pipelineRowNow,
   viewLabel: pipelineViewLabel,
-  // The row carries the deal: its order by the member's heading, a selection's pass and what it came to, what the
-  // peek says once the person is read, and how many cards a board column shows.
+  // The row carries the deal: its order by the member's heading, a selection's pass and what it came to, and how many
+  // cards a board column shows.
   sorted: pipelineSorted,
   passMany: pipelinePassMany,
   passDone: pipelinePassDone,
-  detail: pipelinePeekDetail,
-  // The row's own deal as its sheet says it: its steps, where it stands, its acts and their other deals.
+  // The row's own deal as its sheet says it: its steps, where it stands, its acts and the question it asks.
   sheet: pipelineSheetOf,
   boardCap: PIPELINE_BOARD_CAP,
   boardMore: pipelineBoardMore,

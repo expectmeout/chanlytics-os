@@ -3,6 +3,7 @@ import {
   LEAD_CLASSES,
   LEAD_LISTS,
   LeadsQuerySchema,
+  PIPELINE_WORDS,
   ago,
   isDayKey,
   isPipelineView,
@@ -10,6 +11,7 @@ import {
   nextStepOf,
   parseLeadsRoute,
   pipelineViewLabel,
+  pipelineWorth,
   poolRowOf,
   toCalendarVM,
   toLeadRowVM,
@@ -132,11 +134,15 @@ export const pipeline: Provider = async (rc, ctx) => {
   }
   const asked = (ctx.view ?? "").replace(/:search$/, "");
   const view: PipelineView = isPipelineView(asked) ? asked : "all";
+  // What the proposals out and the clients come to: Ask's alone, since the page says counts only (pipelineWorth).
+  const worth = pipelineWorth(whole);
   return {
     rows,
     aggregate: aggregateOf([
       `Pipeline, ${pipelineViewLabel(view, pace)}: ${rows.length} on screen`,
       ...whole.summary,
+      worth.proposals ? PIPELINE_WORDS.worth.proposals(worth.proposals) : null,
+      worth.clients ? PIPELINE_WORDS.worth.clients(worth.clients) : null,
       ...whole.groups.map((g) => `${g.label}: ${g.count}`),
     ]),
   };

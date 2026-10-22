@@ -14,7 +14,7 @@
  *
  * A row says who, the service, the value, how long it has stood where it is ("8 d"), and at most one chip: the one
  * thing to know about it, in warn only where something waits on the owner. The rules are deals.ts's --
- * consultationsWithoutProposal, waitingOnProposal, heardSinceProposal, amountTotalsWords -- and the words are the
+ * consultationsWithoutProposal, waitingOnProposal, heardSinceProposal -- and the words are the
  * deal's own wherever it has them (DealVM); nothing is decided twice. Every other word the Pipeline says is here, and
  * a page only composes it. Pure.
  *
@@ -235,9 +235,20 @@ function openOf(r: PipelineSource): DealVM[] {
   return r.deal && dealIsOpen(r.deal) ? [r.deal] : [];
 }
 
-/** What some deals come to in all, summed by how each recurs (amountTotalsWords); null when none has an amount. */
-const worth = (xs: readonly { d: DealVM }[]): string | null =>
-  amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+/**
+ * What the proposals out and the clients come to, for Ask alone (its Pipeline read and its context): the page says counts
+ * only (Ruben, 21 Oct 2026), but what the Pipeline is worth is answered from the one sum, never added up by a model. Each
+ * group's deals, a row each (0029), summed by how each recurs (amountTotalsWords); null where none has an amount.
+ */
+export function pipelineWorth(vm: Pick<PipelineVM, "groups">): { proposals: string | null; clients: string | null } {
+  const of = (key: PipelineGroupKey) =>
+    amountTotalsWords(
+      (vm.groups.find((g) => g.key === key)?.rows ?? []).flatMap((r) =>
+        r.deal ? [{ amount_cents: r.deal.amountCents, per: r.deal.per, currency: r.deal.currency }] : [],
+      ),
+    );
+  return { proposals: of("proposals"), clients: of("clients") };
+}
 
 /** The rows of the Pipeline's groups but the held consultations, before a view picks among them (bandsOf). */
 interface PipelineBands<T> {
@@ -355,12 +366,12 @@ export function pipelineOf<T extends PipelineSource>(
       inOrder(shownProposals, (x) => x.d.sinceMs).map((x) =>
         dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace),
       ),
-      worth(shownProposals),
+      null,
     ),
     group(
       "clients",
       inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
-      worth(shownClients),
+      null,
     ),
     group(
       "closed",
@@ -370,19 +381,17 @@ export function pipelineOf<T extends PipelineSource>(
       null,
     ),
   ].filter((g) => g.count > 0);
-  const part = (words: string | null, press: PipelineView | null = null, joins = false): PipelineLinePart | null =>
-    words ? { words, view: press, tone: press ? "warn" : null, joins } : null;
+  // Counts only (Ruben, 21 Oct 2026): what the deals come to is not said on the Pipeline, over the table or in a head.
+  const part = (words: string | null, press: PipelineView | null = null): PipelineLinePart | null =>
+    words ? { words, view: press, tone: press ? "warn" : null } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(proposals.length ? worth(proposals) : null, null, true),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
     part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
-    part(clients.length ? worth(clients) : null, null, true),
   ].filter((x): x is PipelineLinePart => !!x);
-  // A phone's filters (Ruben, 10 Oct 2026): the line's counts, each the view it names and its dot's tone, and what they
-  // come to said once under them, where the line, the rail and the group heads each said it again.
+  // A phone's filters (Ruben, 10 Oct 2026): the line's counts, each the view it names and its dot's tone.
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
   const filter = (view: PipelineView, count: number, words: string, tone: PipelineFilter["tone"]) =>
     count > 0 ? [{ view, count, words, tone }] : [];
@@ -397,11 +406,5 @@ export function pipelineOf<T extends PipelineSource>(
     ...filter("lapsed", lapsed.length, `${lapsed.length} lapsed`, "warn"),
     ...filter("clients", clientCount, plural(clientCount, "client", "clients"), "ok"),
   ];
-  const proposed = proposals.length ? worth(proposals) : null;
-  const earning = clients.length ? worth(clients) : null;
-  const money =
-    [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null]
-      .filter((x): x is string => !!x)
-      .join(" · ") || null;
-  return { summary: line.map((p) => p.words), line, filters, money, groups, empty: groups.length === 0, pace };
+  return { summary: line.map((p) => p.words), line, filters, groups, empty: groups.length === 0, pace };
 }

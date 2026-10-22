@@ -12881,33 +12881,22 @@ var PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
+  /**
+   * The deal sheet over the rows (pipeline-peek.ts): what its head's face and name say they open (their page), its wait,
+   * and what it calls a person it could not read.
+   */
   peek: {
     close: "Close",
-    page: "Their page",
+    open: (name) => `Open ${name}'s page`,
     reading: "Reading\u2026",
-    what: "this person",
-    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
-    reach: {
-      title: "How to reach them",
-      phone: "Phone",
-      email: "Email",
-      replies: "Replies",
-      copy: "Copy",
-      copied: "Copied",
-      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
-      copyPhone: "Copy the number",
-      copyEmail: "Copy the address"
-    }
+    what: "this person"
   },
   /**
-   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
-   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
-   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026, made compact 21 Oct): its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret and the
+   * proposal it opens, the Message its foot leads with for a client, and the desk's walk through the rows shown.
    */
   sheet: {
-    raise: "Show all of the deal",
-    lower: "Back to the quick look",
     next: "Next step",
     done: (step2) => `Done: ${step2}`,
     change: (step2) => `Change: ${step2}`,
@@ -12916,14 +12905,17 @@ var PIPELINE_WORDS = {
     no: "They passed",
     passAsk: (first) => `Why did ${first} pass?`,
     more: (what) => `More for ${what}`,
+    /** The caret's door to the proposal where it lives, in a new tab; its link is copied on their page. */
+    openProposal: "Open the proposal",
     message: "Message",
-    others: "Also with them",
-    /** The proposal's own box, raised: its link and the link's copy. */
-    proposal: "The proposal",
-    link: "Link",
     /** A consultation over with no proposal since, once its step says when and how it went. */
     noProposal: "No proposal yet",
     walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
+  },
+  /** What the proposals out and the clients come to, as Ask is told it (pipelineWorth); the page says counts only. */
+  worth: {
+    proposals: (sum3) => `Proposals out come to ${sum3}`,
+    clients: (sum3) => `Clients come to ${sum3}`
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
@@ -25728,7 +25720,14 @@ var STEP_SHEET_WORDS = {
   noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
   when: { label: "When", pick: "The day", none: "No day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
+  // Who sees a step: the team, and Ask, which reads each person's next step (its people and Pipeline reads); never the
+  // receptionist, since a step is the team's whatever a note's switch says (00166).
+  teamOnly: "Your team and Ask see it; the receptionist doesn't.",
+  /**
+   * What a new step on a deal opens with, from the act its card leads with (dealNextAct): its send, today, or its
+   * follow-up, tomorrow. Any other act opens it empty.
+   */
+  suggested: { send: "Send the proposal", "follow-up": "Follow up on the proposal" },
   /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
   reads: { label: "Team only", hint: "The receptionist won't read it" },
   save: { add: "Set it", edit: "Save", note: "Add it" },
@@ -25761,10 +25760,13 @@ var STEP_SHEET_WORDS = {
   }
 };
 var NO_DAY = "none";
-function openedWith(note, kind, days) {
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+var SUGGESTED_DAY = { send: 0, "follow-up": 1 };
+var isSuggested = (lead) => !!lead && Object.prototype.hasOwnProperty.call(SUGGESTED_DAY, lead);
+function openedWith(note, kind, days, lead) {
+  const suggested = !note && kind === "step" && isSuggested(lead) ? lead : null;
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : suggested ? days[SUGGESTED_DAY[suggested]]?.key ?? null : null;
   return {
-    what: note ? note.body : "",
+    what: note ? note.body : suggested ? STEP_SHEET_WORDS.suggested[suggested] : "",
     day,
     picking: !!day && !days.some((c) => c.key === day),
     forId: note ? note.forUserId : null,
@@ -25791,7 +25793,7 @@ function stepSheetFor(p, ask, nowMs, tz) {
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
     ],
-    draft: openedWith(note, kind, days),
+    draft: openedWith(note, kind, days, dealId ? ask.lead ?? null : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
@@ -31018,7 +31020,6 @@ function daysWithAppointments(days, rows2, tz, people) {
 
 // src/people/person-reach.ts
 var EMAIL_STOPPED_TAG = "stopped accepting mail";
-var EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 var NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 function bookingLinkAction(reach, stop) {
@@ -39662,9 +39663,9 @@ function reasonsLine(reasons, passed) {
 }
 function openLine(open) {
   if (!open.count) return null;
-  const worth2 = amountTotalsWords(open.amounts);
-  if (!worth2) return `${plural(open.count, "proposal", "proposals")} still open.`;
-  return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
+  const worth = amountTotalsWords(open.amounts);
+  if (!worth) return `${plural(open.count, "proposal", "proposals")} still open.`;
+  return open.count === 1 ? `${worth} still open in 1 proposal.` : `${worth} still open across ${open.count} proposals.`;
 }
 function toDealReportVM(dto, within2) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
@@ -40885,7 +40886,14 @@ function openOf(r2) {
   if (r2.openDeals && r2.openDeals.length) return r2.openDeals;
   return r2.deal && dealIsOpen(r2.deal) ? [r2.deal] : [];
 }
-var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+function pipelineWorth(vm) {
+  const of = (key) => amountTotalsWords(
+    (vm.groups.find((g) => g.key === key)?.rows ?? []).flatMap(
+      (r2) => r2.deal ? [{ amount_cents: r2.deal.amountCents, per: r2.deal.per, currency: r2.deal.currency }] : []
+    )
+  );
+  return { proposals: of("proposals"), clients: of("clients") };
+}
 function bandsOf(rows2, heldSet, nowMs) {
   const out = { ahead: [], proposals: [], clients: [], closed: [] };
   for (const r2 of rows2) {
@@ -40948,12 +40956,12 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
         (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
-      worth(shownProposals)
+      null
     ),
     group(
       "clients",
       inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
-      worth(shownClients)
+      null
     ),
     group(
       "closed",
@@ -40963,15 +40971,13 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words3, press = null, joins = false) => words3 ? { words: words3, view: press, tone: press ? "warn" : null, joins } : null;
+  const part = (words3, press = null) => words3 ? { words: words3, view: press, tone: press ? "warn" : null } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(proposals.length ? worth(proposals) : null, null, true),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
-    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
-    part(clients.length ? worth(clients) : null, null, true)
+    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null)
   ].filter((x) => !!x);
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
   const filter = (view2, count2, words3, tone) => count2 > 0 ? [{ view: view2, count: count2, words: words3, tone }] : [];
@@ -40986,10 +40992,7 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
     ...filter("lapsed", lapsed.length, `${lapsed.length} lapsed`, "warn"),
     ...filter("clients", clientCount, plural(clientCount, "client", "clients"), "ok")
   ];
-  const proposed = proposals.length ? worth(proposals) : null;
-  const earning = clients.length ? worth(clients) : null;
-  const money3 = [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null].filter((x) => !!x).join(" \xB7 ") || null;
-  return { summary: line.map((p) => p.words), line, filters, money: money3, groups, empty: groups.length === 0, pace };
+  return { summary: line.map((p) => p.words), line, filters, groups, empty: groups.length === 0, pace };
 }
 
 // src/deals/pipeline/pipeline-peek.ts
@@ -41013,24 +41016,6 @@ function pipelinePeekOf(row2, group, deals = null) {
     group,
     facts
   };
-}
-function pipelinePeekDetail(p) {
-  const W = PIPELINE_WORDS.peek.reach;
-  const reach = [];
-  if (p.phone && !(p.consent && p.consent.dnc))
-    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
-  if (p.email)
-    reach.push({
-      id: "email",
-      label: W.email,
-      words: p.email,
-      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
-      copy: p.email
-    });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
-  if (replies && !(p.email && replies === EMAIL_CANT_REACH))
-    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
-  return { reach };
 }
 function stepsOf2(track, card, held) {
   const label = {
@@ -41060,10 +41045,9 @@ function pipelineSheetOf(row2, p, nowMs, tz) {
   const d = row2.deal;
   const held = p ? consultationStepOf(p, nowMs, tz) : null;
   const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
-  const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
   const consulted = !d && p ? consultedService(p) : null;
   const sub = consulted ? `${DEAL_CARD_WORDS.consultation} \xB7 ${consulted}` : null;
-  const base = { sub, steps: stepsOf2(row2.track, card, held), others };
+  const base = { sub, steps: stepsOf2(row2.track, card, held) };
   if (card) {
     const asks = card.next?.id === "follow-up";
     const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
@@ -50391,7 +50375,8 @@ var SAY_IT_WORDS = {
     deal: "Website, 1,200 a month, valid to the 30th",
     note: "Prefers mornings; call them back Friday"
   },
-  go: "Fill it in",
+  // The press inside the box's end (21 Oct 2026): one word fits beside what was typed.
+  go: "Fill",
   busy: "Reading\u2026",
   filled: "Filled in from what you said. Check it, then save.",
   empty: "Nothing in that fits these fields. Try saying it another way.",
@@ -67263,7 +67248,6 @@ export {
   pipelineOf,
   pipelinePassDone,
   pipelinePassMany,
-  pipelinePeekDetail,
   pipelinePeekOf,
   pipelinePersonOf,
   pipelineRail,
@@ -67273,6 +67257,7 @@ export {
   pipelineSheetOf,
   pipelineSorted,
   pipelineViewLabel,
+  pipelineWorth,
   placeRailOf,
   placeSpanOf,
   placeStands,

@@ -8,10 +8,14 @@
  */
 import { windowValue } from "../../legacy-verbs";
 
-/** What the note sheet is asked for: a person, the deal a new step names, the step to change, or a note (no day first). */
+/**
+ * What the note sheet is asked for: a person, the deal a new step names (and the act its card leads with, which suggests
+ * the step), the step to change, or a note (no day first).
+ */
 export interface StepSheetAsk {
   personId: string;
   dealId?: string | null;
+  lead?: string | null;
   noteId?: string | null;
   note?: boolean;
 }

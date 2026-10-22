@@ -4,7 +4,8 @@
  * follow-up, 0006) and the dashboard's People reads read them alike, so the two never judge "waiting" by two paces.
  * Paged, so a busy year is read whole. A read that fails THROWS: each caller says what no pace costs it.
  *
- * And the member's one call that records a deal with its line in the ledger (recordDeal, 00357).
+ * And the member's one call that records a deal with its line in the ledger (recordDeal, 00357), and a person's open
+ * deals as a card names one (openDealsOf: Ask's step, which stands on the deal it names).
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
@@ -43,6 +44,28 @@ export async function yesesSince(db: Db, tenantId: string, since: Date): Promise
 export async function dealOnFile(db: Db, tenantId: string): Promise<boolean> {
   const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
   return !r.error && (r.data?.length ?? 0) > 0;
+}
+
+/** An open deal of a person's, as a card names it: its id and its service. */
+export interface OpenDealRow {
+  id: string;
+  service: string | null;
+}
+
+/**
+ * A person's open deals (a proposal out, a client: 0029, one per service), newest first, under whatever row security the
+ * client carries. A read that fails THROWS: a card is never proposed against deals it could not read.
+ */
+export async function openDealsOf(db: Db, tenantId: string, contactId: string): Promise<OpenDealRow[]> {
+  const r = await db
+    .from("deals")
+    .select("id, service")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .in("stage", ["proposed", "won"])
+    .order("created_at", { ascending: false });
+  if (r.error) throw new Error(r.error.message);
+  return (r.data ?? []).map((d) => ({ id: d.id, service: d.service }));
 }
 
 /** What a move may name beside its stage: deal_record's own arguments, by their names without the `p_`. */
