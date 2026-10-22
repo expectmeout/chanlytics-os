@@ -93,10 +93,12 @@ export function shownHeight(box: Element): number {
  * The cut that keeps a copy of a page, fixed to the screen a moment with its foot at `bottom` (from the screen's top), off
  * the point over the window's foot that Safari reads (tokens.css --foot-clear): the page leaving as the next arrives, a
  * list shown under a page a thumb carries back. Safari paints a band under its bar for a box it reads there, and keeps it
- * for as long as that box is drawn, wherever it stands since: a list put back in its page kept it there for good.
+ * for as long as that box is drawn, wherever it stands since: a list put back in its page kept it there for good. `top`
+ * cuts as much off its head (from the box's own top), where something drawn over it hides it anyway.
  */
-export function clearOfFoot(bottom: number): string {
-  return `inset(0 0 max(0px, ${Math.round(bottom)}px - 100dvh + var(--foot-clear, 0px)) 0)`;
+export function clearOfFoot(bottom: number, top = 0): string {
+  const head = top >= 0.5 ? `${Math.round(top)}px` : "0";
+  return `inset(${head} 0 max(0px, ${Math.round(bottom)}px - 100dvh + var(--foot-clear, 0px)) 0)`;
 }
 
 /** Where `el` stands from the top of what `box` scrolls, in pixels: its offset in the box's content. */

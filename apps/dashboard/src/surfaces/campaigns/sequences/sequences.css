@@ -70,14 +70,34 @@
   padding: 0 var(--space-2) var(--space-4);
 }
 /* On a phone the list is the page's (campaigns.css, no pane round it): its search at the strip's 12px edge and its rows
-   under it, as People's are. */
+   under it, as People's are; held under a record opened from it (data-held) it keeps them where they stood. */
 @media (max-width: 900px) {
-  .cm-split:not([data-open]) .sq-list-head {
+  .cm-split:not([data-open]) .sq-list-head,
+  .cm-split > [data-held] .sq-list-head {
     padding: 0 0 var(--space-2);
   }
-  .cm-split:not([data-open]) .sq-list-rows {
+  .cm-split:not([data-open]) .sq-list-rows,
+  .cm-split > [data-held] .sq-list-rows {
     gap: 0;
     padding: 0 0 var(--space-4);
+  }
+  /* A row keeps its fill under a finger, as the Inbox's and People's do: the row last opened stays lit, the list's
+     selection, and so does the one a record was opened from while the record stands over the list and once it is back
+     (kit/motion/held-list.ts pressRow, data-hover), never the browser's flash over it. A row in its fill stands clear of
+     the hairlines either side of it (kit.css), which fade with the fill. */
+  .sq-row {
+    border-radius: var(--surface-row-radius);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sq-row:is(:hover, [data-hover]) {
+    background: var(--hover-fill);
+  }
+  .sq-row + .sq-row::after {
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .sq-row + .sq-row:is(:hover, [data-hover])::after,
+  .sq-row:is(:hover, [data-hover]) + .sq-row::after {
+    opacity: 0;
   }
   /* A group's head as the Pipeline's section head is on a phone (clients.css, .pipe-scope .pl-sec-head; Ruben, 20 Oct
      2026: "the different groups like proposal out and clients looks cleaner"): its name in ink at the base step and
@@ -672,6 +692,29 @@
 .sq-rec,
 .sq-deck {
   min-width: 0;
+}
+/* A record opened over the list on a phone (sequences-page.tsx, kit/motion/held-list.ts) is pushed in over it as iOS pushes
+   a page (data-pushed) and plays nothing of its own; one still being read as the press gave up waiting (list.tsx) arrives
+   after, and comes in over the list as it does (data-over), as a person's page does over People (clients.css
+   person-over). Moved by `translate`, so a thumb's swipe back, which moves `transform`, takes it as it stands. */
+@keyframes sq-over {
+  from {
+    opacity: 0;
+    translate: 28px 0;
+  }
+}
+@media (max-width: 900px) {
+  .sq-record[data-over] {
+    animation: sq-over 260ms var(--ease-out);
+  }
+}
+.sq-record[data-pushed] {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sq-record[data-over] {
+    animation: none;
+  }
 }
 .sq-rename {
   display: flex;

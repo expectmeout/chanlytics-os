@@ -2699,22 +2699,28 @@ section:has(> .tpl-composer:not(.is-translate)) {
     max-height: 100%;
   }
   /* On a phone the list is the page's own, as People's and the Inbox's are under their strips (Ruben, 20 Oct 2026): no
-     pane round it, its search and its rows on the page at the strip's edges. Its pull pixel stays (mobile.css). */
-  .cm-split:not([data-open]) > .cm-list {
+     pane round it, its search and its rows on the page at the strip's edges. Its pull pixel stays (mobile.css). So is a
+     list held under a record opened from it (sequences-page.tsx, kit/motion/held-list.ts data-held): it keeps the shape
+     it had on the page, which the open pane would take from it, so a thumb carrying the record back uncovers it as it
+     stood. */
+  .cm-split:not([data-open]) > .cm-list,
+  .cm-split > .cm-list[data-held] {
     margin: 0;
     border: 0;
     border-radius: 0;
     background: none;
     box-shadow: none;
   }
-  .cm-split:not([data-open]) > .cm-list::after {
+  .cm-split:not([data-open]) > .cm-list::after,
+  .cm-split > .cm-list[data-held]::after {
     background: none;
   }
   .cm-split[data-open] {
     grid-template-columns: minmax(0, 1fr);
     padding: 0;
   }
-  .cm-split[data-open] > .cm-list {
+  /* What is open is the screen; a list held under it stays laid out where it stood, out of sight (components.css). */
+  .cm-split[data-open] > .cm-list:not([data-held]) {
     display: none;
   }
   /* The open thing is the screen: no pane round it, its head the capsule the kit draws (kit.css, Capsule) at the top. */
@@ -2761,16 +2767,21 @@ section:has(> .tpl-composer:not(.is-translate)) {
   .cm-pane-body {
     overflow-x: hidden;
   }
-  /* An open pane going back to its list under the thumb (split.tsx cmGoing, data-going): the list is drawn under it, so
-     what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox. */
+  /* An open pane going back to its list under the thumb, or pushed in over it (split.tsx cmGoing, data-going): the list is
+     drawn under it, so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
+     The pane wears the page's own ground, and moves over the frame's chrome drawn again under it with the list (the
+     top, 200; mobile.css, data-carrying), as a thread and a person's page do (components.css, clients.css). */
   .cm-split[data-open][data-going] > .cm-list {
     display: flex;
     grid-area: 1 / 1;
   }
   .cm-split[data-open][data-going] > .cm-pane {
-    z-index: 1;
+    z-index: 202;
     grid-area: 1 / 1;
-    background: var(--bg);
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
     box-shadow: var(--shadow-lg);
   }
 }

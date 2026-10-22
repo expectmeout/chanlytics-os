@@ -529,6 +529,35 @@ test("while a thumb carries the row's page, the frame's top keeps its height, so
   p.leave();
 });
 
+test("the list under a carried page is cut where the frame's top drawn over it ends: its head never reads through the dimmed top", () => {
+  // What of the list stood under the frame's top was hidden by the top's ground; under a page carried away both are dimmed,
+  // and Campaigns' search and first row read through its name and strip (22 Oct 2026).
+  const top = element("frame-top", { height: 134 });
+  top.box = () => ({ top: 0 });
+  top.offsetHeight = 134;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stop = watchFrameTop(top);
+  const { list } = inbox();
+  const p = page(list);
+  p.draw(false);
+  p.draw(true);
+  // Held, it is fixed where it stood on the screen: scrolled 1,500 down, its head far above the top's foot.
+  list.box = () => ({ top: Number.parseFloat(list.style.top) });
+  showHeld(true);
+  const box = list.getBoundingClientRect();
+  assert.equal(box.top, 220 - 1500);
+  assert.equal(
+    list.style.clipPath,
+    `inset(${134 - box.top}px 0 max(0px, ${Math.round(box.bottom)}px - 100dvh + var(--foot-clear, 0px)) 0)`,
+    "cut from the top's foot, in the list's own box, and clear of the window's foot as before",
+  );
+  showHeld(false);
+  assert.equal(list.style.clipPath, "", "whole again once the carry is over");
+  stop();
+  p.leave();
+});
+
 test("what is drawn again over the list once the Back has landed moves nothing: the row is kept where it stood, before the paint", async () => {
   // People's name and its strip are drawn over its list after the draw that puts it back (the page says its standing as it
   // is drawn, the frame its crumbs), the column starts under the frame's top, and a count is read again: each moved the list

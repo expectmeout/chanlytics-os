@@ -462,10 +462,20 @@ export function showHeld(on: boolean): void {
   // Taken before the frame draws its head again, as the page has it now.
   carrying = { standIn, along: [bandOver(), ...pagesOwnTop().map(goesWith)] };
   standIn.dataset.held = "shown";
-  standIn.style.clipPath = clearOfFoot(standIn.getBoundingClientRect().bottom);
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);
   headUnder(holding.place.head);
+  // Cut where the frame's top, drawn again over it, ends: what of the list stood under the top was hidden by its ground,
+  // and both are dimmed as the page covers them, so the list's head scrolled under the top read through the frame's
+  // (Campaigns' search and first row through its name and strip, 22 Oct 2026).
+  const box = standIn.getBoundingClientRect();
+  const end = frameTopEnd();
+  standIn.style.clipPath = clearOfFoot(box.bottom, end > 0 ? end - box.top : 0);
+}
+
+/** Where the frame's top ends on the screen as it is drawn now; 0 with none (a desk, where it is no box). */
+function frameTopEnd(): number {
+  return Math.max(0, ...frameTopsWatched().map((top) => top.getBoundingClientRect().bottom));
 }
 
 /** The carry over: the frame's chrome is the page's to let go of again, measured, and its head the page's own. */
