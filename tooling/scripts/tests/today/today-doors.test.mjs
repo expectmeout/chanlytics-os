@@ -469,7 +469,8 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
       "each row can be skipped",
     );
     assert.equal(textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")), `${rows.length} left`);
-    // On a phone the card is its first row alone (canvas P9), so the count rides beside that row's words.
+    // The count rides beside the first row's words too (canvas P9's phone), where no width draws it now: a phone draws
+    // every row under the head's count, and hides each row's words.
     const aside = (r) => find(r, (n) => n.props?.className === "setup-card-aside");
     assert.ok(textOf(aside(rows[0])).endsWith(`${rows.length} left`));
     assert.ok(!aside(rows[1]), "and only there");
@@ -491,7 +492,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
   }
 });
 
-test("after the first run, with the calendar in, the card carries one door to the appointment reminder; without one it carries none", () => {
+test("after the first run, with the calendar in, the card's last row is the door to the appointment reminder; without one there is none", async () => {
   const answering = {
     business: {
       name: "Harbor Moving",
@@ -507,6 +508,12 @@ test("after the first run, with the calendar in, the card carries one door to th
       voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
     },
   };
+  const put = [];
+  const realLater = setupVerbs.later;
+  setupVerbs.later = async (ids, on) => {
+    put.push([ids, on]);
+    return { ok: true, message: "" };
+  };
   try {
     feedSetup(setupSurface(answering));
     const none = mountSetup();
@@ -519,16 +526,35 @@ test("after the first run, with the calendar in, the card carries one door to th
       undefined,
       "no calendar: no reminder to offer",
     );
+    const rowsWithout = findAll(none, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length;
     feedSetup(setupSurface({ ...answering, calendar: { state: "ok" } }));
     const card = mountSetup();
-    const line = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
-    assert.ok(line, "the reminder's line, under the card's rows");
-    assert.ok(textOf(line).startsWith("Your calendar is in. Remind each customer the day before?"));
+    const row = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
+    assert.ok(row, "the reminder's row, the last in Setup's list");
+    assert.equal(row.props.className, "setup-card-row", "drawn as Setup's rows are");
+    assert.ok(
+      textOf(row).startsWith("The day-before reminderYour calendar is in. Remind each customer the day before."),
+    );
+    const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length;
+    assert.equal(
+      textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")),
+      `${rows + 1} left`,
+      "counted with Setup's rows",
+    );
     const remind = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-go");
     assert.ok(remind, "one door to the appointment reminder");
-    assert.match(String(remind.props.href), /campaigns\/sequences\/new:moment:visit_tomorrow$/);
     assert.equal(textOf(remind), "Turn on");
+    remind.props.onClick();
+    assert.equal(went.at(-1), "campaigns/sequences/new:moment:visit_tomorrow");
+    const skip = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-skip");
+    await skip.props.onClick();
+    assert.deepEqual(put.at(-1), [["remind-skipped"], true], "Skip puts the reminder off, as a row is put off");
+    const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
+    await hide.props.onClick();
+    assert.ok(put.at(-1)[0].includes("remind-skipped"), "and Hide puts it off with the rows");
+    assert.equal(put.at(-1)[0].length, rowsWithout + 1);
   } finally {
+    setupVerbs.later = realLater;
     feedSetup(undefined);
   }
 });

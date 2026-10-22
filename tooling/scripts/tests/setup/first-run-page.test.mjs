@@ -1310,9 +1310,14 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
   const { asked } = phoneWorld();
   const order = [];
   const wasWant = setupVerbs.want;
+  const wasLater = setupVerbs.later;
   const checkout = billingVerbs.checkout;
   setupVerbs.want = async (w) => {
     order.push(["want", w]);
+    return { ok: true, message: "" };
+  };
+  setupVerbs.later = async (ids, on) => {
+    order.push(["later", ids, on]);
     return { ok: true, message: "" };
   };
   billingVerbs.checkout = async (back) => {
@@ -1330,6 +1335,8 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
       order,
       [
         ["want", { way: "keep", number: "+13055550100" }],
+        // A number kept asks for its forwarding again, wherever a new number had put it off.
+        ["later", "keep", false],
         ["checkout", "start"],
       ],
       "kept first: a save still out when checkout leaves would be dropped with the page",
@@ -1353,9 +1360,14 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
     tree = mount();
     await byTestId(tree, "fr-phone-go").props.onClick();
     await tick();
-    assert.deepEqual(order, [["want", null]]);
+    // A new number keeps none: the choice puts "The number you already have" off, so Today's card stops asking.
+    assert.deepEqual(order, [
+      ["want", null],
+      ["later", "keep", true],
+    ]);
   } finally {
     setupVerbs.want = wasWant;
+    setupVerbs.later = wasLater;
   }
 });
 

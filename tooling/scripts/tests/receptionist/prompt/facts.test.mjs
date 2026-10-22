@@ -134,7 +134,7 @@ test("F1: a transfer number that forwards back to the receptionist is a loop, sa
   const conflicts = factConflicts(f);
   assert.deepEqual(
     conflicts.map((c) => [c.fact, c.severity, c.known, c.knownSource, c.to]),
-    [["handoff_number", "serious", "+1 (212) 555-0142", "provisioned", "admin/workspace"]],
+    [["handoff_number", "serious", "+1 (212) 555-0142", "provisioned", "admin/workspace/handoff_number"]],
   );
   assert.match(conflicts[0].sentence, /through to \+1 \(212\) 555-0142, which forwards the calls nobody picks up back/);
   assert.match(conflicts[0].sentence, /they would come straight back/);

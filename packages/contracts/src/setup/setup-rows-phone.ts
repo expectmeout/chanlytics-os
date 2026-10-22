@@ -316,7 +316,9 @@ export function receptionistRow(i: SetupInputs, ctx: SetupRowContext): SetupRowD
           "Callers are told someone will confirm and are offered to leave a message",
           "Fill in your name, hours and services and it answers properly from the next call",
         ],
-        verb: { label: "Add your facts", to: "admin/workspace" },
+        // The first of the two it answers with that is missing, open on the page that holds it (the hours left Details
+        // for Hours & booking on 17 Oct 2026).
+        verb: { label: "Add your facts", to: `admin/workspace/${!i.business.name ? "name" : "hours"}` },
       };
     } else {
       return {

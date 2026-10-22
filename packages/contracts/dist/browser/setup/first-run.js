@@ -9,7 +9,11 @@ import { bookingPageOffered } from "../google/google.js";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live.js";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try.js";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone.js";
-import { TRY_SKIPPED } from "./setup.js";
+import {
+  REMIND_SKIPPED,
+  SETUP_STATE_WORDS,
+  TRY_SKIPPED
+} from "./setup.js";
 import {
   FIND_PARAM,
   FIRST_RUN_FIND_ROUTE,
@@ -252,21 +256,29 @@ export function firstRunOf(vm, at, who) {
 }
 const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
 const CARD_REMIND = {
-  words: "Your calendar is in. Remind each customer the day before?",
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  said: "Put off. Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow"
 };
+const CARD_BILLING = { title: "Your plan", left: "Needs you" };
 export function setupCardOf(vm) {
+  const billing = rowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
-    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const left2 = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
     const def = FIRST_RUN_STEPS[next.number - 1];
     return {
       title: FINISH_SETTING_UP,
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
         // or calls are answered and a step is still open.
@@ -284,22 +296,21 @@ export function setupCardOf(vm) {
     };
   }
   const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r) => r !== null && r.state !== "ready" && !r.later && !!r.verb
+    (r) => r !== null && r.state !== "ready" && r.state !== "waiting_them" && !r.later && !!r.verb
   );
   if (!rows.length) return null;
-  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
   const calendar = rowOf(vm, "calendar");
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
+  const left = rows.length + (remind ? 1 : 0);
+  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows.length} left`,
+    left: `${left} left`,
     start: null,
     rows,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
-    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the moment is not offered and core refuses it.
-    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
+    remind
   };
 }
 const linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");

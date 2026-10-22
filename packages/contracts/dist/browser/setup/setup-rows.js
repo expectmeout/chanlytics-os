@@ -21,6 +21,7 @@ import {
   rowContextOf,
   BROKEN_CONFIG_WORDS,
   KEEP_ROW,
+  REMIND_SKIPPED,
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
   forwardedLineOf
@@ -114,6 +115,8 @@ function billingRow(i, ctx) {
     verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" }
   };
 }
+const settingsRow = (row) => `admin/workspace/${row}`;
+const firstMissingFact = (b) => !b.name ? "name" : !b.hours ? "hours" : "services";
 function factsRow(i, ctx) {
   const { nowMs } = ctx;
   const b = i.business;
@@ -178,7 +181,7 @@ function factsRow(i, ctx) {
     required: true,
     sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`,
     details: [],
-    verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" }
+    verb: { label: none ? "Start in Business" : "Finish in Business", to: settingsRow(firstMissingFact(b)) }
   };
 }
 function handoffRow(_i, ctx) {
@@ -191,7 +194,7 @@ function handoffRow(_i, ctx) {
     required: false,
     sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
     details: [],
-    verb: { label: "Change it", to: "admin/workspace" }
+    verb: { label: "Change it", to: settingsRow("handoff_number") }
   } : {
     id: "handoff",
     icon: "phone",
@@ -200,7 +203,7 @@ function handoffRow(_i, ctx) {
     required: false,
     sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
     details: [],
-    verb: { label: "Add a number", to: "admin/workspace" }
+    verb: { label: "Add a number", to: settingsRow("handoff_number") }
   };
 }
 function whatsappRow(i, ctx) {
@@ -490,6 +493,8 @@ export function setupSteps(i, nowMs = Date.now()) {
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
+    remindSkipped: later.has(REMIND_SKIPPED),
+    dayBeforeOn: i.reminders?.day_before === true,
     forwardingOwed: forwardingOwedOf(i, later),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)

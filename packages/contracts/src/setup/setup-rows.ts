@@ -32,6 +32,7 @@ import {
   rowContextOf,
   BROKEN_CONFIG_WORDS,
   KEEP_ROW,
+  REMIND_SKIPPED,
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
   forwardedLineOf,
@@ -147,6 +148,18 @@ function billingRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null 
 }
 
 /**
+ * The address that opens one of the business's rows, open, on the Settings page that holds it now: Settings reads
+ * `admin/workspace/<row>` as the page the row moved to (Hours & booking, How it answers; its tabs.ts paneOfRow), as
+ * the calendar's door does (CALENDAR_SETTING_ROUTE). The rows split across three pages on 17 Oct 2026, and a door to
+ * `admin/workspace` alone opened Details, where the hand-off number and the hours no longer are.
+ */
+const settingsRow = (row: "name" | "hours" | "services" | "handoff_number"): string => `admin/workspace/${row}`;
+
+/** The first of the facts the receptionist answers with that is missing, as its row: the name, the hours, the services. */
+const firstMissingFact = (b: SetupInputs["business"]): "name" | "hours" | "services" =>
+  !b.name ? "name" : !b.hours ? "hours" : "services";
+
+/**
  * 1. Business facts — what the receptionist answers with.
  */
 function factsRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
@@ -220,7 +233,7 @@ function factsRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       ? "Name, hours and services are what the receptionist answers with."
       : `Still missing: ${missing.join(" and ")}.`,
     details: [],
-    verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" },
+    verb: { label: none ? "Start in Business" : "Finish in Business", to: settingsRow(firstMissingFact(b)) },
   };
 }
 
@@ -238,7 +251,7 @@ function handoffRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
         required: false,
         sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
         details: [],
-        verb: { label: "Change it", to: "admin/workspace" },
+        verb: { label: "Change it", to: settingsRow("handoff_number") },
       }
     : {
         id: "handoff",
@@ -248,7 +261,7 @@ function handoffRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
         required: false,
         sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
         details: [],
-        verb: { label: "Add a number", to: "admin/workspace" },
+        verb: { label: "Add a number", to: settingsRow("handoff_number") },
       };
 }
 
@@ -654,6 +667,8 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
+    remindSkipped: later.has(REMIND_SKIPPED),
+    dayBeforeOn: i.reminders?.day_before === true,
     forwardingOwed: forwardingOwedOf(i, later),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i),

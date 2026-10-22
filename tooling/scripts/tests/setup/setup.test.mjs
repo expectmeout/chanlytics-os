@@ -95,7 +95,7 @@ test("a receptionist answering with nothing to answer with says so, and points a
   const bare = row(setupSteps(withLine, NOW), "receptionist");
   assert.equal(bare.state, "waiting_you");
   assert.ok(bare.sentence.includes("no facts to answer with yet"));
-  assert.equal(bare.verb.to, "admin/workspace");
+  assert.equal(bare.verb.to, "admin/workspace/name", "the first fact it lacks, open on the page that holds it");
   const filled = row(setupSteps({ ...withLine, business: facts }, NOW), "receptionist");
   assert.equal(filled.state, "ready");
   assert.ok(filled.sentence.startsWith("Answering on"));
@@ -144,7 +144,7 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   assert.equal(vm.total, 9);
   assert.deepEqual(vm.next, {
     label: "Start in Business",
-    to: "admin/workspace",
+    to: "admin/workspace/name",
     row: "facts",
     title: "Business facts",
   });
@@ -694,7 +694,8 @@ test("business facts: partly there says what is missing; a broken config is its 
   const part = setupSteps(empty({ business: { ...facts, hours: false, services: 0 } }), NOW);
   assert.equal(row(part, "facts").state, "waiting_you");
   assert.equal(row(part, "facts").sentence, "Still missing: hours and services.");
-  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace" });
+  // The first fact missing, open where it is now: the hours left Details for Hours & booking (17 Oct 2026).
+  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace/hours" });
   const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /could not be read/);
