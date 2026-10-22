@@ -5769,6 +5769,11 @@ async function dealOnFile(db, tenantId) {
   const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
   return !r.error && (r.data?.length ?? 0) > 0;
 }
+async function openDealsOf(db, tenantId, contactId) {
+  const r = await db.from("deals").select("id, service").eq("tenant_id", tenantId).eq("contact_id", contactId).in("stage", ["proposed", "won"]).order("created_at", { ascending: false });
+  if (r.error) throw new Error(r.error.message);
+  return (r.data ?? []).map((d) => ({ id: d.id, service: d.service }));
+}
 async function recordDeal(db, p) {
   const { data, error } = await db.rpc("record_deal", {
     p_contact_id: p.contactId,
@@ -7590,6 +7595,7 @@ export {
   oneOffMessageOf,
   openBookingRequest,
   openConversation,
+  openDealsOf,
   openDoubtsOf,
   openEscalation,
   openRequestOfThread,

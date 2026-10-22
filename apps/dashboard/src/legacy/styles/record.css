@@ -106,11 +106,12 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
-  /* The sheet rises from the bottom, stands on the keyboard (--kb, kit/motion/keyboard.ts watchKeyboard), and its foot clears the
+  /* The sheet rises from the bottom, floating clear of the screen's sides and foot as the kit's does (tokens.css
+     --sheet-float), stands on the keyboard (--kb, kit/motion/keyboard.ts watchKeyboard), and its foot clears the
      home indicator. It is as tall as what it holds, up to 88% of what the phone shows, and past that its body scrolls
      under its head and foot (Ruben, 14 Oct 2026, the fitted sheets: six sheets stood at 88% of blank whatever they
      held). While a box in it is typed in it holds its height (--sheet-hold, kit/motion/use-height-glide.ts). */
-  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
+  .rec-sheet { top: auto; bottom: max(var(--kb, 0px), var(--sheet-float, 0px)); left: var(--sheet-float, 0px); right: var(--sheet-float, 0px); width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border-radius: var(--radius-sheet); }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
@@ -118,16 +119,16 @@ html.legacy-on .rec-row-act { min-height: 0; }
      fold's own opening is, never a keyframe. As the fold closes it goes down the way it came, on --ease-in-out (spec
      9, item 1), its wash fading with it: React has taken it off the page by then, so what goes is a still copy of it
      (record-fold.jsx recSheetLeaves, data-leaving), with nothing in it to press, and it is removed as its slide ends. */
-  .rec-sheet.rec-fold-sheet { max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
+  .rec-sheet.rec-fold-sheet { max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out), --sheet-down var(--duration-base) var(--ease-out); }
   .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
   @starting-style {
-    .rec-sheet.rec-fold-sheet { transform: translateY(100%); }
+    .rec-sheet.rec-fold-sheet { transform: translateY(100%); --sheet-down: 100%; }
     .rec-sheet-backdrop[data-fold="true"] { opacity: 0; }
   }
-  .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: translateY(100%); pointer-events: none; transition: transform var(--duration-base) var(--ease-in-out); }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: translateY(100%); --sheet-down: 100%; pointer-events: none; transition: transform var(--duration-base) var(--ease-in-out), --sheet-down var(--duration-base) var(--ease-in-out); }
   .rec-sheet-backdrop[data-leaving="true"] { opacity: 0; pointer-events: none; transition: opacity var(--duration-base) var(--ease-in-out); }
   @starting-style {
-    .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; }
+    .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; --sheet-down: 0px; }
     .rec-sheet-backdrop[data-leaving="true"] { opacity: 1; }
   }
 }

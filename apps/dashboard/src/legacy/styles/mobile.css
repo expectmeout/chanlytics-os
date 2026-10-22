@@ -33,9 +33,10 @@
     top: 0; left: 0;
     /* It floats 14px clear of the top (components.css, .sidebar), or under the phone's own bar where the app is on the
        home screen and that bar is taller (components.css, .app-root), and is never taller than what is left over the
-       tab bar's own rest at the foot (--bar-foot: 14px, or clear of the home bar on an installed phone). */
+       tab bar's own rest at the foot (--bar-foot: 14px, or clear of the home bar on an installed phone), and never
+       nearer the foot than the point Safari reads (tokens.css --foot-clear). */
     margin-top: max(14px, env(safe-area-inset-top, 0px));
-    max-height: calc(100% - var(--bar-foot, 14px) - max(14px, env(safe-area-inset-top, 0px)));
+    max-height: calc(100% - max(var(--bar-foot, 14px), var(--foot-clear, 0px)) - max(14px, env(safe-area-inset-top, 0px)));
     z-index: 220;
     /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
     width: min(248px, 84vw);
@@ -68,17 +69,22 @@
      (.lp-backdrop, the thread pane's .more-backdrop).
      The backdrop-filter is for the browser's bar, not the page. A childless, see-through, viewport-sized fixed
      box is what Safari on iOS 26 calls a dimming layer, and it paints its status-bar strip with that colour
-     blended over the page: a grey band while the drawer is open. A fixed box with a backdrop-filter it reads as
-     glass instead and leaves the strip its own colour, which is why .ask-overlay never touches it. A blur of
-     zero changes nothing on the page; it is the filter's presence that counts. */
+     blended over the page: a grey band while the drawer is open. A fixed box with a backdrop-filter it paints in
+     the page's own colour instead, which is why .ask-overlay never touches it. A blur of zero changes nothing on
+     the page; it is the filter's presence that counts. At the foot it is flat all the same, where the glass is
+     wanted, so in an iPhone's browser the wash stops short of the foot and fades out there (tokens.css
+     --foot-clear), and Safari's bottom bar stays glass while the drawer is open (Ruben, 21 Oct 2026). It fades in as
+     every wash does, never rising as a page does (route-in): from 4px lower it stood on that point as it came, and
+     Safari kept the band it read then for as long as the drawer stayed open. */
   .nav-backdrop {
     display: block;
     position: fixed;
-    inset: 0;
+    inset: 0 0 var(--foot-clear, 0px);
     z-index: 210;
     background: rgb(0 0 0 / 0.45);
     backdrop-filter: blur(0);
-    animation: route-in 160ms var(--ease-out);
+    mask-image: var(--foot-fade, none);
+    animation: wash-in 160ms var(--ease-out);
   }
   .tb-menu { display: inline-flex; }
 
@@ -1064,9 +1070,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      must stay on the screen stays as it does above. What heads the page sticks under the frame's top, as a person's strip
      does, with the top's band as long as the gap over it. What stands at the foot (a reply box, a pane's foot, a call's
      whisper) sticks over the screen's foot where the tab bar rests: sticky, not fixed as a person's dock is, since a
-     thread's pane is a size container (inbox.css), which a fixed child is pinned to instead of the screen. A capsule the
-     page passes under takes its blur on a layer of its own (a filter on it would hold its menu, kit.css). Only the rows
-     give under a pull (page-give.ts). */
+     thread's pane is a size container (inbox.css), which a fixed child is pinned to instead of the screen. It rests no
+     nearer the foot than the point Safari reads (tokens.css --foot-clear): at the tab bar's 4px in an iPhone's browser
+     a reply box stood on that point's line, and a pixel lower Safari would paint its band under it for as long as the
+     thread stayed open. A capsule the page passes under takes its blur on a layer of its own (a filter on it would hold
+     its menu, kit.css). Only the rows give under a pull (page-give.ts). */
+  :root {
+    --held-foot: max(var(--bar-foot), var(--foot-clear, 0px));
+  }
 
   /* An open thread: the conversation as long as what was said, its capsule 10px under the top, its foot (what it needs
      from you, the reply box; thread.tsx .ix-th-foot) over the screen's foot. */
@@ -1075,7 +1086,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow-x: clip;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane {
-    padding-bottom: var(--bar-foot);
+    padding-bottom: var(--held-foot);
     overflow: visible;
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-scroll {
@@ -1093,7 +1104,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot {
     position: sticky;
-    bottom: var(--bar-foot);
+    bottom: var(--held-foot);
     z-index: 3;
     display: flex;
     flex-direction: column;
@@ -1169,7 +1180,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow: visible;
   }
   .main-scroll.pane > .cm-split[data-open] > .cm-pane:not(:has(> .cm-pane-foot)) {
-    padding-bottom: var(--bar-foot);
+    padding-bottom: var(--held-foot);
   }
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-body {
     --page-gives: rows;
@@ -1190,9 +1201,9 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   .main-scroll.pane > .cm-split[data-open] > .cm-pane > .cm-pane-foot {
     position: sticky;
-    bottom: var(--bar-foot);
+    bottom: var(--held-foot);
     z-index: 3;
-    margin-bottom: var(--bar-foot);
+    margin-bottom: var(--held-foot);
   }
 
   /* Live: the calls and the call as tall as what they say, their corners clipped without a box that scrolls. A call on
@@ -1207,7 +1218,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow: clip;
   }
   .main-scroll.pane > .live-monitor[data-takeover] > .lm-body > .lm-call {
-    padding-bottom: var(--bar-foot);
+    padding-bottom: var(--held-foot);
     overflow: visible;
   }
   .main-scroll.pane > .live-monitor[data-takeover] .lm-scroll {
@@ -1225,7 +1236,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   .main-scroll.pane > .live-monitor[data-takeover] .lm-whisper {
     position: sticky;
-    bottom: var(--bar-foot);
+    bottom: var(--held-foot);
     z-index: 3;
     margin-bottom: 0;
   }

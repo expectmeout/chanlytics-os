@@ -44,7 +44,6 @@ import {
   pipelineOf,
   pipelinePassDone,
   pipelinePassMany,
-  pipelinePeekDetail,
   pipelinePeekOf,
   pipelineSheetOf,
   pipelineRail,
@@ -304,10 +303,7 @@ test("every open deal is a row of its own (0029): a client with a proposal out f
     "a row's id says whose it is",
   );
   // Each judged on its own deal: Noa's website (twelve days) and Mia's ads (nine) wait; Noa's ads (six) does not yet.
-  assert.equal(
-    vm.summary.join(" · "),
-    "3 proposals out · $800 a month · 2 waiting over a week · 1 client · €1,500 a month",
-  );
+  assert.equal(vm.summary.join(" · "), "3 proposals out · 2 waiting over a week · 1 client");
   assert.equal(chipOf(vm, "noa_d-proposed-12").words, PIPELINE_WORDS.nothingBack);
   assert.notEqual(chipOf(vm, "noa")?.words, PIPELINE_WORDS.nothingBack);
   const waits = pipelineRail(vm, NOW).find((s) => s.key === "waiting");
@@ -453,20 +449,20 @@ test("a row's service, value and time in stage: a proposal's time in stage is th
   assert.equal(rowOf(vm, "wes").person.initials, "WE");
 });
 
-test("each group says what it comes to; only Passed or ended starts folded", () => {
+test("only the consultations' head says more than its count, no group what it comes to; only Passed or ended starts folded", () => {
   const vm = pipelineOf(fixture(), NOW, TZ, null);
   assert.deepEqual(
     vm.groups.map((g) => [g.key, g.meta, g.collapsed]),
     [
       ["consultations", "3 ended in the last week, nothing since", false],
-      ["proposals", "$4,250", false],
-      ["clients", "$1,340 a month", false],
+      ["proposals", null, false],
+      ["clients", null, false],
       ["closed", null, true],
     ],
   );
   // A folded group's head counts its rows already: what opens it says "Show", not the count again.
   assert.deepEqual([PIPELINE_WORDS.show, PIPELINE_WORDS.hide], ["Show", "Hide"]);
-  // Nothing held: the consultations say nothing more than their count. No amount on file: no total.
+  // Nothing held: the consultations say nothing more than their count.
   const quiet = pipelineOf(
     [
       personRow(NOW, "sara", "Sara", { visits: visits(visit(ny("09-25", 14)), null) }),
@@ -485,7 +481,7 @@ test("each group says what it comes to; only Passed or ended starts folded", () 
   );
 });
 
-test("the line says only the parts that have something: proposals out, their value, the ones waiting, clients, theirs", () => {
+test("the line says only the counts that have something: proposals out, the ones waiting, clients; never what they come to", () => {
   const rows = [
     personRow(NOW, "p1", "Pia", deal(NOW, "proposed", { proposed: 11, cents: 120_000, per: "once" })),
     personRow(NOW, "p2", "Paz", deal(NOW, "proposed", { proposed: 3, cents: 305_000, per: "once" })),
@@ -495,21 +491,16 @@ test("the line says only the parts that have something: proposals out, their val
   ].map((r) => toPersonRowVM(r, TZ, new Date(NOW)));
   assert.equal(
     pipelineOf(rows, NOW, TZ, null).summary.join(" · "),
-    "3 proposals out · $4,250 · 1 waiting over a week · 2 clients · $1,340 a month",
+    "3 proposals out · 1 waiting over a week · 2 clients",
   );
-  // One of each, a once and a monthly amount summed apart, nobody waiting.
+  // One of each, with amounts on file, nobody waiting: still the counts alone.
   const one = [
     personRow(NOW, "p1", "Pia", deal(NOW, "proposed", { proposed: 2, cents: 50_000 })),
     personRow(NOW, "c1", "Cal", deal(NOW, "won", { proposed: 30, decided: 20, cents: 100_000 })),
     personRow(NOW, "c2", "Cid", deal(NOW, "won", { proposed: 30, decided: 25, cents: 34_000, per: "month" })),
   ].map((r) => toPersonRowVM(r, TZ, new Date(NOW)));
-  assert.deepEqual(pipelineOf(one, NOW, TZ, null).summary, [
-    "1 proposal out",
-    "$500",
-    "2 clients",
-    "$1,000 + $340 a month",
-  ]);
-  // No amounts on file: the counts alone. Only consultations and passes: nothing to say, and the line is not drawn.
+  assert.deepEqual(pipelineOf(one, NOW, TZ, null).summary, ["1 proposal out", "2 clients"]);
+  // No amounts on file: the same. Only consultations and passes: nothing to say, and the line is not drawn.
   const counts = [personRow(NOW, "p1", "Pia", deal(NOW, "proposed", { proposed: 2 }))].map((r) =>
     toPersonRowVM(r, TZ, new Date(NOW)),
   );
@@ -713,7 +704,7 @@ test("each row carries its next step, its day said as the pages say it and judge
   assert.equal(rowOf(pipelineOf(early, NOW, TZ, null), "wes").next.due, "past", "as the Pipeline is drawn");
 });
 
-test("Steps due holds only the rows whose step's day has come, in every group, without a group's worth; the rail counts them, in warn", () => {
+test("Steps due holds only the rows whose step's day has come, in every group; the rail counts them, in warn", () => {
   const vm = pipelineOf(stepFixture(), NOW, TZ, null, "steps");
   assert.deepEqual(
     vm.groups.map((g) => [g.key, ids(g), g.count, g.meta]),
@@ -721,7 +712,7 @@ test("Steps due holds only the rows whose step's day has come, in every group, w
       ["proposals", ["wes"], 1, null],
       ["clients", ["cat"], 1, null],
     ],
-    "Nia's step is ahead and Fay has none; what a group comes to is the whole group's, so a part does not say it",
+    "Nia's step is ahead and Fay has none",
   );
   const rail = pipelineRail(pipelineOf(stepFixture(), NOW, TZ, null), NOW);
   const waits = rail.find((s) => s.key === "waiting");
@@ -1311,8 +1302,8 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
   );
   const vm = pipelineOf(globalThis.window.__PEOPLE.rows, Date.now(), ZONE, null);
   assert.deepEqual(lineParts(tree), vm.summary);
-  assert.deepEqual(vm.summary, ["2 proposals out", "$4,250", "2 waiting over a week", "1 client", "$1,000 a month"]);
-  // The part that counts what waits on the owner is a press; the totals are words.
+  assert.deepEqual(vm.summary, ["2 proposals out", "2 waiting over a week", "1 client"]);
+  // The part that counts what waits on the owner is a press; the other counts are words.
   const waiting = byTestId(tree, "pipeline-line-waiting");
   assert.deepEqual([waiting.type, waiting.props["aria-pressed"]], ["button", false]);
   // The rail is the Pipeline's own: its groups, what waits, its services. People's lists stay on People.
@@ -1340,8 +1331,8 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
   );
   assert.deepEqual(heads(tree), [
     { label: "Consultations", count: "2", meta: "1 ended in the last week, nothing since", toggle: null },
-    { label: "Proposal out", count: "2", meta: "$4,250", toggle: null },
-    { label: "Clients", count: "1", meta: "$1,000 a month", toggle: null },
+    { label: "Proposal out", count: "2", meta: null, toggle: null },
+    { label: "Clients", count: "1", meta: null, toggle: null },
     { label: "Passed or ended", count: "2", meta: null, toggle: "Show" },
   ]);
   // The rows under the heads, in the Pipeline's order; Passed or ended folded; Nobody, with nothing to follow, absent.
@@ -1949,36 +1940,8 @@ test("Mark as passed for a selection: only the proposals out pass, the rest are 
   );
 });
 
-test("the sheet's reach, once the person is read: the person page's own words, each with its copy, and no call of its own", () => {
-  const person = {
-    phone: "+1 786-555-0181",
-    email: "wes@example.com",
-    hasChat: true,
-    replyVia: "WhatsApp",
-    replyWindow: { open: true, hoursLeft: 20 },
-  };
-  // Calling them is the foot's (the person page's Call, which rings and asks how it went), never a link here; their
-  // deals' moves are their page's, a press away.
-  assert.deepEqual(pipelinePeekDetail(person), {
-    reach: [
-      { id: "phone", label: "Phone", words: "+1 786-555-0181", warn: null, copy: "+1 786-555-0181" },
-      { id: "email", label: "Email", words: "wes@example.com", warn: null, copy: "wes@example.com" },
-      { id: "replies", label: "Replies", words: "Any message, for 20 more hours", warn: null, copy: null },
-    ],
-  });
-  // An address that stopped accepting mail is said under itself, in the warn ink, and the copy is still the address.
-  assert.deepEqual(
-    pipelinePeekDetail({ ...person, emailSuppressed: true }).reach.find((r) => r.id === "email"),
-    { id: "email", label: "Email", words: "wes@example.com", warn: "Stopped accepting mail", copy: "wes@example.com" },
-  );
-  // Do-not-contact: the person page's own menu offers no copy of the number, and neither does the sheet.
-  assert.deepEqual(
-    pipelinePeekDetail({ ...person, consent: { state: "opted_in", dnc: true } }).reach.map((r) => r.id),
-    ["email", "replies"],
-  );
-  // Nothing to reach them by, and no conversation: nothing said.
-  assert.deepEqual(pipelinePeekDetail({ ...person, phone: null, email: null, hasChat: false }), { reach: [] });
-  // What a reply may be, one sentence for the person page and the peek.
+test("what a reply may be is the person page's one sentence, which the sheet leaves to their page; a board column holds twenty", () => {
+  // What a reply may be, one sentence for the person page (the compact sheet says it no more: their page, a press away).
   assert.equal(repliesWords("Email", null, { optedOut: false, who: "Wes", emailStopped: false }), "Any time, by email");
   assert.equal(repliesWords("Text", null, { optedOut: false, who: "Wes", emailStopped: false }), "Any time, by text");
   assert.equal(
@@ -2054,22 +2017,10 @@ test("the sheet's head and facts are the row's: who, the deal's service and valu
     new Date(NOW),
   );
   assert.equal(pipelinePeekOf(pipelineOf([num], NOW, TZ, null).groups[0].rows[0], "proposals").numeric, true);
-  assert.deepEqual(PIPELINE_WORDS.peek, {
-    close: "Close",
-    page: "Their page",
-    reading: "Reading…",
-    what: "this person",
-    reach: {
-      title: "How to reach them",
-      phone: "Phone",
-      email: "Email",
-      replies: "Replies",
-      copy: "Copy",
-      copied: "Copied",
-      copyPhone: "Copy the number",
-      copyEmail: "Copy the address",
-    },
-  });
+  // The head's face and name are the door to their page, named by their name; how to reach them is that page's.
+  const { open, ...peekWords } = PIPELINE_WORDS.peek;
+  assert.deepEqual(peekWords, { close: "Close", reading: "Reading…", what: "this person" });
+  assert.equal(open("Wes"), "Open Wes's page");
 });
 
 test("the sheet says a closed deal when, then why, and a consultation's head and its new proposal name the service it was for", () => {
@@ -2122,7 +2073,7 @@ const hasDeal = (tree) => !!find(tree, (n) => /\bhas-deal\b/.test(String(n.props
 const closePhoneSheet = (tree) =>
   find(tree, (n) => n.type === Sheet && n.props.testid === "pipeline-peek").props.onClose();
 
-test("a row opens its deal sheet beside the rows: the head at once, the deal's steps and line as they land, one act and its caret, Message, Call and their page", async () => {
+test("a row opens its deal sheet beside the rows: the head at once (its name the door to their page), the deal's steps and line as they land, one act and its caret, Message and Call", async () => {
   const seen = await fresh();
   const asked = [];
   // The read is on its way until the test says: the sheet is drawn at once, and says so.
@@ -2158,13 +2109,12 @@ test("a row opens its deal sheet beside the rows: the head at once, the deal's s
   release();
   await settled();
   tree = draw();
-  // The card's own line under the steps: the proposal's link, which copies, and whether it went.
-  // One line of where it stands (whether it went), and the proposal's link in a box of its own, with its copy.
+  // One line of where it stands (whether it went); the proposal's link is the caret's to open and their page's to copy
+  // (the compact sheet: the sheet acts, their page records), and so are their words and how to reach them.
   assert.equal(byTestId(peekOf(tree), "person-deal-line"), null);
   assert.ok(byTestId(byTestId(peekOf(tree), "pipeline-peek-stand"), "pipeline-peek-fact"), "a fact beside the flags");
-  const proposal = byTestId(peekOf(tree), "pipeline-peek-proposal");
-  assert.equal(textOf(byTestId(proposal, "person-deal-link")), "docs.example.com");
-  assert.ok(byTestId(proposal, "person-deal-copy-link"), "the link copies");
+  for (const gone of ["pipeline-peek-proposal", "pipeline-peek-reach", "pipeline-peek-others", "pipeline-peek-page"])
+    assert.equal(byTestId(peekOf(tree), gone), null, `${gone} is their page's`);
   assert.equal(byTestId(peekOf(tree), "pipeline-peek-reading"), null);
   // The foot: the card's one next act, its caret in the same pill, then Message and Call.
   const lead = byTestId(peekOf(tree), "pipeline-peek-bar-act");
@@ -2181,22 +2131,36 @@ test("a row opens its deal sheet beside the rows: the head at once, the deal's s
   const carried = JSON.parse(globalThis.sessionStorage.getItem("chanlytics-compose"));
   assert.equal(carried.threadId, threadId);
   assert.ok(carried.text.includes("docs.example.com/proposal"), "the proposal's link, in the words");
-  // The caret holds the deal's other moves and a new proposal; each asks the one sheet.
+  // The caret holds the deal's other moves, the proposal where it lives, and a new proposal; each move asks the one
+  // sheet, and the proposal opens in a new tab, its host said at the item's end.
   const caret = find(byTestId(peekOf(tree), "pipeline-peek-bar"), (n) => n.type === Menu);
   assert.deepEqual(
     listOf(caret).map((it) => (it.divider ? "—" : it.label)),
-    [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Start another proposal"],
-    "the deal's moves, then a new proposal apart: it moves no deal of these",
+    [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "Open the proposal", "—", "Start another proposal"],
+    "the deal's moves and its proposal, then a new proposal apart: it moves no deal of these",
   );
+  const proposal = listOf(caret)[3];
+  assert.deepEqual([proposal.hint, proposal.title], ["docs.example.com", "https://docs.example.com/proposal"]);
+  const tabs = [];
+  const open = globalThis.window.open;
+  globalThis.window.open = (...args) => {
+    tabs.push(args);
+    return null;
+  };
+  proposal.onClick();
+  globalThis.window.open = open;
+  assert.deepEqual(tabs, [["https://docs.example.com/proposal", "_blank", "noopener,noreferrer"]]);
   listOf(caret)[0].onClick();
   assert.deepEqual(asked, [{ personId: "wes", mode: "won", dealId: "d-proposed-11" }]);
-  listOf(caret)[4].onClick();
+  listOf(caret)[5].onClick();
   assert.deepEqual(asked.at(-1), { personId: "wes", mode: "propose", dealId: null });
   // Message: their thread, the box empty.
   click(byTestId(peekOf(tree), "pipeline-peek-message"));
   assert.equal(went.at(-1), `inbox/${threadId}`);
-  // Their page, at the sheet's end.
-  click(byTestId(peekOf(tree), "pipeline-peek-page"));
+  // Their page: the head's name, named for where it goes.
+  const name = byTestId(peekOf(tree), "pipeline-peek-opens");
+  assert.equal(name.props["aria-label"], "Open Wes's page");
+  click(name);
   assert.deepEqual(opened, ["wes"]);
   // Close puts the sheet away and leaves the rows as they were.
   click(byTestId(peekOf(tree), "pipeline-peek-close"));
@@ -2243,12 +2207,12 @@ test("a proposal waiting with nothing back asks whether they said yes, a pass as
   const answer = (sheet, id) =>
     find(byTestId(sheet, "pipeline-peek-ask"), (n) => n.type === "button" && n.props?.["data-testid"] === id);
   assert.equal(textOf(byClass(ask, "pipe-deal-ask-q")), "Did Wes say yes?");
-  // Its two answers are the yes and the pass, so the caret does not offer them again.
+  // Its two answers are the yes and the pass, so the caret does not offer them again; the proposal is still a door.
   assert.deepEqual(
     listOf(find(byTestId(peek, "pipeline-peek-bar"), (n) => n.type === Menu)).map((it) =>
       it.divider ? "—" : it.label,
     ),
-    [DEAL_ACT_WORDS.edit, "—", "Start another proposal"],
+    [DEAL_ACT_WORDS.edit, "Open the proposal", "—", "Start another proposal"],
   );
   click(answer(peek, "pipeline-peek-ask-yes"));
   assert.deepEqual(asked.at(-1), { personId: "wes", mode: "won", dealId: "d-proposed-11" });
@@ -2619,25 +2583,18 @@ test("a view holds only its rows, and the line stays the whole Pipeline's", () =
     ["proposals", ["a1"], false],
     ["clients", ["b1"], false],
   ]);
-  assert.deepEqual(
-    ads.groups.map((g) => g.meta),
-    ["$2,500 a month", "$1,500 a month"],
-    "what the view's own rows come to",
-  );
   assert.equal(pipelineOf(mixed, NOW, TZ, null, "svc:Nothing").empty, true);
 });
 
-test("the line's warn parts open their view; the totals are words", () => {
+test("the line's warn parts open their view; the counts are words", () => {
   const vm = pipelineOf(fixture(), NOW, TZ, null);
   assert.deepEqual(
     vm.line.map((p) => [p.words, p.view, p.tone]),
     [
       ["6 proposals out", null, null],
-      ["$4,250", null, null],
       ["2 waiting over a week", "waiting", "warn"],
       ["1 lapsed", "lapsed", "warn"],
       ["3 clients", null, null],
-      ["$1,340 a month", null, null],
     ],
   );
   assert.deepEqual(
@@ -3099,17 +3056,16 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
     .find((it) => it.label === DEAL_ACT_WORDS.won)
     .onClick();
   assert.deepEqual(asked.at(-1), { personId: "noa", mode: "won", dealId: "d-web" });
-  // Their other open deal is a row of its own, a press away: it opens in this sheet, headed by that deal.
-  const others = all(peekOf(tree), (n) => n.type === "button" && n.props?.["data-testid"] === "pipeline-peek-other");
-  assert.deepEqual(
-    others.map((o) => textOf(byClass(o, "pipe-deal-other-title"))),
-    ["Ads"],
-    "the one deal the sheet is not",
+  // Their other open deal is a row of its own (the compact sheet lists none): its row opens it in this sheet.
+  assert.equal(
+    byTestId(peekOf(tree), "pipeline-peek-others"),
+    null,
+    "their other deals are their page's and their rows'",
   );
-  click(others[0]);
+  rowNode(tree, "noa").props.onClick();
   tree = draw();
   assert.equal(textOf(byTestId(peekOf(tree), "pipeline-peek-sub")), "Ads", "the ads' own row");
-  click(byTestId(peekOf(tree), "pipeline-peek-page"));
+  click(byTestId(peekOf(tree), "pipeline-peek-opens"));
   assert.deepEqual(opened, ["noa"], "their page, never the row's id");
   // The row's menu acts on its own deal, and its doors are the person's (the peek closed: beside it the row is compact).
   click(byTestId(peekOf(draw()), "pipeline-peek-close"));
@@ -3392,7 +3348,7 @@ test("beside an open peek on a desk the table keeps who and where they stand; th
   );
 });
 
-test("the sheet says how to reach them once they are read, and its foot leads with the card's act, then Message and Call, on a desk and a phone alike", async () => {
+test("the sheet leaves how to reach them to their page, and its foot leads with the card's act, then Message and Call, on a desk and a phone alike", async () => {
   // Wes, as their page would read them: a number and an address.
   const wesWire = (seen) => {
     seen.person = (id) => {
@@ -3407,17 +3363,16 @@ test("the sheet says how to reach them once they are read, and its foot leads wi
   draw();
   await settled();
   tree = draw();
-  const reach = byTestId(peekOf(tree), "pipeline-peek-reach");
-  assert.deepEqual(
-    all(reach, (n) => /^pipeline-peek-reach-(phone|email|replies)$/.test(n.props?.["data-testid"] || "")).map((n) =>
-      textOf(n),
-    ),
-    ["Phone+1 (555) 000-1114Copy", "Emailwes@example.comCopy", "RepliesAny message, for 20 more hours"],
-  );
+  // Their number, their address and what a reply may be are their page's (the compact sheet): the foot reaches them.
+  assert.equal(byTestId(peekOf(tree), "pipeline-peek-reach"), null);
+  assert.equal(textOf(peekOf(tree)).includes("wes@example.com"), false, "no address in the sheet");
   // Calling is the foot's (their page's Call, which asks how it went), never a bare link; their deals' moves are their
   // page's.
   assert.equal(
-    find(reach, (n) => typeof n.props?.href === "string" && n.props.href.startsWith("tel:")),
+    find(
+      byTestId(peekOf(tree), "pipeline-peek-stand"),
+      (n) => typeof n.props?.href === "string" && n.props.href.startsWith("tel:"),
+    ),
     null,
   );
   assert.equal(byTestId(peekOf(tree), "pipeline-peek-history"), null);
@@ -3435,6 +3390,10 @@ test("the sheet says how to reach them once they are read, and its foot leads wi
     const foot = byTestId(tree, "pipeline-peek-bar");
     assert.equal(textOf(byTestId(foot, "pipeline-peek-bar-act")), lead, "the card's own next act");
     assert.ok(hasDeal(tree), "the open deal's row is lit above the sheet");
+    // As tall as what it holds (the compact sheet): no rests to raise, and its face and name open their page.
+    const sheet = find(tree, (n) => n.props?.testid === "pipeline-peek" && "opens" in n.props);
+    assert.equal(sheet.props.rest, undefined, "no rests: nothing left to raise");
+    assert.equal(sheet.props.opens.label, "Open Wes's page");
     assert.equal(
       listOf(find(foot, (n) => n.type === Menu))[0].header,
       "Color correction · Wes",

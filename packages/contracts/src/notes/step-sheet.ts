@@ -18,7 +18,14 @@ export const STEP_SHEET_WORDS = {
   noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
   when: { label: "When", pick: "The day", none: "No day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
+  // Who sees a step: the team, and Ask, which reads each person's next step (its people and Pipeline reads); never the
+  // receptionist, since a step is the team's whatever a note's switch says (00166).
+  teamOnly: "Your team and Ask see it; the receptionist doesn't.",
+  /**
+   * What a new step on a deal opens with, from the act its card leads with (dealNextAct): its send, today, or its
+   * follow-up, tomorrow. Any other act opens it empty.
+   */
+  suggested: { send: "Send the proposal", "follow-up": "Follow up on the proposal" },
   /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
   reads: { label: "Team only", hint: "The receptionist won't read it" },
   save: { add: "Set it", edit: "Save", note: "Add it" },
@@ -100,15 +107,32 @@ export interface StepSheetVM {
   save: string;
 }
 
-/** What the sheet opens with: a step's or a note's own, or a new one's (a note's day is No day, a step's unpicked). */
+/** The act a deal's card leads with whose step the sheet suggests, and the day it is for (stepDays' first two). */
+type Suggested = keyof typeof STEP_SHEET_WORDS.suggested;
+const SUGGESTED_DAY: Record<Suggested, number> = { send: 0, "follow-up": 1 };
+const isSuggested = (lead: string | null | undefined): lead is Suggested =>
+  !!lead && Object.prototype.hasOwnProperty.call(SUGGESTED_DAY, lead);
+
+/**
+ * What the sheet opens with: a step's or a note's own, or a new one's (a note's day is No day, a step's unpicked); a new
+ * step on a deal whose card leads with a send or a follow-up opens with that step on its day (STEP_SHEET_WORDS.suggested).
+ */
 function openedWith(
   note: NonNullable<StepPerson["noteList"]>[number] | null,
   kind: StepSheetVM["kind"],
   days: readonly StepDayChoice[],
+  lead: string | null,
 ): StepDraft {
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+  const suggested = !note && kind === "step" && isSuggested(lead) ? lead : null;
+  const day = note?.step
+    ? note.step.day.day
+    : kind === "note"
+      ? NO_DAY
+      : suggested
+        ? (days[SUGGESTED_DAY[suggested]]?.key ?? null)
+        : null;
   return {
-    what: note ? note.body : "",
+    what: note ? note.body : suggested ? STEP_SHEET_WORDS.suggested[suggested] : "",
     day,
     picking: !!day && !days.some((c) => c.key === day),
     forId: note ? note.forUserId : null,
@@ -121,12 +145,12 @@ const titleKey = (mode: StepSheetVM["mode"], kind: StepSheetVM["kind"]) =>
   kind === "note" ? (mode === "add" ? "note" : "editNote") : mode;
 
 /**
- * The sheet for a person: a new step (naming a deal, or not), a new note (`note`: no day first), or a change to one of
- * theirs; a note of theirs with no day opens as a note.
+ * The sheet for a person: a new step (naming a deal, or not; `lead`, the act that deal's card leads with, suggests what
+ * and when), a new note (`note`: no day first), or a change to one of theirs; a note of theirs with no day opens as a note.
  */
 export function stepSheetFor(
   p: StepPerson,
-  ask: { noteId?: string | null; dealId?: string | null; note?: boolean },
+  ask: { noteId?: string | null; dealId?: string | null; note?: boolean; lead?: string | null },
   nowMs: number,
   tz: string,
 ): StepSheetVM {
@@ -149,7 +173,7 @@ export function stepSheetFor(
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name })),
     ],
-    draft: openedWith(note, kind, days),
+    draft: openedWith(note, kind, days, dealId ? (ask.lead ?? null) : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? (NOTE_REFUSALS.not_yours ?? null) : null,
