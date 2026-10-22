@@ -1125,6 +1125,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
   }
+  /* What the thread needs from you is as tall as what it says, as the rest of the page is. On a desk it may take half
+     the pane and scroll inside it (inbox.css); in the foot that half was half of the foot, the state and the reply box
+     together, so a state taller than the reply box was cut under its own lower edge with its acts out of reach (Ruben,
+     22 Oct 2026: "I'll answer this" and "Hand back" cut in half). */
+  :is(.inbox, .conversations)[data-takeover] > .ix-thread-pane > .ix-th-foot > .ix-th-status {
+    max-height: none;
+    overflow: visible;
+  }
   :is(.inbox, .conversations)[data-takeover] .ix-th-foot > .ix-composer.ix-composer-row {
     margin-bottom: 0;
   }
