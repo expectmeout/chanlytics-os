@@ -954,6 +954,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 200;
     background-color: color-mix(in oklab, var(--bg) 12%, transparent);
   }
+  /* Safari lays that faint colour over the document's ground, and the Inbox's and People's ground is the list's foot
+     (above), lighter than the paper: the bar over the clock came out a step lighter than the head under it, with an edge
+     between (Ruben, 22 Oct 2026). There the top carries the paper whole, which its own ground (::before) covers on the
+     page, so the bar is the head's colour as it is over Today. */
+  .main:has(> main[data-strip="inbox"], > main[data-strip="people"]) > .frame-top {
+    background-color: var(--surface-page-fill);
+  }
   /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
      above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
      rows gone under it, and hides them; up over the phone's bar's room too. It was the paper alone, turned on as the
