@@ -92,7 +92,7 @@ const PersonDealStep = ({
   const sheet = (ask: Omit<StepSheetAsk, "personId">) =>
     stepSheetOffered() ? () => openStepSheet({ personId: p.id, ...ask }) : null;
   if (!s) {
-    const set = sheet({ dealId: c.id });
+    const set = sheet({ dealId: c.id, lead: c.next?.id ?? null });
     return canRecord && c.id && set ? (
       <button type="button" className="cl-prof-deal-setnext" onClick={set} data-testid="person-deal-set-nextstep">
         {S.setNext}

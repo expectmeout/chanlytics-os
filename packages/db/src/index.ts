@@ -593,8 +593,8 @@ export { activitySubjects } from "./events";
 export type { ActivitySubject, ActivitySubjects } from "./events";
 export { touchesSince, recentTouches, followUpTouchesSince, touchIndex } from "./repositories/touches";
 export type { Touch, TouchIndex } from "./repositories/touches";
-export { yesesSince, recordDeal, dealOnFile } from "./repositories/deals";
-export type { YesRow, DealMove } from "./repositories/deals";
+export { yesesSince, recordDeal, dealOnFile, openDealsOf } from "./repositories/deals";
+export type { YesRow, DealMove, OpenDealRow } from "./repositories/deals";
 export { exportSectionPages, personExportPages } from "./repositories/workspace-export";
 export type { ExportPage, ExportSectionPages, PersonExportPages } from "./repositories/workspace-export";
 export {

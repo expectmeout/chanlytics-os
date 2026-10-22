@@ -41,6 +41,8 @@ interface RecordFieldProps extends BoxRest {
   problem?: ReactNode;
   rows?: number | null;
   testid?: string | null;
+  /** A press inside the box's end, that acts on what was typed (Say it's Fill). */
+  action?: ReactNode;
   /** The box's own, handed to it as they are: a date, a url; read-only while a save is out. */
   type?: string;
   readOnly?: boolean;
@@ -84,6 +86,7 @@ const REC_FIELD_OWN = new Set([
   "problem",
   "rows",
   "testid",
+  "action",
   "children",
 ]);
 
@@ -94,9 +97,13 @@ function boxRest(props: object, own: Set<string>): Record<string, unknown> {
   return rest;
 }
 
-/** A field: a label that holds its box, and under it a hint or what is wrong. */
+/**
+ * A field: a label that holds its box, and under it a hint or what is wrong. With an `action` (Say it's Fill) the press
+ * stands inside the box's end; the label then names the box by its id, since a label may hold no second control.
+ */
 export function RecordField(props: RecordFieldProps) {
   const { id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null } = props;
+  const action = props.action ?? null;
   const autoId = useId();
   const rest = boxRest(props, REC_FIELD_OWN);
   const fieldId = id || autoId;
@@ -113,7 +120,29 @@ export function RecordField(props: RecordFieldProps) {
     "aria-invalid": problem ? true : undefined,
     "aria-describedby": describedBy || undefined,
   };
-  const control = rows ? <textarea rows={rows} {...box} /> : <input type="text" {...box} />;
+  // The box takes the field's id only where a label beside it names it by that id (an `action`): elsewhere the label holds it.
+  const named = action ? { ...box, id: fieldId } : box;
+  const control = rows ? <textarea rows={rows} {...named} /> : <input type="text" {...named} />;
+  const under = problem ? (
+    <FieldError id={problemId} message={problem} />
+  ) : hint ? (
+    <span className="rec-hint" id={hintId}>
+      {hint}
+    </span>
+  ) : null;
+  if (action)
+    return (
+      <div className="rec-field" data-testid={testid || undefined}>
+        <label className="rec-field-label" htmlFor={fieldId}>
+          {label}
+        </label>
+        <span className="rec-input-group rec-input-acts" data-invalid={problem ? "true" : undefined}>
+          {control}
+          {action}
+        </span>
+        {under}
+      </div>
+    );
   return (
     <div className="rec-field" data-testid={testid || undefined}>
       <label>
@@ -127,13 +156,7 @@ export function RecordField(props: RecordFieldProps) {
           control
         )}
       </label>
-      {problem ? (
-        <FieldError id={problemId} message={problem} />
-      ) : hint ? (
-        <span className="rec-hint" id={hintId}>
-          {hint}
-        </span>
-      ) : null}
+      {under}
     </div>
   );
 }
@@ -255,11 +278,15 @@ export function RecordSwitch({
   );
 }
 
-/** One option of a choice: its value, its words, and (where choosing it needs saying) a sentence of what it means. */
+/**
+ * One option of a choice: its value, its words, and (where choosing it needs saying) a sentence of what it means. An
+ * option drawn as a glyph alone (a step's Pick a day, a calendar) says its words as its name (`name`).
+ */
 interface RecordOption<V extends string | number | boolean> {
   value: V;
   label: ReactNode;
   hint?: ReactNode;
+  name?: string;
 }
 
 interface RecordToggleGroupProps<V extends string | number | boolean> {
@@ -279,6 +306,8 @@ interface RecordToggleGroupProps<V extends string | number | boolean> {
    * wrapping as they need; `chips-sm` the smaller pill a popover's and a composer's rows hold.
    */
   look?: "segments" | "chips" | "chips-sm";
+  /** Chips on one line, which scrolls sideways where they run past it, never a second row (a step's days on a phone). */
+  line?: boolean;
 }
 
 const WALK_STEPS: Partial<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -303,6 +332,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
   testid = null,
   wrap = false,
   look = "segments",
+  line = false,
 }: RecordToggleGroupProps<V>) {
   const at = options.findIndex((o) => o.value === value);
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
@@ -335,6 +365,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
       data-hints={hints ? "true" : undefined}
       data-wrap={wrap ? "true" : undefined}
       data-look={look === "segments" ? undefined : look}
+      data-line={line ? "true" : undefined}
       data-testid={testid || undefined}
     >
       {options.map((o, i) => {
@@ -348,6 +379,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
             className="rec-seg-btn"
             aria-checked={checked}
             aria-disabled={readOnly || undefined}
+            aria-label={o.name || undefined}
             aria-labelledby={words ? `${words}-label` : undefined}
             aria-describedby={words ? `${words}-hint` : undefined}
             tabIndex={checked || (at < 0 && i === 0) ? 0 : -1}

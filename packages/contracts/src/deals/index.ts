@@ -101,7 +101,7 @@ export type {
   PipelineVM,
 } from "./pipeline/pipeline-vm";
 export { PIPELINE_WORDS } from "./pipeline/pipeline-words";
-export { pipelineOf } from "./pipeline/pipeline";
+export { pipelineOf, pipelineWorth } from "./pipeline/pipeline";
 export {
   isPipelineView,
   pipelineViewLabel,
@@ -111,15 +111,8 @@ export {
   PIPELINE_RAIL_SERVICES,
 } from "./pipeline/pipeline-views";
 export type { PipelineView, PipelineRailRow, PipelineRailSection } from "./pipeline/pipeline-views";
-export { pipelinePeekOf, pipelinePeekDetail, pipelineSheetOf } from "./pipeline/pipeline-peek";
-export type {
-  PipelinePeekFact,
-  PipelinePeekVM,
-  PipelinePeekReachVM,
-  PipelinePeekDetailVM,
-  PipelineSheetAct,
-  PipelineSheetVM,
-} from "./pipeline/pipeline-peek";
+export { pipelinePeekOf, pipelineSheetOf } from "./pipeline/pipeline-peek";
+export type { PipelinePeekFact, PipelinePeekVM, PipelineSheetAct, PipelineSheetVM } from "./pipeline/pipeline-peek";
 export {
   pipelineMove,
   pipelineSorted,

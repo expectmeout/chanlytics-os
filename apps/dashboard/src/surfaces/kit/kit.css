@@ -2630,6 +2630,45 @@ a.more-item {
   flex: none;
   display: inline-flex;
 }
+/* The mark and the title as one press to what the sheet is of (Sheet's `opens`: a deal sheet's person, to their page),
+   drawn as they are (Ruben, 21 Oct 2026: nothing lit, no chevron): the words and the tile keep their own look, a
+   keyboard's ring the only mark of the press. The touch floor is the head's, not theirs. */
+.rec-sheet-opens {
+  position: relative;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+/* Its size is what it draws, never a button's touch floor (legacy.css, a coarse pointer's 44px on every button), which
+   stood the name 44 tall and the head 19px taller: the floor is an invisible margin round it, as a chip's is. */
+.rec-sheet-opens[type="button"] {
+  min-width: 0;
+  min-height: 0;
+}
+.rec-sheet-opens::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+}
+.sheet-mark > .rec-sheet-opens {
+  display: inline-flex;
+  border-radius: var(--radius-full);
+}
+.sheet-mark > .rec-sheet-opens::after {
+  inset: -4px;
+}
+.rec-sheet-opens:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
 .rec-sheet-head[data-marked] {
   align-items: center;
   gap: 12px;
@@ -2814,6 +2853,21 @@ textarea.rec-input {
   background: var(--bg-sunken);
   font-size: var(--text-sm);
   color: var(--ink-dim);
+}
+/* A box with a press inside its end (RecordField's `action`: Say it's Fill), which acts on what was typed: the press
+   stands 4px in from the box's end, the box a capsule round both, its ring the group's. */
+.rec-input-group.rec-input-acts {
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: var(--radius-full);
+}
+.rec-input-acts .rec-input {
+  align-self: stretch;
+  box-shadow: none;
+}
+.rec-input-acts > .btn {
+  flex: none;
 }
 .rec-hint {
   font-size: var(--text-sm);
@@ -4557,6 +4611,20 @@ a.list-row {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   color: var(--ink);
+}
+/* Chips on one line (`line`: a step's days on a phone): the row scrolls sideways where they run past it, never a second
+   row, and shows no bar for it; each chip keeps its width. */
+.rec-seg[data-line="true"] {
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rec-seg[data-line="true"]::-webkit-scrollbar {
+  display: none;
+}
+.rec-seg[data-line="true"] .rec-seg-btn {
+  flex: none;
 }
 .rec-seg[data-look="chips-sm"] .rec-seg-btn {
   height: var(--control-h-md);

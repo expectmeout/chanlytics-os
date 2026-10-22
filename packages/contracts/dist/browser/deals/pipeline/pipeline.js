@@ -122,7 +122,14 @@ function openOf(r) {
   if (r.openDeals && r.openDeals.length) return r.openDeals;
   return r.deal && dealIsOpen(r.deal) ? [r.deal] : [];
 }
-const worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+export function pipelineWorth(vm) {
+  const of = (key) => amountTotalsWords(
+    (vm.groups.find((g) => g.key === key)?.rows ?? []).flatMap(
+      (r) => r.deal ? [{ amount_cents: r.deal.amountCents, per: r.deal.per, currency: r.deal.currency }] : []
+    )
+  );
+  return { proposals: of("proposals"), clients: of("clients") };
+}
 function bandsOf(rows, heldSet, nowMs) {
   const out = { ahead: [], proposals: [], clients: [], closed: [] };
   for (const r of rows) {
@@ -185,12 +192,12 @@ export function pipelineOf(rows, nowMs, tz, pace, view = "all") {
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
         (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
-      worth(shownProposals)
+      null
     ),
     group(
       "clients",
       inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
-      worth(shownClients)
+      null
     ),
     group(
       "closed",
@@ -200,15 +207,13 @@ export function pipelineOf(rows, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words, press = null, joins = false) => words ? { words, view: press, tone: press ? "warn" : null, joins } : null;
+  const part = (words, press = null) => words ? { words, view: press, tone: press ? "warn" : null } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(proposals.length ? worth(proposals) : null, null, true),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
-    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
-    part(clients.length ? worth(clients) : null, null, true)
+    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null)
   ].filter((x) => !!x);
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
   const filter = (view2, count, words, tone) => count > 0 ? [{ view: view2, count, words, tone }] : [];
@@ -223,8 +228,5 @@ export function pipelineOf(rows, nowMs, tz, pace, view = "all") {
     ...filter("lapsed", lapsed.length, `${lapsed.length} lapsed`, "warn"),
     ...filter("clients", clientCount, plural(clientCount, "client", "clients"), "ok")
   ];
-  const proposed = proposals.length ? worth(proposals) : null;
-  const earning = clients.length ? worth(clients) : null;
-  const money = [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null].filter((x) => !!x).join(" \xB7 ") || null;
-  return { summary: line.map((p) => p.words), line, filters, money, groups, empty: groups.length === 0, pace };
+  return { summary: line.map((p) => p.words), line, filters, groups, empty: groups.length === 0, pace };
 }

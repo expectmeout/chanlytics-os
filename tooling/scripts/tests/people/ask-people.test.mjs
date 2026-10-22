@@ -26,6 +26,7 @@ import {
   listUnknownWords,
   personStateFor,
   pipelineOf,
+  pipelineWorth,
   poolRowOf,
   ruleNeeds,
   toPersonRowVM,
@@ -259,7 +260,7 @@ const BEFORE = {
       },
     ],
     aggregate:
-      "Pipeline, All deals: 4 on screen · 2 proposals out · $2,000 · 1 waiting over a week · 1 client · $2,500 a month · Proposal out: 2 · Clients: 1 · Passed or ended: 1",
+      "Pipeline, All deals: 4 on screen · 2 proposals out · 1 waiting over a week · 1 client · Proposals out come to $2,000 · Clients come to $2,500 a month · Proposal out: 2 · Clients: 1 · Passed or ended: 1",
   },
   waiting: {
     rows: [
@@ -309,7 +310,7 @@ const BEFORE = {
       },
     ],
     aggregate:
-      "Pipeline, Nothing back in a week: 4 on screen · 2 proposals out · $2,000 · 1 waiting over a week · 1 client · $2,500 a month · Proposal out: 2 · Clients: 1 · Passed or ended: 1",
+      "Pipeline, Nothing back in a week: 4 on screen · 2 proposals out · 1 waiting over a week · 1 client · Proposals out come to $2,000 · Clients come to $2,500 a month · Proposal out: 2 · Clients: 1 · Passed or ended: 1",
   },
 };
 
@@ -423,6 +424,9 @@ const ask = async (input, t = tables(), role = "operator") => {
 test("people.pipeline answers what the board's reader answers, as the Pipeline draws it: the line over the table, the pace, each group with its count and what it comes to, and each person on it with the deal's id, service, value, time in stage, chip and next step; each person and deal a row in the read set, opened on the person's page; every workspace's", async () => {
   const { out, tc } = await ask({ action: "pipeline" });
   const board = (await load(rcIn(ctxFor(), "operator"), dealBoard, undefined)).data.board;
+  // What the proposals out and the clients come to is Ask's alone: the page says counts only (21 Oct 2026).
+  const worth = pipelineWorth(board);
+  assert.deepEqual([worth.proposals, worth.clients], ["$2,000", "$2,500 a month"]);
   assert.deepEqual(out, {
     route: "clients/pipeline",
     summary: board.summary.join(" · "),
@@ -430,7 +434,7 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
     groups: board.groups.map((g) => ({
       group: g.label,
       count: g.count,
-      comes_to: g.meta,
+      comes_to: g.key === "proposals" ? worth.proposals : g.key === "clients" ? worth.clients : g.meta,
       people: g.rows.map((row) => ({
         contact_id: row.person.id,
         deal_id: row.deal?.id ?? null,
@@ -459,7 +463,7 @@ test("people.pipeline answers what the board's reader answers, as the Pipeline d
       ["Passed or ended", 1, [["Lena", "Kitchen remodel", null]]],
     ],
   );
-  assert.match(out.summary, /^2 proposals out · \$2,000 · 1 waiting over a week · 1 client/);
+  assert.equal(out.summary, "2 proposals out · 1 waiting over a week · 1 client", "the page's line: counts only");
   assert.deepEqual(tc.read.person.get(P1), { kind: "person", id: P1, route: `clients/${P1}`, label: "Rosa" });
   assert.deepEqual(tc.read.deal.get(D1), {
     kind: "deal",
@@ -795,6 +799,95 @@ const PERSON_CALLS_NAMELESS = [
   ],
 ];
 PERSON_CALLS.push(...PERSON_CALLS_NAMELESS);
+
+/** A deal of Quinn's, as the deals table holds one: a proposal out for Website, open. */
+const QUINN_DEAL = (over = {}) => ({
+  id: "dededede-dede-4ede-8ede-dededededec2",
+  tenant_id: A,
+  contact_id: QUINN,
+  service: "Website",
+  stage: "proposed",
+  proposed_at: "2026-09-01T12:00:00Z",
+  decided_at: null,
+  ended_at: null,
+  amount_cents: 120_000,
+  per: "once",
+  currency: "USD",
+  note: null,
+  version: 1,
+  created_at: "2026-09-01T12:00:00Z",
+  proposal_url: null,
+  valid_until: null,
+  lost_reason: null,
+  ...over,
+});
+
+/** One step call over the cards' world and its deals: what it came to. */
+async function stepCall(input, deals = []) {
+  const supabase = fakeDb({ ...cardWorld(), deals }, {}, {});
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
+  const out = await buildProposal(t, "propose_person", { action: "step", ...input });
+  const p = out.proposal;
+  return p
+    ? { kind: p.kind, title: p.title, summary: p.summary, payload: p.payload, undo: p.undo }
+    : JSON.parse(out.result);
+}
+
+test("propose_person's step: Ask sets a next step on its own, the team's note with a day, on their one open deal or the one named, for anyone or for the member asking", async () => {
+  // Refused in the model's words, before a read: no words, a day gone by, no day.
+  assert.deepEqual(await stepCall({ contact_id: ROSA, what: "  ", due_on: "2026-09-18" }), {
+    error: "what must be the step's words",
+  });
+  assert.deepEqual(await stepCall({ contact_id: ROSA, what: "Call back", due_on: "2026-09-10" }), {
+    error: "due_on must be today or later",
+  });
+  assert.deepEqual(await stepCall({ contact_id: ROSA, what: "Call back", due_on: "Friday" }), {
+    error: "due_on must be a day, like 2026-09-30",
+  });
+  // About the person, with no deal open: anyone on the team, the day said as the pages say it.
+  assert.deepEqual(await stepCall({ contact_id: ROSA, what: " Call about the timeline ", due_on: "2026-09-18" }), {
+    kind: "note",
+    title: "Next step for Rosa",
+    summary: "Call about the timeline · Due Fri · Anyone on the team",
+    payload: { contact_id: ROSA, body: "Call about the timeline", due_on: "2026-09-18", team_only: true, who: "Rosa" },
+    undo: "Delete it",
+  });
+  // Their one open deal is the step's, and the member asking may take it.
+  const deal = QUINN_DEAL();
+  const mine = await stepCall({ contact_id: QUINN, what: "Send the quote", due_on: "2026-09-14", step_for: "me" }, [
+    deal,
+  ]);
+  assert.deepEqual(
+    [mine.summary, mine.payload.deal_id, mine.payload.for_user_id],
+    ["Send the quote · Due today · Website · Me", deal.id, USER],
+  );
+  // Two open: the one named by its service (case aside); one named that is none of theirs is refused, never guessed.
+  const ads = QUINN_DEAL({
+    id: "dededede-dede-4ede-8ede-dededededec3",
+    service: "Ads",
+    created_at: "2026-09-05T12:00:00Z",
+  });
+  assert.equal(
+    (await stepCall({ contact_id: QUINN, what: "Check the budget", due_on: "2026-09-15", service: "ads" }, [deal, ads]))
+      .payload.deal_id,
+    ads.id,
+  );
+  assert.equal(
+    (await stepCall({ contact_id: QUINN, what: "Check in", due_on: "2026-09-15" }, [deal, ads])).payload.deal_id,
+    undefined,
+    "two open and none named: the step is about them",
+  );
+  assert.deepEqual(
+    await stepCall({ contact_id: QUINN, what: "Check in", due_on: "2026-09-15", service: "Branding" }, [deal, ads]),
+    { error: "their open deals are for Ads and Website; name one of those, or none" },
+  );
+  // A passed deal is no deal of the step's.
+  assert.equal(
+    (await stepCall({ contact_id: QUINN, what: "Try again", due_on: "2026-09-15" }, [QUINN_DEAL({ stage: "lost" })]))
+      .payload.deal_id,
+    undefined,
+  );
+});
 
 test("propose_person's note and details over the database in memory, from a table: each refusal in the model's words, before any read where it can be, and each card with who reads it or each field as it was and becomes; the person a card names is a row the answer may cite", async () => {
   for (const [what, input, want, reads] of PERSON_CALLS) {

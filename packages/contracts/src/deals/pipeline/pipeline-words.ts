@@ -46,33 +46,22 @@ export const PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
+  /**
+   * The deal sheet over the rows (pipeline-peek.ts): what its head's face and name say they open (their page), its wait,
+   * and what it calls a person it could not read.
+   */
   peek: {
     close: "Close",
-    page: "Their page",
+    open: (name: string) => `Open ${name}'s page`,
     reading: "Reading…",
     what: "this person",
-    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
-    reach: {
-      title: "How to reach them",
-      phone: "Phone",
-      email: "Email",
-      replies: "Replies",
-      copy: "Copy",
-      copied: "Copied",
-      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
-      copyPhone: "Copy the number",
-      copyEmail: "Copy the address",
-    },
   },
   /**
-   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
-   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
-   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026, made compact 21 Oct): its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret and the
+   * proposal it opens, the Message its foot leads with for a client, and the desk's walk through the rows shown.
    */
   sheet: {
-    raise: "Show all of the deal",
-    lower: "Back to the quick look",
     next: "Next step",
     done: (step: string) => `Done: ${step}`,
     change: (step: string) => `Change: ${step}`,
@@ -81,14 +70,17 @@ export const PIPELINE_WORDS = {
     no: "They passed",
     passAsk: (first: string) => `Why did ${first} pass?`,
     more: (what: string) => `More for ${what}`,
+    /** The caret's door to the proposal where it lives, in a new tab; its link is copied on their page. */
+    openProposal: "Open the proposal",
     message: "Message",
-    others: "Also with them",
-    /** The proposal's own box, raised: its link and the link's copy. */
-    proposal: "The proposal",
-    link: "Link",
     /** A consultation over with no proposal since, once its step says when and how it went. */
     noProposal: "No proposal yet",
     walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" },
+  },
+  /** What the proposals out and the clients come to, as Ask is told it (pipelineWorth); the page says counts only. */
+  worth: {
+    proposals: (sum: string) => `Proposals out come to ${sum}`,
+    clients: (sum: string) => `Clients come to ${sum}`,
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },

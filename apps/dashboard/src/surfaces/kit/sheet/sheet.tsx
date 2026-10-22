@@ -55,6 +55,11 @@ type SheetShape =
       sub?: ReactNode;
       /** What it is of, drawn before its title: a business's tile (canvas A, the business sheet). */
       mark?: ReactNode;
+      /**
+       * The mark and the title open what the sheet is of (the Pipeline's deal sheet: their page), drawn as they are, a
+       * press each: the title's words the button, named by `label`; the mark the same press, out of the tab order.
+       */
+      opens?: SheetOpensTo;
       /** A strip of tools over the rows: a search, an Add. */
       tools?: ReactNode;
       /** The foot, which holds still under the rows: the page's acts. */
@@ -89,6 +94,7 @@ type SheetShape =
       back?: SheetBack | null;
       sub?: undefined;
       mark?: undefined;
+      opens?: undefined;
       tools?: undefined;
       foot?: undefined;
       kicker?: undefined;
@@ -126,14 +132,64 @@ const closingWord = (state: { transitionStatus: "starting" | "ending" | "idle" |
 /** A test id of one of its parts, where the sheet has one. */
 const partId = (testid: string | undefined, part: string) => (testid ? `${testid}-${part}` : undefined);
 
+/** Where a sheet's mark and title go when pressed (`opens`): its name for a screen reader, and the press. */
+export interface SheetOpensTo {
+  label: string;
+  press: () => void;
+}
+
+/**
+ * A sheet's title, or its mark, as a press to what the sheet is of, drawn as it is (kit.css `.rec-sheet-opens`): the
+ * title's words named by where they go; the mark (`mark`) the same press out of the tab order and hidden from a screen
+ * reader, since the title already is one. A pane that draws its own head (the Pipeline's desk peek) uses it as is.
+ */
+export function SheetOpens({
+  to,
+  mark = false,
+  testid,
+  children,
+}: {
+  to: SheetOpensTo;
+  mark?: boolean;
+  testid?: string;
+  children: ReactNode;
+}) {
+  return mark ? (
+    <button type="button" className="rec-sheet-opens" tabIndex={-1} aria-hidden="true" onClick={to.press}>
+      {children}
+    </button>
+  ) : (
+    <button type="button" className="rec-sheet-opens" aria-label={to.label} onClick={to.press} data-testid={testid}>
+      {children}
+    </button>
+  );
+}
+
 /** A record's head, tools, rows and foot. */
 function recordParts(p: SheetProps & { shape?: "record" }) {
+  const opens = p.opens;
+  const mark =
+    p.mark && opens ? (
+      <SheetOpens to={opens} mark>
+        {p.mark}
+      </SheetOpens>
+    ) : (
+      p.mark
+    );
   return (
     <>
       <header className="rec-sheet-head" data-marked={p.mark ? "true" : undefined}>
-        {p.mark ? <span className="sheet-mark">{p.mark}</span> : null}
+        {p.mark ? <span className="sheet-mark">{mark}</span> : null}
         <div className="rec-sheet-heading">
-          <Dialog.Title className="rec-sheet-title">{p.title}</Dialog.Title>
+          <Dialog.Title className="rec-sheet-title">
+            {opens ? (
+              <SheetOpens to={opens} testid={partId(p.testid, "opens")}>
+                {p.title}
+              </SheetOpens>
+            ) : (
+              p.title
+            )}
+          </Dialog.Title>
           {p.sub ? <Dialog.Description className="rec-sheet-sub">{p.sub}</Dialog.Description> : null}
         </div>
         {p.toolsInLine && p.tools ? <div className="rec-sheet-line">{p.tools}</div> : null}
