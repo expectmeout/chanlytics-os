@@ -46,6 +46,7 @@ const element = (name, { at = 0, height = 60 } = {}) => {
     name,
     at,
     height,
+    id: "",
     className: "",
     css: { overflowY: "visible", scrollPaddingTop: "0px" },
     style,
@@ -75,6 +76,17 @@ const element = (name, { at = 0, height = 60 } = {}) => {
     },
     querySelector: () => null,
     querySelectorAll: () => [],
+    focus() {
+      globalThis.document.activeElement = this;
+    },
+    // Brought into view as the window does it: no nearer the top or the foot than the root's scroll padding.
+    scrollIntoView() {
+      const r = this.getBoundingClientRect();
+      const top = parseFloat(html.css.scrollPaddingTop) || 0;
+      const foot = win.innerHeight - (parseFloat(html.css.scrollPaddingBottom) || 0);
+      if (r.top < top) win.scrollY += r.top - top;
+      else if (r.bottom > foot) win.scrollY += r.bottom - foot;
+    },
     addEventListener() {},
     removeEventListener() {},
     // What a still picture of it asks (held-list.ts: a list put back comes back under one).
@@ -105,6 +117,8 @@ const store = new Map();
 const heard = new Map();
 const html = element("html", { height: 4000 });
 html.css.scrollPaddingTop = "140px";
+// The tab bar's room at the foot (mobile.css: --bar-foot + 76px).
+html.css.scrollPaddingBottom = "80px";
 const body = put(html, element("body", { height: 4000 }));
 const win = {
   location: { pathname: "/w/acme/people" },
@@ -136,8 +150,9 @@ globalThis.document = {
   documentElement: html,
   scrollingElement: html,
   at: null,
+  activeElement: null,
   elementFromPoint: () => globalThis.document.at,
-  getElementById: () => null,
+  getElementById: (id) => body.children[0]?.children[0]?.children.find((r) => r.id === id) ?? null,
 };
 Object.defineProperty(html, "scrollTop", {
   get: () => win.scrollY,
@@ -226,9 +241,12 @@ const people = () => {
   heard.clear();
   body.children.length = 0;
   win.scrollY = 0;
+  globalThis.document.activeElement = null;
   const scope = put(body, element("scope", { at: 220, height: 2400 }));
   const pane = put(scope, element("pane", { at: 220, height: 2400 }));
   const rows = Array.from({ length: 30 }, (_, i) => put(pane, element("li", { at: 220 + 80 * i, height: 80 })));
+  rows.forEach((r, i) => (r.id = `client-p${i}`));
+  const ids = rows.map((_, i) => `p${i}`);
   const nothing = () => {};
   const controls = {
     phone: true,
@@ -246,9 +264,18 @@ const people = () => {
     scrollRef: { current: pane },
   };
   const route = component((person) => useHeldList(person, () => scope));
-  const view = component(() =>
-    usePlPlace({ controls, page: "people", view: "all", ids: [], noun: "client", landed: true, selectionOf: "all" }),
-  );
+  let place = null;
+  const view = component(() => {
+    place = usePlPlace({
+      controls,
+      page: "people",
+      view: "all",
+      ids,
+      noun: "client",
+      landed: true,
+      selectionOf: "all",
+    });
+  });
   /**
    * The route drawn with a person open or not, and the scope under it, out of sight while one is: React's commit, the
    * scope hidden or shown, then the layout effects (the hold), `beforePassive`, then the effects after the paint.
@@ -286,7 +313,18 @@ const people = () => {
   };
   // The row under the frame's top, as the screen shows it now; the hold finds it there.
   const rowAtTop = () => (globalThis.document.at = rows.find((r) => r.getBoundingClientRect().bottom > 141) ?? null);
-  return { draw, awayAndBack, saved, rowAtTop, rows };
+  /** A row tapped: it takes focus, and so the cursor (the table's onFocus), as the person's page is about to open. */
+  const press = (i) => {
+    rows[i].focus();
+    place.setCursor(`p${i}`);
+    draw(false);
+  };
+  /** J or the down arrow: the cursor a row on, from the row that has focus. */
+  const nextRow = () => {
+    place.setCursor((c) => ids[ids.indexOf(c) + 1]);
+    draw(false);
+  };
+  return { draw, awayAndBack, saved, rowAtTop, press, nextRow, rows };
 };
 
 /* ------------------------------------------ cases ------------------------------------------ */
@@ -339,4 +377,28 @@ test("as the person goes the row you were on is put back where it stood, once: t
   // Shown again later with no person over it (Leads, then People): its place is put back as it always was.
   p.awayAndBack(() => (win.scrollY = 0));
   assert.equal(win.scrollY, 1580, "the next showing puts the place back: the hold's word is taken once");
+});
+
+test("Back from a row low on the screen scrolls nothing: the cursor the scope had is no move as it is shown again", async () => {
+  const p = people();
+  p.draw(false);
+  p.draw(false);
+  p.rowAtTop();
+  // The seventh row, whole on the screen but in the tab bar's room at its foot (700 to 780 of 800, the room from 720).
+  p.press(6);
+  assert.equal(win.scrollY, 0, "a row tapped is where the finger is: nothing is brought into view");
+  p.draw(true);
+  globalThis.document.activeElement = null;
+  p.draw(false);
+  assert.equal(win.scrollY, 0, "the list stands where it stood: the scope's cursor, shown again, scrolled it 60px on");
+  assert.equal(p.rows[6].getBoundingClientRect().top, 700);
+});
+
+test("a cursor moved by a key still brings its row into view, clear of the tab bar's room", () => {
+  const p = people();
+  p.draw(false);
+  p.draw(false);
+  p.press(6);
+  p.nextRow();
+  assert.equal(win.scrollY, 140, "the eighth row's foot stands at the room's edge, 720");
 });
