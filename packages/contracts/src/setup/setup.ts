@@ -69,12 +69,23 @@ export interface SetupDto {
     booking_link?: boolean;
   };
   team: {
+    /**
+     * Who answers: every member but the partner who brought the workspace (0012), who sits on its team to set it up and
+     * is no one to back the owner up. Counted so on both reads, the member's and the back office's.
+     */
     members: number;
     invitesOpen: number;
     alertEmails: number;
     /** The partner who brought the workspace and sits on its team (0012), by name; the member's read alone carries it. */
     partner?: string | null;
   };
+  /**
+   * The routine messages around a visit that already run: a day-before reminder is a running step on the visit_tomorrow
+   * moment (packages/db runningStepsOn), and the routes refuse a second (playbook-row.ts visitTwinRefusal), so Today's
+   * card stops offering one. Absent on a read from before it, or where it could not be read: the card offers, and the
+   * route is still the door that refuses.
+   */
+  reminders?: { day_before: boolean };
   /**
    * The two answers, counted separately.
    *
@@ -325,6 +336,10 @@ export interface SetupVM {
    * and Today's "Try it" row stays until a call comes in.
    */
   trySkipped: boolean;
+  /** The member skipped Today's offer of the day-before reminder (REMIND_SKIPPED in their put-off rows). */
+  remindSkipped: boolean;
+  /** A day-before reminder already runs (SetupDto.reminders), so there is none to offer. */
+  dayBeforeOn: boolean;
   /**
    * The member chose to keep or move a number (their saved view's `phone`), and no forwarding is saved for one yet,
    * nor has "The number you already have" been put off: the first run's phone step is not done, whatever answers.
@@ -645,6 +660,12 @@ export function keptPhoneKind(line: LineDto | null | undefined): "mobile" | "off
  * which Today keeps showing until a call comes in, but the first run's wait for it.
  */
 export const TRY_SKIPPED = "try-skipped";
+
+/**
+ * What skipping Today's offer of the day-before reminder puts off (the member's own, as a row put off is). The offer is
+ * no row of Setup's, so it has no row id to put off: this names it in the same list.
+ */
+export const REMIND_SKIPPED = "remind-skipped";
 
 /**
  * Setup's row for the number the business keeps and forwards ("The number you already have"): putting it off is how

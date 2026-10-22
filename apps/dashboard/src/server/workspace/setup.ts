@@ -37,7 +37,7 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, MailboxRow } from "@chanlytics/db";
-import { getTenantConfig, mailboxOfTenant, offersEmailReach } from "@chanlytics/db";
+import { getTenantConfig, mailboxOfTenant, offersEmailReach, runningStepsOn } from "@chanlytics/db";
 import { configRowOf } from "./config-row";
 import {
   emailOffersOpen,
@@ -79,13 +79,21 @@ import { log } from "@/server/log";
  */
 type SetupViewer = { kind: "member" } | { kind: "back_office" };
 
-/** How many people are in the workspace and how many invitations are open -- the only two numbers Setup uses. */
+/**
+ * How many people answer in the workspace and how many invitations are open -- the only two numbers Setup uses. The
+ * partner who brought it (0012) is on its team to set it up, not to answer: counted out, as the member's read counts
+ * them out of the roster (teamSection), so support reads the number the owner does.
+ */
 async function teamCounts(
   supabase: SupabaseClient<Database>,
   tenantId: string,
 ): Promise<{ members: number; invitesOpen: number }> {
   const [members, invites] = await Promise.all([
-    supabase.from("memberships").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    supabase
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .neq("role", "partner"),
     supabase
       .from("invitations")
       .select("id", { count: "exact", head: true })
@@ -260,6 +268,18 @@ function setupRequested(supabase: SupabaseClient<Database>, tenantId: string) {
     .limit(30);
 }
 
+/**
+ * Whether a day-before reminder already runs: a running step on the visit_tomorrow moment, the one question the routes
+ * ask before refusing a second (playbook-row.ts visitTwinRefusal). Today's card stops offering one then. A read that
+ * fails says nothing (null), and the card offers as it did: the route is still the door that refuses.
+ */
+function dayBeforeRunning(supabase: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> {
+  return runningStepsOn(supabase, tenantId, ["visit_tomorrow"]).then(
+    (steps) => steps.length > 0,
+    () => null,
+  );
+}
+
 /** The owner's own act, per capability (00108). */
 function activationRows(supabase: SupabaseClient<Database>, tenantId: string) {
   return supabase
@@ -325,6 +345,7 @@ function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: 
     // Whether this deployment has email, and the workspace's mailbox when it has one. No query at all where it is off.
     emailSetupFor(supabase, tenantId, mailbox),
     offersByEmailOf(supabase, tenantId, settings, mailbox),
+    dayBeforeRunning(supabase, tenantId),
   ]);
 }
 
@@ -356,6 +377,7 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     activations,
     email,
     offersByEmail,
+    dayBefore,
   ] = await askSetup(supabase, tenantId, viewer, now);
   // A count that could not be read is not a zero: read as one, the row says nobody has said yes.
   for (const read of [channels, lastMsg, lastCall, templates, yes, offersSaid, offersReach, requested, activations])
@@ -383,6 +405,7 @@ async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, 
     activations,
     email,
     offersByEmail,
+    dayBefore,
   };
 }
 
@@ -517,9 +540,13 @@ function calendarSection(calendar: SetupReads["calendar"], now: Date): SetupDto[
 function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDto["team"] {
   return {
     // Either shape answers the same two questions; the member path already
-    // has the roster in hand, the back office never asks for it.
+    // has the roster in hand, the back office never asks for it. Who answers:
+    // the partner who brought the workspace is named below, never counted as
+    // someone who backs the owner up (teamCounts counts them out too).
     members:
-      "members" in team && Array.isArray(team.members) ? team.members.length : (team as { members: number }).members,
+      "members" in team && Array.isArray(team.members)
+        ? team.members.filter((m) => m.role !== "partner").length
+        : (team as { members: number }).members,
     invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
     alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
@@ -644,6 +671,8 @@ export async function setupDtoFor(
     google: googleSection(read, config.profile),
     billing: billingSection(read),
     activations: activationsSection(read.activations),
+    // Said only where it was read: unread, the card offers the reminder as a read from before the field does.
+    ...(read.dayBefore === null ? {} : { reminders: { day_before: read.dayBefore } }),
   };
   return setup;
 }

@@ -35,6 +35,8 @@ interface SetupRowsProps {
   primary?: string | null;
   left?: ReactNode;
   flash?: ((f: LegacyFlash) => void) | null;
+  /** A row of the caller's after Setup's, in the same list: Today's door to the reminder. */
+  tail?: ReactNode;
   testid?: string;
 }
 
@@ -89,6 +91,7 @@ export const SetupRows = ({
   primary = null,
   left = null,
   flash: lent = null,
+  tail = null,
   testid = "setup-rows",
 }: SetupRowsProps) => {
   const [toastNode, own] = useLegacyToast();
@@ -174,6 +177,7 @@ export const SetupRows = ({
             </div>
           );
         })}
+        {tail}
       </div>
       {toastNode}
     </div>

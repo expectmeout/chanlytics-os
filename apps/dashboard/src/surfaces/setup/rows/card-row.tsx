@@ -2,8 +2,8 @@
  * One of Setup's rows as Today's card draws it (canvas R10; moved from legacy/pages/setup.jsx, decision 0015): its state
  * as a dot (the word is the dot's name), its name and sentence, and its acts at the right: the next one coral, the others
  * outlined, putting it off a quiet link. Hookless; the acts are the caller's, gate spreads included. `left` is how many
- * are left, beside the words: a phone draws the card as this one row with no head (canvas P9), so the count rides here; a
- * wider screen hides it.
+ * are left, beside the words, for canvas P9's phone of one row with no head; every width now draws the head's count over
+ * every row, and hides this.
  */
 import type { ReactNode } from "react";
 

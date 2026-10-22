@@ -162,7 +162,8 @@ function emailsNeedYou(
       words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
-      next: TO_THE_ROW("Finish setting up"),
+      // What the row asks, in the email row's own words: "Finish setting up" was also the title of Today's card it sits in.
+      next: TO_THE_ROW("Choose the address"),
     };
   if (step === "forwarding")
     return {

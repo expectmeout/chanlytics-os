@@ -4528,6 +4528,7 @@ function keptPhoneKind(line) {
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
 var TRY_SKIPPED = "try-skipped";
+var REMIND_SKIPPED = "remind-skipped";
 var KEEP_ROW = "keep";
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
@@ -4579,7 +4580,8 @@ function emailsNeedYou(step2, f, e, by, times) {
       words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
-      next: TO_THE_ROW("Finish setting up")
+      // What the row asks, in the email row's own words: "Finish setting up" was also the title of Today's card it sits in.
+      next: TO_THE_ROW("Choose the address")
     };
   if (step2 === "forwarding")
     return {
@@ -16835,7 +16837,8 @@ function factConflicts(f) {
       known: kept,
       knownSource: f.kept_line.source,
       sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
-      to: "admin/workspace"
+      // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+      to: "admin/workspace/handoff_number"
     });
   }
   if (f.address.disputed && f.address.value) {
@@ -56555,7 +56558,9 @@ function receptionistRow2(i, ctx) {
           "Callers are told someone will confirm and are offered to leave a message",
           "Fill in your name, hours and services and it answers properly from the next call"
         ],
-        verb: { label: "Add your facts", to: "admin/workspace" }
+        // The first of the two it answers with that is missing, open on the page that holds it (the hours left Details
+        // for Hours & booking on 17 Oct 2026).
+        verb: { label: "Add your facts", to: `admin/workspace/${!i.business.name ? "name" : "hours"}` }
       };
     } else {
       return {
@@ -56786,6 +56791,8 @@ function billingRow(i, ctx) {
     verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" }
   };
 }
+var settingsRow = (row2) => `admin/workspace/${row2}`;
+var firstMissingFact = (b) => !b.name ? "name" : !b.hours ? "hours" : "services";
 function factsRow(i, ctx) {
   const { nowMs } = ctx;
   const b = i.business;
@@ -56850,7 +56857,7 @@ function factsRow(i, ctx) {
     required: true,
     sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`,
     details: [],
-    verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" }
+    verb: { label: none ? "Start in Business" : "Finish in Business", to: settingsRow(firstMissingFact(b)) }
   };
 }
 function handoffRow2(_i, ctx) {
@@ -56863,7 +56870,7 @@ function handoffRow2(_i, ctx) {
     required: false,
     sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
     details: [],
-    verb: { label: "Change it", to: "admin/workspace" }
+    verb: { label: "Change it", to: settingsRow("handoff_number") }
   } : {
     id: "handoff",
     icon: "phone",
@@ -56872,7 +56879,7 @@ function handoffRow2(_i, ctx) {
     required: false,
     sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
     details: [],
-    verb: { label: "Add a number", to: "admin/workspace" }
+    verb: { label: "Add a number", to: settingsRow("handoff_number") }
   };
 }
 function whatsappRow(i, ctx) {
@@ -57162,6 +57169,8 @@ function setupSteps2(i, nowMs = Date.now()) {
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
+    remindSkipped: later.has(REMIND_SKIPPED),
+    dayBeforeOn: i.reminders?.day_before === true,
     forwardingOwed: forwardingOwedOf(i, later),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
@@ -57890,7 +57899,8 @@ function firstRunLiveOf({ dto, emails, business, owner }) {
         key: "through",
         label: W.through,
         value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
-        change: { label: W.change, to: "admin/workspace" }
+        // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+        change: { label: W.change, to: "admin/workspace/handoff_number" }
       },
       {
         key: "emails",
@@ -58810,21 +58820,29 @@ function firstRunOf(vm, at3, who) {
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
 var CARD_REMIND = {
-  words: "Your calendar is in. Remind each customer the day before?",
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  said: "Put off. Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow"
 };
+var CARD_BILLING = { title: "Your plan", left: "Needs you" };
 function setupCardOf(vm) {
+  const billing = rowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
-    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const left2 = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
     const def = FIRST_RUN_STEPS[next.number - 1];
     return {
       title: FINISH_SETTING_UP,
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
         // or calls are answered and a step is still open.
@@ -58842,22 +58860,21 @@ function setupCardOf(vm) {
     };
   }
   const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
+    (r2) => r2 !== null && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && !!r2.verb
   );
   if (!rows2.length) return null;
-  const said = rows2.length === 1 ? CARD_SKIP.said : `All ${rows2.length} put off. They stay in Setting up for when you're ready.`;
   const calendar = rowOf(vm, "calendar");
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
+  const left = rows2.length + (remind ? 1 : 0);
+  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows2.length} left`,
+    left: `${left} left`,
     start: null,
     rows: rows2,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
-    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the moment is not offered and core refuses it.
-    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
+    remind
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
@@ -65605,6 +65622,7 @@ export {
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_QUESTION,
+  REMIND_SKIPPED,
   RENAME_WORDS,
   REPLIES_PAGE,
   REPLY_ANSWERED_MAX,

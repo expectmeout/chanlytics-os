@@ -22,7 +22,15 @@ import { bookingPageOffered } from "../google/google";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
-import { TRY_SKIPPED, type SetupDto, type SetupRowVM, type SetupState, type SetupVM } from "./setup";
+import {
+  REMIND_SKIPPED,
+  SETUP_STATE_WORDS,
+  TRY_SKIPPED,
+  type SetupDto,
+  type SetupRowVM,
+  type SetupState,
+  type SetupVM,
+} from "./setup";
 import {
   FIND_PARAM,
   FIRST_RUN_FIND_ROUTE,
@@ -422,12 +430,19 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
 
 export interface SetupCardVM {
   title: string;
-  /** "3 steps left" while the first run is not done; "2 left" after. */
+  /**
+   * "3 steps left" while the first run is not done; "2 left" after, the reminder's row counted with Setup's; "Needs you"
+   * beside "Your plan" while a payment failed.
+   */
   left: string;
   /** While calls are not answered: the one row, which opens the first run where it stands. */
   /** `ctaShort` is the button on a phone, where it sits beside the words (canvas P9). */
   start: { name: string; sentence: string; status: string; cta: string; ctaShort: string; to: string } | null;
-  /** After: Setup's own rows, open and not put off, in SETUP_CARD_ORDER. */
+  /**
+   * After: Setup's own rows that wait on the owner and are not put off, in SETUP_CARD_ORDER; a row waiting on Meta,
+   * Google or a booking tool's first email is no step of theirs, and stays on Setting up. Or, while a payment failed or
+   * the plan is paused, Billing's row alone (CARD_BILLING).
+   */
   rows: SetupRowVM[];
   /** Puts every row off at once, and what the toast says after; only where rows can be put off. */
   hide: { put: string; said: string } | null;
@@ -435,10 +450,21 @@ export interface SetupCardVM {
   skip: { put: string; said: string };
   /**
    * After the first run, with the calendar in: the one door to the appointment reminder, at the payoff (decision 22 of
-   * the spec of 9 Oct 2026: no new first-run step). Null while a step is open, and without a calendar link connected,
-   * which the reminder reads (booked by hand or by email alone, Setup's row is ready and the reminder cannot be made).
+   * the spec of 9 Oct 2026: no new first-run step), drawn as the card's last row: its name over its sentence, its button
+   * and a Skip that puts `id` off as a row is (`said` is the toast's), so Hide puts it off too. Null while a step is
+   * open, once skipped, once a day-before reminder runs (the routes refuse a second), and without a calendar link
+   * connected, which the reminder reads (booked by hand or by email alone, Setup's row is ready and the reminder cannot
+   * be made).
    */
-  remind: { words: string; label: string; to: string } | null;
+  remind: {
+    id: string;
+    name: string;
+    stateWords: string;
+    words: string;
+    label: string;
+    to: string;
+    said: string;
+  } | null;
 }
 
 const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." } as const;
@@ -446,18 +472,34 @@ const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when
 /**
  * Today's door to the reminder (decision 22): New sequence opened on the day-before moment. Its sentence names no
  * appointment: Setup holds no word for one, and New sequence says the workspace's own (journey/appointment-word.ts), so
- * the two never disagree.
+ * the two never disagree. Skipped, it is not in Setting up: Sequences is where it is made.
  */
 const CARD_REMIND = {
-  words: "Your calendar is in. Remind each customer the day before?",
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  said: "Put off. Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow",
 } as const;
 
+/**
+ * The card while a payment failed or the plan is paused: said as the plan, never as a step of setting up. The first
+ * run's phone step needs Billing, so a card that failed after setting up read "Your receptionist is answering · Next: your
+ * phone · Continue setting up", and opened the first run.
+ */
+const CARD_BILLING = { title: "Your plan", left: "Needs you" } as const;
+
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM): SetupCardVM | null {
+  // Billing's row waits on the owner only for a payment that failed or a plan paused (setup-rows.ts billingRow): its own
+  // row, its own act (the card's portal, or Billing), required, so nothing to Skip or Hide.
+  const billing = rowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
   const fr = firstRunOf(vm);
   // Calls answered and only the test call left: Setup's own rows, Try it first, each with its Skip and the card's Hide,
   // as after the first run -- a workspace that answers is never held to a card it cannot put away.
@@ -489,24 +531,36 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
       remind: null,
     };
   }
+  // What waits on the owner: a row waiting on someone else (Meta's approval, Google's read, a booking tool's first
+  // email) is not theirs to do, and on a phone, where a row's sentence is not drawn, nothing said it waited.
   const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r): r is SetupRowVM => r !== null && r.state !== "ready" && !r.later && !!r.verb,
+    (r): r is SetupRowVM => r !== null && r.state !== "ready" && r.state !== "waiting_them" && !r.later && !!r.verb,
   );
   if (!rows.length) return null;
-  const said =
-    rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
   const calendar = rowOf(vm, "calendar");
+  // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
+  // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
+  // the moment is not offered and core refuses it. Not once one runs: the routes refuse a second.
+  const remind =
+    vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn
+      ? { ...CARD_REMIND }
+      : null;
+  // The reminder is a row of the card as drawn, so it is counted and hidden with Setup's; it is kept in Sequences.
+  const left = rows.length + (remind ? 1 : 0);
+  const said =
+    left === 1
+      ? CARD_SKIP.said
+      : remind
+        ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.`
+        : `All ${left} put off. They stay in Setting up for when you're ready.`;
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows.length} left`,
+    left: `${left} left`,
     start: null,
     rows,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
-    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the moment is not offered and core refuses it.
-    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null,
+    remind,
   };
 }
 

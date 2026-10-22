@@ -137,17 +137,14 @@
      indent (--beat-door-indent: the brief's, dashboard-a-v2.css) instead of a second rule over the door. */
   :where(.dash-a-v2) .tc-beats .brief-beat-text { flex-basis: calc(100% - 34px); }
   :where(.dash-a-v2) .tc-beats .brief-beat-text ~ .brief-chip { margin-left: var(--beat-door-indent, 28px); }
-  /* What is left to set up, on a phone: the card is its eyebrow (what it is, and how many are left) over one row, the
-     next thing -- its dot, its name, and its button. The row's sentence is a desk's: three lines of it beside the
-     button left both pinched, and held to one line it was "What your receptionist ..." on every phone (Ruben, 7 Oct
-     2026: more concise and compact). The name and the button say the step; its page says the rest. The other rows,
-     Skip and Hide wait for a wider screen. */
+  /* What is left to set up, on a phone: the rows and acts a desk has (Ruben, 21 Oct 2026: a phone showed the first row
+     alone, with no Skip or Hide), each row its dot, its name, its button and Skip, and Hide in the head. The row's
+     sentence stays a desk's: three lines of it beside the button left both pinched, and held to one line it was "What
+     your receptionist ..." on every phone (Ruben, 7 Oct 2026: more concise and compact). The name and the button say
+     the step; its page says the rest. */
   .today-setup { padding: 12px 14px; gap: 6px; }
-  .today-setup [data-testid="today-setup-hide"] { display: none; }
-  .today-setup .tq-list > :not(:first-child) { display: none; }
-  .today-setup .setup-card-row { gap: 10px; padding: 0; border-top: 0; }
+  .today-setup .setup-card-row { gap: 10px; padding: 9px 0; }
   .today-setup .setup-card-said { display: none; }
-  .today-setup .setup-card-skip { display: none; }
   .today-setup .setup-card-long { display: none; }
   .today-setup .setup-card-short { display: inline; }
   /* What the row opens takes the card's width: the card's own padding is its gutter. Set in by Setup's page margins

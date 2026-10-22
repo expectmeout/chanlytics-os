@@ -613,8 +613,9 @@ const workspaceTables = () => ({
     { tenant_id: TENANT, channel: "whatsapp", name: "visit_reminder", meta_status: "approved", hidden_at: null },
   ],
   memberships: [
-    { id: "m1", tenant_id: TENANT },
-    { id: "m2", tenant_id: TENANT },
+    // role is NOT NULL in the table (default owner): a row without one would be a row the database cannot hold.
+    { id: "m1", tenant_id: TENANT, role: "owner" },
+    { id: "m2", tenant_id: TENANT, role: "operator" },
   ],
   invitations: [
     {
@@ -754,8 +755,16 @@ test("a workspace a partner brought names them on its own Setup, and nobody else
     kind: "member",
   });
   assert.equal(mine.team.partner, "ada@example.com", "the address when they have not given a name");
-  const theirs = await setupDtoFor(fakeDb(workspaceTables()), TENANT, { kind: "back_office" });
+  // Who answers: the partner is on the team to set it up, never the one who backs the owner up.
+  assert.equal(mine.team.members, 1, "the owner alone answers");
+  const tables = workspaceTables();
+  const withPartner = {
+    ...tables,
+    memberships: [...tables.memberships, { id: "m3", tenant_id: TENANT, role: "partner" }],
+  };
+  const theirs = await setupDtoFor(fakeDb(withPartner), TENANT, { kind: "back_office" });
   assert.equal("partner" in theirs.team, false);
+  assert.equal(theirs.team.members, 2, "support counts who answers as the owner reads it: the partner counted out");
 });
 
 test("REGRESSION (S14): Setup reads what was asked for per thing, from the events -- a port read as a line, and the edge's line-is-ready bell read as a request", async () => {
