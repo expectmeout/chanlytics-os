@@ -48195,16 +48195,16 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 -- Name: TABLE ask_journal_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_journal_days TO service_role;
 GRANT SELECT ON TABLE public.ask_journal_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_journal_days TO service_role;
 
 
 --
 -- Name: TABLE ask_memory_lines; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_memory_lines TO service_role;
 GRANT SELECT ON TABLE public.ask_memory_lines TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_memory_lines TO service_role;
 
 
 --
@@ -48254,8 +48254,8 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 -- Name: TABLE ask_mornings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_mornings TO service_role;
 GRANT SELECT ON TABLE public.ask_mornings TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_mornings TO service_role;
 
 
 --
