@@ -22,6 +22,7 @@ import {
   Figure as KitFigure,
   Menu,
   MenuTrigger,
+  type MenuOption,
   Picker,
   Popover,
   Segmented,
@@ -170,6 +171,12 @@ function MenuKit() {
                 glyph: glyph("pause", 13),
                 hint: "until 10:00",
                 onSelect: () => setSaid("Pause the receptionist"),
+              },
+              {
+                label: "Send a reminder",
+                glyph: glyph("calendar", 13),
+                meta: "Goes the day before, at the time they booked",
+                onSelect: () => setSaid("Send a reminder"),
               },
             ],
           },
@@ -514,6 +521,53 @@ function MenuKitSet() {
                 { value: "name", label: "By name" },
               ],
             },
+          },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/**
+ * A set whose options say a line under their words (the Inbox's templates), under the menu's head with its Close, what
+ * fits now first, a sample's name with its word, and what was kept back said once under them.
+ */
+function MenuKitLines() {
+  const [at, setAt] = useState("0");
+  const set = (options: MenuOption[]) => ({ value: at, onChoose: setAt, tick: glyph("check", 13), options });
+  return (
+    <Figure id="menu-kit-lines" about={`the kit's Menu, options of two lines; chosen: ${at}`}>
+      <Menu
+        align="start"
+        head={{ title: "Reopen the chat with Fern", close: glyph("x", 13) }}
+        trigger={
+          <Button size="sm" data-testid="menu-lines-open">
+            Visit reminder {glyph("chevron-down", 10)}
+          </Button>
+        }
+        groups={[
+          {
+            header: "Fits now",
+            choose: set([
+              {
+                value: "0",
+                label: "Visit reminder",
+                sub: "Hi Fern, a reminder of your visit tomorrow at 2:00 PM. Reply C to confirm.",
+              },
+              { value: "1", label: "A quick note", sub: "Hi Fern, a quick note from Luna Studio." },
+            ]),
+          },
+          {
+            header: "Others",
+            caption: "Not offered: 2 promotions (Fern hasn't said yes to offers).",
+            choose: set([
+              {
+                value: "2",
+                label: "After the discovery call",
+                hint: "Sample",
+                sub: "Hi Fern, thanks for your time on the call today. Any questions, just reply here.",
+              },
+            ]),
           },
         ]}
       />
@@ -1019,6 +1073,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
+  { id: "menu-kit-lines", Draw: MenuKitLines, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
   { id: "menu-kit-shared", Draw: MenuKitShared, closed: false },
   { id: "popover-kit", Draw: PopoverKit, closed: false },

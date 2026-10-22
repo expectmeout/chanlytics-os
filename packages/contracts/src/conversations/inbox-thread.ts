@@ -214,6 +214,8 @@ export const THREAD_PANE_WORDS = {
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
   others: "Others",
+  /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+  sample: "Sample",
 } as const;
 
 /** The wire one message travelled: a call's note is the phone, and words are the channel they were written on. */

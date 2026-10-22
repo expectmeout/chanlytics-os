@@ -31543,6 +31543,8 @@ function asNameSource(v) {
 var PERSON_NAME_WORDS = {
   /** The notice: "Priya Nair signed the reply". */
   signed: (name) => `${name} signed the reply`,
+  /** Its one-row form, in a head under who it is, before the name in bold: "Signed Priya Nair · Oct 6". */
+  signedAs: "Signed",
   use: "Use this name",
   /** The ×'s own words, said on hover and to a screen reader. */
   notTheirs: "Not their name",
@@ -39245,7 +39247,9 @@ var THREAD_PANE_WORDS = {
   pickTitle: (first) => `Reopen the chat with ${first}`,
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
-  others: "Others"
+  others: "Others",
+  /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+  sample: "Sample"
 };
 var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
@@ -46886,6 +46890,16 @@ function titleWithoutLanguage(title, code2) {
   }
   return title;
 }
+var SAMPLE_MARK = /\s*\(sample\)$/i;
+function rowTitle(t, all) {
+  const given = (r2) => (r2.title ?? "").trim() !== "";
+  const twins = all.filter((r2) => r2 !== t && r2.name === t.name && given(r2));
+  const twin = twins.find((r2) => languageBase(r2.language) === "en") ?? twins[0];
+  const raw = templateTitle(t.name, given(t) || starterByName(t.name) || !twin ? t.title : twin.title);
+  const words3 = raw.replace(SAMPLE_MARK, "");
+  const sample = words3 !== "" && words3 !== raw;
+  return { title: titleWithoutLanguage(sample ? words3 : raw, t.language), sample };
+}
 function inboxTemplates(templates, to) {
   const rows2 = [];
   let promotions = 0;
@@ -46914,7 +46928,7 @@ function inboxTemplates(templates, to) {
       continue;
     }
     const fits = !!blank && !!starter && trigger === null || trigger === "visit_tomorrow" && to.visit === "ahead";
-    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
+    rows2.push({ template: t, ...rowTitle(t, templates), blank, fits });
   }
   const isDefault = (r2) => languageBase(r2.template.language) === "en";
   const named = [...new Set(rows2.map((r2) => r2.template.name))];
@@ -46931,7 +46945,8 @@ function inboxTemplates(templates, to) {
     title: r2.title,
     label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title,
     blank: r2.blank,
-    fits: r2.fits
+    fits: r2.fits,
+    sample: r2.sample
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",

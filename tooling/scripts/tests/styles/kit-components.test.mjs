@@ -814,6 +814,9 @@ const FIGURES = {
   "figure-tile": () => h(Figure, { label: "Last contact", value: "Sep 24", meta: "You replied", look: "tile" }),
   // The one number a view is for (a sequence's History): at the decision's size, its label beside it.
   "figure-hero": () => h(Figure, { label: "sent", value: "19", look: "hero" }),
+  // The same, with its line under it and too few to read: each on a line of its own under the number.
+  "figure-hero-lines": () =>
+    h(Figure, { label: "booked", value: "4", meta: "from 9 replies", look: "hero", n: 9, minN: 10 }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {

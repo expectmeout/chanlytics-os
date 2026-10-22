@@ -18850,6 +18850,8 @@ declare function asNameSource(v: unknown): NameSource | null;
 declare const PERSON_NAME_WORDS: {
     /** The notice: "Priya Nair signed the reply". */
     readonly signed: (name: string) => string;
+    /** Its one-row form, in a head under who it is, before the name in bold: "Signed Priya Nair · Oct 6". */
+    readonly signedAs: "Signed";
     readonly use: "Use this name";
     /** The ×'s own words, said on hover and to a screen reader. */
     readonly notTheirs: "Not their name";
@@ -32134,6 +32136,8 @@ declare const THREAD_PANE_WORDS: {
     readonly pickSub: "After a day, WhatsApp delivers only an approved message.";
     readonly fitsNow: "Fits now";
     readonly others: "Others";
+    /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+    readonly sample: "Sample";
 };
 declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
 /** The workspace's zone: every time in the thread is said by its clock. */
@@ -50989,7 +50993,8 @@ interface InboxTemplateLike {
  * and a person choosing what to send does not choose a language -- the first of its rows is the default, the product's
  * own (English) where it has one, a message with one comes before a message without, and the words say a language
  * only where two entries would otherwise read alike. A
- * title that already ends with its language ("Bienvenida (Spanish)") loses it: the row says what language it is.
+ * title that already ends with its language ("Bienvenida (Spanish)") loses it: the row says what language it is. A
+ * row of the sample data is `sample`, its title without the "(sample)" that marked it (rowTitle).
  * `hidden` is the sentence that says what was kept back, and why.
  */
 declare function inboxTemplates<T extends InboxTemplateLike>(templates: readonly T[], to: {
@@ -51004,6 +51009,7 @@ declare function inboxTemplates<T extends InboxTemplateLike>(templates: readonly
         label: string;
         blank: InboxBlank | null;
         fits: boolean;
+        sample: boolean;
     }>;
     hidden: string | null;
 };

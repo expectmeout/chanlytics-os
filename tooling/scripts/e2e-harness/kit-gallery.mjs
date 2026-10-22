@@ -249,6 +249,37 @@ const recFoldSheet = (leaving = false, asking = false, phone = false) =>
     ? `<footer class="rec-sheet-foot" data-asking="true">${discardAsk()}</footer></section>`
     : `<footer class="rec-sheet-foot">${recFoot()}</footer></section>`);
 
+/** A row of a group (Field's `look="row"`): its label beside its box, or beside a press where its box is one. */
+const fieldRow = (label, box) =>
+  `<div class="rec-field rec-field-row"><label><span class="rec-field-label">${label}</span></label>${box}</div>`;
+
+/**
+ * Add people as a phone draws it (RecordSheet's `steady` and `toolsInLine`): the height it opened at, its choice of one
+ * person or a list on the title's line at the Close's height, and its details as two groups of rows, the first ringed
+ * for a problem said of it, the second's last row a press (the lists to put them on, none picked yet).
+ */
+const recSheetSteady = () =>
+  `<div class="rec-sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Add people" tabindex="-1"` +
+  ` data-phone="true" data-steady="true">` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Add people</h2></div>` +
+  `<div class="rec-sheet-line">${recSeg("Add", ["One person", "A list"], "One person")}</div>` +
+  `<button type="button" class="rec-sheet-close" aria-label="Close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">` +
+  `<div class="rec-rows" data-invalid="true">` +
+  fieldRow("Name", `<input class="rec-input" type="text" value="Ana Ruiz">`) +
+  fieldRow("Mobile", `<input class="rec-input" type="tel" value="555" aria-invalid="true">`) +
+  `</div>` +
+  `<div class="rec-rows">` +
+  fieldRow("Note", `<textarea class="rec-input" rows="2" placeholder="Optional"></textarea>`) +
+  fieldRow(
+    "Lists",
+    `<button type="button" class="btn btn-plain" aria-haspopup="dialog" aria-label="Lists: none" data-none="true">` +
+      `<span>None</span>${icon("chevron-down", 14)}</button>`,
+  ) +
+  `</div></div>` +
+  `<footer class="rec-sheet-foot">${recFoot()}</footer></section>`;
+
 /** Rows in a card (the record's card). */
 const recCard = (rows, head = "") => `<section class="rec-card">${head}${rows}</section>`;
 
@@ -351,6 +382,15 @@ const kickerLineSheet = () =>
   `<div class="rec-sheet-line"><button type="button" class="btn btn-sm">Open in Campaigns</button></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
   `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div></section>`;
+/** A sheet whose foot's pair holds a question in its place (a run's Skip, asked in its dock: the run sheet's foot). */
+const footAskSheet = () =>
+  `<div class="sheet-backdrop" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" aria-modal="true" aria-label="A run" tabindex="-1">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">A run</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair="">${dangerAsk()}</div></footer></section>`;
 /** A sheet whose foot holds a page's line over the kit's own Save and Cancel (RecordSheet's `foot` beside its save). */
 const footLineSheet = () =>
   `<div class="sheet-backdrop" aria-hidden="true"></div>` +
@@ -564,6 +604,10 @@ const kitMenu = () =>
   kitItem("copy", "Copy number") +
   kitItem("calendar", "Send booking link", { after: `<span class="more-item-meta">By text</span>` }) +
   kitItem("pause", "Pause the receptionist", { after: `<span class="more-item-hint">until 10:00</span>` }) +
+  kitItem("calendar", "Send a reminder", {
+    tone: " more-item-two",
+    after: `<span class="more-item-meta">Goes the day before, at the time they booked</span>`,
+  }) +
   `</div>` +
   `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
   `<a role="menuitem" tabindex="-1" href="#kit" class="more-item">${icon("user", 13)}` +
@@ -635,6 +679,42 @@ const kitMenuSet = () =>
     )
     .join("") +
   `</div></div></div>`;
+
+/** An option of two lines (the Menu's choose with `sub`): its name and its word, what it says under them, the tick. */
+const lineOption = (label, sub, { on = false, hint = "" } = {}) =>
+  `<button type="button" aria-disabled="false" role="menuitemradio" tabindex="-1" aria-checked="${on}" ` +
+  `class="more-item more-item-lines"><span class="more-item-words"><span class="more-item-line">` +
+  `<span class="more-item-label">${label}</span>${hint ? `<span class="more-item-hint">${hint}</span>` : ""}</span>` +
+  `<span class="more-item-sub">${sub}</span></span>${icon("check", 13)}</button>`;
+
+/**
+ * The kit's Menu of a set whose options say a line under their words (the Inbox's templates), open: its head (its name,
+ * and the one Close, drawn on a phone), what fits now under its heading with the one chosen picked, a sample's word
+ * beside its name, and what was kept back said once under the set.
+ */
+const kitMenuLines = () =>
+  `<button type="button" tabindex="0" aria-haspopup="menu" aria-expanded="true" class="btn btn-sm">Visit reminder ` +
+  `${icon("chevron-down", 10)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-left more-menu-lines more-menu-titled" role="menu" tabindex="-1" ` +
+  `aria-label="Reopen the chat with Fern">` +
+  `<div class="more-head" aria-hidden="true"><p class="more-head-title">Reopen the chat with Fern</p>` +
+  `<button type="button" tabindex="-1" class="rec-sheet-close">${icon("x", 13)}</button></div>` +
+  `<div role="group"><div class="more-header" aria-hidden="true">Fits now</div><div role="group">` +
+  lineOption("Visit reminder", "Hi Fern, a reminder of your visit tomorrow at 2:00 PM. Reply C to confirm.", {
+    on: true,
+  }) +
+  lineOption("A quick note", "Hi Fern, a quick note from Luna Studio.") +
+  `</div></div>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  `<div role="group"><div class="more-header" aria-hidden="true">Others</div><div role="group">` +
+  lineOption(
+    "After the discovery call",
+    "Hi Fern, thanks for your time on the call today. Any questions, just reply here.",
+    { hint: "Sample" },
+  ) +
+  `</div><p class="more-cap">Not offered: 2 promotions (Fern hasn't said yes to offers).</p></div></div></div>`;
 
 /**
  * The kit's Popover, open under its control: Base UI's dialog on the panel's pop, on the positioner that writes where it
@@ -1700,7 +1780,7 @@ export const FAMILIES = [
   {
     family: "Capsule",
     about:
-      "The control layer's glass as a bar, where a page takes a phone's screen over: a thread's header with a face, a name over its line, and a button; a field with its round button, as the whisper has it; and a bar docked at the foot (data-dock), as a selection's is.",
+      "The control layer's glass as a bar, where a page takes a phone's screen over: a thread's header with a face, a name over its line, and a button; the same header holding a line under its row (data-stacked), a card and not an oval; a field with its round button, as the whisper has it; and a bar docked at the foot (data-dock), as a selection's is.",
     entries: [
       {
         id: "capsule",
@@ -1709,6 +1789,18 @@ export const FAMILIES = [
           `<span class="face face-lg" aria-hidden="true"><span>AR</span></span>` +
           `<span style="flex: 1">Aisha Rahman</span>` +
           `<button type="button" class="btn btn-ghost btn-sm">Actions</button></div></div>`,
+      },
+      {
+        id: "capsule-stacked",
+        html:
+          `<div data-takeover="true"><div class="capsule" data-stacked="" style="display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 8px 8px 8px 10px;">` +
+          `<span style="display: flex; align-items: center; gap: 8px"><span class="face face-lg" aria-hidden="true"><span>AR</span></span>Aisha Rahman</span>` +
+          `<button type="button" class="btn btn-ghost btn-sm">Actions</button>` +
+          `<div class="notice notice-line" role="group" aria-label="Aisha Rahman signed the reply" style="grid-column: 1 / -1">` +
+          `<p class="notice-fact">Signed <b>Aisha Rahman</b><span class="notice-src"> · Oct 6</span></p>` +
+          `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" title="Not their name">` +
+          `${icon("x", 11)}</button></div></div></div></div>`,
       },
       {
         id: "capsule-dock",
@@ -2045,6 +2137,7 @@ export const FAMILIES = [
       { id: "rec-fold-sheet-leaving", stage: "sheet", html: recFoldSheet(true) },
       { id: "rec-sheet-phone", stage: "sheet", html: recSheet(false, false, true) },
       { id: "rec-fold-sheet-phone", stage: "sheet", html: recFoldSheet(false, false, true) },
+      { id: "rec-sheet-steady", stage: "sheet", html: recSheetSteady() },
     ],
   },
   {
@@ -2089,6 +2182,15 @@ export const FAMILIES = [
           `<div class="notice notice-line" role="group" aria-label="A draft answer is waiting in the thread">` +
           `<p class="notice-fact">A draft answer is waiting in the thread</p>` +
           `<div class="notice-acts"><button type="button" class="btn btn-sm">Review the draft</button></div></div>`,
+      },
+      {
+        id: "notice-line-x",
+        html:
+          `<div class="notice notice-line" role="group" aria-label="Dana Ruiz signed the reply">` +
+          `<p class="notice-fact">Signed <b>Dana Ruiz</b><span class="notice-src"> · Oct 6</span></p>` +
+          `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" title="Not their name">` +
+          `${icon("x", 11)}</button></div></div>`,
       },
     ],
   },
@@ -2374,6 +2476,10 @@ export const FAMILIES = [
       { id: "figure-fail", html: figure({ tone: "fail" }) },
       { id: "figure-tile", html: figure({ term: "Last contact", value: "Sep 24", meta: "You replied", tile: true }) },
       { id: "figure-hero", html: figure({ term: "sent", value: "19", meta: null, hero: true }) },
+      {
+        id: "figure-hero-lines",
+        html: figure({ term: "booked", value: "4", meta: "from 9 replies", hero: true, thin: 9 }),
+      },
     ],
   },
   {
@@ -2419,6 +2525,7 @@ export const FAMILIES = [
       { id: "sheet-kicker-line", stage: "sheet", html: kickerLineSheet() },
       { id: "sheet-foot-line", stage: "sheet", html: footLineSheet() },
       { id: "sheet-foot-acts", stage: "sheet", html: footActsSheet() },
+      { id: "sheet-foot-asking", stage: "sheet", html: footAskSheet() },
       { id: "sheet-menu", stage: "sheet", width: "desk", html: menuInSheet() },
     ],
   },
@@ -2447,13 +2554,15 @@ export const FAMILIES = [
     family: "Menu, on Base UI",
     about:
       "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
-      "its heading, a line, a door and the danger item; a set to choose one of, the tick beside the one chosen; and a " +
+      "its heading, a sentence under its item's words, a line, a door and the danger item; a set to choose one of, the " +
+      "tick beside the one chosen; a set whose options say a line under their words, under the menu's head; and a " +
       "set of switches it stays open over, ticked while on, one kept on by the page and refused; and one menu its " +
       "rows' controls share, which says the row that opened it.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
       { id: "menu-kit-caption", stage: "pop", html: kitMenuCaption() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
+      { id: "menu-kit-lines", stage: "pop", html: kitMenuLines() },
       { id: "menu-kit-switches", stage: "pop", html: kitMenuSwitches() },
       { id: "menu-kit-shared", stage: "pop", html: kitMenuShared() },
     ],

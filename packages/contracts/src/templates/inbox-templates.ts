@@ -40,6 +40,26 @@ function titleWithoutLanguage(title: string, code: string): string {
   return title;
 }
 
+/** The mark the sample data ends a title with (dev-tools' filler: "Product news (sample)"). */
+const SAMPLE_MARK = /\s*\(sample\)$/i;
+
+/**
+ * A row's title as the Inbox says it, and whether it is a sample. Its own title, else its starter's, else the title a
+ * row of the same message in another language was given (the default language's first), so the message's rows read as
+ * one ("Product news" in Spanish, not its wire name, "Sample product news"), else its wire name in words. A title the
+ * sample data marked "(sample)" loses the mark, which the picker says as a quiet word beside it, and one that ends with
+ * the row's own language loses that: the row says it.
+ */
+function rowTitle(t: InboxTemplateLike, all: readonly InboxTemplateLike[]): { title: string; sample: boolean } {
+  const given = (r: InboxTemplateLike) => (r.title ?? "").trim() !== "";
+  const twins = all.filter((r) => r !== t && r.name === t.name && given(r));
+  const twin = twins.find((r) => languageBase(r.language) === "en") ?? twins[0];
+  const raw = templateTitle(t.name, given(t) || starterByName(t.name) || !twin ? t.title : twin.title);
+  const words = raw.replace(SAMPLE_MARK, "");
+  const sample = words !== "" && words !== raw;
+  return { title: titleWithoutLanguage(sample ? words : raw, t.language), sample };
+}
+
 /**
  * The approved templates the Inbox can send to one person, in the owner's words, and why the rest are not offered.
  * The reply route fills a template's own slots and turns away one with words to write (slotToWrite, I6), and sends
@@ -52,7 +72,8 @@ function titleWithoutLanguage(title: string, code: string): string {
  * and a person choosing what to send does not choose a language -- the first of its rows is the default, the product's
  * own (English) where it has one, a message with one comes before a message without, and the words say a language
  * only where two entries would otherwise read alike. A
- * title that already ends with its language ("Bienvenida (Spanish)") loses it: the row says what language it is.
+ * title that already ends with its language ("Bienvenida (Spanish)") loses it: the row says what language it is. A
+ * row of the sample data is `sample`, its title without the "(sample)" that marked it (rowTitle).
  * `hidden` is the sentence that says what was kept back, and why.
  */
 export function inboxTemplates<T extends InboxTemplateLike>(
@@ -64,10 +85,17 @@ export function inboxTemplates<T extends InboxTemplateLike>(
     visit?: "ahead" | "behind" | null;
   },
 ): {
-  sendable: Array<{ template: T; title: string; label: string; blank: InboxBlank | null; fits: boolean }>;
+  sendable: Array<{
+    template: T;
+    title: string;
+    label: string;
+    blank: InboxBlank | null;
+    fits: boolean;
+    sample: boolean;
+  }>;
   hidden: string | null;
 } {
-  const rows: Array<{ template: T; title: string; blank: InboxBlank | null; fits: boolean }> = [];
+  const rows: Array<{ template: T; title: string; sample: boolean; blank: InboxBlank | null; fits: boolean }> = [];
   let promotions = 0;
   let unfillable = 0;
   let afterVisit = 0;
@@ -101,7 +129,7 @@ export function inboxTemplates<T extends InboxTemplateLike>(
     // What fits now comes first: a note whose words the member writes answers anything ("A quick note", a starter for no
     // moment), and a visit's reminder fits a visit ahead. A blank on any other message is a fact of it (a visit's time).
     const fits = (!!blank && !!starter && trigger === null) || (trigger === "visit_tomorrow" && to.visit === "ahead");
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
+    rows.push({ template: t, ...rowTitle(t, templates), blank, fits });
   }
   // One message's rows stand together, its default language first, and the messages that have one before those that
   // have not (nothing says what language this person reads, so the product's own is the first to offer); each keeps the
@@ -123,6 +151,7 @@ export function inboxTemplates<T extends InboxTemplateLike>(
     label: reads(r.title) > 1 ? `${r.title} · ${languageWords(r.template.language)}` : r.title,
     blank: r.blank,
     fits: r.fits,
+    sample: r.sample,
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
