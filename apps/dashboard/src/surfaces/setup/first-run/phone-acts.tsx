@@ -145,10 +145,10 @@ export async function withMe(k: PhoneActs): Promise<void> {
  * nothing up: the tab still has the choice, as it always did. Both go through the view's one line of saves (surface.ts).
  */
 const keepWant = (k: PhoneActs): Promise<unknown> => {
-  const keeps = k.ph.way !== "new";
+  const { way, number } = k.ph;
   return Promise.all([
-    setupVerbs.want(keeps && k.ph.number ? { way: k.ph.way, number: k.ph.number } : null),
-    setupVerbs.later(KEEP_ROW, !keeps),
+    setupVerbs.want(way !== "new" && number ? { way, number } : null),
+    setupVerbs.later(KEEP_ROW, way === "new"),
   ]);
 };
 

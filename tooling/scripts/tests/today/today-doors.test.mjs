@@ -526,7 +526,6 @@ test("after the first run, with the calendar in, the card's last row is the door
       undefined,
       "no calendar: no reminder to offer",
     );
-    const rowsWithout = findAll(none, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length;
     feedSetup(setupSurface({ ...answering, calendar: { state: "ok" } }));
     const card = mountSetup();
     const row = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
@@ -552,7 +551,7 @@ test("after the first run, with the calendar in, the card's last row is the door
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
     assert.ok(put.at(-1)[0].includes("remind-skipped"), "and Hide puts it off with the rows");
-    assert.equal(put.at(-1)[0].length, rowsWithout + 1);
+    assert.equal(put.at(-1)[0].length, rows + 1, "every row on the card, and the reminder");
   } finally {
     setupVerbs.later = realLater;
     feedSetup(undefined);

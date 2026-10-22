@@ -732,6 +732,8 @@ test("your phone (canvas R3): keeping the listing's number first, the plan the n
   assert.equal(textOf(go), "Start my plan");
   assert.ok(byTestId(tree, "fr-back"), "Back, in the step's own foot");
   await go.props.onClick();
+  // The choice is said to the member's view first (the number, and the kept number's row), then Stripe.
+  await tick();
   assert.deepEqual(asked.checkout, ["start"], "Stripe comes back to the first run");
   assert.equal(replaced.at(-1), "start/phone", "the step's own address, so it stays once its line answers");
   assert.equal(draftOf("first-run-phone").pending, true, "the choice waits in the tab for Stripe's round trip");
@@ -798,6 +800,7 @@ test("your phone on a free trial: the trial covers no number, so the button star
   const go = byTestId(tree, "fr-phone-go");
   assert.equal(textOf(go), "Start my plan");
   await go.props.onClick();
+  await tick();
   assert.equal(asked.startNow, 1, "the plan started from here, not Stripe's checkout");
   assert.deepEqual(asked.checkout, []);
   assert.equal(draftOf("first-run-phone").pending, true, "the choice waits for the plan");
