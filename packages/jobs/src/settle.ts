@@ -199,7 +199,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // message that reached a real person. Only a row still claiming to be on
     // its way is touched.
     // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
-    // settle it (00177's messages_guard) and what counts it toward its domain's day (outreach_facts).
+    // settle it (00177's messages_guard) and what counts it toward its mailbox's day (mailbox_capacity).
     const { row, error } = await failQueuedSend(db, {
       tenantId: job.tenant_id,
       messageId,

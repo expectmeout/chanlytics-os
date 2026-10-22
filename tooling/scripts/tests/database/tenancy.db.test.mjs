@@ -293,13 +293,7 @@ before(async () => {
     reply_token: "t".repeat(24),
     from_name: "Tenancy",
   });
-  ctx.domain = await seed("sending_domains", {
-    tenant_id: A,
-    host: `tenancy-${Date.now().toString(36)}.example`,
-    from_local: "sam",
-    from_name: "Tenancy",
-  });
-  // A mailbox the business connected (00423): what a reach-out writes from now; the domain above is 00175's, kept. Its
+  // A mailbox the business connected (00423): what a reach-out writes from (00472 took 00175's sending domains away). Its
   // host is its address's (mailbox_connections_host_is_address), so both are written from one stamp: three reads of the
   // clock crossed a millisecond on main's run of 19 Oct 2026, and the row was refused.
   const stamp = Date.now().toString(36);
@@ -311,18 +305,6 @@ before(async () => {
     host: `tenancy-mail-${stamp}.example`,
     from_name: "Tenancy",
   });
-  // One day of that domain (00314): the clock's function writes it, a member of the workspace reads it.
-  await seed(
-    "sending_domain_days",
-    {
-      tenant_id: A,
-      domain_id: ctx.domain,
-      day: "2026-09-01",
-      host: `tenancy-${Date.now().toString(36)}.example`,
-      state: "verified",
-    },
-    null,
-  );
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -812,17 +794,6 @@ const TENANT_TABLES = {
       from_name: "Stranger",
     }),
   ],
-  // A workspace's own sending domains (00175): members read, and only the edge's service role writes, after the
-  // mail provider has the domain.
-  sending_domains: [
-    "member",
-    () => ({
-      tenant_id: A,
-      host: `stranger-${Date.now().toString(36)}.example`,
-      from_local: "sam",
-      from_name: "Stranger",
-    }),
-  ],
   // A mailbox a business connected (00423, decision 0056): members read their workspace's, and only the edge's service
   // role writes one, once the provider's grant is in hand.
   mailbox_connections: [
@@ -834,17 +805,6 @@ const TENANT_TABLES = {
       address: `sam@stranger-mail-${Date.now().toString(36)}.example`,
       host: `stranger-mail-${Date.now().toString(36)}.example`,
       from_name: "Stranger",
-    }),
-  ],
-  // A sending domain's day (00314): members read their own workspace's, and only the nightly function writes one.
-  sending_domain_days: [
-    "member",
-    () => ({
-      tenant_id: A,
-      domain_id: ctx.domain,
-      day: "2026-09-02",
-      host: `stranger-${Date.now().toString(36)}.example`,
-      state: "verified",
     }),
   ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],

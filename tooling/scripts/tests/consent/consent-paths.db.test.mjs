@@ -238,12 +238,10 @@ test(
       .update({ consent: "opted_in", consent_source: "in_person" })
       .eq("id", fromALead)
       .select("id");
-    assert.equal(error, null);
-    assert.deepEqual(
-      data,
-      [],
-      "contacts has no member UPDATE policy: RLS turns the write into nothing (a forbidden UPDATE succeeds with 0 rows)",
-    );
+    // contacts has no member UPDATE policy, and since 00471 no member UPDATE privilege either: the write is refused
+    // outright, where row security alone answered success with no rows.
+    assert.equal(error?.code, "42501", "a member may not update contacts at all");
+    assert.equal(data, null);
     assert.equal(
       ok(await db.from("contacts").select("consent").eq("id", fromALead).single()).consent,
       "opted_out",

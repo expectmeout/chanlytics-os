@@ -193,6 +193,48 @@ select 'policy_ungranted', coalesce(array_agg(x order by x), '{}') from (
            else has_table_privilege('authenticated', c.oid, 'SELECT') end
 ) s
 union all
+select 'session_write_unpoliced', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname || ' (' || w.cmd || ')' as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   cross join (values ('insert', 'a'), ('update', 'w'), ('delete', 'd')) as w(cmd, polcmd)
+   where n.nspname = 'public' and c.relkind in ('r', 'p', 'v') and not c.relispartition
+     and case w.cmd
+           when 'insert' then has_any_column_privilege('authenticated', c.oid, 'INSERT')
+           when 'update' then has_any_column_privilege('authenticated', c.oid, 'UPDATE')
+           else has_table_privilege('authenticated', c.oid, 'DELETE') end
+     and (c.relkind = 'v' or not exists (
+       select 1 from pg_policy p
+        where p.polrelid = c.oid and p.polcmd in (w.polcmd::"char", '*')
+          and (p.polroles = '{0}' or 'authenticated'::regrole = any (p.polroles))))
+) s
+union all
+select 'door_asks_nobody', coalesce(array_agg(x order by x), '{}') from (
+  with recursive fns as (
+    select p.proname, p.prosrc from pg_proc p where p.pronamespace = 'public'::regnamespace
+  ), asks (proname, depth) as (
+    select proname, 0 from fns where prosrc ~ 'auth\\.uid\\(\\)'
+    union
+    select f.proname, a.depth + 1
+      from fns f join asks a on f.prosrc ~ ('(^|[^a-z_])' || a.proname || '\\s*\\(')
+     where a.depth < 4
+  )
+  select p.oid::regprocedure::text as x
+    from pg_proc p
+   where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.prorettype <> 'trigger'::regtype
+     and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+     and not exists (select 1 from asks a where a.proname = p.proname)
+) s
+union all
+select 'door_names_a_workspace_unchecked', coalesce(array_agg(x order by x), '{}') from (
+  select p.oid::regprocedure::text as x
+    from pg_proc p
+   cross join lateral (select a from unnest(p.proargnames) a where a in ('p_tenant_id', 'p_tenant') limit 1) t
+   where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.prorettype <> 'trigger'::regtype
+     and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+     and p.prosrc !~ ('(is_acting_member|caller_has_permission|may_read_workspace|is_workspace_owner)\\s*\\(\\s*' || t.a || '\\M')
+     and not (p.prosrc ~* ('tenant_id\\s*=\\s*' || t.a || '\\M') and p.prosrc ~ 'auth\\.uid\\(\\)')
+) s
+union all
 select 'session_holds_unused_right', coalesce(array_agg(x order by x), '{}') from (
   select c.relname::text as x
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -335,6 +377,21 @@ test("every policy a session acts through has the grant its command needs", { sk
   );
 });
 
+test(
+  "every write a session is granted has a policy for its command, and a view is never written (00471)",
+  { skip },
+  () => {
+    // The other half of the rule above. Row security refuses a write no policy admits, so a grant with no policy behind it
+    // reaches no row today; but the floor then rests on a policy nobody wrote, and one later `for all` or `using (true)`
+    // opens a write nobody chose. Twenty-nine tables and a view held such grants until 00471. A view here is read alone.
+    assert.deepEqual(
+      rules.session_write_unpoliced,
+      [],
+      "revoke the command from authenticated, or write the policy that lets a member make it, in the same migration",
+    );
+  },
+);
+
 test("a column UPDATE grant is a fence: no table also hands authenticated table-wide UPDATE", { skip }, () => {
   // REVOKE UPDATE on a table takes its column grants with it, so the order is
   // always revoke, then grant the columns (00037, 00084, 00121).
@@ -361,6 +418,46 @@ test("no function that runs with definer rights is callable by anon", { skip }, 
     rules.definer_anon,
     [],
     "revoke execute from public, anon: a definer function skips RLS for whoever may call it",
+  );
+});
+
+/**
+ * The definer doors a member may call that ask nobody who is calling, each with why it need not. A door here answers
+ * the same to every caller and names no workspace and no person.
+ */
+const ASKS_NOBODY = {
+  "lead_cards_live()": "which lead cards the platform offers: one switch row, the same for every member",
+  "lead_card_live(text)": "whether one card is among them, read through lead_cards_live",
+  "lead_niche_prior(text)": "the platform's counts for a kind of business: aggregates that name no workspace or place",
+};
+
+test("every definer door a member may call asks who is calling, or is named as one that need not", { skip }, () => {
+  // A definer function skips row-level security for whoever may call it, so the door's own check is the only one: an
+  // auth.uid() in its body or in a function it calls (is_acting_member, caller_has_permission, may_read_workspace,
+  // is_workspace_owner, a membership read). Reaching it is necessary, not sufficient: what the door asks is the
+  // door's own test's to prove; this one finds a door that forgot to ask at all.
+  const open = rules.door_asks_nobody;
+  assert.deepEqual(
+    open.filter((fn) => !(fn in ASKS_NOBODY)),
+    [],
+    "a definer door a member may call that never asks who is calling: gate it (is_acting_member(p_tenant_id), " +
+      "caller_has_permission(p_tenant_id, '<permission>')), revoke execute from authenticated, or name it in ASKS_NOBODY with why",
+  );
+  assert.deepEqual(
+    Object.keys(ASKS_NOBODY).filter((fn) => !open.includes(fn)),
+    [],
+    "named as asking nobody but gone or gated since: take it off the list",
+  );
+});
+
+test("a definer door that names a workspace asks about that workspace", { skip }, () => {
+  // A door taking p_tenant_id (or p_tenant) and checking only that the caller is someone could act in any workspace
+  // whose id it is handed. It passes the id to a house gate, or checks the caller's membership of it beside auth.uid().
+  assert.deepEqual(
+    rules.door_names_a_workspace_unchecked,
+    [],
+    "pass the workspace's id to is_acting_member, caller_has_permission, may_read_workspace or is_workspace_owner, " +
+      "or check memberships for tenant_id = it and user_id = auth.uid()",
   );
 });
 

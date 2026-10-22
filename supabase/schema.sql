@@ -2930,37 +2930,6 @@ COMMENT ON FUNCTION public.clear_control_of_departed_member() IS 'A member remov
 
 
 --
--- Name: cold_receipts_owed(timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone) RETURNS TABLE(tenant_id uuid, host text, sent integer, unanswered integer)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select d.tenant_id, d.host,
-         count(*)::integer,
-         (count(*) filter (where m.status = 'sent'))::integer
-    from public.sending_domains d
-    join public.messages m
-      on m.tenant_id = d.tenant_id and m.channel = 'email' and m.direction = 'outbound'
-     and public.email_from_host(m.meta) = lower(d.host)
-     and m.created_at >= p_from - interval '30 days' and m.created_at < p_to
-     and public.email_left(m.status, m.error)
-     and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) >= p_from
-     and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) < p_to
-   where d.state = 'verified'
-   group by d.tenant_id, d.host
-$$;
-
-
---
--- Name: FUNCTION cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone) IS 'Per verified own domain: the emails that left it, sent in the window, and how many no receipt has reached (apps/edge api/cron/domains.ts). Service role only.';
-
-
---
 -- Name: consent_channels_of(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13944,40 +13913,6 @@ COMMENT ON FUNCTION public.offers_email_reach(p_tenant_id uuid) IS 'How many peo
 
 
 --
--- Name: outreach_facts(uuid, uuid, text, text, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid DEFAULT NULL::uuid) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select public.outreach_lead_facts(p_tenant_id, p_contact_id, p_to, p_lead_id) || jsonb_build_object(
-    -- The ramp's days as the domains clock wrote them (they move only at midnight, or to none when clean again).
-    'domain', (
-      select jsonb_build_object('state', d.state, 'from_local', d.from_local, 'clean_since', d.clean_since,
-                                'sent_days', coalesce(d.sent_days, 0))
-        from public.sending_domains d
-       where d.tenant_id = p_tenant_id and d.host = lower(btrim(p_host))),
-    'sent_since', (
-      select count(*) from public.messages m
-       where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
-         and public.email_from_host(m.meta) = lower(btrim(p_host))
-         and m.created_at >= p_since - interval '30 days'
-         and public.email_sent_at(m.meta, m.status_updated_at, m.created_at) >= p_since
-         and (public.email_left(m.status, m.error)
-              or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown')))
-  )
-$$;
-
-
---
--- Name: FUNCTION outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid) IS 'The facts the send door asks of a cold email (core deliver.ts): the lead''s (outreach_lead_facts), domain {state, from_local, clean_since, sent_days}, sent_since. Service role only.';
-
-
---
 -- Name: outreach_lead_facts(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22735,7 +22670,7 @@ begin
       end if;
       update public.sequence_steps
          set name = case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
-             gap_minutes = v_gap, mailbox_ids = v_mailboxes, domain_ids = '{}',
+             gap_minutes = v_gap, mailbox_ids = v_mailboxes,
              owner_sends = v_i = 0 and v_owner,
              after_days = case when v_i > 0 then (v_step->>'after_days')::int end,
              signed_by = case when v_i = 0 then v_signed end,
@@ -25285,168 +25220,6 @@ end $$;
 
 
 --
--- Name: sending_domain_capacity(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sending_domain_capacity(p_domain_id uuid, p_at timestamp with time zone) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  with d as (
-    select id, tenant_id, host, state, clean_since from public.sending_domains where id = p_domain_id
-  ),
-  gone as (
-    -- What left the domain, or went and nobody knows how: by when it left (00180's clock), back 30 days at most.
-    select public.email_sent_at(m.meta, m.status_updated_at, m.created_at) as at
-      from public.messages m, d
-     where m.tenant_id = d.tenant_id and m.channel = 'email' and m.direction = 'outbound'
-       and public.email_from_host(m.meta) = d.host
-       and m.created_at >= least(greatest(coalesce(d.clean_since, p_at), p_at - interval '90 days'), p_at - interval '1 day')
-                            - interval '30 days'
-       and (public.email_left(m.status, m.error)
-            or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
-  ),
-  waiting as (
-    -- Queued email rows from the domain (written, not yet left), and claimed sends with no row yet. A row queued a
-    -- month ago is stuck, not waiting (the outbox fails a job long before): the bound keeps the read on 00176's index.
-    select now() as at from public.messages m, d
-     where m.tenant_id = d.tenant_id and m.channel = 'email' and m.direction = 'outbound' and m.status = 'queued'
-       and public.email_from_host(m.meta) = d.host
-       and m.created_at >= p_at - interval '30 days'
-    union all
-    select coalesce(s.claimed_at, p_at) from public.sequence_sends s, d
-     where s.lead_id is not null and ( s.domain_id = d.id and s.state = 'claimed')
-  ),
-  planned as (
-    select s.send_at as at from public.sequence_sends s, d where s.lead_id is not null and ( s.domain_id = d.id and s.state = 'planned')
-  )
-  select jsonb_build_object(
-    'state', d.state,
-    'clean_since', d.clean_since,
-    -- D15: the days it actually sent on (UTC days) since it was last clean, before today's: the step a day's first
-    -- send earns is the next day's, so a domain's share holds all day (as the calendar ramp's did).
-    'sent_days', (select count(distinct (g.at at time zone 'UTC')::date) from gone g
-                   where d.clean_since is not null and g.at >= greatest(d.clean_since, p_at - interval '90 days')
-                     and (g.at at time zone 'UTC')::date < (p_at at time zone 'UTC')::date),
-    'used', (select count(*) from gone g where g.at > p_at - interval '1 day' and g.at <= p_at)
-            + (select count(*) from waiting),
-    'recent', coalesce((select jsonb_agg((extract(epoch from x.at) * 1000)::bigint order by x.at) from (
-                 select at from gone where at > p_at - interval '1 day'
-                 union all select at from waiting
-                 union all select at from planned) x), '[]'::jsonb),
-    'last_sent_at', (select max(g.at) from gone g where g.at <= p_at)
-  ) from d
-$$;
-
-
---
--- Name: sending_domain_counts(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sending_domain_counts(p_tenant_id uuid, p_host text, p_since timestamp with time zone) RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  with ours as (
-    select m.id, m.status, m.error, m.meta, m.created_at
-      from public.messages m
-     where m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
-       and public.email_from_host(m.meta) = lower(p_host)
-       and m.created_at >= now() - interval '90 days'
-  ), recent as (
-    select o.id, o.status, o.error from ours o
-     where o.created_at >= coalesce(p_since, '-infinity'::timestamptz)
-       and public.email_left(o.status, o.error)
-     order by o.created_at desc
-     limit 500
-  )
-  select jsonb_build_object(
-    'sent', (select count(*) from recent),
-    -- A permanent bounce only: a full mailbox or a greylisting server says nothing about the domain that wrote.
-    'bounced', (select count(*) from recent where status = 'failed' and error->>'provider' = 'bounced'
-                  and lower(coalesce(error->>'kind', '')) = 'permanent'),
-    'complained', (
-      select count(*) from ours
-       where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)),
-    'complained_new', (
-      select count(*) from ours
-       where (meta->'email'->>'complained_at')::timestamptz >= coalesce(p_since, '-infinity'::timestamptz)
-         and created_at >= coalesce(p_since, '-infinity'::timestamptz)),
-    -- An unsubscribe comes after its email left, so after the count began: read from then (the index on the
-    -- workspace's events by kind and time), never before the ninety days the emails are read over.
-    -- A person counts once, however many of the window's emails their noes name (a reply's no and then an
-    -- unsubscribe are two events).
-    'unsubscribed', (
-      select count(distinct e.subject_id) from recent r
-        join public.events e
-          on e.tenant_id = p_tenant_id and e.kind = 'contact.consent_changed'
-         and e.created_at >= greatest(coalesce(p_since, '-infinity'::timestamptz), now() - interval '90 days')
-         and e.data->>'purpose' = 'email_marketing' and e.data->>'source' in ('unsubscribe', 'reply')
-         and e.data->>'message_id' = r.id::text
-         and not (e.data->>'source' = 'reply' and exists (
-           select 1 from public.events u
-            where u.tenant_id = p_tenant_id and u.kind = 'contact.consent_changed'
-              and u.created_at >= e.created_at and u.subject_id = e.subject_id
-              and u.data->>'purpose' = 'email_marketing' and u.data->>'source' = 'reply_undone'
-              and u.data->>'message_id' = e.data->>'message_id'))))
-$$;
-
-
---
--- Name: sending_domain_days_keep(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sending_domain_days_keep() RETURNS integer
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_day date := (now() at time zone 'utc')::date - 1;
-  v_n   integer;
-begin
-  with written as (
-    insert into public.sending_domain_days
-      (tenant_id, domain_id, day, host, state, held_why, sent, bounced, complaints, sent_days, checked_at, kept_at)
-    select s.tenant_id, s.id, v_day, s.host, s.state, s.held_why, s.sent_recent, s.bounced_recent, s.complaints,
-           s.sent_days, s.checked_at, now()
-      from public.sending_domains s
-     where s.state in ('verified', 'held')
-    on conflict (domain_id, day) do update
-       set host = excluded.host, state = excluded.state, held_why = excluded.held_why, sent = excluded.sent,
-           bounced = excluded.bounced, complaints = excluded.complaints, sent_days = excluded.sent_days,
-           checked_at = excluded.checked_at, kept_at = excluded.kept_at
-    returning 1
-  )
-  select count(*)::integer into v_n from written;
-  return v_n;
-end $$;
-
-
---
--- Name: FUNCTION sending_domain_days_keep(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.sending_domain_days_keep() IS 'Keeps every verified or held sending domain''s state and counters, as the last check left them, under the UTC day that has just ended (K9); replaces that day''s row when run again; answers how many rows it wrote. The nightly clock''s (sending-domain-days, 00:23), and the service role''s to run.';
-
-
---
--- Name: sending_domains_within_limit(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sending_domains_within_limit() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-begin
-  perform pg_advisory_xact_lock(hashtext('sending_domains:' || new.tenant_id::text));
-  if (select count(*) from public.sending_domains d where d.tenant_id = new.tenant_id) >= 5 then
-    raise exception 'A workspace sends from 5 domains at most.' using errcode = 'P0001', hint = 'too_many';
-  end if;
-  return new;
-end $$;
-
-
---
 -- Name: sequence_batch_cancel(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -25777,7 +25550,6 @@ CREATE TABLE public.sequence_sends (
     channel text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    domain_id uuid,
     send_at timestamp with time zone,
     claimed_at timestamp with time zone,
     opening text,
@@ -25838,13 +25610,6 @@ COMMENT ON COLUMN public.sequence_sends.facts IS 'A customer''s send: the words 
 --
 
 COMMENT ON COLUMN public.sequence_sends.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the batch''s channels. Null: a send kept from before the channels, which went by WhatsApp.';
-
-
---
--- Name: COLUMN sequence_sends.domain_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.domain_id IS 'Retired (decision 0056): the sending domain a lead''s send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send''s.';
 
 
 --
@@ -30342,31 +30107,6 @@ COMMENT ON FUNCTION public.trigger_deadman_sweep() IS 'Asks the edge to flag esc
 
 
 --
--- Name: trigger_domains_sweep(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.trigger_domains_sweep() RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions'
-    AS $$
-begin
-  if exists (select 1 from public.sending_domains d where d.state in ('verifying', 'verified', 'held')) then
-    return public.request_sweep('domains', '/api/cron/domains', 65000);
-  end if;
-  insert into public.sweep_status (sweep, requested_at) values ('domains', now())
-  on conflict (sweep) do update set requested_at = excluded.requested_at;
-  return null;
-end $$;
-
-
---
--- Name: FUNCTION trigger_domains_sweep(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.trigger_domains_sweep() IS 'The domains clock (Reach out). Calls the edge (/api/cron/domains) only when a domain is being checked or can send; otherwise records that it looked.';
-
-
---
 -- Name: trigger_google_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34468,110 +34208,6 @@ COMMENT ON COLUMN public.segments.archived_at IS 'When the list was archived: it
 
 
 --
--- Name: sending_domain_days; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sending_domain_days (
-    tenant_id uuid NOT NULL,
-    domain_id uuid NOT NULL,
-    day date NOT NULL,
-    host text NOT NULL,
-    state text NOT NULL,
-    held_why text,
-    sent integer,
-    bounced integer,
-    complaints integer,
-    sent_days integer,
-    checked_at timestamp with time zone,
-    kept_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT sending_domain_days_bounced_check CHECK (((bounced IS NULL) OR (bounced >= 0))),
-    CONSTRAINT sending_domain_days_complaints_check CHECK (((complaints IS NULL) OR (complaints >= 0))),
-    CONSTRAINT sending_domain_days_held_why_check CHECK (((held_why IS NULL) OR (char_length(held_why) <= 40))),
-    CONSTRAINT sending_domain_days_host_check CHECK (((char_length(host) >= 4) AND (char_length(host) <= 253))),
-    CONSTRAINT sending_domain_days_sent_check CHECK (((sent IS NULL) OR (sent >= 0))),
-    CONSTRAINT sending_domain_days_sent_days_check CHECK (((sent_days IS NULL) OR (sent_days >= 0))),
-    CONSTRAINT sending_domain_days_state_check CHECK ((state = ANY (ARRAY['verified'::text, 'held'::text])))
-);
-
-
---
--- Name: TABLE sending_domain_days; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sending_domain_days IS 'Retired (decision 0056, 00423): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';
-
-
---
--- Name: sending_domains; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sending_domains (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    host text NOT NULL,
-    from_local text NOT NULL,
-    from_name text NOT NULL,
-    provider_domain_id text,
-    records jsonb DEFAULT '[]'::jsonb NOT NULL,
-    state text DEFAULT 'records'::text NOT NULL,
-    provider_status text,
-    dmarc text,
-    held_why text,
-    held_at timestamp with time zone,
-    verified_at timestamp with time zone,
-    clean_since timestamp with time zone,
-    checked_at timestamp with time zone,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    sent_recent integer,
-    bounced_recent integer,
-    complaints integer,
-    counted_since timestamp with time zone,
-    sent_days integer,
-    resume_by text DEFAULT 'owner'::text NOT NULL,
-    CONSTRAINT sending_domains_dmarc_check CHECK ((dmarc = ANY (ARRAY['found'::text, 'missing'::text]))),
-    CONSTRAINT sending_domains_from_local_check CHECK (((char_length(from_local) <= 40) AND (from_local ~ '^[a-z0-9]+([.-][a-z0-9]+)*$'::text))),
-    CONSTRAINT sending_domains_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
-    CONSTRAINT sending_domains_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
-    CONSTRAINT sending_domains_held_why_check CHECK ((held_why = ANY (ARRAY['verification'::text, 'dmarc'::text, 'bounces'::text, 'complaint'::text, 'provider'::text, 'unsubscribes'::text]))),
-    CONSTRAINT sending_domains_host_check CHECK ((((char_length(host) >= 4) AND (char_length(host) <= 253)) AND (host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
-    CONSTRAINT sending_domains_records_check CHECK ((jsonb_typeof(records) = 'array'::text)),
-    CONSTRAINT sending_domains_resume_by_check CHECK ((resume_by = ANY (ARRAY['owner'::text, 'platform'::text]))),
-    CONSTRAINT sending_domains_sending_is_dated CHECK (((state <> ALL (ARRAY['verified'::text, 'held'::text])) OR ((verified_at IS NOT NULL) AND (clean_since IS NOT NULL)))),
-    CONSTRAINT sending_domains_state_check CHECK ((state = ANY (ARRAY['records'::text, 'verifying'::text, 'verified'::text, 'held'::text])))
-);
-
-
---
--- Name: TABLE sending_domains; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sending_domains IS 'Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
-
-
---
--- Name: COLUMN sending_domains.counted_since; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.counted_since IS 'Where the reputation count starts (bounces, complaints): set when the domain is first verified and when its owner resumes it, never by a DNS release. clean_since is the ramp''s clock (contracts domainDailyCap).';
-
-
---
--- Name: COLUMN sending_domains.sent_days; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.sent_days IS 'The days it sent on before today since it was clean, within the last 90 (sending_domain_capacity, D15), as the domains clock last wrote them: the ramp the send door and Connections read. Zero when clean again (a hold released, a first verify); null until written, read as none.';
-
-
---
--- Name: COLUMN sending_domains.resume_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.resume_by IS 'Who lifts its reputation hold: the owner (Resume), or the platform, when it was held for its reputation twice in thirty days (Reach out D16, 00188).';
-
-
---
 -- Name: sequence_batches; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -34787,7 +34423,6 @@ CREATE TABLE public.sequence_steps (
     after_step_id uuid,
     after_days integer,
     gap_minutes integer,
-    domain_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     signed_by text,
     include_unconfirmed boolean DEFAULT false NOT NULL,
     hand jsonb,
@@ -34828,7 +34463,7 @@ CASE kind
         WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 2) AND (after_days <= 30)) AND (lead_search_id IS NULL))
         ELSE false
     END), false)
-    ELSE COALESCE(((policy_class <> 'outreach'::text) AND (trigger <> 'lead_first'::text) AND (lead_search_id IS NULL) AND (gap_minutes IS NULL) AND (domain_ids = '{}'::uuid[]) AND
+    ELSE COALESCE(((policy_class <> 'outreach'::text) AND (trigger <> 'lead_first'::text) AND (lead_search_id IS NULL) AND (gap_minutes IS NULL) AND
     CASE trigger
         WHEN 'after_step'::text THEN ((after_step_id IS NOT NULL) AND ((after_days >= 1) AND (after_days <= 90)))
         ELSE ((after_step_id IS NULL) AND (after_days IS NULL))
@@ -34864,13 +34499,6 @@ COMMENT ON COLUMN public.sequence_steps.list_id IS 'The list of the workspace''s
 --
 
 COMMENT ON COLUMN public.sequence_steps.list_key IS 'The People list a saved_list playbook runs on, by its id (contracts lists.ts BUILTIN_LISTS). Null when it runs on one of the workspace''s own lists (list_id), and for every other trigger.';
-
-
---
--- Name: COLUMN sequence_steps.domain_ids; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_steps.domain_ids IS 'Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain''s.';
 
 
 --
@@ -36423,30 +36051,6 @@ ALTER TABLE ONLY public.segments
 
 
 --
--- Name: sending_domain_days sending_domain_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domain_days
-    ADD CONSTRAINT sending_domain_days_pkey PRIMARY KEY (domain_id, day);
-
-
---
--- Name: sending_domains sending_domains_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domains
-    ADD CONSTRAINT sending_domains_pkey PRIMARY KEY (id);
-
-
---
--- Name: sending_domains sending_domains_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domains
-    ADD CONSTRAINT sending_domains_tenant_id_id_key UNIQUE (tenant_id, id);
-
-
---
 -- Name: sequence_batches sequence_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -37901,41 +37505,6 @@ CREATE UNIQUE INDEX segments_live_name ON public.segments USING btree (tenant_id
 
 
 --
--- Name: sending_domain_days_tenant_day; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX sending_domain_days_tenant_day ON public.sending_domain_days USING btree (tenant_id, day DESC);
-
-
---
--- Name: sending_domains_due; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX sending_domains_due ON public.sending_domains USING btree (checked_at NULLS FIRST) WHERE (state = ANY (ARRAY['verifying'::text, 'verified'::text, 'held'::text]));
-
-
---
--- Name: sending_domains_host_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX sending_domains_host_uq ON public.sending_domains USING btree (host);
-
-
---
--- Name: sending_domains_provider_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX sending_domains_provider_uq ON public.sending_domains USING btree (provider_domain_id) WHERE (provider_domain_id IS NOT NULL);
-
-
---
--- Name: sending_domains_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX sending_domains_tenant ON public.sending_domains USING btree (tenant_id, created_at);
-
-
---
 -- Name: sequence_batches_history; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -38101,13 +37670,6 @@ CREATE INDEX sequence_sends_contact_sent ON public.sequence_sends USING btree (t
 --
 
 CREATE INDEX sequence_sends_drafted ON public.sequence_sends USING btree (batch_id, drafted_at) WHERE (state = 'drafted'::text);
-
-
---
--- Name: sequence_sends_due; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX sequence_sends_due ON public.sequence_sends USING btree (domain_id, send_at) WHERE (state = 'planned'::text);
 
 
 --
@@ -38990,20 +38552,6 @@ CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles FOR EACH
 --
 
 CREATE TRIGGER segments_set_updated_at BEFORE UPDATE ON public.segments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
-
-
---
--- Name: sending_domains sending_domains_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER sending_domains_set_updated_at BEFORE UPDATE ON public.sending_domains FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
-
-
---
--- Name: sending_domains sending_domains_within_limit; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER sending_domains_within_limit BEFORE INSERT ON public.sending_domains FOR EACH ROW EXECUTE FUNCTION public.sending_domains_within_limit();
 
 
 --
@@ -41228,30 +40776,6 @@ ALTER TABLE ONLY public.segments
 
 
 --
--- Name: sending_domain_days sending_domain_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domain_days
-    ADD CONSTRAINT sending_domain_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
-
-
---
--- Name: sending_domains sending_domains_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domains
-    ADD CONSTRAINT sending_domains_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-
-
---
--- Name: sending_domains sending_domains_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sending_domains
-    ADD CONSTRAINT sending_domains_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
-
-
---
 -- Name: sequence_batches sequence_batches_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41425,14 +40949,6 @@ ALTER TABLE ONLY public.sequence_sends
 
 ALTER TABLE ONLY public.sequence_sends
     ADD CONSTRAINT sequence_sends_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
-
-
---
--- Name: sequence_sends sequence_sends_domain_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sequence_sends
-    ADD CONSTRAINT sequence_sends_domain_id_same_workspace FOREIGN KEY (tenant_id, domain_id) REFERENCES public.sending_domains(tenant_id, id) ON DELETE SET NULL (domain_id);
 
 
 --
@@ -42926,36 +42442,6 @@ CREATE POLICY segments_member_select ON public.segments FOR SELECT TO authentica
 
 
 --
--- Name: sending_domain_days; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.sending_domain_days ENABLE ROW LEVEL SECURITY;
-
---
--- Name: sending_domain_days sending_domain_days_member_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY sending_domain_days_member_select ON public.sending_domain_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
-
-
---
--- Name: sending_domains; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.sending_domains ENABLE ROW LEVEL SECURITY;
-
---
--- Name: sending_domains sending_domains_member_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY sending_domains_member_select ON public.sending_domains FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
-
-
---
 -- Name: sequence_batches; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -43630,14 +43116,6 @@ GRANT ALL ON FUNCTION public.clear_control_of_departed_member() TO service_role;
 
 
 --
--- Name: FUNCTION cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.cold_receipts_owed(p_from timestamp with time zone, p_to timestamp with time zone) TO service_role;
-
-
---
 -- Name: FUNCTION consent_channels_of(p_purpose text, p_source text, p_channel text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -44244,7 +43722,7 @@ GRANT ALL ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_per
 -- Name: TABLE contacts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contacts TO authenticated;
+GRANT SELECT ON TABLE public.contacts TO authenticated;
 GRANT ALL ON TABLE public.contacts TO service_role;
 
 
@@ -45484,14 +44962,6 @@ GRANT ALL ON FUNCTION public.number_drift() TO service_role;
 REVOKE ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.offers_email_reach(p_tenant_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.outreach_facts(p_tenant_id uuid, p_contact_id uuid, p_to text, p_host text, p_since timestamp with time zone, p_lead_id uuid) TO service_role;
 
 
 --
@@ -47067,38 +46537,6 @@ GRANT ALL ON FUNCTION public.segment_members_on_erase() TO service_role;
 
 
 --
--- Name: FUNCTION sending_domain_capacity(p_domain_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sending_domain_capacity(p_domain_id uuid, p_at timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sending_domain_capacity(p_domain_id uuid, p_at timestamp with time zone) TO service_role;
-
-
---
--- Name: FUNCTION sending_domain_counts(p_tenant_id uuid, p_host text, p_since timestamp with time zone); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sending_domain_counts(p_tenant_id uuid, p_host text, p_since timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sending_domain_counts(p_tenant_id uuid, p_host text, p_since timestamp with time zone) TO service_role;
-
-
---
--- Name: FUNCTION sending_domain_days_keep(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sending_domain_days_keep() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sending_domain_days_keep() TO service_role;
-
-
---
--- Name: FUNCTION sending_domains_within_limit(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sending_domains_within_limit() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sending_domains_within_limit() TO service_role;
-
-
---
 -- Name: FUNCTION sequence_batch_cancel(p_tenant_id uuid, p_batch_id uuid, p_from text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47990,14 +47428,6 @@ GRANT ALL ON FUNCTION public.trigger_deadman_sweep() TO service_role;
 
 
 --
--- Name: FUNCTION trigger_domains_sweep(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.trigger_domains_sweep() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.trigger_domains_sweep() TO service_role;
-
-
---
 -- Name: FUNCTION trigger_google_sweep(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -48418,7 +47848,7 @@ GRANT UPDATE(first_audio_ms) ON TABLE public.ask_voice_sessions TO authenticated
 -- Name: TABLE billing_accounts; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_accounts TO authenticated;
+GRANT SELECT ON TABLE public.billing_accounts TO authenticated;
 GRANT ALL ON TABLE public.billing_accounts TO service_role;
 
 
@@ -48440,7 +47870,7 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 -- Name: TABLE business_records; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.business_records TO authenticated;
+GRANT SELECT ON TABLE public.business_records TO authenticated;
 GRANT ALL ON TABLE public.business_records TO service_role;
 
 
@@ -48448,7 +47878,7 @@ GRANT ALL ON TABLE public.business_records TO service_role;
 -- Name: TABLE calls; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.calls TO authenticated;
+GRANT SELECT ON TABLE public.calls TO authenticated;
 GRANT ALL ON TABLE public.calls TO service_role;
 
 
@@ -48513,7 +47943,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.client_errors TO service_role;
 -- Name: TABLE contact_identities; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.contact_identities TO authenticated;
+GRANT SELECT ON TABLE public.contact_identities TO authenticated;
 GRANT ALL ON TABLE public.contact_identities TO service_role;
 
 
@@ -48537,7 +47967,7 @@ GRANT ALL ON TABLE public.contact_reads TO service_role;
 -- Name: TABLE conversations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.conversations TO authenticated;
+GRANT SELECT ON TABLE public.conversations TO authenticated;
 GRANT ALL ON TABLE public.conversations TO service_role;
 
 
@@ -48588,7 +48018,7 @@ GRANT ALL ON TABLE public.deals TO service_role;
 -- Name: TABLE decisions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,DELETE,UPDATE ON TABLE public.decisions TO authenticated;
+GRANT SELECT ON TABLE public.decisions TO authenticated;
 GRANT ALL ON TABLE public.decisions TO service_role;
 
 
@@ -48659,7 +48089,7 @@ GRANT ALL ON TABLE public.erasure_keying TO service_role;
 -- Name: TABLE escalations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.escalations TO authenticated;
+GRANT SELECT ON TABLE public.escalations TO authenticated;
 GRANT ALL ON TABLE public.escalations TO service_role;
 
 
@@ -48709,7 +48139,7 @@ GRANT ALL ON TABLE public.event_subscriptions TO service_role;
 -- Name: TABLE events; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.events TO authenticated;
+GRANT SELECT ON TABLE public.events TO authenticated;
 GRANT ALL ON TABLE public.events TO service_role;
 
 
@@ -48732,7 +48162,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_ro
 -- Name: TABLE google_connections; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_connections TO authenticated;
+GRANT SELECT ON TABLE public.google_connections TO authenticated;
 GRANT ALL ON TABLE public.google_connections TO service_role;
 
 
@@ -48740,7 +48170,7 @@ GRANT ALL ON TABLE public.google_connections TO service_role;
 -- Name: TABLE google_listing_days; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listing_days TO authenticated;
+GRANT SELECT ON TABLE public.google_listing_days TO authenticated;
 GRANT ALL ON TABLE public.google_listing_days TO service_role;
 
 
@@ -48748,7 +48178,7 @@ GRANT ALL ON TABLE public.google_listing_days TO service_role;
 -- Name: TABLE google_listings; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_listings TO authenticated;
+GRANT SELECT ON TABLE public.google_listings TO authenticated;
 GRANT ALL ON TABLE public.google_listings TO service_role;
 
 
@@ -48756,7 +48186,7 @@ GRANT ALL ON TABLE public.google_listings TO service_role;
 -- Name: TABLE google_reviews; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.google_reviews TO authenticated;
+GRANT SELECT ON TABLE public.google_reviews TO authenticated;
 GRANT ALL ON TABLE public.google_reviews TO service_role;
 
 
@@ -48814,7 +48244,7 @@ GRANT INSERT(created_at) ON TABLE public.idempotency_keys TO authenticated;
 -- Name: TABLE invitations; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.invitations TO authenticated;
+GRANT SELECT ON TABLE public.invitations TO authenticated;
 GRANT ALL ON TABLE public.invitations TO service_role;
 
 
@@ -48914,7 +48344,7 @@ GRANT ALL ON TABLE public.leads TO service_role;
 -- Name: TABLE lead_searches_view; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lead_searches_view TO authenticated;
+GRANT SELECT ON TABLE public.lead_searches_view TO authenticated;
 GRANT ALL ON TABLE public.lead_searches_view TO service_role;
 
 
@@ -48938,7 +48368,7 @@ GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 -- Name: TABLE lines; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.lines TO authenticated;
+GRANT SELECT ON TABLE public.lines TO authenticated;
 GRANT ALL ON TABLE public.lines TO service_role;
 
 
@@ -48954,7 +48384,7 @@ GRANT ALL ON TABLE public.mailbox_connections TO service_role;
 -- Name: TABLE mailboxes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mailboxes TO authenticated;
+GRANT SELECT ON TABLE public.mailboxes TO authenticated;
 GRANT ALL ON TABLE public.mailboxes TO service_role;
 
 
@@ -48962,7 +48392,7 @@ GRANT ALL ON TABLE public.mailboxes TO service_role;
 -- Name: TABLE memberships; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.memberships TO authenticated;
+GRANT SELECT ON TABLE public.memberships TO authenticated;
 GRANT ALL ON TABLE public.memberships TO service_role;
 
 
@@ -48970,7 +48400,7 @@ GRANT ALL ON TABLE public.memberships TO service_role;
 -- Name: TABLE messages; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,DELETE ON TABLE public.messages TO authenticated;
+GRANT SELECT ON TABLE public.messages TO authenticated;
 GRANT ALL ON TABLE public.messages TO service_role;
 
 
@@ -49104,7 +48534,7 @@ GRANT ALL ON TABLE public.model_turns TO service_role;
 -- Name: TABLE notification_marks; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_marks TO authenticated;
+GRANT SELECT ON TABLE public.notification_marks TO authenticated;
 GRANT ALL ON TABLE public.notification_marks TO service_role;
 
 
@@ -49112,7 +48542,7 @@ GRANT ALL ON TABLE public.notification_marks TO service_role;
 -- Name: TABLE notification_reads; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_reads TO authenticated;
+GRANT SELECT ON TABLE public.notification_reads TO authenticated;
 GRANT ALL ON TABLE public.notification_reads TO service_role;
 
 
@@ -49120,7 +48550,7 @@ GRANT ALL ON TABLE public.notification_reads TO service_role;
 -- Name: TABLE notifications; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO authenticated;
+GRANT SELECT ON TABLE public.notifications TO authenticated;
 GRANT ALL ON TABLE public.notifications TO service_role;
 
 
@@ -49305,7 +48735,7 @@ GRANT SELECT,USAGE ON SEQUENCE public.privacy_requests_number_seq TO service_rol
 -- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.profiles TO authenticated;
+GRANT SELECT ON TABLE public.profiles TO authenticated;
 GRANT ALL ON TABLE public.profiles TO service_role;
 
 
@@ -49349,7 +48779,7 @@ GRANT ALL ON TABLE public.reply_turns TO service_role;
 -- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,DELETE,UPDATE ON TABLE public.segment_members TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.segment_members TO authenticated;
 GRANT ALL ON TABLE public.segment_members TO service_role;
 
 
@@ -49425,26 +48855,10 @@ GRANT UPDATE(archived_at) ON TABLE public.segments TO authenticated;
 
 
 --
--- Name: TABLE sending_domain_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.sending_domain_days TO service_role;
-GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
-
-
---
--- Name: TABLE sending_domains; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sending_domains TO authenticated;
-GRANT ALL ON TABLE public.sending_domains TO service_role;
-
-
---
 -- Name: TABLE sequence_batches; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,DELETE ON TABLE public.sequence_batches TO authenticated;
+GRANT SELECT ON TABLE public.sequence_batches TO authenticated;
 GRANT ALL ON TABLE public.sequence_batches TO service_role;
 
 
@@ -49701,7 +49115,7 @@ GRANT ALL ON TABLE public.sweep_status TO service_role;
 -- Name: TABLE templates; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.templates TO authenticated;
+GRANT SELECT ON TABLE public.templates TO authenticated;
 GRANT ALL ON TABLE public.templates TO service_role;
 
 
@@ -49709,7 +49123,7 @@ GRANT ALL ON TABLE public.templates TO service_role;
 -- Name: TABLE tenant_channels; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenant_channels TO authenticated;
+GRANT SELECT ON TABLE public.tenant_channels TO authenticated;
 GRANT ALL ON TABLE public.tenant_channels TO service_role;
 
 
@@ -49717,7 +49131,7 @@ GRANT ALL ON TABLE public.tenant_channels TO service_role;
 -- Name: TABLE tenant_config; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.tenant_config TO authenticated;
+GRANT SELECT ON TABLE public.tenant_config TO authenticated;
 GRANT ALL ON TABLE public.tenant_config TO service_role;
 
 
@@ -49753,7 +49167,7 @@ GRANT ALL ON TABLE public.tenant_config_versions TO service_role;
 -- Name: TABLE tenants; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.tenants TO authenticated;
+GRANT SELECT ON TABLE public.tenants TO authenticated;
 GRANT ALL ON TABLE public.tenants TO service_role;
 
 

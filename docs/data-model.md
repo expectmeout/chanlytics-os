@@ -103,8 +103,6 @@ what the script writes.
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 4 policies |
-| [`sending_domain_days`](#sending_domain_days) | none | on, 1 policy |
-| [`sending_domains`](#sending_domains) | none | on, 1 policy |
 | [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
 | [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
@@ -2778,81 +2776,6 @@ Foreign keys:
 | `segments_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
 | `segments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
-### sending_domain_days
-
-Retired (decision 0056, 00423): each sending domain's day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).
-
-- Owned by: none
-- Primary key: `domain_id`, `day`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `tenant_id` | uuid | no |  |  |
-| `domain_id` | uuid | no |  |  |
-| `day` | date | no |  |  |
-| `host` | text | no |  |  |
-| `state` | text | no |  |  |
-| `held_why` | text | yes |  |  |
-| `sent` | integer | yes |  |  |
-| `bounced` | integer | yes |  |  |
-| `complaints` | integer | yes |  |  |
-| `sent_days` | integer | yes |  |  |
-| `checked_at` | timestamp with time zone | yes |  |  |
-| `kept_at` | timestamp with time zone | no | `now()` |  |
-
-Foreign keys:
-
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `sending_domain_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
-### sending_domains
-
-Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).
-
-- Owned by: none
-- Primary key: `id`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no | `gen_random_uuid()` |  |
-| `tenant_id` | uuid | no |  |  |
-| `host` | text | no |  |  |
-| `from_local` | text | no |  |  |
-| `from_name` | text | no |  |  |
-| `provider_domain_id` | text | yes |  |  |
-| `records` | jsonb | no | `'[]'::jsonb` |  |
-| `state` | text | no | `'records'::text` |  |
-| `provider_status` | text | yes |  |  |
-| `dmarc` | text | yes |  |  |
-| `held_why` | text | yes |  |  |
-| `held_at` | timestamp with time zone | yes |  |  |
-| `verified_at` | timestamp with time zone | yes |  |  |
-| `clean_since` | timestamp with time zone | yes |  |  |
-| `checked_at` | timestamp with time zone | yes |  |  |
-| `created_by` | uuid | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `updated_at` | timestamp with time zone | no | `now()` |  |
-| `sent_recent` | integer | yes |  |  |
-| `bounced_recent` | integer | yes |  |  |
-| `complaints` | integer | yes |  |  |
-| `counted_since` | timestamp with time zone | yes |  | Where the reputation count starts (bounces, complaints): set when the domain is first verified and when its owner resumes it, never by a DNS release. clean_since is the ramp's clock (contracts domainDailyCap). |
-| `sent_days` | integer | yes |  | The days it sent on before today since it was clean, within the last 90 (sending_domain_capacity, D15), as the domains clock last wrote them: the ramp the send door and Connections read. Zero when clean again (a hold released, a first verify); null until written, read as none. |
-| `resume_by` | text | no | `'owner'::text` | Who lifts its reputation hold: the owner (Resume), or the platform, when it was held for its reputation twice in thirty days (Reach out D16, 00188). |
-
-Foreign keys:
-
-- `created_by` → `auth.users` (`id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `sending_domains_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
 ### sequence_batches
 
 Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step's run for a day (run_for), or a one-off's only batch.
@@ -3021,7 +2944,6 @@ Decision 0060: one message of a sequence to one person. A customer's (contact_id
 | `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the batch's channels. Null: a send kept from before the channels, which went by WhatsApp. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `domain_id` | uuid | yes |  | Retired (decision 0056): the sending domain a lead's send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send's. |
 | `send_at` | timestamp with time zone | yes |  |  |
 | `claimed_at` | timestamp with time zone | yes |  |  |
 | `opening` | text | yes |  |  |
@@ -3046,7 +2968,6 @@ Foreign keys:
 
 - `tenant_id`, `batch_id` → [`sequence_batches`](#sequence_batches) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `mailbox_id` → [`mailbox_connections`](#mailbox_connections) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
@@ -3096,7 +3017,6 @@ Decision 0060: each step of a sequence in its place (playbooks until 00440). A s
 | `after_step_id` | uuid | yes |  |  |
 | `after_days` | integer | yes |  |  |
 | `gap_minutes` | integer | yes |  |  |
-| `domain_ids` | uuid[] | no | `'{}'::uuid[]` | Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain's. |
 | `signed_by` | text | yes |  |  |
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |

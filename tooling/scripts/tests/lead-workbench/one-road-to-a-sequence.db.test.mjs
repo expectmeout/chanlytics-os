@@ -149,7 +149,6 @@ async function planRun(root, step, leads, state = "pending_approval") {
         id: crypto.randomUUID(),
         lead_id: leadId,
         contact_id: null,
-        domain_id: null,
         send_at: new Date(Date.now() + 3_600_000).toISOString(),
         state: "planned",
       })),
