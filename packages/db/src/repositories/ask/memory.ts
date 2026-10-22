@@ -1,5 +1,5 @@
 /**
- * What Ask remembers (decision 0070, 00471): the lines of its memory, read under the member's own session and kept,
+ * What Ask remembers (decision 0070, 00470): the lines of its memory, read under the member's own session and kept,
  * changed and forgotten through its one door (ask_memory_write, by act), the newest days of its journal, and recall over the member's own past
  * turns, the memory and the journal (search_ask). Every call runs as the person signed in: RLS decides what is read, and
  * the door checks the caller's permission itself; its refusals are thrown as they came, with their SQLSTATE (a line the

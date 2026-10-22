@@ -286,6 +286,9 @@ const HEARD_BEFORE = {
     "messages",
     "conversations",
     "google_listings",
+    // A sequence turned on: Today's card stops offering the day-before reminder once one runs (SetupDto.reminders).
+    "sequences",
+    "sequence_steps",
   ],
   // And the rule that says whether the receptionist answers a review on its own (W-review-facts-rules-8).
   google: ["google_listings", "google_reviews", "google_connections", "policies"],
@@ -376,7 +379,7 @@ const ON_ITS_PAGE_BEFORE = {
   ],
   // A search's rows and strip, on Leads' scope (S10-5).
   leads: HEARD_BEFORE.leads,
-  // What Setup's rows state, on Start and Today's card (S4-3).
+  // What Setup's rows state, on Start and Today's card (S4-3), and the reminder that runs, on the card.
   setup: [
     "templates",
     "tenant_config",
@@ -387,6 +390,8 @@ const ON_ITS_PAGE_BEFORE = {
     "deals",
     "messages",
     "conversations",
+    "sequences",
+    "sequence_steps",
   ],
 };
 

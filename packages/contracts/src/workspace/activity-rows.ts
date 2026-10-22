@@ -25,7 +25,7 @@ export const ACTIVITY_NOISE_KINDS = [
   "lead.later",
   // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
   "lead.ideas_written",
-  // Ask's journal written and a member's morning claimed (00471): how often is Reports', and the journal never writes
+  // Ask's journal written and a member's morning claimed (00470): how often is Reports', and the journal never writes
   // about its own day.
   "ask.journal_written",
   "ask.morning_claimed",

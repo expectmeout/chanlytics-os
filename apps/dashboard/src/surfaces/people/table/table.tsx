@@ -500,7 +500,7 @@ export function PeopleTable<R extends TableRow, X extends TableCtx>({
   // One element for both: the rows arrive and swap in under the table's heads.
   const tableRef = useCallback(
     (el: HTMLTableElement | null) => {
-      arrive.current = el;
+      arrive(el);
       if (swapRef) swapRef.current = el;
     },
     [arrive, swapRef],

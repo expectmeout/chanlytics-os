@@ -1,5 +1,5 @@
 /**
- * Ask's journal, the note sweep's side (decision 0070, 00471): the days due (ask_journal_write's due, which stamps each
+ * Ask's journal, the note sweep's side (decision 0070, 00470): the days due (ask_journal_write's due, which stamps each
  * as it hands it over, so a day is written once), what happened on one of them (both ledgers, as Settings › Activity
  * reads them), and the door the entry goes through (ask_journal_write's keep). Service role throughout: the sweep reads every
  * workspace's day and writes none of its rows.

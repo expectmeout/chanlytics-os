@@ -74,7 +74,7 @@ export function usePipelineState(props: PipelineScopeProps) {
       ? { title: P.words.board.nobody, action: { label: P.words.rail.all, onClick: () => pickView("all") } }
       : null;
   const person = usePipelinePerson(r, ui, pk);
-  const line = r.loaded ? [...r.all.line, { words: r.loaded, view: null, tone: null, joins: false }] : r.all.line;
+  const line = r.loaded ? [...r.all.line, { words: r.loaded, view: null, tone: null }] : r.all.line;
   return {
     f,
     ui,

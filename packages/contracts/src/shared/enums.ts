@@ -246,7 +246,7 @@ export const EVENT_KINDS = [
   "settings.fact_suggested",
   "settings.fact_kept",
   "settings.fact_dismissed",
-  // What Ask remembers (00471, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
+  // What Ask remembers (00470, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
   "ask.memory_kept",
   "ask.memory_changed",
   "ask.memory_forgotten",

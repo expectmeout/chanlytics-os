@@ -6,9 +6,10 @@
  * first: a touch that began in its body while the body is scrolled moves the body, never the sheet, and at full a pull up
  * is the body's. The handle and the head always move it.
  *
- * Transform alone: the finger's place is an inline transform, let go of when the finger lifts, so the sheet's own rule
- * places it at the rest it lands on, on the kit's ease (and at once under reduced motion). A sheet let go to close keeps
- * where the finger left it, and its leaving plays from there.
+ * Transform alone: the finger's place is an inline transform, with the cut that keeps the sheet's foot at its rest's line
+ * (kit.css --sheet-held), let go of when the finger lifts, so the sheet's own rule places it at the rest it lands on, on
+ * the kit's ease (and at once under reduced motion). A sheet let go to close keeps where the finger left it, and its
+ * leaving plays from there.
  */
 import type { TouchEvent as ReactTouchEvent } from "react";
 
@@ -85,7 +86,10 @@ export function restSwipe(o: {
     }
     if (e.cancelable) e.preventDefault();
     g.dy = dy;
-    g.el.style.transform = `translate3d(0, ${Math.max(0, g.base + dy)}px, 0)`;
+    const down = `${Math.max(0, g.base + dy)}px`;
+    g.el.style.transform = `translate3d(0, ${down}, 0)`;
+    // And cut there at its rest's line, as its half rest is (kit.css --sheet-held): nothing of it stands over the foot.
+    g.el.style.setProperty("--sheet-held", down);
   };
   const onTouchStart = (e: ReactTouchEvent<HTMLElement>) => {
     const t = e.touches[0];
@@ -117,6 +121,7 @@ export function restSwipe(o: {
     if (to === "close") return o.onClose();
     el.style.transition = "";
     el.style.transform = "";
+    el.style.removeProperty("--sheet-held");
     if (to) o.onRest(to);
   };
   return { onTouchStart, onTouchEnd, onTouchCancel: onTouchEnd };

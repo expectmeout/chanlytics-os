@@ -4528,6 +4528,7 @@ function keptPhoneKind(line) {
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
 var TRY_SKIPPED = "try-skipped";
+var REMIND_SKIPPED = "remind-skipped";
 var KEEP_ROW = "keep";
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
@@ -4579,7 +4580,8 @@ function emailsNeedYou(step2, f, e, by, times) {
       words: CALENDAR_OWED_WORD,
       ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
       times,
-      next: TO_THE_ROW("Finish setting up")
+      // What the row asks, in the email row's own words: "Finish setting up" was also the title of Today's card it sits in.
+      next: TO_THE_ROW("Choose the address")
     };
   if (step2 === "forwarding")
     return {
@@ -12900,33 +12902,22 @@ var PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
-  /** The deal sheet over the rows (pipeline-peek.ts): its door to their page, its wait, and what it calls a person it could not read. */
+  /**
+   * The deal sheet over the rows (pipeline-peek.ts): what its head's face and name say they open (their page), its wait,
+   * and what it calls a person it could not read.
+   */
   peek: {
     close: "Close",
-    page: "Their page",
+    open: (name) => `Open ${name}'s page`,
     reading: "Reading\u2026",
-    what: "this person",
-    /** How to reach them: the number and the address (each a copy), and what a reply may be. */
-    reach: {
-      title: "How to reach them",
-      phone: "Phone",
-      email: "Email",
-      replies: "Replies",
-      copy: "Copy",
-      copied: "Copied",
-      /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
-      copyPhone: "Copy the number",
-      copyEmail: "Copy the address"
-    }
+    what: "this person"
   },
   /**
-   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026): its two rests, its next step's two
-   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret, the
-   * Message its foot leads with for a client, their other deals, and the desk's walk through the rows shown.
+   * The deal sheet's own words (the canvas "Pipeline deal sheet", 20 Oct 2026, made compact 21 Oct): its next step's two
+   * presses, the question a proposal waiting asks and its two answers, the pass it asks in its foot, the caret and the
+   * proposal it opens, the Message its foot leads with for a client, and the desk's walk through the rows shown.
    */
   sheet: {
-    raise: "Show all of the deal",
-    lower: "Back to the quick look",
     next: "Next step",
     done: (step2) => `Done: ${step2}`,
     change: (step2) => `Change: ${step2}`,
@@ -12935,14 +12926,17 @@ var PIPELINE_WORDS = {
     no: "They passed",
     passAsk: (first) => `Why did ${first} pass?`,
     more: (what) => `More for ${what}`,
+    /** The caret's door to the proposal where it lives, in a new tab; its link is copied on their page. */
+    openProposal: "Open the proposal",
     message: "Message",
-    others: "Also with them",
-    /** The proposal's own box, raised: its link and the link's copy. */
-    proposal: "The proposal",
-    link: "Link",
     /** A consultation over with no proposal since, once its step says when and how it went. */
     noProposal: "No proposal yet",
     walk: { label: "Deals in this view", previous: "Previous deal", next: "Next deal" }
+  },
+  /** What the proposals out and the clients come to, as Ask is told it (pipelineWorth); the page says counts only. */
+  worth: {
+    proposals: (sum3) => `Proposals out come to ${sum3}`,
+    clients: (sum3) => `Clients come to ${sum3}`
   },
   /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
   board: { nobody: "Nobody here", card: "Open", menu: "More for", move: "Move to" },
@@ -16055,6 +16049,20 @@ function bubbleTime(iso, tz, now) {
 function formatWaited(ms3) {
   return waitedLabel(ms3);
 }
+function waitedSince(sinceMs, nowMs) {
+  return formatWaited(Math.max(0, nowMs - sinceMs));
+}
+function inboxThreadClock(t, tz, nowMs) {
+  const lastAt = t.lastAtMs > 0 ? clockShort(t.lastAtMs, tz, nowMs) : "";
+  const words3 = { lastAt, lastAtFull: lastAt };
+  if (t.escalatedAtMs !== void 0) {
+    words3.waitingMin = Math.max(1, Math.round((nowMs - t.escalatedAtMs) / MIN_MS));
+    if (words3.waitingMin) words3.waited = formatWaited(words3.waitingMin * MIN_MS);
+  }
+  if (t.wakeAtMs !== void 0) words3.wake = clockShort(t.wakeAtMs, tz, nowMs);
+  if (t.unanswered) words3.unanswered = { ...t.unanswered, waited: waitedSince(t.unanswered.sinceMs, nowMs) };
+  return words3;
+}
 
 // src/conversations/call-vm.ts
 function callOutcomeFor(dto, live) {
@@ -16848,7 +16856,8 @@ function factConflicts(f) {
       known: kept,
       knownSource: f.kept_line.source,
       sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
-      to: "admin/workspace"
+      // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+      to: "admin/workspace/handoff_number"
     });
   }
   if (f.address.disputed && f.address.value) {
@@ -17270,7 +17279,7 @@ var EVENT_KINDS = [
   "settings.fact_suggested",
   "settings.fact_kept",
   "settings.fact_dismissed",
-  // What Ask remembers (00471, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
+  // What Ask remembers (00470, decision 0070): a line kept, changed or forgotten, never its words; a journal day, a morning.
   "ask.memory_kept",
   "ask.memory_changed",
   "ask.memory_forgotten",
@@ -21816,7 +21825,7 @@ var ASK_MEMORY_LIMITS = {
   textMax: 300,
   /**
    * The lines a workspace keeps at once, every one read into each turn's shape block (so what the pane lists is what Ask
-   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00471).
+   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00470).
    */
   liveMax: 40
 };
@@ -25880,7 +25889,14 @@ var STEP_SHEET_WORDS = {
   noteWhat: { label: "Note", placeholder: "What they said, what to remember" },
   when: { label: "When", pick: "The day", none: "No day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "Only your team sees it.",
+  // Who sees a step: the team, and Ask, which reads each person's next step (its people and Pipeline reads); never the
+  // receptionist, since a step is the team's whatever a note's switch says (00166).
+  teamOnly: "Your team and Ask see it; the receptionist doesn't.",
+  /**
+   * What a new step on a deal opens with, from the act its card leads with (dealNextAct): its send, today, or its
+   * follow-up, tomorrow. Any other act opens it empty.
+   */
+  suggested: { send: "Send the proposal", "follow-up": "Follow up on the proposal" },
   /** A note with no day: whether the receptionist reads it (it uses notes as facts, never aloud). */
   reads: { label: "Team only", hint: "The receptionist won't read it" },
   save: { add: "Set it", edit: "Save", note: "Add it" },
@@ -25913,10 +25929,13 @@ var STEP_SHEET_WORDS = {
   }
 };
 var NO_DAY = "none";
-function openedWith(note, kind, days) {
-  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : null;
+var SUGGESTED_DAY = { send: 0, "follow-up": 1 };
+var isSuggested = (lead) => !!lead && Object.prototype.hasOwnProperty.call(SUGGESTED_DAY, lead);
+function openedWith(note, kind, days, lead) {
+  const suggested = !note && kind === "step" && isSuggested(lead) ? lead : null;
+  const day = note?.step ? note.step.day.day : kind === "note" ? NO_DAY : suggested ? days[SUGGESTED_DAY[suggested]]?.key ?? null : null;
   return {
-    what: note ? note.body : "",
+    what: note ? note.body : suggested ? STEP_SHEET_WORDS.suggested[suggested] : "",
     day,
     picking: !!day && !days.some((c) => c.key === day),
     forId: note ? note.forUserId : null,
@@ -25943,7 +25962,7 @@ function stepSheetFor(p, ask, nowMs, tz) {
       { id: "", label: W.for.anyone },
       ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
     ],
-    draft: openedWith(note, kind, days),
+    draft: openedWith(note, kind, days, dealId ? ask.lead ?? null : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
     blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
@@ -31261,7 +31280,6 @@ function daysWithAppointments(days, rows2, tz, people) {
 
 // src/people/person-reach.ts
 var EMAIL_STOPPED_TAG = "stopped accepting mail";
-var EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 var EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 var NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 function bookingLinkAction(reach, stop) {
@@ -31771,6 +31789,8 @@ function asNameSource(v) {
 var PERSON_NAME_WORDS = {
   /** The notice: "Priya Nair signed the reply". */
   signed: (name) => `${name} signed the reply`,
+  /** Its one-row form, in a head under who it is, before the name in bold: "Signed Priya Nair · Oct 6". */
+  signedAs: "Signed",
   use: "Use this name",
   /** The ×'s own words, said on hover and to a screen reader. */
   notTheirs: "Not their name",
@@ -39488,7 +39508,9 @@ var THREAD_PANE_WORDS = {
   pickTitle: (first) => `Reopen the chat with ${first}`,
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
-  others: "Others"
+  others: "Others",
+  /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+  sample: "Sample"
 };
 var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
@@ -39594,7 +39616,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     if (idx === -1) timeline.push(entry2);
     else timeline.splice(idx, 0, entry2);
   }
-  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
+  const moments = threadMoments(dto, escalation, state);
   const ask = askOf(escalation, lastInbound);
   const { lastWord, unanswered } = quietWordsOf(dto, state, tz, now);
   const preview = previewOf(dto.messages);
@@ -39636,7 +39658,6 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {},
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
@@ -39652,18 +39673,22 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
       escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
     ) : takenOver ? HELD_WORDS.yours.sentence : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
-    lastAt: shortTime(dto.last_message_at, tz, now),
-    lastAtFull: shortTime(dto.last_message_at, tz, now),
-    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
-    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
+    ...moments,
+    ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
     ...inboxReading(dto),
     pinned: false,
     tags: [],
     priority: "P2",
-    ...waitingMin !== void 0 ? { waitingMin } : {},
-    ...state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {},
     timeline
+  };
+}
+function threadMoments(dto, escalation, state) {
+  const wakeAtMs = state === "snoozed" && dto.snooze_until ? Date.parse(dto.snooze_until) : Number.NaN;
+  return {
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
+    ...Number.isFinite(wakeAtMs) ? { wakeAtMs } : {}
   };
 }
 function bubbleWhen(iso, tz, now) {
@@ -39702,7 +39727,7 @@ function unansweredOf(dto, tz, now) {
   return {
     line: heldAskLine(hold.details),
     closed: Number.isFinite(closedMs) ? `Closed ${clockDate(closedMs, tz, now.getTime())} without a reply` : "Closed without a reply",
-    waited: formatWaited(Math.max(0, now.getTime() - sinceMs)),
+    waited: waitedSince(sinceMs, now.getTime()),
     sinceMs
   };
 }
@@ -39920,9 +39945,9 @@ function reasonsLine(reasons, passed) {
 }
 function openLine(open) {
   if (!open.count) return null;
-  const worth2 = amountTotalsWords(open.amounts);
-  if (!worth2) return `${plural(open.count, "proposal", "proposals")} still open.`;
-  return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
+  const worth = amountTotalsWords(open.amounts);
+  if (!worth) return `${plural(open.count, "proposal", "proposals")} still open.`;
+  return open.count === 1 ? `${worth} still open in 1 proposal.` : `${worth} still open across ${open.count} proposals.`;
 }
 function toDealReportVM(dto, within2) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
@@ -41143,7 +41168,14 @@ function openOf(r2) {
   if (r2.openDeals && r2.openDeals.length) return r2.openDeals;
   return r2.deal && dealIsOpen(r2.deal) ? [r2.deal] : [];
 }
-var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+function pipelineWorth(vm) {
+  const of = (key) => amountTotalsWords(
+    (vm.groups.find((g) => g.key === key)?.rows ?? []).flatMap(
+      (r2) => r2.deal ? [{ amount_cents: r2.deal.amountCents, per: r2.deal.per, currency: r2.deal.currency }] : []
+    )
+  );
+  return { proposals: of("proposals"), clients: of("clients") };
+}
 function bandsOf(rows2, heldSet, nowMs) {
   const out = { ahead: [], proposals: [], clients: [], closed: [] };
   for (const r2 of rows2) {
@@ -41206,12 +41238,12 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       inOrder(shownProposals, (x) => x.d.sinceMs).map(
         (x) => dealRow(x, proposalChip(x.r, x.d, tz, nowMs, pace), nowMs, "proposals", pace)
       ),
-      worth(shownProposals)
+      null
     ),
     group(
       "clients",
       inOrder(shownClients, (x) => x.d.sinceMs, true).map((x) => dealRow(x, clientChip(x.d), nowMs, "clients", pace)),
-      worth(shownClients)
+      null
     ),
     group(
       "closed",
@@ -41221,15 +41253,13 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words3, press = null, joins = false) => words3 ? { words: words3, view: press, tone: press ? "warn" : null, joins } : null;
+  const part = (words3, press = null) => words3 ? { words: words3, view: press, tone: press ? "warn" : null } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
-    part(proposals.length ? worth(proposals) : null, null, true),
     part(waiting ? PIPELINE_WORDS.waitingLine(waiting, pace) : null, "waiting"),
     part(lapsed.length ? `${lapsed.length} lapsed` : null, "lapsed"),
     // Clients are people: a client of two services is one client, whose two deals are both in what they come to.
-    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null),
-    part(clients.length ? worth(clients) : null, null, true)
+    part(clients.length ? plural(new Set(clients.map((x) => x.r.id)).size, "client", "clients") : null)
   ].filter((x) => !!x);
   const clientCount = new Set(clients.map((x) => x.r.id)).size;
   const filter = (view2, count2, words3, tone) => count2 > 0 ? [{ view: view2, count: count2, words: words3, tone }] : [];
@@ -41244,10 +41274,7 @@ function pipelineOf(rows2, nowMs, tz, pace, view = "all") {
     ...filter("lapsed", lapsed.length, `${lapsed.length} lapsed`, "warn"),
     ...filter("clients", clientCount, plural(clientCount, "client", "clients"), "ok")
   ];
-  const proposed = proposals.length ? worth(proposals) : null;
-  const earning = clients.length ? worth(clients) : null;
-  const money3 = [proposed ? `${proposed} proposed` : null, earning ? `${earning} from clients` : null].filter((x) => !!x).join(" \xB7 ") || null;
-  return { summary: line.map((p) => p.words), line, filters, money: money3, groups, empty: groups.length === 0, pace };
+  return { summary: line.map((p) => p.words), line, filters, groups, empty: groups.length === 0, pace };
 }
 
 // src/deals/pipeline/pipeline-peek.ts
@@ -41271,24 +41298,6 @@ function pipelinePeekOf(row2, group, deals = null) {
     group,
     facts
   };
-}
-function pipelinePeekDetail(p) {
-  const W = PIPELINE_WORDS.peek.reach;
-  const reach = [];
-  if (p.phone && !(p.consent && p.consent.dnc))
-    reach.push({ id: "phone", label: W.phone, words: p.phone, warn: null, copy: p.phone });
-  if (p.email)
-    reach.push({
-      id: "email",
-      label: W.email,
-      words: p.email,
-      warn: p.emailSuppressed ? EMAIL_STOPPED_LINE : null,
-      copy: p.email
-    });
-  const replies = p.hasChat ? repliesWords(p.replyVia, p.replyWindow, { optedOut: p.stopped, who: p.name, emailStopped: p.emailSuppressed }) : null;
-  if (replies && !(p.email && replies === EMAIL_CANT_REACH))
-    reach.push({ id: "replies", label: W.replies, words: replies, warn: null, copy: null });
-  return { reach };
 }
 function stepsOf2(track, card, held) {
   const label = {
@@ -41318,10 +41327,9 @@ function pipelineSheetOf(row2, p, nowMs, tz) {
   const d = row2.deal;
   const held = p ? consultationStepOf(p, nowMs, tz) : null;
   const card = p && d && dealIsOpen(d) ? dealCardsOf(p, nowMs, tz).cards.find((c) => c.id === d.id) ?? null : null;
-  const others = p && p.deals ? p.deals.filter((o) => o.id && o.id !== (d?.id ?? null) && dealIsOpen(o)).map((o) => ({ dealId: o.id, title: o.service ?? o.word, words: o.said })) : [];
   const consulted = !d && p ? consultedService(p) : null;
   const sub = consulted ? `${DEAL_CARD_WORDS.consultation} \xB7 ${consulted}` : null;
-  const base = { sub, steps: stepsOf2(row2.track, card, held), others };
+  const base = { sub, steps: stepsOf2(row2.track, card, held) };
   if (card) {
     const asks = card.next?.id === "follow-up";
     const another = { act: { ...act("propose"), label: DEAL_CARD_WORDS.another }, dealId: null };
@@ -47235,6 +47243,16 @@ function titleWithoutLanguage(title, code2) {
   }
   return title;
 }
+var SAMPLE_MARK = /\s*\(sample\)$/i;
+function rowTitle(t, all) {
+  const given = (r2) => (r2.title ?? "").trim() !== "";
+  const twins = all.filter((r2) => r2 !== t && r2.name === t.name && given(r2));
+  const twin = twins.find((r2) => languageBase(r2.language) === "en") ?? twins[0];
+  const raw = templateTitle(t.name, given(t) || starterByName(t.name) || !twin ? t.title : twin.title);
+  const words3 = raw.replace(SAMPLE_MARK, "");
+  const sample = words3 !== "" && words3 !== raw;
+  return { title: titleWithoutLanguage(sample ? words3 : raw, t.language), sample };
+}
 function inboxTemplates(templates, to) {
   const rows2 = [];
   let promotions = 0;
@@ -47263,7 +47281,7 @@ function inboxTemplates(templates, to) {
       continue;
     }
     const fits = !!blank && !!starter && trigger === null || trigger === "visit_tomorrow" && to.visit === "ahead";
-    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
+    rows2.push({ template: t, ...rowTitle(t, templates), blank, fits });
   }
   const isDefault = (r2) => languageBase(r2.template.language) === "en";
   const named = [...new Set(rows2.map((r2) => r2.template.name))];
@@ -47280,7 +47298,8 @@ function inboxTemplates(templates, to) {
     title: r2.title,
     label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title,
     blank: r2.blank,
-    fits: r2.fits
+    fits: r2.fits,
+    sample: r2.sample
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
@@ -50741,7 +50760,8 @@ var SAY_IT_WORDS = {
     deal: "Website, 1,200 a month, valid to the 30th",
     note: "Prefers mornings; call them back Friday"
   },
-  go: "Fill it in",
+  // The press inside the box's end (21 Oct 2026): one word fits beside what was typed.
+  go: "Fill",
   busy: "Reading\u2026",
   filled: "Filled in from what you said. Check it, then save.",
   empty: "Nothing in that fits these fields. Try saying it another way.",
@@ -56888,7 +56908,9 @@ function receptionistRow2(i, ctx) {
           "Callers are told someone will confirm and are offered to leave a message",
           "Fill in your name, hours and services and it answers properly from the next call"
         ],
-        verb: { label: "Add your facts", to: "admin/workspace" }
+        // The first of the two it answers with that is missing, open on the page that holds it (the hours left Details
+        // for Hours & booking on 17 Oct 2026).
+        verb: { label: "Add your facts", to: `admin/workspace/${!i.business.name ? "name" : "hours"}` }
       };
     } else {
       return {
@@ -57119,6 +57141,8 @@ function billingRow(i, ctx) {
     verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" }
   };
 }
+var settingsRow = (row2) => `admin/workspace/${row2}`;
+var firstMissingFact = (b) => !b.name ? "name" : !b.hours ? "hours" : "services";
 function factsRow(i, ctx) {
   const { nowMs } = ctx;
   const b = i.business;
@@ -57183,7 +57207,7 @@ function factsRow(i, ctx) {
     required: true,
     sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`,
     details: [],
-    verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" }
+    verb: { label: none ? "Start in Business" : "Finish in Business", to: settingsRow(firstMissingFact(b)) }
   };
 }
 function handoffRow2(_i, ctx) {
@@ -57196,7 +57220,7 @@ function handoffRow2(_i, ctx) {
     required: false,
     sentence: `Callers who insist on a person are transferred to ${handoffNum}.`,
     details: [],
-    verb: { label: "Change it", to: "admin/workspace" }
+    verb: { label: "Change it", to: settingsRow("handoff_number") }
   } : {
     id: "handoff",
     icon: "phone",
@@ -57205,7 +57229,7 @@ function handoffRow2(_i, ctx) {
     required: false,
     sentence: "Give the receptionist a number to hand callers to when they insist on a person.",
     details: [],
-    verb: { label: "Add a number", to: "admin/workspace" }
+    verb: { label: "Add a number", to: settingsRow("handoff_number") }
   };
 }
 function whatsappRow(i, ctx) {
@@ -57495,6 +57519,8 @@ function setupSteps2(i, nowMs = Date.now()) {
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
+    remindSkipped: later.has(REMIND_SKIPPED),
+    dayBeforeOn: i.reminders?.day_before === true,
     forwardingOwed: forwardingOwedOf(i, later),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
@@ -58223,7 +58249,8 @@ function firstRunLiveOf({ dto, emails, business, owner }) {
         key: "through",
         label: W.through,
         value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
-        change: { label: W.change, to: "admin/workspace" }
+        // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+        change: { label: W.change, to: "admin/workspace/handoff_number" }
       },
       {
         key: "emails",
@@ -59143,21 +59170,29 @@ function firstRunOf(vm, at3, who) {
 }
 var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
 var CARD_REMIND = {
-  words: "Your calendar is in. Remind each customer the day before?",
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  said: "Put off. Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow"
 };
+var CARD_BILLING = { title: "Your plan", left: "Needs you" };
 function setupCardOf(vm) {
+  const billing = rowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
-    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const left2 = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
     const def = FIRST_RUN_STEPS[next.number - 1];
     return {
       title: FINISH_SETTING_UP,
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
         // or calls are answered and a step is still open.
@@ -59175,22 +59210,21 @@ function setupCardOf(vm) {
     };
   }
   const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r2) => r2 !== null && r2.state !== "ready" && !r2.later && !!r2.verb
+    (r2) => r2 !== null && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && !!r2.verb
   );
   if (!rows2.length) return null;
-  const said = rows2.length === 1 ? CARD_SKIP.said : `All ${rows2.length} put off. They stay in Setting up for when you're ready.`;
   const calendar = rowOf(vm, "calendar");
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
+  const left = rows2.length + (remind ? 1 : 0);
+  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows2.length} left`,
+    left: `${left} left`,
     start: null,
     rows: rows2,
     hide: { put: "Hide", said },
     skip: CARD_SKIP,
-    // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
-    // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the moment is not offered and core refuses it.
-    remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
+    remind
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
@@ -62508,7 +62542,7 @@ var NOTIFICATION_DELIVERY = {
   note_to_keep: "bell",
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
   reply_held: "bell",
-  // Ask's morning cards on Today (00471): a line on the member's own bell, no more.
+  // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
   ask_cards: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
@@ -63851,7 +63885,7 @@ var ACTIVITY_NOISE_KINDS = [
   "lead.later",
   // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
   "lead.ideas_written",
-  // Ask's journal written and a member's morning claimed (00471): how often is Reports', and the journal never writes
+  // Ask's journal written and a member's morning claimed (00470): how often is Reports', and the journal never writes
   // about its own day.
   "ask.journal_written",
   "ask.morning_claimed",
@@ -66022,6 +66056,7 @@ export {
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_QUESTION,
+  REMIND_SKIPPED,
   RENAME_WORDS,
   REPLIES_PAGE,
   REPLY_ANSWERED_MAX,
@@ -67053,6 +67088,7 @@ export {
   inboxSlots,
   inboxTemplateParts,
   inboxTemplates,
+  inboxThreadClock,
   indexFeed,
   industryOf,
   industryWords,
@@ -67706,7 +67742,6 @@ export {
   pipelineOf,
   pipelinePassDone,
   pipelinePassMany,
-  pipelinePeekDetail,
   pipelinePeekOf,
   pipelinePersonOf,
   pipelineRail,
@@ -67716,6 +67751,7 @@ export {
   pipelineSheetOf,
   pipelineSorted,
   pipelineViewLabel,
+  pipelineWorth,
   placeRailOf,
   placeSpanOf,
   placeStands,

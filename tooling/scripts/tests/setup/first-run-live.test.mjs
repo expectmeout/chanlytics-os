@@ -71,7 +71,7 @@ test("Live (canvas R9): the four lines, the greeting word for word, and Finish's
     vm.summary.map((r) => [r.label, r.value, r.change && r.change.to]),
     [
       ["Answers", "+1 (305) 555-0100, when nobody picks up", null],
-      ["Puts callers through to", "+1 (786) 555-0199", "admin/workspace"],
+      ["Puts callers through to", "+1 (786) 555-0199", "admin/workspace/handoff_number"],
       ["Emails you at", "owner@example.com, when someone needs you", "admin/notifications"],
       ["Knows", "Your hours, your address, 4 services and your booking link", "admin/workspace"],
     ],

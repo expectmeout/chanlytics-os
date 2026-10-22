@@ -59,6 +59,7 @@ export const ADDED_SINCE = [
   "propose_person.merge",
   "propose_person.message",
   "propose_person.note",
+  "propose_person.step",
   "propose_plan.steps",
   "propose_reply.booking",
   "propose_review.reply",

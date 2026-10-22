@@ -73,7 +73,7 @@ test("a named tool's emails say the next thing to do, first: an address, a forwa
   const noAddress = of({ address: false });
   assert.equal(noAddress.state, "needs_you");
   assert.equal(noAddress.sentence, "Booksy needs an address to send its booking emails to.");
-  assert.equal(noAddress.next.label, "Finish setting up");
+  assert.equal(noAddress.next.label, "Choose the address");
   const forward = of({ forwarding: true });
   assert.equal(forward.state, "needs_you");
   assert.equal(forward.sentence, "Gmail is waiting for you to confirm the forward.");

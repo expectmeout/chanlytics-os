@@ -1,5 +1,5 @@
 /**
- * What Ask remembers, on a real database (00471; decision 0070), with real sessions: the memory's one door by act and
+ * What Ask remembers, on a real database (00470; decision 0070), with real sessions: the memory's one door by act and
  * by role (an operator keeps and forgets their own line, the settings permission changes and forgets any, a viewer
  * neither, a stranger finds nothing; the same line twice is one line; forty live lines is full), the morning's door (the
  * day claimed once, a viewer refused, the thread named once and only with the member's own, the cards recorded once,

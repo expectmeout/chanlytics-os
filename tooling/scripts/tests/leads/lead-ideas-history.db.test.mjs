@@ -4,7 +4,7 @@
  * round that ends adding to its kind's platform-wide counts (lead_niche_priors, by the plan's category_key); and the
  * one writer of the ideas, lead_suggestions_write, by act: a second claim refused while the first stands, a keep under
  * a claim since let go refused, a failure under a stale claim changing nothing, the owner's line clearing a claim, New
- * ideas (00471's again) keeping what was shown, and the event a keep, a line and an again write. Both doors are the service's alone. Local stack only: it makes a workspace.
+ * ideas (00470's again) keeping what was shown, and the event a keep, a line and an again write. Both doors are the service's alone. Local stack only: it makes a workspace.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -319,7 +319,7 @@ test("the owner's line clears a claim in flight, and a keep and a line each writ
 });
 
 test(
-  "New ideas (00471's again) keeps the ideas shown to be passed on, lets the claim go and asks at once",
+  "New ideas (00470's again) keeps the ideas shown to be passed on, lets the claim go and asks at once",
   { skip },
   async () => {
     const claim = ok(await write({ p_act: "claim", p_line: "x" })).claim;

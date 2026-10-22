@@ -1,4 +1,3 @@
-import { MIN_MS } from "../shared/time.js";
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { replyWhy } from "../config/brain.js";
 import { replyWindow } from "../config/policy.js";
@@ -8,7 +7,7 @@ import { messageAt, isOptedOut } from "./thread-dto.js";
 import { mayRing } from "../consent/consent.js";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel.js";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact.js";
-import { shortTime, bubbleTime, formatWaited } from "./thread-clock.js";
+import { shortTime, bubbleTime, inboxThreadClock, waitedSince } from "./thread-clock.js";
 import { clockDate, clockHistoryDay, clockTime } from "../shared/clock.js";
 import { mediaVM } from "./message-media.js";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email.js";
@@ -104,7 +103,9 @@ export const THREAD_PANE_WORDS = {
   pickTitle: (first) => `Reopen the chat with ${first}`,
   pickSub: "After a day, WhatsApp delivers only an approved message.",
   fitsNow: "Fits now",
-  others: "Others"
+  others: "Others",
+  /** A template of the sample data, said beside its name where its title said "(sample)" (inboxTemplates `sample`). */
+  sample: "Sample"
 };
 const wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
@@ -210,7 +211,7 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
-  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
+  const moments = threadMoments(dto, escalation, state);
   const ask = askOf(escalation, lastInbound);
   const { lastWord, unanswered } = quietWordsOf(dto, state, tz, now);
   const preview = previewOf(dto.messages);
@@ -252,7 +253,6 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {},
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
@@ -268,18 +268,22 @@ export function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new D
       // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
       escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : reasonSummaryOf(escalation.reason)
     ) : takenOver ? HELD_WORDS.yours.sentence : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
-    lastAt: shortTime(dto.last_message_at, tz, now),
-    lastAtFull: shortTime(dto.last_message_at, tz, now),
-    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
-    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
+    ...moments,
+    ...inboxThreadClock(moments, tz, now.getTime()),
     // The dot is the reader's own (standing.ts isUnseen, 00349; inbox-thread-vm.ts says what it meant before).
     ...inboxReading(dto),
     pinned: false,
     tags: [],
     priority: "P2",
-    ...waitingMin !== void 0 ? { waitingMin } : {},
-    ...state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {},
     timeline
+  };
+}
+function threadMoments(dto, escalation, state) {
+  const wakeAtMs = state === "snoozed" && dto.snooze_until ? Date.parse(dto.snooze_until) : Number.NaN;
+  return {
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
+    ...Number.isFinite(wakeAtMs) ? { wakeAtMs } : {}
   };
 }
 function bubbleWhen(iso, tz, now) {
@@ -318,7 +322,7 @@ function unansweredOf(dto, tz, now) {
   return {
     line: heldAskLine(hold.details),
     closed: Number.isFinite(closedMs) ? `Closed ${clockDate(closedMs, tz, now.getTime())} without a reply` : "Closed without a reply",
-    waited: formatWaited(Math.max(0, now.getTime() - sinceMs)),
+    waited: waitedSince(sinceMs, now.getTime()),
     sinceMs
   };
 }

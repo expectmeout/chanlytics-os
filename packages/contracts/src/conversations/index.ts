@@ -24,7 +24,7 @@ export {
   emailStoppedWords,
 } from "./thread-contact";
 export type { EmailStopBearing } from "./thread-contact";
-export { shortTime, formatWaited } from "./thread-clock";
+export { shortTime, formatWaited, inboxThreadClock } from "./thread-clock";
 export { mediaKind, mediaVM } from "./message-media";
 export type { MediaVM } from "./message-media";
 export { emailLeftOutOf, splitQuotedReply } from "./message-email";

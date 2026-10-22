@@ -190,7 +190,7 @@ before(async () => {
     role: "user",
     content: { text: "hi" },
   });
-  // What Ask remembers (00471, decision 0070): a line every member reads, a day of the journal its owners read, and the
+  // What Ask remembers (00470, decision 0070): a line every member reads, a day of the journal its owners read, and the
   // viewer's own morning.
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
   // Keyed by their workspace and day, so no id to pick.
@@ -669,7 +669,7 @@ const TENANT_TABLES = {
   contact_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   contact_marks: ["own", () => ({ tenant_id: A, contact_id: ctx.contact, user_id: ctx.strangerId })],
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
-  // What Ask remembers (00471): the memory is the workspace's, its journal its owners', a morning the member's own.
+  // What Ask remembers (00470): the memory is the workspace's, its journal its owners', a morning the member's own.
   ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],

@@ -52,7 +52,7 @@ export const ERASURE_LEGS = {
   jobs_scrub:
     "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub:
-    "scrub_ask_for_contact: the assistant's turns that name them deleted (00238), and the lines Ask remembers and the days of its journal that name them (00471)",
+    "scrub_ask_for_contact: the assistant's turns that name them deleted (00238), and the lines Ask remembers and the days of its journal that name them (00470)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub:
@@ -96,7 +96,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer"),
   },
-  // What Ask remembers (00471, decision 0070): a line a member told it, and a day of its journal, which may name a customer
+  // What Ask remembers (00470, decision 0070): a line a member told it, and a day of its journal, which may name a customer
   // as the team does; one that names them goes with their turns. Where each came from is a closed set.
   ask_journal_days: { text: scrubbedBy("ask_scrub") },
   ask_memory_lines: { text: scrubbedBy("ask_scrub") },

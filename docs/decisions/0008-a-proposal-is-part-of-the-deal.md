@@ -440,15 +440,17 @@ the row's steps and its chip, the sheet and the person page's card
 day before anything else, one the follow-up has in hand or that is still young
 is info, a client is good), then one line of what wants a look and the facts
 beside it, the next step and their last words; raised, the proposal's link in
-a box of its own, how to reach them -- the number and the address with Copy, an
-address that stopped accepting mail said under itself, and what a reply may be
-now, the person page's own sentence (`repliesWords`, `pipelinePeekDetail`) --
-their other open deals, each opening its own row, and their page. A record is
-a box of rows on the kit's inset ground, under a quiet label (amended 21 Oct
-2026, the canvas's look). A consultation's head names the service it was for
+a box of its own, how to reach them, their other open deals and their page.
+Amended 21 Oct 2026 (the canvas "Pipeline deal sheet, compact"): the sheet
+acts, their page records. It is as tall as what it holds, on a phone and a
+desk: the steps, the one line, the question, the next step (one row; Set opens
+the step sheet filled from the act the card leads with, `stepSheetFor`'s
+`lead`) and the facts the row carries. Their last words, how to reach them,
+the proposal's link and their other deals are their page's, and its face and
+name open it. A consultation's head names the service it was for
 once the person is read (`consultedService`). Its foot leads with one act, the card's `dealNextAct`, the deal's
-other moves in the caret on the same pill, then Message and Call; a client's
-leads with Message. While a proposal waits with nothing back and Follow up
+other moves and the proposal where it lives in the caret on the same pill, then
+Message and Call, bare in the foot's one glass; a client's leads with Message. While a proposal waits with nothing back and Follow up
 leads, the sheet asks whether they said yes, its two answers the yes and the
 pass; a pass asks why in the foot, the selection's reasons. The last moves of
 their deals it once listed are their page's, a press away. Beside an open peek

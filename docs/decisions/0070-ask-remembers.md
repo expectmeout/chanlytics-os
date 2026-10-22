@@ -2,7 +2,7 @@
 
 **Status:** Decided by Ruben on 21 October 2026 ("Build the whole of option 2 in one lane: memory, recall, journal, and
 the morning turn on Today with the lead ideas inside it"), and built on the lane `ask/remembers` from main's
-`b53a1b0ef`, not yet merged: its migration's working name is 00471, numbered at push. The analysis, checked against the
+`b53a1b0ef`, not yet merged: its migration's working name is 00470, numbered at push. The analysis, checked against the
 code and the API's own guidance: https://claude.ai/artifact/1cz1AjLDCE4sNBMQCWADNo. The lead ideas' part is option B of
 https://claude.ai/artifact/QR4t5xUSHRGGmrr1mKgHyU. Where this note and the code disagree, the code wins.
 
@@ -45,7 +45,7 @@ ideas were written by a model boxed into one card (Maps) and five known places, 
 
 ## Shape
 
-- **Database (00471):** `ask_mornings` + `ask_morning_write`; `ask_memory_lines` + `ask_memory_write` (keep, change,
+- **Database (00470):** `ask_mornings` + `ask_morning_write`; `ask_memory_lines` + `ask_memory_write` (keep, change,
   forget); `ask_journal_days` + `ask_journal_open_days` + `ask_journal_write` (due, keep); `ask_message_words` and
   `search_ask`; `lead_suggestions_write`'s fifth act `again`; `notifications.kind` gains `ask_cards`, `ai_usage.purpose`
   gains `ask_journal`; `scrub_ask_for_contact` takes a person's lines and days too; `trigger_notes_sweep` asks when a

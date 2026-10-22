@@ -35,7 +35,7 @@ const NOTIFICATION_DELIVERY = {
   note_to_keep: "bell",
   // A reply counting down to go in the owner's name (decision 0064): the bell and the phone, never a mail for a wait of minutes.
   reply_held: "bell",
-  // Ask's morning cards on Today (00471): a line on the member's own bell, no more.
+  // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
   ask_cards: "bell"
 };
 export const EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");

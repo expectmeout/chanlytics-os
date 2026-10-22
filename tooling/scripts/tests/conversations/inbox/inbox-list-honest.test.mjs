@@ -461,6 +461,64 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
   assert.equal(pressed, 1, "the demo's archive keeps its Undo and asks nothing");
 });
 
+test("the rows rise in once, on the list's first draw, as People's do (kit/motion/use-rows-arrive.ts): a row drawn later comes as it is", () => {
+  // The rows rose on a stylesheet's entrance (components.css), every row as it was drawn: on a phone a flick drew rows the
+  // window had not (kit/rows/shown-rows.ts), and each came in from nothing, see-through for a beat and with no line between
+  // them (Ruben, 21 Oct 2026). The rows' element gives the kit's ref the rows it holds, once.
+  fresh();
+  const tree = again(() => InboxList(listProps()));
+  const box = find(tree, (n) => n.props?.role === "listbox");
+  const moving = () => {
+    const runs = [];
+    return {
+      runs,
+      animate: (frames, timing) => {
+        runs.push({ frames, timing });
+        return { cancel() {} };
+      },
+      getAnimations: () => [],
+    };
+  };
+  const asked = [];
+  const first = [moving(), moving(), moving()];
+  const later = [moving()];
+  const keep = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false });
+  try {
+    box.props.ref({
+      querySelectorAll: (sel) => {
+        asked.push(sel);
+        return first;
+      },
+    });
+    box.props.ref(null);
+    box.props.ref({
+      querySelectorAll: (sel) => {
+        asked.push(sel);
+        return later;
+      },
+    });
+  } finally {
+    globalThis.matchMedia = keep;
+  }
+  assert.deepEqual(asked, [":scope > .ix-thread"], "the list's own rows, asked once");
+  assert.deepEqual(
+    first.map((r) => r.runs.length),
+    [1, 1, 1],
+    "its first rows rise",
+  );
+  assert.deepEqual(
+    first.map((r) => r.runs[0].timing.delay),
+    [0, 30, 60],
+    "a beat apart, as a table's do",
+  );
+  assert.deepEqual(
+    later.map((r) => r.runs.length),
+    [0],
+    "a row drawn later comes as it is",
+  );
+});
+
 test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on the open one, arrows and J/K open and focus the row on screen, Enter opens, Space selects -- and a screen reader hears a list", () => {
   const opened = [];
   const toggled = [];

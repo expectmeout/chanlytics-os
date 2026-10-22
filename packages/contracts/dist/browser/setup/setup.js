@@ -159,6 +159,7 @@ export function keptPhoneKind(line) {
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
 export const TRY_SKIPPED = "try-skipped";
+export const REMIND_SKIPPED = "remind-skipped";
 export const KEEP_ROW = "keep";
 export const SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",

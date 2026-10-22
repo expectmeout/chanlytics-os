@@ -477,7 +477,7 @@ var ERASURE_LEGS = {
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00440)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
-  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238), and the lines Ask remembers and the days of its journal that name them (00471)",
+  ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238), and the lines Ask remembers and the days of its journal that name them (00470)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
   turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
@@ -501,7 +501,7 @@ var ERASURE_STRATEGIES = {
     error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer")
   },
-  // What Ask remembers (00471, decision 0070): a line a member told it, and a day of its journal, which may name a customer
+  // What Ask remembers (00470, decision 0070): a line a member told it, and a day of its journal, which may name a customer
   // as the team does; one that names them goes with their turns. Where each came from is a closed set.
   ask_journal_days: { text: scrubbedBy("ask_scrub") },
   ask_memory_lines: { text: scrubbedBy("ask_scrub") },
@@ -5786,6 +5786,11 @@ async function dealOnFile(db, tenantId) {
   const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
   return !r.error && (r.data?.length ?? 0) > 0;
 }
+async function openDealsOf(db, tenantId, contactId) {
+  const r = await db.from("deals").select("id, service").eq("tenant_id", tenantId).eq("contact_id", contactId).in("stage", ["proposed", "won"]).order("created_at", { ascending: false });
+  if (r.error) throw new Error(r.error.message);
+  return (r.data ?? []).map((d) => ({ id: d.id, service: d.service }));
+}
 async function recordDeal(db, p) {
   const { data, error } = await db.rpc("record_deal", {
     p_contact_id: p.contactId,
@@ -7783,6 +7788,7 @@ export {
   oneOffMessageOf,
   openBookingRequest,
   openConversation,
+  openDealsOf,
   openDoubtsOf,
   openEscalation,
   openRequestOfThread,

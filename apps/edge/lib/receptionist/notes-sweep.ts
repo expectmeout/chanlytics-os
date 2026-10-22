@@ -16,7 +16,7 @@
  *
  * Last, Ask's journal (decision 0070): the days of a workspace that ended an hour ago with something in them, written for
  * an owner's Ask, while the run has time for another before its ceiling (vercel.json's sixty seconds), and the clock
- * asks when a day is due too (00471). It runs after the notes, so a slow model there costs the journal a day, never the
+ * asks when a day is due too (00470). It runs after the notes, so a slow model there costs the journal a day, never the
  * notes their look.
  *
  * NOTE_SUGGESTIONS=off stops the notes and the corrections without a deploy of the database: the clock still asks, and

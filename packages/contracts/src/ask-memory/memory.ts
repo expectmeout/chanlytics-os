@@ -21,7 +21,7 @@ export const ASK_MEMORY_LIMITS = {
   textMax: 300,
   /**
    * The lines a workspace keeps at once, every one read into each turn's shape block (so what the pane lists is what Ask
-   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00471).
+   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00470).
    */
   liveMax: 40,
 } as const;
@@ -45,7 +45,7 @@ export const ASK_JOURNAL_LIMITS = {
   perRun: 3,
 } as const;
 
-/** Where a line came from: a member told Ask in a thread and Ask kept it, or a member wrote it on the pane (00471). */
+/** Where a line came from: a member told Ask in a thread and Ask kept it, or a member wrote it on the pane (00470). */
 export type AskMemorySource = SchemaSet<"ask_memory_lines.source">;
 
 /** One line as the pane and the shape read it. */

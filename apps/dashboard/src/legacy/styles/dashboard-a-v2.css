@@ -1117,8 +1117,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    where the row's acts do. Setup's own margins are its page's (a tile and a 24px gutter, settings.css), which the card
    does not have: the form stood 48px inside the words. */
 .today-setup .setup-chooser { margin-left: 26px; margin-right: 0; }
-/* After the first run, the one door to the appointment reminder (decision 22), under the card's rows. */
-.today-setup-remind { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0; padding: var(--space-2) 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
@@ -1134,7 +1132,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .setup-card-body { display: grid; gap: 1px; min-width: 0; }
 .setup-card-name { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .setup-card-said { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
-/* The count beside the first row's words is the phone's; a wider screen says it in the head. */
+/* The count beside the first row's words was a phone's one row's; every width says it in the head now. */
 .setup-card-aside { display: none; }
 /* A button with a phone's shorter word says the whole one here. */
 .setup-card-short { display: none; }
@@ -1326,7 +1324,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    row opens a form under itself (keep your number), and that rule drew the form's choice and its Save as these
    capsules (8 Oct 2026). */
 .dash-a-v2 .tq .cl-attn-acts > button,
-.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]) {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"], [data-testid="today-setup-remind-go"]) {
   height: 34px;
   border-radius: var(--radius-full);
   padding: 0 15px;
@@ -1334,7 +1332,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   font-weight: var(--weight-medium);
 }
 .dash-a-v2 .tq .cl-attn-acts > button.primary,
-.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]).primary {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"], [data-testid="today-setup-remind-go"]).primary {
   background: var(--primary-fill);
   border: 0;
   color: var(--primary-ink);
@@ -1343,13 +1341,13 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 @media (hover: hover) {
   .dash-a-v2 .tq .cl-attn-acts > button.primary:hover,
-.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]).primary:hover {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"], [data-testid="today-setup-remind-go"]).primary:hover {
     background: var(--primary-hover);
     filter: none;
   }
 }
 .dash-a-v2 .tq .cl-attn-acts > button:not(.primary),
-.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"]):not(.primary) {
+.dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"], [data-testid="today-setup-remind-go"]):not(.primary) {
   background: var(--surface-inset-fill);
   border-color: var(--surface-inset-edge);
   color: var(--ink);
@@ -1730,8 +1728,8 @@ a.ts-next { text-decoration: none; }
 /* What is left to set up, compact (Ruben, 1 Oct 2026: kept, drawn cleanly): one eyebrow line in mono with the count,
    Hide at its right, then each row as the state's dot, the name over one line of its words, and its act at the right.
    The card's own parts are reached by their place and their testids, since the ratchet counts the card's names. The
-   eyebrow is every width's: on a phone it is what says the card is setting up and how many are left, over mobile.css's
-   one row (Ruben, 7 Oct 2026: the row's sentence, three lines beside its button, is a desk's). */
+   eyebrow and Hide are every width's, over the same rows (Ruben, 21 Oct 2026); a phone's rows go without their
+   sentence (mobile.css; Ruben, 7 Oct 2026: three lines beside the button is a desk's). */
 .dash-a-v2 .today-setup > :first-child { align-items: center; }
 .dash-a-v2 .today-setup > :first-child > :first-child {
   gap: 6px;

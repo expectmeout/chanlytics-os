@@ -166,7 +166,7 @@ export async function saveIdeasLine(db: Db, tenantId: string, line: string): Pro
 }
 
 /**
- * New ideas (00471, act again): the same line written again, so the next write asks the model, with the ideas shown
+ * New ideas (00470, act again): the same line written again, so the next write asks the model, with the ideas shown
  * kept to be passed on (ideaPassed), so the four it writes are new ones. Like a line, it clears any claim.
  */
 export async function againIdeas(db: Db, tenantId: string): Promise<void> {

@@ -865,7 +865,7 @@ $$;
 -- Name: FUNCTION ask_message_words(p_content jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ask_message_words(p_content jsonb) IS 'The words of one stored Ask turn as recall reads them (00471): the question''s text, or the answer''s Say (headline and detail). Never the raw turn.';
+COMMENT ON FUNCTION public.ask_message_words(p_content jsonb) IS 'The words of one stored Ask turn as recall reads them (00470): the question''s text, or the answer''s Say (headline and detail). Never the raw turn.';
 
 
 --
@@ -11027,7 +11027,7 @@ $$;
 -- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400, 00471), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim and what was passed on), again ({again}: New ideas from the same line, what was shown kept to be passed on). A keep, a line and an again write lead.ideas_written. The service''s alone.';
+COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400, 00470), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim and what was passed on), again ({again}: New ideas from the same line, what was shown kept to be passed on). A keep, a line and an again write lead.ideas_written. The service''s alone.';
 
 
 --
@@ -25114,7 +25114,7 @@ end $_$;
 -- Name: FUNCTION scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'Owner-only, and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00471). Returns the messages removed, the raws stripped, the lines and the days removed.';
+COMMENT ON FUNCTION public.scrub_ask_for_contact(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'Owner-only, and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Then every line of Ask''s memory and every day of its journal that holds one of those, or their name as a whole word (00470). Returns the messages removed, the raws stripped, the lines and the days removed.';
 
 
 --

@@ -830,16 +830,10 @@
       "reads": {
         "calendar": [
           "sequences"
-        ],
-        "setup": [
-          "sequences"
         ]
       },
       "heardWith": {
         "calendar": [
-          "appointments"
-        ],
-        "setup": [
           "appointments"
         ]
       }

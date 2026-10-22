@@ -5,9 +5,8 @@
  *
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported.
  */
+import type { ReactNode } from "react";
 import { FIRST_RUN_HELPERS, type SetupCardVM } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
-import { routeDoor } from "../../legacy-verbs";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
@@ -31,20 +30,34 @@ function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (
   );
 }
 
-/** After the first run, with the calendar in: the one door to the appointment reminder (decision 22), under the rows. */
-function remindLine(remind: NonNullable<SetupCardVM["remind"]>) {
+/**
+ * After the first run, with the calendar in: the one door to the appointment reminder (decision 22), as the card's last
+ * row in Setup's list, drawn as Setup's are: its dot, its name over its sentence, its button and its Skip.
+ */
+function remindRow(
+  remind: NonNullable<SetupCardVM["remind"]>,
+  skip: SetupCardVM["skip"],
+  nav: (to: string) => void,
+  putOff: () => void,
+) {
   return (
-    <p className="today-setup-remind" data-testid="today-setup-remind">
-      <span>{remind.words}</span>
-      <Button size="sm" {...routeDoor(remind.to)} data-testid="today-setup-remind-go">
-        {remind.label}
-      </Button>
-    </p>
+    <div>
+      <SetupCardRow
+        tone=""
+        stateWords={remind.stateWords}
+        name={remind.name}
+        sentence={remind.words}
+        cta={{ label: remind.label, onClick: () => nav(remind.to) }}
+        also={{ label: skip.put, onClick: putOff, testid: "today-setup-remind-skip" }}
+        testid="today-setup-remind"
+        ctaTestid="today-setup-remind-go"
+      />
+    </div>
   );
 }
 
-/** After: Setup's own optional rows, each with its Skip. */
-function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) => void) {
+/** After: Setup's own optional rows, each with its Skip, and the reminder's row under them. */
+function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) => void, tail: ReactNode) {
   return (
     <SetupRows
       S={S}
@@ -54,6 +67,7 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
       left={card.left}
       later={card.skip}
       flash={flash}
+      tail={tail}
       testid="today-setup-rows"
     />
   );
@@ -61,10 +75,10 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
-// most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing is left.
-// Every word is contracts' (first-run.ts setupCardOf); the rows are Setup's own, drawn as the card's compact rows
-// (setup/rows SetupRows look="card", SetupCardRow). On a phone the card is that one row, the
-// next thing with its button beside it and the count under its name (canvas P9, mobile.css).
+// most, each with its act and a Skip this person keeps on every device (their saved view), and the reminder's row last.
+// Gone once nothing is left. Every word is contracts' (first-run.ts setupCardOf); the rows are Setup's own, drawn as
+// the card's compact rows (setup/rows SetupRows look="card", SetupCardRow). A phone draws the same rows and acts as a
+// desk, each row without its sentence (mobile.css).
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
@@ -72,18 +86,21 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
   const put = (ids: string[], on: boolean) => setupVerbs.later(ids, on);
-  const hide = async () => {
-    const ids = card.rows.map((r) => r.id);
+  // Put off, said in the card's toast with its Undo: every row at once (Hide, the reminder's row with them), or the
+  // reminder's alone (its Skip; Setup's rows skip through SetupRows).
+  const putAway = async (ids: string[], said: string | undefined) => {
     const r = await put(ids, true);
     if (!r.ok) return flash(refusalFlash(r, "Not saved"));
     flash({
-      msg: <>{card.hide?.said}</>,
+      msg: <>{said}</>,
       undo: () =>
         put(ids, false).then((u) => {
           if (!u.ok) flash(refusalFlash(u, "Not saved"));
         }),
     });
   };
+  const remind = card.remind;
+  const hide = () => putAway([...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])], card.hide?.said);
   return (
     <section className="tq today-setup" data-testid="today-setup">
       <div className="setup-card-head">
@@ -104,8 +121,14 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
           </button>
         ) : null}
       </div>
-      {card.start ? startRow(card.start, card.left, nav) : optionalRows(S, card, flash)}
-      {card.remind ? remindLine(card.remind) : null}
+      {card.start
+        ? startRow(card.start, card.left, nav)
+        : optionalRows(
+            S,
+            card,
+            flash,
+            remind ? remindRow(remind, card.skip, nav, () => void putAway([remind.id], remind.said)) : null,
+          )}
       {toastNode}
     </section>
   );

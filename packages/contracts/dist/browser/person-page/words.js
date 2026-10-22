@@ -6,6 +6,8 @@ export function asNameSource(v) {
 export const PERSON_NAME_WORDS = {
   /** The notice: "Priya Nair signed the reply". */
   signed: (name) => `${name} signed the reply`,
+  /** Its one-row form, in a head under who it is, before the name in bold: "Signed Priya Nair · Oct 6". */
+  signedAs: "Signed",
   use: "Use this name",
   /** The ×'s own words, said on hover and to a screen reader. */
   notTheirs: "Not their name",

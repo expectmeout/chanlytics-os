@@ -326,6 +326,36 @@ test("one message is offered once: its default language first, a language said o
   );
 });
 
+test("a sample's title says so beside it, not in its words, and a message's row with no title of its own reads as its twin's", () => {
+  const { inboxTemplates } = contracts;
+  const to = { who: "Rosa Díaz", offersOk: true };
+  const newsEn = tpl("sample_product_news", { title: "Product news (sample)", variables: booking.variables });
+  const newsEs = tpl("sample_product_news", { language: "es", variables: booking.variables });
+  assert.deepEqual(
+    inboxTemplates([newsEs, newsEn, booking], to).sendable.map((s) => [s.title, s.label, s.sample]),
+    [
+      ["Product news", "Product news · English", true],
+      ["Product news", "Product news · Spanish", true],
+      ["Booking link", "Booking link", false],
+    ],
+    "REGRESSION: the picker read 'Sample product news', the Spanish row's wire name, beside 'Product news (sample)'",
+  );
+  assert.deepEqual(
+    inboxTemplates(
+      [tpl("welcome_new", { language: "es", title: "Hola (sample)", variables: welcome.variables })],
+      to,
+    ).sendable.map((s) => [s.title, s.sample]),
+    [["Hola", true]],
+    "the mark goes, and the row says it is a sample",
+  );
+  assert.equal(
+    inboxTemplates([tpl("given", { title: "A sample of our work", variables: booking.variables })], to).sendable[0]
+      .sample,
+    false,
+    "a title that only says the word is the owner's words, not the sample data's mark",
+  );
+});
+
 test("the thread knows what the composer needs: whether they said yes to offers, and their number as people read it", async () => {
   const { toConversationDto } = await import("../../../../../apps/dashboard/src/server/dto.ts");
   const row = {
@@ -472,12 +502,14 @@ test("the template send is the reply box's capsule: the message it will send at 
     const menu = menuIn(tree);
     return textOf(menu ? menu.props.trigger : find(tree, hasClass("ix-tpl-name"))).trim();
   };
-  // The menu as the composer reads it: a "|" between two groups, a heading in [], the messages of a group in ().
+  // The menu as the composer reads it: a "|" between two groups, a heading in [], the messages of a group in (), and what
+  // is said of them all under them in {}.
   const shape = (menu) =>
     menu.props.groups.flatMap((g, i) => [
       ...(i ? ["|"] : []),
       ...(g.header ? ["[" + g.header + "]"] : []),
-      ...(g.items.length ? ["(" + g.items.map((o) => o.label).join(", ") + ")"] : []),
+      ...(g.choose ? ["(" + g.choose.options.map((o) => o.label).join(", ") + ")"] : []),
+      ...(g.caption ? ["{" + g.caption + "}"] : []),
     ]);
   const sendOf = (tree) => find(tree, hasClass("ix-composer-send"));
 
@@ -508,21 +540,26 @@ test("the template send is the reply box's capsule: the message it will send at 
       "|",
       "[Others]",
       "(Booking link)",
-      "|",
-      "[Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers).]",
+      "{Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers).}",
     ],
     "REGRESSION: all seven were offered, and most would be refused",
   );
-  const items = menuIn(tree).props.groups.flatMap((g) => g.items);
+  const sets = menuIn(tree).props.groups.map((g) => g.choose);
+  const options = sets.flatMap((set) => set.options);
   assert.equal(
-    items[0].meta,
-    "Hi Rosa, a quick note from [Business name]: [the note] Write back here if you have any questions.",
+    textOf(options[0].sub),
+    "Hi Rosa, a quick note from [Business name]: the note Write back here if you have any questions.",
     "each with what it says under its name: they were names alone, so a template went out unread",
   );
+  assert.equal(
+    find(options[0].sub, hasClass("ix-tpl-said-blank")) && textOf(find(options[0].sub, hasClass("ix-tpl-said-blank"))),
+    "the note",
+    "its blank said by its label, as the place the member's words go",
+  );
   assert.deepEqual(
-    items.map((o) => o.glyph.props.className),
-    ["", "ix-tpl-unpicked"],
-    "the chosen one ticked",
+    sets.flatMap((set) => set.options.filter((o) => o.value === set.value).map((o) => o.label)),
+    ["A quick note"],
+    "the chosen one picked, in whichever group it stands",
   );
   // Its sentence as she will read it, the member's words written in its blank, and Send waits for them.
   const fill = find(tree, byTestId("ix-tpl-fill"));
@@ -556,7 +593,8 @@ test("the template send is the reply box's capsule: the message it will send at 
     "REGRESSION: booking_link · en_US; the menu lists messages, not languages",
   );
   assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send template', which said nothing of what it sends");
-  menuIn(tree).props.groups[0].items[1].onSelect();
+  const set = menuIn(tree).props.groups[0].choose;
+  set.onChoose(set.options[1].value);
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.equal(nameOf(tree), "Save our number", "the chosen message is the one the capsule names, and Send sends");
 
@@ -597,7 +635,7 @@ test("the template send is the reply box's capsule: the message it will send at 
   tree = composerOf(closed);
   assert.deepEqual(
     shape(menuIn(tree)),
-    ["[Not offered: 1 that WhatsApp would refuse (a picture for a heading).]"],
+    ["{Not offered: 1 that WhatsApp would refuse (a picture for a heading).}"],
     "REGRESSION: the picker offered a message Meta refuses for every send",
   );
   assert.equal(nameOf(tree), "Booking link");

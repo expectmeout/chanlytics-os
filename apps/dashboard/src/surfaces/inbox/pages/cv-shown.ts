@@ -2,9 +2,10 @@
  * Conversations' rows drawn: the ones on screen and a few either side (kit/rows/shown-rows.ts), and the open row and its
  * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys). Every row was built
  * on each press of the tab: 117 rows and 1,800 elements in a busy workspace (the strips review, 18 Oct 2026). The list's
- * element is the swap motion's too, so one ref gives it to both.
+ * element is the swap motion's and the rows' arrival's too, so one ref gives it to all three.
  */
 import { useCallback, type RefObject } from "react";
+import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
 import type { ConversationRow } from "../types";
 
@@ -24,12 +25,16 @@ export function useShownCvRows(
     keep: open >= 0 ? [open - 1, open, open + 1] : [0],
   });
   const { listRef } = shown;
+  // The first rows rise in as the list arrives, as the Inbox's and People's do (kit/motion/use-rows-arrive.ts); the rows
+  // the window draws after, as the list is scrolled, come as they are.
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .cv-row");
   const ref = useCallback(
     (el: HTMLDivElement | null) => {
       swap.current = el;
+      arrive(el);
       listRef(el);
     },
-    [swap, listRef],
+    [swap, arrive, listRef],
   );
   return { shown, ref };
 }

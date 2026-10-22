@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { gatedProps, keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
 import { Icon } from "../icon/icon";
+import { longWords } from "../menu/long-words";
 import { can, pick, pickAll } from "../record/dom";
 
 /** One item of the menu: a row that acts, a line between two groups, or a heading over the group under it. */
@@ -87,10 +88,6 @@ interface MoreMenuProps {
   /** A set of short values (a day's times): chips four across under their headings, on a phone. */
   grid?: boolean;
 }
-
-/** Past this many letters, a phone's menu says an item's second line under its words, not at the line's end. */
-const MORE_SHORT_WORDS = 20;
-const longWords = (n: ReactNode) => typeof n === "string" && n.length > MORE_SHORT_WORDS;
 
 /** The keys that walk a menu's items, and where each goes from the one at `at` of `n`. */
 const MORE_WALK: Record<string, (at: number, n: number) => number> = {

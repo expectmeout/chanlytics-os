@@ -4,7 +4,7 @@ export const ASK_MEMORY_LIMITS = {
   textMax: 300,
   /**
    * The lines a workspace keeps at once, every one read into each turn's shape block (so what the pane lists is what Ask
-   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00471).
+   * knows): past it, a line is forgotten or changed before another is kept. The door holds the same number (00470).
    */
   liveMax: 40
 };

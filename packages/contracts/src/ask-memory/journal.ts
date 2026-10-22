@@ -1,5 +1,5 @@
 /**
- * Ask's journal (decision 0070, 00471): once a day of a workspace is over by its own clock, the note sweep hands the
+ * Ask's journal (decision 0070, 00470): once a day of a workspace is over by its own clock, the note sweep hands the
  * model what happened in it -- the day's activity from both ledgers, in the lines Settings › Activity folds it to, money
  * left out -- and the model writes the day in a few sentences, in the workspace's language. An owner's Ask reads the
  * newest days in every turn, so "what happened yesterday?" needs no read and "you approved the win-back on Tuesday" is

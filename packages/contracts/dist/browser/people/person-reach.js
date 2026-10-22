@@ -3,7 +3,6 @@ import { replyWindow } from "../config/policy.js";
 import { HOUR_MS } from "../shared/time.js";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words.js";
 const EMAIL_STOPPED_TAG = "stopped accepting mail";
-export const EMAIL_STOPPED_LINE = EMAIL_STOPPED_TAG.charAt(0).toUpperCase() + EMAIL_STOPPED_TAG.slice(1);
 export const EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 const NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
 export function bookingLinkAction(reach, stop) {

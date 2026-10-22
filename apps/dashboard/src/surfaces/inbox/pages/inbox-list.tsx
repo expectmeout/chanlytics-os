@@ -14,10 +14,11 @@
  * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
+import { useRowsArrive } from "../../kit/motion/use-rows-arrive";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
@@ -199,6 +200,18 @@ export function InboxList(props: InboxListProps) {
   // buckets); otherwise the parent already scoped `threads` to bucket/view.
   const visible = visibleRows({ query, allThreads, threads });
   const shown = useShownThreads(visible, activeThreadId ?? null, base.density);
+  // The first rows rise in as the list arrives, as People's do (kit/motion/use-rows-arrive.ts); the rows the window
+  // draws after, as the list is scrolled, come as they are. One ref on the rows' element gives it to the kit and to the
+  // window.
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread");
+  const { listRef } = shown;
+  const rowsRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      arrive(el);
+      listRef(el);
+    },
+    [arrive, listRef],
+  );
 
   // The agent name is only worth a row if the threads differ on it. This was
   // computed INSIDE the row map — one Set built per rendered row, so 100
@@ -272,7 +285,7 @@ export function InboxList(props: InboxListProps) {
         {visible.length === 0 && !L.fromLine && !(runRows && runsWaiting > 0) && emptyThreads(L)}
         {visible.length > 0 && (
           <div
-            ref={shown.listRef}
+            ref={rowsRef}
             className="ix-thread-rows"
             role="listbox"
             aria-label="Conversations"

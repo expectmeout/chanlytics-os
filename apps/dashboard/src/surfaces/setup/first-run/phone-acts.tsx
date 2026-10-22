@@ -139,11 +139,18 @@ export async function withMe(k: PhoneActs): Promise<void> {
 /**
  * The number kept or moved, said to the member's saved view before the plan starts or the number is bought (surface.ts
  * `want`), so its forwarding is asked for from any tab: the choice was the tab's alone, and a reload or another tab read
- * the step as done once the receptionist's own number answered. A new number wants none. A save refused holds nothing
- * up: the tab still has the choice, as it always did.
+ * the step as done once the receptionist's own number answered. A new number wants none, and keeps none: the choice
+ * itself puts "The number you already have" off (Setup's own Later, its Undo on this step), which Today's card asked
+ * for forever after; a number kept or moved takes it back, so its forwarding is asked for again. A save refused holds
+ * nothing up: the tab still has the choice, as it always did. Both go through the view's one line of saves (surface.ts).
  */
-const keepWant = (k: PhoneActs): Promise<unknown> =>
-  setupVerbs.want(k.ph.way !== "new" && k.ph.number ? { way: k.ph.way, number: k.ph.number } : null);
+const keepWant = (k: PhoneActs): Promise<unknown> => {
+  const { way, number } = k.ph;
+  return Promise.all([
+    setupVerbs.want(way !== "new" && number ? { way, number } : null),
+    setupVerbs.later(KEEP_ROW, way === "new"),
+  ]);
+};
 
 /**
  * The code, or the number to forward to, copied for the phone it is typed on: an iPhone dials no code from a link, and a

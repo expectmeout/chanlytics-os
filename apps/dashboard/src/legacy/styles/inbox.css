@@ -144,10 +144,10 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
-  /* A row below the fold is not laid out or painted until it is near: a list of hundreds opens as fast as one of ten,
-     and a switch between lists draws only what is in sight. Its height is remembered once seen. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 96px;
+  /* The rows near the screen are the ones drawn (kit/rows/shown-rows.ts). A row kept out of sight by content-visibility
+     painted none of its contents, the hairline between two rows among them (mobile.css, a pseudo-element), and stood
+     at a guessed height until the browser found it near, a frame after it was drawn: on a phone a flick drew rows
+     with no line between them, and the first screen stood a beat at the guess (Ruben, 21 Oct 2026). */
   transition: background 100ms;
 }
 .ix-thread.selected { background: var(--accent-soft); }
@@ -2717,8 +2717,12 @@ button.tl-stamp:focus-visible {
 .ix-tpl-blank::placeholder {
   color: var(--ink-faint);
 }
-.ix-tpl-unpicked {
-  visibility: hidden;
+/* A template's blank in the picker's line under its name (template-box.tsx templateSaid): its label, underlined as the
+   place the member's words go. */
+.ix-tpl-said-blank {
+  color: var(--ink-muted);
+  text-decoration: underline dashed var(--line-strong);
+  text-underline-offset: 3px;
 }
 
 /* The badges of a row and of a draft, as the one-badge rules say (Appendix A, item 8): words at the small step and in

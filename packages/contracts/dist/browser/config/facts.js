@@ -97,7 +97,8 @@ export function factConflicts(f) {
       known: kept,
       knownSource: f.kept_line.source,
       sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
-      to: "admin/workspace"
+      // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+      to: "admin/workspace/handoff_number"
     });
   }
   if (f.address.disputed && f.address.value) {

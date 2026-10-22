@@ -10,7 +10,7 @@ const RECALL_CAP = 12;
 /**
  * Recall (decision 0070): what was said before, found by its words -- the person's own earlier questions and what you
  * answered, in any of their threads (never a teammate's: RLS keeps a member to their own), the lines you remember, and
- * the days of your journal -- newest first, each with when it was and where it opens (search_ask, 00471: the words
+ * the days of your journal -- newest first, each with when it was and where it opens (search_ask, 00470: the words
  * index of 00219, no model). The memory and the newest journal days are already in the shape; recall is for the rest:
  * an older day, a thread from last month, "what did we decide about Texas".
  */

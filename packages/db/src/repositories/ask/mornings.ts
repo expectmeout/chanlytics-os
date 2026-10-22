@@ -1,5 +1,5 @@
 /**
- * A member's morning with Ask (decision 0070, 00471): the day claimed once through ask_morning_write, the thread the
+ * A member's morning with Ask (decision 0070, 00470): the day claimed once through ask_morning_write, the thread the
  * turn runs in named on it, how many cards it left (the member's own bell line is the notices' door's), and what Today
  * reads back: the morning's thread and its newest answer, its Say and its cards. Every call runs as the member signed
  * in: the door checks the caller, RLS keeps the reads to their own rows.

@@ -104,8 +104,8 @@ export interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
   label: string;
   count: number;
   /**
-   * What the group comes to: the value of its proposals or its clients in all ("$4,250", "$1,340 a month"), and for
-   * the consultations, how many ended in the last week with nothing since. Null for nothing to say.
+   * What its head says beside the count: for the consultations, how many ended in the last week with nothing since.
+   * Null for nothing to say, as every other group is: the Pipeline says no totals (Ruben, 21 Oct 2026).
    */
   meta: string | null;
   /** Whether it starts folded: Passed or ended does, until someone opens it (PIPELINE_WORDS.show). */
@@ -115,22 +115,17 @@ export interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
 
 /**
  * One part of the line over the table: its words, and the view a press on it opens (the rail's own row), in warn where
- * it counts what waits on the owner. The totals are words only.
+ * it counts what waits on the owner.
  */
 export interface PipelineLinePart {
   words: string;
   view: PipelineView | null;
   tone: "warn" | null;
-  /**
-   * It goes on with the part before it, as a total's worth goes with its count ("$4,250" after "3 proposals out"): a
-   * page that sets each fact on a line of its own keeps the two together, so a dot never starts a line.
-   */
-  joins: boolean;
 }
 
 /**
  * One of a phone's filters over the Pipeline (Ruben, 10 Oct 2026): a count, the view it opens, and the tone of its dot
- * -- proposals out, what waits on the owner, clients. What they come to is `money`, said once beside them.
+ * -- proposals out, what waits on the owner, clients.
  */
 export interface PipelineFilter {
   view: PipelineView;
@@ -141,17 +136,15 @@ export interface PipelineFilter {
 
 export interface PipelineVM<T extends PipelineSource = PersonRowVM> {
   /**
-   * The line over the table, in the parts a page sets dots between -- "3 proposals out", "$4,250", "1 waiting over a
-   * week", "1 lapsed", "2 clients", "$1,340 a month" -- and only the parts that have something. Always the whole
-   * Pipeline's, whatever view the groups are of.
+   * The line over the table, in the parts a page sets dots between -- "3 proposals out", "1 waiting over a week",
+   * "1 lapsed", "2 clients" -- and only the parts that have something: counts, never what they come to. Always the
+   * whole Pipeline's, whatever view the groups are of.
    */
   summary: string[];
   /** The same parts, with the view each opens. */
   line: PipelineLinePart[];
   /** A phone's line of filters: each count with the view it opens; only those that have something. */
   filters: PipelineFilter[];
-  /** What the proposals out and the clients come to, once: "$2,500 proposed · $120 a month from clients"; null with neither. */
-  money: string | null;
   /** The groups with someone in them, in order. */
   groups: PipelineGroupVM<T>[];
   /** Nobody in any group: no deal, and no consultation to follow. */

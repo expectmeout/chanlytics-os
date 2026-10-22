@@ -59,7 +59,8 @@ export function firstRunLiveOf({ dto, emails, business, owner }) {
         key: "through",
         label: W.through,
         value: handoff ?? (emails.length ? W.throughNobody : W.throughNobodyUnaddressed),
-        change: { label: W.change, to: "admin/workspace" }
+        // The transfer row, open on How it answers, where it moved on 17 Oct 2026 (Details holds it no longer).
+        change: { label: W.change, to: "admin/workspace/handoff_number" }
       },
       {
         key: "emails",
