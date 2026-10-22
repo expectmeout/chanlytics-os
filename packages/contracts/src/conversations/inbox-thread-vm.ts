@@ -166,6 +166,8 @@ export interface InboxThreadVM {
   priority: "P2";
   waitingMin?: number;
   wake?: string;
+  /** When a snoozed thread wakes, epoch ms: what `wake` says, by the clock it is said at (thread-clock.ts inboxThreadClock). */
+  wakeAtMs?: number;
   timeline: Array<
     | {
         type: "msg";

@@ -21,14 +21,6 @@
    LEFT RAIL — Smart lists & saved segments
    ==================================================================== */
 
-/* The rail scrolls, so it cuts off whatever crosses its edge: a search's menu opening rightward showed 51px of 194,
-   and held inside the rail (196px) its words broke onto three to six lines. So a search's menu is drawn on the body
-   (the kit's Menu, leads/scope/rail.tsx, its popup `ld-search-acts`), and an item's meta, a sentence saying what the
-   item will do, is its second line under the label (past the 16px icon and its 11px gap) rather than a column squeezed
-   beside it. */
-.ld-search-acts .more-item:has(> .more-item-meta) { flex-wrap: wrap; row-gap: 1px; }
-.ld-search-acts .more-item > .more-item-meta { flex-basis: 100%; }
-.ld-search-acts .more-item > .icon ~ .more-item-meta { padding-left: 27px; }
 .cl-rail {
   display: flex;
   flex-direction: column;

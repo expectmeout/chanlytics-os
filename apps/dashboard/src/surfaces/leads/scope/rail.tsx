@@ -51,9 +51,8 @@ const LeadSearchMenu = ({
     <Menu
       // Drawn on the body, against the window: the rail scrolls and cut off whatever crossed its edge (51px of 194 showed),
       // and a menu held inside it broke its words onto three to six lines. It opens rightward over the table, each item's
-      // sentence its second line (clients.css, `ld-search-acts`).
+      // sentence its second line (the kit's Menu says a sentence under the words).
       align="start"
-      className="ld-search-acts"
       // Its name is what it holds, for a screen reader and on hover: "What independent bookstores asked for" read as if the
       // bookstores had asked. What the search asked for is the row's own tip (LeadsRailRows).
       label={`More for ${s.name}`}

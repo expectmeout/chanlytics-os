@@ -4,7 +4,9 @@
  * two groups and a group's heading over it; an item's glyph, its words, a second line or a word at its end; the act
  * that destroys in red; an item that opens a page of its own a link (the shell's "a door is a link"); an item a role
  * refuses (the honesty gate, `gate`), which stays in the menu, says why when pressed and leaves it open; and a set the
- * page chooses one of, the tick beside the one chosen.
+ * page chooses one of, the tick beside the one chosen. A second line that is a sentence stands under its item's words;
+ * a set whose options say a line under their words (a template's sentence) draws each as two lines, the one chosen in
+ * the pick's lilac; and a menu may show its name at its top (`head`), on a phone the sheet's head with the one Close.
  *
  * Its behaviour is Base UI's Menu (`@base-ui/react/menu`, the plan's decision 15): the arrows walk the items and
  * typing a word's first letters finds one; Enter and Space act; Escape and a press outside close it and give focus
@@ -26,6 +28,7 @@ import { Fragment, useState } from "react";
 import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
 import { CopiedWords, useCopied } from "../copy-button/copy-button";
 import { cx, variants } from "../variants";
+import { longWords } from "./long-words";
 
 /** The room between the control and the menu, as the house's menu leaves it (kit.css, .more-menu's top). */
 const MENU_GAP_PX = 8;
@@ -35,7 +38,13 @@ const menuClasses = variants({
   variants: { align: { start: "align-left", end: "align-right" } },
   defaults: { align: "end" },
 });
-const itemClasses = variants({ base: "more-item", variants: { tone: { danger: "danger" } } });
+/** An item's classes: red where it destroys; its sentence under its words (`two`), or an option's two lines (`lines`). */
+const itemClasses = variants({
+  base: "more-item",
+  variants: { tone: { danger: "danger" }, shape: { two: "more-item-two", lines: "more-item-lines" } },
+});
+/** An item whose second line is a sentence says it under its words, where beside them it squeezed them to nothing. */
+const itemShape = (meta: ReactNode) => (longWords(meta) ? "two" : undefined);
 
 /** What an item says: its words, which typing finds, a glyph before them, and a second line or a word at its end. */
 type MenuWords = { label: string; glyph?: ReactElement; meta?: ReactNode; hint?: ReactNode };
@@ -71,8 +80,15 @@ export type MenuChoice = {
   onChoose: (value: string) => void;
   /** The tick (the Icon's `check`, at 13px): drawn on every option, and seen beside the one chosen (kit.css). */
   tick: ReactElement;
-  options: readonly { value: string; label: string; hint?: ReactNode }[];
+  options: readonly MenuOption[];
 };
+
+/**
+ * An option of a set: its value, its words, a word after them, and a line under them (`sub`: what it says, a template's
+ * sentence). A set where an option has a line draws each as two lines, each cut where it runs long, its word beside its
+ * name, the tick at its end, and the one chosen the pick's lilac (kit.css, "A set whose options say a line").
+ */
+export type MenuOption = { value: string; label: string; hint?: ReactNode; sub?: ReactNode };
 
 /**
  * A set of switches the menu stays open over while each is flipped (a table's columns): each ticked while it is on. One
@@ -102,6 +118,14 @@ export type MenuGroup = { header?: string; caption?: string; tiles?: boolean } &
   | { toggles: MenuToggles; items?: undefined; choose?: undefined }
 );
 
+/**
+ * A menu's name drawn at its top (the Inbox's template picker: "Reopen the chat with Fern"): on a desk a quiet line; on a
+ * phone the sheet's one head, the name as a kicker's and the kit's one Close, where every sheet's stands (kit.css, "One
+ * Close for every sheet"). The Close is the page's glyph (the Icon's `x`, at 13px); a screen reader is told the name as
+ * the menu's, and closes it with Escape.
+ */
+export type MenuHead = { title: string; close: ReactElement };
+
 /** A menu: what opens it, its groups, the edge it hangs from, and its name where its control's words are not. */
 export type MenuProps = {
   /** The page's control that opens it: the kit's Button, which it is drawn as. */
@@ -110,6 +134,8 @@ export type MenuProps = {
   align?: "start" | "end";
   /** Its name to a screen reader, where its control's words do not say it (a glyph alone names the control). */
   label?: string;
+  /** Its name drawn at its top, and on a phone its Close: the sheet's head. */
+  head?: MenuHead;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -157,7 +183,7 @@ function Item({ item }: { item: MenuItem }) {
   if (item.copy !== undefined) return <CopyItem item={item} copy={item.copy} />;
   if (item.href !== undefined) {
     return (
-      <BaseMenu.LinkItem className={itemClasses()} href={item.href} label={item.label}>
+      <BaseMenu.LinkItem className={itemClasses({ shape: itemShape(item.meta) })} href={item.href} label={item.label}>
         {itemContent(item)}
       </BaseMenu.LinkItem>
     );
@@ -167,7 +193,7 @@ function Item({ item }: { item: MenuItem }) {
   const refused = item.gate?.["aria-disabled"] === true || item.gate?.["aria-disabled"] === "true";
   return (
     <BaseMenu.Item
-      className={itemClasses({ tone: item.tone })}
+      className={itemClasses({ tone: item.tone, shape: itemShape(item.meta) })}
       nativeButton
       render={<button type="button" />}
       label={item.label}
@@ -182,21 +208,43 @@ function Item({ item }: { item: MenuItem }) {
   );
 }
 
+/** Whether a set's options say a line under their words, which draws each as two lines. */
+const saysLines = (choose: MenuChoice) => choose.options.some((option) => option.sub !== undefined);
+
+/** An option of two lines: its name and its word on the first, what it says under them, the tick at its end. */
+function optionLines(option: MenuOption, tick: ReactElement) {
+  return (
+    <>
+      <span className="more-item-words">
+        <span className="more-item-line">
+          <span className="more-item-label">{option.label}</span>
+          {option.hint ? <span className="more-item-hint">{option.hint}</span> : null}
+        </span>
+        {option.sub !== undefined ? <span className="more-item-sub">{option.sub}</span> : null}
+      </span>
+      {tick}
+    </>
+  );
+}
+
 /** A set to choose one of: a radio item each, which closes the menu as it is chosen, as any item does. */
 function Choice({ choose }: { choose: MenuChoice }) {
+  const lines = saysLines(choose);
   return (
     <BaseMenu.RadioGroup value={choose.value} onValueChange={(value: string) => choose.onChoose(value)}>
       {choose.options.map((option) => (
         <BaseMenu.RadioItem
           key={option.value}
           value={option.value}
-          className={itemClasses()}
+          className={itemClasses({ shape: lines ? "lines" : undefined })}
           nativeButton
           render={<button type="button" />}
           label={option.label}
           closeOnClick
         >
-          {itemContent({ label: option.label, glyph: choose.tick, hint: option.hint })}
+          {lines
+            ? optionLines(option, choose.tick)
+            : itemContent({ label: option.label, glyph: choose.tick, hint: option.hint })}
         </BaseMenu.RadioItem>
       ))}
     </BaseMenu.RadioGroup>
@@ -258,25 +306,48 @@ function Group({ group }: { group: MenuGroup }) {
   );
 }
 
-/** What a menu draws on the body: its wash, its place by its control, and its groups. `onPull` closes it, for a phone's pull. */
+/**
+ * The menu's name at its top and its Close (`head`). Its words are the menu's name to a screen reader already, and Escape
+ * closes it there, so the head is drawn for the eye and the finger alone: out of the menu's items and out of a key's
+ * walk through them.
+ */
+function Head({ head, onClose }: { head: MenuHead; onClose: () => void }) {
+  return (
+    <div className="more-head" aria-hidden="true">
+      <p className="more-head-title">{head.title}</p>
+      <button type="button" tabIndex={-1} className="rec-sheet-close" onClick={onClose}>
+        {head.close}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * What a menu draws on the body: its wash, its place by its control, its head and its groups. `onClose` closes it, for a
+ * phone's pull and its head's Close.
+ */
 function MenuPopup({
   groups,
   align = "end",
   label,
+  head,
   className,
   ref,
-  onPull,
-}: Omit<MenuProps, "trigger"> & { onPull: () => void }) {
+  onClose,
+}: Omit<MenuProps, "trigger"> & { onClose: () => void }) {
+  // A set of two-line options is wider on a desk, so the line under each name can be read (kit.css .more-menu-lines).
+  const lines = groups.some((group) => group.choose !== undefined && saysLines(group.choose));
   return (
     <BaseMenu.Portal>
       <BaseMenu.Backdrop className="more-backdrop" />
       <BaseMenu.Positioner className="pop-place" sideOffset={MENU_GAP_PX} align={align}>
         <BaseMenu.Popup
           ref={ref}
-          className={cx(menuClasses({ align }), className)}
-          aria-label={label}
-          {...keepTouch(touchSwipe({ onDown: onPull, when: onAPhone }))}
+          className={cx(menuClasses({ align }), lines && "more-menu-lines", head && "more-menu-titled", className)}
+          aria-label={label ?? head?.title}
+          {...keepTouch(touchSwipe({ onDown: onClose, when: onAPhone }))}
         >
+          {head ? <Head head={head} onClose={onClose} /> : null}
           {groups.map((group, at) => (
             <Fragment key={at}>
               {at > 0 ? <BaseMenu.Separator className="more-divider" /> : null}
@@ -296,7 +367,7 @@ export function Menu({ trigger, ...popup }: MenuProps) {
   return (
     <BaseMenu.Root open={open} onOpenChange={(next) => setOpen(next)}>
       <BaseMenu.Trigger render={trigger} />
-      <MenuPopup {...popup} onPull={() => setOpen(false)} />
+      <MenuPopup {...popup} onClose={() => setOpen(false)} />
     </BaseMenu.Root>
   );
 }
@@ -336,7 +407,7 @@ export function SharedMenu<P>({ handle, groups, label, ...popup }: SharedMenuPro
     <BaseMenu.Root handle={handle}>
       {({ payload }: { payload: P | undefined }) =>
         payload === undefined ? null : (
-          <MenuPopup {...popup} groups={groups(payload)} label={label?.(payload)} onPull={() => handle.close()} />
+          <MenuPopup {...popup} groups={groups(payload)} label={label?.(payload)} onClose={() => handle.close()} />
         )
       }
     </BaseMenu.Root>

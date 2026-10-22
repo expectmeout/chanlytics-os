@@ -16,6 +16,16 @@ function titleWithoutLanguage(title, code) {
   }
   return title;
 }
+const SAMPLE_MARK = /\s*\(sample\)$/i;
+function rowTitle(t, all) {
+  const given = (r) => (r.title ?? "").trim() !== "";
+  const twins = all.filter((r) => r !== t && r.name === t.name && given(r));
+  const twin = twins.find((r) => languageBase(r.language) === "en") ?? twins[0];
+  const raw = templateTitle(t.name, given(t) || starterByName(t.name) || !twin ? t.title : twin.title);
+  const words = raw.replace(SAMPLE_MARK, "");
+  const sample = words !== "" && words !== raw;
+  return { title: titleWithoutLanguage(sample ? words : raw, t.language), sample };
+}
 export function inboxTemplates(templates, to) {
   const rows = [];
   let promotions = 0;
@@ -44,7 +54,7 @@ export function inboxTemplates(templates, to) {
       continue;
     }
     const fits = !!blank && !!starter && trigger === null || trigger === "visit_tomorrow" && to.visit === "ahead";
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
+    rows.push({ template: t, ...rowTitle(t, templates), blank, fits });
   }
   const isDefault = (r) => languageBase(r.template.language) === "en";
   const named = [...new Set(rows.map((r) => r.template.name))];
@@ -61,7 +71,8 @@ export function inboxTemplates(templates, to) {
     title: r.title,
     label: reads(r.title) > 1 ? `${r.title} \xB7 ${languageWords(r.template.language)}` : r.title,
     blank: r.blank,
-    fits: r.fits
+    fits: r.fits,
+    sample: r.sample
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",

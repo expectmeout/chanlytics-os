@@ -195,10 +195,26 @@ export function surfaceValue<K extends SurfaceKey>(key: K): SurfaceValues[K] | u
   return values.get(key) as SurfaceValues[K] | undefined;
 }
 
+/** What a surface says again of a value the cache gives back: by key, as its owner declared it (`revivesFromCache`). */
+const revivers = new Map<SurfaceKey, (held: unknown) => unknown>();
+
+/**
+ * Say what a value the cache gives back must say again before it is painted: what a read worded by the clock it was read
+ * at, where the value keeps the moments its words come from (the Inbox's times, surfaces/inbox/surface.ts). The words of
+ * an earlier visit stood on the first frame of a refresh until its read landed and moved the rows (Ruben, 21 Oct 2026).
+ */
+export function revivesFromCache<K extends SurfaceKey>(
+  key: K,
+  revive: (held: SurfaceValues[K]) => SurfaceValues[K],
+): void {
+  revivers.set(key, (held) => revive(held as SurfaceValues[K]));
+}
+
 /** The cache handing a surface's value back at boot: a value read in an earlier visit, painted before the first read. */
 export function restoreSurfaceValue(key: string, value: unknown): void {
   if (!isSurfaceKey(key)) return;
-  setSurfaceValue(key, value as SurfaceValues[SurfaceKey]);
+  const revive = revivers.get(key);
+  setSurfaceValue(key, (revive ? revive(value) : value) as SurfaceValues[SurfaceKey]);
 }
 
 /** Whether a name is a key of `SurfaceValues`: the cache is written by keys of every surface, the typed or not. */
