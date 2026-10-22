@@ -754,6 +754,13 @@ const SOURCES = {
 // lead_set_stage is re-created whole last by 00413 (decision 0052: who the call reached, p_spoke_with).
 // reach_out_audience: 00426 builds it on the one predicate (reach_out_why_not); lead-workbench/reach-out-add.db.test.mjs proves it.
 // 00451 moved every reader of the old sequence names onto the sequence tables, its body otherwise as it stood.
+// A door dropped since, by the migration that dropped it: the source and 00220's body are still proved; the database
+// holds none of it.
+const DROPPED = {
+  // The second mail account's per-domain count; a mailbox's own is mailbox_connection_counts (00424, 00466).
+  sending_domain_counts: "00472",
+};
+
 const LATER = {
   outreach_lead_facts: "00451",
   lead_set_stage: "00413",
@@ -1016,6 +1023,13 @@ test("every function re-created whole is its source's body but for the lines it 
     }
     want += source.slice(cut);
     assert.equal(bodyIn(now, header), want, `${name}: 00220 writes its source's body with these changes only`);
+    if (DROPPED[name]) {
+      const [gone] = query(
+        `select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
+      );
+      assert.equal(gone, undefined, `${name}: ${DROPPED[name]} dropped it`);
+      continue;
+    }
     const [live] = query(
       signature
         ? `select prosrc from pg_proc where oid = '${signature}'::regprocedure`
@@ -1070,7 +1084,6 @@ test("every function re-created whole keeps its source's volatility, rights, sea
     ],
     "outreach_lead_facts(uuid,uuid,text,uuid)": ["s", true, ["search_path=public"], ["service_role"]],
     "reach_out_audience(uuid,uuid,integer,boolean)": ["s", true, ["search_path=public"], ["service_role"]],
-    "sending_domain_counts(uuid,text,timestamp with time zone)": ["s", true, ["search_path=public"], ["service_role"]],
     "set_email_marketing(uuid,uuid,text,text,uuid,jsonb)": ["v", true, ["search_path=public"], ["service_role"]],
   };
   const rows = query(`select p.oid::regprocedure::text as fn, p.provolatile as vol, p.prosecdef as definer,
@@ -1082,7 +1095,6 @@ test("every function re-created whole keeps its source's volatility, rights, sea
      and p.oid in ('public.lead_set_stage(uuid,text,text,text,text,text,text)'::regprocedure,
                    'public.outreach_lead_facts(uuid,uuid,text,uuid)'::regprocedure,
                    'public.reach_out_audience(uuid,uuid,integer,boolean)'::regprocedure,
-                   'public.sending_domain_counts(uuid,text,timestamptz)'::regprocedure,
                    'public.set_email_marketing(uuid,uuid,text,text,uuid,jsonb)'::regprocedure)`);
   assert.deepEqual(Object.fromEntries(rows.map((r) => [r.fn, [r.vol, r.definer, r.config, r.grantees]])), want);
 });

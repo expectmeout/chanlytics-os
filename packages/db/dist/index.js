@@ -906,12 +906,6 @@ var ERASURE_STRATEGIES = {
       "template_name"
     )
   },
-  sending_domain_days: all(NOT_PERSONAL, "held_why", "host"),
-  // The workspace's sending domain and the provider's records for it; the address and the name its mail is sent as.
-  sending_domains: {
-    ...all(WITH_WORKSPACE, "from_local", "from_name"),
-    ...all(NOT_PERSONAL, "host", "provider_domain_id", "provider_status", "records")
-  },
   templates: all(
     NOT_PERSONAL,
     "body_preview",
