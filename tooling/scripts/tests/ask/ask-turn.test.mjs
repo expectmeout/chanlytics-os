@@ -532,9 +532,9 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     offered[role].find((t) => t.name === "propose_person")?.input_schema.properties.action.enum ?? null;
   assert.deepEqual(["viewer", "operator", "partner", "owner"].map(personActions), [
     null,
-    ["note", "details", "answer", "add", "message"],
-    ["note", "details", "answer", "add", "message"],
-    ["mode", "note", "details", "answer", "add", "merge", "message"],
+    ["note", "step", "details", "answer", "add", "message"],
+    ["note", "step", "details", "answer", "add", "message"],
+    ["mode", "note", "step", "details", "answer", "add", "merge", "message"],
   ]);
   const searchLast = (tools) => tools.at(-1)?.name === "tool_search_tool_bm25";
   assert.ok(Object.values(offered).every(searchLast), "every role's tools end in the tool search");

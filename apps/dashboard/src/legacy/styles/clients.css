@@ -5016,8 +5016,9 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
     box-shadow: var(--surface-pane-depth);
     overflow: hidden;
   }
-  /* The Pipeline's deal stands as tall as what it holds, its foot under its last part (the compact sheet, 21 Oct 2026). */
-  .main-scroll .pipe-scope .cl-main.has-peek > .pk {
+  /* The Pipeline's deal stands as tall as what it holds, its foot under its last part (the compact sheet, 21 Oct 2026):
+     its pane is there only while a deal is open, so the rule names the pane alone. */
+  .main-scroll .pipe-scope .cl-main > .pk {
     align-self: flex-start;
     max-height: 100%;
   }
