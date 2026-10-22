@@ -416,38 +416,42 @@
      over the pools by the body's and the app's root's phone paint (below, and components.css), never by the page
      name's tint (kit.css), which keeps the three pools alone. */
   --surface-page-paper: linear-gradient(
-    var(--bg) env(safe-area-inset-top, 0px),
+    var(--surface-page-fill) env(safe-area-inset-top, 0px),
     transparent calc(env(safe-area-inset-top, 0px) + 64px)
   );
   --surface-page-top: var(--surface-page-paper);
-  /* The page's ground on a phone, every page of the app's (mobile.css; first the Inbox's and People's, for their rows,
-     then all of them, so a move between pages changes nothing under them): the light holds over the frame's top and
-     gives way, over a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026). Near the foot it
-     comes back around the tab bar, softer than the page's own (his "a bit of the highlight around the menu, not as
-     strong"): a ground halfway to the page's under the light coming through again, and that ground flat at the window's
-     foot, where Safari's toolbar begins. Nothing fixed is drawn under that toolbar, only the document's ground, which on
-     these pages is the foot's (mobile.css), so the two meet with no band; the page's grey stood there under the white
-     rows. Measured from the screen's top, as every layer that paints the light is, so the top and the rows passing under
-     it match. The pools lie on the page's own ground over the frame's top (--surface-page-under), so the head is lit as
-     every page's is. The dark side calms its pools to its own ground. */
+  /* The page's ground on a phone, every page of the app's (mobile.css): the light holds over the frame's top and gives
+     way, over a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026), and
+     eases back over the last of the window, the pools showing through again around the tab bar, softer than over the
+     head (his "a bit of the highlight around the menu, not as strong"), to the paper itself at the window's foot.
+     ONE COLOUR AT THE EDGES: the paper (--surface-page-fill) is the document's canvas, what this light is at the
+     window's top and at its foot, and the plain colour of every box fixed at an edge (mobile.css, the frame's top;
+     components.css, the band a carried page takes over it). Safari paints its bar over the clock in the background
+     colour of the boxes fixed at the top edge, falls back to the canvas where two disagree or one blurs, and draws its
+     toolbar over the canvas alone, where nothing fixed is drawn: with one colour every path agrees, and no moment of a
+     page's arrival can show another (WebKit, LocalFrameView::fixedContainerEdges; styles/page-light/paper-at-the-edges.test.mjs
+     holds it). Three fixes before this one each moved one colour and left another behind: the canvas lightened for the
+     toolbar, which lightened the bar over the clock; the frame's top made the paper whole, on two pages; then every
+     page given this ground with a lighter fill, which left the frame's top and its own ground disagreeing. Measured
+     from the screen's top, as every layer that paints the light is, so the top and the rows passing under it match.
+     The pools lie on the paper over the frame's top and on the list's own ground under the rows (--surface-page-under),
+     so the head is lit as it always was. The dark side calms its pools to its own ground. */
   --list-wash-at: calc(var(--frame-top-at, 0px) + var(--frame-top, 0px));
   --surface-list-ground: oklch(0.993 0.002 275);
-  --surface-list-foot: color-mix(in oklab, var(--bg) 50%, var(--surface-list-ground));
   --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 86%, transparent);
-  --surface-list-glow: color-mix(in oklab, var(--surface-list-foot) 45%, transparent);
+  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 45%, transparent);
   --surface-page-list: linear-gradient(
     transparent calc(var(--list-wash-at) - 24px),
     var(--surface-list-wash) calc(var(--list-wash-at) + 112px),
     var(--surface-list-wash) calc(100% - 300px),
     var(--surface-list-glow) calc(100% - 120px),
-    var(--surface-list-glow) calc(100% - 16px),
-    var(--surface-list-foot) 100%
+    transparent 100%
   );
   --surface-page-list-ground: linear-gradient(
-    var(--bg) calc(var(--list-wash-at) - 24px),
+    var(--surface-page-fill) calc(var(--list-wash-at) - 24px),
     var(--surface-list-ground) calc(var(--list-wash-at) + 112px),
     var(--surface-list-ground) calc(100% - 300px),
-    var(--surface-list-foot) calc(100% - 120px)
+    var(--surface-page-fill) 100%
   );
   /* What lies under the pools where a page lays its own ground under them (a list's, above); none elsewhere. */
   --surface-page-under: none;
@@ -624,7 +628,7 @@
   --pool-c-tint: oklch(0.76 0.135 293 / 0.12);
   --surface-list-ground: var(--bg);
   --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 70%, transparent);
-  --surface-list-glow: color-mix(in oklab, var(--surface-list-foot) 35%, transparent);
+  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 35%, transparent);
   --surface-page-light:
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),

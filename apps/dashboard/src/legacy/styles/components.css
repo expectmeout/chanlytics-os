@@ -3003,7 +3003,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    each 10% past every edge of the window so a moving pool never shows its layer's side, the pool drawn where the
    tokens put it (--pool-*-x and -y, measured from the window as the root measured them). A phone keeps the root's own
    paint (the page's top over the pools) and no layers, and its pools stand still; so does every pool where less motion
-   is asked (styles/page-light-drift.test.mjs). */
+   is asked (styles/page-light/drift.test.mjs). */
 .pg-light {
   display: none;
 }
