@@ -31,6 +31,7 @@ import {
   visitRoute,
   callEndedWords,
   toInboxThreadVM,
+  pipelineWorth,
 } from "@chanlytics/contracts";
 import { poolList, type AudiencePool } from "../../../people/audience";
 import { load } from "../../../readers";
@@ -508,12 +509,15 @@ export async function listLists(t: ToolContext) {
 /**
  * Where deals stand, as the Pipeline builds its board (readers/people.ts dealBoard, which Ask's Pipeline context reads
  * too): the line over the table, the workspace's pace, and each group with its count, what it comes to and its people,
- * each with the deal's service, value, how long it has stood there, the chip the page draws and their next step. Every
- * workspace has the Pipeline (0008, amended 18 Oct 2026).
+ * each with the deal's service, value, how long it has stood there, the chip the page draws and their next step. What
+ * the proposals out and the clients come to is Ask's alone (pipelineWorth: the page says counts only, 21 Oct 2026), the
+ * whole group's, so an answer quotes it rather than adding values up. Every workspace has the Pipeline (0008, amended
+ * 18 Oct 2026).
  */
 async function readPipeline(t: ToolContext): Promise<unknown> {
   const read = await load(t.rc, dealBoard, undefined);
   const board = read.data.board;
+  const worth = pipelineWorth(board);
   let room = PIPELINE_CAP;
   const groups = board.groups.map((g) => {
     const rows = g.rows.slice(0, Math.max(0, room));
@@ -521,7 +525,7 @@ async function readPipeline(t: ToolContext): Promise<unknown> {
     return {
       group: g.label,
       count: g.count,
-      comes_to: g.meta,
+      comes_to: g.key === "proposals" ? worth.proposals : g.key === "clients" ? worth.clients : g.meta,
       // Each row as the person it is and the deal it stands for (0029: a further deal of theirs is a row of its own).
       people: rows.map((row) => ({
         contact_id: row.person.id,
@@ -616,7 +620,7 @@ export const peopleTool = defineActions({
       input: z.object({}),
       examples: [{}],
       label: "Reading the Pipeline",
-      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the groups' counts whole; a workspace that never recorded a deal has every group empty.`,
+      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (the proposals out, the ones waiting longer than usual, the lapsed, the clients), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to (the proposals out's and the clients' whole sums, which the page does not show: quote them, never add values up) and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the groups' counts whole; a workspace that never recorded a deal has every group empty.`,
       run: readPipeline,
     }),
   },

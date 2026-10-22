@@ -1,7 +1,7 @@
 /**
  * The deal sheet's foot (the canvas "Pipeline deal sheet", 20 Oct 2026): one act leads, by how the deal stands, and its
- * caret holds the deal's other moves, one pill split by a hairline (Ruben, 20 Oct 2026: a menu rides its pill, never ⋯
- * beside it); then Message and Call, bare circles in the foot's glass as the person page's dock has them. A client's foot
+ * caret holds the deal's other moves and the proposal where it lives, one pill split by a hairline (Ruben, 20 Oct 2026:
+ * a menu rides its pill, never ⋯ beside it); then Message and Call, bare in the foot's glass, one layer (21 Oct). A client's foot
  * leads with Message, the only next thing a client asks. While a pass is asked, the question stands in the foot's place,
  * its reasons one press each (the Pipeline's own pass, people-detail.ts passDeals), as a selection's is.
  *
@@ -60,8 +60,29 @@ function messageThem(c: DealSheetCtx): void {
 }
 
 /**
- * The caret's menu: the moves the lead does not hold, each with its glyph, and a new proposal apart under a hairline (it
- * moves no deal of these); on a phone the kit's sheet, headed by what it is about: the service and who.
+ * The proposal where it lives, opened in a new tab, its host said at the item's end: the sheet's one door to it (its
+ * link is copied on their page; a send carries it already).
+ */
+function proposalItem(c: DealSheetCtx): MenuItem[] {
+  const link = c.sheet.card ? c.sheet.card.link : null;
+  if (!link) return [];
+  return [
+    {
+      label: S.openProposal,
+      glyph: <Icon name="external" size={16} />,
+      hint: link.host,
+      title: link.url,
+      onSelect: () => {
+        window.open(link.url, "_blank", "noopener,noreferrer");
+      },
+    },
+  ];
+}
+
+/**
+ * The caret's menu: the moves the lead does not hold, each with its glyph, the proposal where it lives, and a new
+ * proposal apart under a hairline (it moves no deal of these); on a phone the kit's sheet, headed by what it is about:
+ * the service and who.
  */
 function caretOf(c: DealSheetCtx, trigger: ReactElement): ReactElement | null {
   const { more } = c.sheet;
@@ -73,7 +94,7 @@ function caretOf(c: DealSheetCtx, trigger: ReactElement): ReactElement | null {
     gate: m.act.id === "lost" ? gate("approve", "mark a deal as passed") : DEAL_GATE,
   });
   const fresh = (m: PipelineSheetAct) => m.act.id === "propose" && m.dealId === null;
-  const moves = more.filter((m) => !fresh(m)).map(item);
+  const moves = [...more.filter((m) => !fresh(m)).map(item), ...proposalItem(c)];
   const another = more.filter(fresh).map(item);
   const header = c.phone ? `${c.row.service ?? c.vm.sub} · ${c.vm.name}` : undefined;
   const groups = moves.length

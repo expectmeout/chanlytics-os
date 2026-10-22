@@ -1106,13 +1106,16 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   /* Behind the notes the page wears the phone's one veil, the drawer's (tokens.css --surface-veil; Ruben, 7 Oct 2026:
      every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
      2 Oct: no fade, no lightening). A tap on it closes the sheet. */
-  .tbn-backdrop { background: var(--surface-veil); }
+  .tbn-backdrop { bottom: var(--foot-clear, 0px); background: var(--surface-veil); mask-image: var(--foot-fade, none); }
   /* The glass of every sheet and menu (kit.css, "What pops over the page"; the popover's own panel-pop), at the corners
-     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. */
+     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. It floats
+     clear of the sides and the foot, and is cut at its rest's line as it rises, drops and is pulled, as every phone
+     sheet is (tokens.css --sheet-float, kit.css --sheet-down). */
   .tbn-pop {
-    top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
+    top: auto; right: var(--sheet-float, 0px); bottom: var(--sheet-float, 0px); left: var(--sheet-float, 0px); max-width: none; max-height: 82vh; max-height: 82dvh;
+    border-radius: var(--radius-sheet);
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float, 0px)); overscroll-behavior-y: none;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
     animation: sheet-in 260ms var(--ease-out);
     --tbn-out: sheet-out;
     --tbn-out-ms: 180ms;
@@ -1476,15 +1479,18 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   [data-sb-wash="foot"] {
     background: var(--surface-veil);
   }
+  /* Floating clear of the sides and the foot, and cut at its rest's line as it rises, as the kit's menu is (tokens.css
+     --sheet-float, kit.css --sheet-down). */
   [data-sb-place="foot"] {
-    inset: auto 0 0 0;
+    inset: auto var(--sheet-float) var(--sheet-float);
     width: auto;
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
-    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-float)));
+    border-radius: var(--radius-sheet);
     border-bottom: 0;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
     animation: more-sheet-in 220ms var(--ease-out);
   }
   [data-sb-place="foot"]::before {
@@ -1539,8 +1545,9 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 @media (hover: hover) { .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); } }
 .sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
 
-/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash). */
-.sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: var(--surface-wash); }
+/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash),
+   which in an iPhone's browser stops short of the foot (tokens.css --foot-clear). */
+.sb-sheet-backdrop { position: fixed; inset: 0 0 var(--foot-clear, 0px); z-index: 400; background: var(--surface-wash); mask-image: var(--foot-fade, none); }
 .sb-sheet {
   /* Centred in what the phone shows over its keyboard (--kb, kit/motion/keyboard.ts watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);

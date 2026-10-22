@@ -99,7 +99,8 @@ export const SAY_IT_WORDS = {
     deal: "Website, 1,200 a month, valid to the 30th",
     note: "Prefers mornings; call them back Friday",
   },
-  go: "Fill it in",
+  // The press inside the box's end (21 Oct 2026): one word fits beside what was typed.
+  go: "Fill",
   busy: "Reading…",
   filled: "Filled in from what you said. Check it, then save.",
   empty: "Nothing in that fits these fields. Try saying it another way.",

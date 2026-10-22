@@ -43,6 +43,7 @@ import { RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/f
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
+import { Icon } from "../../kit/icon/icon";
 import { doAsked } from "../../kit/sheet/back";
 import { DsSelect } from "../deal-sheet/fields";
 import { SayItLine } from "../deal-sheet/say-it";
@@ -60,12 +61,14 @@ interface NoteManyDone {
 }
 
 /**
- * What the sheet is asked for: a person, the deal a new step names, or the step to change; a note rather than a step;
- * or many people, with what to tell the selection once they have it.
+ * What the sheet is asked for: a person, the deal a new step names (and the act its card leads with, which suggests the
+ * step), or the step to change; a note rather than a step; or many people, with what to tell the selection once they
+ * have it.
  */
 interface SsAsk {
   personId: string;
   dealId: string | null;
+  lead: string | null;
   noteId: string | null;
   note: boolean;
   many: string[] | null;
@@ -117,6 +120,7 @@ type FoldHold = ReturnType<typeof useRecordFold>;
 export function openStepSheet({
   personId = null,
   dealId = null,
+  lead = null,
   noteId = null,
   note = false,
   personIds = null,
@@ -124,6 +128,8 @@ export function openStepSheet({
 }: {
   personId?: string | null;
   dealId?: string | null;
+  /** The act the deal's card leads with (dealNextAct's id): a send or a follow-up opens the step filled (stepSheetFor). */
+  lead?: string | null;
   noteId?: string | null;
   note?: boolean;
   personIds?: readonly string[] | null;
@@ -132,7 +138,13 @@ export function openStepSheet({
   const many = personIds ? [...new Set(personIds.filter((id) => typeof id === "string" && id))] : [];
   if (many.length) return announce("step:sheet", { personId: many[0], many, onDone, note: true });
   if (!personId) return false;
-  return announce("step:sheet", { personId, dealId: dealId || null, noteId: noteId || null, note: note === true });
+  return announce("step:sheet", {
+    personId,
+    dealId: dealId || null,
+    lead: lead || null,
+    noteId: noteId || null,
+    note: note === true,
+  });
 }
 
 /** An ask, from what the event said: nothing where it names no one. */
@@ -142,6 +154,7 @@ function sheetAsk(d: Record<string, unknown>): SsAsk | null {
   return {
     personId: d.personId,
     dealId: typeof d.dealId === "string" && d.dealId ? d.dealId : null,
+    lead: typeof d.lead === "string" && d.lead ? d.lead : null,
     noteId: typeof d.noteId === "string" && d.noteId ? d.noteId : null,
     note: d.note === true,
     many: many.length ? many : null,
@@ -165,7 +178,12 @@ function worked<T>(fn: () => T): T | null {
 /** The sheet for an ask over a person as read: its words, days and team, worked out on every draw (pure). */
 function sheetFor(ask: SsAsk, person: PersonVM): StepSheetVM | null {
   return worked(() =>
-    stepSheetFor(person, { noteId: ask.noteId, dealId: ask.dealId, note: ask.note }, Date.now(), pageClock().zone()),
+    stepSheetFor(
+      person,
+      { noteId: ask.noteId, dealId: ask.dealId, note: ask.note, lead: ask.lead },
+      Date.now(),
+      pageClock().zone(),
+    ),
   );
 }
 
@@ -208,7 +226,10 @@ function readAsk(ask: SsAsk, setSt: SetState): void {
   );
 }
 
-/** When: the picker's days as the kit's toggle group, and the date field for any other day. Hookless. */
+/**
+ * When: the picker's days as the kit's toggle group, on one line that scrolls sideways where they run past it, Pick a day
+ * its calendar alone; and the date field for any other day. Hookless.
+ */
 function StepSheetWhen({
   sheet,
   draft,
@@ -231,11 +252,16 @@ function StepSheetWhen({
       <RecordToggleGroup
         labelledBy="step-sheet-when-label"
         value={draft.picking ? "pick" : draft.day}
-        options={sheet.days.map((c) => ({ value: c.key, label: c.label }))}
+        options={sheet.days.map((c) =>
+          c.key === "pick"
+            ? { value: c.key, label: <Icon name="calendar" size={16} />, name: c.label }
+            : { value: c.key, label: c.label },
+        )}
         onChange={(v) => set(v === "pick" ? { picking: true } : { picking: false, day: v })}
         readOnly={busy}
-        // Chips that wrap, where six segments in one capsule broke "Pick a day" onto three lines (the fitted sheets).
+        // Chips on one line (the compact sheet, 21 Oct 2026), where wrapping left Pick a day alone on a second row.
         look="chips-sm"
+        line
         testid="step-sheet-days"
       />
       {draft.picking ? (
@@ -298,25 +324,31 @@ function StepSheetReads({
   );
 }
 
-/** What to do, when, and for whom, in that order; then who reads it. Hookless. */
+/**
+ * Say it, then what to do, when, and for whom, in that order; then who reads it. They stand in the deal sheet's rhythm
+ * (record.css `.deal-sheet-fields`: 18px apart, room under the head), where they stood touching. Hookless.
+ */
 function StepSheetFields({
   sheet,
   draft,
   set,
   problem,
   busy,
+  say,
 }: {
   sheet: StepSheetVM;
   draft: StepDraft;
   set: (patch: Partial<StepDraft>) => void;
   problem: SsProblem | null;
   busy: boolean;
+  say: ReactNode;
 }) {
   const W = STEP_SHEET_WORDS;
   const at = (field: string) => (problem && problem.field === field ? problem.words : null);
   const what = sheet.kind === "note" ? W.noteWhat : W.what;
   return (
-    <div className="step-sheet-fields">
+    <div className="deal-sheet-fields step-sheet-fields">
+      {say}
       <RecordField
         id="step-sheet-what"
         label={what.label}
@@ -361,7 +393,7 @@ function ManyFields({
 }) {
   const W = STEP_SHEET_WORDS;
   return (
-    <div className="step-sheet-fields">
+    <div className="deal-sheet-fields step-sheet-fields">
       <RecordField
         id="step-sheet-what"
         label={W.noteWhat.label}
@@ -502,22 +534,18 @@ function sheetBody(h: Host, set: (patch: Partial<StepDraft>) => void): ReactNode
       </p>
     );
   const ask = st.ask;
-  return (
-    <>
-      {ask ? (
-        <SayItLine
-          personId={ask.personId}
-          verb="note"
-          busy={st.busy}
-          onFill={(dto) => {
-            if (dto.verb === "note") set(noteSheetFill(sheet, dto.note));
-          }}
-          testid="step-sheet-say"
-        />
-      ) : null}
-      <StepSheetFields sheet={sheet} draft={st.draft} set={set} problem={st.problem} busy={st.busy} />
-    </>
-  );
+  const say = ask ? (
+    <SayItLine
+      personId={ask.personId}
+      verb="note"
+      busy={st.busy}
+      onFill={(dto) => {
+        if (dto.verb === "note") set(noteSheetFill(sheet, dto.note));
+      }}
+      testid="step-sheet-say"
+    />
+  ) : null;
+  return <StepSheetFields sheet={sheet} draft={st.draft} set={set} problem={st.problem} busy={st.busy} say={say} />;
 }
 
 /** What the sheet's own presses do: leave, or ask first. */

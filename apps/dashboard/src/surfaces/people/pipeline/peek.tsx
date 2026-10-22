@@ -1,16 +1,16 @@
 /**
  * The Pipeline's deal sheet (docs/decisions/0008-a-proposal-is-part-of-the-deal.md, "the Pipeline is a workspace"; the
- * canvas "Pipeline deal sheet", 20 Oct 2026): one row's deal, opened over the rows. On a phone the kit's Sheet with two
- * rests, as the lead sheet and the Calendar's visit open (it was the last pane of the house's own that took the whole
- * screen, under the frame's head, which drew over its name and its Close); at half, who and where the deal stands, its
- * next step and their last words, and raised, how to reach them, their other deals and their page, in one scroll. On a
- * desk the peek beside the rows (the 408px `.pk` pane People's and the Calendar's peeks are), walked with ‹ › as J and K
- * walk it. Both draw the same parts (peek-parts.tsx) and the same foot (peek-foot.tsx).
+ * canvas "Pipeline deal sheet", 20 Oct 2026, made compact 21 Oct: the sheet acts, their page records): one row's deal,
+ * opened over the rows, to move it on. Who, where the deal stands, the question it asks, its next step, and its foot;
+ * their face and name open their page, which holds their words, how to reach them and every deal. On a phone the kit's
+ * Sheet, as tall as what it holds, as the lead sheet and the Calendar's visit open; on a desk the peek beside the rows
+ * (the 408px `.pk` pane People's and the Calendar's peeks are), as tall as what it holds, walked with ‹ › as J and K walk
+ * it. Both draw the same parts (peek-parts.tsx) and the same foot (peek-foot.tsx).
  *
  * It says nothing of its own. The head is contracts' pipelinePeekOf over the row, there the moment it opens; the deal is
- * pipelineSheetOf over the row and the person once read (the person page's own card, dealCardsOf, for an open deal), and
- * how to reach them pipelinePeekDetail. Who is open and what was read of them are PipelineScope's, handed down, so the
- * page's one keyboard listener closes it on Esc and it follows the row cursor.
+ * pipelineSheetOf over the row and the person once read (the person page's own card, dealCardsOf, for an open deal).
+ * Who is open and what was read of them are PipelineScope's, handed down, so the page's one keyboard listener closes it
+ * on Esc and it follows the row cursor.
  *
  * A sheet it opens takes over and hands it back: the one deal sheet, the step sheet, a new conversation and the call's
  * question stand on the page, so while one is up a phone's modal sheet steps out of their way, and comes back as it was
@@ -25,8 +25,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { recFolds } from "../../kit/record/registry";
-import { Sheet } from "../../kit/sheet/sheet";
-import type { SheetRest } from "../../kit/sheet/rests";
+import { Sheet, SheetOpens, type SheetOpensTo } from "../../kit/sheet/sheet";
 import { useNewConversation } from "../../inbox/new-conversation/store";
 import { touchSwipe } from "../../legacy-verbs";
 import { CallSheet, usePersonCall, type CallCtx } from "../person/call";
@@ -59,8 +58,6 @@ export interface PipelinePeekProps {
   walk?: PersonWalk | null;
   /** Open another row in this sheet: a step of the walk. */
   onStep: (rowId: string) => void;
-  /** Open another deal of theirs in this sheet: its own row. */
-  onOpenDeal: (dealId: string) => void;
   onClose: () => void;
   onRetry: () => void;
   onOpenPage: () => void;
@@ -96,6 +93,16 @@ function sheetOf(row: PipelineRowVM | null, person: PersonVM | null): PipelineSh
 /** The room left over a row brought above the sheet, so it does not sit on the sheet's edge. */
 const ROW_CLEAR_PX = 12;
 
+/**
+ * Where a phone's sheet's top stands once its height has settled: its foot is the screen's, and its height what it holds
+ * up to its cap. Read as laid out (a transform aside), never mid-glide, since the sheet grows as the person lands.
+ */
+function sheetTopOf(sheet: HTMLElement): number {
+  const cap = parseFloat(getComputedStyle(sheet).maxHeight);
+  const tall = Math.min(sheet.scrollHeight, Number.isFinite(cap) ? cap : sheet.scrollHeight);
+  return sheet.offsetTop + sheet.offsetHeight - tall;
+}
+
 /** The room a phone's sheet gave the rows' scroller at its foot: the scroller, its padding before, and what was added. */
 interface SheetRoom {
   box: HTMLElement;
@@ -114,19 +121,18 @@ function rowScroller(from: Element): HTMLElement | null {
 }
 
 /**
- * On a phone the sheet stands over the rows' lower half at its first rest: the row it is of is brought above it, so the
- * page still says whose deal is open (lit, as the cursor's row is). Where the sheet stands is read from the sheet as it
- * is laid out (its place before its rest's transform, and the rest's length, kit.css `--sheet-rest`), never assumed.
- * Where the rows end before the row can rise that far (a view of a few deals), the scroller is given the difference as
- * room at its foot, as a switch holding still is (kit/motion/hold-still.ts), until the sheet closes (giveRoomBack).
+ * On a phone the sheet stands over the rows' lower part: the row it is of is brought above it, so the page still says
+ * whose deal is open (lit, as the cursor's row is). Where the sheet stands is read from the sheet as it is laid out
+ * (sheetTopOf), never assumed, and again as the person lands and the sheet grows. Where the rows end before the row can
+ * rise that far (a view of a few deals), the scroller is given the difference as room at its foot, as a switch holding
+ * still is (kit/motion/hold-still.ts), until the sheet closes (giveRoomBack).
  */
 function keepRowAboveSheet(rowId: string, room: { current: SheetRoom | null }): void {
   const row = document.getElementById(`person-${rowId}`);
   const scroller = row ? rowScroller(row) : null;
   const sheet = document.querySelector<HTMLElement>('[data-testid="pipeline-peek"]');
   if (!row || !scroller || !sheet) return;
-  const rest = parseFloat(getComputedStyle(sheet).getPropertyValue("--sheet-rest")) || 0;
-  const above = sheet.offsetTop + rest - ROW_CLEAR_PX;
+  const above = sheetTopOf(sheet) - ROW_CLEAR_PX;
   const under = row.getBoundingClientRect().bottom - above;
   if (under <= 0) return;
   const short = under - (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
@@ -152,26 +158,32 @@ function giveRoomBack(room: { current: SheetRoom | null }): void {
   room.current = null;
 }
 
-/** How to reach them, worked out tried, as the deal is. */
-function howToReach(person: PersonVM | null) {
-  if (!person) return null;
-  try {
-    return P.detail(person);
-  } catch {
-    return null;
-  }
-}
+/** Where the head's face and name go: their page, said by their name. */
+const toTheirPage = (vm: PipelinePeekVM, press: () => void): SheetOpensTo => ({
+  label: P.words.peek.open(vm.name),
+  press,
+});
 
-/** The desk's peek: its head (who, the deal, the walk, Close), its body, and its foot in the glass a sheet's foot is. */
+/**
+ * The desk's peek: its head (who, a press to their page; the deal, the walk, Close), its body, and its foot in the glass
+ * a sheet's foot is, as tall as what it holds.
+ */
 function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typeof dealFoot> }) {
   const { c, foot, walk, onStep, onClose } = p;
   const { vm } = c;
+  const to = toTheirPage(vm, p.onOpenPage);
   return (
     <aside className="pk pl-peek pipe-peek" role="dialog" aria-label={vm.name} data-testid="pipeline-peek">
       <div className="pk-head">
-        <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
+        <SheetOpens to={to} mark>
+          <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
+        </SheetOpens>
         <div className="pk-titles">
-          <h2 className="pk-name">{nameOf(vm)}</h2>
+          <h2 className="pk-name">
+            <SheetOpens to={to} testid="pipeline-peek-opens">
+              {nameOf(vm)}
+            </SheetOpens>
+          </h2>
           <div className="pk-sub" data-testid="pipeline-peek-sub">
             {c.sheet.sub ?? vm.sub}
           </div>
@@ -198,14 +210,15 @@ function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typ
   );
 }
 
-/** A phone's sheet: the kit's, with two rests; a sideways swipe walks the rows shown, as the lead sheet's does. */
+/**
+ * A phone's sheet: the kit's, as tall as what it holds, its face and name a press to their page; a sideways swipe walks
+ * the rows shown, as the lead sheet's does.
+ */
 function PhoneSheet(
   p: PipelinePeekProps & {
     c: DealSheetCtx;
     foot: ReturnType<typeof dealFoot>;
     open: boolean;
-    at: SheetRest;
-    onRest: (at: SheetRest) => void;
   },
 ) {
   const { c, foot, walk, onStep } = p;
@@ -224,8 +237,8 @@ function PhoneSheet(
       title={nameOf(vm)}
       sub={<span data-testid="pipeline-peek-sub">{c.sheet.sub ?? vm.sub}</span>}
       mark={<Face person={{ name: vm.name, initials: vm.initials }} size="lg" />}
+      opens={toTheirPage(vm, p.onOpenPage)}
       close={{ label: P.words.peek.close, glyph: <Icon name="x" size={13} /> }}
-      rest={{ at: p.at, onRest: p.onRest, turn: { up: P.words.sheet.raise, down: P.words.sheet.lower } }}
       foot={foot ?? undefined}
       className="pipe-deal"
       testid="pipeline-peek"
@@ -241,19 +254,19 @@ export function PipelinePeek(props: PipelinePeekProps) {
   const { vm, row, person = null, failed = null, canRecord = false, phone = false, flash } = props;
   const call = usePersonCall(person, phone);
   const id = vm ? vm.id : null;
-  // Where a phone's sheet stands and whether a pass is asked, each the deal's own: another deal opens at half, asked nothing.
-  const [rest, setRest] = useState<{ id: string | null; at: SheetRest }>({ id: null, at: "half" });
+  // Whether a pass is asked, the deal's own: another deal opens asked nothing.
   const [pass, setPass] = useState<string | null>(null);
   const recordOpen = useSyncExternalStore(hearFolds, recordUp, neverUp);
   const conversation = useNewConversation();
-  // A deal opened, or walked to, on a phone: its row comes up above the sheet, once the sheet is laid out; the room it
-  // took at the rows' foot is theirs again once the sheet closes.
+  // A deal opened, or walked to, on a phone: its row comes up above the sheet, once the sheet is laid out, and again as
+  // the person lands and the sheet grows to hold them; the room it took at the rows' foot is theirs again once it closes.
   const room = useRef<SheetRoom | null>(null);
+  const landed = !!person;
   useEffect(() => {
     if (!phone || !id) return undefined;
     const frame = window.requestAnimationFrame(() => keepRowAboveSheet(id, room));
     return () => window.cancelAnimationFrame(frame);
-  }, [phone, id]);
+  }, [phone, id, landed]);
   const sheetUp = phone && !!id;
   useEffect(() => (sheetUp ? () => giveRoomBack(room) : undefined), [sheetUp]);
   // A sheet it opened stands on the page: this one steps aside while it is up, and is back as it was once it closes,
@@ -283,32 +296,21 @@ export function PipelinePeek(props: PipelinePeekProps) {
     row,
     person,
     sheet,
-    detail: howToReach(person),
     failed,
     canRecord,
     phone,
     flash,
     onCompose: props.onCompose,
     onRetry: props.onRetry,
-    onOpenPage: props.onOpenPage,
-    onOpenDeal: props.onOpenDeal,
     onPass: () => setPass(vm.id),
     passing: pass === vm.id,
   };
   const callCtx: CallCtx | null = person ? { p: person, call, phone, canRecord, flash, load: props.onRetry } : null;
   const foot = callCtx ? dealFoot(c, callCtx, pass === vm.id, () => setPass(null)) : null;
   if (!phone) return <DeskPeek {...props} c={c} foot={foot} />;
-  const at: SheetRest = rest.id === vm.id ? rest.at : "half";
   return (
     <>
-      <PhoneSheet
-        {...props}
-        c={c}
-        foot={foot}
-        open={!away && back}
-        at={at}
-        onRest={(to) => setRest({ id: vm.id, at: to })}
-      />
+      <PhoneSheet {...props} c={c} foot={foot} open={!away && back} />
       {callCtx ? <CallSheet c={callCtx} /> : null}
     </>
   );

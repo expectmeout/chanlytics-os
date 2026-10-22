@@ -9,17 +9,22 @@ import {
   PERSON_DETAIL_WORDS,
   PERSON_MODES,
   answerSaidOf,
+  clipAtWord,
+  foldName,
   normalizeEmail,
   normalizePhone,
   offersYesRefusal,
   ownMessageRefusal,
   personName,
   proposalBelowNeeds,
+  stepDayOf,
+  STEP_SHEET_WORDS,
   whyNotAPhone,
   whyNotAnEmail,
   type WriteWay,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
+import { openDealsOf } from "@chanlytics/db";
 import { personReach } from "../../../readers/person";
 import {
   UUID,
@@ -136,6 +141,75 @@ async function proposePersonNote(
     title: `Note on ${person.who}`,
     summary: `“${body}” · ${NOTE_READERS[input.for](person.who)}`,
     payload: { contact_id: person.id, body, team_only: input.for === "team", who: person.who },
+  });
+}
+
+/** Who a step is for, in the model's word: anyone on the team (the default), or the member asking. */
+const STEP_FOR = ["anyone", "me"] as const;
+
+/**
+ * The open deal a step names: the one whose service they named (case and accents aside), else their one open deal; none
+ * where they have several and named none, or none at all, so the step is about them. A service named that no open deal
+ * of theirs is for is refused in words, never guessed.
+ */
+async function stepDeal(
+  t: ToolContext,
+  personId: string,
+  service: string | null,
+): Promise<{ id: string; service: string | null } | null | ProposalOutcome> {
+  const open = await openDealsOf(t.ctx.supabase, t.tenantId, personId);
+  if (service) {
+    const named = open.find((d) => foldName((d.service ?? "").trim()) === foldName(service));
+    if (named) return { id: named.id, service: named.service };
+    const names = open.map((d) => d.service ?? "no named service").join(" and ");
+    return refuse(
+      open.length
+        ? `their open deals are for ${names}; name one of those, or none`
+        : "they have no open deal; name none",
+    );
+  }
+  return open.length === 1 && open[0] ? { id: open[0].id, service: open[0].service } : null;
+}
+
+/**
+ * A next step on its own (0007, amended; the compact deal sheet, 21 Oct 2026): the team's note with a day, which People,
+ * the Pipeline and their page show and Ask reads back, and the receptionist never does. It names an open deal of theirs
+ * (stepDeal), so it stands on that deal's card, else it is about them. The same note card as action note's, its day
+ * making it a step (noteSpec), so the door, the receipt and the undo are the note's.
+ */
+async function proposePersonStep(
+  t: ToolContext,
+  input: { contact_id: string; what: string; due_on: string; step_for?: (typeof STEP_FOR)[number]; service?: string },
+): Promise<ProposalOutcome> {
+  // As the notes door takes a step: its words, trimmed and refused past the table's length, and a real day from today on.
+  const what = typeof input.what === "string" ? input.what.trim() : "";
+  if (!what) return refuse("what must be the step's words");
+  if (what.length > NOTE_MAX) return refuse(`what is ${what.length} characters; a step is at most ${NOTE_MAX}`);
+  const day = stepDayOf(str(input.due_on, 10), t.timezone, t.now.getTime());
+  if (!day) return refuse("due_on must be a day, like 2026-09-30");
+  if (day.due === "past") return refuse("due_on must be today or later");
+  const forMe = input.step_for === "me";
+  if (forMe && !t.ctx.userId) return refuse("for me needs the member asking; give anyone");
+  const person = await personOnCard(t, input.contact_id);
+  if (refused(person)) return person;
+  const deal = await stepDeal(t, person.id, str(input.service, 80) || null);
+  if (deal && "result" in deal) return deal;
+  const W = STEP_SHEET_WORDS;
+  return propose({
+    kind: "note",
+    title: `${NOTE_WORDS.next} for ${person.who}`,
+    summary: [clipAtWord(what, 80), day.words, deal?.service ?? null, forMe ? W.for.me : W.for.anyone]
+      .filter((x): x is string => !!x)
+      .join(" · "),
+    payload: {
+      contact_id: person.id,
+      body: what,
+      due_on: day.day,
+      team_only: true,
+      ...(deal ? { deal_id: deal.id } : {}),
+      ...(forMe ? { for_user_id: t.ctx.userId } : {}),
+      who: person.who,
+    },
   });
 }
 
@@ -369,7 +443,7 @@ const modeAction = actAction({
 export const propose_person = defineActions({
   name: "propose_person",
   description:
-    "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do.",
+    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do.",
   actions: {
     mode: modeAction,
     note: actAction({
@@ -383,8 +457,24 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
-      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it is action step.`,
       build: proposePersonNote,
+    }),
+    step: actAction({
+      kind: "note",
+      input: z.object({
+        contact_id: z.string().describe("Whose step: an id a read returned."),
+        what: z.string().describe("What to do, in a few words: Call about the timeline."),
+        due_on: z.string().describe("The day it is due, YYYY-MM-DD by the business's calendar, today or later."),
+        step_for: z.enum(STEP_FOR).optional().describe("anyone on the team (the default), or me, the member asking."),
+        service: z.string().optional().describe("The open deal it is about, by its service, where they have two."),
+      }),
+      examples: [
+        { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", what: "Call about the timeline", due_on: "2026-10-24" },
+      ],
+      label: "Preparing a next step",
+      words: `Action step sets one person's next step on its own: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or for the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else it is about them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal instead.`,
+      build: proposePersonStep,
     }),
     details: actAction({
       kind: "person_details",

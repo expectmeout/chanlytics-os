@@ -5,12 +5,12 @@
  * provider's own list), and the thread's reply box already says it (emailStoppedWords). Their page did not: the Replies
  * row read "Any time, by email" over the address the reply route then refuses, and the Email fact beside it was the
  * bare address. The row spelled the fact its own way too (`!!r.email_suppressed_at`) where the product has one
- * predicate (isEmailStopped). Run through the chain a page is drawn by: the row's flag, the About rail, and the
- * Pipeline peek's reach rows.
+ * predicate (isEmailStopped). Run through the chain a page is drawn by: the row's flag and the About rail. The
+ * Pipeline's deal sheet says no reach rows of its own since 21 Oct 2026: their page, a press away, says it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isEmailStopped, pipelinePeekDetail, repliesWords, toPersonRowVM, toPersonVM } from "@chanlytics/contracts";
+import { isEmailStopped, repliesWords, toPersonRowVM, toPersonVM } from "@chanlytics/contracts";
 import { toConversationDto } from "../../../../../apps/dashboard/src/server/dto.ts";
 
 const TZ = "America/New_York";
@@ -137,18 +137,6 @@ test("their page says it twice, in its Replies row and on the address itself, an
     assert.equal(about(p, "Replies"), "Any time, by email");
     assert.equal(about(p, "Email"), ADDRESS);
   }
-});
-
-test("the Pipeline's deal sheet says the same of the same person, once: the address flagged, the copy still the bare address", () => {
-  const reach = (p) => Object.fromEntries(pipelinePeekDetail(p).reach.map((r) => [r.id, r]));
-  const stopped = reach(personFor({ email_suppressed_at: "2026-09-10T00:00:00Z" }));
-  assert.deepEqual([stopped.email.words, stopped.email.warn], [ADDRESS, "Stopped accepting mail"], "said under it");
-  assert.equal(stopped.email.copy, ADDRESS, "what a copy puts on the clipboard is the address, never the tag");
-  // The address's own row says it stopped; Replies would only say email cannot reach them under it, so it is left out.
-  assert.equal(stopped.replies, undefined);
-  const fine = reach(personFor());
-  assert.deepEqual([fine.email.words, fine.email.warn], [ADDRESS, null]);
-  assert.equal(fine.replies.words, "Any time, by email");
 });
 
 test("the row's flag is the one predicate's answer, whatever the column holds", () => {

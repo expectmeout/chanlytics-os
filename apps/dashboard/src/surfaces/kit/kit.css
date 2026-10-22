@@ -954,7 +954,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .more-menu) {
     position: fixed !important;
-    inset: auto 0 0 0 !important;
+    inset: auto var(--sheet-float) var(--sheet-float) !important;
     transform: none !important;
   }
   /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
@@ -964,7 +964,7 @@ a.more-item {
      time's or a copy's list opened behind the Hours sheet that held its trigger, and only its veil showed. */
   .more-menu[data-sheet] {
     position: fixed;
-    inset: auto 0 0 0;
+    inset: auto var(--sheet-float) var(--sheet-float);
     z-index: 420;
     min-width: 0;
     transform-origin: bottom center;
@@ -973,12 +973,14 @@ a.more-item {
     z-index: 419;
     background: var(--surface-veil);
   }
+  /* Floating clear of the foot (tokens.css --sheet-float), it keeps of the home bar's room only what the float has not
+     already given it. */
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
-    padding: 6px 10px calc(14px + env(safe-area-inset-bottom));
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-float)));
+    border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
   }
@@ -1078,6 +1080,7 @@ a.more-item {
   from {
     opacity: 0;
     transform: translateY(28px);
+    --sheet-down: 28px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1093,7 +1096,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .rec-combo-pop[data-sheet]) {
     position: fixed !important;
-    inset: auto 0 var(--kb, 0px) 0 !important;
+    inset: auto var(--sheet-float) max(var(--kb, 0px), var(--sheet-float)) !important;
     transform: none !important;
   }
   .pop-place > .rec-combo-pop[data-sheet] {
@@ -1102,8 +1105,8 @@ a.more-item {
     min-width: 0;
     max-width: none;
     max-height: calc(72dvh - var(--kb, 0px));
-    padding-bottom: env(safe-area-inset-bottom);
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding-bottom: max(0px, env(safe-area-inset-bottom) - var(--sheet-float));
+    border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
   }
@@ -1731,6 +1734,21 @@ a.more-item {
    frame's overlays and the pages' play it from here until they move, as do the kit's rules left in components.css
    (the record kit's sheets at 760px and 761px, Confirm's panel). Only such rules play modal-in and modal-out (a
    dialog), sheet-rise and sheet-drop (the record sheet under 761px) and nudge-in (Confirm, a receipt, a message). */
+/* How far under its rest a phone's sheet stands as it rises, drops or is pulled down: the keyframes that move one up
+   from its foot say it beside their translate, and a pull says it inline (motion/swipe.ts). A sheet with two rests says
+   how far down its half rest holds it, or a pull between the two (sheet/rests.ts). The sheet is cut that far up from
+   its foot (the sheet's glass, below), so nothing of it ever stands lower than its rest, where Safari would read it and
+   keep its bar's band (tokens.css, --sheet-float). Registered, so each moves as what it follows moves. */
+@property --sheet-down {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --sheet-held {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 @keyframes wash-in {
   from {
     opacity: 0;
@@ -1746,6 +1764,7 @@ a.more-item {
     opacity: 0;
     translate: 0 8px;
     scale: 0.985;
+    --sheet-down: 8px;
   }
 }
 @keyframes modal-out {
@@ -1770,23 +1789,27 @@ a.more-item {
 @keyframes sheet-rise {
   from {
     translate: 0 100%;
+    --sheet-down: 100%;
   }
 }
 @keyframes sheet-drop {
   to {
     translate: 0 100%;
+    --sheet-down: 100%;
   }
 }
 @keyframes sheet-in {
   from {
     opacity: 0;
     translate: 0 28px;
+    --sheet-down: 28px;
   }
 }
 @keyframes sheet-out {
   to {
     opacity: 0;
     translate: 0 28px;
+    --sheet-down: 28px;
   }
 }
 @keyframes nudge-in {
@@ -2630,6 +2653,45 @@ a.more-item {
   flex: none;
   display: inline-flex;
 }
+/* The mark and the title as one press to what the sheet is of (Sheet's `opens`: a deal sheet's person, to their page),
+   drawn as they are (Ruben, 21 Oct 2026: nothing lit, no chevron): the words and the tile keep their own look, a
+   keyboard's ring the only mark of the press. The touch floor is the head's, not theirs. */
+.rec-sheet-opens {
+  position: relative;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+/* Its size is what it draws, never a button's touch floor (legacy.css, a coarse pointer's 44px on every button), which
+   stood the name 44 tall and the head 19px taller: the floor is an invisible margin round it, as a chip's is. */
+.rec-sheet-opens[type="button"] {
+  min-width: 0;
+  min-height: 0;
+}
+.rec-sheet-opens::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+}
+.sheet-mark > .rec-sheet-opens {
+  display: inline-flex;
+  border-radius: var(--radius-full);
+}
+.sheet-mark > .rec-sheet-opens::after {
+  inset: -4px;
+}
+.rec-sheet-opens:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
 .rec-sheet-head[data-marked] {
   align-items: center;
   gap: 12px;
@@ -2814,6 +2876,21 @@ textarea.rec-input {
   background: var(--bg-sunken);
   font-size: var(--text-sm);
   color: var(--ink-dim);
+}
+/* A box with a press inside its end (RecordField's `action`: Say it's Fill), which acts on what was typed: the press
+   stands 4px in from the box's end, the box a capsule round both, its ring the group's. */
+.rec-input-group.rec-input-acts {
+  align-items: center;
+  gap: 4px;
+  padding-right: 4px;
+  border-radius: var(--radius-full);
+}
+.rec-input-acts .rec-input {
+  align-self: stretch;
+  box-shadow: none;
+}
+.rec-input-acts > .btn {
+  flex: none;
 }
 .rec-hint {
   font-size: var(--text-sm);
@@ -4110,22 +4187,32 @@ a.list-row {
   }
 }
 @media (max-width: 900px) {
-  /* A phone's veil (tokens.css): the same behind a small job, a record's sheet and the drawer. */
+  /* A phone's veil (tokens.css): the same behind a small job, a record's sheet, a menu and the drawer. In an iPhone's
+     browser it stops short of the window's foot and fades out there (tokens.css --foot-clear), so Safari's bar stays
+     glass while a sheet is open. */
+  .sheet-backdrop,
+  .rec-sheet-backdrop,
+  .more-backdrop {
+    bottom: var(--foot-clear, 0px);
+    mask-image: var(--foot-fade, none);
+  }
   .sheet-backdrop,
   .rec-sheet-backdrop {
     background: var(--surface-veil);
   }
+  /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float), or stands on the keyboard. */
   .sheet {
     top: auto;
-    left: 0;
-    bottom: var(--kb, 0px);
+    left: var(--sheet-float);
+    right: var(--sheet-float);
+    bottom: max(var(--kb, 0px), var(--sheet-float));
     width: auto;
     max-height: calc(88vh - var(--kb, 0px));
     max-height: calc(88dvh - var(--kb, 0px));
     min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px)));
     overflow: auto;
     overscroll-behavior-y: none;
-    padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 calc(16px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float)));
     animation-name: sheet-in;
   }
   .sheet[data-leaving="true"] {
@@ -4169,9 +4256,12 @@ a.list-row {
     height: calc(88dvh - var(--kb, 0px));
     overflow: hidden;
     transform: translate3d(0, 0, 0);
-    transition: transform var(--duration-base) var(--ease-out);
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      --sheet-held var(--duration-base) var(--ease-out);
   }
   .sheet-rests[data-rest="half"] {
+    --sheet-held: var(--sheet-rest);
     transform: translate3d(0, var(--sheet-rest), 0);
   }
   .sheet-rests[data-rest="half"] > .rec-sheet-foot {
@@ -4557,6 +4647,20 @@ a.list-row {
   font-size: var(--text-base);
   font-weight: var(--weight-medium);
   color: var(--ink);
+}
+/* Chips on one line (`line`: a step's days on a phone): the row scrolls sideways where they run past it, never a second
+   row, and shows no bar for it; each chip keeps its width. */
+.rec-seg[data-line="true"] {
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rec-seg[data-line="true"]::-webkit-scrollbar {
+  display: none;
+}
+.rec-seg[data-line="true"] .rec-seg-btn {
+  flex: none;
 }
 .rec-seg[data-look="chips-sm"] .rec-seg-btn {
   height: var(--control-h-md);
@@ -5020,10 +5124,11 @@ a.list-row {
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
    On a desk a side sheet stands clear of the window's edges at a pane's corner, in the glass of what pops ("What pops
-   over the page", above), over the page's wash; on a phone it rises from the bottom edge at the corner of every phone
-   sheet, a menu's among them (--radius-sheet). Its foot is a capsule of the control layer's glass, standing clear of
-   the sheet's edges: its line, then its acts at the canvases' height. The rows scroll above it, never under it, so it
-   has nothing of its own to blur. It names the look outright, over the record kit's phone foot (record.css). */
+   over the page", above), over the page's wash; on a phone it floats up from the bottom edge, clear of the sides and
+   the foot, rounded at the corner of every phone sheet, a menu's among them (--radius-sheet). Its foot is a capsule of
+   the control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
+   rows scroll above it, never under it, so it has nothing of its own to blur. It names the look outright, over the
+   record kit's phone foot (record.css). */
 @media (width > 900px) {
   .sheet,
   .rec-sheet {
@@ -5035,7 +5140,16 @@ a.list-row {
 }
 @media (max-width: 900px) {
   .sheet {
-    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    border-radius: var(--radius-sheet);
+  }
+  /* Everything a phone raises from its foot is cut at its rest's line while it stands lower (--sheet-down and
+     --sheet-held, above): nothing of it ever covers the point over the window's foot that Safari reads. The cut leaves
+     the glass's depth at its top and sides. */
+  .sheet,
+  .rec-sheet,
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]),
+  .pop-place > .rec-combo-pop[data-sheet] {
+    clip-path: inset(-100vmax -100vmax calc(var(--sheet-down) + var(--sheet-held)) -100vmax);
   }
 }
 /* The sheet's head as the composer boards draw it (C2, D2): its name a step up, Close a 34px circle of the control
@@ -5060,7 +5174,7 @@ a.list-row {
 }
 .rec-sheet-foot {
   position: relative;
-  margin: 0 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float, 0px)));
   padding: 6px 6px 6px 16px;
   border-top: 0;
   border-radius: var(--surface-control-radius);

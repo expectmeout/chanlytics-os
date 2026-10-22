@@ -4,7 +4,6 @@
  * table, the peek, the sheets and a selection's bar. Each is a plain function of the page's state, so the tree keeps the
  * nodes the JSX drew.
  */
-import { Fragment } from "react";
 import { PIPELINE_PHONE_SORTS, pipelineCsv } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
@@ -33,8 +32,8 @@ type LinePart = PipelineState["line"][number];
 
 /**
  * The line over the table, People's standing line in its parts: only the parts that have something, and those that count
- * what waits on the owner press to their view. Each fact is one span, a part and those that go on with it (contracts'
- * `joins`: a total's worth beside its count), so a phone sets each fact on a line of its own and a dot never starts one.
+ * what waits on the owner press to their view. Each fact is one span, so a phone sets each on a line of its own and a dot
+ * never starts one.
  */
 function standingLine(s: PipelineState) {
   const { line, r, pickView } = s;
@@ -55,28 +54,20 @@ function standingLine(s: PipelineState) {
       <span className={i === 0 ? "pl-standing-total" : "pl-standing-reached"}>{part.words}</span>
     );
   };
-  const facts: { key: number; parts: { part: LinePart; i: number }[] }[] = [];
-  line.forEach((part, i) => {
-    const last = facts.at(-1);
-    if (part.joins && last) last.parts.push({ part, i });
-    else facts.push({ key: i, parts: [{ part, i }] });
-  });
   return (
     line.length > 0 && (
       <div className="pl-standing" data-testid="pipeline-summary">
-        {facts.map((fact) => (
-          <span key={fact.key} className="pl-standing-fact">
-            {fact.parts.map(({ part, i }) =>
-              i === 0 ? (
-                <Fragment key={i}>{said(part, i)}</Fragment>
-              ) : (
-                <span key={i} className="pl-standing-part">
-                  <span className="pl-standing-dot" aria-hidden="true">
-                    ·
-                  </span>
-                  {said(part, i)}
+        {line.map((part, i) => (
+          <span key={i} className="pl-standing-fact">
+            {i === 0 ? (
+              said(part, i)
+            ) : (
+              <span className="pl-standing-part">
+                <span className="pl-standing-dot" aria-hidden="true">
+                  ·
                 </span>
-              ),
+                {said(part, i)}
+              </span>
             )}
           </span>
         ))}
@@ -87,35 +78,31 @@ function standingLine(s: PipelineState) {
 
 /**
  * A phone's line over the rows (Ruben, 10 Oct 2026): the counts as filters, each the view it names with its dot -- out,
- * waiting, lapsed, clients -- one press to show it and again to show all; then what they come to, said once. The three
- * lines it was said the counts and their worth again under the bar, the rail and the group heads, and pressed only two.
+ * waiting, lapsed, clients -- one press to show it and again to show all. What they come to is not said (21 Oct 2026).
  */
 function phoneFilters(s: PipelineState) {
   const { r, pickView } = s;
-  const { filters, money } = r.all;
-  if (!filters.length && !money) return null;
+  const { filters } = r.all;
+  if (!filters.length) return null;
   const on = filters.some((x) => x.view === r.view);
   return (
     <div className="pipe-summary" data-testid="pipeline-summary">
-      {filters.length ? (
-        <div className={`pipe-filters${on ? " is-on" : ""}`} role="group" aria-label="Show">
-          {filters.map((x) => (
-            <Button
-              key={x.view}
-              variant="plain"
-              size="sm"
-              className="pipe-filter"
-              aria-pressed={r.view === x.view}
-              onClick={() => pickView(x.view)}
-              data-testid={`pipeline-filter-${x.view}`}
-            >
-              <span className={`pipe-filter-dot tone-${x.tone}`} aria-hidden="true" />
-              {x.words}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-      {money ? <p className="pipe-money">{money}</p> : null}
+      <div className={`pipe-filters${on ? " is-on" : ""}`} role="group" aria-label="Show">
+        {filters.map((x) => (
+          <Button
+            key={x.view}
+            variant="plain"
+            size="sm"
+            className="pipe-filter"
+            aria-pressed={r.view === x.view}
+            onClick={() => pickView(x.view)}
+            data-testid={`pipeline-filter-${x.view}`}
+          >
+            <span className={`pipe-filter-dot tone-${x.tone}`} aria-hidden="true" />
+            {x.words}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -316,8 +303,8 @@ function phoneBar(s: PipelineState) {
 }
 
 /**
- * The deal sheet: the peek beside the rows on a desk, the kit's sheet with two rests on a phone (peek.tsx). Its walk is
- * the rows shown, in the order J and K step them; another deal of theirs opens its own row in the same sheet.
+ * The deal sheet: the peek beside the rows on a desk, the kit's sheet on a phone (peek.tsx). Its walk is the rows shown,
+ * in the order J and K step them.
  */
 function peekBlock(s: PipelineState) {
   const { f, ui, r, doors, d, pk, person } = s;
@@ -329,10 +316,6 @@ function peekBlock(s: PipelineState) {
   const walk =
     at < 0 ? null : { at: at + 1, of: r.ids.length, prev: r.ids[at - 1] ?? null, next: r.ids[at + 1] ?? null };
   const who = P.personOf(vm.id);
-  const openDeal = (dealId: string) => {
-    const row = r.all.groups.flatMap((g) => g.rows).find((x) => x.person.id === who && x.deal?.id === dealId);
-    if (row) doors.openPeek(row.id);
-  };
   return (
     <PipelinePeekWhenRead
       vm={vm}
@@ -343,7 +326,6 @@ function peekBlock(s: PipelineState) {
       phone={phone}
       walk={walk}
       onStep={doors.openPeek}
-      onOpenDeal={openDeal}
       onClose={doors.closePeek}
       onRetry={() => ui.setPeekTry((n) => n + 1)}
       onOpenPage={() => d.pageRef.current(who)}
