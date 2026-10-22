@@ -105,20 +105,30 @@ export const calendarRuns: Reader<
 > = {
   name: "calendarRuns",
   async read(rc, by) {
-    const { data: known } = await load(rc, facts.facts, undefined);
+    const db = rc.ctx.supabase;
+    // Three waves, where it was four, one after another (Ruben, 21 Oct 2026: the board's campaigns came after its meetings):
+    // what needs no clock (every campaign's schedule, the workspace's pause) beside the facts that give the business's;
+    // the span's runs, which do, beside each campaign's mode; and what those runs sent, which names them.
+    const [{ data: known }, moments, paused] = await Promise.all([
+      load(rc, facts.facts, undefined),
+      momentSchedules(db, rc.tenantId),
+      workspacePaused(db, rc.tenantId),
+    ]);
     const tz = known.timezone;
     const span = runsSpanOf(by, tz, rc.now);
     const toDay = shiftKey(span.from, span.days - 1);
-    const db = rc.ctx.supabase;
-    const [rows, moments, paused] = await Promise.all([
+    const [rows, modes] = await Promise.all([
       runsInSpan(db, rc.tenantId, {
         fromIso: new Date(zoneMidnight(tz, span.from)).toISOString(),
         toIso: new Date(zoneMidnight(tz, shiftKey(toDay, 1))).toISOString(),
         fromDay: span.from,
         toDay,
       }),
-      momentSchedules(db, rc.tenantId),
-      workspacePaused(db, rc.tenantId),
+      sequenceModesOf(
+        db,
+        rc.tenantId,
+        moments.map((p) => p.sequence_id),
+      ),
     ]);
     // What each run sent: one read for the span's runs. A database before 00374 answers "missing": nothing said sent.
     const read = rows.length
@@ -129,11 +139,6 @@ export const calendarRuns: Reader<
         )
       : "missing";
     const counted = read === "missing" ? null : runCountsOf(read);
-    const modes = await sequenceModesOf(
-      db,
-      rc.tenantId,
-      moments.map((p) => p.sequence_id),
-    );
     const runs: CalendarRunsDto = {
       timezone: tz,
       from: span.from,

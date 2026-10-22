@@ -15,9 +15,55 @@ import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareReads } from "@/legacy-bridge/surface-registry";
+import { aheadWhenIdle, routeOnScreen } from "@/legacy-bridge/workspace";
 import { knownZone } from "@/legacy-bridge/zone";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { getCalendarSpan } from "./surface";
+
+/** What Show draws over the visits, which are always drawn: the open times, the campaigns, and cold email. */
+export interface CalendarShow {
+  open: boolean;
+  campaigns: boolean;
+  cold: boolean;
+}
+
+/** Show as it opens for a member who never picked (D2): open times and campaigns on, cold email off. */
+const SHOW_DEFAULT: CalendarShow = { open: true, campaigns: true, cold: false };
+
+/**
+ * Show as this tab last kept it (tab-memory.ts, its own place, never the view's), else the default: what the page opens
+ * with (use-calendar.ts), and whether the campaigns are worth reading before it is opened (`readRunsSoon`).
+ */
+export function keptShow(): CalendarShow {
+  const mem = typeof window === "undefined" ? undefined : window.__tabMemory;
+  const was = mem?.place("calendar", "show");
+  const on = (k: keyof CalendarShow) => (typeof was?.[k] === "boolean" ? was[k] : SHOW_DEFAULT[k]);
+  return { open: on("open"), campaigns: on("campaigns"), cold: on("cold") };
+}
+
+/** How long an idle page may wait before the Calendar's campaigns are read off the Calendar: after the page's own reads. */
+const RUNS_IDLE_MS = 2000;
+
+/**
+ * The Calendar's campaigns read once the frame is idle on any other page (`read`: the runner's read of this surface,
+ * LegacyApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them in hand with its
+ * weeks, which every boot reads (Today draws them). Read only as the Calendar came on screen, they arrived about half a
+ * second after its meetings in 66 of 294 moves there (page_vitals, 14-21 Oct 2026), the campaign rows pushing the
+ * meetings down as they came (Ruben, 21 Oct 2026). Never where the page may not warm on its own (aheadWhenIdle).
+ */
+export function readRunsSoon(read: () => void, at?: Window): void {
+  const win = at ?? (typeof window === "undefined" ? null : window);
+  if (!win) return;
+  const go = () => {
+    const show = keptShow();
+    if (!(show.campaigns || show.cold) || surfaceValue("calendar_runs")) return;
+    if (/^calendar(\/|$)/.test(routeOnScreen(win))) return;
+    read();
+  };
+  const idle = () => void aheadWhenIdle(go, RUNS_IDLE_MS);
+  if (win.document.readyState === "complete") idle();
+  else win.addEventListener("load", idle, { once: true });
+}
 
 /**
  * Whether the board draws campaigns now (Show's Campaigns or Cold email): only then does a move of its span read them. The
