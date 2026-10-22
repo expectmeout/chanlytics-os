@@ -895,23 +895,17 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .pg-light > span {
     display: none;
   }
-  /* One ground for every page of the app (Ruben, 22 Oct 2026). The Inbox and People had the list's, whiter where the
-     rows are (tokens.css, --surface-page-list), and every other page the page's own: each move between the two changed
-     the document's ground and the colour Safari reads over the clock, and the bar flashed white before it settled,
-     and a page carried back to its list wore a ground the list's did not. Now every page wears the list's: the page's
-     top carries the wash under its paper, the pools lie on the list's own ground (--surface-page-under), and what a
-     page paints as its fill is the foot's, so the window's layer of light, the frame's top, a carried page and the band
-     it takes over the top draw it alike. The document's ground is the foot's too: Safari draws nothing fixed under its
-     toolbar, only the document, and the page's grey stood there as a band under the white rows. The band a carried
-     page takes over the top is drawn on the body, past the app's root, so it is named with it. */
+  /* One ground for every page of the app, and one colour at the window's edges (Ruben, 22 Oct 2026; tokens.css,
+     --surface-page-list, says the rule). Every page's top carries the list's wash under its paper, and the pools lie on
+     the list's own ground under the rows (--surface-page-under), so the window's layer of light, the frame's top, a
+     carried page and the band it takes over the top draw it alike; the band is drawn on the body, past the app's root,
+     so it is named with it. Nothing here touches the document's ground or the page's fill: both stay the paper, which
+     the light is at both edges of the window. The Inbox and People had the wash alone, and every other page the paper:
+     each move between them changed the canvas and the colour Safari read over the clock, and the bar flashed white. */
   .app-root[data-theme],
   .held-band {
-    --surface-page-fill: var(--surface-list-foot);
     --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
     --surface-page-under: var(--surface-page-list-ground);
-  }
-  html:has(> body .app-root) {
-    background-color: var(--surface-list-foot);
   }
   /* At least the screen at its largest (100lvh: as the browser shows it with its own bar tucked away), and as long as the
      page. A page that held less than the screen it showed (100dvh) had nothing to scroll, so Safari never tucked its
@@ -945,13 +939,14 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      the window's top, and 10px higher in an installed app, as its column is (components.css). Over the tab bar, Ask's
      circle and the page's own layers, under the drawer, so the bell's sheet, which is drawn inside it, still covers the
      tab bar.
-     Safari colours the phone's own bar over the page from the fixed or sticky box 8px under the screen's top: from its
-     plain background colour, else from a picture of it taken once and kept while that box stands there (WebKit,
-     LocalFrameView::fixedContainerEdges), which a theme changed since would have left the old theme's. So the top
-     carries the paper whole as a colour Safari reads, which its own ground (::before) covers on the page. It was a faint
-     12% of it, which Safari lays over the document's ground: once that ground was the list's foot (above), lighter than
-     the paper, the bar over the clock came out a step lighter than the head under it (Ruben, 22 Oct 2026). Nothing
-     fixed stands 8px over the foot (the tab bar rests 14px up), so there Safari draws its glass over the page. */
+     Safari colours the phone's own bar over the page from the boxes fixed or sticky under the screen's top: the plain
+     background colour of each full-width box in the stack there, the canvas where two disagree or one blurs, else a
+     picture of the page taken once and kept while that box stands there (WebKit, LocalFrameView::fixedContainerEdges).
+     So the top carries the paper whole: the canvas's own colour and its ground's (::before), which covers it on the
+     page, and the colour every page's light is at the window's top (tokens.css, --surface-page-list, the rule). It was
+     a faint 12% of the paper laid over the canvas, which read a step lighter the moment the canvas was lighter than the
+     paper (Ruben, 22 Oct 2026). Nothing fixed stands 8px over the foot (the tab bar rests 14px up), so there Safari
+     draws its glass over the page. */
   .frame-top {
     --frame-top-fade: 14px;
     display: block;
@@ -960,7 +955,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     right: 0;
     left: 0;
     z-index: 200;
-    background-color: var(--bg);
+    background-color: var(--surface-page-fill);
   }
   /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
      above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
