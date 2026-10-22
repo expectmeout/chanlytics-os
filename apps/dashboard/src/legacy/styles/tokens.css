@@ -415,9 +415,19 @@
      so the paper is a soft edge from the strip the app painted. The dark side reads its own --bg through this. Laid
      over the pools by the body's and the app's root's phone paint (below, and components.css), never by the page
      name's tint (kit.css), which keeps the three pools alone. */
-  --surface-page-top: linear-gradient(
+  --surface-page-paper: linear-gradient(
     var(--bg) env(safe-area-inset-top, 0px),
     transparent calc(env(safe-area-inset-top, 0px) + 64px)
+  );
+  --surface-page-top: var(--surface-page-paper);
+  /* A list's ground on a phone (the Inbox's and People's rows): the light holds over the frame's top and gives way, over
+     a soft run under it, to near-white where the rows are, so they read on paper (Ruben, 22 Oct 2026). Measured from the
+     screen's top, as every layer that paints the light is, so the top and the rows passing under it match; laid between
+     the paper and the pools where a list is the page (mobile.css). The dark side calms its pools to its own ground. */
+  --surface-list-wash: oklch(1 0 0 / 0.86);
+  --surface-page-list: linear-gradient(
+    transparent calc(var(--frame-top-at, 0px) + var(--frame-top, 0px) - 24px),
+    var(--surface-list-wash) calc(var(--frame-top-at, 0px) + var(--frame-top, 0px) + 112px)
   );
   /* How much of its own ink a phone's page name lays over the page light, which tints its letters (kit.css, the page head):
      the light side is strong, and the canvases' name is faded by it into a slate (the pool is 14% blue there), so this
@@ -590,6 +600,7 @@
   --pool-a-tint: oklch(0.737 0.103 267 / 0.2);
   --pool-b-tint: oklch(0.955 0.026 55 / 0.05);
   --pool-c-tint: oklch(0.76 0.135 293 / 0.12);
+  --surface-list-wash: oklch(0.174 0.008 274 / 0.7);
   --surface-page-light:
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),

@@ -895,6 +895,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .pg-light > span {
     display: none;
   }
+  /* The Inbox's views and People's lists read on a whiter ground: the page's top carries the list's wash under its paper
+     (tokens.css, --surface-page-list), so the window's layer of light, the frame's top and whatever paints the light
+     again draw it alike. */
+  .app-root:has(> .main > main[data-strip="inbox"], > .main > main[data-strip="people"]) {
+    --surface-page-top: var(--surface-page-paper), var(--surface-page-list);
+  }
   /* At least the screen at its largest (100lvh: as the browser shows it with its own bar tucked away), and as long as the
      page. A page that held less than the screen it showed (100dvh) had nothing to scroll, so Safari never tucked its
      toolbar away and it stood at full size on a strip of the page's ground; now every page scrolls by the toolbar's
