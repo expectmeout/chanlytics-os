@@ -184,8 +184,10 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
   let aim = ixOpensAt(refs.thread.current, refs.focus.current);
   if (aim) refs.stuck.current = false;
   const toEnd = () => {
+    // Off the screen (not shown yet, or taken away with its observer not yet let go), it moves nothing: on a phone its box
+    // is the window, and the list the thread went back to was pushed to its foot.
+    if (!el.isConnected || !el.clientHeight) return;
     if (aim) {
-      if (!el.clientHeight) return;
       const at = el.querySelector(`[data-mid="${aim}"]`);
       aim = null;
       if (at) {

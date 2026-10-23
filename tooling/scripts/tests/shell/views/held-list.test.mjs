@@ -243,6 +243,8 @@ const inbox = ({ scrolled = 1500 } = {}) => {
   const main = put(body, element("main", { height: 3000 }));
   const list = put(main, element("list", { at: 220, height: 2400 }));
   const rows = Array.from({ length: 30 }, (_, i) => put(list, element("option", { at: 220 + 80 * i, height: 80 })));
+  // Its rows, in the page's order, where the hold asks for them (kit/motion/page-scroll.ts ROW).
+  list.querySelectorAll = (sel) => (sel.includes('[role="option"]') ? rows : []);
   fire("pointerdown");
   win.scrollY = scrolled;
   // The row under the frame's top, as the screen shows it now.
@@ -358,16 +360,46 @@ test("with the row gone (archived, answered elsewhere), the scroll is put back a
   p.leave();
 });
 
-test("a row's page opened from elsewhere (the bell, a link) holds nothing and puts nothing back", () => {
+test("a row's page opened by its address (a refresh in it, the bell, a link) holds nothing, and its list lands at its top as it goes", () => {
+  // Ruben, 22 Oct 2026, after #1807: Conversations still came back from a thread with its channels under the frame's top.
+  // The thread's address had opened it, so nothing held the list; the thread followed its newest message down the window
+  // (on an iPhone every page has the room of Safari's toolbar to scroll), and its own Back closed it where it stood.
+  // The thread takes the screen: the frame's top draws nothing over it.
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = 0;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stopTop = watchFrameTop(top);
   const { list } = inbox();
   const p = page(list);
   p.draw(true);
-  assert.equal(list.dataset.held, undefined);
-  win.scrollY = 0;
+  assert.equal(list.dataset.held, undefined, "nothing held: the list was never on the screen");
+  win.scrollY = 40; // the thread at its newest message: the window's foot
   calls.length = 0;
+  // Its own Back: the top is drawn again over the list, before its observer says so.
+  top.offsetHeight = 134;
   p.draw(false);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [["to", 0]], "the list at its top, before the paint");
+  assert.equal(html.style["--frame-top"], "134px", "under the top as it will be painted");
+  assert.equal(heldPutBack(list), false, "nothing put back: a page that keeps its own place puts it back after");
+  stopTop();
   p.leave();
+});
+
+test("a list nothing held at its top already is not scrolled, and on a desk its own box is left as it was", () => {
+  const phone = inbox({ scrolled: 0 });
+  const p = page(phone.list);
+  p.draw(true);
+  p.draw(false);
+  assert.deepEqual(calls, [], "nothing to move");
+  p.leave();
+  const { list, box } = desk();
+  const d = page(list);
+  d.draw(true);
+  d.draw(false);
+  assert.equal(box.scrollTop, 960, "the table's box keeps its scroll");
+  assert.deepEqual(calls, [], "and the window is left alone");
+  d.leave();
 });
 
 test("a page left while a row is open lets its list go as it is, and puts nothing back", () => {
@@ -484,10 +516,14 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   p.draw(false);
   p.draw(true);
   showHeld(true);
-  const [band, copy] = heldAlong();
-  assert.equal(band.className, "held-band", "the page's own band over the frame's top goes first (components.css)");
+  const [ground, copy] = heldAlong();
+  assert.equal(
+    ground.className,
+    "carry-ground",
+    "the sheet of ground the page slides over goes first (components.css)",
+  );
   assert.ok(
-    band.parentElement === body && band.hasAttribute("aria-hidden"),
+    ground.parentElement === body && ground.hasAttribute("aria-hidden"),
     "on the body, hidden from a screen reader",
   );
   assert.ok(copy && copy !== date, "then a copy of what it drew there");
@@ -500,7 +536,7 @@ test("what the row's page drew in the frame's top for itself goes with the page,
   );
   showHeld(false);
   assert.equal(copy.isConnected, false, "gone once the page is let go or settles back, when the frame draws it again");
-  assert.equal(band.isConnected, false, "the band too");
+  assert.equal(ground.isConnected, false, "the sheet too");
   assert.deepEqual(heldAlong(), []);
   delete frame.ids["pg-dateline"];
   p.leave();
@@ -713,13 +749,15 @@ test("on a phone the row's page is pushed in over the list it was opened from, o
   assert.equal(list.dataset.held, "shown", "the list shows under it");
   assert.ok(html.attrs.has("data-carrying"), "with the frame's chrome over it");
   assert.equal(list.style.translate, "-112px 0", "going under, to the left");
-  assert.equal(heldAlong()[0].className, "held-band", "the page's band over the frame's top comes in with it");
+  assert.equal(heldAlong()[0].className, "carry-ground", "the sheet of ground it slides over comes in with it");
+  // The page itself wears nothing of the ground: the sheet is the ground, laid where the window's is (components.css).
+  assert.equal(el.style["--going-at"], undefined, "no measure of the page is written to it");
   assert.equal(p.draw(true), false, "a draw after it opens nothing");
   await landed();
   assert.equal(el.hasAttribute("data-going"), false, "landed");
   assert.equal(list.dataset.held, "", "the list out of sight again");
   assert.ok(!html.attrs.has("data-carrying"));
-  assert.deepEqual(heldAlong(), [], "the band gone");
+  assert.deepEqual(heldAlong(), [], "the sheet gone");
   assert.deepEqual([el.style.transform, list.style.translate], ["", ""], "nothing left on either");
   assert.ok(el.hasAttribute("data-pushed"), "still marked while it stands over the list");
   p.draw(false);
@@ -842,4 +880,175 @@ test("a list put back where the window scrolls it comes back hidden under a pict
   } finally {
     delete win.requestAnimationFrame;
   }
+});
+
+test("a list left at its top lands at its top: the frame's top grown by a line while away is drawn in its room, the list's head in view", () => {
+  // Ruben, 22 Oct 2026: Conversations came back from a thread with its channels under the frame's top, and stayed so. A
+  // line had joined the top while the thread stood (a newer version ready, after the day's deploys): held to the row you
+  // were on, the list was scrolled by the line's height to keep that row still, and its own head went under the top.
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = 134;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  const stopTop = watchFrameTop(top);
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  // While away the top grows by 40px, and the column under it starts that much further down.
+  top.offsetHeight = 174;
+  for (const r of rows) r.at += 40;
+  calls.length = 0;
+  p.draw(false);
+  assert.equal(html.style["--frame-top"], "174px", "the top as it will be painted");
+  assert.equal(win.scrollY, 0, "the list at its top, its head in view under the taller top");
+  assert.equal(
+    row.getBoundingClientRect().top,
+    was + 40,
+    "the row you were on stands under the line, not held over it",
+  );
+  stopTop();
+  p.leave();
+});
+
+test("a list left at its top lands at its top: a row added above while away shows at the top, the rows under it a row lower", () => {
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  for (const r of rows) r.at += 80; // a new conversation at the top
+  p.draw(false);
+  assert.equal(win.scrollY, 0);
+  assert.equal(row.getBoundingClientRect().top, was + 80, "a row lower, with the new one in view above it");
+  p.leave();
+});
+/**
+ * The frame's top, watched as the shell watches it (kit/head/frame-top.ts), `height` tall; answers how to stop. While it
+ * is watched, the view's top under it, the root's scroll padding, is read from the top's measured height as mobile.css
+ * reads it (--frame-top-at, 6px here, + --frame-top): a measure taken late is read late.
+ */
+const frameTopOf = (height) => {
+  const top = element("frame-top", { height: 0 });
+  top.offsetHeight = height;
+  top.hasAttribute = () => false;
+  top.toggleAttribute = () => {};
+  Object.defineProperty(html.css, "scrollPaddingTop", {
+    configurable: true,
+    enumerable: true,
+    get: () => `${(Number.parseFloat(html.style["--frame-top"]) || 0) + 6}px`,
+    set: () => {},
+  });
+  const stopTop = watchFrameTop(top);
+  const stop = () => {
+    stopTop();
+    Object.defineProperty(html.css, "scrollPaddingTop", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: "140px",
+    });
+  };
+  return { top, stop };
+};
+/** The frame's top grown (or shrunk) by `by`: the column under it starts that much further down. */
+const topGrows = (top, rows, by) => {
+  top.offsetHeight += by;
+  for (const r of rows) r.at += by;
+};
+
+test("a list left short of its rows lands at its top: its head part under the frame's top (a short swipe that tucks Safari's toolbar) comes back whole", () => {
+  // The rows begin 80px down the list's scroll (220 down the page, under a 140px top). Scrolled by 40, its head stood part
+  // under the top as the row opened, and Back put it back so: the channels under the top, the search right under it, as
+  // a refresh never did (People's place puts such a scroll back as the top).
+  const { list } = inbox({ scrolled: 40 });
+  const p = page(list);
+  p.draw(false);
+  p.draw(true);
+  calls.length = 0;
+  p.draw(false);
+  assert.equal(win.scrollY, 0, "at its top, its head in view");
+  p.leave();
+});
+
+test("a list scrolled into its rows keeps its row as far under the frame's top as it stood: a line grown over it while away takes its own room", () => {
+  // Held to its place on the screen, the row was scrolled on by the line's height: the row you were on went under the
+  // line, and what stood over it went under the top.
+  const { top, stop } = frameTopOf(134);
+  const { list, rows } = inbox({ scrolled: 300 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  topGrows(top, rows, 40);
+  calls.length = 0;
+  p.draw(false);
+  assert.equal(html.style["--frame-top"], "174px", "the top as it will be painted, measured before it is read");
+  assert.equal(win.scrollY, 300, "scrolled as it was, under the taller top");
+  assert.equal(row.getBoundingClientRect().top, was + 40, "the row as far under the top as it stood");
+  stop();
+  p.leave();
+});
+
+test("a line that joins the frame's top the moment after the Back takes its own room too: the row is kept under it", () => {
+  const { top, stop } = frameTopOf(134);
+  const { list, rows } = inbox({ scrolled: 300 });
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  p.draw(false);
+  assert.equal(win.scrollY, 300, "landed where it was left");
+  topGrows(top, rows, 40);
+  sized(top);
+  assert.equal(win.scrollY, 300, "not scrolled on by the line");
+  assert.equal(row.getBoundingClientRect().top, was + 40);
+  stop();
+  p.leave();
+});
+
+test("a frame's top shorter at the landing than it stood holds the row where it stood on the screen, until it is whole again", () => {
+  // What this holds is the floor under the growth (Math.max(0, ...)): the top is drawn again as the Back lands (the
+  // list's head names its page a moment after), and a row held under a top still short would stand that much higher,
+  // then drop as the top came whole.
+  const { top, stop } = frameTopOf(134);
+  const { list, rows } = inbox();
+  const p = page(list);
+  p.draw(false);
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  p.draw(true);
+  win.scrollY = 0;
+  topGrows(top, rows, -34);
+  p.draw(false);
+  assert.equal(row.getBoundingClientRect().top, was, "where it stood on the screen");
+  topGrows(top, rows, 34);
+  sized(top);
+  assert.equal(row.getBoundingClientRect().top, was, "and there still, the top whole again");
+  stop();
+  p.leave();
+});
+
+test("on a desk a table's box moved down while away keeps the row as far under the box's top as it stood", () => {
+  // A line over the frame (a desk's status line) moves the table's box down: the row goes down with it, and the box is
+  // scrolled as it was, not on by the line to hold the row where it stood on the screen.
+  const { list, box } = desk();
+  const row = globalThis.document.at;
+  const was = row.getBoundingClientRect().top;
+  const p = page(list);
+  p.draw(false);
+  p.draw(true);
+  box.box = () => ({ top: 140 });
+  for (const r of box.children) r.box = () => ({ top: r.at + 40 - box.scrollTop });
+  box.scrollTop = 0; // a box hidden with its page forgets where it was scrolled
+  p.draw(false);
+  assert.equal(box.scrollTop, 960, "scrolled as it was");
+  assert.equal(row.getBoundingClientRect().top, was + 40, "the row 40px lower, with its box");
+  assert.deepEqual(calls, [], "and the window left alone");
+  p.leave();
 });

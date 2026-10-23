@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { transform } from "lightningcss";
-import { ROOT } from "../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const SHEET = "apps/dashboard/src/legacy/styles/components.css";
 /** The widest window the shell draws as a phone (mobile.css and every `max-width: 900px` block of this sheet). */

@@ -16,8 +16,9 @@ import { placeLoad, placeSave } from "../shell-verbs";
 import type { Place } from "../shell-verbs";
 import { onPageKey } from "./keyboard";
 import type { KeyDoors } from "./keyboard";
-import { heardListScroll, ldScroller } from "./scroller";
+import { heardListScroll, keptTop, ldScroller } from "./scroller";
 import { heldPutBack } from "../../kit/motion/held-list";
+import { placeReader, readersScroll } from "../../kit/motion/page-scroll";
 
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
@@ -75,8 +76,13 @@ function useSelectionResets(controls: Controls, selectionOf: string) {
  * The cursor. Its row is drawn wherever it is (the table keeps it among the rows on screen, kit/rows/shown-rows.ts) and takes
  * focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the sticky header:
  * scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put the cursor here
- * itself (onFocus). A cursor that came back with the view (the page keeps the owner's place, below) marks its row and
- * takes nothing: the list has just been put back where it was, and a scrollIntoView after that moved it on again.
+ * itself (onFocus). And only as it moves: the cursor it last answered takes nothing (`cursorAnswered`). That is the one a
+ * scope had as it is shown again (a scope is kept out of sight under React's Activity while a person's page is open,
+ * people-route.tsx, and React runs its effects again as Back shows it), and the one that came back with the view (the
+ * page keeps the owner's place, below), which marks its row. Either way the list has just been put back where it was
+ * (kit motion/held-list.ts, or the place), and a scrollIntoView after that moved it on again: on an iPhone a row low on
+ * the screen was taken out of the tab bar's room on every Back, and what stood over the rows went under the strip
+ * (Ruben, 22 Oct 2026).
  */
 function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
   const [cursor, setCursor] = useState<string | null>(null);
@@ -89,14 +95,11 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
       return ids[step > 0 ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)] ?? null;
     });
   };
-  const cursorCameBack = useRef<string | null>(null);
+  const cursorAnswered = useRef<string | null>(null);
   useEffect(() => {
+    if (cursorAnswered.current === cursor) return;
+    cursorAnswered.current = cursor;
     if (!cursor || !document.getElementById) return;
-    if (cursorCameBack.current === cursor) {
-      cursorCameBack.current = null;
-      return;
-    }
-    cursorCameBack.current = null;
     // The row's id wears the table's own noun (table.tsx), so the cursor and the peek's focus rule find the same element
     // under Leads as under People.
     const row = document.getElementById(`${noun}-${cursor}`);
@@ -105,7 +108,7 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
     if (row.focus) row.focus({ preventScroll: true });
     if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { cursor, setCursor, moveCursor, cursorCameBack };
+  return { cursor, setCursor, moveCursor, cursorAnswered };
 }
 
 /**
@@ -113,13 +116,14 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
  * scroll, and under Leads its map. Leads stays mounted from one view to the next, so a view that is opened -- by the first
  * draw, the rail, Back -- is given ITS place, or none, and never the last view's filters. People's views keep theirs the
  * same way: everyone, a smart list, a kept list or a state -- a search typed on a list was gone after a trip to a profile.
+ * A scroll that never reached the rows is kept, and put back, as the list's top (scroller.ts keptTop).
  */
 function usePlaceKeeper(
   a: Pick<PlaceArgs, "controls" | "page" | "view" | "landed" | "extra" | "onPlace">,
   cursor: {
     cursor: string | null;
     setCursor: (c: string | null) => void;
-    cursorCameBack: { current: string | null };
+    cursorAnswered: { current: string | null };
   },
 ) {
   const { controls, page, view, landed = true, extra = null, onPlace = null } = a;
@@ -131,7 +135,7 @@ function usePlaceKeeper(
   useEffect(() => {
     const p = placeLoad(page, view) || {};
     setQ((p.q as string) || "");
-    cursor.cursorCameBack.current = (p.cursor as string) || null;
+    cursor.cursorAnswered.current = (p.cursor as string) || null;
     cursor.setCursor((p.cursor as string) || null);
     if (onPlace) onPlace(p, placeOf.current !== undefined);
     placeTop.current = (p.top as number) || 0;
@@ -165,9 +169,10 @@ function usePlaceKeeper(
     due.fresh = false;
     if (!landed) return;
     placeDue.current = null;
-    if (heldPutBack(scrollRef.current)) return;
-    const sc = ldScroller(scrollRef.current);
-    if (sc) sc.scrollTop = due.top;
+    const pane = scrollRef.current;
+    if (heldPutBack(pane)) return;
+    const sc = ldScroller(pane);
+    if (pane && sc) placeReader(sc, keptTop(pane, sc, due.top));
   }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // How far the list is scrolled, heard where its box scrolls (heardListScroll: the table's own on a desktop, the
   // window on a phone), as it is scrolled. Saved once it settles, with the place as last drawn; and at once where the list
@@ -177,17 +182,20 @@ function usePlaceKeeper(
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t: ReturnType<typeof setTimeout> | null = null;
-    let top: number | null = null;
+    // The last scroll heard, and the box it was heard on.
+    let heard: { top: number; box: HTMLElement } | null = null;
     const save = () => {
       t = null;
       const now = placeNow.current;
       // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
-      if (top === null || !now || placeDue.current) return;
-      placeTop.current = top;
-      placeSave(page, now.view, { ...now.place, top });
+      if (!heard || !now || placeDue.current) return;
+      // The reader's own: not a scroll the page made for itself (a sheet's lift), nor one short of the rows.
+      const kept = keptTop(el, heard.box, readersScroll(heard.box, heard.top));
+      placeTop.current = kept;
+      placeSave(page, now.view, { ...now.place, top: kept });
     };
     const stop = heardListScroll(el, (sc) => {
-      top = sc.scrollTop;
+      heard = { top: sc.scrollTop, box: sc };
       if (t) clearTimeout(t);
       t = setTimeout(save, PLACE_SAVE_DELAY_MS);
     });

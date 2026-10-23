@@ -1195,19 +1195,14 @@
     position: absolute;
     inset: -8px -1px;
   }
-  /* A thumb carrying the page back to People (person-real.tsx pageSwipe): its edge says it is lifted, and the foot's dock
-     steps aside while it moves. It wears the page's own ground and stands over the list coming in under it (kit
-     motion/held-list.ts, components.css [data-held]), as an open thread does (components.css): the page has no ground of
-     its own, and the list showed through it. It moves over the frame's chrome drawn again under it with the list, as the
-     thread does. */
+  /* A thumb carrying the page back to People (person-real.tsx pageSwipe), or the page pushed in over it: the foot's dock
+     steps aside while it moves. It stands over the list coming in under it (kit motion/held-list.ts, components.css
+     [data-held]) and over the sheet of ground that slides with it (components.css .carry-ground), as an open thread does:
+     the page has no ground of its own, and the sheet keeps the list from showing through it. It moves over the frame's
+     chrome drawn again under it with the list, as the thread does. */
   .cl-profile[data-going] {
     position: relative;
     z-index: 202;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    box-shadow: var(--shadow-lg);
   }
   body:has(.cl-profile[data-going]) .cl-prof-dock {
     opacity: 0;

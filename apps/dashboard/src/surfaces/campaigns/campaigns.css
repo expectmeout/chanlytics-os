@@ -2769,8 +2769,9 @@ section:has(> .tpl-composer:not(.is-translate)) {
   }
   /* An open pane going back to its list under the thumb, or pushed in over it (split.tsx cmGoing, data-going): the list is
      drawn under it, so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
-     The pane wears the page's own ground, and moves over the frame's chrome drawn again under it with the list (the
-     top, 200; mobile.css, data-carrying), as a thread and a person's page do (components.css, clients.css). */
+     The pane wears no ground of its own: it moves over the sheet of ground that slides with it (components.css
+     .carry-ground) and the frame's chrome drawn again under it with the list (the top, 200; mobile.css, data-carrying),
+     as a thread and a person's page do (components.css, clients.css). */
   .cm-split[data-open][data-going] > .cm-list {
     display: flex;
     grid-area: 1 / 1;
@@ -2778,11 +2779,6 @@ section:has(> .tpl-composer:not(.is-translate)) {
   .cm-split[data-open][data-going] > .cm-pane {
     z-index: 202;
     grid-area: 1 / 1;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
-    background-repeat: no-repeat;
-    background-size: 100vw 100vh;
-    box-shadow: var(--shadow-lg);
   }
 }
 

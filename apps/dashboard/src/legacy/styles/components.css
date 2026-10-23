@@ -1831,12 +1831,13 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .sb-sheet, .pk-body, .ask-line-body { overscroll-behavior-y: none; }
 }
 
-/* An open thread going back to its list on a phone, under the thumb (inbox-thread.jsx, data-going): the list is
-   drawn under the thread as it moves, so what is behind it is what it goes back to. The thread has no ground of its
-   own on a phone (inbox.css: the page's light shows through it), so while it moves it wears the page's, as the app's
-   root paints it there: the list under it showed through the thread, both sets of words at once (Ruben, 17 Oct 2026).
-   It moves over the frame's chrome, which is drawn again under it with the list (the top, 200, and the Inbox's sending
-   strip, 201; mobile.css, data-carrying), and under the drawer (210). */
+/* An open thread going back to its list on a phone, under the thumb (thread.tsx ixGoing, data-going), or pushed in over
+   it: the list is drawn under the thread as it moves, so what is behind it is what it goes back to. The thread has no
+   ground of its own on a phone (inbox.css: the page's light shows through it), and wears none while it moves either:
+   the sheet of ground it slides over (.carry-ground, below) is the window's own picture, so the list under it never
+   shows through (both sets of words at once, Ruben, 17 Oct 2026), and the thread's ground is the window's to the pixel
+   as it lands. It moves over the frame's chrome, which is drawn again under it with the list (the top, 200, and the
+   Inbox's sending strip, 201; mobile.css, data-carrying), over the sheet (201), and under the drawer (210). */
 @media (max-width: 720px) {
   .inbox[data-takeover][data-going] > .ix-list,
   .conversations[data-takeover][data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
@@ -1844,10 +1845,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .conversations[data-takeover][data-going] > .ix-thread-pane {
     grid-area: 1 / 1;
     z-index: 202;
-    background-color: var(--surface-page-fill);
-    background-image: var(--surface-page-top), var(--surface-page-light);
-    background-repeat: no-repeat;
-    box-shadow: -12px 0 32px oklch(0 0 0 / 0.18);
   }
 }
 
@@ -1874,24 +1871,22 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 [data-held][inert] * {
   animation: none !important;
 }
-/* The band a carried page takes over the frame's top with it (kit motion/held-list.ts bandOver): the page's ground, as tall
-   as the top it stands under, over the page (whose content passes under the top when it is scrolled down) and the head
-   drawn again under it, and under what the page drew in the top (its still copies, over it). Its shadow is the page's,
-   on its leading edge alone. */
-.held-band {
+/* The sheet of ground a carried page slides over (kit motion/held-list.ts groundOver): the window's own picture, fixed to
+   the window and painted by the one rule every painter of the ground shares (mobile.css), moved with the page as a thumb
+   carries it or as it is pushed in (kit/motion/swipe.ts `along`). It stands over the frame's chrome drawn again under
+   the page (200), under the page (202) and under what the page drew in the frame's top (its still copies, 204), so the
+   page, which wears no ground of its own, slides over the light it lands on, to the pixel. It was a band as tall as the
+   frame's top, and the page laid the rest of its ground itself, offset by a measure of where it stood that was read a
+   microtask too soon (Ruben, 22 Oct 2026). Its shadow is the page's, on the leading edge alone (the clip reaches left
+   for it). It stops --foot-clear short of the window's foot, off the point Safari reads a box fixed there to paint a
+   band under its bar from (tokens.css). */
+.carry-ground {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: calc(var(--frame-top-at, 0px) + var(--frame-top, 0px));
-  z-index: 203;
+  inset: 0;
+  z-index: 201;
   pointer-events: none;
-  background-color: var(--surface-page-fill);
-  background-image: var(--surface-page-top), var(--surface-page-light);
-  background-repeat: no-repeat;
-  background-size: 100vw 100vh;
   box-shadow: var(--shadow-lg);
-  clip-path: inset(0 0 0 -64px);
+  clip-path: inset(0 0 var(--foot-clear, 0px) -64px);
 }
 
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
@@ -2996,7 +2991,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    each 10% past every edge of the window so a moving pool never shows its layer's side, the pool drawn where the
    tokens put it (--pool-*-x and -y, measured from the window as the root measured them). A phone keeps the root's own
    paint (the page's top over the pools) and no layers, and its pools stand still; so does every pool where less motion
-   is asked (styles/page-light-drift.test.mjs). */
+   is asked (styles/page-light/drift.test.mjs). */
 .pg-light {
   display: none;
 }

@@ -28,7 +28,8 @@
  *   the first paint, the list is put back with that row where it stood, and kept there for a moment after: whatever is
  *   drawn again above it once the Back has landed (the frame's head naming the page, a strip, a count, a row) is answered
  *   before the paint, as Chromium's scroll anchoring does and Safari's lacks, until the screen is touched (`keepRow`). A
- *   row added above it while away is passed over; with the row gone, the scroll is put back as it was.
+ *   row added above it while away is passed over; with the row gone, the scroll is put back as it was. A list nothing
+ *   held, whose row's page stood from its first draw (an address opened it), lands at its top (`listAtItsTop`).
  * A list's rows (kit/rows/shown-rows.ts) and its page's place in the tab (People's use-place.ts) hear nothing of the window
  * while it is held, and the page's place is not put back a second time over this one (`heldPutBack`).
  * One list is held at a time: one row's page is on the screen at a time.
@@ -38,11 +39,17 @@ import { pagesOwnTop } from "../head/frame-head";
 import { frameTopsWatched, holdFrameTop, measureFrameTop } from "../head/frame-top";
 import { headNow, headUnder, type HeadAt } from "../head/standing";
 import { stillCopyOf } from "./leaving";
-import { clearOfFoot, inHeldList, isDocumentScroller, movingScrollerOf } from "./page-scroll";
+import {
+  clearOfFoot,
+  inHeldList,
+  isDocumentScroller,
+  movingScrollerOf,
+  ROW,
+  rowsBeginAt,
+  viewTop,
+} from "./page-scroll";
 import { motionReduced, pushIn } from "./swipe";
 
-/** What a row of a list is, to the place: a table's row, a list's item, a listbox's option, one marked so (Live's calls). */
-const ROW = 'tr, li, [role="option"], [role="row"], [data-row]';
 /** How long a still picture of a list kept out of the document waits for the phone to be idle. */
 const COPY_WAIT_MS = 1000;
 /** The inline styles a held list is given, by the hold and by a thumb's carrying (kit/motion/swipe.ts `under`). */
@@ -50,7 +57,7 @@ const HELD_STYLES = ["top", "left", "width", "height", "translate", "opacity", "
 /** The frame's own chrome over every page (its top, the tab bar, Ask's circle), which comes in with the list held under it. */
 const CHROME = "[data-chrome]";
 /**
- * Over the page carried (202, components.css data-going) and the band it takes over the frame's top (203, .held-band):
+ * Over the page carried (202, components.css data-going) and the sheet of ground it slides over (201, .carry-ground):
  * a page scrolled down passes under the top, and drew over what went with it as it moved.
  */
 const ALONG_LAYER = "204";
@@ -71,6 +78,10 @@ interface Place {
   /** The row at the top of what showed, and its top on the screen. */
   row: Element | null;
   rowAt: number;
+  /** Where the box's view began on the screen, under the frame's top as it stood (viewTop). */
+  topAt: number;
+  /** How far the box scrolls before the list's first row reaches that view (rowsBeginAt); null with no row drawn. */
+  rowsBegin: number | null;
   /** The list's own box on the screen. */
   box: { top: number; left: number; width: number; height: number };
   /** The row under the finger or the pointer: the one whose page is opening. */
@@ -115,12 +126,6 @@ let keeping: (() => void) | null = null;
 /** The row a page was opened from, drawn as under the finger (pressRow); null with none. */
 let pressed: Element | null = null;
 
-/** Where a box's view of what it scrolls begins on the screen: under what stands over it (its scroll padding). */
-function viewTop(scroller: HTMLElement): number {
-  const pad = Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0;
-  return isDocumentScroller(scroller) ? pad : scroller.getBoundingClientRect().top + pad;
-}
-
 /** The row at the top of what shows of the list, or the list's own element there; null where none of it shows. */
 function rowAtTop(list: HTMLElement, scroller: HTMLElement): Element | null {
   const box = list.getBoundingClientRect();
@@ -151,6 +156,8 @@ function listPlace(list: HTMLElement): Place | null {
     scrolled: scroller.scrollTop,
     row,
     rowAt: row ? row.getBoundingClientRect().top : 0,
+    topAt: viewTop(scroller),
+    rowsBegin: rowsBeginAt(list, scroller),
     box: { top: r.top, left: r.left, width: r.width, height: r.height },
     opened: rowUnderPointer(list),
     head: headNow(),
@@ -260,16 +267,19 @@ function letListGo(was: Held): void {
   for (const name of HELD_STYLES) list.style.removeProperty(name);
 }
 
-/** The row's page has gone: the list is put back where it stood, before the first paint. */
-function putListBack(owner: object): void {
+/**
+ * The row's page has gone: the list is put back where it stood, before the first paint. Answers whether `owner` held one,
+ * which is let go whether or not it is on the screen to be put back.
+ */
+function putListBack(owner: object): boolean {
   const was = holding;
-  if (!was || was.owner !== owner) return;
+  if (!was || was.owner !== owner) return false;
   const cover = isDocumentScroller(was.place.scroller) ? coverOf(was) : null;
   letListGo(was);
   const { list } = was.place;
   if (!list.isConnected || list.getClientRects().length === 0) {
     cover?.remove();
-    return;
+    return true;
   }
   if (cover) coverLanding(cover, list);
   placeList(was.place);
@@ -280,6 +290,25 @@ function putListBack(owner: object): void {
   });
   keepRow(was.place);
   pressedUntilTouched();
+  return true;
+}
+
+/**
+ * A list nothing held as its row's page goes lands at its top, where the window scrolls it. That page stood from the
+ * list's first draw (an address opened it: a refresh in it, a link from Today or the bell; or the list was drawn again
+ * under it), so the list was never on the screen and has no place but its top, as a page arriving has (view-deck.ts
+ * toTop). Left where the row's page had the window, it stood at that page's foot: an open thread follows its newest
+ * message down the window, which on an iPhone always has the room of Safari's toolbar to scroll (mobile.css, 100lvh), and
+ * Conversations came back with its channels under the frame's top (Ruben, 22 Oct 2026). A page that keeps its own place
+ * (People's use-place.ts) puts it back after this, as it does on any arrival. A box of its own (a desk's) is left alone.
+ * The frame's top is measured as it will be painted, as for a list put back (placeList): the row's page drew none, and the
+ * list's head stood under the top it came back to until the top's observer next reported.
+ */
+function listAtItsTop(list: HTMLElement | null): void {
+  const place = list ? listPlace(list) : null;
+  if (!place || !isDocumentScroller(place.scroller)) return;
+  measureFrameTop();
+  if (place.scrolled > 0) scrollBoxTo(place.scroller, 0);
 }
 
 /**
@@ -372,12 +401,27 @@ function keepRow(place: Place): void {
   keeping = end;
 }
 
-/** The list put where it stood, against the frame's top as it will be painted, not as its observer last measured it. */
-function placeList({ list, scroller, row, rowAt, scrolled }: Place): void {
+/**
+ * The list put where it stood, against the frame's top as it will be painted, not as its observer last measured it. A list
+ * left at its top lands at its top: whatever grew over it while the row's page stood (a line in the frame's top saying a
+ * newer version is ready, a call's bar, a row added above) is drawn in its own room, and the list's head stays in view.
+ * Held to the row you were on instead, the list was scrolled by the growth to keep that row still, and its head went under
+ * the frame's top: Conversations came back with its channels hidden, and stayed so once the line had gone (Ruben, 22 Oct
+ * 2026). So does a list scrolled short of its rows, its head part under the top (a thumb's short swipe that tucks Safari's
+ * toolbar leaves it so): it came back so, the head under the top, as a refresh puts its place back at its top (People's
+ * scroller.ts keptTop). Only a list scrolled into its rows keeps the row where it stood, since there the rows are what you
+ * were looking at, and it keeps it as far under the frame's top as it stood: what grew over the list takes its own room
+ * there too. A top shorter than it stood (one drawn again a moment after the landing) still holds the row where it stood on
+ * the screen, until it is whole again.
+ */
+function placeList({ list, scroller, row, rowAt, scrolled, topAt, rowsBegin }: Place): void {
   if (!list.isConnected || list.getClientRects().length === 0) return;
   measureFrameTop();
-  if (row && row.isConnected && list.contains(row)) scrollBoxBy(scroller, row.getBoundingClientRect().top - rowAt);
-  else scrollBoxTo(scroller, scrolled);
+  if (scrolled === 0 || (rowsBegin !== null && scrolled < rowsBegin)) scrollBoxTo(scroller, 0);
+  else if (row && row.isConnected && list.contains(row)) {
+    const grown = Math.max(0, viewTop(scroller) - topAt);
+    scrollBoxBy(scroller, row.getBoundingClientRect().top - rowAt - grown);
+  } else scrollBoxTo(scroller, scrolled);
 }
 
 function scrollBoxBy(scroller: HTMLElement, by: number): void {
@@ -414,17 +458,19 @@ export function heldAlong(): HTMLElement[] {
 }
 
 /**
- * The page's own band over the frame's top while it is carried (components.css .held-band): the ground the page stands on,
- * as tall as the top it stands under, moved with the page, so the head drawn again under it is uncovered as the page goes,
- * as the list is, and what the page drew in the top goes on it, as an iOS bar crosses with its page. People's date and
- * bell stood across the top beside a person's ‹ People as the person came in and went.
+ * The sheet of ground the page slides over while it is carried (components.css .carry-ground): the window's own picture
+ * of the page's light, fixed to the window and moved with the page, so the page, which wears no ground of its own, covers
+ * the list and the head drawn again under it, and uncovers them as it goes, and lands on the light it carried to the
+ * pixel; what the page drew in the top goes over it, as an iOS bar crosses with its page. It was a band as tall as the
+ * frame's top, with the page laying the rest of its ground itself, offset by a measure of where it stood that was read a
+ * microtask before the frame's top was measured for it: a thread pushed in opened without its light (Ruben, 22 Oct 2026).
  */
-function bandOver(): HTMLElement {
-  const band = document.createElement("div");
-  band.className = "held-band";
-  band.setAttribute("aria-hidden", "true");
-  document.body.append(band);
-  return band;
+function groundOver(): HTMLElement {
+  const sheet = document.createElement("div");
+  sheet.className = "carry-ground";
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.append(sheet);
+  return sheet;
 }
 
 /** A still copy of what the page drew in the frame's top, laid where it stands, over the head the frame draws again. */
@@ -447,7 +493,8 @@ function goesWith(part: HTMLElement): HTMLElement {
 
 /**
  * A page carried over the list held under it, by a thumb or as it is pushed in (its swipe's `onGrab`): it wears
- * `data-going` (its ground and its edge, clients.css) and the screen it goes back to shows under it.
+ * `data-going` (its place over the list, clients.css) and the screen it goes back to shows under it, with the sheet of
+ * ground it slides over (showHeld).
  */
 export function carriedOver(el: Element, on: boolean): void {
   el.toggleAttribute("data-going", on);
@@ -466,7 +513,7 @@ export function showHeld(on: boolean): void {
   const standIn = heldStandIn();
   if (!standIn || carrying || !holding) return;
   // Taken before the frame draws its head again, as the page has it now.
-  carrying = { standIn, along: [bandOver(), ...pagesOwnTop().map(goesWith)] };
+  carrying = { standIn, along: [groundOver(), ...pagesOwnTop().map(goesWith)] };
   standIn.dataset.held = "shown";
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);
@@ -534,6 +581,7 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null, arriv
   const was = useRef(held);
   const place = useRef<Place | null>(null);
   const comes = useRef<Arrival | null>(null);
+  const shown = useRef(list);
   const opening = held && !was.current;
   if (opening) {
     const el = list();
@@ -541,12 +589,14 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null, arriv
   }
   useLayoutEffect(() => {
     comes.current = arrival ?? null;
+    shown.current = list;
   });
   useLayoutEffect(() => {
     if (held === was.current) return;
     was.current = held;
-    if (!held) putListBack(owner.current);
-    else if (place.current) holdList(place.current, owner.current, comes.current);
+    if (!held) {
+      if (!putListBack(owner.current)) listAtItsTop(shown.current());
+    } else if (place.current) holdList(place.current, owner.current, comes.current);
     place.current = null;
   }, [held]);
   useLayoutEffect(
