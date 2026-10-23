@@ -1,15 +1,28 @@
 /**
  * A time a customer picked by text is a row of Today's queue that answers it (decision 0061): the hold the receptionist
  * opened says what they asked for, and its two verbs are Booked it and Can't, through the door every page presses
- * (POST conversations/[id]/booking-request). Booked it goes to the thread with the confirmation carried into its box;
- * Can't says the thread now waits on a reply; a refusal is the door's own sentence and keeps the row.
+ * (POST conversations/[id]/booking-request). Since decision 0071 what follows stays in the row: Booked it lays the
+ * confirmation the door drafts there, to send or not; Can't says the thread now waits on a reply; a refusal is the door's
+ * own sentence and the row still asks.
  *
- * Run on the queue drawn on the stub React over Today's brief, and on the verb with the door handed in.
+ * Run on the queue drawn on the stub React over Today's brief, and on the row's work drawn alone with the door answered
+ * by the tab's own fetch.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-react.mjs";
+import { BOOKING_REQUEST_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 
 const went = [];
@@ -27,16 +40,15 @@ installLegacyReact({
 });
 const W = globalThis.window;
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { requestActs, requestAnswer } =
-  await import("../../../../apps/dashboard/src/surfaces/today/pages/queue-requests.tsx");
+const { RequestWork } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const ASKED = "Asked for Sat, Sep 19, 2:00 PM · Balayage";
-/** Ana picked a time by text; the receptionist held it for the owner. */
+/** Ana picked a time by text; the receptionist held it for the owner. Her WhatsApp window is open: she wrote a minute ago. */
 const requestDay = () =>
   toTodayVM(
     metrics(),
-    [waiting()],
+    [{ ...waiting(), last_wa_inbound_at: "2026-09-18T18:19:00Z" }],
     [
       {
         id: "e-a",
@@ -70,66 +82,90 @@ test("the hold is a row that says what they asked for, answered with Booked it a
   assert.equal(button("Booked it").length, 1);
   assert.equal(button("Can't").length, 1);
   assert.equal(button("Booked it")[0].props["aria-label"], "Booked it: Ana Reyes", "a reader hears whose");
-  first.props.onClick();
+  // The row is not one button now that it holds its own presses: its words open the thread.
+  assert.equal(first.props.onClick, undefined);
+  find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "inbox/th-cv-a", "the row opens the thread");
 });
 
-test("the verbs: Booked it the row's button, Can't its quiet one, each answering through the door", () => {
-  const pressed = [];
-  const row = { id: "q-e-a", kind: "handoff", who: "Ana Reyes", request: { conversationId: "cv-a" } };
-  const acts = requestActs(row, "primary", (r, booked) => pressed.push([r.request.conversationId, booked]));
-  assert.deepEqual(
-    [acts.cta.label, acts.cta.kind, acts.also.label, acts.also.kind],
-    ["Booked it", "primary", "Can't", "ghost"],
-  );
-  acts.cta.onClick();
-  acts.also.onClick();
-  assert.deepEqual(pressed, [
-    ["cv-a", true],
-    ["cv-a", false],
-  ]);
+/* ------------------------------------------ the row's work, pressed ------------------------------------------ */
+
+const CONFIRM = "You're booked for Saturday, September 19 at 2:00 PM for a Balayage.";
+/** What the booking request's door was asked, and what it answers next. Reads behind a write fail here: not this file's. */
+const doors = [];
+let doorSays;
+W.fetch = async (url, init = {}) => {
+  if ((init.method ?? "GET") === "GET") return new Response("{}", { status: 503 });
+  doors.push([init.method, String(url).replace(/\?.*$/, ""), JSON.parse(init.body)]);
+  const { status, body } = await doorSays();
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+};
+after(() => delete W.fetch);
+const answered = (reply) => ({ status: 200, body: { ok: true, data: { reply } } });
+const kept = [];
+const work = () =>
+  W.React.createElement(RequestWork, {
+    row: requestDay().queue.rows[0],
+    main: "primary",
+    may: true,
+    tz: ZONE,
+    flash: (f) => flashes.push(f),
+    keep: (r) => kept.push(r.id),
+  });
+const buttonsIn = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
+/** Until the door has answered and the row has heard it (the press runs the verb's walk, its specs fetched once). */
+async function until(done) {
+  for (let i = 0; i < 400 && !done(); i++) await settle();
+  assert.ok(done(), "the door answered");
+}
+const reset = () => {
+  doors.length = 0;
+  kept.length = 0;
+  flashes.length = 0;
+  went.length = 0;
+  doorSays = () => answered(CONFIRM);
+  fresh();
+};
+
+test("Booked it answers through the door and lays the confirmation it drafts in the row, to send or not; a second press waits", async () => {
+  reset();
+  let release;
+  doorSays = () => new Promise((resolve) => (release = () => resolve(answered(CONFIRM))));
+  press(buttonsIn(work(), "Booked it")[0]);
+  await until(() => doors.length === 1);
+  assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: true }]]);
+  assert.deepEqual(kept, ["q-e-a"], "kept in its place on the card before the door answers");
+  const asking = again(work);
+  assert.equal(buttonsIn(asking, "Booked it")[0].props.disabled, true, "a second press waits for the first");
+  assert.equal(buttonsIn(asking, "Can't")[0].props.disabled, true);
+  release();
+  await until(() => textOf(again(work)).includes(CONFIRM));
+  const drafted = again(work);
+  assert.ok(textOf(drafted).includes("Confirmation, drafted"), textOf(drafted));
+  assert.equal(buttonsIn(drafted, "Send").length, 1, "sent from the row, through the reply's door");
+  assert.deepEqual(went, [], "the row keeps it: no trip to the thread");
+  press(buttonsIn(drafted, "Don't send")[0]);
+  assert.ok(textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.booked("Ana Reyes")), "not sent: what was done");
 });
 
-test("Booked it goes to the thread with the reply carried; Can't says it waits on a reply; a refusal keeps the row; a second press waits", async () => {
-  const row = { id: "q-e-a", kind: "handoff", who: "Ana Reyes", request: { conversationId: "cv-a" } };
-  const hidden = [];
-  const page = { flash: (f) => flashes.push(f), hide: (id) => hidden.push(id) };
-  const asked = [];
-  let release;
-  const door = (id, booked, who) =>
-    new Promise((resolve) => {
-      asked.push([id, booked, who]);
-      release = () =>
-        resolve({
-          ok: true,
-          reply: "You're booked for Saturday, September 19 at 2:00 PM for a Balayage.",
-          receipt: "Booked. Tell Ana Reyes in the thread.",
-        });
-    });
-  went.length = 0;
-  flashes.length = 0;
-  const first = requestAnswer(row, true, page, door);
-  await requestAnswer(row, false, page, door);
-  assert.deepEqual(asked, [["cv-a", true, "Ana Reyes"]], "once: the second press waits for the first");
-  release();
-  await first;
-  assert.deepEqual(hidden, ["cv-a"], "the row goes at once");
-  assert.equal(went.at(-1), "inbox/th-cv-a", "to the thread, where the reply waits to be sent");
-  assert.equal(textOf(flashes.at(-1).msg), "Booked. Tell Ana Reyes in the thread.");
+test("Can't says the thread waits on their reply; a refusal is the door's own sentence and the row still asks", async () => {
+  reset();
+  doorSays = () => answered(null);
+  press(buttonsIn(work(), "Can't")[0]);
+  await until(() => textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.cant("Ana Reyes")));
+  assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: false }]]);
+  assert.equal(buttonsIn(again(work), "Send").length, 0, "nothing drafted to send");
 
-  went.length = 0;
-  hidden.length = 0;
-  await requestAnswer(row, false, page, async () => ({
-    ok: true,
-    reply: null,
-    receipt: "Ana Reyes is waiting on your reply",
-  }));
-  assert.equal(textOf(flashes.at(-1).msg), "Ana Reyes is waiting on your reply");
-  assert.deepEqual([went, hidden], [[], ["cv-a"]], "Can't stays here: the row comes back as the reply it now waits on");
-
-  hidden.length = 0;
-  await requestAnswer(row, true, page, async () => ({ ok: false, message: "It was answered already." }));
+  reset();
+  doorSays = () => ({
+    status: 409,
+    body: { ok: false, error: { code: "conflict", message: "It was answered already." } },
+  });
+  press(buttonsIn(work(), "Booked it")[0]);
+  await until(() => flashes.length > 0);
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(textOf(flashes.at(-1).msg), "It was answered already.");
-  assert.deepEqual(hidden, [], "refused: the row stays");
+  const still = again(work);
+  assert.equal(buttonsIn(still, "Booked it").length, 1, "refused: the row still asks");
+  assert.equal(buttonsIn(still, "Booked it")[0].props.disabled, false);
 });

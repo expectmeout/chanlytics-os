@@ -444,6 +444,13 @@ export const REPLY_LIMITS = {
 /** The longest reply any wire takes: what a route may accept before it knows the wire. */
 export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 
+/**
+ * A reply's grace: queued, it waits this long before its job sends it, and inside it the send is cancelled cleanly. The
+ * cancelable window IS the undo (core reply.ts, §6). Said once here, so core queues by it and Today's rows hold a review's
+ * public reply for the same grace (decision 0071, E7).
+ */
+export const SEND_GRACE_MS = 15_000;
+
 /* ----------------------------- live calls -------------------------------- */
 
 /**

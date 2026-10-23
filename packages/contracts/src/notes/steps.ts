@@ -72,6 +72,8 @@ export interface PersonNextStepVM {
   /** "For you", "For Maria"; null when it is for anyone. */
   forWho: string | null;
   forMe: boolean;
+  /** The member it is for, or null: a change to the step sends it again, since the edit's door sets it from what it is sent. */
+  forUserId: string | null;
   /** The deal it moves, when it names one. */
   dealId: string | null;
 }
@@ -100,6 +102,7 @@ export function nextStepOf(r: StepColumns, tz: string, nowMs: number): PersonNex
     due: day.due,
     forWho: forWords(r.step_for_me, r.step_for_user_id, r.step_for_name),
     forMe: !!r.step_for_me,
+    forUserId: r.step_for_user_id ?? null,
     dealId: r.step_deal_id ?? null,
   };
 }

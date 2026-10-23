@@ -926,7 +926,7 @@
 }
 /* Kept because these are not <button>s or are nested inside one, and because
    naming them here documents that their ring is deliberate. */
-.cl-attn-row:focus-visible, .cv-row:focus-visible, .st-card:focus-visible,
+.cl-attn-row:focus-visible, .cl-attn-body[role="button"]:focus-visible, .cv-row:focus-visible, .st-card:focus-visible,
 .pp-card:focus-visible, .fl-agent:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

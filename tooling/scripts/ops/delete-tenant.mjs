@@ -94,6 +94,8 @@ const TABLES = [
   "contact_marks",
   "contact_reads",
   "contacts",
+  // Ask's drafts written ahead for a thread waiting on a person (00475, decision 0071).
+  "conversation_drafts",
   "conversations",
   "deals",
   "decisions",

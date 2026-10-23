@@ -19,13 +19,14 @@ import {
   type ContactId,
   type TenantId,
   MIN_MS,
+  SEND_GRACE_MS,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
 import { PERSON_CONTROL_MAX_S } from "./take-over";
 
-/** The cancelable window IS the undo (§6): a queued reply waits this long before the job sends it. */
-export const SEND_GRACE_MS = 15 * 1000;
+/** The cancelable window IS the undo (§6): a queued reply waits this long before the job sends it (contracts' one statement of it). */
+export { SEND_GRACE_MS };
 /**
  * How long a stored reply receipt is replayed instead of sending again. The
  * key identifies the message, not the attempt, so this window is the ONLY

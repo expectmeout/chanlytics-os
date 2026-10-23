@@ -270,5 +270,10 @@
     "kind": "on-open",
     "fresh": "Read with the record, a page at a time back to the first day shown, and again as the days or the campaign change or Retry is pressed.",
     "why": "A report of days that went: a send that lands while it is open is counted at the next read, as Reports' other lenses are read for the period picked."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/drafts.ts GET conversations/drafts": {
+    "kind": "on-open",
+    "fresh": "Read as Today's Need you draws its rows, and again whenever the threads it draws or the newest message on one of them changes (useDraftsAhead's key, pages/queue.tsx), so a draft for an older message is asked for again.",
+    "why": "A kept draft is words nothing sends: it is read for the rows on screen, and a Send goes through the reply's own door with whatever words the row holds by then; the feed moves the rows, and the rows ask again."
   }
 }

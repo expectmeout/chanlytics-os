@@ -1,11 +1,12 @@
 import { addressOf } from "../activity/record-address.js";
 import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations.js";
-import { messageWords, clipAtWord } from "../conversations/message-words.js";
+import { draftSendsAtMs, heldDraftOf, messageText, messageWords, clipAtWord } from "../conversations/message-words.js";
 import { threadChannelWords } from "../conversations/thread-channel.js";
 import { formatWaited } from "../conversations/thread-clock.js";
 import { contactName, initialsOf } from "../conversations/thread-contact.js";
 import { waWindow } from "../config/policy.js";
 import { leadQuestionRoute } from "../leads/leads.js";
+import { NEED_YOU_WORDS } from "../need-you/need-you-words.js";
 import { MIN_MS, HOUR_MS } from "../shared/time.js";
 import { tzClock } from "./today-clock.js";
 import { QUOTE_MAX } from "./today-facts.js";
@@ -23,7 +24,49 @@ export function namesAPerson(r) {
   return r.kind !== "search" && r.kind !== "steps" && r.kind !== "visits";
 }
 const SEARCH_WARN_MS = 12 * HOUR_MS;
-function callbackRow(r) {
+function writesOf(conv, f) {
+  if (!conv) return void 0;
+  const last = [...conv.messages].reverse().find((x) => x.sender === "customer");
+  const wire = threadChannelWords(conv.messages);
+  const w = wire === "WhatsApp" ? waWindow(conv.last_wa_inbound_at, f.now) : null;
+  return {
+    for_message_id: last?.id ?? null,
+    wire,
+    window_open: w ? w.open : null,
+    window_closes: w?.open ? tzClock(w.closesAtIso, f.tz, f.now) : null
+  };
+}
+function heldRow(c, f) {
+  const draft = heldDraftOf(c.messages);
+  if (!draft) return null;
+  const sendsAtMs = draftSendsAtMs(draft);
+  if (sendsAtMs <= f.now.getTime()) return null;
+  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+  const who = contactName(c);
+  return {
+    id: `q-h-${c.id}`,
+    kind: "held",
+    conversationId: c.id,
+    callId: null,
+    person_id: c.contact.id,
+    who,
+    initials: initialsOf(who),
+    channel: threadChannelWords(c.messages),
+    when: "",
+    sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "",
+    quoted: !!last,
+    status: [NEED_YOU_WORDS.held.goesAlone],
+    tone: "warn",
+    warn: false,
+    cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: c.id }) },
+    also: null,
+    writes: writesOf(c, f),
+    held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
+    // Before everyone waiting: it goes on its own in seconds.
+    waitedMs: Number.MAX_SAFE_INTEGER
+  };
+}
+function callbackRow(r, f) {
   const e = r.e;
   return {
     id: `q-${e.id}`,
@@ -45,21 +88,24 @@ function callbackRow(r) {
       to: r.call ? addressOf({ kind: "call", id: r.call.id }) : addressOf({ kind: "hold", conversationId: e.conversation_id })
     },
     also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+    writes: writesOf(r.conv, f),
+    phone: r.conv?.contact.phone_e164 ?? r.call?.contact?.phone_e164 ?? null,
+    reason: say(e.details) || null,
     waitedMs: r.waitedMs
   };
 }
-function handoffRow(r) {
+function handoffRow(r, f) {
   const e = r.e;
   if (e.reason === "booking_request")
     return {
-      ...handoffOf(r),
+      ...handoffOf(r, f),
       sentence: say(e.details) || reasonLabelOf(e.reason),
       quoted: false,
       request: { conversationId: e.conversation_id }
     };
-  return handoffOf(r);
+  return handoffOf(r, f);
 }
-function handoffOf(r) {
+function handoffOf(r, f) {
   const e = r.e;
   return {
     id: `q-${e.id}`,
@@ -87,6 +133,8 @@ function handoffOf(r) {
       to: addressOf({ kind: "hold", conversationId: e.conversation_id })
     },
     also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+    writes: writesOf(r.conv, f),
+    reason: reasonLabelOf(e.reason),
     waitedMs: r.waitedMs
   };
 }
@@ -113,6 +161,7 @@ function windowRow(c, f) {
     warn: leftMs < 2 * HOUR_MS,
     cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
+    writes: writesOf(c, f),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs
   };
@@ -168,11 +217,19 @@ function searchRow(s, now) {
 export function todayQueue(f, callRows, empty) {
   const { escRecords, closingConvs, searches, now } = f;
   const queueAll = [];
+  const held = /* @__PURE__ */ new Set();
+  for (const c of f.conversations) {
+    if (f.escSet.has(c.id)) continue;
+    const row = heldRow(c, f);
+    if (!row) continue;
+    queueAll.push(row);
+    held.add(c.id);
+  }
   for (const r of escRecords) {
-    queueAll.push(r.e.reason === "callback" ? callbackRow(r) : handoffRow(r));
+    queueAll.push(r.e.reason === "callback" ? callbackRow(r, f) : handoffRow(r, f));
   }
   for (const c of closingConvs) {
-    queueAll.push(windowRow(c, f));
+    if (!held.has(c.id)) queueAll.push(windowRow(c, f));
   }
   for (const r of callRows) {
     if (r.to === "live") continue;

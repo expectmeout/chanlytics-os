@@ -14,6 +14,7 @@ import { appNavigate, bell, holdStill } from "../shell";
 import { runsPending } from "../../waits/run-acts";
 import { Button } from "../../kit/button/button";
 import { reviewLineOf } from "./review-line";
+import { reviewsToAnswer } from "../need-you/reviews";
 
 /** A bell row as the away card's rules read it: the bell writes its tone from a notification's, one of these three. */
 type AwayBellRow = BellRow & { tone: "" | "ok" | "warn" };
@@ -42,8 +43,11 @@ export const TodayAway = () => {
   const [rows, setRows] = useState<AwayBellRow[]>(() => (api ? feedOf(api) : []));
   // The group that is open, by its newest note: one at a time, as the bell's is.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  // The review the card's line draws: its notice is that news a second time (review-line.ts).
-  const review = reviewLineOf(useSurface("google"));
+  // The review the card's line draws: its notice is that news a second time (review-line.ts); and the reviews Need you
+  // offers to answer, which are rows above (decision 0071).
+  const google = useSurface("google");
+  const review = reviewLineOf(google);
+  const answering = reviewsToAnswer(google);
   useEffect(() => {
     if (!api) return undefined;
     const refresh = () => setRows(feedOf(api));
@@ -69,6 +73,7 @@ export const TodayAway = () => {
       : []),
     ...runsDrawn.map((r) => ({ runLabel: r.audience.label })),
     ...(review ? [{ review: review.review }] : []),
+    ...answering.map((r) => ({ review: { id: r.id, reviewId: r.review_id } })),
   ];
   // And the unread rows the bell does not list (older than its newest sixty), counted in the head (S6-10).
   const { groups, total, foot, empty } = TODAY_HELPERS.awayGrouped(rows, inQueue, 5, api.older());

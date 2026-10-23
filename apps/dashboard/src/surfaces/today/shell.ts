@@ -91,7 +91,7 @@ interface AskCardDoor {
   outcome(messageId: string, proposalId: string, o: AskProposalOutcome): Promise<boolean>;
 }
 
-/** Ask's card door where the shell has wired it (Ask for you, decision 0070); nothing in a stand-in window. */
+/** Ask's card door where the shell has wired it (Ask's ideas in Need you, decisions 0070 and 0071); nothing in a stand-in window. */
 export function askCards(): AskCardDoor | undefined {
   const a = object<Partial<AskCardDoor>>("__ask");
   return a && typeof a.commit === "function" && typeof a.outcome === "function" ? (a as AskCardDoor) : undefined;

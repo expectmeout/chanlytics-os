@@ -1,0 +1,156 @@
+/* Today's Need you, with Ask (decision 0071): what Ask prepared under each row's words, the presses at its foot, a send
+   counting down, and what became of it. The kit draws every control (the inset panel, the field, the meter, the menu, the
+   button); this places them and says the words around them. Every value is a token. */
+
+/* Ask's one line over the rows: its mark the ink at rest, the accent while it writes. */
+.ny-say {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.ny-three {
+  display: inline-flex;
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink);
+}
+.ny-three[data-live] {
+  color: var(--accent);
+}
+
+/* What Ask prepared: whose it is over it, then the words, or a call's brief line by line. */
+.ny-draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ny-by {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ny-by-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ny-words {
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ny-line {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ny-line b {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.ny-point::before {
+  content: "· ";
+}
+.ny-avoid {
+  color: var(--ink-dim);
+}
+/* Ask writing: two lines of the inset's own fill where its words will be. */
+.ny-sk {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+}
+.ny-sk-short {
+  width: 60%;
+}
+.ny-editor {
+  min-width: 0;
+}
+
+/* A line about the row that is not words to send: amber what waits on you, red what was refused. */
+.ny-note {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ny-note[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.ny-note[data-tone="danger"] {
+  color: var(--danger-ink);
+}
+
+/* The presses: Not now at the left, the act at the right. */
+.ny-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ny-room {
+  flex: 1 1 auto;
+}
+.ny-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A send counting down: live, so the accent's own soft wash, the seconds in figures that do not jump, Undo at the right. */
+.ny-going {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+}
+.ny-going-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ny-going-line {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ny-going-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* What became of a row, in its place: the tick or the clock, the words, and its undo. */
+.ny-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-md);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ny-done[data-tone="ok"] > svg {
+  color: var(--ok-ink);
+}
+.ny-done b {
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.ny-done-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}

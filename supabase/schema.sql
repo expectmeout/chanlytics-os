@@ -3254,6 +3254,68 @@ COMMENT ON FUNCTION public.contact_stop_ends_offers_yes() IS 'After a person''s 
 
 
 --
+-- Name: conversation_draft_keep(uuid, uuid, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.conversation_drafts%rowtype;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule).
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- A member who acts: a viewer sends nothing, so nothing is drafted for one.
+  if not public.is_acting_member(p_tenant_id) then
+    return jsonb_build_object('error', 'not_acting');
+  end if;
+  if p_kind is null or p_kind not in ('reply', 'brief') then
+    raise exception 'conversation_draft_keep: kind is reply or brief' using errcode = '22023';
+  end if;
+  -- The words are an object of a draft's size: four thousand characters of message and a brief at most.
+  if p_words is null or jsonb_typeof(p_words) <> 'object' or octet_length(p_words::text) > 16000 then
+    raise exception 'conversation_draft_keep: the words are one draft''s' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
+    return jsonb_build_object('error', 'not_found');
+  end if;
+  -- The message it answers is one of the thread's own.
+  if p_for_message_id is not null and not exists (
+    select 1 from public.messages m
+     where m.id = p_for_message_id and m.conversation_id = p_conversation_id and m.tenant_id = p_tenant_id
+  ) then
+    raise exception 'conversation_draft_keep: the message is the thread''s own' using errcode = '22023';
+  end if;
+  insert into public.conversation_drafts as d (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now())
+  on conflict on constraint conversation_drafts_pkey do update
+     set for_message_id = excluded.for_message_id,
+         words = excluded.words,
+         made_by = excluded.made_by,
+         made_at = excluded.made_at
+  returning * into v_row;
+  return jsonb_build_object(
+    'conversation_id', v_row.conversation_id,
+    'kind', v_row.kind,
+    'for_message_id', v_row.for_message_id,
+    'words', v_row.words,
+    'made_at', v_row.made_at
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) IS 'Keep Ask''s draft for a thread waiting on a person (decision 0071): a member who acts, the thread their workspace''s, the message it answers one of the thread''s own. One a thread and kind, the newest kept. Returns the draft, or {error: not_acting | not_found}.';
+
+
+--
 -- Name: conversation_echo_settles(uuid, text, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31526,6 +31588,29 @@ COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every messa
 
 
 --
+-- Name: conversation_drafts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conversation_drafts (
+    tenant_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    kind text NOT NULL,
+    for_message_id uuid,
+    words jsonb DEFAULT '{}'::jsonb NOT NULL,
+    made_by uuid,
+    made_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT conversation_drafts_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'brief'::text])))
+);
+
+
+--
+-- Name: TABLE conversation_drafts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
+
+
+--
 -- Name: conversations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35304,6 +35389,14 @@ ALTER TABLE ONLY public.contacts
 
 ALTER TABLE ONLY public.contacts
     ADD CONSTRAINT contacts_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: conversation_drafts conversation_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_drafts
+    ADD CONSTRAINT conversation_drafts_pkey PRIMARY KEY (tenant_id, conversation_id, kind);
 
 
 --
@@ -39848,6 +39941,30 @@ ALTER TABLE ONLY public.contacts
 
 
 --
+-- Name: conversation_drafts conversation_drafts_conversation_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_drafts
+    ADD CONSTRAINT conversation_drafts_conversation_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversation_drafts conversation_drafts_made_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_drafts
+    ADD CONSTRAINT conversation_drafts_made_by_fkey FOREIGN KEY (made_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: conversation_drafts conversation_drafts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_drafts
+    ADD CONSTRAINT conversation_drafts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: conversations conversations_assignee_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41530,6 +41647,21 @@ ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY contacts_member_select ON public.contacts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: conversation_drafts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.conversation_drafts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: conversation_drafts conversation_drafts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY conversation_drafts_member_select ON public.conversation_drafts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -43225,6 +43357,15 @@ GRANT ALL ON FUNCTION public.contact_seen(p_tenant_id uuid, p_contact_ids uuid[]
 
 REVOKE ALL ON FUNCTION public.contact_stop_ends_offers_yes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.contact_stop_ends_offers_yes() TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO service_role;
 
 
 --
@@ -47977,6 +48118,14 @@ GRANT ALL ON TABLE public.contact_marks TO service_role;
 
 GRANT SELECT ON TABLE public.contact_reads TO authenticated;
 GRANT ALL ON TABLE public.contact_reads TO service_role;
+
+
+--
+-- Name: TABLE conversation_drafts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.conversation_drafts TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.conversation_drafts TO service_role;
 
 
 --

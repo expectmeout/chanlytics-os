@@ -44,7 +44,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The counts of the lists pinned here, read on their own (surfaces/today/pins-surface.ts; R10): People's are as of its
     // last read, which nothing on Today reads again.
     "today_pins",
-    // Ask for you: the member's morning with Ask, read on its own (surfaces/today/ask-morning-surface.ts; decision 0070).
+    // Ask's ideas in Need you: the member's morning with Ask, read on its own (surfaces/today/ask-morning-surface.ts; decision 0070).
     "ask_morning",
   ],
   // The Calendar's campaign marks (surfaces/calendar/runs-surface.ts): their own span read, on demand. It read People's whole

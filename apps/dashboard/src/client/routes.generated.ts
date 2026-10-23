@@ -51,6 +51,7 @@ export const ROUTES = {
   "GET conversations": { method: "GET", path: "/api/v1/conversations" },
   "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
+  "GET conversations/drafts": { method: "GET", path: "/api/v1/conversations/drafts" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
   "GET google": { method: "GET", path: "/api/v1/google" },
@@ -169,6 +170,7 @@ export const ROUTES = {
   "POST contacts/import": { method: "POST", path: "/api/v1/contacts/import" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
+  "POST conversations/[id]/draft": { method: "POST", path: "/api/v1/conversations/[id]/draft" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
   "POST conversations/[id]/snooze": { method: "POST", path: "/api/v1/conversations/[id]/snooze" },
@@ -369,6 +371,7 @@ export type Routes = {
   "GET conversations": typeof import("../../app/api/v1/conversations/route").GET;
   "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
+  "GET conversations/drafts": typeof import("../../app/api/v1/conversations/drafts/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
@@ -487,6 +490,7 @@ export type Routes = {
   "POST contacts/import": typeof import("../../app/api/v1/contacts/import/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
+  "POST conversations/[id]/draft": typeof import("../../app/api/v1/conversations/[id]/draft/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;
   "POST conversations/[id]/snooze": typeof import("../../app/api/v1/conversations/[id]/snooze/route").POST;

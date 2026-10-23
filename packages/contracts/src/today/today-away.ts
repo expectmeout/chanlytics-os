@@ -252,7 +252,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   // printed again and a call's row never could be covered.
   const door = (r: T) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : undefined);
   const aboutQueued = (r: T) => {
-    // Ask's morning cards are Ask for you, on this page (decision 0070); the bell's line about them says it again, and a
+    // Ask's morning cards are rows of Need you, on this page (decisions 0070 and 0071); the bell's line about them says it again, and a
     // morning's cards lapse with its day, so an older line is about nothing left to press.
     if (r.kind === "ask_cards") return true;
     // A run waiting for a word is a row of the queue; the bell's "is ready" about the same run says it again.

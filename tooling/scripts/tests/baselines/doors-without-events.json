@@ -7,6 +7,7 @@
   "claim_conversation_control()": 1,
   "clear_control_of_departed_member()": 1,
   "contact_mark()": 1,
+  "conversation_draft_keep()": 1,
   "conversation_open()": 1,
   "create_message_version()": 1,
   "drop_google_credentials()": 1,
