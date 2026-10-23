@@ -503,6 +503,8 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),
     "a quiet arrival, none for those who asked for none",
   );
+  // A fade where it stands: rising 3px as well, the Calendar read on a phone as shifting as it drew (Ruben, 23 Oct 2026).
+  assert.match(css, /@keyframes cal-in \{ from \{ opacity: 0; \} \}/, "an arrival that moves nothing");
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {
