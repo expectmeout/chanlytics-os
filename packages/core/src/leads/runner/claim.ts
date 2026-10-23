@@ -45,17 +45,29 @@ async function claimOrRecover(
   return "recovered";
 }
 
-/** A start's trouble, sorted: a refusal fails the run through the reconcile door; no answer leaves it unknown; a busy provider throws for the ledger. */
-async function startFailed(p: LeadPorts, row: LeadRunRow, owner: string, e: unknown): Promise<"refused" | "unknown"> {
+/**
+ * A start's trouble, sorted: a refusal fails the run through the reconcile door, with the provider's own words said
+ * and the platform told (a build gone or an account stopped refuses every search until a person fixes it: 23 Oct 2026,
+ * every Maps start refused at a deleted build, its words read by nobody); no answer leaves it unknown; a busy provider
+ * throws for the ledger.
+ */
+async function startFailed(
+  p: LeadPorts,
+  row: LeadRunRow,
+  owner: string,
+  e: unknown,
+): Promise<{ kind: "refused"; why: string } | { kind: "unknown" }> {
   if (isRefused(e)) {
     await p.db.runMarkUnknown(row.id, owner);
     await p.db.runReconcile(row.id, null, null, "failed");
-    return "refused";
+    const why = e instanceof Error ? e.message : String(e);
+    await p.tell?.({ kind: "source_refused", actor: row.actor, build: row.build, why }).catch(() => undefined);
+    return { kind: "refused", why };
   }
   if (isRetryable(e) && e.status === null) {
     // Nobody knows whether it runs. Never started again blindly; the sweep reconciles it (PRD §0.5).
     await p.db.runMarkUnknown(row.id, owner);
-    return "unknown";
+    return { kind: "unknown" };
   }
   throw e; // 429 or 5xx: nothing started, and the row is this job's to start when the ledger tries again
 }

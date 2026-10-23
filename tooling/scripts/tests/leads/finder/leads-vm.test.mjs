@@ -694,6 +694,12 @@ test("the endings read as the States artboard wrote them", () => {
     said(line("source_failed")),
     "Stopped at 86: the source stopped answering · the 61 found are yours · nothing more was counted",
   );
+  // Nothing returned at all: the source never ran it, so it did not "stop answering" (23 Oct 2026, a refused start).
+  assert.equal(
+    said(line("source_failed", { seen: 0, counted: 0 })),
+    "The search didn't run: the source couldn't start it · nothing was counted",
+  );
+  assert.deepEqual(line("source_failed", { seen: 0, counted: 0 }).step, { id: "try_again", label: "Try again" });
   assert.equal(
     said(line("question_unanswered")),
     "Stopped after a day without your answer · the 12 found before it asked are yours",

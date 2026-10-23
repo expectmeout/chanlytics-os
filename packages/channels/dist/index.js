@@ -5948,6 +5948,7 @@ function unsubscribeUrl(origin, token) {
 import { finiteOrNull as finiteOrNull2, trimmedOrNull, recordOrNull as recordOrNull3 } from "../../contracts/dist/index.js";
 var APIFY_BASE = "https://api.apify.com/v2";
 var APIFY_TIMEOUT_MS = 2e4;
+var APIFY_REFUSAL_WORDS_MAX = 200;
 var APIFY_RUN_END_EVENTS = [
   "ACTOR.RUN.SUCCEEDED",
   "ACTOR.RUN.FAILED",
@@ -5985,6 +5986,18 @@ function runOf(data) {
     finishedAt: trimmedOrNull(d.finishedAt)
   };
 }
+function apifyErrorOf(status, text) {
+  try {
+    const error = recordOrNull3(recordOrNull3(JSON.parse(text))?.error);
+    return {
+      type: trimmedOrNull(error?.type) ?? `http ${status}`,
+      said: trimmedOrNull(error?.message)?.slice(0, APIFY_REFUSAL_WORDS_MAX) ?? null
+    };
+  } catch {
+    return { type: `http ${status}`, said: null };
+  }
+}
+var latestBuildOf = (body) => trimmedOrNull(recordOrNull3(recordOrNull3(recordOrNull3(recordOrNull3(body)?.data)?.taggedBuilds)?.latest)?.buildNumber);
 function apifyClient(fetchImpl, token) {
   const headers2 = (json) => ({
     Authorization: `Bearer ${token}`,
@@ -6007,13 +6020,9 @@ function apifyClient(fetchImpl, token) {
       }
     }
     if (allow(res.status)) return { body: null, headers: res.headers };
-    let type = `http ${res.status}`;
-    try {
-      type = trimmedOrNull(recordOrNull3(recordOrNull3(JSON.parse(text))?.error)?.type) ?? type;
-    } catch {
-    }
+    const { type, said } = apifyErrorOf(res.status, text);
     if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
-    throw new ApifyRefused(res.status, `the provider refused: ${type}`);
+    throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
   }
   return {
     async startRun(actor, input, opts) {
@@ -6114,6 +6123,11 @@ function apifyClient(fetchImpl, token) {
         if (price !== null) out[name] = price;
       }
       return out;
+    },
+    async latestBuild(actor) {
+      return latestBuildOf(
+        (await call2(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers2(false) })).body
+      );
     }
   };
 }

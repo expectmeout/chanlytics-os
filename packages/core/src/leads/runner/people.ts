@@ -112,10 +112,10 @@ export async function startPeople(
     },
   ]);
   if (!row) throw new Error("lead_round_start: the people run's row was not made");
-  const said = (kind: TermOutcome): StartOutcome => ({
+  const said = (kind: TermOutcome, why?: string): StartOutcome => ({
     kind: "started",
     phase: "main",
-    runs: [{ term: PEOPLE_TERM, kind }],
+    runs: [{ term: PEOPLE_TERM, kind, ...(why ? { why } : {}) }],
   });
   if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) return said("already");
   if (outOfTime(p)) throw new LeadRetry("out of time before the people run's start");
@@ -134,9 +134,12 @@ export async function startPeople(
     await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     return said("started");
   } catch (e) {
-    const kind = await startFailed(p, row, owner, e);
-    if (kind === "refused") await p.db.roundEnd(round.id, "source_failed");
-    return said(kind);
+    const failed = await startFailed(p, row, owner, e);
+    if (failed.kind === "refused") {
+      await p.db.roundEnd(round.id, "source_failed");
+      return said(failed.kind, failed.why);
+    }
+    return said(failed.kind);
   }
 }
 

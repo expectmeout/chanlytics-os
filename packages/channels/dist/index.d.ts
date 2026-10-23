@@ -3867,6 +3867,8 @@ interface ApifyClient {
     }>;
     abortRun(id: string): Promise<void>;
     eventPrices(actor: string): Promise<Record<string, number>>;
+    /** The build number the actor's `latest` tag names today, or null when it names none: what a pin is held against. */
+    latestBuild(actor: string): Promise<string | null>;
 }
 declare function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient;
 

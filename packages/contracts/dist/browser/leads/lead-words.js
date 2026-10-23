@@ -250,6 +250,13 @@ export function leadEndingLine(ending, f) {
         step: { id: "carry_on", label: "Carry on" }
       };
     case "source_failed":
+      if (f.seen === 0)
+        return {
+          mark,
+          title: "The search didn't run: the source couldn't start it",
+          parts: ["nothing was counted"],
+          step: { id: "try_again", label: "Try again" }
+        };
       return {
         mark,
         title: `Stopped at ${f.seen}: the source stopped answering`,

@@ -380,12 +380,15 @@ export interface LeadPorts {
    */
   storeMark?(bytes: Uint8Array, image: MarkImage): Promise<string | null>;
   /**
-   * Tell the workspace something happened that waits on a person: today, that a round stopped to ask its question
-   * (the bell's row is lead_rounds_notify's, written with the question; this is the email). Called after the commit
-   * that made it true, best effort: it answers nothing and a failure never reaches the collect. Absent in a runtime
-   * that tells nobody.
+   * Tell someone a thing happened that waits on a person. A round that stopped to ask its question tells its
+   * workspace (the bell's row is lead_rounds_notify's, written with the question; this is the email). A provider that
+   * refused to start a run tells the platform, never an owner: its words name a build gone or an account stopped,
+   * which only we can fix. Called after the write that made it true, best effort: it answers nothing and a failure
+   * never reaches the run. Absent in a runtime that tells nobody.
    */
-  tell?(e: { kind: "question"; roundId: string }): Promise<void>;
+  tell?(
+    e: { kind: "question"; roundId: string } | { kind: "source_refused"; actor: string; build: string; why: string },
+  ): Promise<void>;
   /** Epoch ms: no provider or model call is started after this. */
   deadline: number;
 }

@@ -159,3 +159,40 @@ test("an actor's event prices are read at Bronze, by event name", async () => {
     { "place-scraped": 0.003, "apify-actor-start": 0.00005 },
   );
 });
+
+test("a refusal keeps the provider's own words beside its type, cut short, so a log line says why", async () => {
+  // 23 Oct 2026: a start at a deleted build was refused, and only the type was kept.
+  const said = 'Build with number "0.14.757" was not found.';
+  const e = await apifyClient(http([ok(404, { error: { type: "record-not-found", message: said } })]).fn, "tok")
+    .startRun(
+      "compass/crawler-google-places",
+      {},
+      { build: "0.14.757", timeoutSecs: 60, maxTotalChargeUsd: 0.5, webhooks: [] },
+    )
+    .catch((x) => x);
+  assert.ok(e instanceof ApifyRefused);
+  assert.equal(e.message, `the provider refused: record-not-found (${said})`);
+  const long = await apifyClient(
+    http([ok(400, { error: { type: "invalid-input", message: "x".repeat(900) } })]).fn,
+    "tok",
+  )
+    .getRun("r1")
+    .catch((x) => x);
+  assert.equal(long.message, `the provider refused: invalid-input (${"x".repeat(200)})`);
+  const bare = await apifyClient(http([ok(403, { error: { type: "forbidden" } })]).fn, "tok")
+    .getRun("r1")
+    .catch((x) => x);
+  assert.equal(bare.message, "the provider refused: forbidden", "no words, none said");
+});
+
+test("an actor's latest build is the build its latest tag names, read from the actor itself", async () => {
+  const h = http([
+    ok(200, { data: { taggedBuilds: { latest: { buildId: "b1", buildNumber: "0.14.775" } } } }),
+    ok(200, { data: { taggedBuilds: {} } }),
+  ]);
+  const c = apifyClient(h.fn, "tok");
+  assert.equal(await c.latestBuild("compass/crawler-google-places"), "0.14.775");
+  assert.equal(h.calls[0].url, "https://api.apify.com/v2/actors/compass~crawler-google-places");
+  assert.equal(h.calls[0].init.method, "GET");
+  assert.equal(await c.latestBuild("compass/crawler-google-places"), null, "no latest tag, no build to hold a pin to");
+});

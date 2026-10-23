@@ -29,7 +29,7 @@ export type CheckOutcome =
   | { kind: "started"; emails: number; more: boolean }
   | { kind: "already" }
   | { kind: "unknown" }
-  | { kind: "refused" };
+  | { kind: "refused"; why: string };
 
 /** Check again (D3, 00145): the nonce that gives the run an id of its own, and the leads the owner named. */
 export type CheckAgain = { nonce: string; leadIds: string[] };
@@ -130,8 +130,8 @@ export async function check(
       );
     return { kind: "started", emails: emails.length, more };
   } catch (e) {
-    const kind = await startFailed(p, row, owner, e);
-    if (kind === "refused") {
+    const failed = await startFailed(p, row, owner, e);
+    if (failed.kind === "refused") {
       // These addresses cannot be checked: "Couldn't check", so the round can end.
       await p.db.checkCommit(
         round.id,
@@ -141,6 +141,6 @@ export async function check(
         !again && all.length <= (batch + 1) * CHECK_BATCH,
       );
     }
-    return { kind };
+    return failed;
   }
 }
