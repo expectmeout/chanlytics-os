@@ -12,9 +12,9 @@
  * nothing.
  *
  * Since decision 0070 (option B) the model reads the whole of what the workspace says of itself (its services, notes
- * and website) and what the team told Ask (its memory), decides who buys, and writes four ideas across both finder
+ * and website) and what the team told Ask (its memory), decides who buys, and writes three ideas across both finder
  * cards and anywhere in the US, at medium effort; and New ideas is its own act (again): the same line, with what was
- * shown passed on, so each press is four new ideas.
+ * shown passed on, so each press is three new ideas.
  */
 import {
   AppError,
@@ -31,6 +31,7 @@ import {
   LEAD_IDEAS_SYSTEM,
   LEAD_MONTHLY_ALLOWANCE,
   LEAD_SUGGEST_DAYS,
+  LEAD_IDEAS_MAX,
   LEAD_SUGGEST_RETRY_MS,
   LEAD_SUGGEST_UNAVAILABLE,
   LeadIdeasAnswerSchema,
@@ -154,11 +155,13 @@ async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: st
 /** The ideas a row keeps: each with its words and its kind. One kept before plans were written has none to open. */
 function keptIdeas(kept: SuggestionRow | null): LeadIdeaDto[] {
   const items = kept && Array.isArray(kept.items) ? (kept.items as Partial<LeadIdeaDto>[]) : [];
-  return items.flatMap((i) =>
-    i && typeof i.words === "string" && typeof i.category_key === "string"
-      ? [{ ...i, words: i.words, who_for: i.who_for ?? "", category_key: i.category_key, reach: null }]
-      : [],
-  );
+  return items
+    .flatMap((i) =>
+      i && typeof i.words === "string" && typeof i.category_key === "string"
+        ? [{ ...i, words: i.words, who_for: i.who_for ?? "", category_key: i.category_key, reach: null }]
+        : [],
+    )
+    .slice(0, LEAD_IDEAS_MAX); // ideas kept when there were four are shown as the page's three
 }
 
 /**
@@ -238,7 +241,7 @@ const previousOf = (kept: SuggestionRow | null, items: LeadIdeaDto[]) => ({
 });
 
 /**
- * Four ideas written now: what the searches found read, the code's decisions made (contracts ideaPacket), the model
+ * Three ideas written now: what the searches found read, the code's decisions made (contracts ideaPacket), the model
  * asked on its own route, and its answer read back into plans, with what the rules dropped said in the log. No idea
  * that fits is an answer that cannot be read.
  */
@@ -279,7 +282,7 @@ async function writeIdeas(
       tenantId,
       userId: ctx.userId,
       purpose: "lead_suggest",
-      // Who buys is decided before the four are written: more thought than a draft's (option B, decision 0070).
+      // Who buys is decided before the three are written: more thought than a draft's (option B, decision 0070).
       effort: "medium",
       request: {
         max_tokens: MODEL_ROUTES.lead_suggest.maxTokens,
@@ -424,7 +427,7 @@ export async function setBusinessLine(
 
 /**
  * New ideas (decision 0070, option B): the same line written again with what was shown kept to be passed on, then the
- * four written now, so the next four are new ones. For a member who may find, as the write is; the claim and every
+ * three written now, so the next three are new ones. For a member who may find, as the write is; the claim and every
  * rule after it are the write's.
  */
 export async function newIdeas(ctx: IdeasCtx, tenantId: string): Promise<LeadSuggestionsDto> {
@@ -434,7 +437,7 @@ export async function newIdeas(ctx: IdeasCtx, tenantId: string): Promise<LeadSug
 
 /**
  * Write it for me (Ruben, 22 Oct 2026): the owner's saved line let go, and the line written by the model from the whole
- * picture (the profile, the customers, the searches) with four new ideas from it, kept as ours (by_owner false), so each
+ * picture (the profile, the customers, the searches) with three new ideas from it, kept as ours (by_owner false), so each
  * write after it writes the line again as the picture grows. What was shown is passed on, as New ideas passes it; the
  * claim and every rule after it are the write's. Saving a line through Edit makes it the owner's again.
  */

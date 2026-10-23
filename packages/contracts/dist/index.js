@@ -42686,7 +42686,7 @@ function planLeadSearch(input) {
 }
 
 // src/leads/lead-ideas.ts
-var LEAD_IDEAS_MAX = 4;
+var LEAD_IDEAS_MAX = 3;
 var LEAD_SUGGEST_RETRY_MS = 10 * MIN_MS;
 var IDEA_SIZES = [25, 50, 100, 200];
 var IDEA_PLACES_MAX = 10;
@@ -43256,9 +43256,9 @@ var LEAD_IDEAS_SYSTEM = [
   "- A business that serves customers where it is needs places near it. One that sells to other businesses can find them anywhere in the US, often through the person who decides (an owner, a practice manager, an office manager).",
   "- Never people at home, never one named company, and never the business's own kind: those are its competitors.",
   "",
-  "The four:",
+  "The three:",
   '- One builds on what worked (role "proven"): a kind whose verdict is "worked", in a new place or as a close kind. With nothing that worked yet, a new group instead.',
-  '- Two come from groups of buyers not searched yet (role "new").',
+  '- One comes from a group of buyers not searched yet (role "new").',
   `- One goes wider (role "wider"): the other card, a whole state, or the whole US, when the buyers live beyond the business's town; when they do not, a place beside one that worked.`,
   '- A kind whose verdict is "did not work" is not suggested again. A close kind may be, with what went wrong left out (for example "chains" when chains were left out or not a fit).',
   '- A kind whose leads are "not reached yet", or where it is "too early to say", is not searched again where it was searched.',
@@ -65725,6 +65725,7 @@ export {
   LEAD_FACT_MAX,
   LEAD_FITS,
   LEAD_FIT_WORDS,
+  LEAD_IDEAS_MAX,
   LEAD_IDEAS_SYSTEM,
   LEAD_IMPORT_MAX_BYTES,
   LEAD_IMPORT_WORDS,

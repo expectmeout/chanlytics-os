@@ -1,6 +1,6 @@
 import { DAY_MS, MIN_MS } from "../shared/time.js";
 import { leadKindKey, stateCode } from "./search/clean.js";
-export const LEAD_IDEAS_MAX = 4;
+export const LEAD_IDEAS_MAX = 3;
 export const LEAD_SUGGEST_RETRY_MS = 10 * MIN_MS;
 export const IDEA_SIZES = [25, 50, 100, 200];
 const IDEA_PLACES_MAX = 10;

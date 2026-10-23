@@ -192,7 +192,7 @@ export { journeyGuide } from "./journey/journey-guide";
 export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
-export { LEAD_SUGGEST_RETRY_MS, ideaHistoryOf, ideaBasisOf, ideaPacket, ideaCustomersOf, ideaPassed, ideaPassedOf, ideaWhere } from "./leads/lead-ideas";
+export { LEAD_IDEAS_MAX, LEAD_SUGGEST_RETRY_MS, ideaHistoryOf, ideaBasisOf, ideaPacket, ideaCustomersOf, ideaPassed, ideaPassedOf, ideaWhere } from "./leads/lead-ideas";
 export { LEAD_IDEAS_SYSTEM, ideaPacketText, ideaJsonSchema } from "./leads/lead-ideas-ask";
 export { LEAD_IMPORT_MAX_BYTES, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_IMPORT_WORDS, isLeadList, leadChooseAnswerWords, leadChooseNameOf, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadListEmptyOf, leadListStripOf, regionOf, websiteHostOf } from "./leads/lead-import";
 export { LEAD_KINDS, LEAD_SOURCES, LEAD_ROLE_WORDS, LEAD_PEOPLE_MAX, leadRoleOf, leadFoundWords, LEAD_DIRECTORY_WORDS, leadAddresseeOf, leadCompanyOf, LEAD_COMPANY_WORDS, LEAD_ADDRESSEE_WORDS, leadAddresseeRefusal, leadNamedPeople } from "./leads/lead-kind";

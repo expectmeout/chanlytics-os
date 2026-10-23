@@ -877,7 +877,7 @@
       "kind": "read",
       "scope": "workspace",
       "role": null,
-      "rate": "lead_suggest",
+      "rate": "lead_ideas_read",
       "spend": false
     },
     "POST lead-suggestions": {
@@ -891,7 +891,7 @@
       "kind": "write",
       "scope": "workspace",
       "role": "partner",
-      "rate": "lead_suggest",
+      "rate": "lead_line",
       "spend": false
     },
     "POST leads/[id]/addressee": {
