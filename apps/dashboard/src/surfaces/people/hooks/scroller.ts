@@ -3,7 +3,13 @@
  * (pl-table-scroll), else the pane itself, and on a phone, where the window scrolls the page (mobile.css, "The window
  * scrolls"), the document's scroller.
  */
-import { documentScroller, inHeldList, isDocumentScroller, scrollsItself } from "../../kit/motion/page-scroll";
+import {
+  documentScroller,
+  inHeldList,
+  isDocumentScroller,
+  rowsBeginAt,
+  scrollsItself,
+} from "../../kit/motion/page-scroll";
 
 export const ldScroller = (pane: HTMLElement | null): HTMLElement | null => {
   if (!pane) return null;
@@ -42,4 +48,17 @@ export function heardListScroll(pane: HTMLElement, heard: (scroller: HTMLElement
     pane.removeEventListener("scroll", onPane, { capture: true });
     if (page) page.removeEventListener("scroll", onWindow);
   };
+}
+
+/**
+ * A list's scroll as its place keeps it and puts it back. One that never reached its rows (the first row drawn in the
+ * pane, kit/motion/page-scroll.ts rowsBeginAt) is the list's top: a thumb's short swipe that tucks Safari's toolbar, a
+ * landing pushed down by a line in the frame's top, each left the list a little down, and every arrival and refresh after
+ * put it back so, with the page's controls and search under the frame's top (Ruben, 22 Oct 2026). A list scrolled into its
+ * rows keeps the scroll. A pane out of sight draws no row, and its scroll is kept as it is.
+ */
+export function keptTop(pane: HTMLElement, sc: HTMLElement, top: number): number {
+  if (top <= 0) return top;
+  const rows = rowsBeginAt(pane, sc);
+  return rows !== null && top < rows ? 0 : top;
 }

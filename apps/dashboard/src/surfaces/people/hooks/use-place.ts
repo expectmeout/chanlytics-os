@@ -16,8 +16,9 @@ import { placeLoad, placeSave } from "../shell-verbs";
 import type { Place } from "../shell-verbs";
 import { onPageKey } from "./keyboard";
 import type { KeyDoors } from "./keyboard";
-import { heardListScroll, ldScroller } from "./scroller";
+import { heardListScroll, keptTop, ldScroller } from "./scroller";
 import { heldPutBack } from "../../kit/motion/held-list";
+import { placeReader, readersScroll } from "../../kit/motion/page-scroll";
 
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
@@ -115,6 +116,7 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
  * scroll, and under Leads its map. Leads stays mounted from one view to the next, so a view that is opened -- by the first
  * draw, the rail, Back -- is given ITS place, or none, and never the last view's filters. People's views keep theirs the
  * same way: everyone, a smart list, a kept list or a state -- a search typed on a list was gone after a trip to a profile.
+ * A scroll that never reached the rows is kept, and put back, as the list's top (scroller.ts keptTop).
  */
 function usePlaceKeeper(
   a: Pick<PlaceArgs, "controls" | "page" | "view" | "landed" | "extra" | "onPlace">,
@@ -167,9 +169,10 @@ function usePlaceKeeper(
     due.fresh = false;
     if (!landed) return;
     placeDue.current = null;
-    if (heldPutBack(scrollRef.current)) return;
-    const sc = ldScroller(scrollRef.current);
-    if (sc) sc.scrollTop = due.top;
+    const pane = scrollRef.current;
+    if (heldPutBack(pane)) return;
+    const sc = ldScroller(pane);
+    if (pane && sc) placeReader(sc, keptTop(pane, sc, due.top));
   }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // How far the list is scrolled, heard where its box scrolls (heardListScroll: the table's own on a desktop, the
   // window on a phone), as it is scrolled. Saved once it settles, with the place as last drawn; and at once where the list
@@ -179,17 +182,20 @@ function usePlaceKeeper(
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t: ReturnType<typeof setTimeout> | null = null;
-    let top: number | null = null;
+    // The last scroll heard, and the box it was heard on.
+    let heard: { top: number; box: HTMLElement } | null = null;
     const save = () => {
       t = null;
       const now = placeNow.current;
       // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
-      if (top === null || !now || placeDue.current) return;
-      placeTop.current = top;
-      placeSave(page, now.view, { ...now.place, top });
+      if (!heard || !now || placeDue.current) return;
+      // The reader's own: not a scroll the page made for itself (a sheet's lift), nor one short of the rows.
+      const kept = keptTop(el, heard.box, readersScroll(heard.box, heard.top));
+      placeTop.current = kept;
+      placeSave(page, now.view, { ...now.place, top: kept });
     };
     const stop = heardListScroll(el, (sc) => {
-      top = sc.scrollTop;
+      heard = { top: sc.scrollTop, box: sc };
       if (t) clearTimeout(t);
       t = setTimeout(save, PLACE_SAVE_DELAY_MS);
     });
