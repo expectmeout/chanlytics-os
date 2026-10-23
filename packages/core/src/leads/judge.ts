@@ -20,13 +20,16 @@
 import {
   judgeOpId,
   MODEL_ROUTES,
+  type CompanyFacts,
+  type CompanyFitAnswer,
   type JudgePlaceAnswer,
+  type LeadPeoplePlan,
   type LeadSearchPlan,
   type PlaceFacts,
 } from "@chanlytics/contracts";
 import type { LeadJudge } from "@chanlytics/channels";
 import type { CleanPlace } from "./clean";
-import type { CollectJudgment } from "./ports";
+import type { CollectCompany, CollectJudgment } from "./ports";
 
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
@@ -87,6 +90,61 @@ export interface JudgedBatch {
 
 export function opIdFor(runId: string, fromOffset: number, batch: number): string {
   return judgeOpId(runId, fromOffset, batch);
+}
+
+/**
+ * A company as its judge is shown it (contracts company-judge.ts): what the directory said of it, each a fact as a place's
+ * is, its own description longer (the contract caps it), and nothing of its people.
+ */
+export function companyFactsOf(ref: number, c: CollectCompany): CompanyFacts {
+  return {
+    ref,
+    name: fact(c.name) ?? "",
+    industry: fact(c.category),
+    size: fact(c.facts.size),
+    city: fact(c.city),
+    state: fact(c.region),
+    host: fact(c.source_key),
+    about: c.about?.trim() ? c.about : null,
+  };
+}
+
+/** A people page's companies judged: each company's answer by its ref, and the batch's judgment to keep. */
+export interface JudgedCompanies {
+  answers: Map<number, CompanyFitAnswer>;
+  judgment: CollectJudgment | null;
+  refused: boolean;
+  why: string | null;
+}
+
+/**
+ * One batch of companies, asked once and once more, as a places batch is (judgeBatch); refused twice, its companies wait
+ * in Needs review (contracts companyFitOf). A throw is the provider's trouble and propagates.
+ */
+export async function judgeCompanyBatch(
+  judge: LeadJudge,
+  plan: LeadPeoplePlan,
+  companies: CompanyFacts[],
+  opId: string,
+  batch: number,
+  round: { id: string; tenant_id: string },
+): Promise<JudgedCompanies> {
+  if (!companies.length) return { answers: new Map(), judgment: null, refused: false, why: null };
+  let why: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const a = await judge.judgeCompanies(plan, companies, round.tenant_id, round.id);
+    if ("refused" in a) {
+      why = a.why;
+      continue;
+    }
+    return {
+      answers: new Map(a.answers.map((x) => [x.ref, x])),
+      judgment: { op_id: opId, batch, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
+      refused: false,
+      why: null,
+    };
+  }
+  return { answers: new Map(), judgment: null, refused: true, why };
 }
 
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */

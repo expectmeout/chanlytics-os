@@ -457,4 +457,4 @@ export {
   LEAD_JUDGE_FALLBACK_BETA,
   LEAD_JUDGE_DEFAULT_MODEL,
 } from "./leads/lead-judge";
-export type { LeadJudgeClient, LeadJudgeAnswer, LeadJudge } from "./leads/lead-judge";
+export type { LeadJudgeClient, LeadJudgeAnswer, CompanyJudgeAnswer, LeadJudge } from "./leads/lead-judge";

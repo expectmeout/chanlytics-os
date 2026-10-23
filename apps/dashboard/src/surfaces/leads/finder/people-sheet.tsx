@@ -29,7 +29,6 @@ import {
   type PeopleCompanySize,
   type PeopleSeniority,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
 import { Button } from "../../kit/button/button";
 import { Field, fieldProblem } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
@@ -39,12 +38,9 @@ import type { UnsavedWork } from "../../kit/record/work";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn, gate, navigate } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
+import { startPeopleSearch } from "../surface";
 
 const PW = PEOPLE_FIND_WORDS;
-
-/** Starts a people search: the plan as the owner made it, from the page. */
-const findPeople = (plan: LeadPeoplePlan) =>
-  api()("POST lead-searches/people", { body: { plan, via: "people", thread_id: null }, once: true });
 
 /** One set of switches in a menu, under its label: what is on, and the words each says. */
 function Toggles<V extends string>(p: {
@@ -163,7 +159,7 @@ function FindPeopleSheet({
     if (Object.keys(problems).length) return;
     setWrong(null);
     setBusy(true);
-    const r = await findPeople(plan);
+    const r = await startPeopleSearch(plan);
     setBusy(false);
     if (!r.ok) {
       const industry = r.fields?.["plan.industries"];

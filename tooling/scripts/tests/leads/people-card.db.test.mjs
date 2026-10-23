@@ -62,7 +62,8 @@ const plan = (count = 10) =>
     sizes: [],
     states: ["TX"],
   });
-const estimate = (count) => peopleEstimateUsd(count, { perPerson: 0.002, perCheck: 0.00089, start: 0.01 });
+const estimate = (count) =>
+  peopleEstimateUsd(count, { perPerson: 0.002, perJudge: 0.0023, perCheck: 0.00089, start: 0.01 });
 
 /** A company as the people card's runner hands it (core companiesOf). */
 const company = (name, people, over = {}) => ({

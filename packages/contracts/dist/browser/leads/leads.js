@@ -144,25 +144,30 @@ export {
 } from "./lead-row.js";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_STAGES };
 const LEAD_FIRST_DAY = {
-  title: "Who do you want as customers?",
-  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
-  ask: "Describe the businesses you want",
-  ideas: "Or start from an idea",
+  title: "Find your next customers",
+  sub: "We'll find them, and how to reach each one.",
+  ask: "Describe who you want",
+  /** The field's arrow, to a screen reader: what pressing it does. */
+  send: "Find them",
+  ideas: "Ideas for you",
   /** While another read writes them (00398): the page asks again in a moment. */
   writing: "Writing your ideas\u2026",
-  from: "Written from what you do:",
+  from: "Based on",
   edit: "Edit",
   /** New ideas from the same line, when the owner wants others (00399). */
   newIdeas: "New ideas",
-  lineTitle: "What your business does",
-  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
-  lineLabel: "Your business, in a sentence",
+  lineTitle: "Your business",
+  lineSub: "Your ideas are written from this.",
+  lineLabel: "What your business does",
   linePlaceholder: "What you sell, and who buys it",
-  haveList: "Have a list already?",
-  importIt: "Import it",
-  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
-  wantPeople: "Looking for people at companies?",
-  findPeople: "Find people"
+  /** Write it for me: the owner's line let go, and the line written from the whole picture (22 Oct 2026). */
+  lineForMe: "Write it for me",
+  lineWriting: "Writing\u2026",
+  /** Under a line written for the owner, where it came from. */
+  lineWritten: "Written from your profile, customers and searches.",
+  /** The sheet's one press over a line written for the owner and not changed: nothing to save. */
+  lineDone: "Done",
+  importIt: "Import a list"
 };
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 export const LEAD_WORDS = {

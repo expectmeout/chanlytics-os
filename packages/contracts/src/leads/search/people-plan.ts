@@ -94,6 +94,8 @@ export type LeadPeoplePlan = {
   /** A places plan's criteria and exclusions, none: the strip and the sentence read them off any search's plan. */
   criteria: [];
   exclusions: [];
+  /** Started from an idea (decision 0070), as a places plan says it: the ideas' own measure of whether they are followed. */
+  from?: "idea";
 };
 
 /** What the owner chose, before it is a plan: the sheet's fields, or Ask's. */
@@ -186,17 +188,85 @@ export function usStateName(code: string): string | null {
 
 /**
  * What a people search may cost, to reserve (lead_people_search_create holds it under lead_estimate_ceiling('people')):
- * twice the people asked for, each found and checked, one start, with the room. The card's prices are LEAD_CARDS'.
+ * twice the people asked for, each found, judged (their company read against what was asked) and checked, one start,
+ * with the room. The card's prices are LEAD_CARDS'.
  */
 export function peopleEstimateUsd(
   count: number,
-  prices: { perPerson: number; perCheck: number; start: number },
+  prices: { perPerson: number; perJudge: number; perCheck: number; start: number },
 ): number {
   const people = Math.min(1000, 2 * Math.max(1, Math.floor(count)));
-  const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
+  const usd = (people * (prices.perPerson + prices.perJudge + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
   // And the floor each run's cap has (the provider's and the checker's): a cap is never set past what the round holds
   // (S6), and what is not spent goes back when the round ends. lead_estimate_ceiling('people') is the same sum.
   return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
+}
+
+/**
+ * The fewest people the provider takes a run for: it refuses `maxResults` under 100 (its calibration, 14 Oct 2026). A
+ * round that wants fewer asks for this many (core's people card), and keeps every company they name: each was paid for,
+ * and the check counts only as many as the plan asked against the month (lead_check_commit's room). At $0.002 a person
+ * the 100 cost $0.21 with the start, under the cap's floor and inside the floors every people estimate already holds.
+ */
+export const PEOPLE_PROVIDER_LEAST = 100;
+
+/**
+ * About how long a people search takes, said on its card as a places plan's minutes are: the people asked for (twice the
+ * companies, never under the provider's least) at the card's rate, and a minute for their addresses' checks. Never under
+ * two minutes.
+ */
+export function peopleMinutes(count: number): number {
+  const people = Math.min(1000, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count))));
+  return Math.max(2, Math.ceil(people / 100) + 1);
+}
+
+/** The month as a people card reads it: the leads left, and the day they renew. */
+export interface PeopleMonth {
+  left: number;
+  renewsOn: string;
+}
+
+/**
+ * What a people card asks for, as a places plan's does (leadPlanAsk): the companies the month has room for, the button's
+ * words, and the sentence that says why where the month binds. The word is always companies: one lead each.
+ */
+export function peoplePlanAsk(
+  plan: LeadPeoplePlan,
+  month: PeopleMonth | null,
+): { count: number; label: string; covers: string | null } {
+  const binds = !!month && month.left < plan.count;
+  const count = binds && month ? Math.max(0, month.left) : plan.count;
+  const label = count < 1 ? "No leads left this month" : PEOPLE_FIND_WORDS.start(count);
+  if (!binds || !month) return { count, label, covers: null };
+  return {
+    count,
+    label,
+    covers: `You have ${plural(count, "lead", "leads")} left this month. Your leads renew on ${month.renewsOn}.`,
+  };
+}
+
+/**
+ * A people card's facts, as a places plan's are (leadPlanFacts): how long, that anyone already the owner's is skipped,
+ * and what counts (a company its judge found a fit, whose address checked out: company-judge.ts), with the month where
+ * it is known.
+ */
+export function peoplePlanFacts(plan: LeadPeoplePlan, month: PeopleMonth | null): string[] {
+  return [
+    `About ${peopleMinutes(plan.count)} minutes — leave the page if you like`,
+    "Anyone already yours is skipped",
+    month
+      ? `Counts only companies that fit, with a checked work email · ${month.left} left this month`
+      : "Counts only companies that fit, with a checked work email",
+  ];
+}
+
+/** The same facts as one line, a phone's. */
+export function peoplePlanFactLine(plan: LeadPeoplePlan, month: PeopleMonth | null): string {
+  return [
+    `About ${peopleMinutes(plan.count)} min`,
+    "skips anyone you have",
+    ...(month ? [`${month.left} left this month`] : []),
+  ].join(" · ");
 }
 
 /** What a typed list of states holds: the states it names, and the parts that name none, which are never dropped. */
@@ -261,7 +331,7 @@ export function listTyped(text: string, max: number): string[] {
 export const PEOPLE_FIND_WORDS = {
   door: "Find people",
   title: "Find people at companies",
-  sub: "Named people at companies, by what they are called and where they work. Every address is checked before anyone is written to.",
+  sub: "Named people at companies, by what they are called and where they work. Each company is checked for fit, and every address before anyone is written to.",
   titles: "What they are called",
   titlesHint: "Up to five, with commas between: marketing manager, office manager",
   seniority: "How senior",
@@ -326,9 +396,9 @@ export const PEOPLE_STRIP_WORDS = {
       return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
     if (ending === "budget_used" || ending === "month_leads_used")
       return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
-    if (n === 0) return "No company matched what you asked, with an address that checked out.";
-    if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
-    return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;
+    if (n === 0) return "No company that fits what you asked had an address that checked out.";
+    if (n >= target) return `Found ${plural(n, "company", "companies")}, each a fit with its address checked`;
+    return `Found ${n} of ${plural(target, "company", "companies")}: every fit the filters cover, each address checked`;
   },
   more: "Find more like these",
 } as const;

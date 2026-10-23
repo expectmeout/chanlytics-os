@@ -1,7 +1,14 @@
 /**
  * The helpers server/leads/leads.ts and its lead modules share. Internal: leads.ts re-exports only what was public.
  */
-import { clockDate, leadMonth, parseTenantConfig, wallClockAt, type IdeaAbout } from "@chanlytics/contracts";
+import {
+  clockDate,
+  hoursLines,
+  leadMonth,
+  parseTenantConfig,
+  wallClockAt,
+  type IdeaAbout,
+} from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import type { RouteContext } from "../with-route";
@@ -60,15 +67,36 @@ export async function monthUsed(
   return { allowance: taken("allowance"), budget: taken("budget") };
 }
 
-/** How much of the profile the ideas read beyond the line: the services, the notes and each note's length. */
-const ABOUT_SERVICES = 12;
-const ABOUT_NOTES = 5;
-const ABOUT_NOTE_CHARS = 200;
+/**
+ * How much of the profile the ideas read beyond the line: every service and every note, each note to its own length,
+ * within a whole the prompt carries (Ruben, 22 Oct 2026: the whole profile, where it read twelve services and five notes).
+ */
+const ABOUT_NOTE_CHARS = 600;
+const ABOUT_NOTES_TOTAL = 6000;
+
+/** A service as the ideas read it: its name, and how long it takes and what it costs where the profile says. */
+const serviceWords = (s: { name: string; duration_min?: number; price_note?: string }): string => {
+  const more = [s.duration_min ? `${s.duration_min} min` : "", s.price_note?.trim() ?? ""].filter(Boolean);
+  return more.length ? `${s.name} (${more.join(", ")})` : s.name;
+};
+
+/** Each note as one line, whole up to ABOUT_NOTE_CHARS, in its order, until the whole would pass ABOUT_NOTES_TOTAL. */
+function notesWithin(notes: { title: string; text: string }[]): string[] {
+  const out: string[] = [];
+  let total = 0;
+  for (const n of notes) {
+    const line = `${n.title}: ${n.text}`.replace(/\s+/g, " ").slice(0, ABOUT_NOTE_CHARS);
+    if (total + line.length > ABOUT_NOTES_TOTAL) break;
+    out.push(line);
+    total += line.length;
+  }
+  return out;
+}
 
 /**
  * The workspace's own facts a draft may quote: its name, the address the law asks for at the foot, and what it offers;
- * and what the ideas read of it beyond the line (decision 0070's option B: the model saw the line alone): every
- * service by its name, the notes it keeps for the receptionist, and its website.
+ * and what the ideas read of it beyond the line: its business profile whole (every service with its length and price,
+ * every note, its website, its hours and its languages).
  */
 export async function workspaceOffer(
   ctx: Pick<RouteContext, "supabase">,
@@ -79,17 +107,17 @@ export async function workspaceOffer(
     storedConfigOf(ctx.supabase, tenantId),
   ]);
   const profile = parseTenantConfig(config)?.brain?.profile ?? null;
-  const names = (profile?.services ?? []).map((s) => s.name);
+  const services = profile?.services ?? [];
   return {
     name: facts.name,
     address: (profile?.address ?? "").trim(),
-    services: names.slice(0, 5),
+    services: services.slice(0, 5).map((s) => s.name),
     about: {
-      services: names.slice(0, ABOUT_SERVICES),
-      notes: (profile?.notes ?? [])
-        .slice(0, ABOUT_NOTES)
-        .map((n) => `${n.title}: ${n.text}`.replace(/\s+/g, " ").slice(0, ABOUT_NOTE_CHARS)),
+      services: services.map(serviceWords),
+      notes: notesWithin(profile?.notes ?? []),
       website: profile?.website ?? null,
+      hours: hoursLines(profile?.hours),
+      languages: profile?.languages ?? [],
     },
   };
 }

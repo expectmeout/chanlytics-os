@@ -83,19 +83,20 @@ const LEAD_FINDER_SHUT: FinderState = {
   pick: null,
   more: null,
   idea: null,
+  people: null,
 };
 type FinderMove = { open: Partial<FinderState> } | { close: true } | { set: Partial<FinderState> };
 const leadFinderStep = (f: FinderState, move: FinderMove): FinderState => {
   const next: FinderState =
     "open" in move
-      ? { ...f, idea: null, ...move.open, open: true, refusal: null, pick: null }
+      ? { ...f, idea: null, people: null, ...move.open, open: true, refusal: null, pick: null }
       : "close" in move
-        ? { ...f, open: false, more: null, idea: null }
+        ? { ...f, open: false, more: null, idea: null, people: null }
         : { ...f, ...move.set };
   return (Object.keys(next) as (keyof FinderState)[]).every((k) => Object.is(next[k], f[k])) ? f : next;
 };
 
-/** The moves: open a plan (`{ stage, words, proposal, plan, more }`), close the panel, and set fields. */
+/** The moves: open a plan (`{ stage, words, proposal, plan, more }`, or a people idea's `people`), close it, set fields. */
 const leadFinderMoves = (moveFinder: Dispatch<FinderMove>) => ({
   openFinder: (card: Partial<FinderState>) => moveFinder({ open: card }),
   closeFinder: () => moveFinder({ close: true }),
@@ -107,6 +108,10 @@ export interface LeadLine {
   draft: string;
   error: string | null;
   busy: boolean;
+  /** Write it for me in flight: the line being written from the whole picture. */
+  writing?: boolean;
+  /** The line as it was written for the owner, where it was: while the draft is still it, there is nothing to save. */
+  written?: string | null;
 }
 
 type RailSearch = LeadRail["searches"][number];

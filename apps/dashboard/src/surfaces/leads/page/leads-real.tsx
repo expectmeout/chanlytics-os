@@ -184,7 +184,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open; and
   // Find people (00430), which a people search's Search again and a people idea open filled in.
   const lists = useLeadLists({ flash: plFlash, peopleLive: leads.cardsLive.includes("people_at_companies") });
-  const finderActs = leadFinderActs({ leadView, nav, plFlash, ...st, openFindPeople: lists.openFindPeople });
+  const finderActs = leadFinderActs({ leadView, nav, plFlash, ...st });
   const searches = leadSearchActs({ leads, nav, plFlash, ...acts, ...st, openFindPeople: lists.openFindPeople });
   // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
   // (leadPeekEscape, Task 12). Esc and the peek's own close.

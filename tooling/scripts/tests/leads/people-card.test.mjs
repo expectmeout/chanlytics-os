@@ -194,7 +194,10 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
   });
   assert.match(peoplePlanSentence(plan), /^Up to 100 Marketing & Advertising companies of 11 - 50 people in TX and CA/);
   assert.equal(peopleWho(plan), "people called “marketing manager” at Marketing & Advertising companies in TX and CA");
-  assert.ok(peopleEstimateUsd(100, { perPerson: 0.002, perCheck: 0.00089, start: 0.01 }) >= 1, "both runs' floors");
+  assert.ok(
+    peopleEstimateUsd(100, { perPerson: 0.002, perJudge: 0.0023, perCheck: 0.00089, start: 0.01 }) >= 1,
+    "both runs' floors",
+  );
   assert.equal(PEOPLE_FIND_WORDS.start(100), "Find 100 companies");
 
   assert.deepEqual(usStatesTyped("Texas, ca, Califronia"), { codes: ["TX", "CA"], unread: ["Califronia"] });

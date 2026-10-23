@@ -116,6 +116,8 @@ function shadowed(inner: LeadJudge): LeadJudge {
         await shadow?.settle((ref, criterion) => judgedLabel(out, ref, criterion));
       }
     },
+    // A people search's companies (company-judge.ts) have no second model in shadow: the judge's answer alone.
+    judgeCompanies: (plan, companies, tenantId, roundId) => inner.judgeCompanies(plan, companies, tenantId, roundId),
   };
 }
 

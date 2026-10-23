@@ -9,6 +9,7 @@
 import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
 import type { MarkImage } from "./mark-image";
 import type {
+  CompanyFitAnswer,
   JudgePlaceAnswer,
   LeadArea,
   LeadEmailState,
@@ -213,6 +214,13 @@ export type CollectCompany = {
   email: string;
   facts: LeadFacts;
   reason: string;
+  /**
+   * What its judge made of it (contracts companyFitOf; 00474 lead_company_upsert): its fit, the reasons that hold it in
+   * Needs review beyond its address, and the answer kept with the member. Absent where no judge was asked.
+   */
+  fit?: "strong" | "look" | null;
+  reasons?: string[];
+  judgment?: { op_id: string | null; answer: CompanyFitAnswer | null; model: string | null } | null;
 };
 
 export interface CollectJudgment {
@@ -231,7 +239,8 @@ export interface CollectJudgment {
  * the round's target once the probe passed.
  */
 export interface CollectPage {
-  judgment: CollectJudgment | null;
+  /** One batch's judgment (a places page), or each batch's (a people page's companies, judged in parallel batches). */
+  judgment: CollectJudgment | CollectJudgment[] | null;
   places: CollectPlace[];
   /** The run's usage as the provider reports it now; the commit settles the difference from the row. */
   usage_usd: number;

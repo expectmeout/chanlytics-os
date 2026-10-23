@@ -33,6 +33,7 @@ export {
   LEAD_JUDGE_BATCH,
   LEAD_MAX_PLACES,
   LEAD_FACT_MAX,
+  BUSINESS_LINE_MAX,
   LEAD_REASON_MAX_WORDS,
   LEAD_ASSUMED_YIELD,
   LEAD_ESTIMATE_MARGIN,
@@ -86,8 +87,19 @@ export {
   peoplePlanSentence,
   peopleWho,
   PEOPLE_STRIP_WORDS,
+  PEOPLE_PROVIDER_LEAST,
+  peopleMinutes,
+  peoplePlanAsk,
+  peoplePlanFacts,
+  peoplePlanFactLine,
 } from "./search/people-plan";
-export type { LeadPeoplePlan, PeoplePlanInput, PeopleSeniority, PeopleCompanySize } from "./search/people-plan";
+export type {
+  LeadPeoplePlan,
+  PeoplePlanInput,
+  PeopleSeniority,
+  PeopleCompanySize,
+  PeopleMonth,
+} from "./search/people-plan";
 export { LeadPeoplePlanSchema, LeadPeopleSearchSchema } from "./search/people-plan-schema";
 export type { LeadPeopleSearchInput } from "./search/people-plan-schema";
 export {
@@ -273,11 +285,21 @@ export {
   ideaHistoryOf,
   ideaBasisOf,
   ideaPacket,
+  ideaCustomersOf,
   ideaPassed,
   ideaPassedOf,
   ideaWhere,
 } from "./lead-ideas";
-export type { IdeaHistory, IdeaSearch, IdeaPacket, IdeaPassed, IdeaLanguage, IdeaAbout } from "./lead-ideas";
+export type {
+  IdeaHistory,
+  IdeaSearch,
+  IdeaPacket,
+  IdeaPassed,
+  IdeaLanguage,
+  IdeaAbout,
+  IdeaCustomers,
+  IdeaCustomerRowsIn,
+} from "./lead-ideas";
 export { LEAD_IDEAS_SYSTEM, ideaPacketText, ideaJsonSchema } from "./lead-ideas-ask";
 export { LeadIdeasAnswerSchema, ideaAsk, ideasFrom, ideasRead } from "./lead-ideas-read";
 export type { LeadIdeasAnswer, IdeaDropped } from "./lead-ideas-read";
@@ -369,6 +391,17 @@ export {
   JUDGE_OUTPUT_SCHEMA,
 } from "./lead-judge";
 export type { PlaceFacts, JudgeFactKey, JudgeCriterionAnswer, JudgePlaceAnswer } from "./lead-judge";
+export {
+  COMPANY_ABOUT_MAX,
+  COMPANY_FACT_KEYS,
+  COMPANY_JUDGE_OUTPUT_SCHEMA,
+  companyFitOf,
+  companyJudgeQuestion,
+  companyJudgeSystemPrompt,
+  companyJudgeUserContent,
+  parseCompanyJudgeAnswer,
+} from "./company-judge";
+export type { CompanyFacts, CompanyFactKey, CompanyFitAnswer, CompanyFitVerdict } from "./company-judge";
 export {
   LEAD_BACK_WORDS,
   LEAD_PILE_UNDO_KEY,

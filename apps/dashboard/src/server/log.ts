@@ -151,6 +151,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "import_decision_failed",
   "inbox_escalated_fetch_failed",
   "lead_door_refusal_unknown",
+  "lead_ideas_customers_unread",
   "lead_ideas_written",
   "mailbox_connect_failed",
   "media_remove_failed",

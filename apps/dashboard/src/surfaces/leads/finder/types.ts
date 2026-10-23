@@ -3,7 +3,7 @@
  * leads-finder.jsx, decision 0015): the panel's state, whose round a plan belongs to, the card Ask brought back, and the
  * strip's view model.
  */
-import type { AskProposal, LeadIdeaDto, LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
+import type { AskProposal, LeadIdeaDto, LeadPeoplePlan, LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
 
 /** The panel's stage: the answer row (answering only), Claude reading, the plan card, and the plan starting. */
 export type FinderStage = "compose" | "thinking" | "plan" | "starting";
@@ -49,6 +49,11 @@ export interface FinderState {
   more: FinderMore | null;
   /** The idea the plan was opened from (00398): a new search, started through the page's own door, with its kind's prior. */
   idea: LeadIdeaDto | null;
+  /**
+   * A people idea's plan (decision 0070), shown as its own card to approve as a places idea's is: the people card has
+   * no places plan, so it is held apart from `plan`, and only an idea opens one here.
+   */
+  people: LeadPeoplePlan | null;
 }
 
 /** What the amend turn and the approve take of the panel: a setter for each field, the one close, and whose round it is. */

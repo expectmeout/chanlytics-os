@@ -356,6 +356,36 @@ export function ideaPassedOf(raw) {
     return key && label ? [{ key, place: fieldText(o.place) || label.toLowerCase(), label, times: fieldCount(o.times) || 1 }] : [];
   });
 }
+const CUSTOMER_TOP = 8;
+const kindWords = (category) => category ? category.replace(/_/g, " ").trim().toLowerCase() : "";
+function mostFirst(keys) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const k of keys) if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, CUSTOMER_TOP).map(([key, n]) => ({ key, n }));
+}
+export function ideaCustomersOf(rows) {
+  const kindOfLead = new Map(rows.leads.map((l) => [l.id, kindWords(l.category)]));
+  const leadOfPerson = new Map(rows.contacts.map((c) => [c.id, c.lead_id]));
+  const leadOfDeal = (d) => d.lead_id ?? (d.contact_id ? leadOfPerson.get(d.contact_id) ?? null : null);
+  return {
+    people: rows.contacts.length,
+    arrived: mostFirst(rows.contacts.map((c) => c.acquired_via)).map(({ key, n }) => ({ via: key, n })),
+    fromLeads: rows.contacts.filter((c) => c.lead_id).length,
+    converted: mostFirst(rows.leads.filter((l) => l.stage === "converted").map((l) => kindWords(l.category))).map(
+      ({ key, n }) => ({ kind: key, n })
+    ),
+    won: {
+      deals: rows.deals.length,
+      services: mostFirst(rows.deals.map((d) => d.service?.trim() || null)).map(({ key, n }) => ({ name: key, n })),
+      kinds: mostFirst(
+        rows.deals.map((d) => {
+          const lead = leadOfDeal(d);
+          return lead ? kindOfLead.get(lead) || null : null;
+        })
+      ).map(({ key, n }) => ({ kind: key, n }))
+    }
+  };
+}
 export function ideaPacket(x) {
   const home = ideaHome(x.history, x.profileAddress);
   const room = Math.max(IDEA_SIZES[0], x.leadsLeft);
@@ -364,6 +394,7 @@ export function ideaPacket(x) {
     line: x.line,
     about: x.about ?? { services: [], notes: [], website: null },
     memory: x.memory ?? [],
+    customers: x.customers ?? null,
     listingType: type ? type.replace(/_/g, " ") : null,
     ownKind: type ? leadKindKey(type) : null,
     passed: x.passed,
