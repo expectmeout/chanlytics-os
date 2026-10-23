@@ -5998,32 +5998,33 @@ function apifyErrorOf(status, text) {
   }
 }
 var latestBuildOf = (body) => trimmedOrNull(recordOrNull3(recordOrNull3(recordOrNull3(recordOrNull3(body)?.data)?.taggedBuilds)?.latest)?.buildNumber);
+async function apifyCall(fetchImpl, url, init, allow = () => false) {
+  const res = await providerFetch(
+    "apify",
+    url,
+    { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+    { fetch: fetchImpl }
+  );
+  if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+  const text = res.text;
+  if (res.status >= 200 && res.status < 300) {
+    try {
+      return { body: text ? JSON.parse(text) : null, headers: res.headers };
+    } catch {
+      throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
+    }
+  }
+  if (allow(res.status)) return { body: null, headers: res.headers };
+  const { type, said } = apifyErrorOf(res.status, text);
+  if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
+  throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
+}
 function apifyClient(fetchImpl, token) {
   const headers2 = (json) => ({
     Authorization: `Bearer ${token}`,
     ...json ? { "content-type": "application/json" } : {}
   });
-  async function call2(url, init, allow = () => false) {
-    const res = await providerFetch(
-      "apify",
-      url,
-      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
-      { fetch: fetchImpl }
-    );
-    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
-    const text = res.text;
-    if (res.status >= 200 && res.status < 300) {
-      try {
-        return { body: text ? JSON.parse(text) : null, headers: res.headers };
-      } catch {
-        throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
-      }
-    }
-    if (allow(res.status)) return { body: null, headers: res.headers };
-    const { type, said } = apifyErrorOf(res.status, text);
-    if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
-    throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
-  }
+  const call2 = (url, init, allow) => apifyCall(fetchImpl, url, init, allow);
   return {
     async startRun(actor, input, opts) {
       const webhooks = Buffer.from(JSON.stringify(opts.webhooks), "utf8").toString("base64");
