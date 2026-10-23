@@ -9,6 +9,7 @@ export const LEAD_PROBE_PLACES = 25;
 export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1e3;
 export const LEAD_FACT_MAX = 120;
+export const BUSINESS_LINE_MAX = 400;
 export const LEAD_REASON_MAX_WORDS = 12;
 export const LEAD_ASSUMED_YIELD = 0.5;
 export const LEAD_ESTIMATE_MARGIN = 1.3;

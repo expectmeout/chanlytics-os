@@ -6122,9 +6122,13 @@ function apifyClient(fetchImpl, token) {
 import { createHash as createHash3 } from "crypto";
 import {
   MODEL_ROUTES,
+  COMPANY_JUDGE_OUTPUT_SCHEMA,
   JUDGE_OUTPUT_SCHEMA,
+  companyJudgeSystemPrompt,
+  companyJudgeUserContent,
   judgeSystemPrompt,
   judgeUserContent,
+  parseCompanyJudgeAnswer,
   parseJudgeAnswer
 } from "../../contracts/dist/index.js";
 var LEAD_JUDGE_MAX_TOKENS = MODEL_ROUTES.lead_judge.maxTokens;
@@ -6135,42 +6139,58 @@ function betaRejected(e) {
   return err?.status === 400 && /fallback|beta|output_config|json_schema|format/i.test(err.message ?? "");
 }
 function leadJudge(client, model, fallbacks) {
+  const ask = async (system, user, schema, call2) => {
+    const requestHash = createHash3("sha256").update(`${system}
+${user}`).digest("hex");
+    const base = {
+      model,
+      max_tokens: LEAD_JUDGE_MAX_TOKENS,
+      system,
+      messages: [{ role: "user", content: user }],
+      output_config: { effort: "low", format: { type: "json_schema", schema } }
+    };
+    let res;
+    try {
+      res = await client.beta.messages.create(
+        fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
+        call2
+      );
+    } catch (e) {
+      if (!(fallbacks && betaRejected(e))) throw e;
+      res = await client.beta.messages.create(base, call2);
+    }
+    const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
+    if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
+    if (res.stop_reason === "max_tokens") return { refused: true, why: "max_tokens" };
+    const text = (res.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+    try {
+      return { raw: JSON.parse(text), model: res.model ?? model, tokens, requestHash };
+    } catch {
+      return { refused: true, why: "not JSON" };
+    }
+  };
   return {
     async judge(plan, places, tenantId, roundId) {
-      const system = judgeSystemPrompt(plan);
-      const user = judgeUserContent(places);
-      const requestHash = createHash3("sha256").update(`${system}
-${user}`).digest("hex");
-      const base = {
-        model,
-        max_tokens: LEAD_JUDGE_MAX_TOKENS,
-        system,
-        messages: [{ role: "user", content: user }],
-        output_config: { effort: "low", format: { type: "json_schema", schema: JUDGE_OUTPUT_SCHEMA } }
-      };
-      let res;
-      try {
-        res = await client.beta.messages.create(
-          fallbacks ? { ...base, betas: [LEAD_JUDGE_FALLBACK_BETA], fallbacks: "default" } : base,
-          { tenantId, roundId }
-        );
-      } catch (e) {
-        if (!(fallbacks && betaRejected(e))) throw e;
-        res = await client.beta.messages.create(base, { tenantId, roundId });
-      }
-      const tokens = (res.usage?.input_tokens ?? 0) + (res.usage?.output_tokens ?? 0);
-      if (res.stop_reason === "refusal") return { refused: true, why: "the judge refused" };
-      if (res.stop_reason === "max_tokens") return { refused: true, why: "max_tokens" };
-      const text = (res.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
-      let raw;
-      try {
-        raw = JSON.parse(text);
-      } catch {
-        return { refused: true, why: "not JSON" };
-      }
-      const parsed2 = parseJudgeAnswer(raw, plan, places);
+      const r = await ask(judgeSystemPrompt(plan), judgeUserContent(places), JUDGE_OUTPUT_SCHEMA, {
+        tenantId,
+        roundId
+      });
+      if ("refused" in r) return r;
+      const parsed2 = parseJudgeAnswer(r.raw, plan, places);
       if (!parsed2.ok) return { refused: true, why: parsed2.why };
-      return { answers: parsed2.answers, model: res.model ?? model, tokens, raw, requestHash };
+      return { answers: parsed2.answers, model: r.model, tokens: r.tokens, raw: r.raw, requestHash: r.requestHash };
+    },
+    async judgeCompanies(plan, companies, tenantId, roundId) {
+      const r = await ask(
+        companyJudgeSystemPrompt(plan),
+        companyJudgeUserContent(companies),
+        COMPANY_JUDGE_OUTPUT_SCHEMA,
+        { tenantId, roundId }
+      );
+      if ("refused" in r) return r;
+      const parsed2 = parseCompanyJudgeAnswer(r.raw, companies);
+      if (!parsed2.ok) return { refused: true, why: parsed2.why };
+      return { answers: parsed2.answers, model: r.model, tokens: r.tokens, raw: r.raw, requestHash: r.requestHash };
     }
   };
 }

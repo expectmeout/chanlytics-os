@@ -252,6 +252,14 @@ export const RATE = {
   /** A reach-out's preview (Part 4, R12): one business's email written by the model, counted in Ask's day as well. */
   reach_out_preview: { limit: 10, windowMs: MIN_MS, noun: "previews" },
   lead_suggest: { limit: 10, windowMs: HOUR_MS, noun: "suggestion requests" },
+  /**
+   * The ideas as they were written (GET lead-suggestions), which asks no model: a page's own read, twice a load at most.
+   * It shared lead_suggest's ten, so a few reloads after a saved line refused every read for an hour, and the page said
+   * the ideas were not available (Ruben, 23 Oct 2026).
+   */
+  lead_ideas_read: { limit: 240, windowMs: HOUR_MS, noun: "reads of your ideas" },
+  /** The owner's own business line, saved (PUT lead-suggestions): no model, a few saves while it is rewritten. */
+  lead_line: { limit: 30, windowMs: HOUR_MS, noun: "business line saves" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;

@@ -433,6 +433,10 @@ const finderProps = (p: LeadsPage) => {
     finderBusy: p.leadBusy,
     finderPlan: finder.plan,
     finderFacts: monthFactsOf(p),
+    // A people idea's card (decision 0070) and the month it says, as a places plan's facts say it.
+    finderPeople: finder.people,
+    finderMonth: p.leads.month ? { left: p.leads.month.left, renewsOn: p.leads.month.renewsOn } : null,
+    onFinderApprovePeople: p.finderApprovePeople,
     finderChanged: !!finder.plan && finder.plan.version > ((finder.proposal?.payload?.plan?.version as number) || 1),
     finderTrace: finder.trace,
     finderPick: finder.pick,
@@ -499,6 +503,7 @@ export const leadsPeekProps = (p: LeadsPage) => {
     onFindNewOnes: p.findNewOnes,
     onSearchAgain: p.searchAgain,
     onFind: p.openFind,
+    onAskFind: p.askFind,
     onIdea: (idea: LeadIdeaDto) => p.openIdea(idea, p.leads.month ? p.leads.month.left : null),
     ...finderProps(p),
     peek: peekId ? peekVMFor(peekId) : null,
@@ -551,16 +556,21 @@ export const leadsFootProps = (p: LeadsPage) => {
     // work, so its rail and its table stand: the first day drew over them (7 Oct 2026).
     firstDay: leads.searches.length === 0 && leads.counts.all === 0 && !leads.readFailed,
     onImport: p.lists.openImport,
-    // Only while the people card finds leads (00430 lead_card_live), and never handed the press as a plan.
-    onFindPeople: p.lists.peopleLive ? () => p.lists.openFindPeople(null) : undefined,
     lineOpen: !!leadLine,
     lineDraft: leadLine ? leadLine.draft : "",
     lineError: leadLine ? leadLine.error : null,
     lineBusy: !!(leadLine && leadLine.busy),
-    onOpenLine: () =>
-      setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false }),
+    lineWriting: !!(leadLine && leadLine.writing),
+    // A line written for the owner and not changed since: the sheet says where it came from, and has nothing to save.
+    lineOurs: !!(leadLine && leadLine.written != null && leadLine.draft.trim() === leadLine.written.trim()),
+    onOpenLine: () => {
+      const s = leads.suggestions;
+      const line = s ? s.business_line : "";
+      setLeadLine({ draft: line, error: null, busy: false, written: s && !s.by_owner ? line : null });
+    },
     onLineDraft: (draft: string) => setLeadLine((l) => ({ busy: false, ...l, draft, error: null })),
     onSaveLine: p.saveBusinessLine,
+    onLineForMe: p.writeLineForMe,
     onCancelLine: () => setLeadLine(null),
     onNewIdeas: p.newIdeas,
     toastNode: p.toastNode,

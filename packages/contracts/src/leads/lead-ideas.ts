@@ -19,8 +19,8 @@ import type { LeadIdeaDto } from "./lead-dtos";
 import { leadKindKey, stateCode } from "./search/clean";
 import type { LeadArea } from "./search/plan";
 
-/** How many ideas the page shows. */
-export const LEAD_IDEAS_MAX = 4;
+/** How many ideas the page shows: three (Ruben, 23 Oct 2026: it was four, one more row than a phone's page holds well). */
+export const LEAD_IDEAS_MAX = 3;
 /** How long a model that would not write them is left before it is asked again: the reads between say so instead. */
 export const LEAD_SUGGEST_RETRY_MS = 10 * MIN_MS;
 /** The sizes an idea's search may be, the smallest first; those past what is left this month are not offered. */
@@ -618,11 +618,91 @@ export function ideaPassedOf(raw: unknown): IdeaPassed[] {
   });
 }
 
-/** What the workspace says of itself beyond its line: its services, its notes and its website (its business profile). */
+/**
+ * What the workspace says of itself beyond its line: its business profile whole (Ruben, 22 Oct 2026: the ideas read a
+ * fuller picture than a line): every service with its length and price where it says them, every note, its website,
+ * its hours and the languages it serves in.
+ */
 export interface IdeaAbout {
+  /** "Haircut (45 min, from $45)": each service with what the profile says of it. */
   services: string[];
   notes: string[];
   website: string | null;
+  /** Its opening hours, a line a day as the receptionist says them; none where the profile has none. */
+  hours?: string[];
+  /** The languages it serves customers in. */
+  languages?: string[];
+}
+
+/**
+ * Who the workspace's customers are so far (Ruben, 22 Oct 2026): how its people came, which kinds of business its leads
+ * that became customers were, and what its won deals were for and with whom by kind. The strongest word on who buys
+ * once there is any, beside what each search found; counted here from the rows (ideaCustomersOf), never by the model.
+ */
+export interface IdeaCustomers {
+  /** People kept in People. */
+  people: number;
+  /** How they came, the most first: "call", "whatsapp", "lead", "import". */
+  arrived: { via: string; n: number }[];
+  /** Those who came from Leads. */
+  fromLeads: number;
+  /** Leads that became customers, by their kind ("dentist"), the most first. */
+  converted: { kind: string; n: number }[];
+  /** Deals won, standing or since ended: how many, what for, and the kind of business they were with where known. */
+  won: { deals: number; services: { name: string; n: number }[]; kinds: { kind: string; n: number }[] };
+}
+
+/** The rows the count is made from (packages/db ideaCustomerRows): people, leads and won deals. */
+export interface IdeaCustomerRowsIn {
+  contacts: { id: string; acquired_via: string | null; lead_id: string | null }[];
+  leads: { id: string; category: string | null; stage: string }[];
+  deals: { service: string | null; lead_id: string | null; contact_id: string | null }[];
+}
+
+/** How many of each count the model is told: the most first, enough to see a pattern without a page of tail. */
+const CUSTOMER_TOP = 8;
+
+/** A lead's kind as the model reads it: its category in plain words ("law firm"), or none. */
+const kindWords = (category: string | null): string =>
+  category ? category.replace(/_/g, " ").trim().toLowerCase() : "";
+
+/** Counts by key, the most first, then by name, at most CUSTOMER_TOP. */
+function mostFirst(keys: (string | null)[]): { key: string; n: number }[] {
+  const counts = new Map<string, number>();
+  for (const k of keys) if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+  return [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, CUSTOMER_TOP)
+    .map(([key, n]) => ({ key, n }));
+}
+
+/**
+ * Who the customers are, counted from the rows: a won deal's kind is its lead's, or the lead its person came from.
+ * Pure: the server reads the rows, this decides what they say.
+ */
+export function ideaCustomersOf(rows: IdeaCustomerRowsIn): IdeaCustomers {
+  const kindOfLead = new Map(rows.leads.map((l) => [l.id, kindWords(l.category)]));
+  const leadOfPerson = new Map(rows.contacts.map((c) => [c.id, c.lead_id]));
+  const leadOfDeal = (d: IdeaCustomerRowsIn["deals"][number]) =>
+    d.lead_id ?? (d.contact_id ? (leadOfPerson.get(d.contact_id) ?? null) : null);
+  return {
+    people: rows.contacts.length,
+    arrived: mostFirst(rows.contacts.map((c) => c.acquired_via)).map(({ key, n }) => ({ via: key, n })),
+    fromLeads: rows.contacts.filter((c) => c.lead_id).length,
+    converted: mostFirst(rows.leads.filter((l) => l.stage === "converted").map((l) => kindWords(l.category))).map(
+      ({ key, n }) => ({ kind: key, n }),
+    ),
+    won: {
+      deals: rows.deals.length,
+      services: mostFirst(rows.deals.map((d) => d.service?.trim() || null)).map(({ key, n }) => ({ name: key, n })),
+      kinds: mostFirst(
+        rows.deals.map((d) => {
+          const lead = leadOfDeal(d);
+          return lead ? kindOfLead.get(lead) || null : null;
+        }),
+      ).map(({ key, n }) => ({ kind: key, n })),
+    },
+  };
 }
 
 export interface IdeaPacket {
@@ -631,6 +711,8 @@ export interface IdeaPacket {
   about: IdeaAbout;
   /** What the team told Ask about the business (decision 0070): its memory's lines, the newest first. */
   memory: string[];
+  /** Who its customers are so far, or null where they could not be read. */
+  customers: IdeaCustomers | null;
   /** The Google listing's own type, when one is linked: "plumber". */
   listingType: string | null;
   /** The workspace's own kind, keyed, when its listing says one: never an idea, since those are its competitors. */
@@ -651,6 +733,7 @@ export function ideaPacket(x: {
   line: string;
   about?: IdeaAbout;
   memory?: string[];
+  customers?: IdeaCustomers | null;
   history: IdeaHistory;
   profileAddress: string;
   leadsLeft: number;
@@ -665,6 +748,7 @@ export function ideaPacket(x: {
     line: x.line,
     about: x.about ?? { services: [], notes: [], website: null },
     memory: x.memory ?? [],
+    customers: x.customers ?? null,
     listingType: type ? type.replace(/_/g, " ") : null,
     ownKind: type ? leadKindKey(type) : null,
     passed: x.passed,

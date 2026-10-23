@@ -71,7 +71,9 @@ export const LEAD_CARDS = [
     ],
     costPerPlaceUsd: 2e-3,
     contactsPerPlaceUsd: 0,
-    judgePerPlaceUsd: 0,
+    // Each company read against what was asked, as a place is (company-judge.ts; 22 Oct 2026): the places judge's price,
+    // reserved for every person asked, since a company is at most one of them.
+    judgePerPlaceUsd: 23e-4,
     checkPerEmailUsd: 89e-5,
     startUsd: 0.01,
     maxPerTerm: 500,

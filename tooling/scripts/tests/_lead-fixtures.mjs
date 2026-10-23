@@ -222,6 +222,36 @@ export function fakeJudge(model = "claude-opus-5-fixture") {
       });
       return { answers, model, tokens: 40 * places.length, raw: { places: answers }, requestHash: "f".repeat(64) };
     },
+    /**
+     * A people search's companies (contracts company-judge.ts): a fit unless the test named the company in
+     * `companyVerdicts` (a name to "fail" or "unknown"), the facts it rests on the ones the company has.
+     */
+    companyVerdicts: new Map(),
+    async judgeCompanies(_plan, companies, _tenantId, roundId) {
+      calls.push(companies.map((c) => c.ref));
+      rounds.push(roundId);
+      const answers = companies.map((c) => {
+        const fit = this.companyVerdicts.get(c.name) ?? "pass";
+        return {
+          ref: c.ref,
+          fit,
+          facts: ["name", "industry", "about"].filter((k) => c[k] !== null && c[k] !== ""),
+          reason:
+            fit === "pass"
+              ? "The kind of company asked for"
+              : fit === "fail"
+                ? "Another kind of company"
+                : "The facts do not say",
+        };
+      });
+      return {
+        answers,
+        model,
+        tokens: 30 * companies.length,
+        raw: { companies: answers },
+        requestHash: "c".repeat(64),
+      };
+    },
   };
 }
 

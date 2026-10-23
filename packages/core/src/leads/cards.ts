@@ -24,6 +24,7 @@
 import type { LeadEmailState, LeadPeoplePlan, LeadSearchPlan } from "@chanlytics/contracts";
 import { zctaCenter } from "./geo";
 import {
+  PEOPLE_PROVIDER_LEAST,
   finiteOrNull,
   isFreeMail,
   recordOrNull,
@@ -235,13 +236,6 @@ const PEOPLE_FIELDS = [
 export const PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
 /** The least a people run's cap is: the provider's start and a page of people. */
 export const PEOPLE_CAP_FLOOR_USD = 0.5;
-/**
- * The fewest people the provider takes a run for: it refuses `maxResults` under 100 (its calibration, 14 Oct 2026). A
- * round that wants fewer asks for this many, and keeps every company they name: each was paid for, and the check counts
- * only as many as the plan asked against the month (lead_check_commit's room). At $0.002 a person the 100 cost $0.21
- * with the start, under the cap's floor and inside the floors every people estimate already holds.
- */
-const PEOPLE_PROVIDER_LEAST = 100;
 
 /** A country's two letters from what a database writes ("United States", "USA", "us"); null for one it cannot read. */
 function countryOf(raw: string | null): string | null {

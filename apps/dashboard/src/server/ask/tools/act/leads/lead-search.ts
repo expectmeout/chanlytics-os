@@ -144,6 +144,7 @@ async function proposePeopleSearch(
   const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
   const estimate = peopleEstimateUsd(p.plan.count, {
     perPerson: brief?.costPerPlaceUsd ?? 0.002,
+    perJudge: brief?.judgePerPlaceUsd ?? 0.0023,
     perCheck: brief?.checkPerEmailUsd ?? 0.00089,
     start: brief?.startUsd ?? 0.01,
   });

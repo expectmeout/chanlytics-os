@@ -174,8 +174,13 @@ export function judgeSystemPrompt(plan: LeadSearchPlan): string {
 // format character (bidi overrides such as U+202E, tag characters, zero-width
 // marks): none of them may ride into the rubric's data block unseen.
 const CONTROL = /[\p{Cc}\p{Cf}]/gu;
-const cap = (s: string) =>
-  s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, LEAD_FACT_MAX);
+/**
+ * A fact as a judge reads it, inside its data block: no control or format character, no angle bracket, one line, at most
+ * `max` characters (LEAD_FACT_MAX, a company's own description longer: search/company-judge.ts).
+ */
+export const quotedFact = (s: string, max: number = LEAD_FACT_MAX) =>
+  s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+const cap = (s: string) => quotedFact(s);
 
 /** Each place's facts, capped and stripped, as quoted JSON inside a <places> block. */
 export function judgeUserContent(places: PlaceFacts[]): string {

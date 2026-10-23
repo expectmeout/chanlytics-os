@@ -5,12 +5,14 @@
  */
 import type { ReactNode } from "react";
 import {
+  PEOPLE_FIND_WORDS,
   leadSearchWords,
   leadsRoute,
   type LeadIdeaDto,
   type LeadSearchDto,
   type LeadPeoplePlan,
   type LeadSearchPlan,
+  type LeadSuggestionsDto,
 } from "@chanlytics/contracts";
 import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
@@ -18,6 +20,7 @@ import { leadAnswerPlan, leadFinderApprove } from "../finder/amend";
 import type { FinderMore, FinderSet, FinderState } from "../finder/types";
 import type { LeadRail } from "../scope/rail";
 import {
+  lineWrittenForMe,
   moreForSearch,
   newSuggestions,
   removeRoundLeads,
@@ -27,6 +30,8 @@ import {
   setBusinessLine,
   type LeadsSurface,
 } from "../surface";
+import { startPeopleSearch } from "../finder/people-sheet";
+import { surfaceValue } from "../../surface-values";
 import type { LeadAnswer } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { LeadView, SetLeadLine, LeadLine } from "./state";
@@ -57,6 +62,16 @@ const openFind = (words?: unknown) => {
   else openAsk();
 };
 
+/**
+ * The first day's field, typed and sent (Ruben, 22 Oct 2026: it was a door that only opened Ask): Ask opens on this
+ * surface and asks the words as they were typed, its plan card coming back as any Find's does (spec F1).
+ */
+const askFind = (words: string) => {
+  const said = words.trim();
+  if (said) askAbout({ prompt: said });
+  else openAsk();
+};
+
 export const leadFinderActs = ({
   leadView,
   nav,
@@ -65,7 +80,6 @@ export const leadFinderActs = ({
   openFinder,
   closeFinder,
   setFinder,
-  openFindPeople,
 }: {
   leadView: LeadView;
   nav: LeadsNav;
@@ -74,8 +88,6 @@ export const leadFinderActs = ({
   openFinder: (card: Partial<FinderState>) => void;
   closeFinder: () => void;
   setFinder: (fields: Partial<FinderState>) => void;
-  /** Find people, filled in with a people idea's plan (decision 0070): the people card's own sheet. */
-  openFindPeople?: (from?: LeadPeoplePlan | null) => void;
 }) => {
   // What leadAnswerPlan and leadFinderApprove take: a setter for each field, the panel's one close (closeFinder, which
   // lets go of `more` as it shuts), and `more`, which says whose round an approval belongs to when the plan was opened
@@ -123,14 +135,35 @@ export const leadFinderActs = ({
   // what I asked is Ask, with the plan in words. One kept from before ideas were plans opens Ask with its words.
   const openIdea = (idea: LeadIdeaDto, left: number | null) => {
     const words = idea.ask || idea.words;
-    // A people idea (decision 0070, option B) opens the people sheet filled in with its plan, as Search again does.
-    if (idea.people && openFindPeople) return openFindPeople(idea.people);
+    // A people idea (decision 0070) opens its own card to approve, as a places idea's plan does (Ruben, 22 Oct 2026: it
+    // opened the six boxes of Find people, filled in). Its plan says it came from an idea too.
+    if (idea.people) {
+      const count = left && left < idea.people.count ? left : idea.people.count;
+      const people = { ...idea.people, count, from: "idea" as const };
+      return openFinder({ stage: "plan", words, proposal: null, plan: null, people, more: null, idea });
+    }
     if (!idea.plan) return openFind(words);
     const count = left && left < idea.plan.count ? left : idea.plan.count;
     // The plan says it came from an idea (plan.from): the ideas' own measure of whether they are followed.
     openFinder({ stage: "plan", words, proposal: null, plan: { ...idea.plan, count, from: "idea" }, more: null, idea });
   };
-  return { finderAnswer, finderApprove, searchAnswerOf, openFind, openPlanFor, openIdea };
+  // A people idea's card approved: the search through the people card's own door (POST lead-searches/people), then the
+  // owner lands on it, as a places idea's does. A refusal is said under the button, in the route's words.
+  const finderApprovePeople = async (plan: LeadPeoplePlan) => {
+    finderSet.stage("starting");
+    finderSet.refusal(null);
+    const r = await startPeopleSearch(plan);
+    if (!r.ok) {
+      finderSet.refusal(r.message || PEOPLE_FIND_WORDS.failed);
+      finderSet.stage("plan");
+      return r;
+    }
+    closeFinder();
+    plFlash({ msg: <>{PEOPLE_FIND_WORDS.done}</> });
+    if (r.data.search_id && !leadView.searchId) nav(leadsRoute({ searchId: r.data.search_id, list: "all", cls: null }));
+    return r;
+  };
+  return { finderAnswer, finderApprove, finderApprovePeople, searchAnswerOf, openFind, askFind, openPlanFor, openIdea };
 };
 export type FinderActs = ReturnType<typeof leadFinderActs>;
 
@@ -156,6 +189,25 @@ interface SearchActsArgs {
 }
 
 const NO_LINE: LeadLine = { draft: "", error: null, busy: false };
+
+/** How long Write it for me waits on a write another read holds, before the sheet lets the page say it is writing. */
+const LINE_WRITTEN_WAIT_MS = 45_000;
+
+/** The ideas once a read lays them on the view written (the Leads surface's own value), or null where none has within `ms`. */
+const ideasLanded = (ms: number): Promise<LeadSuggestionsDto | null> =>
+  new Promise((done) => {
+    const finish = (s: LeadSuggestionsDto | null) => {
+      window.removeEventListener("surface:leads", look);
+      clearTimeout(timer);
+      done(s);
+    };
+    const look = () => {
+      const s = surfaceValue("leads")?.suggestions;
+      if (s && !s.pending) finish(s);
+    };
+    const timer = setTimeout(() => finish(null), ms);
+    window.addEventListener("surface:leads", look);
+  });
 
 /** A kept search's own acts (PRD 8.10), each through its door, the toast saying what happened. */
 function keptSearchActs(a: SearchActsArgs) {
@@ -244,12 +296,35 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     // The saved line clears the ideas on the server; read the new ones now, not at the next cold read.
     void readSuggestions();
   };
-  // New ideas from the same line (decision 0070): the ideas shown are passed on and four others written now, so a
-  // press is never the same four again. Nothing of the owner's line changes.
+  // New ideas from the same line (decision 0070): the ideas shown are passed on and three others written now, so a
+  // press is never the same three again. Nothing of the owner's line changes.
   const newIdeas = async () => {
     if (!leads.suggestions) return;
     const r = await newSuggestions();
     if (!r.ok) plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
+  };
+  // Write it for me (22 Oct 2026): the owner's line let go, and the line written from the profile, the customers and the
+  // searches, with three new ideas from it. The sheet stays open and shows the line it wrote, which the owner may keep
+  // (Done) or change (then it is theirs, and saved as theirs); it closed on the press, which read as the press going
+  // nowhere (Ruben, 22 Oct 2026). What went wrong is said in the sheet. A sheet closed meanwhile stays closed.
+  const writeLineForMe = async () => {
+    setLeadLine((l) => ({ ...(l ?? NO_LINE), writing: true, error: null }));
+    const r = await lineWrittenForMe();
+    if (!r.ok) {
+      setLeadLine((l) => l && { ...l, writing: false, error: r.message || "That could not be written. Try again." });
+      return;
+    }
+    // Held by another write: the ideas the page's own reads lay on the view once they land written, so the sheet shows
+    // the line written rather than the one let go.
+    const written = r.data.pending ? await ideasLanded(LINE_WRITTEN_WAIT_MS) : r.data;
+    if (!written) {
+      // Still held: the page reads on, and says it is writing where the ideas stand.
+      setLeadLine(null);
+      plFlash({ msg: <>Writing your line and new ideas…</> });
+      return;
+    }
+    const line = written.business_line;
+    setLeadLine((l) => l && { ...l, draft: line, written: line, writing: false, error: null });
   };
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).
   const findNewOnes = (s: RailSearch) => {
@@ -284,6 +359,15 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   const searchWordsFor = (id: string) => leadSearchWords(searchById(id), leads.tz);
   // A search's leads as a file, all of them in the order the table has by default.
   const exportFor = (s: { id: string }) => () => exportLeads({ search: s.id, list: "all", sort: "fit", dir: "asc" });
-  return { ...keptSearchActs(a), saveBusinessLine, newIdeas, findNewOnes, searchAgain, searchWordsFor, exportFor };
+  return {
+    ...keptSearchActs(a),
+    saveBusinessLine,
+    writeLineForMe,
+    newIdeas,
+    findNewOnes,
+    searchAgain,
+    searchWordsFor,
+    exportFor,
+  };
 };
 export type SearchActs = ReturnType<typeof leadSearchActs>;

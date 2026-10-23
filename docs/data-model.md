@@ -35,9 +35,9 @@ what the script writes.
 | [`contact_identities`](#contact_identities) | none | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
 | [`escalations`](#escalations) | `packages/db/src/events.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/waiting-on-you.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
@@ -734,7 +734,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -831,7 +831,7 @@ Foreign keys:
 
 One engagement a person is deciding on or has taken (0004): proposed (a proposal out), won (a client), lost (passed), ended. Written by deal_record on a person's word, an Ask card through the same route, or a payment webhook later (source); never by the receptionist. A stage is an assertion, so no guard: every move is an event and version refuses a stale press. One open engagement (proposed or won) per person per service.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

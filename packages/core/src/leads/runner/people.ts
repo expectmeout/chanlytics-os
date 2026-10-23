@@ -1,12 +1,14 @@
 /**
  * A people search's round (the people card, 00430): one run at the provider for the plan's filters, its items read a
- * page at a time into companies with the people named on them, then the round goes to its checks. Nothing is probed or
- * judged: the provider's filters are the criteria, so what a run finds waits in Needs review on its address alone, and
- * the check promotes what checks out, as it does a list's rows (00242's J2). The rest is the places round's own: the
- * run row by its deterministic id, the claim, the commit that moves the offset and the round, the checker.
+ * page at a time into companies with the people named on them, each company read by the judge against what the search
+ * asked for (judgedPage; 22 Oct 2026), then the round goes to its checks. Nothing is probed: the provider's filters
+ * choose who is found, and the judge whether their company is one the search is for. A fit waits in Needs review on its
+ * address alone and the check promotes it when it checks out, as it does a list's rows (00242's J2); one its facts do not
+ * settle waits there for the owner; one that is no fit is never kept. The rest is the places round's own: the run row by
+ * its deterministic id, the claim, the commit that moves the offset and the round, the checker.
  *
  *   startPeople     lead_round_start for a people plan: one run, asking for twice the count (two found make a lead)
- *   collectPeople   lead_collect for its run: a page of items to companies, kept (lead_company_upsert), then committed;
+ *   collectPeople   lead_collect for its run: a page of items to companies, judged, kept (lead_company_upsert), committed;
  *                   a run whose first items it reads none of is stopped at the provider (the card's fields changed)
  *   companiesOf     a page's people by company: each company once, its people (five at most) and its addressee, the
  *                   most senior one with a work address; a company with nobody to write to is no lead
@@ -15,10 +17,13 @@ import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import {
   LEAD_CARDS,
   LEAD_ESTIMATE_MARGIN,
+  LEAD_JUDGE_BATCH,
   LEAD_PEOPLE_MAX,
   PEOPLE_RUN_FLOOR_USD,
+  companyFitOf,
   firstNameOf,
   leadRoleOf,
+  peoplePlanOf,
   type LeadPeoplePlan,
   type LeadPerson,
   type LeadRole,
@@ -28,13 +33,15 @@ import {
 import { CARDS, PEOPLE_CAP_FLOOR_USD, PEOPLE_RUN_TIMEOUT_SECS, type PersonAtCompany } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
 import { runIdFor, sha256Hex } from "../ids";
-import type { CollectCompany, CollectPage, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
+import { companyFactsOf, judgeCompanyBatch, opIdFor, type JudgedCompanies } from "../judge";
+import type { CollectCompany, CollectJudgment, CollectPage, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { claimOrRecover, startFailed } from "./claim";
 import type { CollectOutcome } from "./collect";
 import type { StartOutcome, TermOutcome } from "./start";
 import {
   FIRST_COLLECT_SECONDS,
   INPUT_MARKER,
+  JUDGE_MARGIN_MS,
   LeadRetry,
   PAGE_ITEMS,
   POLL_SECONDS,
@@ -190,6 +197,70 @@ export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[]
   return out;
 }
 
+/** A page's companies as its judge took them: those kept, with what it made of each, the batches' judgments, the left out. */
+interface JudgedPage {
+  kept: CollectCompany[];
+  judgments: CollectJudgment[];
+  leftOut: number;
+  refused: string | null;
+}
+
+/**
+ * A page's companies read against what the search asked for (contracts company-judge.ts; Ruben, 22 Oct 2026), as a
+ * places page's are: in batches of LEAD_JUDGE_BATCH, asked side by side, so a page of a hundred people takes one call's
+ * time, each batch under its own operation id. A company that is no fit is left out here, before its people are kept or
+ * its address is checked (never counted, never written to); one that fits keeps its fit and the judge's reason as its
+ * row's; one its facts do not settle, or whose batch the judge refused twice, waits in Needs review.
+ */
+async function judgedPage(
+  p: LeadPorts,
+  round: LeadRoundRow,
+  run: LeadRunRow,
+  plan: LeadPeoplePlan,
+  base: number,
+  companies: CollectCompany[],
+): Promise<JudgedPage> {
+  if (!companies.length) return { kept: [], judgments: [], leftOut: 0, refused: null };
+  if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the companies' judge");
+  const batches: CollectCompany[][] = [];
+  for (let i = 0; i < companies.length; i += LEAD_JUDGE_BATCH) batches.push(companies.slice(i, i + LEAD_JUDGE_BATCH));
+  const judged: JudgedCompanies[] = await Promise.all(
+    batches.map((b, i) =>
+      judgeCompanyBatch(
+        p.judge,
+        plan,
+        b.map((c, ref) => companyFactsOf(ref, c)),
+        opIdFor(run.id, base, i),
+        i,
+        round,
+      ),
+    ),
+  );
+  const out: JudgedPage = { kept: [], judgments: [], leftOut: 0, refused: null };
+  batches.forEach((b, i) => {
+    const j = judged[i];
+    if (!j) return;
+    if (j.judgment) out.judgments.push(j.judgment);
+    if (j.refused) out.refused = j.why ?? "refused";
+    b.forEach((c, ref) => {
+      const answer = j.answers.get(ref) ?? null;
+      const verdict = companyFitOf(answer);
+      if (verdict.left_out) {
+        out.leftOut += 1;
+        return;
+      }
+      out.kept.push({
+        ...c,
+        reason: answer?.reason || c.reason,
+        fit: verdict.fit,
+        reasons: verdict.reasons,
+        judgment: { op_id: j.judgment?.op_id ?? null, answer, model: j.judgment?.model ?? null },
+      });
+    });
+  });
+  return out;
+}
+
 /**
  * How a people round ends once its run is over: the source's failure when it found nothing and did not finish, else
  * everything the plan covers was searched. Never "found what you asked for": that is the checks' to say, and a company
@@ -252,8 +323,11 @@ export async function collectPeople(
     items = (await p.apify.listItems(datasetId, base, PAGE_ITEMS, [...card.fields])).items;
   }
   const found = items.map((it) => card.mapItem(it)).filter((x): x is PersonAtCompany => x !== null);
-  const companies = companiesOf(found);
-  if (companies.length) await p.db.companyUpsert(round.id, companies);
+  // Each company read against what was asked before any is kept (judgedPage); the plan is read as collect read it.
+  const plan = peoplePlanOf(round.plan);
+  if (!plan) throw new Error("lead_collect: a people run under a round whose plan is not a people plan");
+  const judged = await judgedPage(p, round, run, plan, base, companiesOf(found));
+  if (judged.kept.length) await p.db.companyUpsert(round.id, judged.kept);
   // Nothing of the run's first items read: it is stopped at the provider now, never paid for to its cap. The provider's
   // own state then ends it, read by the next collect with its last usage, and the round ends as the source's failure
   // (endingOf: aborted, nobody held), never as a search that found nobody. A stop the provider did not answer leaves the
@@ -273,7 +347,7 @@ export async function collectPeople(
   const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
   const page: CollectPage = {
-    judgment: null,
+    judgment: judged.judgments.length ? judged.judgments : null,
     places: [],
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
@@ -296,6 +370,6 @@ export async function collectPeople(
     toOffset: to,
     runState: page.run_state,
     roundState: res.round_state,
-    judgeRefused: null,
+    judgeRefused: judged.refused,
   };
 }

@@ -18,6 +18,7 @@ function estimateOf(count: number): number {
   const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
   return peopleEstimateUsd(count, {
     perPerson: brief?.costPerPlaceUsd ?? 0.002,
+    perJudge: brief?.judgePerPlaceUsd ?? 0.0023,
     perCheck: brief?.checkPerEmailUsd ?? 0.00089,
     start: brief?.startUsd ?? 0.01,
   });

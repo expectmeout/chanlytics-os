@@ -191,6 +191,9 @@ const planPanelOf = (p: P, phone: boolean) => {
       onApprove={p.onFinderApprove}
       onBack={p.onFinderBack}
       onClose={p.onCloseFinder}
+      people={p.finderPeople}
+      month={p.finderMonth}
+      onApprovePeople={p.onFinderApprovePeople}
     />
   );
   return panel;
@@ -272,14 +275,16 @@ const firstDayOf = (p: P, phone: boolean) => (
     lineDraft={p.lineDraft}
     lineError={p.lineError}
     lineBusy={p.lineBusy}
-    onFind={p.onFind}
+    lineWriting={p.lineWriting}
+    lineOurs={p.lineOurs}
+    onAsk={p.onAskFind}
     onIdea={p.onIdea}
     onImport={p.onImport}
-    onFindPeople={p.onFindPeople}
     onOpenLine={p.onOpenLine}
     onNewIdeas={p.onNewIdeas}
     onLineDraft={p.onLineDraft}
     onSaveLine={p.onSaveLine}
+    onLineForMe={p.onLineForMe}
     onCancelLine={p.onCancelLine}
   />
 );

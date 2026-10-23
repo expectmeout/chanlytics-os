@@ -1,6 +1,7 @@
 /**
  * The plan panel (moved from legacy/pages/leads-finder.jsx, decision 0015): the card for a plan born from the strip (more,
- * nearby, look further, carry on, try again), and, when a search stopped to ask, the answer row that runs the amend turn
+ * nearby, look further, carry on, try again) or an idea (a people idea's is its own card, people-plan-card.tsx), and,
+ * when a search stopped to ask, the answer row that runs the amend turn
  * (spec F5): the question, one input, "Send my answer", and the trace line while Claude reads. A fresh Find is Ask's (F1,
  * F2); nothing here composes one, so the row is drawn only under a question.
  *
@@ -8,9 +9,10 @@
  * search's question, or null; it is the row's discriminator, so every caller says it. Hookless, as every part of People is:
  * all of its state lives in the page, which closes the panel on Esc, and arrives here as props.
  */
-import type { LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
+import type { LeadPeoplePlan, LeadPlanFacts, LeadSearchPlan, PeopleMonth } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { LeadPlanCard } from "./plan-card";
+import { LeadPeoplePlanCard } from "./people-plan-card";
 import type { FinderMore, FinderProposal, FinderStage, LeadSearchCardPayload } from "./types";
 
 interface PlanPanelProps {
@@ -34,6 +36,10 @@ interface PlanPanelProps {
   onBack: () => void;
   onClose: () => void;
   onPick?: (pick: string | null) => void;
+  /** A people idea's plan (decision 0070), drawn as its own card in the places plan's place, and the month it reads. */
+  people?: LeadPeoplePlan | null;
+  month?: PeopleMonth | null;
+  onApprovePeople?: (plan: LeadPeoplePlan) => unknown;
 }
 
 /** The answer row: the words, the trace line while Claude reads, Send my answer, and Close. */
@@ -89,12 +95,49 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
   );
 };
 
-export const LeadPlanPanel = (props: PlanPanelProps) => {
-  const { open, stage, proposal, plan = null, facts = null, refusal, busy, pick = null, answering } = props;
+/** The card the plan is drawn in, while there is one: a people idea's own (people-plan-card.tsx), else the places plan's. */
+const planCardOf = (props: PlanPanelProps) => {
+  const { stage, proposal, plan = null, facts = null, refusal, busy, pick = null, answering } = props;
   const { onChangePlan = () => undefined, onApprove, onBack, onPick = () => undefined } = props;
-  if (!open) return null;
+  const { people = null, month = null, onApprovePeople = () => undefined } = props;
   const card: LeadSearchCardPayload = proposal && proposal.payload ? proposal.payload : {};
   const shown = plan || card.plan || null;
+  const starting = stage === "starting" || !!busy;
+  if (people)
+    return (
+      <LeadPeoplePlanCard
+        plan={people}
+        month={month}
+        busy={starting}
+        refusal={refusal}
+        asSteps={!!props.asSteps}
+        onApprove={onApprovePeople}
+        onBack={onBack}
+      />
+    );
+  if (!shown) return null;
+  return (
+    <LeadPlanCard
+      plan={shown}
+      view={card.view || null}
+      facts={card.facts || facts || null}
+      baseVersion={(card.plan && card.plan.version) || 1}
+      busy={starting}
+      refusal={refusal}
+      pick={pick}
+      onPick={onPick}
+      onChange={onChangePlan}
+      onApprove={onApprove}
+      onBack={onBack}
+      answering={answering}
+      asSteps={!!props.asSteps}
+    />
+  );
+};
+
+export const LeadPlanPanel = (props: PlanPanelProps) => {
+  const { open, stage, refusal, answering } = props;
+  if (!open) return null;
   const composing = stage === "compose" && !!answering;
   const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
@@ -116,23 +159,7 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
           {refusal}
         </p>
       ) : null}
-      {planning && shown ? (
-        <LeadPlanCard
-          plan={shown}
-          view={card.view || null}
-          facts={card.facts || facts || null}
-          baseVersion={(card.plan && card.plan.version) || 1}
-          busy={stage === "starting" || !!busy}
-          refusal={refusal}
-          pick={pick}
-          onPick={onPick}
-          onChange={onChangePlan}
-          onApprove={onApprove}
-          onBack={onBack}
-          answering={answering}
-          asSteps={!!props.asSteps}
-        />
-      ) : null}
+      {planning ? planCardOf(props) : null}
     </div>
   );
 };

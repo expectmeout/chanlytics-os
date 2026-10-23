@@ -23,6 +23,11 @@ export const LEAD_JUDGE_BATCH = 25;
 export const LEAD_MAX_PLACES = 1000;
 /** Every fact a place gives the judge is cut to this many characters (§7.1). */
 export const LEAD_FACT_MAX = 120;
+/**
+ * How long the business line the ideas are written from may be (00473): a few sentences, what the business sells and who
+ * buys it. It was one sentence of 160, which said too little for the ideas to be written from (Ruben, 22 Oct 2026).
+ */
+export const BUSINESS_LINE_MAX = 400;
 /** The judge's one reason, in words (§0.1). */
 export const LEAD_REASON_MAX_WORDS = 12;
 /** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */

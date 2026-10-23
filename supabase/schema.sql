@@ -7845,6 +7845,9 @@ declare
   v_lead   uuid;
   v_people jsonb;
   v_shares jsonb;
+  v_fit    text;
+  v_reasons jsonb;
+  v_judgment jsonb;
   v_made   integer := 0;
   v_held   integer := 0;
   v_left   integer := 0;
@@ -7861,6 +7864,7 @@ begin
     v_want := lower(btrim(coalesce(v_c->>'email', '')));
     if char_length(v_key) not between 1 and 200 or char_length(btrim(coalesce(v_c->>'name', ''))) = 0
        or jsonb_typeof(v_c->'facts') is distinct from 'object' or octet_length((v_c->'facts')::text) > 8000
+       or octet_length(coalesce(v_c->'judgment', 'null'::jsonb)::text) > 4000
        or exists (select 1 from public.lead_suppressions x
                    where x.tenant_id = v_round.tenant_id and x.kind = 'domain'
                      and x.hash = public.lead_suppression_hash(v_round.tenant_id, v_key)) then
@@ -7948,10 +7952,20 @@ begin
                and (public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
                     or lower(split_part(coalesce(l.email, ''), '@', 2)) = v_host)
              limit 5) x;
-    insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, reason)
+    -- What its judge made of it (00474): its fit, the reasons that hold it in Needs review beyond its address (a kind its
+    -- facts did not settle, a batch the judge refused), and its answer, kept as a place's are. One with none is as it was:
+    -- it waits on its address alone, and the check promotes it (00272: only `email:` reasons are the check's to clear).
+    v_fit := case when v_c->>'fit' in ('strong', 'look', 'long') then v_c->>'fit' end;
+    select coalesce(jsonb_agg(x.r), '[]'::jsonb) into v_reasons
+      from jsonb_array_elements_text(case when jsonb_typeof(v_c->'reasons') = 'array' then v_c->'reasons'
+                                          else '[]'::jsonb end) as x(r)
+     where x.r ~ '^[a-z_]+:[a-z_]+$' and x.r not like 'email:%';
+    v_judgment := case when jsonb_typeof(v_c->'judgment') = 'object'
+                       then (v_c->'judgment') - 'reasons' - 'shares' else '{}'::jsonb end;
+    insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, fit, reason)
     values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,
-            jsonb_build_object('reasons', jsonb_build_array('email:checking'), 'shares', v_shares), 'review',
-            left(coalesce(v_c->>'reason', ''), 120))
+            v_judgment || jsonb_build_object('reasons', v_reasons || jsonb_build_array('email:checking'), 'shares', v_shares),
+            'review', v_fit, left(coalesce(v_c->>'reason', ''), 120))
     on conflict (search_id, lead_id) do nothing;
     v_made := v_made + 1;
   end loop;
@@ -7963,7 +7977,7 @@ end $_$;
 -- Name: FUNCTION lead_company_upsert(p_round_id uuid, p_companies jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) IS 'The people card''s page of companies (00430), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address, marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
+COMMENT ON FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) IS 'The people card''s page of companies (00430), the service role''s, before lead_collect_commit moves the run: a company with a name and a key whose domain is not on the never-again list keeps its people (five at most) but anyone on that list or in People (lead_address_suppressed, lead_address_in_people), and its addressee is the one its source chose while still kept, else the first kept with an address; with one, it becomes a company lead (source people_at_companies, its people in facts, its address checking) and a member of the round in Needs review on its address and on anything its judge did not settle, with its fit and the judge''s answer (00474), marked with the leads it shares a website with (judgment.shares), which the check promotes (00242''s J2). One the workspace holds already (by its key, or its address on any lead) keeps its place and gains the people it lacked, five at most. Idempotent. Returns {ok, made, held, left_out}.';
 
 
 --
@@ -8170,6 +8184,8 @@ declare
   -- The people card's (00430): a person found, and the run's start, at the provider's dearest tier.
   v_person numeric := 0.002;
   v_pstart numeric := 0.01;
+  -- Its company read by the judge against what was asked (00474), at the places judge's price, a person asked.
+  v_pjudge numeric := 0.0023;
   v_count  integer := least(greatest(coalesce(p_count, 1), 1), 1000);
   v_terms  integer := least(greatest(coalesce(p_terms, 5), 1), 5);
 begin
@@ -8182,9 +8198,9 @@ begin
     -- The mailbox check a row, with the room, and one checker run's floor (a list is one batch: CHECK_BATCH, list_rows).
     return round(ceil(v_count * v_check * v_margin * 100) / 100 + v_floor, 2);
   elsif p_kind = 'people' then
-    -- Twice the people asked for (two found a lead, as a search assumes), each found and checked, one start, the room;
+    -- Twice the people asked for (two found a lead, as a search assumes), each found, judged and checked, one start, the room;
     -- and a run's floor for the provider and for the checker.
-    return round(ceil((least(1000, 2 * v_count) * (v_person + v_check) + v_pstart) * v_margin * 100) / 100
+    return round(ceil((least(1000, 2 * v_count) * (v_person + v_pjudge + v_check) + v_pstart) * v_margin * 100) / 100
                  + 2 * v_floor, 2);
   end if;
   -- A kind it does not know is a mistake in the caller, never "no ceiling".
@@ -8196,7 +8212,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00289 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -10910,7 +10926,7 @@ CREATE FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_cl
     SET search_path TO 'public'
     AS $$
 declare
-  v_line    text := left(btrim(coalesce(p_line, '')), 160);
+  v_line    text := left(btrim(coalesce(p_line, '')), 400);
   v_claimed timestamptz;
   v_done    boolean;
 begin
@@ -10996,7 +11012,7 @@ $$;
 -- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400, 00470), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim and what was passed on), again ({again}: New ideas from the same line, what was shown kept to be passed on). A keep, a line and an again write lead.ideas_written. The service''s alone.';
+COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400, 00470, 00473), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim and what was passed on), again ({again}: New ideas from the same line, what was shown kept to be passed on). A keep, a line and an again write lead.ideas_written. The line is cut at 400 characters. The service''s alone.';
 
 
 --
@@ -32789,7 +32805,7 @@ CREATE TABLE public.lead_suggestions (
     failed_at timestamp with time zone,
     passed jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT lead_suggestions_basis_check CHECK ((char_length(basis) <= 80)),
-    CONSTRAINT lead_suggestions_business_line_check CHECK (((char_length(business_line) >= 3) AND (char_length(business_line) <= 160)))
+    CONSTRAINT lead_suggestions_business_line_check CHECK (((char_length(business_line) >= 3) AND (char_length(business_line) <= 400)))
 );
 
 

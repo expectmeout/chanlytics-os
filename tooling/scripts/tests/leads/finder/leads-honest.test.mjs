@@ -1410,20 +1410,44 @@ test("suggestions the page could not read say so, and both doors are still offer
   assert.ok(byTestId(fd, "ld-first-import"), "and so is the door for a list of their own");
 });
 
-test("the first day's door opens Ask; an idea picked opens Ask with its words", async () => {
+/** The field's submit, as the browser hands it: the form with its box, which a test fills. */
+const submitField = (form, words) => {
+  const box = {
+    value: words,
+    focused: false,
+    focus() {
+      this.focused = true;
+    },
+    blur() {},
+  };
+  let reset = false;
+  form.props.onSubmit({
+    preventDefault() {},
+    currentTarget: { elements: { namedItem: (n) => (n === "words" ? box : null) }, reset: () => (reset = true) },
+  });
+  return { box, reset: () => reset };
+};
+
+test("the first day's field is typed in and sent to Ask; an idea picked opens Ask with its words", async () => {
   await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const fd = byTestId(draw(), "leads-first-day");
-  // The door is one button (spec F1): the page draws no composer of its own on the first day.
+  // The field is Ask's (spec F1): the page draws no composer of its own on the first day, and sends what is typed.
   assert.equal(panels.length, 0, "no composer is drawn: Ask is the finder");
-  const door = byTestId(fd, "leads-first-find");
-  assert.equal(door.type, "button", "a door drawn as a field, never a field: the words are typed in Ask");
-  assert.equal(textOf(door), LEAD_WORDS.firstDay.ask, "saying what to type there");
+  const field = byTestId(fd, "leads-first-find");
+  assert.equal(field.type, "form", "a field typed in (Ruben, 22 Oct 2026: it was a door that only opened Ask)");
+  const box = byTestId(field, "leads-first-words");
+  assert.deepEqual([box.type, box.props.placeholder], ["input", LEAD_WORDS.firstDay.ask], "saying what to type");
   assert.ok(
-    find(door, (n) => n.type === Icon && n.props?.name === "three"),
+    find(field, (n) => n.type === Icon && n.props?.name === "three"),
     "wearing the three's still mark, Ask's face at rest",
   );
-  click(door);
-  assert.equal(asks.at(-1), "open", "the door opens Ask as ⌘K does, keeping what was left in the field");
+  const sent = submitField(field, "  plumbers in Austin  ");
+  assert.deepEqual(asks.at(-1), { prompt: "plumbers in Austin" }, "sent, Ask opens and asks the words as typed");
+  assert.equal(sent.reset(), true, "and the field is emptied");
+  const before = asks.length;
+  const empty = submitField(field, "   ");
+  assert.equal(asks.length, before, "nothing typed sends nothing");
+  assert.equal(empty.box.focused, true, "the press puts the cursor in the box instead");
   click(byTestId(fd, "ld-sug-gym"));
   assert.deepEqual(
     asks.at(-1),
@@ -1434,7 +1458,11 @@ test("the first day's door opens Ask; an idea picked opens Ask with its words", 
   // Both are gated as the bar's square was: an operator sees each refuse in the gate's sentence.
   await fresh({ role: "operator", leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const refused = byTestId(draw(), "leads-first-day");
-  for (const id of ["leads-first-find", "ld-sug-gym"]) {
+  assert.equal(byTestId(refused, "leads-first-words").props.readOnly, true, "the box is read, never typed in");
+  const beforeRefused = asks.length;
+  submitField(byTestId(refused, "leads-first-find"), "plumbers");
+  assert.equal(asks.length, beforeRefused, "and nothing is sent from it");
+  for (const id of ["leads-first-send", "ld-sug-gym"]) {
     const gated = byTestId(refused, id);
     assert.deepEqual(
       [gated.props["aria-disabled"], gated.props["aria-description"]],
@@ -1477,8 +1505,9 @@ test("Edit opens the business line in a sheet of its own: Cancel closes it, Save
     "a personal training studio in Denver",
     "its field opens on the line as it stands",
   );
-  assert.equal(byTestId(fd, "ld-line-input").type, "textarea", "with room for a sentence");
-  assert.equal(textOf(byTestId(fd, "ld-line-count")), "36 of 160", "and says how much of its length is written");
+  assert.equal(byTestId(fd, "ld-line-input").type, "textarea", "with room for a few sentences");
+  assert.equal(byTestId(fd, "ld-line-input").props.maxLength, 400, "up to the door's own bound (00473)");
+  assert.equal(byTestId(fd, "ld-line-count"), null, "and nothing counted under it (Ruben, 22 Oct 2026)");
   assert.ok(byTestId(fd, "ld-line"), "the sentence stays on the page behind it");
   sheet(fd).props.onClose();
   fd = day();

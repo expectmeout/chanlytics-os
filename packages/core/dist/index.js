@@ -37054,6 +37054,7 @@ function nearestAreas(center, o) {
 
 // src/leads/cards.ts
 import {
+  PEOPLE_PROVIDER_LEAST,
   finiteOrNull,
   isFreeMail,
   recordOrNull,
@@ -37147,7 +37148,6 @@ var PEOPLE_FIELDS = [
 ];
 var PEOPLE_RUN_TIMEOUT_SECS = 30 * 60;
 var PEOPLE_CAP_FLOOR_USD = 0.5;
-var PEOPLE_PROVIDER_LEAST = 100;
 function countryOf(raw) {
   const s = (raw ?? "").trim();
   if (!s) return null;
@@ -37455,6 +37455,36 @@ function factsOf(ref, p) {
 function opIdFor(runId, fromOffset, batch) {
   return judgeOpId(runId, fromOffset, batch);
 }
+function companyFactsOf(ref, c) {
+  return {
+    ref,
+    name: fact(c.name) ?? "",
+    industry: fact(c.category),
+    size: fact(c.facts.size),
+    city: fact(c.city),
+    state: fact(c.region),
+    host: fact(c.source_key),
+    about: c.about?.trim() ? c.about : null
+  };
+}
+async function judgeCompanyBatch(judge, plan, companies, opId, batch, round) {
+  if (!companies.length) return { answers: /* @__PURE__ */ new Map(), judgment: null, refused: false, why: null };
+  let why = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const a = await judge.judgeCompanies(plan, companies, round.tenant_id, round.id);
+    if ("refused" in a) {
+      why = a.why;
+      continue;
+    }
+    return {
+      answers: new Map(a.answers.map((x) => [x.ref, x])),
+      judgment: { op_id: opId, batch, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
+      refused: false,
+      why: null
+    };
+  }
+  return { answers: /* @__PURE__ */ new Map(), judgment: null, refused: true, why };
+}
 async function judgeBatch(judge, plan, places, opId, round) {
   if (!places.length) return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false, why: null };
   let last = null;
@@ -37617,7 +37647,7 @@ async function heldBack(p, tenantId) {
 
 // src/leads/runner/start.ts
 import { APIFY_RUN_END_EVENTS as APIFY_RUN_END_EVENTS2 } from "../../channels/dist/index.js";
-import { peoplePlanOf } from "../../contracts/dist/index.js";
+import { peoplePlanOf as peoplePlanOf2 } from "../../contracts/dist/index.js";
 
 // src/leads/runner/claim.ts
 import { MIN_MS as MIN_MS4 } from "../../contracts/dist/index.js";
@@ -37658,10 +37688,13 @@ import { APIFY_RUN_END_EVENTS } from "../../channels/dist/index.js";
 import {
   LEAD_CARDS,
   LEAD_ESTIMATE_MARGIN,
+  LEAD_JUDGE_BATCH,
   LEAD_PEOPLE_MAX,
   PEOPLE_RUN_FLOOR_USD,
+  companyFitOf,
   firstNameOf as firstNameOf3,
-  leadRoleOf
+  leadRoleOf,
+  peoplePlanOf
 } from "../../contracts/dist/index.js";
 var PEOPLE_TERM = "people";
 var PEOPLE_ASK_MAX = 1e3;
@@ -37771,6 +37804,47 @@ function companiesOf(found) {
   }
   return out;
 }
+async function judgedPage(p, round, run, plan, base, companies) {
+  if (!companies.length) return { kept: [], judgments: [], leftOut: 0, refused: null };
+  if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the companies' judge");
+  const batches = [];
+  for (let i = 0; i < companies.length; i += LEAD_JUDGE_BATCH) batches.push(companies.slice(i, i + LEAD_JUDGE_BATCH));
+  const judged = await Promise.all(
+    batches.map(
+      (b, i) => judgeCompanyBatch(
+        p.judge,
+        plan,
+        b.map((c, ref) => companyFactsOf(ref, c)),
+        opIdFor(run.id, base, i),
+        i,
+        round
+      )
+    )
+  );
+  const out = { kept: [], judgments: [], leftOut: 0, refused: null };
+  batches.forEach((b, i) => {
+    const j = judged[i];
+    if (!j) return;
+    if (j.judgment) out.judgments.push(j.judgment);
+    if (j.refused) out.refused = j.why ?? "refused";
+    b.forEach((c, ref) => {
+      const answer = j.answers.get(ref) ?? null;
+      const verdict = companyFitOf(answer);
+      if (verdict.left_out) {
+        out.leftOut += 1;
+        return;
+      }
+      out.kept.push({
+        ...c,
+        reason: answer?.reason || c.reason,
+        fit: verdict.fit,
+        reasons: verdict.reasons,
+        judgment: { op_id: j.judgment?.op_id ?? null, answer, model: j.judgment?.model ?? null }
+      });
+    });
+  });
+  return out;
+}
 function endingOf(state, held) {
   return held === 0 && state !== "succeeded" ? "source_failed" : "searched_everything";
 }
@@ -37808,8 +37882,10 @@ async function collectPeople(p, round, run, owner, gen) {
     items = (await p.apify.listItems(datasetId, base, PAGE_ITEMS, [...card.fields])).items;
   }
   const found = items.map((it) => card.mapItem(it)).filter((x) => x !== null);
-  const companies = companiesOf(found);
-  if (companies.length) await p.db.companyUpsert(round.id, companies);
+  const plan = peoplePlanOf(round.plan);
+  if (!plan) throw new Error("lead_collect: a people run under a round whose plan is not a people plan");
+  const judged = await judgedPage(p, round, run, plan, base, companiesOf(found));
+  if (judged.kept.length) await p.db.companyUpsert(round.id, judged.kept);
   if (await unreadableStart(p, { datasetId, base, items, found: found.length })) {
     await p.apify.abortRun(run.apify_run_id).catch((e) => {
       if (!isRefused(e)) throw e;
@@ -37822,7 +37898,7 @@ async function collectPeople(p, round, run, owner, gen) {
   const runDone = runOver && !queued;
   const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
   const page = {
-    judgment: null,
+    judgment: judged.judgments.length ? judged.judgments : null,
     places: [],
     usage_usd: usage,
     items_seen: run.items_seen + items.length,
@@ -37839,12 +37915,12 @@ async function collectPeople(p, round, run, owner, gen) {
     toOffset: to,
     runState: page.run_state,
     roundState: res.round_state,
-    judgeRefused: null
+    judgeRefused: judged.refused
   };
 }
 
 // src/leads/runner/rejudge.ts
-import { LEAD_JUDGE_BATCH as LEAD_JUDGE_BATCH2, LEAD_KIND_KEY } from "../../contracts/dist/index.js";
+import { LEAD_JUDGE_BATCH as LEAD_JUDGE_BATCH3, LEAD_KIND_KEY } from "../../contracts/dist/index.js";
 
 // src/html.ts
 function attrsOf(tag) {
@@ -38084,7 +38160,7 @@ async function markPlaces(p, places) {
 
 // src/leads/runner/places.ts
 import {
-  LEAD_JUDGE_BATCH,
+  LEAD_JUDGE_BATCH as LEAD_JUDGE_BATCH2,
   classify,
   leadPhoneState as leadPhoneState2,
   judgeAsked
@@ -38204,7 +38280,7 @@ function takeBatch(card, items, cursor) {
       const clean = cleanPlace(mapped);
       const rule = mapped.closed ? { class: "excluded", reason: CLOSED_REASON, token: "closed", excluded_by: "closed" } : mapped.location === null ? { class: "review", reason: NO_LOCATION_REASON, token: "out_of_area", excluded_by: null } : null;
       if (!rule) {
-        if (judgeable >= LEAD_JUDGE_BATCH) break;
+        if (judgeable >= LEAD_JUDGE_BATCH2) break;
         judgeable += 1;
       }
       prepared.push({ index: end, clean, rule });
@@ -38302,8 +38378,8 @@ async function rejudgeProbe(p, round) {
     out.reused = reuse.length;
     if (!await commit(reuse, places, null)) return out;
   }
-  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH2) {
-    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH2);
+  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH3) {
+    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH3);
     if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
     const judged = await judgeBatch(
       p.judge,
@@ -38356,7 +38432,7 @@ async function startRound(p, roundId, owner, resume = false) {
     await p.db.roundEnd(round.id, "budget_used");
     return { kind: "spent" };
   }
-  const people = peoplePlanOf(round.plan);
+  const people = peoplePlanOf2(round.plan);
   if (people) return startPeople(p, round, people, owner, leftUsd);
   const plan = round.plan;
   const card = CARDS[plan.card];
@@ -38423,7 +38499,7 @@ async function startRound(p, roundId, owner, resume = false) {
 }
 
 // src/leads/runner/collect.ts
-import { peoplePlanOf as peoplePlanOf2 } from "../../contracts/dist/index.js";
+import { peoplePlanOf as peoplePlanOf3 } from "../../contracts/dist/index.js";
 
 // src/leads/runner/check.ts
 import { LEAD_CARDS as LEAD_CARDS2, LEAD_ESTIMATE_MARGIN as LEAD_ESTIMATE_MARGIN2 } from "../../contracts/dist/index.js";
@@ -38614,7 +38690,7 @@ async function collect(p, runId, seq, owner) {
     return { kind: "busy" };
   }
   try {
-    if (peoplePlanOf2(round.plan)) return await collectPeople(p, round, run, owner, gen);
+    if (peoplePlanOf3(round.plan)) return await collectPeople(p, round, run, owner, gen);
     return await collectHeld(p, round, run, owner, gen);
   } finally {
     await p.db.runRelease(run.id, owner, gen);

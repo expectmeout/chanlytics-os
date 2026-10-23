@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, EmailRequest, SendResult, WaConfig, ResendLimit, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, SequenceMode, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, BookingRequestTerms, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, SequenceMode, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableSender, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadFacts, CompanyFitAnswer, LeadRoundPurpose, LeadSearchPlan, LeadPeoplePlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, BookingRequestTerms, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -3202,6 +3202,17 @@ type CollectCompany = {
     email: string;
     facts: LeadFacts;
     reason: string;
+    /**
+     * What its judge made of it (contracts companyFitOf; 00474 lead_company_upsert): its fit, the reasons that hold it in
+     * Needs review beyond its address, and the answer kept with the member. Absent where no judge was asked.
+     */
+    fit?: "strong" | "look" | null;
+    reasons?: string[];
+    judgment?: {
+        op_id: string | null;
+        answer: CompanyFitAnswer | null;
+        model: string | null;
+    } | null;
 };
 interface CollectJudgment {
     op_id: string;
@@ -3218,7 +3229,8 @@ interface CollectJudgment {
  * the round's target once the probe passed.
  */
 interface CollectPage {
-    judgment: CollectJudgment | null;
+    /** One batch's judgment (a places page), or each batch's (a people page's companies, judged in parallel batches). */
+    judgment: CollectJudgment | CollectJudgment[] | null;
     places: CollectPlace[];
     /** The run's usage as the provider reports it now; the commit settles the difference from the row. */
     usage_usd: number;

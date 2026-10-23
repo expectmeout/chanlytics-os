@@ -835,14 +835,14 @@ test("release B's ten declare their policy: working a lead is the operator's, er
     kind: "read",
     scope: "workspace",
     role: null,
-    rate: "lead_suggest",
+    rate: "lead_ideas_read",
     spend: false,
   });
   assert.deepEqual(suggestions.PUT.policy, {
     kind: "write",
     scope: "workspace",
     role: "partner",
-    rate: "lead_suggest",
+    rate: "lead_line",
     spend: false,
   });
   // The money: a search, more of one, and a mailbox check asked again (D3) are the only places `spend` is true.

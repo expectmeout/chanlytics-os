@@ -711,9 +711,10 @@ export {
   leadAddresseeChoose,
   leadCardsLive,
   leadCompanyUpsert,
+  ideaCustomerRows,
 } from "./repositories/leads";
 export { ownLineOf, businessOnRecordOf, filedNamesOf } from "./lines";
-export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
+export type { LeadOneLead, LeadOneMember, IdeasKept, IdeaCustomerRows } from "./repositories/leads";
 export { watchedTables, watchedEvents, narrowedUpdates, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";

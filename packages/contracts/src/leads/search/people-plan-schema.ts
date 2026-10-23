@@ -68,6 +68,8 @@ export const LeadPeoplePlanSchema: z.ZodType<LeadPeoplePlan> = z.object({
     radius_m: z.number().int().min(0).max(0),
     query: words(2, 420),
   }),
+  // Started from an idea (decision 0070): kept with the plan, as a places plan's `from` is.
+  from: z.literal("idea").optional(),
 });
 
 /** POST /api/v1/lead-searches/people: the plan, where it was made, and the Ask thread it was planned in. */
