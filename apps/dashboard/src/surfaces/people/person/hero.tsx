@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   DOUBT_WORDS,
   PERSON_ABOUT_WORDS,
@@ -704,14 +704,17 @@ const scrolledAway = (seen: IntersectionObserverEntry | undefined): boolean =>
 
 /**
  * Whether the head's name has scrolled away under a phone's top bar (canvas A's hand-off: the bar then says it, the kit
- * head's `bar`). Watched once the head is drawn; never on a desk.
+ * head's `bar`). Watched once the head is drawn; never on a desk. The name is found inside the page's own element, never
+ * the document: a step to the person before or after (‹ ›) mounts a new page while the one leaving is put back before it
+ * as a still copy, every class kept (view-deck.ts adopt), and the copy's name was the one watched until the copy went,
+ * so the bar never named the person stepped to (Ruben, 23 Oct 2026).
  */
-export function useNameAway(phone: boolean, drawn: boolean): boolean {
+export function useNameAway(phone: boolean, drawn: boolean, page: RefObject<HTMLElement | null>): boolean {
   const [away, setAway] = useState(false);
   useEffect(() => {
     setAway(false);
     if (!phone || !drawn || typeof IntersectionObserver === "undefined") return undefined;
-    const name = document.querySelector(".cl-prof-hero .cl-prof-name-line");
+    const name = page.current?.querySelector(".cl-prof-hero .cl-prof-name-line");
     if (!name) return undefined;
     // Away once it is under the bar, not only once it has left the screen.
     const watch = new IntersectionObserver(([seen]) => setAway(scrolledAway(seen)), {
@@ -719,7 +722,7 @@ export function useNameAway(phone: boolean, drawn: boolean): boolean {
     });
     watch.observe(name);
     return () => watch.disconnect();
-  }, [phone, drawn]);
+  }, [phone, drawn, page]);
   return away;
 }
 
@@ -728,17 +731,19 @@ export function useNameAway(phone: boolean, drawn: boolean): boolean {
  * the control layer's glass (the kit's docked capsule): the thread, then Call, Note and More as circles. Gone again as
  * the head's acts come back on screen; never on a desk, where the rail keeps them in view. Drawn on the body: the page's
  * scroller is a container (`.cl-profile`), which a fixed bar inside it would be placed in, at the foot of its content.
+ * The acts are found inside the page's own element, as the name is (useNameAway).
  */
 export function PhoneDock({ c }: { c: PageCtx }) {
   const [away, setAway] = useState(false);
+  const page = c.page;
   useEffect(() => {
     if (!c.phone || typeof IntersectionObserver === "undefined") return undefined;
-    const acts = document.querySelector('[data-testid="person-acts"]');
+    const acts = page.current?.querySelector('[data-testid="person-acts"]');
     if (!acts) return undefined;
     const watch = new IntersectionObserver(([seen]) => setAway(scrolledAway(seen)));
     watch.observe(acts);
     return () => watch.disconnect();
-  }, [c.phone]);
+  }, [c.phone, page]);
   if (!c.phone || !away) return null;
   const cta = threadCtaOf(c);
   const more = moreGroups(c, c.compose);

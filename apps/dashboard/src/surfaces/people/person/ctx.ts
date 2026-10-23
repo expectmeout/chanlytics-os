@@ -2,7 +2,7 @@
  * What the person's page holds and hands to what it draws (decision 0015, step 5): the person as read, who is looking, the
  * page's own state, and the one toast. `ClientProfileReal` builds it once a draw and every part of the page is a function of it.
  */
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { CombineAct, PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { useRecordFold } from "../../kit/record/hooks";
 import type { FlashFn } from "../person-verbs";
@@ -91,6 +91,11 @@ export interface PageCtx {
   goTab: (tab: PersonTab) => void;
   /** The page as a phone draws it (the People phone's 900px): one column, About a tab of its own. */
   phone: boolean;
+  /**
+   * The page's own element (`.cl-profile`), which its watchers look inside (hero.tsx): never the document, where a step's
+   * leaving page still stands as a still copy with every class of this one (view-deck.ts).
+   */
+  page: RefObject<HTMLDivElement | null>;
   /** The business sheet (0052), open or not; the door that opened it takes focus back as it closes (the kit's Sheet). */
   sheet: boolean;
   setSheet: Dispatch<SetStateAction<boolean>>;

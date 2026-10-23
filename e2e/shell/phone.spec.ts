@@ -1373,6 +1373,46 @@ test.describe("Phone shell on a real workspace", () => {
     await expect.poll(() => routeOf(page.url())).toBe("clients");
   });
 
+  /**
+   * A person stepped to with ‹ › is named in the top bar once their head scrolls up under it, as one opened from the list
+   * is (Ruben, 23 Oct 2026). A step mounts a new page while the last one leaves as a still copy before it, every class
+   * kept (kit/motion/view-deck.ts), and the bar's watcher found the copy's name and watched it until it went: the bar
+   * never named the person stepped to. Room under the page (a style the test adds) lets a short page scroll its head away.
+   */
+  test("a person stepped to with ‹ › is named in the top bar once their head scrolls up under it", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const rows = page.locator(".pl-table tbody tr.pl-card-row");
+    test.skip((await rows.count()) < 2, "fewer than two people here to step between");
+    await rows.first().click();
+    const next = page.getByTestId("person-walk-next");
+    await expect(next).toBeEnabled();
+    await page.addStyleTag({ content: "body { padding-bottom: 1600px; }" });
+    // The page on screen: a step's leaving copy (.view-leaving) is the last person's.
+    const own = page.locator(".cl-profile:not(.view-leaving)");
+    const bar = page.locator(".pg-bartitle");
+    /** Their head scrolled up under the bar names them there; back at the top, the bar names no one. */
+    const namedUnderTheBar = async (): Promise<string> => {
+      await expect(page.locator(".view-leaving")).toHaveCount(0);
+      const name = (await own.locator(".cl-prof-name").innerText()).trim();
+      await own
+        .locator(".cl-prof-name-line")
+        .evaluate((line) => window.scrollBy(0, Math.ceil(line.getBoundingClientRect().bottom)));
+      await expect(bar, `${name}: the bar names them once their head is under it`).toHaveAttribute(
+        "data-shown",
+        "true",
+      );
+      await expect(bar.locator(".pg-bartitle-name")).toHaveText(name);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(bar, `${name}: back at the top, the head says it again`).not.toHaveAttribute("data-shown");
+      return name;
+    };
+    const first = await namedUnderTheBar();
+    await next.click();
+    await expect(own.locator(".cl-prof-name")).not.toHaveText(first);
+    expect(await namedUnderTheBar(), "the person stepped to").not.toBe(first);
+  });
+
   /** A door is a link (23 Sep): who a thread is with opened their page only from the Actions menu. */
   test("a thread's header names who it is with as a link to their page, a thumb tall", async ({ page }) => {
     await page.goto("/#/inbox");

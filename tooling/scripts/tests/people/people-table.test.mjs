@@ -568,9 +568,9 @@ test("sections with nobody in them are the one body with the page's empty words"
 /* ------------------------------------- how the rows move ------------------------------------- */
 
 // By their paths, so the dead-export check sees who reads them (an importSrc string is not an import it can follow).
-const { riseRows, useRowsArrive } =
+const { fadeRowsIn, useRowsArrive } =
   await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-rows-arrive.ts");
-const { swapRise } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-swap-motion.ts");
+const { swapFade } = await import("../../../../apps/dashboard/src/surfaces/kit/motion/use-swap-motion.ts");
 
 /** An element that records what it was asked to animate. */
 const moving = (name) => {
@@ -585,6 +585,8 @@ const moving = (name) => {
     getAnimations: () => [],
   };
 };
+/** Whether every frame of every run an element was asked for leaves it where it stands: a fade, nothing that moves it. */
+const inPlace = (el) => el.runs.every((run) => run.frames.every((f) => !("transform" in f) && !("translate" in f)));
 /** The browser's answer to `prefers-reduced-motion`, for the length of `fn`. */
 const withMotion = (reduce, fn) => {
   const keep = globalThis.matchMedia;
@@ -596,8 +598,9 @@ const withMotion = (reduce, fn) => {
   }
 };
 
-test("a table's first twelve rows rise in as it arrives, a beat apart, as the Inbox's rows do; the rest come as they are", () => {
-  // People's, Leads' and the Pipeline's rows came in at once while the Inbox's tabs drew theirs in (5 Oct 2026).
+test("a table's first twelve rows fade in where they stand as it arrives, a beat apart, as the Inbox's rows do; the rest come as they are", () => {
+  // People's, Leads' and the Pipeline's rows came in at once while the Inbox's tabs drew theirs in (5 Oct 2026). They
+  // rose 4px as they came, and on a phone every list read as the table shifting as its page drew (Ruben, 23 Oct 2026).
   const rows = Array.from({ length: 20 }, (_, i) => moving(`row-${i}`));
   const asked = [];
   const table = {
@@ -607,7 +610,7 @@ test("a table's first twelve rows rise in as it arrives, a beat apart, as the In
     },
   };
   assert.equal(
-    withMotion(false, () => riseRows(table)),
+    withMotion(false, () => fadeRowsIn(table)),
     12,
   );
   assert.deepEqual(asked, [":scope > tbody > tr"], "the rows of the table's own groups, never a nested table's");
@@ -616,14 +619,15 @@ test("a table's first twelve rows rise in as it arrives, a beat apart, as the In
     [0, 30, 60, 90, 120, 150, 180, 210, 240, 240, 240, 240],
   );
   assert.equal(rows[0].runs[0].timing.fill, "backwards", "a row waits unseen for its turn and keeps nothing after");
-  assert.deepEqual(rows[0].runs[0].frames[0], { opacity: 0, transform: "translateY(4px)" });
+  assert.deepEqual(rows[0].runs[0].frames[0], { opacity: 0 });
+  assert.ok(rows.slice(0, 12).every(inPlace), "every row arrives where it stands: nothing rises");
   assert.ok(
     rows.slice(12).every((r) => r.runs.length === 0),
     "rows past the twelfth come as they are",
   );
   const still = Array.from({ length: 3 }, (_, i) => moving(`still-${i}`));
   assert.equal(
-    withMotion(true, () => riseRows({ querySelectorAll: () => still })),
+    withMotion(true, () => fadeRowsIn({ querySelectorAll: () => still })),
     0,
   );
   assert.ok(
@@ -632,7 +636,7 @@ test("a table's first twelve rows rise in as it arrives, a beat apart, as the In
   );
 });
 
-test("a list's own rows rise as a table's do, and the ref that rises them does it once: a later element comes as it is", () => {
+test("a list's own rows arrive as a table's do, and the ref that brings them in does it once: a later element comes as it is", () => {
   // The Inbox's and Conversations' rows rose on a stylesheet's entrance, every row as it was drawn: a row the window drew
   // as the list was scrolled (kit/rows/shown-rows.ts) came in from nothing, see-through for a beat (Ruben, 21 Oct 2026).
   const asked = [];
@@ -644,7 +648,7 @@ test("a list's own rows rise as a table's do, and the ref that rises them does i
     },
   };
   assert.equal(
-    withMotion(false, () => riseRows(list, ":scope > .ix-thread")),
+    withMotion(false, () => fadeRowsIn(list, ":scope > .ix-thread")),
     3,
   );
   assert.deepEqual(asked, [":scope > .ix-thread"], "the rows the list names, not a table's");
@@ -666,8 +670,9 @@ test("a list's own rows rise as a table's do, and the ref that rises them does i
   assert.deepEqual(
     first.map((r) => r.runs.length),
     [1, 1],
-    "the rows of the first element the ref is given rise",
+    "the rows of the first element the ref is given arrive",
   );
+  assert.ok(first.every(inPlace), "where they stand");
   assert.deepEqual(
     later.map((r) => r.runs.length),
     [0, 0],
@@ -675,23 +680,25 @@ test("a list's own rows rise as a table's do, and the ref that rises them does i
   );
 });
 
-test("a list drawn in groups rises group by group as its view changes, and the table with its heads holds still", () => {
+test("a list drawn in groups answers group by group as its view changes, where it stands, and the table with its heads holds still", () => {
   const groups = [moving("tbody-1"), moving("tbody-2")];
   const table = { ...moving("table"), querySelectorAll: (sel) => (sel === ":scope > tbody" ? groups : []) };
   assert.equal(
-    withMotion(false, () => swapRise(table, ":scope > tbody")),
+    withMotion(false, () => swapFade(table, ":scope > tbody")),
     2,
   );
   assert.equal(table.runs.length, 0, "the table itself holds still");
   assert.ok(groups.every((g) => g.runs.length === 1));
+  assert.ok(groups.every(inPlace), "a fade where the rows stand: nothing rises (Ruben, 23 Oct 2026)");
   const list = moving("list");
   assert.equal(
-    withMotion(false, () => swapRise(list)),
+    withMotion(false, () => swapFade(list)),
     1,
-    "a list in one piece rises whole, as it always did",
+    "a list in one piece answers whole, as it always did",
   );
+  assert.ok(inPlace(list));
   assert.equal(
-    withMotion(true, () => swapRise(list)),
+    withMotion(true, () => swapFade(list)),
     0,
   );
 });

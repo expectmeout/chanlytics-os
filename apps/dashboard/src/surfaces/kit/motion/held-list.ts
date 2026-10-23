@@ -10,7 +10,8 @@
  *   that draw is done), the list's place is taken: the row at the top of what shows and where it stood on the screen,
  *   and the box that scrolls the list and how far, and what the frame's head said over it;
  * - on a phone the row's page is pushed in over the list as iOS pushes a page (`Arrival`, kit/motion/swipe.ts `pushIn`):
- *   the swipe back played forward, over the same screen a thumb would uncover;
+ *   the swipe back played forward, over the same screen a thumb would uncover, but the tab bar and Ask's circle, which
+ *   leave with the list as a page that takes the screen over comes in (`pushedUnder`);
  * - while the row's page stands the list is held: drawn where it stood and out of sight (`data-held`, components.css:
  *   fixed in place, hidden, taking no room and no touch), or, where its page keeps it out of the document (People's tabs,
  *   under React's Activity), stood in for by a still picture of it, made when the phone is idle. The row it was opened
@@ -67,6 +68,11 @@ const COVER_FRAMES = 2;
 const KEEP_MS = 1000;
 /** What ends that sooner: the screen touched, a key, a wheel. A scroll is not one: the keeping's own scrolls are scrolls. */
 const KEEP_ENDS = ["pointerdown", "keydown", "wheel"] as const;
+/**
+ * How long a row tapped may take to open its page before the list's entry asks the browser for nothing again
+ * (restoredBack): a press waits up to PUSH_WAIT_MS for a page the tab has not read.
+ */
+const MARK_MS = 1000;
 
 /** Where a list stood as its row opened. */
 interface Place {
@@ -125,6 +131,8 @@ let carrying: Carry | null = null;
 let keeping: (() => void) | null = null;
 /** The row a page was opened from, drawn as under the finger (pressRow); null with none. */
 let pressed: Element | null = null;
+/** The address a row was tapped at, while that list's entry asks the browser to put its scroll back (restoredBack). */
+let markedAt: string | null = null;
 
 /** The row at the top of what shows of the list, or the list's own element there; null where none of it shows. */
 function rowAtTop(list: HTMLElement, scroller: HTMLElement): Element | null {
@@ -237,6 +245,50 @@ function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   // The row's page starts at its top where the window scrolls it, as a page arriving does (view-deck.ts toTop).
   if (isDocumentScroller(place.scroller) && window.scrollY > 0) window.scrollTo(0, 0);
   if (page && arrival) pushOver(now, page, arrival);
+  // The row's page's own entry asks the browser for nothing, as every page's does: what is pushed from it inherits that.
+  if (markedAt !== null && window.location.href !== markedAt) browserPutsBack(false);
+  markedAt = null;
+}
+
+/** Whether the browser puts back the window's scroll on a Back to the history entry the window stands at. */
+function browserPutsBack(on: boolean): void {
+  const history = window.history as History | undefined;
+  if (history && "scrollRestoration" in history) history.scrollRestoration = on ? "auto" : "manual";
+}
+
+/**
+ * A row tapped in a list the window scrolls: the list's own history entry asks the browser to put its scroll back on the
+ * Back from the row's page, by the browser's own hand. On an iPhone the window's scroll is Safari's, and after a swipe
+ * back it took none of the page's (Ruben, 23 Oct 2026, the iPhone's logs): a list put at its top by the draw that brought
+ * it back, which the page then believed, stood where the row's page had left the window, 40px down at a thread's foot (the
+ * room of Safari's toolbar on a short page, mobile.css 100lvh), until a finger touched it 19 seconds on; asked again for
+ * its top every frame for half a second, and again from 0.7 to 4.5 seconds on, it answered 40 each time. Its own way
+ * back, asked of the list's entry, put Conversations' list at its top from the first frame, on every Back from a short
+ * thread and a long one. Every other entry asks for nothing (view-deck.ts toTop): the row's page's once it stands
+ * (holdList), and the list's again once it is back (putListBack, listAtItsTop), or once the tap has opened nothing. A
+ * desk's list scrolls in a box of its own, which the page puts back itself.
+ */
+function restoredBack(e: Event, list: HTMLElement | null): void {
+  const at = e.target as Element | null;
+  if (!list || !at || typeof at.closest !== "function") return;
+  const row = at.closest(ROW);
+  if (!row || !list.contains(row) || !isDocumentScroller(movingScrollerOf(row))) return;
+  browserPutsBack(true);
+  const here = window.location.href;
+  markedAt = here;
+  window.setTimeout(() => {
+    if (markedAt !== here) return;
+    markedAt = null;
+    if (window.location.href === here) browserPutsBack(false);
+  }, MARK_MS);
+}
+
+/**
+ * The list's own entry asks the browser for nothing again (restoredBack), in a task after the Back's: the browser read it
+ * in that one, after the Back's popstate, and a draw made at once from that event would otherwise ask too soon.
+ */
+function backAsked(): void {
+  window.setTimeout(() => browserPutsBack(false), 0);
 }
 
 /**
@@ -249,9 +301,29 @@ function pushOver(was: Held, page: HTMLElement, arrival: Arrival): void {
   was.pushed = page;
   queueMicrotask(() => {
     if (holding === was && page.isConnected)
-      pushIn(page, { onGrab: arrival.going, under: heldUnder, along: heldAlong });
+      pushIn(page, { onGrab: pushing(arrival), under: pushedUnder, along: heldAlong });
   });
 }
+
+/** The frame's chrome at the window's foot (the tab bar, Ask's circle: `data-chrome="foot"`). */
+const atTheFoot = (el: HTMLElement): boolean => el.dataset.chrome === "foot";
+
+/**
+ * What lies under a page as it is pushed in: what a thumb carrying it back uncovers (heldUnder), but the chrome at the
+ * window's foot, which leaves with the list instead (mobile.css, data-pushing). Laid under the page, the tab bar and Ask's
+ * circle showed their lower edges beneath it as it came in, and for a moment after it landed: the ground it slides over
+ * stops short of the window's foot (components.css .carry-ground, --foot-clear), and they stand in that strip (Ruben's
+ * iPhone, 23 Oct 2026). A thumb carrying the page back still finds them under it, where the list comes back with them.
+ */
+const pushedUnder = (): HTMLElement[] => heldUnder().filter((el) => !atTheFoot(el));
+
+/** The push's own mark on the document while it moves (`data-pushing`), beside the carry's that its arrival makes. */
+const pushing =
+  (arrival: Arrival) =>
+  (el: Element, on: boolean): void => {
+    document.documentElement.toggleAttribute("data-pushing", on);
+    arrival.going(el, on);
+  };
 
 /** Let go of a held list as it is, putting nothing back. */
 function letListGo(was: Held): void {
@@ -275,6 +347,7 @@ function putListBack(owner: object): boolean {
   const was = holding;
   if (!was || was.owner !== owner) return false;
   const cover = isDocumentScroller(was.place.scroller) ? coverOf(was) : null;
+  if (isDocumentScroller(was.place.scroller)) backAsked();
   letListGo(was);
   const { list } = was.place;
   if (!list.isConnected || list.getClientRects().length === 0) {
@@ -307,6 +380,7 @@ function putListBack(owner: object): boolean {
 function listAtItsTop(list: HTMLElement | null): void {
   const place = list ? listPlace(list) : null;
   if (!place || !isDocumentScroller(place.scroller)) return;
+  backAsked();
   measureFrameTop();
   if (place.scrolled > 0) scrollBoxTo(place.scroller, 0);
 }
@@ -598,6 +672,13 @@ export function useHeldList(held: boolean, list: () => HTMLElement | null, arriv
       if (!putListBack(owner.current)) listAtItsTop(shown.current());
     } else if (place.current) holdList(place.current, owner.current, comes.current);
     place.current = null;
+  }, [held]);
+  // A row tapped while the list stands has its entry ask the browser to put its scroll back on the Back (restoredBack).
+  useLayoutEffect(() => {
+    if (held) return undefined;
+    const tapped = (e: Event): void => restoredBack(e, shown.current());
+    window.addEventListener("click", tapped, true);
+    return () => window.removeEventListener("click", tapped, true);
   }, [held]);
   useLayoutEffect(
     () => () => {

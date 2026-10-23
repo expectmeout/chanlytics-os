@@ -356,7 +356,7 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
   // date does, and where they stand in the list they were opened from stands with it ("‹ 4 of 24 ›": beside it on a desk,
   // in the bell's place on a phone, components.css). On a phone, once the head has scrolled away, the top bar's centre says
   // their name and the dot of their state.
-  const away = useNameAway(phone, !!vm);
+  const away = useNameAway(phone, !!vm, scrollerEl);
   const said = vm ? stateOf("person", vm.state) : null;
   useStanding({
     title: null,
@@ -427,6 +427,7 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
     tab,
     goTab,
     phone,
+    page: scrollerEl,
     sheet,
     setSheet,
     fresh: newSinceOf(vm.timeline, looked),

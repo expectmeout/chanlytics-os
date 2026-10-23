@@ -117,8 +117,8 @@ const idle = [];
 /** What the window was asked to run later, and what it hears, by kind. */
 const timers = [];
 const heard = new Map();
-/** The window hears `kind` (a touch, a key), as a browser tells every listener. */
-const fire = (kind) => [...(heard.get(kind) ?? [])].forEach((fn) => fn({ type: kind }));
+/** The window hears `kind` (a touch, a key, a tap on `target`), as a browser tells every listener. */
+const fire = (kind, target = null) => [...(heard.get(kind) ?? [])].forEach((fn) => fn({ type: kind, target }));
 /** Each ResizeObserver made, with the boxes it watches; `sized(box)` is the browser telling them that box was laid out. */
 const observers = new Set();
 globalThis.ResizeObserver = class {
@@ -169,6 +169,46 @@ const win = {
   },
   addEventListener: (kind, fn) => (heard.get(kind) ?? heard.set(kind, new Set()).get(kind)).add(fn),
   removeEventListener: (kind, fn) => heard.get(kind)?.delete(fn),
+};
+/**
+ * The window's history, as far as the hold asks it: its entries, each with the way back to a scroll its page asked of
+ * the browser (`scrollRestoration`, the entry the window stands at), which an entry pushed from another inherits, as a
+ * browser's does; a Back lands on the entry before, and the browser reads that entry's to put its scroll back or not.
+ */
+const nav = (() => {
+  const entries = [];
+  let at = 0;
+  return {
+    get here() {
+      return entries[at];
+    },
+    push(href) {
+      entries.splice(at + 1, Infinity, { href, mode: entries[at].mode });
+      at += 1;
+    },
+    back() {
+      at -= 1;
+      return entries[at];
+    },
+    open(href = "/w/acme/inbox") {
+      entries.splice(0, Infinity, { href, mode: "manual" });
+      at = 0;
+    },
+  };
+})();
+nav.open();
+win.history = {
+  get scrollRestoration() {
+    return nav.here.mode;
+  },
+  set scrollRestoration(mode) {
+    nav.here.mode = mode;
+  },
+};
+win.location = {
+  get href() {
+    return nav.here.href;
+  },
 };
 globalThis.window = win;
 globalThis.getComputedStyle = win.getComputedStyle;
@@ -765,6 +805,40 @@ test("on a phone the row's page is pushed in over the list it was opened from, o
   p.leave();
 });
 
+test("a page pushed in takes the tab bar and Ask's circle away with the list; a thumb carrying it back still finds them under it", async () => {
+  // Ruben's iPhone recording, 23 Oct 2026: laid under the thread as it came in, their lower edges showed beneath it in the
+  // strip the ground it slides over leaves at the window's foot, and for a moment after it landed.
+  const { list } = inbox();
+  const top = element("frame-top", { at: 0, height: 134 });
+  const bar = element("tab-bar", { at: 709, height: 62 });
+  const ask = element("phone-ask", { at: 709, height: 62 });
+  bar.dataset.chrome = "foot";
+  ask.dataset.chrome = "foot";
+  frame.chrome = [top, bar, ask];
+  const el = rowPage();
+  const p = page(list, { page: () => el, going: carriedOver });
+  p.draw(false);
+  p.draw(true);
+  await Promise.resolve();
+  assert.ok(html.attrs.has("data-pushing"), "the push marks the document while it moves (mobile.css fades them)");
+  assert.equal(top.style.translate, "-112px 0", "the frame's top goes under with the list");
+  assert.deepEqual(
+    [bar.style.translate, ask.style.translate, bar.style.opacity, ask.style.opacity],
+    [undefined, undefined, undefined, undefined],
+    "nothing of the push is laid on the foot's chrome, which leaves by its own rule",
+  );
+  await landed();
+  assert.ok(!html.attrs.has("data-pushing"), "landed: the mark goes with the carry's");
+  assert.ok(!html.attrs.has("data-carrying"));
+  // Back by a thumb: the screen it goes back to, its tab bar and circle included, lies under the page as before.
+  showHeld(true);
+  assert.deepEqual(heldUnder(), [list, top, bar, ask], "under a thumb's carry, the foot's chrome is there");
+  assert.ok(!html.attrs.has("data-pushing"), "and nothing is pushing");
+  showHeld(false);
+  frame.chrome = [];
+  p.leave();
+});
+
 test("a list its page keeps out of the document is pictured at once when the row's page is pushed in over it", async () => {
   const { list } = inbox();
   const el = rowPage();
@@ -1051,4 +1125,73 @@ test("on a desk a table's box moved down while away keeps the row as far under t
   assert.equal(row.getBoundingClientRect().top, was + 40, "the row 40px lower, with its box");
   assert.deepEqual(calls, [], "and the window left alone");
   p.leave();
+});
+
+/* --------------- the browser puts the list's scroll back on the Back: the list's own history entry asks --------------- */
+
+test("REGRESSION: a row tapped in a list the window scrolls has the list's own entry ask the browser to put its scroll back on the Back", () => {
+  // Ruben, 23 Oct 2026: "on the needs you tab page it still occurs when I swipe back from a thread". The iPhone's logs: a
+  // thread at its foot, 40px down (the room of Safari's toolbar on a short page); the Back put the list at its top and the
+  // page believed it, but Safari kept the thread's scroll, and answered 40 to every scroll the page asked for, every frame
+  // for half a second and again up to 4.5 s on. With the list's entry asking Safari to put its scroll back, every Back
+  // from a short thread and a long one landed at the top from the first frame (Conversations, the same log).
+  nav.open();
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  fire("click", rows[3]);
+  assert.equal(nav.here.mode, "auto", "the list's own entry asks the browser to put its scroll back");
+  nav.push("/w/acme/inbox/th-1");
+  p.draw(true);
+  assert.equal(
+    nav.here.mode,
+    "manual",
+    "the row's page's own entry asks nothing: what is pushed from it inherits that",
+  );
+  const landed = nav.back();
+  assert.equal(
+    landed.mode,
+    "auto",
+    "REGRESSION: the Back landed on an entry that asked the browser for nothing, and Safari kept the thread's scroll",
+  );
+  timers.length = 0;
+  p.draw(false);
+  assert.equal(nav.here.mode, "auto", "not in the Back's own task, which reads it");
+  timers.splice(0).forEach((fn) => fn?.());
+  assert.equal(
+    nav.here.mode,
+    "manual",
+    "and the list's entry asks nothing again once it is back, as every page's does",
+  );
+  p.leave();
+});
+
+test("a row tapped that opens nothing gives the list's entry back to the page", () => {
+  nav.open();
+  timers.length = 0;
+  const { list, rows } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  fire("click", rows[3]);
+  assert.equal(nav.here.mode, "auto");
+  timers.splice(0).forEach((fn) => fn?.());
+  assert.equal(nav.here.mode, "manual", "nothing opened in the time a press may wait for its page");
+  p.leave();
+});
+
+test("a tap off the rows, or on a desk's list, asks the browser for nothing", () => {
+  nav.open();
+  const { list } = inbox({ scrolled: 0 });
+  const p = page(list);
+  p.draw(false);
+  fire("click", list);
+  assert.equal(nav.here.mode, "manual", "the list's head, not a row");
+  p.leave();
+  // A desk's list scrolls in a box of its own, which the page puts back itself.
+  const atDesk = desk();
+  const d = page(atDesk.list);
+  d.draw(false);
+  fire("click", atDesk.box.children[3]);
+  assert.equal(nav.here.mode, "manual", "a desk's row");
+  d.leave();
 });
