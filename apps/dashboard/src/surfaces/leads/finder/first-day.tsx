@@ -93,7 +93,7 @@ interface FirstDayProps {
   onIdea?: (item: Suggestion) => void;
   /** Asks for other ideas from the same line. */
   onNewIdeas?: () => void;
-  /** Lets go of the owner's saved line: the line written from the whole picture, with four new ideas. */
+  /** Lets go of the owner's saved line: the line written from the whole picture, with three new ideas. */
   onLineForMe?: () => void;
   /** Opens the sheet a list of the owner's own is brought in by. */
   onImport?: () => void;

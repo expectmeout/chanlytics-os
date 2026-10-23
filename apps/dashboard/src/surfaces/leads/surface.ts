@@ -658,7 +658,7 @@ export async function readSuggestions(wait = 0): Promise<void> {
 
 /**
  * New ideas from the same line (decision 0070, option B, POST with again), or Write it for me (POST with ours: the
- * owner's line let go and the line written from the whole picture): what was shown is passed on, and four others are
+ * owner's line let go and the line written from the whole picture): what was shown is passed on, and three others are
  * written now, laid on the view on screen as a read's are, and asked for again while another write holds them. A
  * refusal is the caller's to say.
  */

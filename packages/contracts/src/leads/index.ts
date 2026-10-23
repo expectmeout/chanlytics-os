@@ -280,6 +280,7 @@ export {
   LeadDraftAnswerSchema,
 } from "./lead-plan-schema";
 export {
+  LEAD_IDEAS_MAX,
   LEAD_SUGGEST_RETRY_MS,
   ideaHistoryOf,
   ideaBasisOf,

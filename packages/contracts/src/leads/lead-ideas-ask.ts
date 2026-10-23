@@ -4,7 +4,7 @@
  * finder cards and to the whole US: an idea is a places search (Maps) in a listed place or any other US city, state or
  * ZIP, or a people search (named people at companies) in up to ten states or the whole US. The model first decides
  * who buys from the business, from everything the workspace says of itself and what the team told Ask, then writes
- * four ideas to a mix: one that builds on what worked, two new groups, one wider. Its answer is read back into plans by
+ * three ideas to a mix: one that builds on what worked, one new group, one wider. Its answer is read back into plans by
  * lead-ideas-read.ts, which holds every rule again whatever it wrote.
  */
 import { fenced } from "../ai/fence";
@@ -197,7 +197,7 @@ export function ideaJsonSchema(p: IdeaPacket): Record<string, unknown> {
  */
 export const IDEA_LENGTHS = { words: 24, why: 90, line: 300 } as const;
 
-/** What the model is asked to do: decide who buys, then the four, then how each field is written. */
+/** What the model is asked to do: decide who buys, then the three, then how each field is written. */
 export const LEAD_IDEAS_SYSTEM = [
   `You write ${LEAD_IDEAS_MAX} ideas for a business's next search for leads to reach out to and sell to. Each idea is a search the owner can start as it is, on one of the finder's two cards:`,
   "- places: businesses with a Google listing, by kind, in one US place: a ZIP (about 8 km around it), a city (about 25 km), or a whole state.",
@@ -208,9 +208,9 @@ export const LEAD_IDEAS_SYSTEM = [
   "- A business that serves customers where it is needs places near it. One that sells to other businesses can find them anywhere in the US, often through the person who decides (an owner, a practice manager, an office manager).",
   "- Never people at home, never one named company, and never the business's own kind: those are its competitors.",
   "",
-  "The four:",
+  "The three:",
   '- One builds on what worked (role "proven"): a kind whose verdict is "worked", in a new place or as a close kind. With nothing that worked yet, a new group instead.',
-  '- Two come from groups of buyers not searched yet (role "new").',
+  '- One comes from a group of buyers not searched yet (role "new").',
   '- One goes wider (role "wider"): the other card, a whole state, or the whole US, when the buyers live beyond the business\'s town; when they do not, a place beside one that worked.',
   '- A kind whose verdict is "did not work" is not suggested again. A close kind may be, with what went wrong left out (for example "chains" when chains were left out or not a fit).',
   '- A kind whose leads are "not reached yet", or where it is "too early to say", is not searched again where it was searched.',

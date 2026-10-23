@@ -19,8 +19,8 @@ import type { LeadIdeaDto } from "./lead-dtos";
 import { leadKindKey, stateCode } from "./search/clean";
 import type { LeadArea } from "./search/plan";
 
-/** How many ideas the page shows. */
-export const LEAD_IDEAS_MAX = 4;
+/** How many ideas the page shows: three (Ruben, 23 Oct 2026: it was four, one more row than a phone's page holds well). */
+export const LEAD_IDEAS_MAX = 3;
 /** How long a model that would not write them is left before it is asked again: the reads between say so instead. */
 export const LEAD_SUGGEST_RETRY_MS = 10 * MIN_MS;
 /** The sizes an idea's search may be, the smallest first; those past what is left this month are not offered. */

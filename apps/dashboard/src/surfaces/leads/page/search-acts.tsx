@@ -296,15 +296,15 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     // The saved line clears the ideas on the server; read the new ones now, not at the next cold read.
     void readSuggestions();
   };
-  // New ideas from the same line (decision 0070): the ideas shown are passed on and four others written now, so a
-  // press is never the same four again. Nothing of the owner's line changes.
+  // New ideas from the same line (decision 0070): the ideas shown are passed on and three others written now, so a
+  // press is never the same three again. Nothing of the owner's line changes.
   const newIdeas = async () => {
     if (!leads.suggestions) return;
     const r = await newSuggestions();
     if (!r.ok) plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
   };
   // Write it for me (22 Oct 2026): the owner's line let go, and the line written from the profile, the customers and the
-  // searches, with four new ideas from it. The sheet stays open and shows the line it wrote, which the owner may keep
+  // searches, with three new ideas from it. The sheet stays open and shows the line it wrote, which the owner may keep
   // (Done) or change (then it is theirs, and saved as theirs); it closed on the press, which read as the press going
   // nowhere (Ruben, 22 Oct 2026). What went wrong is said in the sheet. A sheet closed meanwhile stays closed.
   const writeLineForMe = async () => {
