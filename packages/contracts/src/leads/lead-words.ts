@@ -455,6 +455,16 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
             step: { id: "carry_on", label: "Carry on" },
           };
     case "source_failed":
+      // Nothing returned: the source never ran the search (refused at its start, or failed before its first place),
+      // so nothing "stopped answering" (23 Oct 2026: a build the source had deleted refused every start, and the
+      // strip said "Stopped at 0: the source stopped answering").
+      if (f.seen === 0)
+        return {
+          mark,
+          title: "The search didn't run: the source couldn't start it",
+          parts: ["nothing was counted"],
+          step: { id: "try_again", label: "Try again" },
+        };
       return {
         mark,
         title: `Stopped at ${f.seen}: the source stopped answering`,

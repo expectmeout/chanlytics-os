@@ -362,7 +362,9 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
   people_at_companies: PEOPLE_CARD,
   local_businesses: {
     actor: "compass/crawler-google-places",
-    build: "0.14.757",
+    // 0.14.757, the calibration's, was deleted by 23 Oct 2026 and every start was refused; 0.14.775 read the same
+    // fields in a probe that day (two Brooklyn plumbers).
+    build: "0.14.775",
     fields: MAPS_FIELDS,
     buildInput(plan, term, places) {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
@@ -450,6 +452,15 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
     checker: CHECKER,
   },
 };
+
+/**
+ * Every actor a search starts, once each, at the build it is pinned to: what the health sweep holds against the
+ * provider's latest each day, so a pin falling behind is told before the provider deletes it (23 Oct 2026).
+ */
+export function leadPins(): { actor: string; build: string }[] {
+  const all = [CARDS.local_businesses, CARDS.people_at_companies, CHECKER];
+  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build }])).values()];
+}
 
 /** The actors a round's runs start with: its card's own, and the one checker (the sweep's reconciliation reads them). */
 export function actorsOf(plan: { card: string }): { discover: string; check: string } {

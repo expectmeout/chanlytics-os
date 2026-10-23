@@ -63,7 +63,7 @@ test("the card's input comes from the validated plan: a city ask by location que
   assert.equal("locationQuery" in zip, false);
   assert.deepEqual(
     [card.actor, card.build, card.checker.actor, card.checker.build],
-    ["compass/crawler-google-places", "0.14.757", "bounceverify/bounceverify-email-verifier", "0.1.16"],
+    ["compass/crawler-google-places", "0.14.775", "bounceverify/bounceverify-email-verifier", "0.1.16"],
   );
 });
 

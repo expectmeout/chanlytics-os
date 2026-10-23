@@ -23,6 +23,7 @@ export {
   MAPS_RUN_TIMEOUT_SECS,
   CHECKER_RUN_TIMEOUT_SECS,
   CARDS,
+  leadPins,
 } from "./cards";
 export type { MapsPlace, LeadCardRunner } from "./cards";
 export { cleanPlace } from "./clean";

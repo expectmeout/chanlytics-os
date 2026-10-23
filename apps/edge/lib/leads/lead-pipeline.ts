@@ -17,6 +17,7 @@ import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
 import { storeLeadMark } from "./lead-marks.js";
 import { tellLeadQuestion } from "./lead-tell.js";
+import { pageSourceRefused } from "./lead-sources.js";
 import { logger } from "../log.js";
 
 const SEQ = /^[a-z0-9.]{1,40}$/;
@@ -56,9 +57,11 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
       });
     },
     // A round that stopped to ask waits a day on a person: the workspace's own addresses hear of it (the row is the
-    // trigger's). Best effort, after the commit; it never throws.
+    // trigger's). A provider that refused a start waits on us: the platform is paged, in the provider's words. Best
+    // effort, after the write; it never throws.
     tell: async (e) => {
       if (e.kind === "question") await tellLeadQuestion(ctx.db, e.roundId);
+      else await pageSourceRefused(ctx.db, e);
     },
     deadline: ctx.deadline,
   };

@@ -12488,6 +12488,13 @@ function leadEndingLine(ending, f) {
         step: { id: "carry_on", label: "Carry on" }
       };
     case "source_failed":
+      if (f.seen === 0)
+        return {
+          mark,
+          title: "The search didn't run: the source couldn't start it",
+          parts: ["nothing was counted"],
+          step: { id: "try_again", label: "Try again" }
+        };
       return {
         mark,
         title: `Stopped at ${f.seen}: the source stopped answering`,
@@ -37069,6 +37076,8 @@ var PAGE_KEY_WORDS = {
   model_failures: "A workspace's model calls failing",
   model_credit: "The model key's credit ran out",
   provider_auth: "A provider refusing our credentials",
+  lead_source_refused: "A lead source refusing to start",
+  lead_source_pin: "A lead source's pinned build behind its latest",
   outside: "A check outside the product"
 };
 function pageKeyWords(key) {
