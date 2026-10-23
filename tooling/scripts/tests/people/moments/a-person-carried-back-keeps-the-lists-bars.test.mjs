@@ -8,7 +8,8 @@
  * bar, the bar says it (useNameAway). The page carried across took its head off the screen at the side, which both watchers
  * read as scrolled away: the dock came up as the page went and the bars went down under it, then came back as People
  * landed. Now only a head gone up past the top is away, and while a page is carried back (data-carrying, kit/motion/
- * held-list.ts) a dock is that page's own, which the bars under it, People's, know nothing of.
+ * held-list.ts) a dock is that page's own, which the bars under it, People's, know nothing of. And both watchers watch
+ * the page's own head: a step to the person before or after leaves a still copy of the last page in the document.
  *
  * Run against the two watchers themselves, on the stub React the page tests use, handed what an IntersectionObserver
  * reports; and against the stylesheets' syntax trees.
@@ -43,11 +44,19 @@ globalThis.IntersectionObserver = class {
   }
   disconnect() {}
 };
-/** The head's name and its acts, as the watchers find them. */
+/** The head's name and its acts, as the watchers find them inside the page's own element. */
 const head = { name: "head" };
+const ofTheHead = (sel) => (/cl-prof-name-line|person-acts/.test(sel) ? head : null);
+const page = { current: { querySelector: ofTheHead } };
+/**
+ * The page a step (‹ ›) leaves, put back before the one arriving as a still copy with every class (view-deck.ts adopt):
+ * the first the document finds, so a watcher that asked the document watched it until it went, and the bar never named
+ * the person stepped to (Ruben, 23 Oct 2026).
+ */
+const leaving = { name: "the leaving page's head" };
 const queried = globalThis.document.querySelector;
 globalThis.document.querySelector = (sel) =>
-  /cl-prof-name-line|person-acts/.test(sel) ? head : queried ? queried.call(globalThis.document, sel) : null;
+  /cl-prof-name-line|person-acts/.test(sel) ? leaving : queried ? queried.call(globalThis.document, sel) : null;
 
 /** What a watcher is told: the head off the screen at the side (a page carried across), gone up past the top, back. */
 const ACROSS = {
@@ -69,10 +78,10 @@ const BACK = {
 test("the bar names the person only once the name has gone up under it, never as the page is carried across", () => {
   fresh();
   watchers.length = 0;
-  const away = () => again(() => useNameAway(true, true));
+  const away = () => again(() => useNameAway(true, true, page));
   assert.equal(away(), false);
   const watcher = watchers.at(-1);
-  assert.equal(watcher.el, head, "the head's name is watched");
+  assert.equal(watcher.el, head, "the page's own name is watched, never the leaving page's");
   watcher.report([ACROSS]);
   assert.equal(away(), false, "carried across, the name is not under the bar");
   watcher.report([UP]);
@@ -93,14 +102,14 @@ test("the dock comes up only once the head's acts have scrolled away up, never a
   };
   try {
     assert.equal(
-      again(() => PhoneDock({ c: { phone: true } })),
+      again(() => PhoneDock({ c: { phone: true, page } })),
       null,
     );
   } finally {
     react.useState = useState;
   }
   const watcher = watchers.at(-1);
-  assert.equal(watcher.el, head, "the head's acts are watched");
+  assert.equal(watcher.el, head, "the page's own acts are watched, never the leaving page's");
   watcher.report([ACROSS]);
   watcher.report([UP]);
   watcher.report([BACK]);
