@@ -4039,7 +4039,7 @@ const LEAD_CARD = {
   payload: { plan: LEAD_PLAN, view: { title: "Find 200 personal trainers" }, facts: LEAD_FACTS },
   undo: "Stop the search",
 };
-test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card puts them back to change and opens the search once approved", async () => {
+test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card is read, a change said to Ask, and its one press opens the search once approved", async () => {
   const hash = globalThis.window.location.hash;
   const chanly = globalThis.window.CHANLY;
   const went = [];
@@ -4091,27 +4091,17 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     assert.equal(askedWith[0].text, "50 dentists in Austin, TX", "the words go as typed, with no prefix");
     assert.equal(askedWith[0].surface, "leads", "on the Leads surface");
     assert.equal(askedWith[0].scope, null, "and with no scope");
-    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "lead_search");
-    assert.ok(byTestId(tree, "lead-plan"), "the card on the rail is the finder's plan card");
-    // Change what I asked: the turn's question back in the field, and the field takes focus (spec F4). The field's own
-    // focus after the answer landed (useAskFocus, 30ms) is let fire first, so only this one is counted.
-    await new Promise((r) => setTimeout(r, 60));
-    let focused = 0;
-    inputOf(tree).props.ref.current = {
-      focus: () => {
-        focused++;
-      },
-    };
-    press(byTestId(tree, "plan-back"));
-    tree = await later(Palette, OPEN);
-    assert.equal(inputOf(tree).props.value, "50 dentists in Austin, TX", "the words are back in the field");
-    await new Promise((r) => setTimeout(r, 40));
-    assert.equal(focused, 1, "and the field takes focus");
-    // With the field emptied the answer is under the line again: Approve commits, the receipt stays on the card, and
-    // the Line goes to the search the commit made.
-    typed(tree, "");
-    tree = await later(Palette, OPEN);
-    press(byTestId(tree, "plan-approve"));
+    const card = byTestId(tree, "ask-card");
+    assert.equal(card.props["data-kind"], "lead_search");
+    // The card is read (Ruben, 23 Oct 2026: a change is said to Ask, which makes the card again): what it finds as rows
+    // and one press, never the finder's pickers, and no "Change what I asked", since the field under it is Ask's own.
+    assert.ok(byTestId(card, "ask-card-sheet"), "what it finds, as rows");
+    assert.equal(byTestId(tree, "lead-plan"), null, "no plan card with pickers");
+    assert.equal(byTestId(tree, "plan-back"), null, "no way back to the field: it is the field under the card");
+    const find = byTestId(card, "ask-card-approve");
+    assert.match(textOf(find), /^Find \d+ leads$/, "one press, for what the month has room for");
+    // Its press commits, the receipt stays on the card, and the Line goes to the search the commit made.
+    press(find);
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, ["lead_search"], "committed through Ask's door");
     assert.ok(
@@ -4263,9 +4253,8 @@ test("on Leads a card that answers a search commits through Ask's door with no u
     keyed(tree, "Enter");
     tree = await later(Palette, OPEN);
     assert.equal(byTestId(tree, "ask-card").props["data-kind"], "lead_search");
-    typed(tree, "");
-    tree = await later(Palette, OPEN);
-    press(byTestId(tree, "plan-approve"));
+    // An answer to a search's question is drawn as any card is: what it changes, and Approve.
+    press(byTestId(tree, "ask-card-approve"));
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, [answering.payload.amends], "the card commits as it came, its amends intact");
     assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."), "the receipt stays in the thread");
