@@ -6,7 +6,7 @@ import type { AskProposal, LeadSearchPlan, PageContext } from "@chanlytics/contr
 import type { SendEvent } from "@/legacy-bridge/ask";
 import { askCalls } from "../../legacy-verbs";
 import { addressRoute } from "../../people/shell-verbs";
-import { answerSearch, moreForSearch, startSearch } from "../surface";
+import { answerSearch, moreForSearch } from "../surface";
 import type { FinderProposal, FinderSet, LeadSearchCardPayload } from "./types";
 
 /** A card's payload as the panel reads it. */
@@ -110,8 +110,6 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
   // stopped waiting meanwhile the route says so, and that is what is shown (section 7.2).
   if (set.more && set.more.answer) return await answerSearch(set.more.searchId, "include", plan);
   if (set.more) return await moreForSearch(set.more.searchId, set.more.purpose || "topup", plan);
-  // An idea's plan is a new search, posted as the owner approved it to the door Ask's card posts to (00398).
-  if (set.idea) return await startSearch(plan);
   return { ok: false, message: "Nothing to start — describe what you want again." };
 }
 
@@ -120,9 +118,10 @@ async function startPlan(proposal: FinderProposal | null, plan: LeadSearchPlan, 
  * lead-searches marked as Ask's, or, when the card carries `amends`, answers the search it amends: an answer that came
  * back from Ask commits as its card. An Include opened on the page (a strip's step on a round still waiting, no card) posts
  * the plan through answerSearch and the route versions it; any other plan the panel opened from a strip's next step goes
- * through moreForSearch; and an idea's plan is a new search, posted to POST lead-searches as the page's (00398). Either way the route's own sentence on a refusal (402, 409, 429) is said under the button, in its
- * words, and nothing on the page says it started. Started, the panel shuts the one way the page shuts it (`set.close`,
- * which lets go of the round it was opened under too), left at rest: no words, card or plan.
+ * through moreForSearch (an idea's search is Ask's card now, never this panel's). Either way the route's own sentence on a
+ * refusal (402, 409, 429) is said under the button, in its words, and nothing on the page says it started. Started, the
+ * panel shuts the one way the page shuts it (`set.close`, which lets go of the round it was opened under too), left at
+ * rest: no words, card or plan.
  */
 export const leadFinderApprove = async (
   proposal: FinderProposal | null,

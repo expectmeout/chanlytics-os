@@ -127,7 +127,7 @@ const AskCardChange = ({ p, t, idle }) => {
 // the card's spec names (contracts PROPOSAL_GATE) is drawn by the shell's rule (window.gate): a role that may not approve
 // the card still sees Approve, hears why at the control, and a press does nothing. The route re-checks. A plan's send
 // that waits for a step not made yet says so in the kit's state pill in Approve's place (`waits`, contracts planGroupOf).
-const AskCardActs = ({ p, t, busy, waits, hideOpen, onApprove, onDismiss, onNav }) => {
+const AskCardActs = ({ p, t, busy, waits, hideOpen, onApprove, onDismiss, onNav, press = null }) => {
   const A = window.__ask;
   const pl = p.payload || {};
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
@@ -135,8 +135,8 @@ const AskCardActs = ({ p, t, busy, waits, hideOpen, onApprove, onDismiss, onNav 
   return (
     <div className="ask-card-actions">
       {waits ? <span className="pill" data-testid="ask-card-waits">{waits}</span> : null}
-      {waits ? null : <button className="btn btn-primary btn-sm" onClick={onApprove} disabled={busy} data-testid="ask-card-approve" {...window.gate(gateKey, "approve this card")}>
-        {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
+      {waits ? null : <button className="btn btn-primary btn-sm" onClick={onApprove} disabled={busy || !!(press && press.disabled)} data-testid="ask-card-approve" {...window.gate(gateKey, "approve this card")}>
+        {busy ? t.working : press ? press.label : p.kind === "reply" ? t.send : t.approve}
       </button>}
       {p.kind === "reply" && pl.conversation_id ? <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button> : null}
       {openRoute && !hideOpen ? <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{/^campaigns\/sequences\/new(:|$)/.test(openRoute) ? t.openNew : t.openIt}</button> : null}
@@ -173,7 +173,7 @@ const AskCardReceipt = ({ p, t, state, receipt, err, open, undoData, doneAt, bus
   return (
     <div className="ask-card-receipt">
       {clock ? <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} /> : <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />}
-      <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
+      <span className="ask-card-said">{state === "failed" ? err || receipt : state === "dismissed" ? (window.LeadCards && receipt === window.LeadCards.replaced ? t.changedBelow : t.notNow) : receipt}</span>
       {can && !armed ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo} disabled={busy} title={clock ? p.undo : undefined}>{clock ? t.undo : p.undo}</button> : null}
       {can && armed ? <window.Confirm question={`${p.undo}?`} detail={t.undoCampaignDetail} yes={t.undoCampaignYes} danger busy={busy} onYes={undoArmed} onNo={() => setArmed(false)} testid="ask-card-undo" /> : null}
       {state === "failed" ? <button className="btn btn-ghost btn-sm ask-card-undo" onClick={onRetry}>{t.tryAgain}</button> : null}
@@ -199,18 +199,31 @@ const atUndoOpen = (A, p, state, undoData, doneAt) => {
   return state === "done" && !!undoData && !!p.undo && !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), version));
 };
 
+// A search's card, read (contracts leads/search/search-card.ts, through the Line's LeadCards): what it finds as rows,
+// the line under them, and where its people come from, folded, for a people search. A change is said to Ask; the press
+// is the card's.
+const AskSearchCard = ({ lead, t }) => (
+  <>
+    <div className="ask-card-change"><AskSheet sheet={lead.sheet} /></div>
+    <p className="ask-card-foot" data-testid="ask-card-facts">{lead.foot}</p>
+    {lead.source ? <details className="ask-card-foot" data-testid="ask-card-source"><summary>{t.whereFrom}</summary>{lead.source}</details> : null}
+  </>
+);
+// What became of a card another turn decided (a search card a newer one set aside), drawn as the card's own press would.
+const atTold = (o, s) => { if (o) { s.setState(o.state); s.setReceipt(o.receipt); s.setUndoData(o.undo || null); s.setDoneAt(o.atMs || 0); } };
+
 // A proposal the assistant made, as a card: its head, the change, Approve (or Edit in the composer), Open and Not now,
 // and after the act its line with the undo the verb has. The commit runs through the verb's own route, which checks the
 // role and the state again; what happened is kept on the turn, so a thread reads back with "Sent" rather than a fresh
 // Approve. The Line draws a card again whenever its answer comes back under the line or opens in a fold, so what
 // happened is also written into the conversation it holds (`onOutcome`): a card drawn again from a stale outcome
-// offered Send a second time. A lead search's "Change what I asked" is the Line's (`onEdit`: the question back in the
-// field, spec F4); the reply editor is for replies. A plan's step is drawn by its group (AskPlan), which hands it `step`:
+// offered Send a second time. A search's card is read, never edited: a change is said to Ask, whose next card replaces
+// it (Ruben, 23 Oct 2026); the reply editor is for replies. A plan's step is drawn by its group (AskPlan), which hands it `step`:
 // what it waits for and the line said before its press (contracts planGroupOf), the turn's cards as they stand (its
 // press is judged by what they became, AskApi.commit), whether the group's press holds it, what that press recorded for
 // it (`ran`), and where it tells the group what became of it and that it is busy. A card of no plan is a step of nothing.
 const AT_NO_STEP = { waits: null, note: null, cards: undefined, held: false, ran: null, saw: () => {}, onBusy: () => {} };
-const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit, step = AT_NO_STEP }) => {
+const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, step = AT_NO_STEP }) => {
   const A = window.__ask;
   const [state, setState] = useAtState(p.outcome ? p.outcome.state : "idle");
   const [receipt, setReceipt] = useAtState(p.outcome ? p.outcome.receipt : "");
@@ -223,14 +236,12 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit, 
   const [took, setTook] = useAtState(null);
   const ran = step.ran;
   if (ran && ran !== took) { setTook(ran); setState(ran.state); setReceipt(ran.receipt); setUndoData(ran.undo || null); setDoneAt(ran.atMs || 0); setErr(ran.state === "failed" ? ran.receipt : ""); }
+  // A card another turn set aside (a search card a newer one replaced, contracts withAnswerLanded) is drawn as it now is.
+  const told = p.outcome || null;
+  const [saw, setSaw] = useAtState(told);
+  if (told !== saw) { setSaw(told); atTold(told, { setState, setReceipt, setUndoData, setDoneAt }); }
   const held = busy || step.held;
   const working = (b) => { setBusy(b); step.onBusy(b); };
-  // A lead_search card IS the finder's plan card (Task 9): its words are the
-  // same pickers, so a plan changed here and a plan changed on Leads cannot say
-  // different things. The edited plan and the open picker are this turn's.
-  const [edited, setEdited] = useAtState(null);
-  const [pick, setPick] = useAtState(null);
-  const pl = p.payload || {};
   const record = (o) => {
     step.saw(p.id, o);
     atRecord(A, messageId, onOutcome, p.id, o);
@@ -246,7 +257,7 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit, 
       record(atDone(r, at));
       // A search approved is opened (spec F4), and a search answered likewise (G4): the receipt's "Leads shows it" is
       // kept true by going where the contract says the card opens.
-      if (p.kind === "lead_search" && onNav && A && A.cardOpenRoute) {
+      if ((p.kind === "lead_search" || p.kind === "people_search") && onNav && A && A.cardOpenRoute) {
         const to = A.cardOpenRoute({ ...p, outcome: { state: "done", receipt: r.receipt, atMs: at, undo: r.undo } });
         if (to) onNav(to);
       }
@@ -265,28 +276,17 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit, 
     else setErr(r.message);
   };
   const idle = state === "idle";
-  const plan = p.kind === "lead_search" && idle && pl.plan && window.LeadPlanCard;
+  // A search's card (Ruben, 23 Oct 2026): what it finds as rows, read, never edited here -- a change is said to Ask, which
+  // makes the card again -- its line under them, and one press, for what the month has room for (contracts
+  // leads/search/search-card.ts).
+  const lead = idle && window.LeadCards ? window.LeadCards.view(p) : null;
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
       <AskCardHead p={p} t={t} />
-      {plan
-        ? window.LeadPlanCard({
-          plan: edited || pl.plan,
-          view: pl.view || null,
-          facts: pl.facts || null,
-          busy,
-          refusal: err,
-          baseVersion: pl.plan.version || 1,
-          pick,
-          onPick: setPick,
-          onChange: setEdited,
-          onApprove: () => approveWith({ ...p, payload: { ...pl, plan: edited || pl.plan } }),
-          onBack: () => { if (onEdit) onEdit(p); },
-        })
-        : <AskCardChange p={p} t={t} idle={idle} />}
+      {lead ? <AskSearchCard lead={lead} t={t} /> : <AskCardChange p={p} t={t} idle={idle} />}
       {idle && step.note ? <p className="ask-card-foot" data-testid="ask-step-note">{step.note}</p> : null}
       {idle ? (
-        <AskCardActs p={p} t={t} busy={held} waits={step.waits} hideOpen={hideOpen} onApprove={() => approveWith(p)} onDismiss={dismiss} onNav={onNav} />
+        <AskCardActs p={p} t={t} busy={held} waits={step.waits} hideOpen={hideOpen || !!lead} press={lead ? lead.press : null} onApprove={() => approveWith(lead ? lead.commit : p)} onDismiss={dismiss} onNav={onNav} />
       ) : (
         <AskCardReceipt p={p} t={t} state={state} receipt={receipt} err={err} open={atUndoOpen(A, p, state, undoData, doneAt)} undoData={undoData} doneAt={doneAt} busy={held} onUndo={undo} onRetry={() => { setState("idle"); setErr(""); }} />
       )}

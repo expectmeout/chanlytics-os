@@ -84,6 +84,9 @@ const ASK_TEXT = {
     approve: "Approve",
     send: "Send",
     notNow: "Not now",
+    whereFrom: "Where these come from",
+    // A search card a newer one replaced (contracts SEARCH_CARD_REPLACED): the change said to Ask made it again below.
+    changedBelow: "Changed below",
     undo: "Undo",
     // Undoing a new campaign deletes it: the question before it (AskCardReceipt).
     undoCampaignDetail: "The campaign and its schedule go; runs already sent keep their numbers in Sent.",
@@ -178,6 +181,8 @@ const ASK_TEXT = {
     approve: "Aprobar",
     send: "Enviar",
     notNow: "Ahora no",
+    whereFrom: "De dónde salen",
+    changedBelow: "Cambiada abajo",
     undo: "Deshacer",
     undoCampaignDetail: "La campaña y su horario se borran; los envíos ya hechos conservan sus números en Enviados.",
     undoCampaignYes: "Sí, borrarla",

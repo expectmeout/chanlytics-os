@@ -5,7 +5,6 @@
  */
 import type { ReactNode } from "react";
 import {
-  PEOPLE_FIND_WORDS,
   leadSearchWords,
   leadsRoute,
   type LeadIdeaDto,
@@ -27,10 +26,10 @@ import {
   removeSearch,
   renameSearch,
   readSuggestions,
+  ideaCard,
   setBusinessLine,
   type LeadsSurface,
 } from "../surface";
-import { startPeopleSearch } from "../finder/people-sheet";
 import { surfaceValue } from "../../surface-values";
 import type { LeadAnswer } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
@@ -68,7 +67,8 @@ const openFind = (words?: unknown) => {
  */
 const askFind = (words: string) => {
   const said = words.trim();
-  if (said) askAbout({ prompt: said });
+  // A conversation of its own, never the one Ask still holds from earlier (Ruben, 23 Oct 2026).
+  if (said) askAbout({ prompt: said, fresh: true });
   else openAsk();
 };
 
@@ -102,7 +102,6 @@ export const leadFinderActs = ({
     plan: (plan) => setFinder({ plan }),
     pick: (pick) => setFinder({ pick }),
     more: finder.more,
-    idea: !!finder.idea,
   };
   const finderAnswer = (words: string) => leadAnswerPlan(words, finderSet);
   const finderApprove = async (plan: LeadSearchPlan) => {
@@ -131,39 +130,20 @@ export const leadFinderActs = ({
     };
     openFinder({ stage: "plan", words: how === "answer" ? "" : s.asked, proposal: null, plan, more });
   };
-  // An idea opens its plan as it is, a new search to approve (00398), its size no more than the month has left; Change
-  // what I asked is Ask, with the plan in words. One kept from before ideas were plans opens Ask with its words.
-  const openIdea = (idea: LeadIdeaDto, left: number | null) => {
-    const words = idea.ask || idea.words;
-    // A people idea (decision 0070) opens its own card to approve, as a places idea's plan does (Ruben, 22 Oct 2026: it
-    // opened the six boxes of Find people, filled in). Its plan says it came from an idea too.
-    if (idea.people) {
-      const count = left && left < idea.people.count ? left : idea.people.count;
-      const people = { ...idea.people, count, from: "idea" as const };
-      return openFinder({ stage: "plan", words, proposal: null, plan: null, people, more: null, idea });
-    }
-    if (!idea.plan) return openFind(words);
-    const count = left && left < idea.plan.count ? left : idea.plan.count;
-    // The plan says it came from an idea (plan.from): the ideas' own measure of whether they are followed.
-    openFinder({ stage: "plan", words, proposal: null, plan: { ...idea.plan, count, from: "idea" }, more: null, idea });
-  };
-  // A people idea's card approved: the search through the people card's own door (POST lead-searches/people), then the
-  // owner lands on it, as a places idea's does. A refusal is said under the button, in the route's words.
-  const finderApprovePeople = async (plan: LeadPeoplePlan) => {
-    finderSet.stage("starting");
-    finderSet.refusal(null);
-    const r = await startPeopleSearch(plan);
+  // An idea opens Ask on its card (Ruben, 23 Oct 2026: "allow the ask to open up and provide a card … if user wants to
+  // tweak anything they can just conversate with the ask"): the card made from the idea's own plan, places or people, with
+  // no model asked, kept as the first answer of a thread of its own (POST ask/idea), which Ask opens. A change is said
+  // there, and Find is the card's. One kept from before ideas were plans is asked of Ask with its words.
+  const openIdea = async (idea: LeadIdeaDto) => {
+    if (!idea.plan && !idea.people) return askFind(idea.ask || idea.words);
+    const r = await ideaCard(idea.words);
     if (!r.ok) {
-      finderSet.refusal(r.message || PEOPLE_FIND_WORDS.failed);
-      finderSet.stage("plan");
-      return r;
+      plFlash(refusalToast(r, "That idea didn't open"));
+      return;
     }
-    closeFinder();
-    plFlash({ msg: <>{PEOPLE_FIND_WORDS.done}</> });
-    if (r.data.search_id && !leadView.searchId) nav(leadsRoute({ searchId: r.data.search_id, list: "all", cls: null }));
-    return r;
+    askAbout({ thread: r.data.thread.id });
   };
-  return { finderAnswer, finderApprove, finderApprovePeople, searchAnswerOf, openFind, askFind, openPlanFor, openIdea };
+  return { finderAnswer, finderApprove, searchAnswerOf, openFind, askFind, openPlanFor, openIdea };
 };
 export type FinderActs = ReturnType<typeof leadFinderActs>;
 

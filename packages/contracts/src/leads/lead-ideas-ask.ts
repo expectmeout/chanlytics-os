@@ -9,7 +9,7 @@
  */
 import { fenced } from "../ai/fence";
 import { LEAD_IDEAS_MAX, type IdeaHome, type IdeaPacket } from "./lead-ideas";
-import { PEOPLE_COMPANY_SIZES, PEOPLE_SENIORITIES, PEOPLE_STATES_MAX } from "./search/people-plan";
+import { PEOPLE_COMPANY_SIZES, PEOPLE_KEYWORDS_MAX, PEOPLE_SENIORITIES, PEOPLE_STATES_MAX } from "./search/people-plan";
 
 /** An area's label as a sentence says it: "near 78701", "in Austin, TX". */
 export function ideaAreaPhrase(label: string): string {
@@ -146,6 +146,7 @@ export function ideaJsonSchema(p: IdeaPacket): Record<string, unknown> {
             "leave_out",
             "seniority",
             "industries",
+            "keywords",
             "company_sizes",
           ],
           properties: {
@@ -180,6 +181,7 @@ export function ideaJsonSchema(p: IdeaPacket): Record<string, unknown> {
             leave_out: list,
             seniority: { type: "array", items: { type: "string", enum: [...PEOPLE_SENIORITIES] } },
             industries: list,
+            keywords: list,
             company_sizes: { type: "array", items: { type: "string", enum: [...PEOPLE_COMPANY_SIZES] } },
           },
         },
@@ -225,6 +227,7 @@ export const LEAD_IDEAS_SYSTEM = [
   "- terms: for places, one to three things to type into a map search, the widest first; for people, one to five job titles.",
   '- place, for places: the id of a place listed, or "other" with city, state and zip naming any other US place: a ZIP, a city and its two-letter state, or a state alone for the whole state. With a listed place, or for people, leave city, state and zip empty.',
   `- states, for people: two-letter US states, at most ${PEOPLE_STATES_MAX}; none is the whole US. seniority, industries (in the people directory's own names, such as "Construction" or "Marketing & Advertising") and company_sizes may each be empty, which is any. For places, leave all four empty.`,
+  `- keywords, for people: one to ${PEOPLE_KEYWORDS_MAX} words the companies' own websites use for what they do ("plumbing", "HVAC", "roofing"), so a kind the directory files under a broad industry is found by its work: home service companies are filed under Construction with roofers and builders. For places, none.`,
   "- count: one of the sizes given: smaller for a kind not tried, larger for one that worked. For people it is how many companies.",
   "- contact: for places, email when the business writes first or replies came by email, phone when most of a kind's leads list only a phone; for people, email.",
   "- criteria, for places: at most three. seen only for what a listing shows (a website, a rating, reviews, open or closed); what a business is or does is likely. required only when the owner would turn a place down without it. For people, none.",

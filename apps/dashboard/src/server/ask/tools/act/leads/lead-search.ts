@@ -7,6 +7,7 @@ import {
   LEAD_MAX_PLACES,
   LeadSearchPlanSchema,
   PEOPLE_COUNT_MAX,
+  PEOPLE_KEYWORDS_MAX,
   addressOf,
   ProposeAnySearchSchema,
   peopleEstimateUsd,
@@ -16,6 +17,8 @@ import {
   planSentence,
   proposalBelowNeeds,
   reachOutAddWords,
+  type AskProposal,
+  type LeadPeoplePlan,
   type LeadSearchPlan,
   type ProposePeopleSearch,
   type ReachOutAddDto,
@@ -68,6 +71,7 @@ const LeadSearchAsk = z.object({
   // A people search's own (the people card, 00430).
   seniority: z.array(z.string()).optional(),
   industries: z.array(z.string()).optional(),
+  keywords: z.array(z.string()).optional(),
   company_sizes: z.array(z.string()).optional(),
 });
 
@@ -113,6 +117,8 @@ const shapeAsk = (input: LeadSearchAskInput) => {
         .replace(/[^a-z]+/g, "_"),
     ),
     industries: (Array.isArray(input.industries) ? input.industries : []).slice(0, 5),
+    // The words the companies' own sites use (people-plan.ts): a kind the directory files under a broad industry.
+    keywords: (Array.isArray(input.keywords) ? input.keywords : []).slice(0, PEOPLE_KEYWORDS_MAX),
     company_sizes: Array.isArray(input.company_sizes) ? input.company_sizes : [],
   };
 };
@@ -140,27 +146,46 @@ async function proposePeopleSearch(
     );
   const p = planPeopleSearch(ask);
   if (!p.ok) return refuse(p.refusal.text);
+  return propose(await peopleCard(t.ctx, t.tenantId, t.now, p.plan, p.view.title, capped));
+}
+
+/**
+ * A people search's card, as Ask's tool makes it and as an idea's is made (idea-card.ts): its plan, what it reserves
+ * and where its people come from, said before it is approved -- the month's leads (the owner's unit, never a price), the
+ * day they renew, and the card's source-rights note.
+ */
+export async function peopleCard(
+  ctx: ToolContext["ctx"],
+  tenantId: string,
+  now: Date,
+  plan: LeadPeoplePlan,
+  title: string,
+  capped: string | null = null,
+): Promise<Omit<AskProposal, "id" | "needs" | "undo" | "made_at">> {
   const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
-  const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
-  const estimate = peopleEstimateUsd(p.plan.count, {
+  const facts = await planFacts(ctx, tenantId, { now });
+  const estimate = peopleEstimateUsd(plan.count, {
     perPerson: brief?.costPerPlaceUsd ?? 0.002,
     perJudge: brief?.judgePerPlaceUsd ?? 0.0023,
     perCheck: brief?.checkPerEmailUsd ?? 0.00089,
     start: brief?.startUsd ?? 0.01,
   });
-  // What it reserves and where its people come from, said on the card before it is approved: the month's leads (the
-  // owner's unit, never a price) and the card's source-rights note.
-  const month = `Uses up to ${p.plan.count} of your ${facts.leadsLeft} leads left this month.`;
-  return propose({
+  const month = `Uses up to ${plan.count} of your ${facts.leadsLeft} leads left this month.`;
+  return {
     kind: "people_search",
-    title: p.view.title,
-    summary: summaryCapped(`${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(), capped),
+    title,
+    summary: summaryCapped(`${peoplePlanSentence(plan)} ${month} ${brief?.rights ?? ""}`.trim(), capped),
     payload: {
-      plan: p.plan,
-      view: p.view,
-      facts: { leads_left: facts.leadsLeft, estimate_usd: estimate, rights: brief?.rights ?? null },
+      plan,
+      view: { title },
+      facts: {
+        leads_left: facts.leadsLeft,
+        renews_on: facts.renewsOn,
+        estimate_usd: estimate,
+        rights: brief?.rights ?? null,
+      },
     },
-  });
+  };
 }
 
 /**
@@ -258,7 +283,7 @@ const withCapWords = (made: ProposalOutcome, capped: string | null): ProposalOut
   capped && made.proposal ? { ...made, words: capped } : made;
 
 /** propose_lead_search's description, said whole: it takes no action. */
-const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest), keywords (one to five words the companies' own sites use for what they do, as plumbing or HVAC, where an industry files them too broadly) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
 
 /** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
 const leadSearchAct: ActDef<typeof LeadSearchAsk> = {

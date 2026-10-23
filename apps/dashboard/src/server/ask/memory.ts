@@ -242,6 +242,8 @@ export async function threadForTurn(
   cited: AskRowRef[];
   /** The thread's cards no one has pressed yet: a call that would make one of them again makes nothing (turn-end.ts notAgain). */
   waiting: AskProposal[];
+  /** The thread's turns' cards, by turn: a new search card sets aside the one still waiting (contracts searchCardsReplaced). */
+  cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
   /** What the thread already asked and offered to ask next: a next question that says one again goes (turn.ts). */
   offered: string[];
 }> {
@@ -254,6 +256,7 @@ export async function threadForTurn(
   let told: string[] | null = null;
   let cited: AskRowRef[] = [];
   let waiting: AskProposal[] = [];
+  let cards: Array<Pick<AskMessageVM, "id" | "proposals">> = [];
   let offered: string[] = [];
   if (threadId) {
     const found = await readThread(ctx, threadId);
@@ -263,6 +266,7 @@ export async function threadForTurn(
       told = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
       waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
+      cards = found.messages.filter((m) => m.proposals?.length).map((m) => ({ id: m.id, proposals: m.proposals }));
       offered = found.messages.flatMap((m) =>
         m.role === "user" ? [m.text] : (m.answer?.do.next ?? m.followups ?? []),
       );
@@ -281,7 +285,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited, waiting, offered };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited, waiting, cards, offered };
 }
 
 /**

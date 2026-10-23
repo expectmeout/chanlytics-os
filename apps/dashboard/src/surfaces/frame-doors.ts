@@ -27,6 +27,8 @@ interface AskAbout {
   mode?: string;
   thread?: string;
   about?: AskScope;
+  /** Asked in a conversation of its own, never the one the Line still holds (a page's own search). */
+  fresh?: boolean;
   /** The seeded palette's own (a demo session's): a canned answer, doors to pages and acts to run. The Line asks the prompt instead. */
   answer?: string;
   title?: string;

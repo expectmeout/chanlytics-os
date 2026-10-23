@@ -31,6 +31,10 @@ export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.sli
 export const joinWords = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
+/** Each of a few, as a choice: "a", "a or b", "a, b or c". */
+export const joinWordsOr = (items: readonly string[]): string =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
+
 /** The same in a Spanish sentence: "a", "a y b", "a, b y c". */
 export const joinWordsEs = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;

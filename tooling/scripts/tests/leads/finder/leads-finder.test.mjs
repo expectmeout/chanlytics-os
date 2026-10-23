@@ -750,24 +750,21 @@ test("near the month's limit the card offers what is left and says when the lead
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
 });
 
-test("Ask draws the finder's own plan card by name until it moves: legacy-bridge/ask/line-globals.ts publishes it with the Line, and called as a function, as Ask's palette calls it, it draws the plan", () => {
-  assert.equal(ASK_LINE_GLOBALS.LeadPlanCard, LeadPlanCard, "the card the finder draws, not a second one");
-  frames.begin();
-  const tree = ASK_LINE_GLOBALS.LeadPlanCard({
-    plan: PLAN,
-    view: { title: "Find 200 personal trainers" },
-    facts: FACTS,
-    busy: false,
-    refusal: null,
-    onChange() {},
-    onApprove() {},
-    onBack() {},
-  });
-  assert.equal(
-    textOf(byTestId(tree, "plan-sentence")),
-    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
-  );
-  assert.equal(textOf(byTestId(tree, "plan-approve")), "Find 200 leads");
+test("Ask draws a search's card from contracts' rules, published with the Line (legacy-bridge/ask/line-globals.ts): its rows to read and its one press, never the finder's pickers (Ruben, 23 Oct 2026: a change is said to Ask)", () => {
+  const card = {
+    id: "p-1",
+    kind: "lead_search",
+    title: "Find 200 personal trainers",
+    summary: "",
+    payload: { plan: PLAN, view: { title: "Find 200 personal trainers" }, facts: FACTS },
+    needs: "partner",
+    undo: "Stop the search",
+  };
+  const v = ASK_LINE_GLOBALS.LeadCards.view(card);
+  assert.equal(v.sheet.rows.find((r) => r.label === "Where").value, "Austin, TX, about 25 km around");
+  assert.equal(v.press.label, "Find 200 leads");
+  assert.equal(typeof ASK_LINE_GLOBALS.LeadCards.landed, "function", "and the turns once an answer lands");
+  assert.equal(ASK_LINE_GLOBALS.LeadCards.replaced, "Changed below.");
 });
 
 /* --------------------------------------------------- Task 10: the strip */

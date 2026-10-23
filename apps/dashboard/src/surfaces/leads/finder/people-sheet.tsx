@@ -42,8 +42,8 @@ import type { Flash } from "../../people/types";
 
 const PW = PEOPLE_FIND_WORDS;
 
-/** Starts a people search as the owner approved it on the page: these boxes, or a people idea's card (decision 0070). */
-export const startPeopleSearch = (plan: LeadPeoplePlan) =>
+/** Starts a people search as the owner approved it on the page, in these boxes (an idea's is Ask's card, decision 0070). */
+const startPeopleSearch = (plan: LeadPeoplePlan) =>
   api()("POST lead-searches/people", { body: { plan, via: "people", thread_id: null }, once: true });
 
 /** One set of switches in a menu, under its label: what is on, and the words each says. */

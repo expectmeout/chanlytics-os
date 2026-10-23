@@ -7,8 +7,11 @@ import {
   detectLanguage,
   nextNotAsked,
   policyClassOffered,
+  replacedOutcome,
+  searchCardsReplaced,
   stoppedAnswer,
   v1FromAnswer,
+  withIdeaCarried,
   type AskColumn,
   type AskLanguage,
   type AskMessageVM,
@@ -25,7 +28,7 @@ import { memberViews } from "../readers/notifications";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
-import { appendMessage, touchThread } from "./store";
+import { appendMessage, setProposalOutcome, touchThread } from "./store";
 import { keepRememberCards } from "./companion/remembered";
 
 /**
@@ -76,7 +79,9 @@ interface PreparedTurn {
   ask: AskTurnAsk;
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
-  earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited">;
+  earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited" | "waiting">;
+  /** The thread's turns' cards before this one (memory.ts threadForTurn): what a new search card sets aside. */
+  cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
   /** The thread's questions and the next questions it offered, this question among them (nextNotAsked). */
   offered: string[];
   rc: ReaderContext;
@@ -141,7 +146,7 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     kept = await threadForTurn(ctx, asked);
   }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
-  const { thread, scope, offered, ...earlier } = kept;
+  const { thread, scope, offered, cards, ...earlier } = kept;
   await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
@@ -158,6 +163,7 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     thread,
     scope,
     earlier,
+    cards,
     offered: [...offered, text],
     rc,
     facts,
@@ -191,6 +197,23 @@ function stoppedTurn(
   };
 }
 
+/** The thread's waiting search cards a new one replaced (contracts searchCardsReplaced), kept as set aside; a failure is logged. */
+async function setAsideReplaced(
+  ctx: RouteContext,
+  cards: Array<Pick<AskMessageVM, "id" | "proposals">>,
+  made: AskProposal[],
+  tenantId: string,
+): Promise<void> {
+  const at = Date.now();
+  for (const r of searchCardsReplaced(cards, made)) {
+    try {
+      await setProposalOutcome(ctx, r.messageId, r.proposalId, replacedOutcome(at));
+    } catch (e) {
+      log.error("ask_save_failed", { error: e, tenant_id: tenantId });
+    }
+  }
+}
+
 export async function finishAskTurn(
   p: PreparedTurn,
   emit: (ev: AskTurnLine) => void,
@@ -204,6 +227,7 @@ export async function finishAskTurn(
     thread: turn,
     scope,
     earlier,
+    cards,
     offered,
     rc,
     facts,
@@ -263,7 +287,8 @@ export async function finishAskTurn(
     ctx,
     tenantId,
     turn.id,
-    result.proposals.map((p) =>
+    // A card that replaces an idea's keeps the idea's mark (contracts withIdeaCarried).
+    withIdeaCarried(cards, result.proposals).map((p) =>
       (p.kind === "lead_search" || p.kind === "people_search") && !p.payload.amends
         ? { ...p, payload: { ...p.payload, thread_id: turn.id } }
         : p,
@@ -296,6 +321,9 @@ export async function finishAskTurn(
   } catch (e) {
     log.error("ask_save_failed", { error: e });
   }
+  // A new search card sets aside the one still waiting above it (a change said to Ask): one search card in a thread
+  // can be pressed, the newest. The Line sets the same cards aside as the answer lands (contracts withAnswerLanded).
+  if (saved) await setAsideReplaced(ctx, cards, proposals, tenantId);
   const message: AskMessageVM = {
     id: saved?.id ?? `unsaved-${Date.now()}`,
     role: "assistant",

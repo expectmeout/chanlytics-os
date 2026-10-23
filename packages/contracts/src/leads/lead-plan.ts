@@ -228,10 +228,13 @@ export function leadMonthPlanFacts(
 
 /** The same facts as one line, a phone's (§8.3): how long, what it skips, and what is left where that is known. */
 export function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string {
+  // In the people card's order and words (people-plan.ts peoplePlanFactLine; Ruben, 23 Oct 2026: one card for both).
   return [
     `About ${planMinutes(plan)} min`,
+    ...(facts
+      ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`]
+      : []),
     "skips leads you have",
-    ...(facts ? [leadAllowanceFact(facts.leadsLeft)] : []),
   ].join(" · ");
 }
 

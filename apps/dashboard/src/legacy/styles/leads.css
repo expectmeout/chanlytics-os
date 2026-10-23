@@ -359,7 +359,7 @@
    No search kept and no lead held (§8.9; redrawn 7 Oct 2026, canvas "Leads, the first day", option A): one question, the
    door to Ask, and the ideas written from the workspace's own line. The page is that alone: no rail, no controls and no
    pane round it (scope.tsx draws none of them, and the main column gives up its glass here), the words in the middle of
-   the page on a desk and at the left under the page's name on a phone. One coral thing, the door's own press; every
+   the page on a desk and on a phone. One coral thing, the door's own press; every
    other door is the ink's. It was three boxed ways people arrive over a boxed list, a coral link in each. */
 .main-scroll .leads-scope[data-first-day] .cl-main { border-radius: 0; background: none; box-shadow: none; }
 .main-scroll .leads-scope[data-first-day] .cl-main::after { content: none; }
@@ -382,13 +382,21 @@
 /* The box: no ground or edge of its own (the capsule is its edge), the words at the field's size. */
 input.ld-first-ask-words { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-md); line-height: var(--leading-tight); color: var(--ink); text-overflow: ellipsis; }
 input.ld-first-ask-words::placeholder { color: var(--ink-dim); opacity: 1; }
-.ld-first-ask-go { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-circle); background: var(--primary-fill); box-shadow: var(--primary-depth); color: var(--primary-ink); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+.ld-first-ask-go { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-circle); background: var(--primary-fill); box-shadow: var(--primary-depth); color: var(--primary-ink); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
 .ld-first-ask-go:focus-visible { outline: none; box-shadow: var(--primary-depth), var(--focus-ring); }
 .ld-first-ask[aria-disabled="true"] { cursor: default; }
 .ld-first-ask[aria-disabled="true"] .ld-first-ask-go { opacity: 0.45; cursor: default; }
 @media (hover: hover) {
   .ld-first-ask:not([aria-disabled="true"]) .ld-first-ask-go:hover { background: var(--primary-hover); }
 }
+/* With words typed the send is the ink, the page's ground for its arrow, as Ask's is (ask.css .ask-send: black on the
+   light side, white on the dark), and the coral is the field's at rest alone (Ruben, 23 Oct 2026). Told by the box's
+   own placeholder leaving, so the page keeps no state for it. */
+.ld-first-ask:has(input.ld-first-ask-words:not(:placeholder-shown)) .ld-first-ask-go { background: var(--ink); box-shadow: none; color: var(--bg); }
+@media (hover: hover) {
+  .ld-first-ask:has(input.ld-first-ask-words:not(:placeholder-shown)) .ld-first-ask-go:hover { background: var(--ink); }
+}
+.ld-first-ask:has(input.ld-first-ask-words:not(:placeholder-shown)) .ld-first-ask-go:focus-visible { box-shadow: var(--focus-ring); }
 
 /* The ideas: the kit's large button each, placed here, its words beginning with a capital whatever the search's own
    spelling. A desk says who an idea is for under a pointer (the house's tip); a phone's, below, are rows. */
@@ -399,12 +407,17 @@ input.ld-first-ask-words::placeholder { color: var(--ink-dim); opacity: 1; }
 .ld-first-idea-words { display: inline-block; min-width: 0; }
 .ld-first-idea-words::first-letter { text-transform: uppercase; }
 .ld-first-note { margin: 28px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-/* What the ideas were written from: one quiet row (the kit's quiet button where it may be rewritten), "Based on", the
-   owner's line on one line however long, and Edit at its end. */
-.ld-first-basis { margin: 16px 0 0; max-width: 100%; min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
-.ld-first-basis-label { flex: none; color: var(--ink-dim); }
-.ld-first-basis-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-muted); }
-.ld-first-basis-edit { flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--ink); }
+/* What the ideas were written from: a row on the inset's ground, a setting under the ideas' acts (the kit's quiet button
+   drawn as text where it may be rewritten), "Your business" over the owner's line, two lines of it at most, and Edit at
+   its end in the ink. Three classes deep, so the ground outweighs the quiet button's own. */
+.ld-first .ld-first-col .ld-first-basis { width: min(520px, 100%); margin: 28px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 10px 16px 10px 18px; border: 0; border-radius: var(--surface-row-radius); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); color: var(--ink); text-align: left; }
+@media (hover: hover) {
+  .ld-first .ld-first-col .ld-first-basis:is(button):hover { background: var(--selected-fill); }
+}
+.ld-first-basis-said { display: grid; gap: 2px; min-width: 0; }
+.ld-first-basis-label { font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-first-basis-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
+.ld-first-basis-edit { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 /* The line's sheet (first-day.tsx): one line over the box (what it is for, or where a line written for the owner came
    from, after a sparkle), the box as tall as the line it holds from three lines up, and nothing counted under it (Ruben,
    22 Oct 2026). Named with its tag, so it outweighs People's one-line field wherever the two sheets load. */
@@ -453,14 +466,13 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   /* The classes and the chips give up the gutter, not their words. */
   .ld-classes, .ld-chips { flex-wrap: nowrap; overflow-x: auto; }
 
-  /* The first day on a phone: the words at the left under the page's name, the door a thumb tall, and each idea a row
-     the width of the screen with the mark of a door, since nothing hovers here to say more. It fits one screen with its
-     four ideas over the tab bar down to 360 x 780 (Ruben, 22 Oct 2026: it ran 90px under the bar at 390 x 844): the
-     question one line, a step under the page's own name over it, the gaps a thumb needs and no more, and each idea's
-     why two lines at most (the plan it opens says the rest). */
-  .ld-first { justify-items: start; padding: 6px var(--gutter-page) 8px; }
-  .ld-first-col { justify-items: start; text-align: left; }
-  .ld-first-h { font-size: var(--text-xl); }
+  /* The first day on a phone: the question in the middle, a little way under the strip (Ruben, 23 Oct 2026: it stood
+     at the left, hard under the page's name), the door a thumb tall, and each idea a row the width of the screen with
+     the mark of a door, since nothing hovers here to say more. It fits one screen with its three ideas over the tab bar
+     (Ruben, 22 Oct 2026: it ran 90px under the bar at 390 x 844): the question one line, the gaps a thumb needs and no
+     more, and each idea's why two lines at most (the plan it opens says the rest). */
+  .ld-first { padding: 18px var(--gutter-page) 8px; }
+  .ld-first-h { font-size: var(--text-2xl); }
   .ld-first-sub { margin-top: 6px; font-size: var(--text-base); }
   /* The door and the ideas stand at the boards' 12px from the screen's edges, where every page's capsules and panes
      stand under a head at 16 (the Inbox's search, People's, Today's panes): 4px out of the words' column each side. */
@@ -471,9 +483,9 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   .ld-first-again { margin-right: -6px; }
   /* The quiet presses keep the height of their words, as the line's Edit did: the touch floor's 44px every button takes
      under a thumb (legacy.css) would stand each row 16px taller, and a thumb's target reaches past the words instead. */
-  /* Three classes deep, so they outweigh the floor's `html.legacy-on .btn`. */
-  .ld-first .ld-first-col .ld-first-again, .ld-first .ld-first-col .ld-first-basis { position: relative; min-height: 0; }
-  .ld-first .ld-first-col .ld-first-again::after, .ld-first .ld-first-col .ld-first-basis::after { content: ""; position: absolute; inset: -8px 0; }
+  /* Three classes deep, so it outweighs the floor's `html.legacy-on .btn`. */
+  .ld-first .ld-first-col .ld-first-again { position: relative; min-height: 0; }
+  .ld-first .ld-first-col .ld-first-again::after { content: ""; position: absolute; inset: -8px 0; }
   .ld-first-ideas { width: calc(100% + 8px); margin: 8px -4px 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
   .ld-first-col .ld-first-ideas .ld-first-idea { width: 100%; height: auto; min-height: 46px; justify-content: space-between; gap: 10px; padding: 6px 14px 6px 16px; border-radius: var(--surface-row-radius); text-align: left; white-space: normal; }
   .ld-first-col .ld-first-ideas .ld-first-idea > .icon { flex: none; color: var(--ink-faint); }
@@ -484,11 +496,12 @@ textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-s
   .ld-first-idea-text .ld-first-idea-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ld-first-idea-why { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-muted); }
   .ld-first-note { margin-top: 16px; }
-  /* The row stands at the column's edge: the quiet button's own padding sits out past it, so its words begin where the
-     words above them do. The line takes what the row has left, Edit keeping the row's end. A phone draws no doors under
-     it: Import leads is the head's act there. */
-  .ld-first-basis { width: calc(100% + 16px); max-width: none; margin: 10px -6px 0 -10px; justify-content: flex-start; }
-  .ld-first-basis-edit { margin-left: auto; padding-left: 8px; }
+  /* The business under the ideas, as wide as they are and at their corners, its words starting where theirs do, the
+     line on one line here (the sheet shows it whole). A phone draws no doors under it: Import leads is the head's act
+     there. */
+  .ld-first .ld-first-col .ld-first-basis { width: calc(100% + 8px); min-height: 0; margin: 10px -4px 0; gap: 12px; padding: 8px 16px; }
+  .ld-first-basis-said { gap: 1px; }
+  .ld-first-basis-line { display: block; text-overflow: ellipsis; white-space: nowrap; }
 
   /* A running search is two lines; the question is a card with its four
      answers two by two, each 44px. */

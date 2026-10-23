@@ -264,6 +264,7 @@ var reviewsPhrase = (n) => groupedPlural(n, "review");
 var UNKNOWN_MEMBER_WORD = "Someone";
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+var joinWordsOr = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
 var joinWordsEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 function clipAtWord(text, max) {
   const t = text.trim();
@@ -4468,9 +4469,9 @@ function textingWords(l) {
       return { sentence: "Texting is not available yet.", done: false };
   }
 }
-function activationWords(cap2, nowMs) {
-  if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
-  if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
+function activationWords(cap3, nowMs) {
+  if (cap3.live && cap3.activated) return `Activated ${agoWords(Date.parse(cap3.activated.at), nowMs)}`;
+  if (cap3.tested) return "Tested \u2014 activate it to say it is yours";
   return "Not tested yet \u2014 try it from your own phone";
 }
 function rowContextOf(i, nowMs) {
@@ -12136,24 +12137,24 @@ function estimateRoundUsd(plan, purpose, placesToAsk2) {
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
   return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
 }
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
+function spread(total, n, cap3) {
+  const each = Math.min(cap3, Math.floor(total / n));
   const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+  return Array.from({ length: n }, (_, i) => Math.min(cap3, each + (i < rest ? 1 : 0)));
 }
 function placesToAsk(plan, remaining, yieldSoFar) {
   const n = Math.max(1, plan.terms.length);
-  const cap2 = cardOf(plan).maxPerTerm;
+  const cap3 = cardOf(plan).maxPerTerm;
   if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
   if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap3);
     return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
   }
   const left = Math.max(1, Math.ceil(remaining));
   const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
   const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
+  const total = Math.min(LEAD_MAX_PLACES, cap3 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap3);
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 var LEAD_COUNT_CHOICES = [50, 100, 200, 500];
@@ -12641,8 +12642,8 @@ function leadMonthPlanFacts(month, count2, nearby, prior) {
 function leadPlanFactLine(plan, facts) {
   return [
     `About ${planMinutes(plan)} min`,
-    "skips leads you have",
-    ...facts ? [leadAllowanceFact(facts.leadsLeft)] : []
+    ...facts ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`] : [],
+    "skips leads you have"
   ].join(" \xB7 ");
 }
 function leadPlanAsk(plan, facts) {
@@ -15754,9 +15755,9 @@ var PAGE_QUESTIONS = {
     ["can", "sparkle"]
   ]
 };
-function clipWords(s, cap2) {
+function clipWords(s, cap3) {
   const w = s.replace(/\s+/g, " ").trim();
-  return w.length > cap2 ? `${w.slice(0, cap2 - 1).trimEnd()}\u2026` : w;
+  return w.length > cap3 ? `${w.slice(0, cap3 - 1).trimEnd()}\u2026` : w;
 }
 function pageChips(input, t, add) {
   if (input.surface === "leads") {
@@ -21183,7 +21184,7 @@ var EN = {
   monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
   firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
   firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
-  paced: (room, audience, cap2) => `${roomEn(room, audience)}, so the offer goes as a campaign: up to ${cap2} a day, each person once, until it ends, starting when you approve it.`,
+  paced: (room, audience, cap3) => `${roomEn(room, audience)}, so the offer goes as a campaign: up to ${cap3} a day, each person once, until it ends, starting when you approve it.`,
   roomTight: (room, audience, from) => `${roomEn(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
   reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
@@ -21232,7 +21233,7 @@ var ES = {
   monthsOfferPaused: (name, until) => `Pausa la oferta del mes, \xAB${name}\xBB, desde que apruebes el plan, para que nadie reciba dos ofertas; rean\xFAdala despu\xE9s del ${until}.`,
   firstSend: (list2, day, at3) => `La oferta va a \xAB${list2}\xBB el ${day} a las ${at3}.`,
   firstAtApprove: (list2, at3) => `La oferta va a \xAB${list2}\xBB cuando la apruebes, porque hoy ya pasaron las ${at3}.`,
-  paced: (room, audience, cap2) => `${roomEs(room, audience)}, as\xED que la oferta va como campa\xF1a: hasta ${cap2} al d\xEDa, cada persona una vez, hasta que termine, desde que la apruebes.`,
+  paced: (room, audience, cap3) => `${roomEs(room, audience)}, as\xED que la oferta va como campa\xF1a: hasta ${cap3} al d\xEDa, cada persona una vez, hasta que termine, desde que la apruebes.`,
   roomTight: (room, audience, from) => `${roomEs(room, audience)}, y el env\xEDo va a toda la lista a la vez: para ajustarla a los huecos, descarta el env\xEDo y p\xEDdemelo otra vez el ${from}.`,
   reviewFirst: "El env\xEDo se puede aprobar cuando WhatsApp haya revisado su versi\xF3n de WhatsApp.",
   whatsappReview: "Su versi\xF3n de WhatsApp espera la revisi\xF3n de WhatsApp, que puede seguir en el primer env\xEDo: quien la reciba por WhatsApp espera a que termine.",
@@ -21729,8 +21730,8 @@ function offerRead(offer, say2, world) {
   const { line } = value;
   const room = world.room;
   const tight = room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
-  const cap2 = tight && dates.from === dates.today ? capOf(tight.room) : null;
-  const kind = cap2 === null ? "broadcast" : "playbook";
+  const cap3 = tight && dates.from === dates.today ? capOf(tight.room) : null;
+  const kind = cap3 === null ? "broadcast" : "playbook";
   const picked = offerMessage(world, channels.on, line, kind, channels.unasked);
   if ("refused" in picked) return picked;
   return {
@@ -21742,9 +21743,9 @@ function offerRead(offer, say2, world) {
     to,
     message: picked.message,
     tight,
-    cap: cap2,
+    cap: cap3,
     kind,
-    reminder: reminderDay(world, dates, cap2 !== null),
+    reminder: reminderDay(world, dates, cap3 !== null),
     note: receptionistNote(offer, line, dates, world),
     pauses: monthsOfferPauses(world, dates.untilSaid)
   };
@@ -23659,17 +23660,17 @@ function leadExclusionWord(search, key) {
 var LEAD_CHECK_UNSURE_WORD = "couldn't tell";
 function leadCheckWord(search, key, answer) {
   const plan = search?.plan;
-  const cap2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const cap3 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
   const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
   if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
   const cr = plan?.criteria.find((c) => c.key === key);
-  if (cr) return said(cap2(cr.text), `${cap2(cr.text)}: no`);
+  if (cr) return said(cap3(cr.text), `${cap3(cr.text)}: no`);
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
   const fixed = LEAD_CHECK_WORDS[key];
   if (fixed) return fixed[answer];
-  const plain2 = cap2(key.replace(/_+/g, " ").trim()) || key;
+  const plain2 = cap3(key.replace(/_+/g, " ").trim()) || key;
   return said(plain2, `${plain2}: no`);
 }
 var LEAD_SLOT_WORDS = {
@@ -25065,7 +25066,8 @@ var leadSearchSpec = {
     const am = amendsOf(pl);
     if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
     const plan = pl.plan ?? {};
-    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+    const who = plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan) : plan.terms?.[0];
+    return `Finding ${plan.count ?? ""} ${who ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
       /\s+/g,
       " "
     );
@@ -26816,9 +26818,9 @@ var MAILBOX_RAMP = [
 ];
 function mailboxRampShare(sentDays) {
   const days = Math.max(0, Math.floor(Number(sentDays) || 0));
-  let cap2 = 0;
-  for (const step2 of MAILBOX_RAMP) if (days >= step2.days) cap2 = step2.perDay;
-  return cap2;
+  let cap3 = 0;
+  for (const step2 of MAILBOX_RAMP) if (days >= step2.days) cap3 = step2.perDay;
+  return cap3;
 }
 function mailboxDailyCap(m) {
   const owner = Math.max(0, Math.min(MAILBOX_DAILY_CAP_MAX, Math.floor(Number(m.daily_cap) || 0)));
@@ -26971,15 +26973,15 @@ function lowerBound(times, x) {
   }
   return lo;
 }
-function fitsCap(times, t, cap2) {
+function fitsCap(times, t, cap3) {
   const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS))];
   for (const q of ends) {
     const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS + 1);
-    if (already + 1 > cap2) return false;
+    if (already + 1 > cap3) return false;
   }
   return true;
 }
-function earliest(spans, times, cap2, gapMs, limitMs) {
+function earliest(spans, times, cap3, gapMs, limitMs) {
   let floor = 0;
   for (const [start, end] of spans) {
     let t = Math.max(start, floor);
@@ -26990,7 +26992,7 @@ function earliest(spans, times, cap2, gapMs, limitMs) {
         floor = t;
         continue;
       }
-      if (!fitsCap(times, t, cap2)) {
+      if (!fitsCap(times, t, cap3)) {
         const j = lowerBound(times, t - DAY_MS + 1);
         t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS;
         floor = t;
@@ -32922,16 +32924,16 @@ function tokenCapOf(limits) {
   return typeof limits.max_llm_tokens_day === "number" ? limits.max_llm_tokens_day : 0;
 }
 function tokenBudgetSpent(limits, used) {
-  const cap2 = tokenCapOf(limits);
-  return cap2 > 0 && used >= cap2;
+  const cap3 = tokenCapOf(limits);
+  return cap3 > 0 && used >= cap3;
 }
 var BUDGET_SAMPLE_MIN = 10;
 function tokensPerReply(r2) {
   if (!r2 || r2.replies < BUDGET_SAMPLE_MIN || r2.tokens <= 0) return null;
   return Math.round(r2.tokens / r2.replies);
 }
-function repliesFor(cap2, perReply) {
-  const n = cap2 / perReply;
+function repliesFor(cap3, perReply) {
+  const n = cap3 / perReply;
   const step2 = n < 100 ? 5 : 10;
   return Math.max(1, Math.round(n / step2) * step2);
 }
@@ -32944,7 +32946,7 @@ var BUDGET_WORDS = {
   sized: (perReply) => `A reply here is about ${perReply.toLocaleString("en-US")} model tokens, over the last week.`,
   unsized: "Said in replies once it has answered a few."
 };
-var tokensWord = (cap2) => cap2 >= 1e6 ? `${Math.round(cap2 / 1e5) / 10}M` : `${Math.round(cap2 / 1e3)}k`;
+var tokensWord = (cap3) => cap3 >= 1e6 ? `${Math.round(cap3 / 1e5) / 10}M` : `${Math.round(cap3 / 1e3)}k`;
 function budgetDial(caps, perReply) {
   const word = (c, inReplies2) => c <= 0 ? BUDGET_WORDS.none : inReplies2 && perReply ? `~${repliesFor(c, perReply)}` : tokensWord(c);
   const said = caps.map((c) => [word(c, true), c]);
@@ -34378,10 +34380,10 @@ var REVIEW_HELD_WORDS = { price: "it named a price", money: "it named money" };
 function reviewHeldWords(why) {
   return why != null && Object.hasOwn(REVIEW_HELD_WORDS, why) ? REVIEW_HELD_WORDS[why] ?? null : null;
 }
-function autoReplyCandidates(rows2, connectedAt, nowMs, cap2 = REVIEW_AUTO_REPLIES_PER_SYNC) {
+function autoReplyCandidates(rows2, connectedAt, nowMs, cap3 = REVIEW_AUTO_REPLIES_PER_SYNC) {
   const connected = connectedAt ? Date.parse(connectedAt) : NaN;
   if (Number.isNaN(connected)) return [];
-  return rows2.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap2)).map(({ r: r2 }) => r2);
+  return rows2.filter((r2) => r2.origin === "profile" && !r2.reply_text && r2.published_at).map((r2) => ({ r: r2, at: Date.parse(r2.published_at) })).filter(({ at: at3 }) => !Number.isNaN(at3) && at3 > connected && nowMs - at3 <= REVIEW_AUTO_REPLY_MAX_AGE_MS).sort((a, b) => b.at - a.at).slice(0, Math.max(0, cap3)).map(({ r: r2 }) => r2);
 }
 function autoReplyBell(answered) {
   if (!answered.length) return null;
@@ -41612,11 +41614,11 @@ function mailboxHealthWords(c) {
 }
 function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
   const health = mailboxHealthWords(m.counts ?? null);
-  const cap2 = mailboxDailyCap(m);
+  const cap3 = mailboxDailyCap(m);
   const step2 = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(m.sent_days));
   const left = step2 ? step2.days - m.sent_days : 0;
-  const ceiling = m.customer_domain && cap2 >= CUSTOMER_DOMAIN_DAILY_MAX;
-  const ramp = ceiling ? `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day` : `${m.sent_days ? `Day ${m.sent_days + 1} of its ramp` : "New: its ramp starts today"} \xB7 ${cap2} a day${step2 && cap2 < m.daily_cap ? `, ${step2.perDay} after ${left} more day${left === 1 ? "" : "s"} of sending` : ""}`;
+  const ceiling = m.customer_domain && cap3 >= CUSTOMER_DOMAIN_DAILY_MAX;
+  const ramp = ceiling ? `Customer domain: kept to ${CUSTOMER_DOMAIN_DAILY_MAX} a day` : `${m.sent_days ? `Day ${m.sent_days + 1} of its ramp` : "New: its ramp starts today"} \xB7 ${cap3} a day${step2 && cap3 < m.daily_cap ? `, ${step2.perDay} after ${left} more day${left === 1 ? "" : "s"} of sending` : ""}`;
   if (m.state === "reconnect")
     return {
       pill: "Reconnect",
@@ -41668,9 +41670,9 @@ function mailboxWords(m, nowMs, sentToday = m.sent_today ?? null) {
     !missing.length && unread ? "Its records couldn't be read just now: Check reads them again." : null
   ].filter(Boolean).join(" ") || null;
   return {
-    pill: sentToday !== null && sentToday >= cap2 ? "Done for today" : "Connected",
-    tone: sentToday !== null && sentToday >= cap2 ? "warn" : "ok",
-    day: sentToday === null ? `Up to ${cap2} a day` : `${sentToday} of ${cap2} today`,
+    pill: sentToday !== null && sentToday >= cap3 ? "Done for today" : "Connected",
+    tone: sentToday !== null && sentToday >= cap3 ? "warn" : "ok",
+    day: sentToday === null ? `Up to ${cap3} a day` : `${sentToday} of ${cap3} today`,
     ramp,
     health,
     fix
@@ -41827,67 +41829,6 @@ function journeyGuide(input) {
   ];
 }
 
-// src/leads/search/plan-schema.ts
-import { z as z15 } from "zod";
-var words2 = (min, max) => z15.string().transform((s) => stripUnsafe(s).trim()).pipe(z15.string().min(min).max(max));
-var LeadSearchPlanSchema = z15.object({
-  version: z15.number().int().min(1),
-  card: z15.literal("local_businesses"),
-  name: words2(2, 80),
-  category_key: z15.string().regex(KEY).optional(),
-  from: z15.literal("idea").optional(),
-  asked: words2(1, 400),
-  terms: z15.array(words2(2, 60)).min(1).max(5),
-  area: z15.object({
-    kind: z15.enum(["zip", "city", "radius"]),
-    label: words2(2, 80),
-    state: z15.string().regex(/^[A-Z]{2}$/),
-    center: z15.object({ lat: z15.number().min(-90).max(90), lng: z15.number().min(-180).max(180) }).nullable(),
-    radius_m: z15.number().int().min(500).max(2e5),
-    zip: z15.string().regex(/^\d{5}$/).optional(),
-    query: words2(2, 120)
-  }),
-  count: z15.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z15.enum(["phone", "email"]),
-  criteria: z15.array(
-    z15.object({
-      key: z15.string().regex(KEY),
-      text: words2(2, 120),
-      standard: z15.enum(["likely", "seen"]),
-      required: z15.boolean()
-    })
-  ).max(8),
-  exclusions: z15.array(
-    z15.object({
-      key: z15.string().regex(KEY),
-      text: words2(2, 80),
-      origin: z15.enum(["claude", "you_said"]),
-      category_key: z15.string().regex(KEY).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-
 // src/leads/search/people-plan.ts
 var PEOPLE_CARD = "people_at_companies";
 var PEOPLE_SENIORITIES = [
@@ -41929,6 +41870,8 @@ var PEOPLE_RUN_FLOOR_USD = 0.5;
 var PEOPLE_TITLES_MAX = 5;
 var PEOPLE_INDUSTRIES_MAX = 5;
 var PEOPLE_STATES_MAX = 10;
+var PEOPLE_KEYWORDS_MAX = 5;
+var PEOPLE_KEYWORD_CHARS = 40;
 var PEOPLE_TITLE_CHARS = 60;
 var PEOPLE_INDUSTRY_CHARS = 80;
 var PEOPLE_ASKED_CHARS = 400;
@@ -41947,6 +41890,7 @@ function peoplePlanFrom(i) {
     titles: i.titles,
     seniority: i.seniority,
     industries: i.industries,
+    ...i.keywords?.length ? { keywords: i.keywords } : {},
     sizes: i.sizes,
     states: i.states,
     contact: "email",
@@ -41974,6 +41918,7 @@ function peoplePlanOf(raw) {
       (s) => PEOPLE_SENIORITIES.includes(s)
     ),
     industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
+    keywords: strs(o.keywords, PEOPLE_KEYWORDS_MAX, PEOPLE_KEYWORD_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
       (s) => PEOPLE_COMPANY_SIZES.includes(s)
     ),
@@ -42003,26 +41948,20 @@ function peopleMinutes(count2) {
 function peoplePlanAsk(plan, month) {
   const binds = !!month && month.left < plan.count;
   const count2 = binds && month ? Math.max(0, month.left) : plan.count;
-  const label = count2 < 1 ? "No leads left this month" : PEOPLE_FIND_WORDS.start(count2);
+  const label = count2 < 1 ? "No leads left this month" : `Find ${count2} ${peopleNoun(plan, count2)}`;
   if (!binds || !month) return { count: count2, label, covers: null };
   return {
     count: count2,
     label,
-    covers: `You have ${plural(count2, "lead", "leads")} left this month. Your leads renew on ${month.renewsOn}.`
+    covers: `You have ${plural(count2, "lead", "leads")} left this month.${month.renewsOn ? ` Your leads renew on ${month.renewsOn}.` : ""}`
   };
 }
-function peoplePlanFacts(plan, month) {
-  return [
-    `About ${peopleMinutes(plan.count)} minutes \u2014 leave the page if you like`,
-    "Anyone already yours is skipped",
-    month ? `Counts only companies that fit, with a checked work email \xB7 ${month.left} left this month` : "Counts only companies that fit, with a checked work email"
-  ];
-}
+var peopleMonthUse = (plan, month) => `uses ${Math.max(0, Math.min(plan.count, month.left))} of your ${month.left} leads this month`;
 function peoplePlanFactLine(plan, month) {
   return [
     `About ${peopleMinutes(plan.count)} min`,
-    "skips anyone you have",
-    ...month ? [`${month.left} left this month`] : []
+    ...month ? [peopleMonthUse(plan, month)] : [],
+    "skips people you have"
   ].join(" \xB7 ");
 }
 function usStatesTyped(text) {
@@ -42127,14 +42066,269 @@ var PEOPLE_STRIP_WORDS = {
   more: "Find more like these"
 };
 function peoplePlanSentence(p) {
-  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
-  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
-  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
-  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
-  const called = joinWords(p.titles.map((t) => `\u201C${t}\u201D`));
-  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
-  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
+  const where = p.states.length ? `in ${joinWords(p.states.map((s) => usStateName(s) ?? s))}` : "across the US";
+  return `Find ${p.count} ${peopleRole(p)} at ${peopleKind(p)}, ${peopleSizeWords(p.sizes)}, ${where}. Each company is checked against what you asked.`;
 }
+var ROLE_NOUNS = [
+  ["owner", "owners", "owner"],
+  ["founder", "founders", "founder"],
+  ["partner", "partners", "partner"],
+  ["c_suite", "executives", "executive"],
+  ["director", "directors", "director"],
+  ["manager", "managers", "manager"]
+];
+function peopleNoun(p, count2) {
+  const role = ROLE_NOUNS.find(([s]) => p.seniority.includes(s));
+  if (role) return count2 === 1 ? role[2] : role[1];
+  return count2 === 1 ? "person" : "people";
+}
+function peopleRole(p) {
+  if (ROLE_NOUNS.some(([s]) => p.seniority.includes(s))) return peopleNoun(p, p.count);
+  const first = p.titles[0] ?? "";
+  return p.titles.length > 1 ? `people in roles like \u201C${first}\u201D` : `people called \u201C${first}\u201D`;
+}
+function peopleKind(p) {
+  const filed = p.industries.length ? `${joinWords(p.industries.map((i) => i.toLowerCase()))} companies` : "companies";
+  return p.keywords?.length ? `${filed} doing ${joinWordsOr(p.keywords)}` : filed;
+}
+var SIZE_SPANS = {
+  "1 - 10": [1, 10],
+  "11 - 50": [11, 50],
+  "51 - 200": [51, 200],
+  "201 - 500": [201, 500],
+  "501 - 1000": [501, 1e3],
+  "1001 - 5000": [1001, 5e3],
+  "5001 - 10000": [5001, 1e4],
+  "10001+": [10001, null]
+};
+function peopleSizeWords(sizes) {
+  const spans = [];
+  for (const s of PEOPLE_COMPANY_SIZES) {
+    if (!sizes.includes(s)) continue;
+    const [lo, hi2] = SIZE_SPANS[s];
+    const last = spans[spans.length - 1];
+    if (last && last[1] !== null && last[1] + 1 === lo) last[1] = hi2;
+    else spans.push([lo, hi2]);
+  }
+  if (!spans.length) return "any size";
+  const n = (v) => v.toLocaleString("en-US");
+  return `${joinWordsOr(spans.map(([lo, hi2]) => hi2 === null ? `${n(lo)}+` : `${n(lo)}\u2013${n(hi2)}`))} staff`;
+}
+function peoplePlanRows(p) {
+  const cap3 = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  return [
+    { label: "Finds", value: `${cap3(peopleRole(p))}, one at each company` },
+    { label: "Called", value: joinWordsOr(p.titles) },
+    { label: "At", value: cap3(peopleKind(p)) },
+    { label: "Size", value: cap3(peopleSizeWords(p.sizes)) },
+    { label: "Where", value: p.states.length ? joinWords(p.states.map((s) => usStateName(s) ?? s)) : "Across the US" },
+    { label: "How many", value: plural(p.count, "company", "companies") }
+  ];
+}
+
+// src/leads/search/search-card.ts
+var cap2 = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+var answersOne = (payload) => {
+  const am = rec(rec(payload).amends);
+  return typeof am.search_id === "string" && !!am.search_id;
+};
+var startsSearch = (p) => !p.plan && (p.kind === "lead_search" && !answersOne(p.payload) || p.kind === "people_search");
+function leadPlanRows(plan) {
+  const km = Math.round(plan.area.radius_m / 1e3);
+  const place = plan.area.kind === "zip" && plan.area.zip ? `Near ${plan.area.zip}` : planArea(plan.area);
+  const must = plan.criteria.map(
+    (c) => `${cap2(lowerFirst(c.text))}${c.standard === "seen" ? " (on its listing)" : ""}${c.required ? "" : ", nice to have"}`
+  );
+  return [
+    { label: "Finds", value: cap2(planWho(plan)) },
+    { label: "Searched as", value: plan.terms.join(" \xB7 ") },
+    { label: "Where", value: km > 0 ? `${place}, about ${km} km around` : place },
+    { label: "How many", value: String(plan.count) },
+    ...must.length ? [{ label: "Must have", value: must.join(" \xB7 ") }] : [],
+    {
+      label: "Leave out",
+      value: [...plan.exclusions.map((e) => cap2(lowerFirst(e.text))), "Anyone already yours"].join(" \xB7 ")
+    },
+    {
+      label: "Shows first",
+      value: plan.contact === "email" ? "The email, or the phone" : "The phone, or the email when it checks out"
+    }
+  ];
+}
+var isPlanFacts = (v) => typeof rec(v).leadsLeft === "number";
+var monthOf = (v) => {
+  const f = rec(v);
+  return typeof f.leads_left === "number" ? { left: f.leads_left, renewsOn: typeof f.renews_on === "string" ? f.renews_on : "" } : null;
+};
+function searchCardView(p) {
+  const pl = rec(p.payload);
+  if (p.kind === "lead_search" && !answersOne(pl) && pl.plan && typeof pl.plan === "object") {
+    const plan = pl.plan;
+    const facts = isPlanFacts(pl.facts) ? pl.facts : null;
+    const ask = leadPlanAsk(plan, facts);
+    const cannot = facts?.cannotSee && plan.criteria.some((c) => c.key === facts.cannotSee?.key && c.standard === "seen");
+    const holds2 = [
+      ...ask.covers ? [ask.covers] : [],
+      ...cannot && facts?.cannotSee ? [
+        `A listing doesn't show \u201C${facts.cannotSee.text}\u201D, so it can't be confirmed. Say \u201C${facts.cannotSee.likely}\u201D instead, or take it out.`
+      ] : []
+    ];
+    return {
+      sheet: { holds: holds2, rows: leadPlanRows(plan) },
+      foot: leadPlanFactLine(plan, facts),
+      source: null,
+      press: { label: ask.label, disabled: ask.count < 1 || !!cannot },
+      commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } }
+    };
+  }
+  if (p.kind === "people_search") {
+    const plan = peoplePlanOf(pl.plan);
+    if (!plan) return null;
+    const month = monthOf(pl.facts);
+    const ask = peoplePlanAsk(plan, month);
+    const rights = rec(pl.facts).rights;
+    return {
+      sheet: { holds: ask.covers ? [ask.covers] : [], rows: peoplePlanRows(plan) },
+      foot: peoplePlanFactLine(plan, month),
+      source: typeof rights === "string" && rights ? rights : null,
+      press: { label: ask.label, disabled: ask.count < 1 },
+      commit: { ...p, payload: { ...pl, plan: { ...plan, count: ask.count } } }
+    };
+  }
+  return null;
+}
+var SEARCH_CARD_REPLACED = "Changed below.";
+var replacedOutcome = (atMs) => ({
+  state: "dismissed",
+  receipt: SEARCH_CARD_REPLACED,
+  atMs,
+  undo: null
+});
+function searchCardsReplaced(earlier, made) {
+  if (!made.some(startsSearch)) return [];
+  return earlier.flatMap(
+    (m) => (m.proposals ?? []).filter((p) => !p.outcome && startsSearch(p)).map((p) => ({ messageId: m.id, proposalId: p.id }))
+  );
+}
+function withIdeaCarried(earlier, made) {
+  const fromIdea = earlier.some(
+    (m) => (m.proposals ?? []).some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea")
+  );
+  if (!fromIdea) return [...made];
+  return made.map(
+    (p) => startsSearch(p) && rec(p.payload).plan ? { ...p, payload: { ...p.payload, plan: { ...rec(rec(p.payload).plan), from: "idea" } } } : p
+  );
+}
+function withAnswerLanded(messages, landed, atMs) {
+  const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r2) => r2.proposalId));
+  const kept = gone.size ? messages.map(
+    (m) => (m.proposals ?? []).some((p) => gone.has(p.id)) ? { ...m, proposals: m.proposals.map((p) => gone.has(p.id) ? { ...p, outcome: replacedOutcome(atMs) } : p) } : m
+  ) : [...messages];
+  return [...kept, landed];
+}
+function placesAskOf(plan) {
+  const a = plan.area;
+  const where = a.kind === "zip" && a.zip ? { zip: a.zip, region: a.state } : { city: planArea(a).replace(new RegExp(`,\\s*${a.state}$`), ""), region: a.state };
+  return {
+    looking_for: "local_businesses",
+    country: "US",
+    count: plan.count,
+    who: planWho(plan),
+    ...plan.category_key ? { category_key: plan.category_key } : {},
+    terms: plan.terms,
+    ...where,
+    contact: plan.contact,
+    criteria: plan.criteria.map((c) => ({ text: c.text, standard: c.standard, required: c.required })),
+    leave_out: plan.exclusions.map((e) => ({ words: e.text })),
+    asked: plan.asked
+  };
+}
+function peopleAskOf(raw) {
+  const p = peoplePlanOf(raw);
+  if (!p) return null;
+  return {
+    looking_for: "people_at_companies",
+    country: "US",
+    count: p.count,
+    who: p.name,
+    terms: p.titles,
+    region: p.states.length ? p.states.join(", ") : "US",
+    seniority: p.seniority,
+    industries: p.industries,
+    keywords: p.keywords ?? [],
+    company_sizes: p.sizes,
+    asked: p.asked
+  };
+}
+function waitingSearchWords(waiting) {
+  const card = [...waiting].reverse().find(startsSearch);
+  if (!card) return null;
+  const pl = rec(card.payload);
+  const ask = card.kind === "people_search" ? peopleAskOf(pl.plan) : pl.plan ? placesAskOf(pl.plan) : null;
+  if (!ask) return null;
+  return `A search card waits in this thread for their press, \u201C${card.title}\u201D (${card.id}), planned as find would take it: ${JSON.stringify(ask)}. When they change it, call find again with this plan, changed only where they said (keep its words, place, criteria and what it leaves out otherwise; a places plan names who_one too): the new card replaces this one. Answer about it from this, without reading it again.`;
+}
+
+// src/leads/search/plan-schema.ts
+import { z as z15 } from "zod";
+var words2 = (min, max) => z15.string().transform((s) => stripUnsafe(s).trim()).pipe(z15.string().min(min).max(max));
+var LeadSearchPlanSchema = z15.object({
+  version: z15.number().int().min(1),
+  card: z15.literal("local_businesses"),
+  name: words2(2, 80),
+  category_key: z15.string().regex(KEY).optional(),
+  from: z15.literal("idea").optional(),
+  asked: words2(1, 400),
+  terms: z15.array(words2(2, 60)).min(1).max(5),
+  area: z15.object({
+    kind: z15.enum(["zip", "city", "radius"]),
+    label: words2(2, 80),
+    state: z15.string().regex(/^[A-Z]{2}$/),
+    center: z15.object({ lat: z15.number().min(-90).max(90), lng: z15.number().min(-180).max(180) }).nullable(),
+    radius_m: z15.number().int().min(500).max(2e5),
+    zip: z15.string().regex(/^\d{5}$/).optional(),
+    query: words2(2, 120)
+  }),
+  count: z15.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z15.enum(["phone", "email"]),
+  criteria: z15.array(
+    z15.object({
+      key: z15.string().regex(KEY),
+      text: words2(2, 120),
+      standard: z15.enum(["likely", "seen"]),
+      required: z15.boolean()
+    })
+  ).max(8),
+  exclusions: z15.array(
+    z15.object({
+      key: z15.string().regex(KEY),
+      text: words2(2, 80),
+      origin: z15.enum(["claude", "you_said"]),
+      category_key: z15.string().regex(KEY).optional()
+    })
+  ).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
 
 // src/leads/search/people-plan-schema.ts
 import { z as z16 } from "zod";
@@ -42343,6 +42537,8 @@ var LeadPeoplePlanSchema = z16.object({
   seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
   industries: z16.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  // The words the companies' sites use (people-plan.ts): none on a plan made before them.
+  keywords: z16.array(words2(2, PEOPLE_KEYWORD_CHARS)).max(PEOPLE_KEYWORDS_MAX).optional(),
   sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z16.array(
     z16.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
@@ -42503,6 +42699,8 @@ var ProposePeopleSearchSchema = z17.object({
   asked: z17.string().trim().min(1).max(400),
   seniority: z17.array(z17.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
   industries: z17.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  /** Words the companies' sites use for what they do ("plumbing", "HVAC"): what an industry alone files too broadly. */
+  keywords: z17.array(planChip(PEOPLE_KEYWORD_CHARS)).max(PEOPLE_KEYWORDS_MAX).default([]),
   company_sizes: z17.array(z17.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
 });
 var ProposeAnySearchSchema = z17.discriminatedUnion("looking_for", [
@@ -42613,6 +42811,7 @@ function planPeopleSearch(input) {
     titles: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, PEOPLE_TITLES_MAX),
     seniority: input.seniority,
     industries: input.industries,
+    keywords: [...new Set(input.keywords.map((k) => k.trim()).filter(Boolean))].slice(0, PEOPLE_KEYWORDS_MAX),
     sizes: input.company_sizes,
     states
   });
@@ -42628,11 +42827,10 @@ function planPeopleSearch(input) {
       }
     };
   }
-  const n = checked.data.count;
   return {
     ok: true,
     plan: checked.data,
-    view: { title: `Find ${n} ${n === 1 ? "company" : "companies"}: ${checked.data.name}` }
+    view: { title: `Find ${checked.data.count} ${lowerFirst(checked.data.name)}` }
   };
 }
 function planLeadSearch(input) {
@@ -43204,6 +43402,7 @@ function ideaJsonSchema(p) {
             "leave_out",
             "seniority",
             "industries",
+            "keywords",
             "company_sizes"
           ],
           properties: {
@@ -43238,6 +43437,7 @@ function ideaJsonSchema(p) {
             leave_out: list2,
             seniority: { type: "array", items: { type: "string", enum: [...PEOPLE_SENIORITIES] } },
             industries: list2,
+            keywords: list2,
             company_sizes: { type: "array", items: { type: "string", enum: [...PEOPLE_COMPANY_SIZES] } }
           }
         }
@@ -43273,6 +43473,7 @@ var LEAD_IDEAS_SYSTEM = [
   "- terms: for places, one to three things to type into a map search, the widest first; for people, one to five job titles.",
   '- place, for places: the id of a place listed, or "other" with city, state and zip naming any other US place: a ZIP, a city and its two-letter state, or a state alone for the whole state. With a listed place, or for people, leave city, state and zip empty.',
   `- states, for people: two-letter US states, at most ${PEOPLE_STATES_MAX}; none is the whole US. seniority, industries (in the people directory's own names, such as "Construction" or "Marketing & Advertising") and company_sizes may each be empty, which is any. For places, leave all four empty.`,
+  `- keywords, for people: one to ${PEOPLE_KEYWORDS_MAX} words the companies' own websites use for what they do ("plumbing", "HVAC", "roofing"), so a kind the directory files under a broad industry is found by its work: home service companies are filed under Construction with roofers and builders. For places, none.`,
   "- count: one of the sizes given: smaller for a kind not tried, larger for one that worked. For people it is how many companies.",
   "- contact: for places, email when the business writes first or replies came by email, phone when most of a kind's leads list only a phone; for people, email.",
   "- criteria, for places: at most three. seen only for what a listing shows (a website, a rating, reviews, open or closed); what a business is or does is likely. required only when the owner would turn a place down without it. For people, none.",
@@ -43318,6 +43519,8 @@ var LeadIdeasAnswerSchema = z18.object({
       leave_out: textList,
       seniority: textList,
       industries: textList,
+      // Absent in an answer written before the field was asked for: none (the list's catch).
+      keywords: textList,
       company_sizes: textList
     })
   ).min(1)
@@ -43377,6 +43580,7 @@ function peoplePlanOf2(idea, p) {
     asked: `${capFirst(idea.words)} ${states.length ? `in ${states.join(", ")}` : "anywhere in the US"}`.slice(0, 400),
     seniority: idea.seniority.filter((s) => PEOPLE_SENIORITIES.includes(s)),
     industries: industries.slice(0, 5),
+    keywords: idea.keywords.map((k) => k.trim()).filter((k) => k.length >= 2 && k.length <= PEOPLE_KEYWORD_CHARS),
     company_sizes: idea.company_sizes.filter((s) => PEOPLE_COMPANY_SIZES.includes(s))
   });
   if (!input.success) return null;
@@ -45412,8 +45616,8 @@ function verificationNote(s, limitSaid) {
   const word = s.verification.toLowerCase();
   if (word === "verified") return null;
   const tier = dailyLimit(s.limit);
-  const cap2 = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
-  const capWords = limitSaid ? "" : `, and you can start conversations with ${peopleADay(cap2)}`;
+  const cap3 = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
+  const capWords = limitSaid ? "" : `, and you can start conversations with ${peopleADay(cap3)}`;
   const link = { label: "Verify in Meta", href: securityCenterLink(s.owner_business_id) };
   return word.startsWith("pending") ? {
     text: `Meta is reviewing your business's verification: until then customers see your number instead of your name${capWords}.`,
@@ -51355,7 +51559,7 @@ function runReadingOf(drawn, trigger, caps) {
   const whole2 = drawn.reach.by_channel ?? noOne();
   const reading = { candidates: drawn.reach.will, by_channel: whole2 };
   const below = new Set(
-    caps.map((cap2) => runCapOf({ trigger, cap_per_run: cap2 })).filter((cap2) => cap2 >= 1 && cap2 < reading.candidates)
+    caps.map((cap3) => runCapOf({ trigger, cap_per_run: cap3 })).filter((cap3) => cap3 >= 1 && cap3 < reading.candidates)
   );
   if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole2[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
@@ -51374,13 +51578,13 @@ function runReadingOf(drawn, trigger, caps) {
 function oneRunByChannel(reading, run) {
   const whole2 = reading.by_channel;
   if (!whole2) return null;
-  const cap2 = runCapOf(run);
-  if (cap2 === 0 || cap2 >= reading.candidates) return whole2;
-  const atCap = reading.run_split?.[String(cap2)];
+  const cap3 = runCapOf(run);
+  if (cap3 === 0 || cap3 >= reading.candidates) return whole2;
+  const atCap = reading.run_split?.[String(cap3)];
   if (atCap) return atCap;
   const carrying = CONSENT_CHANNELS.filter((c) => whole2[c] > 0);
   const [only] = carrying;
-  return carrying.length === 1 && only ? { ...noOne(), [only]: cap2 } : null;
+  return carrying.length === 1 && only ? { ...noOne(), [only]: cap3 } : null;
 }
 function heldBackOfOneRun(reading, run, sent, purpose) {
   const split = oneRunByChannel(reading, run) ?? reading.by_channel;
@@ -51592,8 +51796,8 @@ function nextRunLine(p, nowMs, tz) {
 }
 function nextShare(p) {
   const all = p.candidates ?? 0;
-  const cap2 = runCapOf(p);
-  return cap2 > 0 ? Math.min(all, cap2) : all;
+  const cap3 = runCapOf(p);
+  return cap3 > 0 ? Math.min(all, cap3) : all;
 }
 function resumeDetailOf(p, at3) {
   const W = LIFECYCLE_WORDS.ledger.resume;
@@ -51615,11 +51819,11 @@ function whoWill(p) {
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
-      const cap2 = runCapOf(p);
+      const cap3 = runCapOf(p);
       const next = nextShare(p);
       const later = all - next;
       return {
-        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap2} a run` : "") + (waits > 0 ? ` \xB7 ${waitWords2}` : ""),
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap3} a run` : "") + (waits > 0 ? ` \xB7 ${waitWords2}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") }
       };
     }
@@ -57106,7 +57310,7 @@ function receptionistRow2(i, ctx) {
   const { voice: voice2, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
   if (voiceReady) {
     const last = voice2.lastInboundAt ? `Last call ${agoWords(Date.parse(voice2.lastInboundAt), nowMs)}` : "No calls yet";
-    const cap2 = capabilityStatus("voice", i, nowMs);
+    const cap3 = capabilityStatus("voice", i, nowMs);
     if (!i.business.name || !i.business.hours) {
       return {
         id: "receptionist",
@@ -57134,10 +57338,10 @@ function receptionistRow2(i, ctx) {
         details: [
           handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back",
           last,
-          activationWords(cap2, nowMs)
+          activationWords(cap3, nowMs)
         ],
-        verb: cap2.tested && !cap2.live ? { label: "Activate", to: "verb:activate:voice" } : voice2.number ? { label: "Call it", to: `tel:${voice2.number}` } : null,
-        undo: cap2.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null
+        verb: cap3.tested && !cap3.live ? { label: "Activate", to: "verb:activate:voice" } : voice2.number ? { label: "Call it", to: `tel:${voice2.number}` } : null,
+        undo: cap3.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null
       };
     }
   }
@@ -57448,14 +57652,14 @@ function whatsappRow(i, ctx) {
   if (waReady) {
     const t = i.templates;
     const metaWaits = t.approved === 0 && t.pending > 0;
-    const cap2 = capabilityStatus("whatsapp", i, nowMs);
+    const cap3 = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
       t.approved ? `${plural(t.approved, "approved message")}` : t.pending ? `${plural(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: the reminder, how did it go, the win-back" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
-    if (!metaWaits) details.push(activationWords(cap2, nowMs));
+    if (!metaWaits) details.push(activationWords(cap3, nowMs));
     return {
       id: "whatsapp",
       icon: "chat",
@@ -57465,8 +57669,8 @@ function whatsappRow(i, ctx) {
       required: !answering,
       sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`,
       details,
-      verb: cap2.tested && !cap2.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: SEQUENCES_ROUTE } : { label: "Open the Inbox", to: "inbox" },
-      undo: cap2.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
+      verb: cap3.tested && !cap3.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: SEQUENCES_ROUTE } : { label: "Open the Inbox", to: "inbox" },
+      undo: cap3.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null
     };
   }
   if (wa.present) {
@@ -60307,6 +60511,7 @@ var ROUTE_KEYS = [
   "PATCH team/[id]",
   "PATCH workspaces",
   "POST ask",
+  "POST ask/idea",
   "POST ask/memory",
   "POST ask/messages/[id]/proposals/[pid]",
   "POST ask/morning",
@@ -66056,6 +66261,7 @@ export {
   PEOPLE_GROUP_WORDS,
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_INDUSTRY_CHARS,
+  PEOPLE_KEYWORDS_MAX,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   PEOPLE_PROVIDER_LEAST,
@@ -66367,6 +66573,7 @@ export {
   SCHEDULE_NEEDS_TOTAL,
   SCHEDULE_WORDS,
   SCHEMA_SETS,
+  SEARCH_CARD_REPLACED,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
@@ -67907,9 +68114,9 @@ export {
   peopleNowOf,
   peoplePlanAsk,
   peoplePlanFactLine,
-  peoplePlanFacts,
   peoplePlanFrom,
   peoplePlanOf,
+  peoplePlanRows,
   peoplePlanSentence,
   peopleRoute,
   peopleSheetProblems,
@@ -68189,6 +68396,7 @@ export {
   relationshipOnRecord,
   renderOwnVersion,
   renderTemplate,
+  replacedOutcome,
   repliesWords,
   replyChipOf,
   replyChipStateOf,
@@ -68333,6 +68541,8 @@ export {
   scheduleWait,
   scheduleWords,
   scopeFromRoute,
+  searchCardView,
+  searchCardsReplaced,
   seasonHorizon,
   seatNeedsSecondFactor,
   secondFactorAsked,
@@ -68489,6 +68699,7 @@ export {
   startersForTrigger,
   startersOffered,
   startsOn,
+  startsSearch,
   stateCode,
   stateLabel,
   stateOf,
@@ -68751,6 +68962,7 @@ export {
   waitingOnProposal,
   waitingRunOffer,
   waitingRunsDoor,
+  waitingSearchWords,
   waitsOf,
   waitsOnAPerson,
   wallClockAt,
@@ -68786,7 +68998,9 @@ export {
   windowFor,
   wireFailure,
   withAlertAddress,
+  withAnswerLanded,
   withFirstAlertAddress,
+  withIdeaCarried,
   withReplies,
   withSteps,
   withStoredKeysKept,

@@ -257,10 +257,11 @@ const noteOf = (suggestions: LeadSuggestionsDto | null, shown: number): string |
       : suggestions.note || null;
 
 /**
- * What the ideas were written from, as one quiet row under them: "Based on", the owner's line on one line, and Edit at
- * its end, the whole row the press that opens the line's sheet. Read alone where the member may not rewrite it. Nothing
- * where the read never landed: there is no line to say, and none to edit from. It was a sentence with two links in it
- * (Ruben, 22 Oct 2026: redesigned), and New ideas now stands by the ideas' own heading.
+ * What the ideas were written from, under them: a row on the inset's ground (a setting, where the ideas over it are
+ * acts), "Your business" over the owner's line, and Edit at its end, the whole row the press that opens the line's sheet.
+ * Read alone where the member may not rewrite it. Nothing where the read never landed: there is no line to say, and none
+ * to edit from. It was a sentence with two links in it, then "Based on" and the line cut short on one quiet line (Ruben,
+ * 23 Oct 2026: redesigned again), and New ideas stands by the ideas' own heading.
  */
 const BasedOn = ({
   suggestions,
@@ -272,15 +273,15 @@ const BasedOn = ({
   onOpenLine: () => void;
 }) => {
   const said = (
-    <>
-      <span className="ld-first-basis-label">{FIRST_DAY_SAYS.from}</span>
+    <span className="ld-first-basis-said">
+      <span className="ld-first-basis-label">{FIRST_DAY_SAYS.lineTitle}</span>
       <span className="ld-first-basis-line" data-testid="ld-line">
         {suggestions.business_line}
       </span>
-    </>
+    </span>
   );
   return canFind ? (
-    <Button variant="quiet" size="sm" className="ld-first-basis" onClick={onOpenLine} data-testid="ld-line-edit">
+    <Button variant="quiet" size="text" className="ld-first-basis" onClick={onOpenLine} data-testid="ld-line-edit">
       {said}
       <span className="ld-first-basis-edit">
         <Icon name="pencil" size={12} />
@@ -288,7 +289,7 @@ const BasedOn = ({
       </span>
     </Button>
   ) : (
-    <p className="ld-first-basis">{said}</p>
+    <div className="ld-first-basis">{said}</div>
   );
 };
 

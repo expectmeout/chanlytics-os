@@ -83,10 +83,11 @@ const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "s
  * 13 Oct 2026 (the people card, 00430): the lead search proposes named people at companies too. Its places fields are
  * optional (a people ask names none of them; the places schema still refuses a places ask without them), it takes how
  * senior, the industries and the sizes, and looking_for names the people card. Less those, its fields are the 3.1 tool's.
+ * 23 Oct 2026: and the words the companies' own sites use (keywords), so a people search changed in Ask keeps them.
  */
 const asPlacesThen = (schema) => {
   const out = structuredClone(schema);
-  for (const k of ["seniority", "industries", "company_sizes"]) delete out.properties[k];
+  for (const k of ["seniority", "industries", "keywords", "company_sizes"]) delete out.properties[k];
   out.properties.looking_for.enum = out.properties.looking_for.enum.filter((v) => v !== "people_at_companies");
   out.required = [
     "looking_for",

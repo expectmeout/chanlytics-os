@@ -614,9 +614,12 @@ export async function checkLeadsAgain(ids: string[]) {
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } });
 }
-/** A new search from an idea's plan (00398): the plan as the owner approved it, through the door Ask's card posts to. */
-export async function startSearch(plan: LeadSearchPlan) {
-  return api()("POST lead-searches", { body: plan, once: true });
+/**
+ * An idea pressed (00398, Ruben, 23 Oct 2026): its search made a card in Ask from the idea's own plan, kept as the first
+ * answer of a thread of its own, which the page then opens Ask on. Nothing is searched or spent until the card's Find.
+ */
+export async function ideaCard(words: string) {
+  return api()("POST ask/idea", { body: { words }, once: true });
 }
 export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
