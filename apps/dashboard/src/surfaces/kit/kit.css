@@ -576,8 +576,17 @@ a.chip:focus-visible {
   font-size: 14px;
 }
 
-/* The house's one entrance (components.css, MICRO-MOTION): a record row's value arrives on it after a save, and the
-   pages' lists stagger on it. */
+/* What a page draws arrives where it will stay (components.css, MICRO-MOTION): the pages' cards stagger on it, as a list's
+   rows fade in (kit/motion/use-rows-arrive.ts). They rose 4px as well, and on a phone every page read as shifting as it
+   drew (Ruben, 23 Oct 2026). */
+@keyframes arrive-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A value that answers the person rises into its place: a record row's value after a save (record.css), what opens in
+   place under a press. */
 @keyframes rise-in {
   from {
     opacity: 0;
