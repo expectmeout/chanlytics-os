@@ -196,3 +196,23 @@ test("an actor's latest build is the build its latest tag names, read from the a
   assert.equal(h.calls[0].init.method, "GET");
   assert.equal(await c.latestBuild("compass/crawler-google-places"), null, "no latest tag, no build to hold a pin to");
 });
+
+test("a build is read by its id without the key: its number, null when the provider deleted it", async () => {
+  // 23 Oct 2026: the Maps pin's build read `record-not-found` by its id once its provider had deleted it.
+  const h = http([
+    ok(200, { data: { id: "EH35UvIrsV0hnZG0Y", buildNumber: "0.14.775", status: "SUCCEEDED" } }),
+    ok(404, { error: { type: "record-not-found", message: "Actor build was not found" } }),
+    ok(200, { data: { id: "b3" } }),
+  ]);
+  const c = apifyClient(h.fn, "tok");
+  assert.equal(await c.buildNumberOf("EH35UvIrsV0hnZG0Y"), "0.14.775");
+  assert.equal(h.calls[0].url, "https://api.apify.com/v2/actor-builds/EH35UvIrsV0hnZG0Y");
+  assert.equal(h.calls[0].init.method, "GET");
+  assert.equal(
+    h.calls[0].init.headers?.Authorization,
+    undefined,
+    "the key is never sent: one it does not know is a 401",
+  );
+  assert.equal(await c.buildNumberOf("4FztoiuFSanGKdK8O"), null);
+  await assert.rejects(c.buildNumberOf("b3"), ApifyRefused, "a build that names no number is unread, never gone");
+});

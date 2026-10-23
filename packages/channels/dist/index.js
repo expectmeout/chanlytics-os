@@ -5998,32 +5998,33 @@ function apifyErrorOf(status, text) {
   }
 }
 var latestBuildOf = (body) => trimmedOrNull(recordOrNull3(recordOrNull3(recordOrNull3(recordOrNull3(body)?.data)?.taggedBuilds)?.latest)?.buildNumber);
+async function apifyCall(fetchImpl, url, init, allow = () => false) {
+  const res = await providerFetch(
+    "apify",
+    url,
+    { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+    { fetch: fetchImpl }
+  );
+  if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+  const text = res.text;
+  if (res.status >= 200 && res.status < 300) {
+    try {
+      return { body: text ? JSON.parse(text) : null, headers: res.headers };
+    } catch {
+      throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
+    }
+  }
+  if (allow(res.status)) return { body: null, headers: res.headers };
+  const { type, said } = apifyErrorOf(res.status, text);
+  if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
+  throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
+}
 function apifyClient(fetchImpl, token) {
   const headers2 = (json) => ({
     Authorization: `Bearer ${token}`,
     ...json ? { "content-type": "application/json" } : {}
   });
-  async function call2(url, init, allow = () => false) {
-    const res = await providerFetch(
-      "apify",
-      url,
-      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
-      { fetch: fetchImpl }
-    );
-    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
-    const text = res.text;
-    if (res.status >= 200 && res.status < 300) {
-      try {
-        return { body: text ? JSON.parse(text) : null, headers: res.headers };
-      } catch {
-        throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
-      }
-    }
-    if (allow(res.status)) return { body: null, headers: res.headers };
-    const { type, said } = apifyErrorOf(res.status, text);
-    if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
-    throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
-  }
+  const call2 = (url, init, allow) => apifyCall(fetchImpl, url, init, allow);
   return {
     async startRun(actor, input, opts) {
       const webhooks = Buffer.from(JSON.stringify(opts.webhooks), "utf8").toString("base64");
@@ -6128,6 +6129,18 @@ function apifyClient(fetchImpl, token) {
       return latestBuildOf(
         (await call2(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers2(false) })).body
       );
+    },
+    async buildNumberOf(buildId) {
+      const { body } = await call2(
+        `${APIFY_BASE}/actor-builds/${encodeURIComponent(buildId)}`,
+        { method: "GET" },
+        (s) => s === 404
+        // record-not-found: the build is gone
+      );
+      if (body === null) return null;
+      const number = trimmedOrNull(recordOrNull3(recordOrNull3(body)?.data)?.buildNumber);
+      if (!number) throw new ApifyRefused(200, "the provider's build named no number");
+      return number;
     }
   };
 }

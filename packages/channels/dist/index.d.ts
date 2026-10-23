@@ -3867,8 +3867,13 @@ interface ApifyClient {
     }>;
     abortRun(id: string): Promise<void>;
     eventPrices(actor: string): Promise<Record<string, number>>;
-    /** The build number the actor's `latest` tag names today, or null when it names none: what a pin is held against. */
+    /** The build number the actor's `latest` tag names today, or null when it names none: what a gone pin is moved to. */
     latestBuild(actor: string): Promise<string | null>;
+    /**
+     * The build number a build's id names, or null when the provider has no such build: a pin it deleted. Read without
+     * the key: the provider answers a build to whoever holds its id, and a key it does not know is refused (401).
+     */
+    buildNumberOf(buildId: string): Promise<string | null>;
 }
 declare function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient;
 

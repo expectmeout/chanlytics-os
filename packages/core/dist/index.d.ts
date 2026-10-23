@@ -3472,6 +3472,11 @@ interface MapsPlace {
 interface LeadCheckerRunner {
     actor: string;
     build: string;
+    /**
+     * The provider's id for that build: the health sweep reads it to see the build still stands (a deleted one refuses
+     * every start). A new pin sets both.
+     */
+    buildId: string;
     buildInput(emails: string[]): unknown;
     mapItem(item: unknown): {
         email: string;
@@ -3482,6 +3487,7 @@ interface LeadCheckerRunner {
 interface LeadCardRunner {
     actor: string;
     build: string;
+    buildId: string;
     buildInput(plan: LeadSearchPlan, term: string, places: number): unknown;
     mapItem(item: unknown): MapsPlace | null;
     fields: readonly string[];
@@ -3518,6 +3524,7 @@ interface PersonAtCompany {
 interface PeopleCardRunner {
     actor: string;
     build: string;
+    buildId: string;
     /** The provider's input for a plan and how many people to ask for (twice the count: two found make a lead). */
     buildInput(plan: LeadPeoplePlan, people: number): unknown;
     mapItem(item: unknown): PersonAtCompany | null;
@@ -3534,12 +3541,13 @@ declare const CARDS: {
     people_at_companies: PeopleCardRunner;
 };
 /**
- * Every actor a search starts, once each, at the build it is pinned to: what the health sweep holds against the
- * provider's latest each day, so a pin falling behind is told before the provider deletes it (23 Oct 2026).
+ * Every actor a search starts, once each, at the build it is pinned to and that build's id: what the health sweep
+ * reads each tick, so a pin the provider deleted is told before an owner's search meets it (23 Oct 2026).
  */
 declare function leadPins(): {
     actor: string;
     build: string;
+    buildId: string;
 }[];
 
 interface CleanPlace {

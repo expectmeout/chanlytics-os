@@ -84,8 +84,13 @@ export interface ApifyClient {
   ): Promise<{ items: unknown[]; total: number | null }>;
   abortRun(id: string): Promise<void>;
   eventPrices(actor: string): Promise<Record<string, number>>;
-  /** The build number the actor's `latest` tag names today, or null when it names none: what a pin is held against. */
+  /** The build number the actor's `latest` tag names today, or null when it names none: what a gone pin is moved to. */
   latestBuild(actor: string): Promise<string | null>;
+  /**
+   * The build number a build's id names, or null when the provider has no such build: a pin it deleted. Read without
+   * the key: the provider answers a build to whoever holds its id, and a key it does not know is refused (401).
+   */
+  buildNumberOf(buildId: string): Promise<string | null>;
 }
 
 /** `username/name` as the API spells it in a path. */
@@ -127,38 +132,41 @@ function apifyErrorOf(status: number, text: string): { type: string; said: strin
 const latestBuildOf = (body: unknown): string | null =>
   trimmedOrNull(recordOrNull(recordOrNull(recordOrNull(recordOrNull(body)?.data)?.taggedBuilds)?.latest)?.buildNumber);
 
+/** One round trip: JSON out on 2xx; retryable on 429, 5xx or no answer; refused on any other 4xx, unless `allow` says that status is an answer. */
+async function apifyCall(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  allow: (status: number) => boolean = () => false,
+): Promise<{ body: unknown; headers: Headers }> {
+  const res = await providerFetch(
+    "apify",
+    url,
+    { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+    { fetch: fetchImpl },
+  );
+  if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+  const text = res.text;
+  if (res.status >= 200 && res.status < 300) {
+    try {
+      return { body: text ? JSON.parse(text) : null, headers: res.headers };
+    } catch {
+      throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
+    }
+  }
+  if (allow(res.status)) return { body: null, headers: res.headers };
+  const { type, said } = apifyErrorOf(res.status, text);
+  if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
+  throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
+}
+
 export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient {
   const headers = (json: boolean): Record<string, string> => ({
     Authorization: `Bearer ${token}`,
     ...(json ? { "content-type": "application/json" } : {}),
   });
-
-  /** One round trip: JSON out on 2xx; retryable on 429, 5xx or no answer; refused on any other 4xx, unless `allow` says that status is an answer. */
-  async function call(
-    url: string,
-    init: RequestInit,
-    allow: (status: number) => boolean = () => false,
-  ): Promise<{ body: unknown; headers: Headers }> {
-    const res = await providerFetch(
-      "apify",
-      url,
-      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
-      { fetch: fetchImpl },
-    );
-    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
-    const text = res.text;
-    if (res.status >= 200 && res.status < 300) {
-      try {
-        return { body: text ? JSON.parse(text) : null, headers: res.headers };
-      } catch {
-        throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
-      }
-    }
-    if (allow(res.status)) return { body: null, headers: res.headers };
-    const { type, said } = apifyErrorOf(res.status, text);
-    if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
-    throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
-  }
+  const call = (url: string, init: RequestInit, allow?: (status: number) => boolean) =>
+    apifyCall(fetchImpl, url, init, allow);
 
   return {
     async startRun(actor, input, opts) {
@@ -268,6 +276,17 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
       return latestBuildOf(
         (await call(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers(false) })).body,
       );
+    },
+    async buildNumberOf(buildId) {
+      const { body } = await call(
+        `${APIFY_BASE}/actor-builds/${encodeURIComponent(buildId)}`,
+        { method: "GET" },
+        (s) => s === 404, // record-not-found: the build is gone
+      );
+      if (body === null) return null;
+      const number = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.buildNumber);
+      if (!number) throw new ApifyRefused(200, "the provider's build named no number");
+      return number;
     },
   };
 }
