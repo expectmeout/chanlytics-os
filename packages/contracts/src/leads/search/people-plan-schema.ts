@@ -12,6 +12,8 @@ import {
   PEOPLE_ASKED_CHARS,
   PEOPLE_FIND_WORDS,
   PEOPLE_INDUSTRIES_MAX,
+  PEOPLE_KEYWORDS_MAX,
+  PEOPLE_KEYWORD_CHARS,
   PEOPLE_SENIORITIES,
   PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
@@ -46,6 +48,8 @@ export const LeadPeoplePlanSchema: z.ZodType<LeadPeoplePlan> = z.object({
   seniority: z.array(z.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
   industries: z.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  // The words the companies' sites use (people-plan.ts): none on a plan made before them.
+  keywords: z.array(words(2, PEOPLE_KEYWORD_CHARS)).max(PEOPLE_KEYWORDS_MAX).optional(),
   sizes: z.array(z.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
   states: z
     .array(

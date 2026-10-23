@@ -18,7 +18,12 @@ import {
   ProposeLeadSearchSchema,
   ProposePeopleSearchSchema,
 } from "./lead-plan-schema";
-import { PEOPLE_COMPANY_SIZES, PEOPLE_SENIORITIES, type LeadPeoplePlan } from "./search/people-plan";
+import {
+  PEOPLE_COMPANY_SIZES,
+  PEOPLE_KEYWORD_CHARS,
+  PEOPLE_SENIORITIES,
+  type LeadPeoplePlan,
+} from "./search/people-plan";
 import { peopleIndustryOf } from "./search/people-industries";
 import type { LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
@@ -68,6 +73,8 @@ export const LeadIdeasAnswerSchema = z.object({
         leave_out: textList,
         seniority: textList,
         industries: textList,
+        // Absent in an answer written before the field was asked for: none (the list's catch).
+        keywords: textList,
         company_sizes: textList,
       }),
     )
@@ -148,6 +155,7 @@ function peoplePlanOf(idea: IdeaAnswer, p: IdeaPacket): LeadPeoplePlan | null {
     asked: `${capFirst(idea.words)} ${states.length ? `in ${states.join(", ")}` : "anywhere in the US"}`.slice(0, 400),
     seniority: idea.seniority.filter((s) => (PEOPLE_SENIORITIES as readonly string[]).includes(s)),
     industries: industries.slice(0, 5),
+    keywords: idea.keywords.map((k) => k.trim()).filter((k) => k.length >= 2 && k.length <= PEOPLE_KEYWORD_CHARS),
     company_sizes: idea.company_sizes.filter((s) => (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s)),
   });
   if (!input.success) return null;

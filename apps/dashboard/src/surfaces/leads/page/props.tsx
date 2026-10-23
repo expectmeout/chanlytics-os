@@ -415,10 +415,7 @@ const monthFactsOf = (p: LeadsPage) => {
   if (!finder.plan || !leads.month) return null;
   const id = finder.more ? finder.more.searchId : null;
   const s = id ? leads.searches.find((x) => x.id === id) || null : null;
-  // An idea's plan brings what past searches measured of its kind (00398).
-  const idea = finder.idea;
-  const prior = idea ? { of: finder.plan.name, counts: idea.prior || null } : null;
-  return leadMonthPlanFacts(leads.month, finder.plan.count, (s && s.round && s.round.nearby) || [], prior);
+  return leadMonthPlanFacts(leads.month, finder.plan.count, (s && s.round && s.round.nearby) || [], null);
 };
 
 /** The plan panel: its state as the panel reads it, and its moves. */
@@ -433,10 +430,6 @@ const finderProps = (p: LeadsPage) => {
     finderBusy: p.leadBusy,
     finderPlan: finder.plan,
     finderFacts: monthFactsOf(p),
-    // A people idea's card (decision 0070) and the month it says, as a places plan's facts say it.
-    finderPeople: finder.people,
-    finderMonth: p.leads.month ? { left: p.leads.month.left, renewsOn: p.leads.month.renewsOn } : null,
-    onFinderApprovePeople: p.finderApprovePeople,
     finderChanged: !!finder.plan && finder.plan.version > ((finder.proposal?.payload?.plan?.version as number) || 1),
     finderTrace: finder.trace,
     finderPick: finder.pick,
@@ -504,7 +497,7 @@ export const leadsPeekProps = (p: LeadsPage) => {
     onSearchAgain: p.searchAgain,
     onFind: p.openFind,
     onAskFind: p.askFind,
-    onIdea: (idea: LeadIdeaDto) => p.openIdea(idea, p.leads.month ? p.leads.month.left : null),
+    onIdea: (idea: LeadIdeaDto) => void p.openIdea(idea),
     ...finderProps(p),
     peek: peekId ? peekVMFor(peekId) : null,
     // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own cursor as J

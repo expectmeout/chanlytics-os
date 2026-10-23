@@ -29,6 +29,7 @@ import {
   leadCompanyOf,
   leadFoundWords,
   peopleEstimateUsd,
+  peoplePlanAsk,
   peoplePlanFrom,
   peoplePlanSentence,
   peopleSheetProblems,
@@ -148,6 +149,9 @@ test("the people card asks at least the provider's hundred, by its own names, at
     personState: ["Texas"],
   });
   assert.equal(card.buildInput(plan, 400).maxResults, 400);
+  // The words the companies' sites use go as the directory's company keywords, and none goes as none.
+  assert.deepEqual(card.buildInput({ ...plan, keywords: ["plumbing", "HVAC"] }, 20).webKeywords, ["plumbing", "HVAC"]);
+  assert.equal("webKeywords" in card.buildInput(plan, 20), false);
   const brief = LEAD_CARDS.find((c) => c.id === "people_at_companies");
   assert.equal(card.build, brief.calibrated.build, "the pinned build is the one its calibration run read");
 });
@@ -192,7 +196,16 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
     sizes: ["11 - 50"],
     states: ["TX", "CA"],
   });
-  assert.match(peoplePlanSentence(plan), /^Up to 100 Marketing & Advertising companies of 11 - 50 people in TX and CA/);
+  // In plain words (Ruben, 23 Oct 2026): who as their seniority says them, the sizes as numbers, the states by name.
+  assert.equal(
+    peoplePlanSentence(plan),
+    "Find 100 managers at marketing & advertising companies, 11–50 staff, in Texas and California. Each company is checked against what you asked.",
+  );
+  assert.equal(peoplePlanAsk(plan, null).label, "Find 100 managers", "the button names who it finds, not companies");
+  // The words the companies' sites use are said, and searched (core cards.ts webKeywords).
+  const trades = peoplePlanFrom({ ...plan, industries: ["Construction"], keywords: ["plumbing", "HVAC"], sizes: [] });
+  assert.match(peoplePlanSentence(trades), / at construction companies doing plumbing or HVAC, any size, /);
+  assert.deepEqual(trades.keywords, ["plumbing", "HVAC"]);
   assert.equal(peopleWho(plan), "people called “marketing manager” at Marketing & Advertising companies in TX and CA");
   assert.ok(
     peopleEstimateUsd(100, { perPerson: 0.002, perJudge: 0.0023, perCheck: 0.00089, start: 0.01 }) >= 1,
@@ -258,7 +271,7 @@ test("Ask's people ask: nothing of a places plan asked of it, and a state it can
   const planned = planPeopleSearch(ask);
   assert.equal(planned.ok, true);
   assert.deepEqual(planned.plan.states, ["CA"]);
-  assert.equal(planned.view.title, "Find 50 companies: Office managers at dental practices");
+  assert.equal(planned.view.title, "Find 50 office managers at dental practices");
   const spelled = planPeopleSearch({ ...ask, industries: ["medical practice"] });
   assert.deepEqual(spelled.plan.industries, ["Medical Practice"], "the directory's own name");
   const dental = planPeopleSearch({ ...ask, industries: ["dentists"] });

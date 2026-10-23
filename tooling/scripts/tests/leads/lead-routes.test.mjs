@@ -53,6 +53,7 @@ const bulk = await import(at("apps/dashboard/app/api/v1/leads/bulk/route.ts"));
 const checkAgain = await import(at("apps/dashboard/app/api/v1/leads/check-again/route.ts"));
 const exportRoute = await import(at("apps/dashboard/app/api/v1/leads/export/route.ts"));
 const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/route.ts"));
+const askIdea = await import(at("apps/dashboard/app/api/v1/ask/idea/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { planFacts } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
@@ -229,6 +230,10 @@ test("a search: the route computes the estimate from the card's prices and hands
   const viaAsk = { ...ctxFor("owner", rpcs), via: "ask" };
   await searches.POST.run(send(PLAN), viaAsk);
   assert.equal(seen[1].p_via, "ask");
+  // A plan changed on a card before the search existed (planVersionOf counts each change) starts it at its first
+  // version, the only one the door starts a search at: Find failed on a changed card (23 Oct 2026).
+  await searches.POST.run(send({ ...PLAN, version: 3 }), ctxFor("owner", rpcs));
+  assert.equal(seen[2].p_plan.version, 1);
   await refused(
     searches.POST.run(send(PLAN), ctxFor("owner", { lead_search_create: () => ({ error: "paused" }) })),
     "conflict",
@@ -1814,6 +1819,56 @@ test("the ideas are written from the line and what was found, on their own route
   );
   assert.equal(saved[0].items[0].plan.category_key, "chiropractor");
   assert.equal(/apify|compass|anthropic|claude-/i.test(JSON.stringify(fresh)), false);
+});
+
+test("an idea pressed is a card in Ask (POST ask/idea, Ruben, 23 Oct 2026): the idea's own plan, at its first version and marked from the idea, kept with the month's facts as the first answer of a thread titled by the idea, with no model asked; pressed again while its card waits, the same thread", async () => {
+  assert.deepEqual(askIdea.POST.policy, {
+    kind: "write",
+    scope: "workspace",
+    role: "partner",
+    rate: "ask",
+    spend: false,
+  });
+  setSuggestionsWriter(ideaStore());
+  modelCalls = [];
+  const rpcs = doors();
+  const tables = world({ role: "owner", suggestions: keptIdeas(), tables: { ask_threads: [], ask_messages: [] } });
+  const out = await askIdea.POST.run(send({ words: "Chiropractors near 78704" }), ctxOf(tables, {}, rpcs));
+  assert.equal(tables.ask_threads.length, 1);
+  const thread = tables.ask_threads[0];
+  assert.deepEqual(out, { thread: { id: thread.id, title: "Chiropractors near 78704" } });
+  assert.deepEqual(
+    tables.ask_messages.map((m) => [m.thread_id, m.role]),
+    [
+      [thread.id, "user"],
+      [thread.id, "assistant"],
+    ],
+  );
+  assert.equal(tables.ask_messages[0].content.text, "Chiropractors near 78704", "the question is the idea's own words");
+  const said = tables.ask_messages[1].content;
+  assert.equal(said.answer.say.headline, "Partners", "the answer says why this idea");
+  assert.match(said.answer.say.detail, /Say what to change/);
+  const [card] = said.proposals;
+  assert.equal(card.kind, "lead_search");
+  assert.deepEqual(
+    [card.payload.plan.version, card.payload.plan.from, card.payload.plan.count, card.payload.thread_id],
+    [1, "idea", PLAN.count, thread.id],
+    "the idea's own plan, a new search from the idea, carrying the thread it waits in",
+  );
+  assert.equal(typeof card.payload.facts.leadsLeft, "number", "with the month's facts the card says");
+  assert.equal(modelCalls.length, 0, "no model is asked");
+  // Pressed again while its card waits: the thread it waits in, nothing written.
+  const again = await askIdea.POST.run(send({ words: "Chiropractors near 78704" }), ctxOf(tables, {}, rpcs));
+  assert.deepEqual(again, out);
+  assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 2]);
+  // An idea the workspace no longer holds, and a member who may not find.
+  await refused(askIdea.POST.run(send({ words: "Dentists in Austin" }), ctxOf(tables, {}, rpcs)), "not_found", 404);
+  await refused(
+    askIdea.POST.run(send({ words: "Chiropractors near 78704" }), ctxOf(world({ role: "operator" }), {}, rpcs)),
+    "forbidden",
+    403,
+  );
+  setSuggestionsWriter(null);
 });
 
 test("kept ideas stand while the newest round is the one they were written over, a month at most; a row from before, or a round ended since, is written again", async () => {

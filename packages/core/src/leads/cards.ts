@@ -341,6 +341,9 @@ const PEOPLE_CARD: PeopleCardRunner = {
       excludeSeniority: ["intern"],
       ...(plan.seniority.length ? { seniority: plan.seniority } : {}),
       ...(plan.industries.length ? { industry: plan.industries } : {}),
+      // The words their sites use for what they do (contracts people-plan.ts `keywords`): a kind filed under a broad
+      // industry is found by its work. None on a plan made before them.
+      ...(plan.keywords?.length ? { webKeywords: plan.keywords } : {}),
       ...(plan.sizes.length ? { companyEmployeeSize: plan.sizes } : {}),
       personCountry: ["United States"],
       ...(states.length ? { personState: states } : {}),

@@ -366,7 +366,7 @@ const useArSeedKeys = ({ open, A, onClose, live, view, asked, setTick, setView, 
       if (d.about) setScope(chip);
       if (d.thread) openThread({ id: d.thread });
       else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuick(null); setQuery(d.prompt || ""); }
-      else submit(d.prompt, chip); // the chip this opening shows: `scope` is still the last opening's until the next draw
+      else submit(d.prompt, chip, d.fresh ? { fresh: true } : undefined); // the chip this opening shows: `scope` is still the last opening's until the next draw; a page's own search (`fresh`) its own conversation
     }
     return () => window.removeEventListener("keydown", onKeys);
   });
@@ -499,14 +499,14 @@ const arSubmitter = (ln) => {
     const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
     arLetGo(inputRef.current); speech.stop();
-    const spoken = !!(how && how.spoken), following = (how && how.following) || null; // `how.following`: the follow-up of Ask's home's row, which the route clears
+    const spoken = !!(how && how.spoken), following = (how && how.following) || null, held = how && how.fresh ? null : active; // `how.following`: the follow-up of Ask's home's row, which the route clears; `how.fresh`: a page's own search (Leads' first day), a conversation of its own, never the one the Line still holds (Ruben, 23 Oct 2026)
     setQuery("");
     setView("rows");
     setLang(A.language(q));
-    const pending = active || following ? null : A.quick(q);
+    const pending = held || following ? null : A.quick(q);
     if (pending) return arQuickTurn(ln, q, pending, spoken);
     setQuick(null);
-    let base = active && active.kept ? await arKept(active) : active; // asked once a quick turn is kept, which it reads
+    let base = held && held.kept ? await arKept(held) : held; // asked once a quick turn is kept, which it reads
     if (!base) {
       const list = await (threadsReady.current || Promise.resolve(threads));
       const twin = list.find((th) => A.sameQuestion(th.title, q));
@@ -566,7 +566,7 @@ const arTurnLanded = ({ A, M, t, turnSeq, setLive, setActive, setThreads, buzz, 
     if (turn.final.failed) M.mood.react("shake");
     else if (!turn.spoke) M.mood.react("nod");
   }
-  setActive((prev) => (prev ? { ...prev, id: turn.threadId || prev.id, messages: [...prev.messages, turn.final] } : prev));
+  setActive((prev) => (prev ? { ...prev, id: turn.threadId || prev.id, messages: window.LeadCards ? window.LeadCards.landed(prev.messages, turn.final, Date.now()) : [...prev.messages, turn.final] } : prev)); // a search card the answer made sets aside the one waiting above it, as the route kept it (contracts withAnswerLanded)
   if (turn.spoken && !turn.final.failed) arAnswerAloud({ speech, flash, t }, A.answerSpoken(A.answer(turn.final).answer));
   if (turn.threadId) A.threads().then((list) => {
     setThreads(list);

@@ -1300,8 +1300,8 @@ var followUpSpec = {
   needs: "operator",
   gate: "approve",
   commit: ({ payload: pl }) => {
-    const list = listIn(pl.follow_ups);
-    return list ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const list2 = listIn(pl.follow_ups);
+    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
   undo: {
@@ -1320,6 +1320,87 @@ var followUpSpec = {
   },
   open: () => null
 };
+
+// src/leads/search/plan.ts
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+
+// src/leads/search/sentence.ts
+var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+var PLACE_CLAUSE = /\s+(?:in|near|around|within|across|throughout|at|inside|serving)\s+\S.*$/i;
+var SAYS_WHERE = /^(?:in|near|around|within|across|throughout|at|inside)\s+/i;
+var US_NAMES = Object.fromEntries(
+  Object.entries(US_STATES).map(([name, code]) => [code, name])
+);
+var bits = (s) => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+var QUALITY_CLAUSE = /\s+(?:with|that|who|which|having|rated)\s+\S.*$/i;
+var NAMES_A_PLACE = /^\s+(?:in|near|around|within|across|throughout)\s+(?:[A-Z]|\d{5})/i;
+function planWho(plan) {
+  const a = plan.area;
+  const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
+  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
+  let cut = whole ? "" : plan.name.trim();
+  const m = PLACE_CLAUSE.exec(cut);
+  if (m && (bits(m[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(m[0]))) cut = cut.slice(0, m.index).trim();
+  const said = new Set(plan.criteria.flatMap((c) => bits(c.text)));
+  const q = QUALITY_CLAUSE.exec(cut);
+  if (q && bits(q[0]).filter((w) => said.has(w)).length >= 2) cut = cut.slice(0, q.index).trim();
+  return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
+}
 
 // src/leads/lead-words.ts
 var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -1837,7 +1918,8 @@ var leadSearchSpec = {
     const am = amendsOf(pl);
     if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
     const plan = pl.plan ?? {};
-    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+    const who = plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan) : plan.terms?.[0];
+    return `Finding ${plan.count ?? ""} ${who ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
       /\s+/g,
       " "
     );

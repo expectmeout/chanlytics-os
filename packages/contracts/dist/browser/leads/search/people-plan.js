@@ -1,4 +1,4 @@
-import { joinWords, plural } from "../../shared/words.js";
+import { joinWords, joinWordsOr, plural } from "../../shared/words.js";
 import { LEAD_ESTIMATE_MARGIN } from "./caps.js";
 import { US_STATES } from "./plan.js";
 export const PEOPLE_CARD = "people_at_companies";
@@ -41,6 +41,8 @@ export const PEOPLE_RUN_FLOOR_USD = 0.5;
 export const PEOPLE_TITLES_MAX = 5;
 export const PEOPLE_INDUSTRIES_MAX = 5;
 export const PEOPLE_STATES_MAX = 10;
+export const PEOPLE_KEYWORDS_MAX = 5;
+export const PEOPLE_KEYWORD_CHARS = 40;
 export const PEOPLE_TITLE_CHARS = 60;
 export const PEOPLE_INDUSTRY_CHARS = 80;
 export const PEOPLE_ASKED_CHARS = 400;
@@ -59,6 +61,7 @@ export function peoplePlanFrom(i) {
     titles: i.titles,
     seniority: i.seniority,
     industries: i.industries,
+    ...i.keywords?.length ? { keywords: i.keywords } : {},
     sizes: i.sizes,
     states: i.states,
     contact: "email",
@@ -86,6 +89,7 @@ export function peoplePlanOf(raw) {
       (s) => PEOPLE_SENIORITIES.includes(s)
     ),
     industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
+    keywords: strs(o.keywords, PEOPLE_KEYWORDS_MAX, PEOPLE_KEYWORD_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter(
       (s) => PEOPLE_COMPANY_SIZES.includes(s)
     ),
@@ -115,26 +119,20 @@ function peopleMinutes(count) {
 export function peoplePlanAsk(plan, month) {
   const binds = !!month && month.left < plan.count;
   const count = binds && month ? Math.max(0, month.left) : plan.count;
-  const label = count < 1 ? "No leads left this month" : PEOPLE_FIND_WORDS.start(count);
+  const label = count < 1 ? "No leads left this month" : `Find ${count} ${peopleNoun(plan, count)}`;
   if (!binds || !month) return { count, label, covers: null };
   return {
     count,
     label,
-    covers: `You have ${plural(count, "lead", "leads")} left this month. Your leads renew on ${month.renewsOn}.`
+    covers: `You have ${plural(count, "lead", "leads")} left this month.${month.renewsOn ? ` Your leads renew on ${month.renewsOn}.` : ""}`
   };
 }
-export function peoplePlanFacts(plan, month) {
-  return [
-    `About ${peopleMinutes(plan.count)} minutes \u2014 leave the page if you like`,
-    "Anyone already yours is skipped",
-    month ? `Counts only companies that fit, with a checked work email \xB7 ${month.left} left this month` : "Counts only companies that fit, with a checked work email"
-  ];
-}
+const peopleMonthUse = (plan, month) => `uses ${Math.max(0, Math.min(plan.count, month.left))} of your ${month.left} leads this month`;
 export function peoplePlanFactLine(plan, month) {
   return [
     `About ${peopleMinutes(plan.count)} min`,
-    "skips anyone you have",
-    ...month ? [`${month.left} left this month`] : []
+    ...month ? [peopleMonthUse(plan, month)] : [],
+    "skips people you have"
   ].join(" \xB7 ");
 }
 export function usStatesTyped(text) {
@@ -239,11 +237,62 @@ export const PEOPLE_STRIP_WORDS = {
   more: "Find more like these"
 };
 export function peoplePlanSentence(p) {
-  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
-  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
-  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
-  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
-  const called = joinWords(p.titles.map((t) => `\u201C${t}\u201D`));
-  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
-  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
+  const where = p.states.length ? `in ${joinWords(p.states.map((s) => usStateName(s) ?? s))}` : "across the US";
+  return `Find ${p.count} ${peopleRole(p)} at ${peopleKind(p)}, ${peopleSizeWords(p.sizes)}, ${where}. Each company is checked against what you asked.`;
+}
+const ROLE_NOUNS = [
+  ["owner", "owners", "owner"],
+  ["founder", "founders", "founder"],
+  ["partner", "partners", "partner"],
+  ["c_suite", "executives", "executive"],
+  ["director", "directors", "director"],
+  ["manager", "managers", "manager"]
+];
+function peopleNoun(p, count) {
+  const role = ROLE_NOUNS.find(([s]) => p.seniority.includes(s));
+  if (role) return count === 1 ? role[2] : role[1];
+  return count === 1 ? "person" : "people";
+}
+function peopleRole(p) {
+  if (ROLE_NOUNS.some(([s]) => p.seniority.includes(s))) return peopleNoun(p, p.count);
+  const first = p.titles[0] ?? "";
+  return p.titles.length > 1 ? `people in roles like \u201C${first}\u201D` : `people called \u201C${first}\u201D`;
+}
+function peopleKind(p) {
+  const filed = p.industries.length ? `${joinWords(p.industries.map((i) => i.toLowerCase()))} companies` : "companies";
+  return p.keywords?.length ? `${filed} doing ${joinWordsOr(p.keywords)}` : filed;
+}
+const SIZE_SPANS = {
+  "1 - 10": [1, 10],
+  "11 - 50": [11, 50],
+  "51 - 200": [51, 200],
+  "201 - 500": [201, 500],
+  "501 - 1000": [501, 1e3],
+  "1001 - 5000": [1001, 5e3],
+  "5001 - 10000": [5001, 1e4],
+  "10001+": [10001, null]
+};
+function peopleSizeWords(sizes) {
+  const spans = [];
+  for (const s of PEOPLE_COMPANY_SIZES) {
+    if (!sizes.includes(s)) continue;
+    const [lo, hi] = SIZE_SPANS[s];
+    const last = spans[spans.length - 1];
+    if (last && last[1] !== null && last[1] + 1 === lo) last[1] = hi;
+    else spans.push([lo, hi]);
+  }
+  if (!spans.length) return "any size";
+  const n = (v) => v.toLocaleString("en-US");
+  return `${joinWordsOr(spans.map(([lo, hi]) => hi === null ? `${n(lo)}+` : `${n(lo)}\u2013${n(hi)}`))} staff`;
+}
+export function peoplePlanRows(p) {
+  const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  return [
+    { label: "Finds", value: `${cap(peopleRole(p))}, one at each company` },
+    { label: "Called", value: joinWordsOr(p.titles) },
+    { label: "At", value: cap(peopleKind(p)) },
+    { label: "Size", value: cap(peopleSizeWords(p.sizes)) },
+    { label: "Where", value: p.states.length ? joinWords(p.states.map((s) => usStateName(s) ?? s)) : "Across the US" },
+    { label: "How many", value: plural(p.count, "company", "companies") }
+  ];
 }

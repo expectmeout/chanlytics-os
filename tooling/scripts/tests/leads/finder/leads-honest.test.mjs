@@ -661,6 +661,8 @@ const answers = [
   [/^PATCH \/api\/v1\/lead-searches\/[^/]+$/, (b) => ({ name: b.name })],
   [/^DELETE \/api\/v1\/lead-searches\/[^/]+$/, () => ({ archived: 143, kept: 18 })],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/more$/, () => ({ round_id: "r9" })],
+  // An idea pressed (POST ask/idea): the thread its card waits in, which the page opens Ask on.
+  [/^POST \/api\/v1\/ask\/idea$/, (b) => ({ thread: { id: "t-idea", title: b.words } })],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/stop$/, () => ({})],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/answer$/, () => ({})],
   [/^POST \/api\/v1\/lead-searches\/[^/]+\/undo$/, () => ({ removed: 160, credited: 160, op_id: "op-u", version: 2 })],
@@ -1428,7 +1430,30 @@ const submitField = (form, words) => {
   return { box, reset: () => reset };
 };
 
-test("the first day's field is typed in and sent to Ask; an idea picked opens Ask with its words", async () => {
+test("an idea that carries its search opens Ask on its card (Ruben, 23 Oct 2026): its words to the card's door, then Ask on the thread the card waits in, and no panel of the page's own", async () => {
+  const withPlan = {
+    ...SUGGESTIONS,
+    items: [{ ...SUGGESTIONS.items[0], plan: { ...PLAN, count: 50 }, ask: "Find 50 gyms in Denver" }],
+  };
+  await fresh({ leads: { ...FIRST_DAY, suggestions: withPlan } });
+  const before = asks.length;
+  click(byTestId(byTestId(draw(), "leads-first-day"), "ld-sug-gym"));
+  await settle();
+  assert.deepEqual(
+    writes.filter((w) => w.key === "POST /api/v1/ask/idea"),
+    [{ key: "POST /api/v1/ask/idea", body: { words: "gyms in Denver" } }],
+    "the idea named by its words, never its plan: the server reads its own",
+  );
+  assert.deepEqual(asks.slice(before), [{ thread: "t-idea" }], "Ask opens on the card's thread");
+  assert.equal(panels.length, 0, "the page draws no card of its own");
+  assert.equal(
+    writes.some((w) => w.key === "POST /api/v1/lead-searches"),
+    false,
+    "nothing is searched until the card's Find",
+  );
+});
+
+test("the first day's field is typed in and sent to Ask; an idea with no plan is asked of Ask at once", async () => {
   await fresh({ leads: { ...FIRST_DAY, suggestions: SUGGESTIONS } });
   const fd = byTestId(draw(), "leads-first-day");
   // The field is Ask's (spec F1): the page draws no composer of its own on the first day, and sends what is typed.
@@ -1442,7 +1467,11 @@ test("the first day's field is typed in and sent to Ask; an idea picked opens As
     "wearing the three's still mark, Ask's face at rest",
   );
   const sent = submitField(field, "  plumbers in Austin  ");
-  assert.deepEqual(asks.at(-1), { prompt: "plumbers in Austin" }, "sent, Ask opens and asks the words as typed");
+  assert.deepEqual(
+    asks.at(-1),
+    { prompt: "plumbers in Austin", fresh: true },
+    "sent, Ask opens and asks the words as typed, in a conversation of its own",
+  );
   assert.equal(sent.reset(), true, "and the field is emptied");
   const before = asks.length;
   const empty = submitField(field, "   ");
@@ -1451,8 +1480,8 @@ test("the first day's field is typed in and sent to Ask; an idea picked opens As
   click(byTestId(fd, "ld-sug-gym"));
   assert.deepEqual(
     asks.at(-1),
-    { mode: "compose", prompt: "gyms in Denver" },
-    "an idea's words are in the field, ready to send",
+    { prompt: "gyms in Denver", fresh: true },
+    "an idea kept from before ideas were plans is asked at once, in a conversation of its own (Ruben, 23 Oct 2026)",
   );
   assert.equal(panels.length, 0, "and still no composer");
   // Both are gated as the bar's square was: an operator sees each refuse in the gate's sentence.

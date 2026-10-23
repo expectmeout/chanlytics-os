@@ -116,8 +116,8 @@ export function leadMonthPlanFacts(month, count, nearby, prior) {
 export function leadPlanFactLine(plan, facts) {
   return [
     `About ${planMinutes(plan)} min`,
-    "skips leads you have",
-    ...facts ? [leadAllowanceFact(facts.leadsLeft)] : []
+    ...facts ? [`uses ${Math.max(0, Math.min(plan.count, facts.leadsLeft))} of your ${facts.leadsLeft} leads this month`] : [],
+    "skips leads you have"
   ].join(" \xB7 ");
 }
 export function leadPlanAsk(plan, facts) {

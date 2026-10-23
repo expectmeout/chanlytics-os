@@ -5,7 +5,7 @@
  * address it brings is checked before anyone is written to, as a list's are (00242's J2). Pure, and read in the
  * browser: the route's schema is people-plan-schema.ts.
  */
-import { joinWords, plural } from "../../shared/words";
+import { joinWords, joinWordsOr, plural } from "../../shared/words";
 import { LEAD_ESTIMATE_MARGIN } from "./caps";
 import { US_STATES } from "./plan";
 
@@ -58,6 +58,9 @@ export const PEOPLE_RUN_FLOOR_USD = 0.5;
 export const PEOPLE_TITLES_MAX = 5;
 export const PEOPLE_INDUSTRIES_MAX = 5;
 export const PEOPLE_STATES_MAX = 10;
+/** The most words a plan searches companies' sites for (`keywords`), and the longest each. */
+export const PEOPLE_KEYWORDS_MAX = 5;
+export const PEOPLE_KEYWORD_CHARS = 40;
 /** The longest a title, an industry and the words asked may be (LeadPeoplePlanSchema holds each). */
 export const PEOPLE_TITLE_CHARS = 60;
 export const PEOPLE_INDUSTRY_CHARS = 80;
@@ -79,6 +82,12 @@ export type LeadPeoplePlan = {
   seniority: PeopleSeniority[];
   /** The companies' industries, in the provider's own names ("Marketing & Advertising"): its list alone (people-industries.ts). */
   industries: string[];
+  /**
+   * Words the companies' own sites use for what they do ("plumbing", "HVAC"), searched as the directory's company keywords,
+   * so a kind it files under a broad industry is found by its work (Ruben, 23 Oct 2026: an idea for home service owners
+   * searched every Construction company). None on a plan made before, and none is any.
+   */
+  keywords?: string[];
   sizes: PeopleCompanySize[];
   /** Two-letter US states; none is the whole country. */
   states: string[];
@@ -124,6 +133,7 @@ export function peoplePlanFrom(i: PeoplePlanInput): LeadPeoplePlan {
     titles: i.titles,
     seniority: i.seniority,
     industries: i.industries,
+    ...(i.keywords?.length ? { keywords: i.keywords } : {}),
     sizes: i.sizes,
     states: i.states,
     contact: "email",
@@ -163,6 +173,7 @@ export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
       (PEOPLE_SENIORITIES as readonly string[]).includes(s),
     ),
     industries: strs(o.industries, PEOPLE_INDUSTRIES_MAX, PEOPLE_INDUSTRY_CHARS),
+    keywords: strs(o.keywords, PEOPLE_KEYWORDS_MAX, PEOPLE_KEYWORD_CHARS),
     sizes: strs(o.sizes, PEOPLE_COMPANY_SIZES.length, 20).filter((s): s is PeopleCompanySize =>
       (PEOPLE_COMPANY_SIZES as readonly string[]).includes(s),
     ),
@@ -228,7 +239,8 @@ export interface PeopleMonth {
 
 /**
  * What a people card asks for, as a places plan's does (leadPlanAsk): the companies the month has room for, the button's
- * words, and the sentence that says why where the month binds. The word is always companies: one lead each.
+ * words, and the sentence that says why where the month binds. The button names who it finds, one at each company ("Find
+ * 50 owners"; Ruben, 23 Oct 2026: "Find 50 companies" named what the owner never asked for).
  */
 export function peoplePlanAsk(
   plan: LeadPeoplePlan,
@@ -236,36 +248,25 @@ export function peoplePlanAsk(
 ): { count: number; label: string; covers: string | null } {
   const binds = !!month && month.left < plan.count;
   const count = binds && month ? Math.max(0, month.left) : plan.count;
-  const label = count < 1 ? "No leads left this month" : PEOPLE_FIND_WORDS.start(count);
+  const label = count < 1 ? "No leads left this month" : `Find ${count} ${peopleNoun(plan, count)}`;
   if (!binds || !month) return { count, label, covers: null };
   return {
     count,
     label,
-    covers: `You have ${plural(count, "lead", "leads")} left this month. Your leads renew on ${month.renewsOn}.`,
+    covers: `You have ${plural(count, "lead", "leads")} left this month.${month.renewsOn ? ` Your leads renew on ${month.renewsOn}.` : ""}`,
   };
 }
 
-/**
- * A people card's facts, as a places plan's are (leadPlanFacts): how long, that anyone already the owner's is skipped,
- * and what counts (a company its judge found a fit, whose address checked out: company-judge.ts), with the month where
- * it is known.
- */
-export function peoplePlanFacts(plan: LeadPeoplePlan, month: PeopleMonth | null): string[] {
-  return [
-    `About ${peopleMinutes(plan.count)} minutes — leave the page if you like`,
-    "Anyone already yours is skipped",
-    month
-      ? `Counts only companies that fit, with a checked work email · ${month.left} left this month`
-      : "Counts only companies that fit, with a checked work email",
-  ];
-}
+/** What a search takes of the month, in its own unit: "uses 50 of your 497 leads this month". */
+const peopleMonthUse = (plan: LeadPeoplePlan, month: PeopleMonth): string =>
+  `uses ${Math.max(0, Math.min(plan.count, month.left))} of your ${month.left} leads this month`;
 
 /** The same facts as one line, a phone's. */
 export function peoplePlanFactLine(plan: LeadPeoplePlan, month: PeopleMonth | null): string {
   return [
     `About ${peopleMinutes(plan.count)} min`,
-    "skips anyone you have",
-    ...(month ? [`${month.left} left this month`] : []),
+    ...(month ? [peopleMonthUse(plan, month)] : []),
+    "skips people you have",
   ].join(" · ");
 }
 
@@ -404,16 +405,86 @@ export const PEOPLE_STRIP_WORDS = {
 } as const;
 
 /**
- * The plan in one sentence, as its card says it: "Up to 100 Marketing & Advertising companies of 11 - 50 people in TX
- * and CA, each through someone called “marketing manager” (owners or managers), each address checked". The count is
- * companies: one lead each, written to through one person.
+ * A people search as one plain sentence (Ruben, 23 Oct 2026: it read as the directory's filters, its ranges and quoted
+ * titles, and named Construction where the owner asked for home service companies): how many, who, the companies as
+ * the directory files them and what they do, how big, where, and that each is checked against what was asked
+ * (company-judge.ts). The count is companies: one lead each, written to through one person.
  */
 export function peoplePlanSentence(p: LeadPeoplePlan): string {
-  const what = p.industries.length ? `${joinWords(p.industries)} ${p.count === 1 ? "company" : "companies"}` : null;
-  const companies = what ? `${p.count} ${what.replace(/^\d+ /, "")}` : plural(p.count, "company", "companies");
-  const size = p.sizes.length ? ` of ${p.sizes.join(", ")} people` : "";
-  const where = p.states.length ? ` in ${joinWords(p.states)}` : " in the US";
-  const called = joinWords(p.titles.map((t) => `“${t}”`));
-  const level = p.seniority.length ? ` (${p.seniority.map((s) => PEOPLE_SENIORITY_WORDS[s]).join(" or ")})` : "";
-  return `Up to ${companies}${size}${where}, each through someone called ${called}${level}, each address checked`;
+  const where = p.states.length ? `in ${joinWords(p.states.map((s) => usStateName(s) ?? s))}` : "across the US";
+  return `Find ${p.count} ${peopleRole(p)} at ${peopleKind(p)}, ${peopleSizeWords(p.sizes)}, ${where}. Each company is checked against what you asked.`;
+}
+
+/** The seniorities that name who a search reaches in one word, the most senior first, and the word for one of them. */
+const ROLE_NOUNS: ReadonlyArray<[PeopleSeniority, string, string]> = [
+  ["owner", "owners", "owner"],
+  ["founder", "founders", "founder"],
+  ["partner", "partners", "partner"],
+  ["c_suite", "executives", "executive"],
+  ["director", "directors", "director"],
+  ["manager", "managers", "manager"],
+];
+
+/** Who a people search finds, as the button counts them: "owners", or "people" where no seniority names them. */
+function peopleNoun(p: LeadPeoplePlan, count: number): string {
+  const role = ROLE_NOUNS.find(([s]) => p.seniority.includes(s));
+  if (role) return count === 1 ? role[2] : role[1];
+  return count === 1 ? "person" : "people";
+}
+
+/** Who a people search finds, as its sentence says it: the seniority's word, else what they are called. */
+function peopleRole(p: LeadPeoplePlan): string {
+  if (ROLE_NOUNS.some(([s]) => p.seniority.includes(s))) return peopleNoun(p, p.count);
+  const first = p.titles[0] ?? "";
+  return p.titles.length > 1 ? `people in roles like “${first}”` : `people called “${first}”`;
+}
+
+/** The companies, honestly: the directory's industries as it files them, and the words their sites use, where the plan has them. */
+function peopleKind(p: LeadPeoplePlan): string {
+  const filed = p.industries.length ? `${joinWords(p.industries.map((i) => i.toLowerCase()))} companies` : "companies";
+  return p.keywords?.length ? `${filed} doing ${joinWordsOr(p.keywords)}` : filed;
+}
+
+/** The directory's size ranges as numbers: the least and the most staff, the last with no most. */
+const SIZE_SPANS: Record<PeopleCompanySize, readonly [number, number | null]> = {
+  "1 - 10": [1, 10],
+  "11 - 50": [11, 50],
+  "51 - 200": [51, 200],
+  "201 - 500": [201, 500],
+  "501 - 1000": [501, 1000],
+  "1001 - 5000": [1001, 5000],
+  "5001 - 10000": [5001, 10000],
+  "10001+": [10001, null],
+};
+
+/** Company sizes as a person says them: neighbouring ranges joined ("1–50 staff"), and none as any size. */
+function peopleSizeWords(sizes: readonly PeopleCompanySize[]): string {
+  const spans: Array<[number, number | null]> = [];
+  for (const s of PEOPLE_COMPANY_SIZES) {
+    if (!sizes.includes(s)) continue;
+    const [lo, hi] = SIZE_SPANS[s];
+    const last = spans[spans.length - 1];
+    if (last && last[1] !== null && last[1] + 1 === lo) last[1] = hi;
+    else spans.push([lo, hi]);
+  }
+  if (!spans.length) return "any size";
+  const n = (v: number) => v.toLocaleString("en-US");
+  return `${joinWordsOr(spans.map(([lo, hi]) => (hi === null ? `${n(lo)}+` : `${n(lo)}–${n(hi)}`)))} staff`;
+}
+
+/**
+ * A people search as the rows its card in Ask draws (the answer canvas's sheet, AskCardSheet; Ruben, 23 Oct 2026: an
+ * idea opens Ask with its card, and a change is said to Ask): who it finds, what they are called, the companies as the
+ * directory files them and what they do, how big, where and how many. The same words as its sentence, one fact a row.
+ */
+export function peoplePlanRows(p: LeadPeoplePlan): Array<{ label: string; value: string }> {
+  const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+  return [
+    { label: "Finds", value: `${cap(peopleRole(p))}, one at each company` },
+    { label: "Called", value: joinWordsOr(p.titles) },
+    { label: "At", value: cap(peopleKind(p)) },
+    { label: "Size", value: cap(peopleSizeWords(p.sizes)) },
+    { label: "Where", value: p.states.length ? joinWords(p.states.map((s) => usStateName(s) ?? s)) : "Across the US" },
+    { label: "How many", value: plural(p.count, "company", "companies") },
+  ];
 }

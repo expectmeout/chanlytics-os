@@ -16,6 +16,7 @@ import {
 } from "./lead-words";
 import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES } from "./search/caps";
 import { leadKindKey, stateCode } from "./search/clean";
+import { lowerFirst } from "./search/sentence";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
 import type { LeadPlanned, PeoplePlanned } from "./lead-plan";
@@ -25,6 +26,8 @@ import {
   PEOPLE_FIND_WORDS,
   PEOPLE_INDUSTRIES_MAX,
   PEOPLE_INDUSTRY_CHARS,
+  PEOPLE_KEYWORDS_MAX,
+  PEOPLE_KEYWORD_CHARS,
   PEOPLE_SENIORITIES,
   PEOPLE_STATES_MAX,
   PEOPLE_TITLES_MAX,
@@ -169,6 +172,8 @@ export const ProposePeopleSearchSchema = z.object({
   asked: z.string().trim().min(1).max(400),
   seniority: z.array(z.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
   industries: z.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  /** Words the companies' sites use for what they do ("plumbing", "HVAC"): what an industry alone files too broadly. */
+  keywords: z.array(planChip(PEOPLE_KEYWORD_CHARS)).max(PEOPLE_KEYWORDS_MAX).default([]),
   company_sizes: z.array(z.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([]),
 });
 
@@ -325,6 +330,7 @@ export function planPeopleSearch(input: ProposePeopleSearch): PeoplePlanned {
     titles: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, PEOPLE_TITLES_MAX),
     seniority: input.seniority,
     industries: input.industries,
+    keywords: [...new Set(input.keywords.map((k) => k.trim()).filter(Boolean))].slice(0, PEOPLE_KEYWORDS_MAX),
     sizes: input.company_sizes,
     states,
   });
@@ -340,12 +346,12 @@ export function planPeopleSearch(input: ProposePeopleSearch): PeoplePlanned {
       },
     };
   }
-  // The count is companies, as the card and the sheet say it.
-  const n = checked.data.count;
+  // Who it finds, one at each company, as its card's press says them (Ruben, 23 Oct 2026: the title said "Find 50
+  // companies" over a press that said "Find 50 owners").
   return {
     ok: true,
     plan: checked.data,
-    view: { title: `Find ${n} ${n === 1 ? "company" : "companies"}: ${checked.data.name}` },
+    view: { title: `Find ${checked.data.count} ${lowerFirst(checked.data.name)}` },
   };
 }
 
