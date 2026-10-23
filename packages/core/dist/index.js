@@ -37115,6 +37115,7 @@ function areaCenter(plan) {
 var CHECKER = {
   actor: "bounceverify/bounceverify-email-verifier",
   build: "0.1.16",
+  buildId: "uw7qJdrXWOwYh9MUK",
   fields: CHECKER_FIELDS,
   buildInput(emails) {
     return { emails, skipInvalidSyntax: true };
@@ -37211,6 +37212,7 @@ var PEOPLE_CARD = {
   // The build its calibration run read (14 Oct 2026; contracts LEAD_CARDS' `calibrated`). A new one is calibrated again
   // before it is pinned: collectPeople stops a run whose first items it reads none of.
   build: "0.0.259",
+  buildId: "UJAtg4JwDdgEVD6iI",
   fields: PEOPLE_FIELDS,
   buildInput(plan, people) {
     const states = plan.states.map(usStateName).filter((s) => !!s);
@@ -37221,6 +37223,9 @@ var PEOPLE_CARD = {
       excludeSeniority: ["intern"],
       ...plan.seniority.length ? { seniority: plan.seniority } : {},
       ...plan.industries.length ? { industry: plan.industries } : {},
+      // The words their sites use for what they do (contracts people-plan.ts `keywords`): a kind filed under a broad
+      // industry is found by its work. None on a plan made before them.
+      ...plan.keywords?.length ? { webKeywords: plan.keywords } : {},
       ...plan.sizes.length ? { companyEmployeeSize: plan.sizes } : {},
       personCountry: ["United States"],
       ...states.length ? { personState: states } : {}
@@ -37238,7 +37243,10 @@ var CARDS = {
   people_at_companies: PEOPLE_CARD,
   local_businesses: {
     actor: "compass/crawler-google-places",
-    build: "0.14.757",
+    // 0.14.757, the calibration's, was deleted by 23 Oct 2026 and every start was refused; 0.14.775 read the same
+    // fields in a probe that day (two Brooklyn plumbers).
+    build: "0.14.775",
+    buildId: "EH35UvIrsV0hnZG0Y",
     fields: MAPS_FIELDS,
     buildInput(plan, term, places) {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
@@ -37318,6 +37326,10 @@ var CARDS = {
     checker: CHECKER
   }
 };
+function leadPins() {
+  const all = [CARDS.local_businesses, CARDS.people_at_companies, CHECKER];
+  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build, buildId: c.buildId }])).values()];
+}
 function actorsOf(plan) {
   const c = plan.card === "people_at_companies" ? CARDS.people_at_companies : CARDS.local_businesses;
   return { discover: c.actor, check: c.checker.actor };
@@ -37674,11 +37686,13 @@ async function startFailed(p, row, owner, e) {
   if (isRefused(e)) {
     await p.db.runMarkUnknown(row.id, owner);
     await p.db.runReconcile(row.id, null, null, "failed");
-    return "refused";
+    const why = e instanceof Error ? e.message : String(e);
+    await p.tell?.({ kind: "source_refused", actor: row.actor, build: row.build, why }).catch(() => void 0);
+    return { kind: "refused", why };
   }
   if (isRetryable(e) && e.status === null) {
     await p.db.runMarkUnknown(row.id, owner);
-    return "unknown";
+    return { kind: "unknown" };
   }
   throw e;
 }
@@ -37734,10 +37748,10 @@ async function startPeople(p, round, plan, owner, leftUsd) {
     }
   ]);
   if (!row) throw new Error("lead_round_start: the people run's row was not made");
-  const said = (kind) => ({
+  const said = (kind, why) => ({
     kind: "started",
     phase: "main",
-    runs: [{ term: PEOPLE_TERM, kind }]
+    runs: [{ term: PEOPLE_TERM, kind, ...why ? { why } : {} }]
   });
   if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) return said("already");
   if (outOfTime(p)) throw new LeadRetry("out of time before the people run's start");
@@ -37756,9 +37770,12 @@ async function startPeople(p, round, plan, owner, leftUsd) {
     await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     return said("started");
   } catch (e) {
-    const kind = await startFailed(p, row, owner, e);
-    if (kind === "refused") await p.db.roundEnd(round.id, "source_failed");
-    return said(kind);
+    const failed = await startFailed(p, row, owner, e);
+    if (failed.kind === "refused") {
+      await p.db.roundEnd(round.id, "source_failed");
+      return said(failed.kind, failed.why);
+    }
+    return said(failed.kind);
   }
 }
 var reasonOf = (who, size) => [who?.title, size ? `${size} people` : null].filter((x) => !!x).join(" \xB7 ");
@@ -38491,7 +38508,7 @@ async function startRound(p, roundId, owner, resume = false) {
       await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
       outcomes.push({ term: w.term, kind: "started" });
     } catch (e) {
-      outcomes.push({ term: w.term, kind: await startFailed(p, row, owner, e) });
+      outcomes.push({ term: w.term, ...await startFailed(p, row, owner, e) });
     }
   }
   if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
@@ -38582,8 +38599,8 @@ async function check(p, roundId, batch, owner, again = null) {
       );
     return { kind: "started", emails: emails.length, more };
   } catch (e) {
-    const kind = await startFailed(p, row, owner, e);
-    if (kind === "refused") {
+    const failed = await startFailed(p, row, owner, e);
+    if (failed.kind === "refused") {
       await p.db.checkCommit(
         round.id,
         row.id,
@@ -38592,7 +38609,7 @@ async function check(p, roundId, batch, owner, again = null) {
         !again && all.length <= (batch + 1) * CHECK_BATCH
       );
     }
-    return { kind };
+    return failed;
   }
 }
 
@@ -40223,6 +40240,7 @@ export {
   judgeBatch,
   layerTwo,
   leadMarksFrom,
+  leadPins,
   mainAsk,
   markImageFrom,
   markPlaces,

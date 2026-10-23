@@ -336,11 +336,12 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "a glyph is an <svg> from the page's own createElement",
   );
   assert.equal(win.Icon({ name: "no-such-glyph" }).children.length, 1, "an unknown name is the circle");
-  // The Line's parts, on the same React: its charts, its hold to talk and Leads' plan card, published as the Line loads.
+  // The Line's parts, on the same React: its charts, its hold to talk and a search card's rules, published as the Line loads.
   const line = { React };
   vm.runInNewContext(await askLineGlobalsBundle(), { window: line, React, console });
-  for (const name of ["SegmentBar", "LineChart", "BarList", "useHoldToTalk", "LeadPlanCard"])
+  for (const name of ["SegmentBar", "LineChart", "BarList", "useHoldToTalk"])
     assert.equal(typeof line[name], "function", `${name} is published with the Line`);
+  assert.equal(typeof line.LeadCards?.view, "function", "a search card's rules are published with the Line");
   assert.equal(
     line.SegmentBar({ title: "T", rows: [{ key: "a", value: 0 }], config: {} }),
     null,

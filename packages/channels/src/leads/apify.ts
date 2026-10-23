@@ -17,6 +17,8 @@ import { providerFetch } from "../provider-fetch";
 
 export const APIFY_BASE = "https://api.apify.com/v2";
 export const APIFY_TIMEOUT_MS = 20_000;
+/** How much of the provider's own words a refusal keeps: enough to say why (a build gone, a limit reached), never a page. */
+const APIFY_REFUSAL_WORDS_MAX = 200;
 /** The run endings an ad-hoc webhook fires on (https://docs.apify.com/integrations/webhooks/events). */
 export const APIFY_RUN_END_EVENTS = [
   "ACTOR.RUN.SUCCEEDED",
@@ -82,6 +84,13 @@ export interface ApifyClient {
   ): Promise<{ items: unknown[]; total: number | null }>;
   abortRun(id: string): Promise<void>;
   eventPrices(actor: string): Promise<Record<string, number>>;
+  /** The build number the actor's `latest` tag names today, or null when it names none: what a gone pin is moved to. */
+  latestBuild(actor: string): Promise<string | null>;
+  /**
+   * The build number a build's id names, or null when the provider has no such build: a pin it deleted. Read without
+   * the key: the provider answers a build to whoever holds its id, and a key it does not know is refused (401).
+   */
+  buildNumberOf(buildId: string): Promise<string | null>;
 }
 
 /** `username/name` as the API spells it in a path. */
@@ -102,43 +111,62 @@ function runOf(data: unknown): ApifyRun {
   };
 }
 
+/**
+ * A 4xx or 5xx answer's error, as the provider writes it: its type (the status when it names none) and its own words,
+ * cut short. The words ride a refusal (23 Oct 2026: "Build with number "0.14.757" was not found." was read only by
+ * starting the run by hand; the type alone said nothing a person could act on).
+ */
+function apifyErrorOf(status: number, text: string): { type: string; said: string | null } {
+  try {
+    const error = recordOrNull(recordOrNull(JSON.parse(text))?.error);
+    return {
+      type: trimmedOrNull(error?.type) ?? `http ${status}`,
+      said: trimmedOrNull(error?.message)?.slice(0, APIFY_REFUSAL_WORDS_MAX) ?? null,
+    };
+  } catch {
+    return { type: `http ${status}`, said: null }; // the status is the message
+  }
+}
+
+/** The build number an actor's `latest` tag names, from the actor's own record. */
+const latestBuildOf = (body: unknown): string | null =>
+  trimmedOrNull(recordOrNull(recordOrNull(recordOrNull(recordOrNull(body)?.data)?.taggedBuilds)?.latest)?.buildNumber);
+
+/** One round trip: JSON out on 2xx; retryable on 429, 5xx or no answer; refused on any other 4xx, unless `allow` says that status is an answer. */
+async function apifyCall(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  allow: (status: number) => boolean = () => false,
+): Promise<{ body: unknown; headers: Headers }> {
+  const res = await providerFetch(
+    "apify",
+    url,
+    { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
+    { fetch: fetchImpl },
+  );
+  if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
+  const text = res.text;
+  if (res.status >= 200 && res.status < 300) {
+    try {
+      return { body: text ? JSON.parse(text) : null, headers: res.headers };
+    } catch {
+      throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
+    }
+  }
+  if (allow(res.status)) return { body: null, headers: res.headers };
+  const { type, said } = apifyErrorOf(res.status, text);
+  if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
+  throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
+}
+
 export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient {
   const headers = (json: boolean): Record<string, string> => ({
     Authorization: `Bearer ${token}`,
     ...(json ? { "content-type": "application/json" } : {}),
   });
-
-  /** One round trip: JSON out on 2xx; retryable on 429, 5xx or no answer; refused on any other 4xx, unless `allow` says that status is an answer. */
-  async function call(
-    url: string,
-    init: RequestInit,
-    allow: (status: number) => boolean = () => false,
-  ): Promise<{ body: unknown; headers: Headers }> {
-    const res = await providerFetch(
-      "apify",
-      url,
-      { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
-      { fetch: fetchImpl },
-    );
-    if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
-    const text = res.text;
-    if (res.status >= 200 && res.status < 300) {
-      try {
-        return { body: text ? JSON.parse(text) : null, headers: res.headers };
-      } catch {
-        throw new ApifyRefused(res.status, "the provider answered with something that is not JSON");
-      }
-    }
-    if (allow(res.status)) return { body: null, headers: res.headers };
-    let type = `http ${res.status}`;
-    try {
-      type = trimmedOrNull(recordOrNull(recordOrNull(JSON.parse(text))?.error)?.type) ?? type;
-    } catch {
-      /* the status is the message */
-    }
-    if (res.status === 429 || res.status >= 500) throw new ApifyRetryable(res.status, `the provider is busy: ${type}`);
-    throw new ApifyRefused(res.status, `the provider refused: ${type}`);
-  }
+  const call = (url: string, init: RequestInit, allow?: (status: number) => boolean) =>
+    apifyCall(fetchImpl, url, init, allow);
 
   return {
     async startRun(actor, input, opts) {
@@ -243,6 +271,22 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         if (price !== null) out[name] = price;
       }
       return out;
+    },
+    async latestBuild(actor) {
+      return latestBuildOf(
+        (await call(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers(false) })).body,
+      );
+    },
+    async buildNumberOf(buildId) {
+      const { body } = await call(
+        `${APIFY_BASE}/actor-builds/${encodeURIComponent(buildId)}`,
+        { method: "GET" },
+        (s) => s === 404, // record-not-found: the build is gone
+      );
+      if (body === null) return null;
+      const number = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.buildNumber);
+      if (!number) throw new ApifyRefused(200, "the provider's build named no number");
+      return number;
     },
   };
 }

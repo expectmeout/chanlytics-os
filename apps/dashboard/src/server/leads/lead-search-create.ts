@@ -19,7 +19,9 @@ export const CreateSchema = z.intersection(LeadSearchPlanSchema, z.object({ thre
 
 export async function createLeadSearch(ctx: RouteContext, member: Member, input: z.infer<typeof CreateSchema>) {
   const { thread_id: thread, ...rest } = input;
-  const plan = rest;
+  // A new search starts at its plan's first version, whatever the card counted on the way (planVersionOf counts a
+  // change made before it existed): the door refuses any other, and a card changed before Find failed (23 Oct 2026).
+  const plan = { ...rest, version: 1 };
   const threadId = isUuid(thread) ? String(thread) : null;
   const { data, error } = await ctx.supabase.rpc("lead_search_create", {
     p_tenant_id: member.tenantId,

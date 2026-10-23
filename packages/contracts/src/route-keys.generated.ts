@@ -130,6 +130,7 @@ export const ROUTE_KEYS = [
   "PATCH team/[id]",
   "PATCH workspaces",
   "POST ask",
+  "POST ask/idea",
   "POST ask/memory",
   "POST ask/messages/[id]/proposals/[pid]",
   "POST ask/morning",

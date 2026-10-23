@@ -472,7 +472,9 @@ Step 9 of the order. People's Leads scope is TSX in `apps/dashboard/src/surfaces
   the peek's names, Campaigns' `bcWhenWords`, `ReachOutDoor` and `ReachOutSheet` (Today imports the when-words now), or
   People's table, hooks and rail kit: `people-globals.ts` keeps the nine names the shell itself draws (the strip's scopes,
   the deal and step sheets, the demo Lists page's two). `installReachOuts` is gone with its one reader. The one Leads part
-  still published is `LeadPlanCard`, which Ask's palette calls by name (`leads/globals.ts`), until Ask moves.
+  still published is `LeadCards`, a search card's rules from contracts (`leads/search/search-card.ts`), which Ask's Line reads by name
+  (`ask/line-globals.ts`), until Ask moves; the finder's `LeadPlanCard` left Ask on 23 Oct 2026, when a search card
+  became read, its changes said to Ask.
 - **A page that follows its own address replaces through the address.** The shell's `CHANLY.nav` takes a route alone, so a
   `navigate(to, { replace: true })` pushed: the peek walking its leads would have made an entry per lead. Leads, like the
   Pipeline, moves through the route's own door (`people-route.tsx` `ownGo`: `addressReplace` for a replace).

@@ -118,6 +118,8 @@ const PAGE_KEY_WORDS = {
   model_failures: "A workspace's model calls failing",
   model_credit: "The model key's credit ran out",
   provider_auth: "A provider refusing our credentials",
+  lead_source_refused: "A lead source refusing to start",
+  lead_source_pin: "A lead source's pinned build gone",
   outside: "A check outside the product"
 };
 export function pageKeyWords(key) {

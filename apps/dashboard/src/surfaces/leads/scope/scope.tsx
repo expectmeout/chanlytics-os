@@ -191,9 +191,6 @@ const planPanelOf = (p: P, phone: boolean) => {
       onApprove={p.onFinderApprove}
       onBack={p.onFinderBack}
       onClose={p.onCloseFinder}
-      people={p.finderPeople}
-      month={p.finderMonth}
-      onApprovePeople={p.onFinderApprovePeople}
     />
   );
   return panel;

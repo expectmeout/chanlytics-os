@@ -127,6 +127,7 @@ export const ROUTES = {
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
+  "POST ask/idea": { method: "POST", path: "/api/v1/ask/idea" },
   "POST ask/memory": { method: "POST", path: "/api/v1/ask/memory" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
   "POST ask/morning": { method: "POST", path: "/api/v1/ask/morning" },
@@ -447,6 +448,7 @@ export type Routes = {
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
+  "POST ask/idea": typeof import("../../app/api/v1/ask/idea/route").POST;
   "POST ask/memory": typeof import("../../app/api/v1/ask/memory/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
   "POST ask/morning": typeof import("../../app/api/v1/ask/morning/route").POST;

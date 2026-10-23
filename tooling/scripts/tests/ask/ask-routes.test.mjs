@@ -1519,6 +1519,56 @@ test("a new search's card carries the thread it was planned in, for the commit t
   }
 });
 
+test("a change said to Ask makes the search card again (Ruben, 23 Oct 2026): the turn is told the waiting card's plan whole, the card it makes replaces the one waiting, which is kept set aside, and an idea's mark goes with it", async () => {
+  const tables = leadWorld();
+  let n = 0;
+  const asked = [];
+  setAskPorts({
+    round: async ({ request }) => {
+      asked.push(request);
+      return {
+        blocks: [{ type: "tool_use", id: `t${++n}`, name: "propose_lead_search", text: "", json: '{"action":"find"}' }],
+        stopReason: "tool_use",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    propose: async () => ({
+      proposal: {
+        id: `p${n}`,
+        kind: "lead_search",
+        needs: "owner",
+        title: `Find ${n === 1 ? 20 : 40} personal trainers`,
+        summary: "…",
+        payload: { plan: n === 1 ? { ...PLAN, from: "idea" } : { ...PLAN, count: 40 } },
+        undo: "Stop the search",
+      },
+      result: JSON.stringify({ proposed: true }),
+      isError: false,
+    }),
+  });
+  try {
+    const first = { text: "20 personal trainers in Austin", surface: "leads" };
+    await linesOf(await ask.POST.run(send("POST", first, inA), ctxFor(tables)));
+    const made = tables.ask_threads[0].id;
+    const again = { text: "Make it 40", thread_id: made, surface: "leads" };
+    const answer = (await linesOf(await ask.POST.run(send("POST", again, inA), ctxFor(tables)))).at(-1).message;
+    const told = JSON.stringify(asked.at(-1).messages);
+    assert.ok(told.includes("A search card waits in this thread for their press"), "the waiting card is told");
+    assert.ok(told.includes('\\"terms\\":[\\"personal trainer\\",\\"strength coach\\"]'), "its plan whole");
+    assert.equal(answer.proposals[0].payload.plan.from, "idea", "the idea's mark goes with the change");
+    const [firstCard] = tables.ask_messages[1].content.proposals;
+    assert.deepEqual(
+      [firstCard.id, firstCard.outcome?.state, firstCard.outcome?.receipt],
+      ["p1", "dismissed", "Changed below."],
+      "the card it replaced is kept set aside: one search card in a thread can be pressed",
+    );
+    assert.equal(tables.ask_messages[3].content.proposals[0].outcome, undefined, "the new one waits");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
 /* ------------------------------------------------ a long thread, and the scope of each turn (Phase 5, 5.1) -- */
 
 /** A stored thread of `n` rows, a question and its answer in turn, a minute apart, the first at `from`. */

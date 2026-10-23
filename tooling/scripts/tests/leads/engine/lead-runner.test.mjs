@@ -99,6 +99,36 @@ test("a refused start fails the run through the reconcile door; every term refus
   assert.deepEqual([w2.round().state, w2.round().ending], ["ended", "source_failed"]);
 });
 
+test("a refused start says the provider's words on its term and tells the platform which actor, at which build, refused", async () => {
+  // 23 Oct 2026: a deleted build refused every Maps start, and its words were kept nowhere.
+  const { w, p } = world();
+  const why = 'the provider refused: record-not-found (Build with number "0.14.757" was not found.)';
+  w.apify.startRun = async () => {
+    throw new ApifyRefused(404, why);
+  };
+  const told = [];
+  const out = await startRound(p(OWNER, { tell: async (e) => void told.push(e) }), w.round().id, OWNER);
+  assert.deepEqual(
+    out.runs.map((r) => [r.kind, r.why]),
+    [
+      ["refused", why],
+      ["refused", why],
+    ],
+  );
+  assert.deepEqual(told[0], { kind: "source_refused", actor: w.runs()[0].actor, build: w.runs()[0].build, why });
+  assert.equal(told.length, 2, "once a term: the pager keeps one page an actor");
+  // A tell that fails is nobody's trouble but its own: the round still ends as it should.
+  const { w: w2, p: p2 } = world();
+  w2.apify.startRun = async () => {
+    throw new ApifyRefused(404, why);
+  };
+  const failing = async () => {
+    throw new Error("no mail today");
+  };
+  await startRound(p2(OWNER, { tell: failing }), w2.round().id, OWNER);
+  assert.deepEqual([w2.round().state, w2.round().ending], ["ended", "source_failed"]);
+});
+
 test("a start whose answer was lost stays unknown and is never started again; the sweep reconciles it by our row id in the provider's list, or fails it after ten minutes", async () => {
   const { w, p } = world();
   const real = w.apify.startRun;

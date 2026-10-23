@@ -82,21 +82,19 @@ const LEAD_FINDER_SHUT: FinderState = {
   trace: null,
   pick: null,
   more: null,
-  idea: null,
-  people: null,
 };
 type FinderMove = { open: Partial<FinderState> } | { close: true } | { set: Partial<FinderState> };
 const leadFinderStep = (f: FinderState, move: FinderMove): FinderState => {
   const next: FinderState =
     "open" in move
-      ? { ...f, idea: null, people: null, ...move.open, open: true, refusal: null, pick: null }
+      ? { ...f, ...move.open, open: true, refusal: null, pick: null }
       : "close" in move
-        ? { ...f, open: false, more: null, idea: null, people: null }
+        ? { ...f, open: false, more: null }
         : { ...f, ...move.set };
   return (Object.keys(next) as (keyof FinderState)[]).every((k) => Object.is(next[k], f[k])) ? f : next;
 };
 
-/** The moves: open a plan (`{ stage, words, proposal, plan, more }`, or a people idea's `people`), close it, set fields. */
+/** The moves: open a plan (`{ stage, words, proposal, plan, more }`), close it, set fields. */
 const leadFinderMoves = (moveFinder: Dispatch<FinderMove>) => ({
   openFinder: (card: Partial<FinderState>) => moveFinder({ open: card }),
   closeFinder: () => moveFinder({ close: true }),

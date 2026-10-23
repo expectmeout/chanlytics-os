@@ -1,4 +1,16 @@
 /** The lead finder and the Leads scope of People: the plan, the judge, the rows, the review, the words. */
+// A search's card in Ask: its rows, its press, the card a newer one replaces, and the waiting card as a turn is told it.
+export {
+  SEARCH_CARD_REPLACED,
+  searchCardView,
+  replacedOutcome,
+  searchCardsReplaced,
+  startsSearch,
+  waitingSearchWords,
+  withAnswerLanded,
+  withIdeaCarried,
+} from "./search/search-card";
+export type { SearchCardView } from "./search/search-card";
 export {
   LEAD_SEARCH_VIAS,
   LEAD_ROUND_PURPOSES,
@@ -68,6 +80,7 @@ export {
   PEOPLE_SENIORITY_WORDS,
   PEOPLE_COMPANY_SIZES,
   PEOPLE_COUNT_MAX,
+  PEOPLE_KEYWORDS_MAX,
   PEOPLE_RUN_FLOOR_USD,
   PEOPLE_TITLES_MAX,
   PEOPLE_INDUSTRIES_MAX,
@@ -89,8 +102,8 @@ export {
   PEOPLE_STRIP_WORDS,
   PEOPLE_PROVIDER_LEAST,
   peoplePlanAsk,
-  peoplePlanFacts,
   peoplePlanFactLine,
+  peoplePlanRows,
 } from "./search/people-plan";
 export type {
   LeadPeoplePlan,

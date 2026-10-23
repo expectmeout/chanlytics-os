@@ -11,6 +11,7 @@ import {
   partialSay,
   answerSoFar,
   proseAnswer,
+  waitingSearchWords,
   type AskAnswer,
   type AskColumn,
   type AskLanguage,
@@ -304,16 +305,22 @@ function wordsBlock(
     style: input.style ?? "",
     above: aboveRoleWords(input.role),
   };
+  // The search card waiting in this thread for its press, said whole as find would take its plan (contracts
+  // waitingSearchWords), so a change said to Ask is that plan changed only there, never planned again from its title.
+  const searchCard = waitingSearchWords(input.waiting ?? []);
   const words = (live: boolean, dataDropped: boolean) => ({
     type: "text" as const,
-    text: turnWords({
-      ...facts,
-      since: live ? input.chain?.since : undefined,
-      replayedAt: live ? input.chain?.readAt : undefined,
-      context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
-      crossPage: !dataDropped && rode.crossBlocks.length > 0,
-      scopeRead: !dataDropped && !!rode.scopedRow,
-    }),
+    text: [
+      turnWords({
+        ...facts,
+        since: live ? input.chain?.since : undefined,
+        replayedAt: live ? input.chain?.readAt : undefined,
+        context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
+        crossPage: !dataDropped && rode.crossBlocks.length > 0,
+        scopeRead: !dataDropped && !!rode.scopedRow,
+      }),
+      ...(searchCard ? [searchCard] : []),
+    ].join("\n"),
   });
   return withSkillGuides(words, input.text);
 }

@@ -4,6 +4,8 @@
  * a run).
  */
 import { leadQuestionRoute, leadsRoute } from "../leads/leads";
+import type { LeadSearchPlan } from "../leads/search/plan";
+import { planWho } from "../leads/search/sentence";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
 import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
@@ -34,8 +36,11 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
   receipt: ({ payload: pl }) => {
     const am = amendsOf(pl);
     if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
-    const plan = (pl.plan ?? {}) as { count?: number; terms?: string[] };
-    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+    const plan = (pl.plan ?? {}) as Partial<LeadSearchPlan>;
+    // Who it finds as the card said them ("law firms"), not the first word it is searched with ("law firm").
+    const who =
+      plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan as LeadSearchPlan) : plan.terms?.[0];
+    return `Finding ${plan.count ?? ""} ${who ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
       /\s+/g,
       " ",
     );

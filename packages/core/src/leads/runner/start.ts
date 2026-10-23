@@ -29,11 +29,13 @@ import {
 
 /** no_room: a term past the runs the round's reserve holds the actor's floor for (runCaps), said and never started. */
 export type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already" | "no_room";
+/** What became of one term's run; a refused one carries the provider's own words, for the log line that says it. */
+type TermSaid = { term: string; kind: TermOutcome; why?: string };
 export type StartOutcome =
   | { kind: "not_open" }
   | { kind: "paused" | "may_not_spend" }
   | { kind: "spent" }
-  | { kind: "started"; phase: Phase; runs: { term: string; kind: TermOutcome }[] };
+  | { kind: "started"; phase: Phase; runs: TermSaid[] };
 
 /** A run a start makes: its deterministic id, its token's hash, and what it asks for and may charge. */
 type WantedRun = { id: string; term: string; hash: string; places: number; cap: number };
@@ -51,9 +53,9 @@ async function runsToStart(
   phase: Phase,
   ask: { terms: string[]; perTerm: number[] },
   caps: number[],
-): Promise<{ wanted: WantedRun[]; untried: { term: string; kind: TermOutcome }[] }> {
+): Promise<{ wanted: WantedRun[]; untried: TermSaid[] }> {
   const wanted: WantedRun[] = [];
-  const untried: { term: string; kind: TermOutcome }[] = [];
+  const untried: TermSaid[] = [];
   for (const [i, term] of ask.terms.entries()) {
     const places = ask.perTerm[i] ?? 0;
     const cap = caps[i] ?? 0;
@@ -126,7 +128,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     })),
   );
 
-  const outcomes: { term: string; kind: TermOutcome }[] = [];
+  const outcomes: TermSaid[] = [];
   for (const w of wanted) {
     const row = rows.find((r) => r.id === w.id);
     if (!row) throw new Error(`lead_round_start: the run row for ${w.term} was not made`);
@@ -153,7 +155,7 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
       await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
       outcomes.push({ term: w.term, kind: "started" });
     } catch (e) {
-      outcomes.push({ term: w.term, kind: await startFailed(p, row, owner, e) });
+      outcomes.push({ term: w.term, ...(await startFailed(p, row, owner, e)) });
     }
   }
   if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
