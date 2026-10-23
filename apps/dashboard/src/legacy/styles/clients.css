@@ -2706,12 +2706,14 @@
   .pipe-scope .pl-sec-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   /* The Pipeline's line over its rows (scope-screen.tsx phoneFilters): its counts as filters, each with its dot, the one
-     shown in ink at 600 and the others quieter; then what they come to, once, in the muted ink. */
-  .pipe-summary { display: flex; flex-direction: column; gap: 2px; padding: 6px 16px 4px; }
+     shown in ink at 600 and the others quieter. It stands where People's line does (.pl-standing, below: under the
+     search, 6px over the rows, its words one line at the gutter): it stood 18px lower and 30px taller, its 30px
+     losing to the touch floor's 44px (legacy-bridge/legacy.css), which loads after it (Ruben, 23 Oct 2026). */
+  .pipe-summary { display: flex; flex-direction: column; gap: 2px; padding: 0 16px 6px; }
   .pipe-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
-  html.legacy-on .pipe-filter { position: relative; gap: 6px; padding: 0; height: 30px; min-height: 30px; font-size: var(--text-sm); }
-  /* A thumb's press area over and under the word, which the line does not make room for. */
-  .pipe-filter::after { content: ""; position: absolute; inset: -7px -6px; }
+  html.legacy-on .pipe-summary .pipe-filter { position: relative; gap: 6px; padding: 0; border: 0; height: auto; min-height: 0; line-height: var(--leading-normal); font-size: var(--text-sm); }
+  /* A thumb's 44px press area over and under the words, which the line does not make room for. */
+  .pipe-filter::after { content: ""; position: absolute; inset: -13px -6px; }
   .pipe-filter[aria-pressed="true"] { color: var(--ink); font-weight: var(--weight-semibold); }
   .pipe-filters.is-on .pipe-filter[aria-pressed="false"] { opacity: 0.55; }
   .pipe-filter-dot { flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); }
