@@ -17,7 +17,12 @@
 
 set local lock_timeout = '3s';
 
+-- Its key is its own id, as messages' is, and one a thread and kind is a unique constraint beside it. With
+-- (tenant_id, conversation_id, kind) as the primary key both foreign keys sat inside it, and PostgREST read the table
+-- as a join between conversations and tenants: every conversations -> tenants embed (the send's read of the wire)
+-- found two relationships and was refused (the migrations replay on #1820).
 create table if not exists public.conversation_drafts (
+  id              uuid primary key default gen_random_uuid(),
   tenant_id       uuid not null references public.tenants (id) on delete cascade,
   conversation_id uuid not null,
   -- A reply to their last message, or the brief for a call back.
@@ -28,7 +33,7 @@ create table if not exists public.conversation_drafts (
   words           jsonb not null default '{}'::jsonb,
   made_by         uuid references auth.users (id) on delete set null,
   made_at         timestamptz not null default now(),
-  primary key (tenant_id, conversation_id, kind)
+  constraint conversation_drafts_one_a_thread_and_kind unique (tenant_id, conversation_id, kind)
 );
 comment on table public.conversation_drafts is
   'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
@@ -90,7 +95,7 @@ begin
   end if;
   insert into public.conversation_drafts as d (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at)
   values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now())
-  on conflict on constraint conversation_drafts_pkey do update
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
      set for_message_id = excluded.for_message_id,
          words = excluded.words,
          made_by = excluded.made_by,

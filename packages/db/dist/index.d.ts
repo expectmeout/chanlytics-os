@@ -1339,6 +1339,7 @@ type Database = {
                 Row: {
                     conversation_id: string;
                     for_message_id: string | null;
+                    id: string;
                     kind: string;
                     made_at: string;
                     made_by: string | null;
@@ -1348,6 +1349,7 @@ type Database = {
                 Insert: {
                     conversation_id: string;
                     for_message_id?: string | null;
+                    id?: string;
                     kind: string;
                     made_at?: string;
                     made_by?: string | null;
@@ -1357,6 +1359,7 @@ type Database = {
                 Update: {
                     conversation_id?: string;
                     for_message_id?: string | null;
+                    id?: string;
                     kind?: string;
                     made_at?: string;
                     made_by?: string | null;
@@ -13708,6 +13711,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
             Row: {
                 conversation_id: string;
                 for_message_id: string | null;
+                id: string;
                 kind: string;
                 made_at: string;
                 made_by: string | null;
@@ -13717,6 +13721,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
             Insert: {
                 conversation_id: string;
                 for_message_id?: string | null;
+                id?: string;
                 kind: string;
                 made_at?: string;
                 made_by?: string | null;
@@ -13726,6 +13731,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
             Update: {
                 conversation_id?: string;
                 for_message_id?: string | null;
+                id?: string;
                 kind?: string;
                 made_at?: string;
                 made_by?: string | null;
@@ -25063,6 +25069,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Row: {
             conversation_id: string;
             for_message_id: string | null;
+            id: string;
             kind: string;
             made_at: string;
             made_by: string | null;
@@ -25072,6 +25079,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Insert: {
             conversation_id: string;
             for_message_id?: string | null;
+            id?: string;
             kind: string;
             made_at?: string;
             made_by?: string | null;
@@ -25081,6 +25089,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Update: {
             conversation_id?: string;
             for_message_id?: string | null;
+            id?: string;
             kind?: string;
             made_at?: string;
             made_by?: string | null;
@@ -31683,6 +31692,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Row: {
             conversation_id: string;
             for_message_id: string | null;
+            id: string;
             kind: string;
             made_at: string;
             made_by: string | null;
@@ -31692,6 +31702,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Insert: {
             conversation_id: string;
             for_message_id?: string | null;
+            id?: string;
             kind: string;
             made_at?: string;
             made_by?: string | null;
@@ -31701,6 +31712,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Update: {
             conversation_id?: string;
             for_message_id?: string | null;
+            id?: string;
             kind?: string;
             made_at?: string;
             made_by?: string | null;
@@ -38303,6 +38315,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Row: {
             conversation_id: string;
             for_message_id: string | null;
+            id: string;
             kind: string;
             made_at: string;
             made_by: string | null;
@@ -38312,6 +38325,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Insert: {
             conversation_id: string;
             for_message_id?: string | null;
+            id?: string;
             kind: string;
             made_at?: string;
             made_by?: string | null;
@@ -38321,6 +38335,7 @@ declare function builderOf<T extends TenantTable>(db: Db$T, table: T): _supabase
         Update: {
             conversation_id?: string;
             for_message_id?: string | null;
+            id?: string;
             kind?: string;
             made_at?: string;
             made_by?: string | null;

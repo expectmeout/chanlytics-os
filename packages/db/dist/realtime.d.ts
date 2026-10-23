@@ -1336,6 +1336,7 @@ type Database = {
                 Row: {
                     conversation_id: string;
                     for_message_id: string | null;
+                    id: string;
                     kind: string;
                     made_at: string;
                     made_by: string | null;
@@ -1345,6 +1346,7 @@ type Database = {
                 Insert: {
                     conversation_id: string;
                     for_message_id?: string | null;
+                    id?: string;
                     kind: string;
                     made_at?: string;
                     made_by?: string | null;
@@ -1354,6 +1356,7 @@ type Database = {
                 Update: {
                     conversation_id?: string;
                     for_message_id?: string | null;
+                    id?: string;
                     kind?: string;
                     made_at?: string;
                     made_by?: string | null;

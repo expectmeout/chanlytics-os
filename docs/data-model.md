@@ -795,11 +795,12 @@ Foreign keys:
 Ask's drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace's; written through conversation_draft_keep.
 
 - Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`
-- Primary key: `tenant_id`, `conversation_id`, `kind`
+- Primary key: `id`
 - Row-level security: on, 1 policy
 
 | Column | Type | Null | Default | Note |
 | --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
 | `conversation_id` | uuid | no |  |  |
 | `kind` | text | no |  |  |

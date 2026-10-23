@@ -3292,7 +3292,7 @@ begin
   end if;
   insert into public.conversation_drafts as d (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at)
   values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now())
-  on conflict on constraint conversation_drafts_pkey do update
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
      set for_message_id = excluded.for_message_id,
          words = excluded.words,
          made_by = excluded.made_by,
@@ -31592,6 +31592,7 @@ COMMENT ON TABLE public.contact_reads IS 'Per member of a workspace: every messa
 --
 
 CREATE TABLE public.conversation_drafts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
     conversation_id uuid NOT NULL,
     kind text NOT NULL,
@@ -35392,11 +35393,19 @@ ALTER TABLE ONLY public.contacts
 
 
 --
+-- Name: conversation_drafts conversation_drafts_one_a_thread_and_kind; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conversation_drafts
+    ADD CONSTRAINT conversation_drafts_one_a_thread_and_kind UNIQUE (tenant_id, conversation_id, kind);
+
+
+--
 -- Name: conversation_drafts conversation_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.conversation_drafts
-    ADD CONSTRAINT conversation_drafts_pkey PRIMARY KEY (tenant_id, conversation_id, kind);
+    ADD CONSTRAINT conversation_drafts_pkey PRIMARY KEY (id);
 
 
 --

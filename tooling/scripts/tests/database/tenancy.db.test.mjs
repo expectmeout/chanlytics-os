@@ -131,6 +131,13 @@ before(async () => {
   });
   await seed("calls", { tenant_id: A, retell_call_id: "call_tenancy_1" });
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
+  // Ask's reply drafted ahead on the thread (00475); the stranger's attempt is a brief, so one a thread and kind refuses
+  // nothing on its own.
+  await seed(
+    "conversation_drafts",
+    { tenant_id: A, conversation_id: ctx.conversation, kind: "reply", words: { text: "A draft" } },
+    null,
+  );
   // An owner's correction looked at (00448, decision 0063): keyed by its message, so the stranger's attempt names another.
   ctx.message2 = await seed("messages", {
     tenant_id: A,
@@ -594,6 +601,11 @@ const TENANT_TABLES = {
     () => ({ tenant_id: A, contact_id: ctx.contact2, channel: "whatsapp", external_id: "15550001002" }),
   ],
   conversations: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2 })],
+  // Ask's drafts written ahead for a waiting thread (00475): the workspace's members read them, only the door writes.
+  conversation_drafts: [
+    "member",
+    () => ({ tenant_id: A, conversation_id: ctx.conversation, kind: "brief", words: { text: "A stranger's draft" } }),
+  ],
   messages: [
     "member",
     () => ({
