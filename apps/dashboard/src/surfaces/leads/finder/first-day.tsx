@@ -324,25 +324,23 @@ const AskField = ({
       e.currentTarget.reset();
       box?.blur();
     }}
-    // A press on the capsule around the box, its mark or its padding, is a press in the box.
-    onClick={(e) => {
-      if (e.target === e.currentTarget || (e.target as HTMLElement).closest(".icon"))
-        (e.currentTarget.elements.namedItem("words") as HTMLInputElement | null)?.focus();
-    }}
   >
-    <Icon name="three" size={14} />
-    <input
-      className="ld-first-ask-words"
-      name="words"
-      type="text"
-      autoComplete="off"
-      enterKeyHint="send"
-      maxLength={400}
-      placeholder={FIRST_DAY_SAYS.ask}
-      aria-label={FIRST_DAY_SAYS.ask}
-      readOnly={!canFind}
-      data-testid="leads-first-words"
-    />
+    {/* The mark and the box are one label: a press on either, or between them, is a press in the box. */}
+    <label className="ld-first-ask-in">
+      <Icon name="three" size={14} />
+      <input
+        className="ld-first-ask-words"
+        name="words"
+        type="text"
+        autoComplete="off"
+        enterKeyHint="send"
+        maxLength={400}
+        placeholder={FIRST_DAY_SAYS.ask}
+        aria-label={FIRST_DAY_SAYS.ask}
+        readOnly={!canFind}
+        data-testid="leads-first-words"
+      />
+    </label>
     <button
       type="submit"
       className="ld-first-ask-go"

@@ -215,7 +215,7 @@ export const PEOPLE_PROVIDER_LEAST = 100;
  * companies, never under the provider's least) at the card's rate, and a minute for their addresses' checks. Never under
  * two minutes.
  */
-export function peopleMinutes(count: number): number {
+function peopleMinutes(count: number): number {
   const people = Math.min(1000, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count))));
   return Math.max(2, Math.ceil(people / 100) + 1);
 }

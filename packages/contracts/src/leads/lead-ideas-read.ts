@@ -28,7 +28,7 @@ const cut = (max: number) => z.string().transform((s) => s.trim().slice(0, max))
  * An idea's line the owner reads, kept to a little past what the model was asked for (IDEA_LENGTHS) and cut after a whole
  * word with an ellipsis: a why sliced at 140 characters ended "…beyond Broo" (22 Oct 2026).
  */
-const said = (max: number) => z.string().transform((s) => clipAtWord(s.replace(/\s+/g, " "), max));
+const wordsCut = (max: number) => z.string().transform((s) => clipAtWord(s.replace(/\s+/g, " "), max));
 const textList = z.array(z.string()).catch([]);
 
 /** The model's answer, read leniently: what does not fit a plan is dropped by ideasRead, never the whole answer. */
@@ -43,8 +43,8 @@ export const LeadIdeasAnswerSchema = z.object({
       z.object({
         card: z.enum(["places", "people"]).catch("places"),
         role: z.enum(["proven", "new", "wider"]).catch("new"),
-        words: said(IDEA_LENGTHS.words * 2),
-        why: said(IDEA_LENGTHS.why + 30),
+        words: wordsCut(IDEA_LENGTHS.words * 2),
+        why: wordsCut(IDEA_LENGTHS.why + 30),
         who: cut(80),
         who_one: cut(60),
         category_key: cut(40),

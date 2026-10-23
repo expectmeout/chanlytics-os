@@ -88,7 +88,6 @@ export {
   peopleWho,
   PEOPLE_STRIP_WORDS,
   PEOPLE_PROVIDER_LEAST,
-  peopleMinutes,
   peoplePlanAsk,
   peoplePlanFacts,
   peoplePlanFactLine,
@@ -393,15 +392,14 @@ export {
 export type { PlaceFacts, JudgeFactKey, JudgeCriterionAnswer, JudgePlaceAnswer } from "./lead-judge";
 export {
   COMPANY_ABOUT_MAX,
-  COMPANY_FACT_KEYS,
   COMPANY_JUDGE_OUTPUT_SCHEMA,
   companyFitOf,
   companyJudgeQuestion,
   companyJudgeSystemPrompt,
   companyJudgeUserContent,
   parseCompanyJudgeAnswer,
-} from "./company-judge";
-export type { CompanyFacts, CompanyFactKey, CompanyFitAnswer, CompanyFitVerdict } from "./company-judge";
+} from "./search/company-judge";
+export type { CompanyFacts, CompanyFitAnswer } from "./search/company-judge";
 export {
   LEAD_BACK_WORDS,
   LEAD_PILE_UNDO_KEY,

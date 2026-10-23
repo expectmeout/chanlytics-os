@@ -37,10 +37,14 @@ import { UnsavedAsk, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn, gate, navigate } from "../../legacy-verbs";
+import { api } from "@/legacy-bridge/api";
 import type { Flash } from "../../people/types";
-import { startPeopleSearch } from "../surface";
 
 const PW = PEOPLE_FIND_WORDS;
+
+/** Starts a people search as the owner approved it on the page: these boxes, or a people idea's card (decision 0070). */
+export const startPeopleSearch = (plan: LeadPeoplePlan) =>
+  api()("POST lead-searches/people", { body: { plan, via: "people", thread_id: null }, once: true });
 
 /** One set of switches in a menu, under its label: what is on, and the words each says. */
 function Toggles<V extends string>(p: {

@@ -377,7 +377,8 @@
 .ld-first-ask { position: relative; margin-top: 28px; width: 100%; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 22px; border: 0; border-radius: var(--radius-full); background-color: var(--surface-control-fill); background-image: var(--surface-control-sheen); box-shadow: var(--surface-control-depth); backdrop-filter: var(--surface-control-blur); font: inherit; color: var(--ink-muted); text-align: left; cursor: text; }
 .ld-first-ask::after { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--surface-control-rim); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); pointer-events: none; }
 .ld-first-ask:focus-within { box-shadow: var(--surface-control-depth), var(--focus-field-edged); }
-.ld-first-ask > .icon { flex: none; }
+.ld-first-ask-in { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: inherit; cursor: text; }
+.ld-first-ask-in > .icon { flex: none; }
 /* The box: no ground or edge of its own (the capsule is its edge), the words at the field's size. */
 input.ld-first-ask-words { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-md); line-height: var(--leading-tight); color: var(--ink); text-overflow: ellipsis; }
 input.ld-first-ask-words::placeholder { color: var(--ink-dim); opacity: 1; }

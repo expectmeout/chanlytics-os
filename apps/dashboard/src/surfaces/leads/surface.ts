@@ -26,7 +26,6 @@ import {
   type LeadMonthDto,
   type LeadPileCountsDto,
   type LeadPeekVM,
-  type LeadPeoplePlan,
   type LeadRowDto,
   type LeadSearchDto,
   type LeadSearchPlan,
@@ -619,10 +618,6 @@ export async function answerSearch(id: string, answer: "keep" | "include" | "sto
 export async function startSearch(plan: LeadSearchPlan) {
   return api()("POST lead-searches", { body: plan, once: true });
 }
-/** A people search (the people card, 00430), as the owner approved it on the page: an idea's card or Find people. */
-export async function startPeopleSearch(plan: LeadPeoplePlan) {
-  return api()("POST lead-searches/people", { body: { plan, via: "people", thread_id: null }, once: true });
-}
 export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
 }
@@ -668,37 +663,7 @@ export async function readSuggestions(wait = 0): Promise<void> {
  * refusal is the caller's to say.
  */
 export const newSuggestions = (): Promise<ApiResult<LeadSuggestionsDto>> => ideasWrittenNow({ again: true });
-
-/** How long Write it for me waits on a write another read holds, before the sheet lets the page say it is writing. */
-const LINE_WRITTEN_WAIT_MS = 45_000;
-
-/**
- * Write it for me: as New ideas, and where another write holds them, the ideas the page's own reads lay on the view once
- * they land written, so the sheet that asked shows the line written rather than the one let go. Still held after
- * LINE_WRITTEN_WAIT_MS, it answers pending.
- */
-export async function lineWrittenForMe(): Promise<ApiResult<LeadSuggestionsDto>> {
-  const r = await ideasWrittenNow({ ours: true });
-  if (!r.ok || !r.data.pending) return r;
-  const landed = await ideasLanded(LINE_WRITTEN_WAIT_MS);
-  return landed ? { ok: true, data: landed } : r;
-}
-
-/** The ideas once a read lays them on the view written, or null where none has within `ms`. */
-const ideasLanded = (ms: number): Promise<LeadSuggestionsDto | null> =>
-  new Promise((done) => {
-    const finish = (s: LeadSuggestionsDto | null) => {
-      window.removeEventListener("surface:leads", look);
-      clearTimeout(timer);
-      done(s);
-    };
-    const look = () => {
-      const s = leadsLoaded?.suggestions;
-      if (s && !s.pending) finish(s);
-    };
-    const timer = setTimeout(() => finish(null), ms);
-    window.addEventListener("surface:leads", look);
-  });
+export const lineWrittenForMe = (): Promise<ApiResult<LeadSuggestionsDto>> => ideasWrittenNow({ ours: true });
 
 async function ideasWrittenNow(body: { again: true } | { ours: true }): Promise<ApiResult<LeadSuggestionsDto>> {
   const r = await leadCall<LeadSuggestionsDto>("POST lead-suggestions", { body });

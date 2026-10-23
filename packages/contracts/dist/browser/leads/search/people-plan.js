@@ -108,7 +108,7 @@ export function peopleEstimateUsd(count, prices) {
   return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
 }
 export const PEOPLE_PROVIDER_LEAST = 100;
-export function peopleMinutes(count) {
+function peopleMinutes(count) {
   const people = Math.min(1e3, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count))));
   return Math.max(2, Math.ceil(people / 100) + 1);
 }

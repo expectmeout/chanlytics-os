@@ -95,13 +95,49 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
   );
 };
 
-export const LeadPlanPanel = (props: PlanPanelProps) => {
-  const { open, stage, proposal, plan = null, facts = null, refusal, busy, pick = null, answering } = props;
+/** The card the plan is drawn in, while there is one: a people idea's own (people-plan-card.tsx), else the places plan's. */
+const planCardOf = (props: PlanPanelProps) => {
+  const { stage, proposal, plan = null, facts = null, refusal, busy, pick = null, answering } = props;
   const { onChangePlan = () => undefined, onApprove, onBack, onPick = () => undefined } = props;
   const { people = null, month = null, onApprovePeople = () => undefined } = props;
-  if (!open) return null;
   const card: LeadSearchCardPayload = proposal && proposal.payload ? proposal.payload : {};
   const shown = plan || card.plan || null;
+  const starting = stage === "starting" || !!busy;
+  if (people)
+    return (
+      <LeadPeoplePlanCard
+        plan={people}
+        month={month}
+        busy={starting}
+        refusal={refusal}
+        asSteps={!!props.asSteps}
+        onApprove={onApprovePeople}
+        onBack={onBack}
+      />
+    );
+  if (!shown) return null;
+  return (
+    <LeadPlanCard
+      plan={shown}
+      view={card.view || null}
+      facts={card.facts || facts || null}
+      baseVersion={(card.plan && card.plan.version) || 1}
+      busy={starting}
+      refusal={refusal}
+      pick={pick}
+      onPick={onPick}
+      onChange={onChangePlan}
+      onApprove={onApprove}
+      onBack={onBack}
+      answering={answering}
+      asSteps={!!props.asSteps}
+    />
+  );
+};
+
+export const LeadPlanPanel = (props: PlanPanelProps) => {
+  const { open, stage, refusal, answering } = props;
+  if (!open) return null;
   const composing = stage === "compose" && !!answering;
   const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
@@ -123,33 +159,7 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
           {refusal}
         </p>
       ) : null}
-      {planning && people ? (
-        <LeadPeoplePlanCard
-          plan={people}
-          month={month}
-          busy={stage === "starting" || !!busy}
-          refusal={refusal}
-          asSteps={!!props.asSteps}
-          onApprove={onApprovePeople}
-          onBack={onBack}
-        />
-      ) : planning && shown ? (
-        <LeadPlanCard
-          plan={shown}
-          view={card.view || null}
-          facts={card.facts || facts || null}
-          baseVersion={(card.plan && card.plan.version) || 1}
-          busy={stage === "starting" || !!busy}
-          refusal={refusal}
-          pick={pick}
-          onPick={onPick}
-          onChange={onChangePlan}
-          onApprove={onApprove}
-          onBack={onBack}
-          answering={answering}
-          asSteps={!!props.asSteps}
-        />
-      ) : null}
+      {planning ? planCardOf(props) : null}
     </div>
   );
 };

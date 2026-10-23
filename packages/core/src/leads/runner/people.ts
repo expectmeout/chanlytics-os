@@ -33,7 +33,7 @@ import {
 import { CARDS, PEOPLE_CAP_FLOOR_USD, PEOPLE_RUN_TIMEOUT_SECS, type PersonAtCompany } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
 import { runIdFor, sha256Hex } from "../ids";
-import { companyFactsOf, judgeCompanyBatch, opIdFor } from "../judge";
+import { companyFactsOf, judgeCompanyBatch, opIdFor, type JudgedCompanies } from "../judge";
 import type { CollectCompany, CollectJudgment, CollectPage, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { claimOrRecover, startFailed } from "./claim";
 import type { CollectOutcome } from "./collect";
@@ -224,7 +224,7 @@ async function judgedPage(
   if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the companies' judge");
   const batches: CollectCompany[][] = [];
   for (let i = 0; i < companies.length; i += LEAD_JUDGE_BATCH) batches.push(companies.slice(i, i + LEAD_JUDGE_BATCH));
-  const judged = await Promise.all(
+  const judged: JudgedCompanies[] = await Promise.all(
     batches.map((b, i) =>
       judgeCompanyBatch(
         p.judge,

@@ -27,7 +27,7 @@ const ARRIVED = {
   lead: "Leads",
   manual: "added by hand"
 };
-const counted = (xs) => xs.map((x) => `${x.label} (${x.n})`).join(", ");
+const labelsCounted = (xs) => xs.map((x) => `${x.label} (${x.n})`).join(", ");
 function customerLines(p) {
   const c = p.customers;
   if (!c) return [];
@@ -35,16 +35,16 @@ function customerLines(p) {
   const out = ["Its customers so far (counted from its records):"];
   if (c.people) {
     const came = c.arrived.map((a) => ({ label: ARRIVED[a.via] ?? a.via, n: a.n }));
-    out.push(`- People: ${c.people}${came.length ? `; they came by ${counted(came)}` : ""}.`);
+    out.push(`- People: ${c.people}${came.length ? `; they came by ${labelsCounted(came)}` : ""}.`);
   }
   if (c.converted.length)
     out.push(
-      `- Leads that became customers, by kind: ${counted(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`
+      `- Leads that became customers, by kind: ${labelsCounted(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`
     );
   if (c.won.deals) {
     const parts = [`${c.won.deals} won`];
-    if (c.won.services.length) parts.push(`for ${counted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
-    if (c.won.kinds.length) parts.push(`with ${counted(c.won.kinds.map((x) => ({ label: x.kind, n: x.n })))}`);
+    if (c.won.services.length) parts.push(`for ${labelsCounted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
+    if (c.won.kinds.length) parts.push(`with ${labelsCounted(c.won.kinds.map((x) => ({ label: x.kind, n: x.n })))}`);
     out.push(`- Deals: ${parts.join("; ")}.`);
   }
   return out;

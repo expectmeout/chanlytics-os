@@ -12,6 +12,7 @@ import {
   type LeadSearchDto,
   type LeadPeoplePlan,
   type LeadSearchPlan,
+  type LeadSuggestionsDto,
 } from "@chanlytics/contracts";
 import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
@@ -27,9 +28,10 @@ import {
   renameSearch,
   readSuggestions,
   setBusinessLine,
-  startPeopleSearch,
   type LeadsSurface,
 } from "../surface";
+import { startPeopleSearch } from "../finder/people-sheet";
+import { surfaceValue } from "../../surface-values";
 import type { LeadAnswer } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { LeadView, SetLeadLine, LeadLine } from "./state";
@@ -188,6 +190,25 @@ interface SearchActsArgs {
 
 const NO_LINE: LeadLine = { draft: "", error: null, busy: false };
 
+/** How long Write it for me waits on a write another read holds, before the sheet lets the page say it is writing. */
+const LINE_WRITTEN_WAIT_MS = 45_000;
+
+/** The ideas once a read lays them on the view written (the Leads surface's own value), or null where none has within `ms`. */
+const ideasLanded = (ms: number): Promise<LeadSuggestionsDto | null> =>
+  new Promise((done) => {
+    const finish = (s: LeadSuggestionsDto | null) => {
+      window.removeEventListener("surface:leads", look);
+      clearTimeout(timer);
+      done(s);
+    };
+    const look = () => {
+      const s = surfaceValue("leads")?.suggestions;
+      if (s && !s.pending) finish(s);
+    };
+    const timer = setTimeout(() => finish(null), ms);
+    window.addEventListener("surface:leads", look);
+  });
+
 /** A kept search's own acts (PRD 8.10), each through its door, the toast saying what happened. */
 function keptSearchActs(a: SearchActsArgs) {
   const { nav, plFlash, leadBusy, setLeadBusy, leadUndo, setRenaming, setRemoving, setRemoveError } = a;
@@ -293,13 +314,16 @@ export const leadSearchActs = (a: SearchActsArgs) => {
       setLeadLine((l) => l && { ...l, writing: false, error: r.message || "That could not be written. Try again." });
       return;
     }
-    if (r.data.pending) {
-      // Still held by another write: the page reads on, and says it is writing where the ideas stand.
+    // Held by another write: the ideas the page's own reads lay on the view once they land written, so the sheet shows
+    // the line written rather than the one let go.
+    const written = r.data.pending ? await ideasLanded(LINE_WRITTEN_WAIT_MS) : r.data;
+    if (!written) {
+      // Still held: the page reads on, and says it is writing where the ideas stand.
       setLeadLine(null);
       plFlash({ msg: <>Writing your line and new ideas…</> });
       return;
     }
-    const line = r.data.business_line;
+    const line = written.business_line;
     setLeadLine((l) => l && { ...l, draft: line, written: line, writing: false, error: null });
   };
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).

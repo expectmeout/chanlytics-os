@@ -12,9 +12,10 @@
  * is channels' (lead-judge.ts judgeCompanies), the schema and the parser are here.
  */
 import { z } from "zod";
-import { LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS } from "./search/caps";
-import { LEAD_KIND_KEY } from "./search/class";
-import { peopleWho, type LeadPeoplePlan } from "./search/people-plan";
+import { quotedFact } from "../lead-judge";
+import { LEAD_REASON_MAX_WORDS } from "./caps";
+import { LEAD_KIND_KEY } from "./class";
+import { peopleWho, type LeadPeoplePlan } from "./people-plan";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -34,15 +35,15 @@ export interface CompanyFacts {
 }
 
 /** The keys an answer may cite: the facts, by name. */
-export const COMPANY_FACT_KEYS = ["name", "industry", "size", "city", "state", "host", "about"] as const;
-export type CompanyFactKey = (typeof COMPANY_FACT_KEYS)[number];
+const COMPANY_FACT_KEYS = ["name", "industry", "size", "city", "state", "host", "about"] as const;
+type CompanyFactKey = (typeof COMPANY_FACT_KEYS)[number];
 
 /** How long a company's own description may be when the judge reads it: longer than a fact, since it is the evidence. */
 export const COMPANY_ABOUT_MAX = 400;
 
 /* ---------------------------------------------------------- the answer -- */
 
-export type CompanyFitVerdict = "pass" | "fail" | "unknown";
+type CompanyFitVerdict = "pass" | "fail" | "unknown";
 /** A type, not an interface: it is kept with the member as it is (Json). */
 export type CompanyFitAnswer = {
   ref: number;
@@ -109,16 +110,14 @@ export function companyJudgeSystemPrompt(plan: LeadPeoplePlan): string {
 
 /* ---------------------------------------------------------- the content -- */
 
-const CONTROL = /[\p{Cc}\p{Cf}]/gu;
-const capAt = (s: string, max: number) =>
-  s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
-const capOrNull = (s: string | null, max = LEAD_FACT_MAX) => (s === null ? null : capAt(s, max) || null);
+/** A fact as the judge reads it (lead-judge.ts quotedFact), or null where the directory said none. */
+const capOrNull = (s: string | null, max?: number) => (s === null ? null : quotedFact(s, max) || null);
 
 /** Each company's facts, capped and stripped, as quoted JSON inside a <companies> block. */
 export function companyJudgeUserContent(companies: CompanyFacts[]): string {
   const quoted = companies.map((c) => ({
     ref: c.ref,
-    name: capAt(c.name, LEAD_FACT_MAX),
+    name: quotedFact(c.name),
     industry: capOrNull(c.industry),
     size: capOrNull(c.size),
     city: capOrNull(c.city),
