@@ -43137,7 +43137,8 @@ function customerLines(p) {
     );
   if (c.won.deals) {
     const parts2 = [`${c.won.deals} won`];
-    if (c.won.services.length) parts2.push(`for ${labelsCounted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
+    if (c.won.services.length)
+      parts2.push(`for ${labelsCounted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
     if (c.won.kinds.length) parts2.push(`with ${labelsCounted(c.won.kinds.map((x) => ({ label: x.kind, n: x.n })))}`);
     out.push(`- Deals: ${parts2.join("; ")}.`);
   }

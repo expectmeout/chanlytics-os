@@ -43,7 +43,8 @@ function customerLines(p) {
     );
   if (c.won.deals) {
     const parts = [`${c.won.deals} won`];
-    if (c.won.services.length) parts.push(`for ${labelsCounted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
+    if (c.won.services.length)
+      parts.push(`for ${labelsCounted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
     if (c.won.kinds.length) parts.push(`with ${labelsCounted(c.won.kinds.map((x) => ({ label: x.kind, n: x.n })))}`);
     out.push(`- Deals: ${parts.join("; ")}.`);
   }
