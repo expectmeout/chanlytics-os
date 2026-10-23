@@ -87,7 +87,7 @@ test("a day past a target: each key against its own, a key not named against the
   assert.equal(page.subject, "1 workspace past a target on 2026-10-09");
   assert.match(
     page.body,
-    /Harbor Moving \(t-1\): brain_p95_ms 12\.0 s, target 10\.0 s; job_lag_ms 0 11\.0 s, target 10\.0 s; job_lag_ms none 400\.0 s, target 300\.0 s; dead_letters email_ingest 2, target 0/,
+    /Harbor Moving \(t-1\): brain_p95_ms 12\.0 s, target 10\.0 s; job_lag_ms 0 11\.0 s, target 10\.0 s; job_lag_ms none 7 min, target 5 min; dead_letters email_ingest 2, target 0/,
   );
 });
 

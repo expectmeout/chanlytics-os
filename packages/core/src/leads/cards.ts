@@ -119,6 +119,11 @@ export interface MapsPlace {
 export interface LeadCheckerRunner {
   actor: string;
   build: string;
+  /**
+   * The provider's id for that build: the health sweep reads it to see the build still stands (a deleted one refuses
+   * every start). A new pin sets both.
+   */
+  buildId: string;
   buildInput(emails: string[]): unknown;
   mapItem(item: unknown): { email: string; state: Exclude<LeadEmailState, "none" | "checking"> } | null;
   fields: readonly string[];
@@ -127,6 +132,7 @@ export interface LeadCheckerRunner {
 export interface LeadCardRunner {
   actor: string;
   build: string;
+  buildId: string;
   buildInput(plan: LeadSearchPlan, term: string, places: number): unknown;
   mapItem(item: unknown): MapsPlace | null;
   fields: readonly string[];
@@ -165,6 +171,7 @@ export interface PersonAtCompany {
 interface PeopleCardRunner {
   actor: string;
   build: string;
+  buildId: string;
   /** The provider's input for a plan and how many people to ask for (twice the count: two found make a lead). */
   buildInput(plan: LeadPeoplePlan, people: number): unknown;
   mapItem(item: unknown): PersonAtCompany | null;
@@ -185,6 +192,7 @@ export function areaCenter(plan: LeadSearchPlan): { lat: number; lng: number } |
 const CHECKER: LeadCheckerRunner = {
   actor: "bounceverify/bounceverify-email-verifier",
   build: "0.1.16",
+  buildId: "uw7qJdrXWOwYh9MUK",
   fields: CHECKER_FIELDS,
   buildInput(emails) {
     return { emails, skipInvalidSyntax: true };
@@ -331,6 +339,7 @@ const PEOPLE_CARD: PeopleCardRunner = {
   // The build its calibration run read (14 Oct 2026; contracts LEAD_CARDS' `calibrated`). A new one is calibrated again
   // before it is pinned: collectPeople stops a run whose first items it reads none of.
   build: "0.0.259",
+  buildId: "UJAtg4JwDdgEVD6iI",
   fields: PEOPLE_FIELDS,
   buildInput(plan, people) {
     const states = plan.states.map(usStateName).filter((s): s is string => !!s);
@@ -365,6 +374,7 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
     // 0.14.757, the calibration's, was deleted by 23 Oct 2026 and every start was refused; 0.14.775 read the same
     // fields in a probe that day (two Brooklyn plumbers).
     build: "0.14.775",
+    buildId: "EH35UvIrsV0hnZG0Y",
     fields: MAPS_FIELDS,
     buildInput(plan, term, places) {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
@@ -454,12 +464,12 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
 };
 
 /**
- * Every actor a search starts, once each, at the build it is pinned to: what the health sweep holds against the
- * provider's latest each day, so a pin falling behind is told before the provider deletes it (23 Oct 2026).
+ * Every actor a search starts, once each, at the build it is pinned to and that build's id: what the health sweep
+ * reads each tick, so a pin the provider deleted is told before an owner's search meets it (23 Oct 2026).
  */
-export function leadPins(): { actor: string; build: string }[] {
+export function leadPins(): { actor: string; build: string; buildId: string }[] {
   const all = [CARDS.local_businesses, CARDS.people_at_companies, CHECKER];
-  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build }])).values()];
+  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build, buildId: c.buildId }])).values()];
 }
 
 /** The actors a round's runs start with: its card's own, and the one checker (the sweep's reconciliation reads them). */

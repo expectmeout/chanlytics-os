@@ -6128,6 +6128,18 @@ function apifyClient(fetchImpl, token) {
       return latestBuildOf(
         (await call2(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers2(false) })).body
       );
+    },
+    async buildNumberOf(buildId) {
+      const { body } = await call2(
+        `${APIFY_BASE}/actor-builds/${encodeURIComponent(buildId)}`,
+        { method: "GET" },
+        (s) => s === 404
+        // record-not-found: the build is gone
+      );
+      if (body === null) return null;
+      const number = trimmedOrNull(recordOrNull3(recordOrNull3(body)?.data)?.buildNumber);
+      if (!number) throw new ApifyRefused(200, "the provider's build named no number");
+      return number;
     }
   };
 }

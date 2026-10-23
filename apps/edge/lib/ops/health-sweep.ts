@@ -145,9 +145,9 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const pastTargets = await watchTargets(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
-  // Each lead source's pinned build held against the provider's latest, once a day: a pin behind it is paged before
-  // the provider deletes it (23 Oct 2026: a deleted pin refused every Maps search at its start).
-  const pinsBehind = await watchLeadPins(db, leadSourceClient(), Date.now());
+  // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
+  // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
+  const pinsGone = await watchLeadPins(db, leadSourceClient());
 
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
@@ -159,7 +159,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     past_targets: pastTargets,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
-    lead_pins_behind: pinsBehind,
+    lead_pins_gone: pinsGone,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

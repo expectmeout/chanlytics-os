@@ -37115,6 +37115,7 @@ function areaCenter(plan) {
 var CHECKER = {
   actor: "bounceverify/bounceverify-email-verifier",
   build: "0.1.16",
+  buildId: "uw7qJdrXWOwYh9MUK",
   fields: CHECKER_FIELDS,
   buildInput(emails) {
     return { emails, skipInvalidSyntax: true };
@@ -37211,6 +37212,7 @@ var PEOPLE_CARD = {
   // The build its calibration run read (14 Oct 2026; contracts LEAD_CARDS' `calibrated`). A new one is calibrated again
   // before it is pinned: collectPeople stops a run whose first items it reads none of.
   build: "0.0.259",
+  buildId: "UJAtg4JwDdgEVD6iI",
   fields: PEOPLE_FIELDS,
   buildInput(plan, people) {
     const states = plan.states.map(usStateName).filter((s) => !!s);
@@ -37244,6 +37246,7 @@ var CARDS = {
     // 0.14.757, the calibration's, was deleted by 23 Oct 2026 and every start was refused; 0.14.775 read the same
     // fields in a probe that day (two Brooklyn plumbers).
     build: "0.14.775",
+    buildId: "EH35UvIrsV0hnZG0Y",
     fields: MAPS_FIELDS,
     buildInput(plan, term, places) {
       const center = plan.area.kind === "city" ? null : areaCenter(plan);
@@ -37325,7 +37328,7 @@ var CARDS = {
 };
 function leadPins() {
   const all = [CARDS.local_businesses, CARDS.people_at_companies, CHECKER];
-  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build }])).values()];
+  return [...new Map(all.map((c) => [c.actor, { actor: c.actor, build: c.build, buildId: c.buildId }])).values()];
 }
 function actorsOf(plan) {
   const c = plan.card === "people_at_companies" ? CARDS.people_at_companies : CARDS.local_businesses;

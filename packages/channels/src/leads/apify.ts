@@ -84,8 +84,13 @@ export interface ApifyClient {
   ): Promise<{ items: unknown[]; total: number | null }>;
   abortRun(id: string): Promise<void>;
   eventPrices(actor: string): Promise<Record<string, number>>;
-  /** The build number the actor's `latest` tag names today, or null when it names none: what a pin is held against. */
+  /** The build number the actor's `latest` tag names today, or null when it names none: what a gone pin is moved to. */
   latestBuild(actor: string): Promise<string | null>;
+  /**
+   * The build number a build's id names, or null when the provider has no such build: a pin it deleted. Read without
+   * the key: the provider answers a build to whoever holds its id, and a key it does not know is refused (401).
+   */
+  buildNumberOf(buildId: string): Promise<string | null>;
 }
 
 /** `username/name` as the API spells it in a path. */
@@ -268,6 +273,17 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
       return latestBuildOf(
         (await call(`${APIFY_BASE}/actors/${actorPath(actor)}`, { method: "GET", headers: headers(false) })).body,
       );
+    },
+    async buildNumberOf(buildId) {
+      const { body } = await call(
+        `${APIFY_BASE}/actor-builds/${encodeURIComponent(buildId)}`,
+        { method: "GET" },
+        (s) => s === 404, // record-not-found: the build is gone
+      );
+      if (body === null) return null;
+      const number = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.buildNumber);
+      if (!number) throw new ApifyRefused(200, "the provider's build named no number");
+      return number;
     },
   };
 }
