@@ -657,12 +657,16 @@ export async function readSuggestions(wait = 0): Promise<void> {
 }
 
 /**
- * New ideas from the same line (decision 0070, option B): what was shown is passed on, and four others are written now
- * (POST with again), laid on the view on screen as a read's are, and asked for again while another write holds them. A
+ * New ideas from the same line (decision 0070, option B, POST with again), or Write it for me (POST with ours: the
+ * owner's line let go and the line written from the whole picture): what was shown is passed on, and four others are
+ * written now, laid on the view on screen as a read's are, and asked for again while another write holds them. A
  * refusal is the caller's to say.
  */
-export async function newSuggestions(): Promise<ApiResult<LeadSuggestionsDto>> {
-  const r = await leadCall<LeadSuggestionsDto>("POST lead-suggestions", { body: { again: true } });
+export const newSuggestions = (): Promise<ApiResult<LeadSuggestionsDto>> => ideasWrittenNow({ again: true });
+export const lineWrittenForMe = (): Promise<ApiResult<LeadSuggestionsDto>> => ideasWrittenNow({ ours: true });
+
+async function ideasWrittenNow(body: { again: true } | { ours: true }): Promise<ApiResult<LeadSuggestionsDto>> {
+  const r = await leadCall<LeadSuggestionsDto>("POST lead-suggestions", { body });
   if (!r.ok || !leadsLoaded) return r;
   leadsLoaded = { ...leadsLoaded, suggestions: r.data };
   publishLeads();

@@ -14,7 +14,7 @@ import {
   leadNoCardLine,
   leadNotBusinessesLine,
 } from "./lead-words";
-import { LEAD_MAX_PLACES } from "./search/caps";
+import { BUSINESS_LINE_MAX, LEAD_MAX_PLACES } from "./search/caps";
 import { leadKindKey, stateCode } from "./search/clean";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
@@ -104,7 +104,7 @@ export const LeadExportQuerySchema = LeadsViewSchema;
 
 export const RenameLeadSearchSchema = z.object({ name: z.string().trim().min(1).max(80) });
 
-export const BusinessLineSchema = z.object({ business_line: z.string().trim().min(3).max(160) });
+export const BusinessLineSchema = z.object({ business_line: z.string().trim().min(3).max(BUSINESS_LINE_MAX) });
 
 /* --------------------------------------------------------- the planner */
 

@@ -94,7 +94,7 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
     return { kind: "busy" };
   }
   try {
-    // A people search's run (00430): its items are people at companies, kept as companies and never judged.
+    // A people search's run (00430): its items are people at companies, kept as companies, each read by its judge.
     if (peoplePlanOf(round.plan)) return await collectPeople(p, round, run, owner, gen);
     return await collectHeld(p, round, run, owner, gen);
   } finally {

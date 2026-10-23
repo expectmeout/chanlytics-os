@@ -371,44 +371,54 @@
 .ld-first-h { margin: 0; font-size: var(--text-3xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; line-height: var(--leading-tight); color: var(--ink); text-wrap: balance; }
 .ld-first-sub { margin: 12px 0 0; max-width: 46ch; font-size: var(--text-md); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 
-/* The door: the control layer's glass as one capsule, the three's mark, the words a field would hold, and the press in
-   the primary fill. A button, as the top bar's Ask is: the words are typed in Ask, which it opens. */
-.ld-first-ask { position: relative; margin-top: 28px; width: 100%; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 22px; border: 0; border-radius: var(--radius-full); background-color: var(--surface-control-fill); background-image: var(--surface-control-sheen); box-shadow: var(--surface-control-depth); backdrop-filter: var(--surface-control-blur); font: inherit; color: var(--ink-muted); text-align: left; cursor: pointer; }
+/* The field: the control layer's glass as one capsule, the three's mark, the box the words are typed in, and the send in
+   the primary fill (Ruben, 22 Oct 2026: typed here and sent, where it was a door to Ask). A capsule with no border of its
+   own wears the hairline and the wash of a box with the keys in it (--focus-field-edged), never the keyboard's ring. */
+.ld-first-ask { position: relative; margin-top: 28px; width: 100%; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 22px; border: 0; border-radius: var(--radius-full); background-color: var(--surface-control-fill); background-image: var(--surface-control-sheen); box-shadow: var(--surface-control-depth); backdrop-filter: var(--surface-control-blur); font: inherit; color: var(--ink-muted); text-align: left; cursor: text; }
 .ld-first-ask::after { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--surface-control-rim); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); pointer-events: none; }
-.ld-first-ask:focus-visible { outline: none; box-shadow: var(--surface-control-depth), var(--focus-ring); }
-.ld-first-ask > .icon { flex: none; }
-/* The words take a second line on a screen too narrow for one (under 375px), rather than lose their end. */
-.ld-first-ask-words { flex: 1; min-width: 0; font-size: var(--text-md); line-height: var(--leading-tight); color: var(--ink-dim); text-wrap: balance; transition: color var(--duration-fast) var(--ease-out); }
-.ld-first-ask-go { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-circle); background: var(--primary-fill); box-shadow: var(--primary-depth); color: var(--primary-ink); transition: background-color var(--duration-fast) var(--ease-out); }
+.ld-first-ask:focus-within { box-shadow: var(--surface-control-depth), var(--focus-field-edged); }
+.ld-first-ask-in { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: inherit; cursor: text; }
+.ld-first-ask-in > .icon { flex: none; }
+/* The box: no ground or edge of its own (the capsule is its edge), the words at the field's size. */
+input.ld-first-ask-words { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--text-md); line-height: var(--leading-tight); color: var(--ink); text-overflow: ellipsis; }
+input.ld-first-ask-words::placeholder { color: var(--ink-dim); opacity: 1; }
+.ld-first-ask-go { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-circle); background: var(--primary-fill); box-shadow: var(--primary-depth); color: var(--primary-ink); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out); }
+.ld-first-ask-go:focus-visible { outline: none; box-shadow: var(--primary-depth), var(--focus-ring); }
 .ld-first-ask[aria-disabled="true"] { cursor: default; }
-.ld-first-ask[aria-disabled="true"] .ld-first-ask-go { opacity: 0.45; }
+.ld-first-ask[aria-disabled="true"] .ld-first-ask-go { opacity: 0.45; cursor: default; }
 @media (hover: hover) {
-  .ld-first-ask:not([aria-disabled="true"]):hover .ld-first-ask-words { color: var(--ink-muted); }
-  .ld-first-ask:not([aria-disabled="true"]):hover .ld-first-ask-go { background: var(--primary-hover); }
+  .ld-first-ask:not([aria-disabled="true"]) .ld-first-ask-go:hover { background: var(--primary-hover); }
 }
 
 /* The ideas: the kit's large button each, placed here, its words beginning with a capital whatever the search's own
    spelling. A desk says who an idea is for under a pointer (the house's tip); a phone's, below, are rows. */
-.ld-first-eyebrow { margin: 40px 0 0; font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+/* The ideas' heading: its eyebrow, and New ideas at its end, the kit's quiet button. */
+.ld-first-ideas-head { margin-top: 40px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+.ld-first-eyebrow { margin: 0; font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
 .ld-first-ideas { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .ld-first-idea-words { display: inline-block; min-width: 0; }
 .ld-first-idea-words::first-letter { text-transform: uppercase; }
 .ld-first-note { margin: 28px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-.ld-first-from { margin: 16px 0 0; max-width: 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-/* A door in a sentence: the kit's quiet link at the sentence's own size, in the ink, underlined so it reads as one. It
-   keeps the line's height (a touch screen gives every button 44px, which stood the sentence's two lines 31px apart), and
-   a thumb's target reaches past its words instead. */
-.ld-first-col .ld-first-edit { position: relative; display: inline; min-height: 0; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-.ld-first-col .ld-first-edit::after { content: ""; position: absolute; inset: -12px -10px; }
-/* The line's sheet (first-day.tsx LeadLineSheet): under its box, what is wrong at the left and how much of the line's
-   length is written at the right. */
-.ld-line-under { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 6px; }
-.ld-line-count { margin-left: auto; font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
-/* A phone's sheet for it (People's small job): what it is for over the box, and the box four lines tall, where People's
-   field is one. Named with its tag, so it outweighs that field's one-line height wherever the two sheets load. */
+/* What the ideas were written from: one quiet row (the kit's quiet button where it may be rewritten), "Based on", the
+   owner's line on one line however long, and Edit at its end. */
+.ld-first-basis { margin: 16px 0 0; max-width: 100%; min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.ld-first-basis-label { flex: none; color: var(--ink-dim); }
+.ld-first-basis-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-muted); }
+.ld-first-basis-edit { flex: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--ink); }
+/* The line's sheet (first-day.tsx): one line over the box (what it is for, or where a line written for the owner came
+   from, after a sparkle), the box as tall as the line it holds from three lines up, and nothing counted under it (Ruben,
+   22 Oct 2026). Named with its tag, so it outweighs People's one-line field wherever the two sheets load. */
 .ld-line-lead { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
-textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line-height: var(--leading-snug); resize: none; }
-.ld-first-side { margin: 40px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-line-written { display: inline-flex; align-items: center; gap: 6px; }
+textarea.ld-line-box { height: auto; min-height: 80px; max-height: 40vh; field-sizing: content; padding: 10px 12px; line-height: var(--leading-snug); resize: none; }
+/* Write it for me: the kit's quiet press, its words starting where the box's do; under the box on a desk, and on a phone
+   at the left of the one row under it, with the sheet's press at its right. */
+.ld-line-forme { align-self: flex-start; margin: 8px 0 0 -10px; }
+.ld-line-acts { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.ld-line-acts > .ld-line-forme { margin-top: 0; }
+.ld-line-go { margin-left: auto; min-width: 88px; justify-content: center; }
+/* The other ways in: the kit's quiet buttons with their glyphs, side by side under everything else. */
+.ld-first-doors { margin-top: 32px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
 
 /* ========================================================== the phone ====
    900px and under: cards, one bar, and the work first. Nothing above the rows
@@ -440,22 +450,41 @@ textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line
   .ld-classes, .ld-chips { flex-wrap: nowrap; overflow-x: auto; }
 
   /* The first day on a phone: the words at the left under the page's name, the door a thumb tall, and each idea a row
-     the width of the screen with the mark of a door, since nothing hovers here to say more. */
+     the width of the screen with the mark of a door, since nothing hovers here to say more. It fits one screen with its
+     four ideas over the tab bar down to 360 x 780 (Ruben, 22 Oct 2026: it ran 90px under the bar at 390 x 844): the
+     question one line, a step under the page's own name over it, the gaps a thumb needs and no more, and each idea's
+     why two lines at most (the plan it opens says the rest). */
   .ld-first { justify-items: start; padding: 6px var(--gutter-page) 8px; }
   .ld-first-col { justify-items: start; text-align: left; }
-  .ld-first-h { font-size: var(--text-hero); }
-  .ld-first-sub { font-size: var(--text-base); }
+  .ld-first-h { font-size: var(--text-xl); }
+  .ld-first-sub { margin-top: 6px; font-size: var(--text-base); }
   /* The door and the ideas stand at the boards' 12px from the screen's edges, where every page's capsules and panes
      stand under a head at 16 (the Inbox's search, People's, Today's panes): 4px out of the words' column each side. */
-  .ld-first-ask { width: calc(100% + 8px); margin: 22px -4px 0; height: 56px; gap: 8px; padding: 0 8px 0 16px; }
-  .ld-first-eyebrow { margin-top: 30px; }
-  .ld-first-ideas { width: calc(100% + 8px); margin: 12px -4px 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
-  .ld-first-col .ld-first-ideas .ld-first-idea { width: 100%; height: auto; min-height: 50px; justify-content: space-between; gap: 10px; padding: 8px 14px 8px 16px; border-radius: var(--surface-row-radius); text-align: left; white-space: normal; }
+  .ld-first-ask { width: calc(100% + 8px); margin: 14px -4px 0; height: 52px; gap: 8px; padding: 0 8px 0 16px; }
+  /* Typed at 16px: Safari zooms the page into a box typed in under that. */
+  input.ld-first-ask-words { font-size: var(--text-lg); }
+  .ld-first-ideas-head { width: 100%; margin-top: 14px; justify-content: space-between; }
+  .ld-first-again { margin-right: -6px; }
+  /* The quiet presses keep the height of their words, as the line's Edit did: the touch floor's 44px every button takes
+     under a thumb (legacy.css) would stand each row 16px taller, and a thumb's target reaches past the words instead. */
+  /* Three classes deep, so they outweigh the floor's `html.legacy-on .btn`. */
+  .ld-first .ld-first-col .ld-first-again, .ld-first .ld-first-col .ld-first-basis { position: relative; min-height: 0; }
+  .ld-first .ld-first-col .ld-first-again::after, .ld-first .ld-first-col .ld-first-basis::after { content: ""; position: absolute; inset: -8px 0; }
+  .ld-first-ideas { width: calc(100% + 8px); margin: 8px -4px 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+  .ld-first-col .ld-first-ideas .ld-first-idea { width: 100%; height: auto; min-height: 46px; justify-content: space-between; gap: 10px; padding: 6px 14px 6px 16px; border-radius: var(--surface-row-radius); text-align: left; white-space: normal; }
   .ld-first-col .ld-first-ideas .ld-first-idea > .icon { flex: none; color: var(--ink-faint); }
   /* An idea's why under its words, quieter: the workspace's own numbers where its searches speak to it (00398). */
   .ld-first-idea-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .ld-first-idea-why { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-muted); }
-  .ld-first-note { margin-top: 22px; }
+  /* Its title one line, as the ideas are written to fit (contracts IDEA_LENGTHS); one written before that ends in an
+     ellipsis rather than stand the row a line taller. */
+  .ld-first-idea-text .ld-first-idea-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ld-first-idea-why { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-muted); }
+  .ld-first-note { margin-top: 16px; }
+  /* The row stands at the column's edge: the quiet button's own padding sits out past it, so its words begin where the
+     words above them do. The line takes what the row has left, Edit keeping the row's end. A phone draws no doors under
+     it: Import leads is the head's act there. */
+  .ld-first-basis { width: calc(100% + 16px); max-width: none; margin: 10px -6px 0 -10px; justify-content: flex-start; }
+  .ld-first-basis-edit { margin-left: auto; padding-left: 8px; }
 
   /* A running search is two lines; the question is a card with its four
      answers two by two, each 44px. */

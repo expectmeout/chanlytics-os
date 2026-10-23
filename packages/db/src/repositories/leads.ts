@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
+import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
@@ -286,4 +287,60 @@ export async function leadCountriesOf(db: Db, ids: readonly string[]): Promise<M
     for (const r of data ?? []) out.set(r.id, r.country?.trim().toUpperCase() || null);
   }
   return out;
+}
+
+/** What the lead ideas read of who a workspace's customers are: its people, its leads and its won deals, as rows. */
+export interface IdeaCustomerRows {
+  /** Each person kept (none erased or merged away): how they came, and the lead they came from. */
+  contacts: { id: string; acquired_via: string | null; lead_id: string | null }[];
+  /** Each lead kept: its kind (the listing's category, or a company's industry) and its stage. */
+  leads: { id: string; category: string | null; stage: string }[];
+  /** Each deal won, standing or since ended: what it was for, and the lead or person it was with. */
+  deals: { service: string | null; lead_id: string | null; contact_id: string | null }[];
+}
+
+/**
+ * The rows the lead ideas fold into who the workspace's customers are (contracts ideaCustomersOf): every person, every
+ * lead and every won deal, read whole (readAllRows) under the member's own session, so RLS decides what comes back. The
+ * ideas are written rarely (a month, a round, a press), so a whole read is affordable; a read that fails THROWS, and the
+ * ideas are written without it.
+ */
+export async function ideaCustomerRows(db: Db, tenantId: string): Promise<IdeaCustomerRows> {
+  const [contacts, leads, deals] = await Promise.all([
+    readAllRows<{ id: string; acquired_via: string | null; lead_id: string | null }>("contacts", (from, to) =>
+      db
+        .from("contacts")
+        .select("id, acquired_via, lead_id")
+        .eq("tenant_id", tenantId)
+        .is("erased_at", null)
+        .is("merged_into_contact_id", null)
+        .order("id")
+        .range(from, to),
+    ),
+    readAllRows<{ id: string; category: string | null; stage: string }>("leads", (from, to) =>
+      db
+        .from("leads")
+        .select("id, category, stage")
+        .eq("tenant_id", tenantId)
+        .is("erased_at", null)
+        .order("id")
+        .range(from, to),
+    ),
+    readAllRows<{ id: string; service: string | null; lead_id: string | null; contact_id: string | null }>(
+      "deals",
+      (from, to) =>
+        db
+          .from("deals")
+          .select("id, service, lead_id, contact_id")
+          .eq("tenant_id", tenantId)
+          .in("stage", ["won", "ended"])
+          .order("id")
+          .range(from, to),
+    ),
+  ]);
+  return {
+    contacts: contacts.map((c) => ({ id: c.id, acquired_via: c.acquired_via, lead_id: c.lead_id })),
+    leads: leads.map((l) => ({ id: l.id, category: l.category, stage: l.stage })),
+    deals: deals.map((d) => ({ service: d.service, lead_id: d.lead_id, contact_id: d.contact_id })),
+  };
 }

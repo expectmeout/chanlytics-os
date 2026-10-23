@@ -198,31 +198,39 @@ export type { LeadEmailState, LeadFit }; // A's, re-exported so a page reads one
 /**
  * The first day of Leads, before a workspace has kept one search or holds one lead (§8.9; redrawn 7 Oct 2026 as one
  * question and the door to Ask, canvas "Leads, the first day", option A). `ask` is what the door says, in the place a
- * field's own words would stand; `ideas` heads the searches Claude wrote for this workspace, and `from` leads the
- * business line they were written from, with `edit` its one control; the four `line` words are the sheet that
- * rewrites it (its name, the sentence under it, its field's name and what the empty field says); the last two are the
- * door for a list the owner already has.
+ * field's own words would stand; `ideas` heads the searches written for this workspace, with `newIdeas` beside it;
+ * `from` leads the business line they were written from, a row whose one control is `edit`; the four `line` words are
+ * the sheet that rewrites it (its name, the sentence under it, its field's name and what the empty field says); the last
+ * two are the doors to a list the owner already has and to named people at companies.
+ *
+ * Plain words, short lines, and no model's name (Ruben, 22 Oct 2026: "the copy should not be technical nor mention
+ * things like Claude"): what the page does for the owner, never how it is built.
  */
 const LEAD_FIRST_DAY = {
-  title: "Who do you want as customers?",
-  sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.",
-  ask: "Describe the businesses you want",
-  ideas: "Or start from an idea",
+  title: "Find your next customers",
+  sub: "We'll find them, and how to reach each one.",
+  ask: "Describe who you want",
+  /** The field's arrow, to a screen reader: what pressing it does. */
+  send: "Find them",
+  ideas: "Ideas for you",
   /** While another read writes them (00398): the page asks again in a moment. */
   writing: "Writing your ideas…",
-  from: "Written from what you do:",
+  from: "Based on",
   edit: "Edit",
   /** New ideas from the same line, when the owner wants others (00399). */
   newIdeas: "New ideas",
-  lineTitle: "What your business does",
-  lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.",
-  lineLabel: "Your business, in a sentence",
+  lineTitle: "Your business",
+  lineSub: "Your ideas are written from this.",
+  lineLabel: "What your business does",
   linePlaceholder: "What you sell, and who buys it",
-  haveList: "Have a list already?",
-  importIt: "Import it",
-  /** The people card's door (00430), on a desk's first day and a phone's New search, where no rail is drawn. */
-  wantPeople: "Looking for people at companies?",
-  findPeople: "Find people",
+  /** Write it for me: the owner's line let go, and the line written from the whole picture (22 Oct 2026). */
+  lineForMe: "Write it for me",
+  lineWriting: "Writing…",
+  /** Under a line written for the owner, where it came from. */
+  lineWritten: "Written from your profile, customers and searches.",
+  /** The sheet's one press over a line written for the owner and not changed: nothing to save. */
+  lineDone: "Done",
+  importIt: "Import a list",
 } as const;
 /** When the suggestions cannot be written at all: a note on the page, never a page that fails (suggestionsWritten). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";

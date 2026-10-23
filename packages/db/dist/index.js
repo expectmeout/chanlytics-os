@@ -6526,6 +6526,27 @@ async function leadCountriesOf(db, ids) {
   }
   return out;
 }
+async function ideaCustomerRows(db, tenantId) {
+  const [contacts, leads, deals] = await Promise.all([
+    readAllRows(
+      "contacts",
+      (from, to) => db.from("contacts").select("id, acquired_via, lead_id").eq("tenant_id", tenantId).is("erased_at", null).is("merged_into_contact_id", null).order("id").range(from, to)
+    ),
+    readAllRows(
+      "leads",
+      (from, to) => db.from("leads").select("id, category, stage").eq("tenant_id", tenantId).is("erased_at", null).order("id").range(from, to)
+    ),
+    readAllRows(
+      "deals",
+      (from, to) => db.from("deals").select("id, service, lead_id, contact_id").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).order("id").range(from, to)
+    )
+  ]);
+  return {
+    contacts: contacts.map((c) => ({ id: c.id, acquired_via: c.acquired_via, lead_id: c.lead_id })),
+    leads: leads.map((l) => ({ id: l.id, category: l.category, stage: l.stage })),
+    deals: deals.map((d) => ({ service: d.service, lead_id: d.lead_id, contact_id: d.contact_id }))
+  };
+}
 
 // src/lines.ts
 import { LINE_FILED_NAMES } from "../../contracts/dist/index.js";
@@ -7656,6 +7677,7 @@ export {
   holdRecipients,
   holdTold,
   holdsReplyTurn,
+  ideaCustomerRows,
   ideasBasis,
   ideasClockAndLanguage,
   ingestCall,

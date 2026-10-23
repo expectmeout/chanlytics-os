@@ -104,8 +104,38 @@ export function usStateName(code) {
 }
 export function peopleEstimateUsd(count, prices) {
   const people = Math.min(1e3, 2 * Math.max(1, Math.floor(count)));
-  const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
+  const usd = (people * (prices.perPerson + prices.perJudge + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
   return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
+}
+export const PEOPLE_PROVIDER_LEAST = 100;
+function peopleMinutes(count) {
+  const people = Math.min(1e3, Math.max(PEOPLE_PROVIDER_LEAST, 2 * Math.max(1, Math.floor(count))));
+  return Math.max(2, Math.ceil(people / 100) + 1);
+}
+export function peoplePlanAsk(plan, month) {
+  const binds = !!month && month.left < plan.count;
+  const count = binds && month ? Math.max(0, month.left) : plan.count;
+  const label = count < 1 ? "No leads left this month" : PEOPLE_FIND_WORDS.start(count);
+  if (!binds || !month) return { count, label, covers: null };
+  return {
+    count,
+    label,
+    covers: `You have ${plural(count, "lead", "leads")} left this month. Your leads renew on ${month.renewsOn}.`
+  };
+}
+export function peoplePlanFacts(plan, month) {
+  return [
+    `About ${peopleMinutes(plan.count)} minutes \u2014 leave the page if you like`,
+    "Anyone already yours is skipped",
+    month ? `Counts only companies that fit, with a checked work email \xB7 ${month.left} left this month` : "Counts only companies that fit, with a checked work email"
+  ];
+}
+export function peoplePlanFactLine(plan, month) {
+  return [
+    `About ${peopleMinutes(plan.count)} min`,
+    "skips anyone you have",
+    ...month ? [`${month.left} left this month`] : []
+  ].join(" \xB7 ");
 }
 export function usStatesTyped(text) {
   const parts = listTyped(text, PEOPLE_STATES_MAX * 2);
@@ -147,7 +177,7 @@ export function listTyped(text, max) {
 export const PEOPLE_FIND_WORDS = {
   door: "Find people",
   title: "Find people at companies",
-  sub: "Named people at companies, by what they are called and where they work. Every address is checked before anyone is written to.",
+  sub: "Named people at companies, by what they are called and where they work. Each company is checked for fit, and every address before anyone is written to.",
   titles: "What they are called",
   titlesHint: "Up to five, with commas between: marketing manager, office manager",
   seniority: "How senior",
@@ -202,9 +232,9 @@ export const PEOPLE_STRIP_WORDS = {
       return `Lead searches are paused for now. ${plural(n, "company", "companies")} counted; nothing more is being counted.`;
     if (ending === "budget_used" || ending === "month_leads_used")
       return `Stopped at ${plural(n, "company", "companies")}: this month's searching is used up. It renews next month.`;
-    if (n === 0) return "No company matched what you asked, with an address that checked out.";
-    if (n >= target) return `Found ${plural(n, "company", "companies")}, each address checked`;
-    return `Found ${n} of ${plural(target, "company", "companies")}: everything the filters cover, each address checked`;
+    if (n === 0) return "No company that fits what you asked had an address that checked out.";
+    if (n >= target) return `Found ${plural(n, "company", "companies")}, each a fit with its address checked`;
+    return `Found ${n} of ${plural(target, "company", "companies")}: every fit the filters cover, each address checked`;
   },
   more: "Find more like these"
 };

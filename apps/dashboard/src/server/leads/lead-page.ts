@@ -4,6 +4,7 @@
  */
 import {
   AppError,
+  LEAD_KIND_KEY,
   LEAD_MONTHLY_ALLOWANCE,
   type LeadCheck,
   type LeadCheckKey,
@@ -114,17 +115,23 @@ interface Judged {
   facts: string[];
 }
 
-/** What the judge answered for each criterion of this place, by the plan's own key, in the order it answered. */
+/**
+ * What the judge answered for each criterion of this place, by the plan's own key, in the order it answered. A
+ * company's judge (contracts company-judge.ts, 00474) answers one question, whether it is the kind of company the search
+ * is for: it is said under the same key a place's kind is (`kind`).
+ */
 function judgedBy(judgment: unknown): Map<string, Judged> {
   const out = new Map<string, Judged>();
   const j =
     judgment && typeof judgment === "object"
-      ? (judgment as { answer?: { criteria?: unknown; reason?: unknown } | null })
+      ? (judgment as { answer?: { criteria?: unknown; reason?: unknown; fit?: unknown; facts?: unknown } | null })
       : null;
   const answer = j?.answer && typeof j.answer === "object" ? j.answer : null;
   const criteria = Array.isArray(answer?.criteria)
     ? (answer.criteria as { key?: unknown; answer?: unknown; facts?: unknown }[])
-    : [];
+    : typeof answer?.fit === "string"
+      ? [{ key: LEAD_KIND_KEY, answer: answer.fit, facts: answer.facts }]
+      : [];
   const reason = typeof answer?.reason === "string" ? answer.reason : null;
   for (const c of criteria) {
     if (typeof c.key !== "string") continue;
@@ -159,14 +166,19 @@ const SEEN_CHECKS = new Set<string>(["on_maps", "in_area", "phone_two_sources", 
 function checksOf(r: LeadPageRow): LeadCheck[] {
   const out: LeadCheck[] = [];
   const where = [r.city, r.region].filter(Boolean).join(", ");
-  out.push({ key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null });
-  out.push({
-    key: "in_area",
-    how: "seen",
-    answer: r.distance_m === null ? "unknown" : "yes",
-    source: "Google Maps · the plan",
-    reason: where || null,
-  });
+  // A company the people card found (00430) is no listing on Maps and stands in no area: a business directory named it,
+  // and its judge read the directory's facts of it, never a listing's.
+  const company = r.kind === "company";
+  if (!company) {
+    out.push({ key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null });
+    out.push({
+      key: "in_area",
+      how: "seen",
+      answer: r.distance_m === null ? "unknown" : "yes",
+      source: "Google Maps · the plan",
+      reason: where || null,
+    });
+  }
   if (r.phone_e164)
     out.push({
       key: "phone_two_sources",
@@ -190,9 +202,15 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
     if (SEEN_CHECKS.has(key)) continue;
     const numbers = read.facts.flatMap((f) => (LISTING_NUMBERS[f] ? [LISTING_NUMBERS[f]] : []));
     out.push(
-      numbers.length
+      numbers.length && !company
         ? { key, how: "seen", answer: read.answer, source: `Google Maps · ${numbers.join(", ")}`, reason: read.reason }
-        : { key, how: "read", answer: read.answer, source: "Claude · the listing", reason: read.reason },
+        : {
+            key,
+            how: "read",
+            answer: read.answer,
+            source: company ? "Chanlytics AI · the directory" : "Claude · the listing",
+            reason: read.reason,
+          },
     );
   }
   return out;
