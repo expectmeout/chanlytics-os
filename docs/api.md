@@ -1017,7 +1017,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 ### `GET /api/v1/lead-suggestions`
 
-Reads; for a member of the workspace the request names; counts against the `lead_suggest` rate; spends nothing.
+Reads; for a member of the workspace the request names; counts against the `lead_ideas_read` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-suggestions/route.ts`).
 
@@ -1029,11 +1029,11 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `PUT /api/v1/lead-suggestions`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `lead_suggest` rate; spends nothing.
+Writes; for a member of the workspace the request names, partner or above; counts against the `lead_line` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `business_line` | string | yes | at least 3 characters; at most 160 characters |
+| `business_line` | string | yes | at least 3 characters; at most 400 characters |
 
 ## leads
 
