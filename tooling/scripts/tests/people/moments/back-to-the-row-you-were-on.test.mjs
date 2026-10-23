@@ -147,6 +147,9 @@ const win = {
   // The hold's still picture of a list kept out of the document waits for the phone to be idle: never, here.
   requestIdleCallback: () => 0,
   cancelIdleCallback() {},
+  // What the hold asks of the browser a moment after a Back (held-list.ts backAsked): never, here.
+  setTimeout: () => 0,
+  clearTimeout() {},
   addEventListener: (kind, fn) => (heard.get(kind) ?? heard.set(kind, new Set()).get(kind)).add(fn),
   removeEventListener: (kind, fn) => heard.get(kind)?.delete(fn),
 };
