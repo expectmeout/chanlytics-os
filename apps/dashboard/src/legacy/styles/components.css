@@ -803,20 +803,22 @@
 
 /* ============================================================
    MICRO-MOTION — calm, fast, consistent.
-   One entrance grammar (rise-in + stagger), one draw grammar for
-   charts, breathing only where something is genuinely live.
+   One arrival grammar (arrive-in + stagger: a fade where it stands),
+   one draw grammar for charts, breathing only where something is
+   genuinely live.
    ============================================================ */
 
 @keyframes draw-line { to { stroke-dashoffset: 0; } }
 @keyframes poly-fade { from { opacity: 0; } }
 @keyframes grow-x { from { transform: scaleX(0.4); opacity: 0.4; } }
 
-/* --- Entrance stagger for list rows & cards (replays on remount/tab switch). The Inbox's and Conversations' rows rise
-   by the kit instead (kit/motion/use-rows-arrive.ts), on their list's first draw alone: here every row rose as it was
-   drawn, so a row the window drew as the list was scrolled (kit/rows/shown-rows.ts) came in from nothing, see-through
-   for a beat (Ruben, 21 Oct 2026). --- */
+/* --- Arrival stagger for cards (replays on remount/tab switch), a fade where each stands: rising 4px as well, a page on a
+   phone read as shifting as it drew (Ruben, 23 Oct 2026). The Inbox's and Conversations' rows arrive by the kit instead
+   (kit/motion/use-rows-arrive.ts), on their list's first draw alone: here every row arrived as it was drawn, so a row the
+   window drew as the list was scrolled (kit/rows/shown-rows.ts) came in from nothing, see-through for a beat (Ruben,
+   21 Oct 2026). --- */
 .dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt {
-  animation: rise-in 0.26s var(--ease-out) backwards;
+  animation: arrive-in 0.26s var(--ease-out) backwards;
 }
 :is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
 :is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
