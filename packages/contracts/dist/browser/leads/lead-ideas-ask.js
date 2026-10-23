@@ -38,7 +38,9 @@ function customerLines(p) {
     out.push(`- People: ${c.people}${came.length ? `; they came by ${counted(came)}` : ""}.`);
   }
   if (c.converted.length)
-    out.push(`- Leads that became customers, by kind: ${counted(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`);
+    out.push(
+      `- Leads that became customers, by kind: ${counted(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`
+    );
   if (c.won.deals) {
     const parts = [`${c.won.deals} won`];
     if (c.won.services.length) parts.push(`for ${counted(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);

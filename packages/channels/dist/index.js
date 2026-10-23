@@ -6171,7 +6171,10 @@ ${user}`).digest("hex");
   };
   return {
     async judge(plan, places, tenantId, roundId) {
-      const r = await ask(judgeSystemPrompt(plan), judgeUserContent(places), JUDGE_OUTPUT_SCHEMA, { tenantId, roundId });
+      const r = await ask(judgeSystemPrompt(plan), judgeUserContent(places), JUDGE_OUTPUT_SCHEMA, {
+        tenantId,
+        roundId
+      });
       if ("refused" in r) return r;
       const parsed2 = parseJudgeAnswer(r.raw, plan, places);
       if (!parsed2.ok) return { refused: true, why: parsed2.why };

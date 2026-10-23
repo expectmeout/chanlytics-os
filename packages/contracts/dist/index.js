@@ -43131,7 +43131,9 @@ function customerLines(p) {
     out.push(`- People: ${c.people}${came.length ? `; they came by ${counted2(came)}` : ""}.`);
   }
   if (c.converted.length)
-    out.push(`- Leads that became customers, by kind: ${counted2(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`);
+    out.push(
+      `- Leads that became customers, by kind: ${counted2(c.converted.map((x) => ({ label: x.kind, n: x.n })))}.`
+    );
   if (c.won.deals) {
     const parts2 = [`${c.won.deals} won`];
     if (c.won.services.length) parts2.push(`for ${counted2(c.won.services.map((x) => ({ label: x.name, n: x.n })))}`);
@@ -43539,7 +43541,8 @@ function parseCompanyJudgeAnswer(raw, companies) {
     for (const f of a.facts) {
       if (!COMPANY_FACT_KEYS.includes(f)) return { ok: false, why: `ref ${a.ref}: fact ${f}` };
       const v = company[f];
-      if (a.fit === "pass" && (v === null || v === "")) return { ok: false, why: `ref ${a.ref}: fact ${f} is not there` };
+      if (a.fit === "pass" && (v === null || v === ""))
+        return { ok: false, why: `ref ${a.ref}: fact ${f} is not there` };
     }
     answers.push({ ref: a.ref, fit: a.fit, facts: [...a.facts], reason: trimWords2(a.reason) });
   }

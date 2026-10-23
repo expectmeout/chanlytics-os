@@ -283,6 +283,48 @@ test(
   },
 );
 
+test(
+  "a judged company keeps its fit, the judge's reasons beyond its address and its answer; an address reason is the check's",
+  { skip },
+  async () => {
+    // What core hands the door for a company its judge read (00474): a fit to look at, held by its kind, and one that
+    // fits, waiting on its address alone. A reason in the address's own words is never taken from a caller.
+    const answer = { ref: 0, fit: "unknown", facts: ["name"], reason: "No description said" };
+    const page = [
+      {
+        ...company("eta", [someone("Eve Hart", mail("eve", "eta"), "owner")]),
+        fit: "look",
+        reasons: ["unknown:kind", "email:ok"],
+        judgment: { op_id: "op-eta", answer, model: "fixture", reasons: ["fail:kind"] },
+      },
+      { ...company("theta", [someone("Theo Moss", mail("theo", "theta"), "owner")]), fit: "strong", reasons: [] },
+    ];
+    const made = ok(await db.rpc("lead_company_upsert", { p_round_id: round, p_companies: page }));
+    assert.equal(made.made, 2);
+    const memberOf = async (key) =>
+      ok(
+        await db
+          .from("lead_search_members")
+          .select("class, fit, judgment")
+          .eq("lead_id", (await leadByKey(key)).id),
+      )[0];
+    const eta = await memberOf("eta");
+    assert.deepEqual([eta.class, eta.fit], ["review", "look"], "a fit to look at waits in Needs review");
+    assert.deepEqual(
+      eta.judgment.reasons,
+      ["unknown:kind", "email:checking"],
+      "held by its kind as well as its address, which the check alone clears (00272)",
+    );
+    assert.deepEqual([eta.judgment.answer, eta.judgment.op_id], [answer, "op-eta"], "the judge's answer is kept");
+    const theta = await memberOf("theta");
+    assert.deepEqual(
+      [theta.class, theta.fit, theta.judgment.reasons],
+      ["review", "strong", ["email:checking"]],
+      "a fit waits on its address alone, as every company did before",
+    );
+  },
+);
+
 test("the addressee comes from Leads, named as a list names a person", { skip }, async () => {
   const beta = await leadByKey("beta");
   ok(await db.from("leads").update({ email_state: "ok" }).eq("id", beta.id));
