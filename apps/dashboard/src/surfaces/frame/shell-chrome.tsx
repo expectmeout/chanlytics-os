@@ -381,7 +381,7 @@ const phoneAsk = (s: ChromeAt) => {
     <button
       type="button"
       className="phone-ask"
-      data-chrome=""
+      data-chrome="foot"
       onClick={s.openAsk}
       aria-label="Ask Chanlytics"
       title="Ask Chanlytics"

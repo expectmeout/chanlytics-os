@@ -10,7 +10,8 @@
  *   that draw is done), the list's place is taken: the row at the top of what shows and where it stood on the screen,
  *   and the box that scrolls the list and how far, and what the frame's head said over it;
  * - on a phone the row's page is pushed in over the list as iOS pushes a page (`Arrival`, kit/motion/swipe.ts `pushIn`):
- *   the swipe back played forward, over the same screen a thumb would uncover;
+ *   the swipe back played forward, over the same screen a thumb would uncover, but the tab bar and Ask's circle, which
+ *   leave with the list as a page that takes the screen over comes in (`pushedUnder`);
  * - while the row's page stands the list is held: drawn where it stood and out of sight (`data-held`, components.css:
  *   fixed in place, hidden, taking no room and no touch), or, where its page keeps it out of the document (People's tabs,
  *   under React's Activity), stood in for by a still picture of it, made when the phone is idle. The row it was opened
@@ -300,9 +301,29 @@ function pushOver(was: Held, page: HTMLElement, arrival: Arrival): void {
   was.pushed = page;
   queueMicrotask(() => {
     if (holding === was && page.isConnected)
-      pushIn(page, { onGrab: arrival.going, under: heldUnder, along: heldAlong });
+      pushIn(page, { onGrab: pushing(arrival), under: pushedUnder, along: heldAlong });
   });
 }
+
+/** The frame's chrome at the window's foot (the tab bar, Ask's circle: `data-chrome="foot"`). */
+const atTheFoot = (el: HTMLElement): boolean => el.dataset.chrome === "foot";
+
+/**
+ * What lies under a page as it is pushed in: what a thumb carrying it back uncovers (heldUnder), but the chrome at the
+ * window's foot, which leaves with the list instead (mobile.css, data-pushing). Laid under the page, the tab bar and Ask's
+ * circle showed their lower edges beneath it as it came in, and for a moment after it landed: the ground it slides over
+ * stops short of the window's foot (components.css .carry-ground, --foot-clear), and they stand in that strip (Ruben's
+ * iPhone, 23 Oct 2026). A thumb carrying the page back still finds them under it, where the list comes back with them.
+ */
+const pushedUnder = (): HTMLElement[] => heldUnder().filter((el) => !atTheFoot(el));
+
+/** The push's own mark on the document while it moves (`data-pushing`), beside the carry's that its arrival makes. */
+const pushing =
+  (arrival: Arrival) =>
+  (el: Element, on: boolean): void => {
+    document.documentElement.toggleAttribute("data-pushing", on);
+    arrival.going(el, on);
+  };
 
 /** Let go of a held list as it is, putting nothing back. */
 function letListGo(was: Held): void {

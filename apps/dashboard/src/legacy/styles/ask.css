@@ -516,6 +516,16 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
     transition: opacity var(--duration-fast) var(--ease-out), visibility 0s linear var(--duration-fast);
   }
   @media (prefers-reduced-motion: reduce) { .phone-ask, body:has([data-dock]) .phone-ask { transition: none; } }
+  /* A page that takes the screen over, pushed in over its list (kit/motion/held-list.ts, data-pushing): the circle leaves
+     with the list as the tab bar does (mobile.css), rather than stand under the page, where its lower edge showed beneath
+     the thread at the window's foot until it had landed (Ruben's iPhone recording, 23 Oct 2026). */
+  :root[data-pushing] body:has([data-takeover]) .phone-ask {
+    opacity: 0;
+    translate: 0 6px;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out), translate var(--duration-fast) var(--ease-out), visibility 0s linear var(--duration-fast);
+  }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone (the Calendar's visit drew on it until it moved to
      the kit's Sheet, calendar/visit/visit-sheet.tsx). The Line itself is the whole screen. Behind
