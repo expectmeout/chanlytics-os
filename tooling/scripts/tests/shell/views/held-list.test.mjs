@@ -805,6 +805,40 @@ test("on a phone the row's page is pushed in over the list it was opened from, o
   p.leave();
 });
 
+test("a page pushed in takes the tab bar and Ask's circle away with the list; a thumb carrying it back still finds them under it", async () => {
+  // Ruben's iPhone recording, 23 Oct 2026: laid under the thread as it came in, their lower edges showed beneath it in the
+  // strip the ground it slides over leaves at the window's foot, and for a moment after it landed.
+  const { list } = inbox();
+  const top = element("frame-top", { at: 0, height: 134 });
+  const bar = element("tab-bar", { at: 709, height: 62 });
+  const ask = element("phone-ask", { at: 709, height: 62 });
+  bar.dataset.chrome = "foot";
+  ask.dataset.chrome = "foot";
+  frame.chrome = [top, bar, ask];
+  const el = rowPage();
+  const p = page(list, { page: () => el, going: carriedOver });
+  p.draw(false);
+  p.draw(true);
+  await Promise.resolve();
+  assert.ok(html.attrs.has("data-pushing"), "the push marks the document while it moves (mobile.css fades them)");
+  assert.equal(top.style.translate, "-112px 0", "the frame's top goes under with the list");
+  assert.deepEqual(
+    [bar.style.translate, ask.style.translate, bar.style.opacity, ask.style.opacity],
+    [undefined, undefined, undefined, undefined],
+    "nothing of the push is laid on the foot's chrome, which leaves by its own rule",
+  );
+  await landed();
+  assert.ok(!html.attrs.has("data-pushing"), "landed: the mark goes with the carry's");
+  assert.ok(!html.attrs.has("data-carrying"));
+  // Back by a thumb: the screen it goes back to, its tab bar and circle included, lies under the page as before.
+  showHeld(true);
+  assert.deepEqual(heldUnder(), [list, top, bar, ask], "under a thumb's carry, the foot's chrome is there");
+  assert.ok(!html.attrs.has("data-pushing"), "and nothing is pushing");
+  showHeld(false);
+  frame.chrome = [];
+  p.leave();
+});
+
 test("a list its page keeps out of the document is pictured at once when the row's page is pushed in over it", async () => {
   const { list } = inbox();
   const el = rowPage();

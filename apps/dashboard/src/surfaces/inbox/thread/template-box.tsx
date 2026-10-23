@@ -334,6 +334,9 @@ export const TemplateComposer = ({
   // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
   const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
   const gap = templateGap({ real, quiet, thread, readTemplates, templates, held: inboxData().templatesHeld, have });
+  // Nothing to offer and nothing to say (the band's Call back is the one way to them): no box at all. An empty one stood
+  // under the card as a strip of its padding, read as a reply box cut off at the screen's foot (Ruben, 23 Oct 2026).
+  if (gap === null && !lead) return null;
   if (gap !== undefined) {
     return (
       <div className="ix-composer">

@@ -256,10 +256,11 @@ test("the wiring: the page branches on the channel and reads the reason's senten
     find(phone, (n) => n.props?.["aria-label"] === "Nothing needed — hand it back to the receptionist"),
     "the hand back says its whole sentence to a screen reader",
   );
-  const box = find(phone, withClass("ix-composer"));
-  assert.ok(box, "the thread has its send row");
+  // The band's Call back is the one way to them, so nothing is drawn where a reply box would be: an empty box stood under
+  // the card as a strip of its padding, read as a reply box cut off at a phone's foot (Ruben, 23 Oct 2026).
+  assert.equal(find(phone, withClass("ix-composer")), null, "no reply box at all, empty or not");
   assert.equal(
-    find(box, (n) => n.type === "textarea"),
+    find(phone, (n) => n.type === "textarea"),
     null,
     "no WhatsApp thread (thread.hasChat === false): no free-form reply box",
   );

@@ -301,3 +301,21 @@ test("a thread swiped back to its list lets go of the list under it, though it h
     globalThis.window.matchMedia = media;
   }
 });
+
+/* ------------------------------ to its end ------------------------------ */
+
+test("a thread is taken to its end and never past it: asked for its whole height, an iPhone drew the window past the page's end for a few frames", async () => {
+  const { threadEnd } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/scroller.ts");
+  assert.equal(threadEnd({ scrollHeight: 900, clientHeight: 700 }), 200, "a desk's pane: as far as it scrolls");
+  assert.equal(threadEnd({ scrollHeight: 500, clientHeight: 700 }), 0, "a conversation shorter than its pane: its top");
+  // A phone: the window scrolls the thread (Ruben's iPhone, 23 Oct 2026: a page of 815 in a window of 775 was asked for
+  // 815, and Safari stood at 800 and 815 before it came back to 40).
+  const root = globalThis.document.documentElement;
+  const was = { scrollHeight: root.scrollHeight, clientHeight: root.clientHeight };
+  Object.assign(root, { scrollHeight: 815, clientHeight: 775 });
+  try {
+    assert.equal(threadEnd(root), 40, "the window: the page's end, the room it has to scroll");
+  } finally {
+    Object.assign(root, was);
+  }
+});

@@ -30,7 +30,7 @@ import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { ThreadBar, ThreadStatus, type Stale, type StatusProps } from "./status";
 import { useEarlierAsScrolled } from "./earlier";
-import { threadScroller, threadShown } from "./scroller";
+import { threadEnd, threadScroller, threadShown } from "./scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
 
@@ -196,7 +196,7 @@ function followTheEnd(el: HTMLElement, refs: EndRefs) {
       }
       refs.stuck.current = true; // not in this thread after all: its newest, as ever
     }
-    if (refs.stuck.current) box.scrollTop = box.scrollHeight;
+    if (refs.stuck.current) box.scrollTop = threadEnd(box);
   };
   const onScroll = () => {
     refs.stuck.current = box.scrollHeight - box.scrollTop - shownHeight(box) < 40;
@@ -420,7 +420,7 @@ export const InboxThread = (props: InboxThreadProps) => {
     const el = scrollRef.current;
     if (!real || !el || !stuckRef.current) return;
     const box = threadScroller(el);
-    box.scrollTop = box.scrollHeight;
+    box.scrollTop = threadEnd(box);
   }, [real, entries]);
   // A long thread is drawn from its newest entries, and the ones before as its top is scrolled near (earlier.ts).
   const earlier = useEarlierAsScrolled(thread, focusMessageId, scrollRef);
