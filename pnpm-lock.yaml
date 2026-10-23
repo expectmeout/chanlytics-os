@@ -94,7 +94,7 @@ importers:
         version: link:../../packages/core
       '@chanlytics/db':
         specifier: workspace:*
-        version: link:../../packages/db
+        version: file:packages/db
       '@chanlytics/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -173,7 +173,7 @@ importers:
         version: link:../../packages/core
       '@chanlytics/db':
         specifier: workspace:*
-        version: link:../../packages/db
+        version: file:packages/db
       '@chanlytics/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -366,7 +366,7 @@ importers:
         version: link:../contracts
       '@chanlytics/db':
         specifier: workspace:*
-        version: link:../db
+        version: file:packages/db
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2
@@ -413,7 +413,7 @@ importers:
         version: link:../core
       '@chanlytics/db':
         specifier: workspace:*
-        version: link:../db
+        version: file:packages/db
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2
@@ -435,7 +435,7 @@ importers:
         version: link:../../packages/contracts
       '@chanlytics/db':
         specifier: workspace:*
-        version: link:../../packages/db
+        version: file:packages/db
       '@supabase/supabase-js':
         specifier: ^2.117.2
         version: 2.117.2
@@ -890,6 +890,12 @@ packages:
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
+
+  '@chanlytics/contracts@file:packages/contracts':
+    resolution: {directory: packages/contracts, type: directory}
+
+  '@chanlytics/db@file:packages/db':
+    resolution: {directory: packages/db, type: directory}
 
   '@egjs/hammerjs@2.0.17':
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
@@ -2279,6 +2285,10 @@ packages:
 
   '@supabase/postgrest-js@2.117.2':
     resolution: {integrity: sha512-V1Qhn+M8xzJqCasOxHZ2KG19Fj39PxU7weEAmOK65/KTsWCRXboB4hcQwFvxRvM7ZikeP9IZWNvQkfjvSxzYFw==}
+    engines: {node: '>=22.0.0'}
+
+  '@supabase/postgrest-js@2.118.0':
+    resolution: {integrity: sha512-JXy+37KPApHsyotaQACovv/Jy9E22rfiWLRuT+2UjoEAcAIelDFIrsF/FY47Dy19mO7lI0Tq+zDCX8oJ2Ozfiw==}
     engines: {node: '>=22.0.0'}
 
   '@supabase/realtime-js@2.117.2':
@@ -6550,6 +6560,19 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
+  '@chanlytics/contracts@file:packages/contracts':
+    dependencies:
+      zod: 4.6.7
+
+  '@chanlytics/db@file:packages/db':
+    dependencies:
+      '@chanlytics/contracts': file:packages/contracts
+      '@supabase/postgrest-js': 2.118.0
+      '@supabase/supabase-js': 2.117.2
+      zod: 4.6.7
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
   '@egjs/hammerjs@2.0.17':
     dependencies:
       '@types/hammerjs': 2.0.46
@@ -7824,7 +7847,9 @@ snapshots:
       metro-runtime: 0.84.6
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -7936,6 +7961,10 @@ snapshots:
   '@supabase/phoenix@0.4.5': {}
 
   '@supabase/postgrest-js@2.117.2':
+    dependencies:
+      tslib: 2.8.1
+
+  '@supabase/postgrest-js@2.118.0':
     dependencies:
       tslib: 2.8.1
 
