@@ -23,6 +23,81 @@ export function isDocumentScroller(el: Element | null | undefined): boolean {
   return !!el && (el === documentScroller() || el === document.documentElement || el === document.body);
 }
 
+/**
+ * Where a box's view of what it scrolls begins on the screen: under what stands over it (its scroll padding; on a phone
+ * the document's is the frame's top, mobile.css). A list's place is read against it (held-list.ts, People's scroller.ts).
+ */
+export function viewTop(scroller: HTMLElement): number {
+  const pad = Number.parseFloat(window.getComputedStyle(scroller).scrollPaddingTop) || 0;
+  return isDocumentScroller(scroller) ? pad : scroller.getBoundingClientRect().top + pad;
+}
+
+/** What a row of a list is: a table's row, a list's item, a listbox's option, one marked so (Live's calls, a sequence). */
+export const ROW = 'tr, li, [role="option"], [role="row"], [data-row]';
+
+/**
+ * How far `scroller` scrolls before the first row drawn in `list` reaches the top of its view: past what stands over the
+ * rows (the list's head: its channels or filters, its search, a standing line). The first in the page's order, as drawn
+ * (a list in groups draws its first group first, whatever its rows' order), and a list drawn in part draws its rows from
+ * the one at its top down. Null where no row of it is drawn.
+ */
+export function rowsBeginAt(list: Element, scroller: HTMLElement): number | null {
+  // A stand-in page in a test may have no rows to ask for.
+  const rows = list.querySelectorAll?.(ROW);
+  if (!rows) return null;
+  for (const row of Array.from(rows))
+    if (row.getClientRects().length > 0)
+      return row.getBoundingClientRect().top - viewTop(scroller) + scroller.scrollTop;
+  return null;
+}
+
+/**
+ * Scrolls a page made of a box for its own sake, not the reader's (a sheet lifting the row it is of above it, People's
+ * pipeline/row-above-sheet.ts): where the reader had left the box, while the scroll stands. A page that keeps the reader's
+ * place (People's use-place.ts) keeps that one: the Pipeline kept a sheet's lift as its place, and came back lifted, its
+ * controls under the frame's top, wherever the sheet had gone (Ruben, 22 Oct 2026).
+ */
+const madeScrolls = new Map<HTMLElement, { from: number; stands: () => boolean; again: () => void }>();
+
+/**
+ * A scroll of `box` made for the page's own sake, from where the reader had left it, while `stands` says it does; `again`
+ * makes it again from where the box is now, once the reader's place is put back under it (placeReader).
+ */
+export function scrollMade(box: HTMLElement, from: number, stands: () => boolean, again: () => void): void {
+  madeScrolls.set(box, { from, stands, again });
+}
+
+/**
+ * The reader's place put back in `box` at `top` (a page's place, kept by the tab, as it arrives or is reloaded), and a
+ * scroll the page made over it made again from there: a sheet opened by the address had lifted its row before the place
+ * came back, and the place put the rows back under the sheet.
+ */
+export function placeReader(box: HTMLElement, top: number): void {
+  box.scrollTop = top;
+  const made = madeScrolls.get(box);
+  if (!made) return;
+  if (!made.stands()) {
+    madeScrolls.delete(box);
+    return;
+  }
+  made.from = top;
+  made.again();
+}
+
+/** The scroll made of `box` given back: what is heard of it is the reader's again. */
+export function scrollGivenBack(box: HTMLElement): void {
+  madeScrolls.delete(box);
+}
+
+/** The reader's place in `box`, heard at `heard`: where they had left it while the page has scrolled it for itself. */
+export function readersScroll(box: HTMLElement, heard: number): number {
+  const made = madeScrolls.get(box);
+  if (!made) return heard;
+  if (made.stands()) return made.from;
+  madeScrolls.delete(box);
+  return heard;
+}
+
 /** Whether the box's own styles make it scroll down its length (it may hold too little to move yet). */
 export function scrollsItself(el: Element): boolean {
   if (isDocumentScroller(el)) return true;

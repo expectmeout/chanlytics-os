@@ -16,7 +16,7 @@
  * question stand on the page, so while one is up a phone's modal sheet steps out of their way, and comes back as it was
  * when they close (the visit closed itself for good; here the address still names the deal).
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PersonVM, PipelinePeekVM, PipelineRowVM, PipelineSheetVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -35,6 +35,7 @@ import type { PersonWalk } from "../walk";
 import { dealFoot } from "./peek-foot";
 import { dealBody, type Compose, type DealSheetCtx } from "./peek-parts";
 import { P } from "./pipe";
+import { useRowAboveSheet } from "./row-above-sheet";
 import type { Flash } from "../types";
 
 /** The record sheets a press here opens (deal-sheet.tsx, step-sheet.tsx): while one is up, a phone's sheet stands aside. */
@@ -88,74 +89,6 @@ function sheetOf(row: PipelineRowVM | null, person: PersonVM | null): PipelineSh
     console.error("The deal sheet could not say this deal.", err);
     return null;
   }
-}
-
-/** The room left over a row brought above the sheet, so it does not sit on the sheet's edge. */
-const ROW_CLEAR_PX = 12;
-
-/**
- * Where a phone's sheet's top stands once its height has settled: its foot is the screen's, and its height what it holds
- * up to its cap. Read as laid out (a transform aside), never mid-glide, since the sheet grows as the person lands.
- */
-function sheetTopOf(sheet: HTMLElement): number {
-  const cap = parseFloat(getComputedStyle(sheet).maxHeight);
-  const tall = Math.min(sheet.scrollHeight, Number.isFinite(cap) ? cap : sheet.scrollHeight);
-  return sheet.offsetTop + sheet.offsetHeight - tall;
-}
-
-/** The room a phone's sheet gave the rows' scroller at its foot: the scroller, its padding before, and what was added. */
-interface SheetRoom {
-  box: HTMLElement;
-  inline: string;
-  own: number;
-  extra: number;
-}
-
-/** What scrolls the rows: the nearest box that scrolls, else the page (on a phone the window scrolls: mobile.css). */
-function rowScroller(from: Element): HTMLElement | null {
-  for (let n = from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
-    const over = getComputedStyle(n).overflowY;
-    if (over === "auto" || over === "scroll") return n;
-  }
-  return document.scrollingElement instanceof HTMLElement ? document.scrollingElement : null;
-}
-
-/**
- * On a phone the sheet stands over the rows' lower part: the row it is of is brought above it, so the page still says
- * whose deal is open (lit, as the cursor's row is). Where the sheet stands is read from the sheet as it is laid out
- * (sheetTopOf), never assumed, and again as the person lands and the sheet grows. Where the rows end before the row can
- * rise that far (a view of a few deals), the scroller is given the difference as room at its foot, as a switch holding
- * still is (kit/motion/hold-still.ts), until the sheet closes (giveRoomBack).
- */
-function keepRowAboveSheet(rowId: string, room: { current: SheetRoom | null }): void {
-  const row = document.getElementById(`person-${rowId}`);
-  const scroller = row ? rowScroller(row) : null;
-  const sheet = document.querySelector<HTMLElement>('[data-testid="pipeline-peek"]');
-  if (!row || !scroller || !sheet) return;
-  const above = sheetTopOf(sheet) - ROW_CLEAR_PX;
-  const under = row.getBoundingClientRect().bottom - above;
-  if (under <= 0) return;
-  const short = under - (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
-  if (short > 0) {
-    const had = room.current && room.current.box === scroller ? room.current : null;
-    const r = had ?? {
-      box: scroller,
-      inline: scroller.style.paddingBottom,
-      own: parseFloat(getComputedStyle(scroller).paddingBottom) || 0,
-      extra: 0,
-    };
-    r.extra += Math.ceil(short);
-    scroller.style.paddingBottom = `${r.own + r.extra}px`;
-    room.current = r;
-  }
-  scroller.scrollBy({ top: under, behavior: "smooth" });
-}
-
-/** The room given back as the sheet closes: the scroller's own padding again. */
-function giveRoomBack(room: { current: SheetRoom | null }): void {
-  if (!room.current) return;
-  room.current.box.style.paddingBottom = room.current.inline;
-  room.current = null;
 }
 
 /** Where the head's face and name go: their page, said by their name. */
@@ -258,17 +191,8 @@ export function PipelinePeek(props: PipelinePeekProps) {
   const [pass, setPass] = useState<string | null>(null);
   const recordOpen = useSyncExternalStore(hearFolds, recordUp, neverUp);
   const conversation = useNewConversation();
-  // A deal opened, or walked to, on a phone: its row comes up above the sheet, once the sheet is laid out, and again as
-  // the person lands and the sheet grows to hold them; the room it took at the rows' foot is theirs again once it closes.
-  const room = useRef<SheetRoom | null>(null);
-  const landed = !!person;
-  useEffect(() => {
-    if (!phone || !id) return undefined;
-    const frame = window.requestAnimationFrame(() => keepRowAboveSheet(id, room));
-    return () => window.cancelAnimationFrame(frame);
-  }, [phone, id, landed]);
-  const sheetUp = phone && !!id;
-  useEffect(() => (sheetUp ? () => giveRoomBack(room) : undefined), [sheetUp]);
+  // A deal opened, or walked to, on a phone: its row comes up above the sheet, and the rows go back down as it closes.
+  useRowAboveSheet(phone, id, !!person);
   // A sheet it opened stands on the page: this one steps aside while it is up, and is back as it was once it closes,
   // a frame later, so the Esc that closed that sheet has finished before this one listens for its own.
   const away = recordOpen || conversation.open || (call.open && call.asking);
