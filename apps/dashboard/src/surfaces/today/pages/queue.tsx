@@ -12,35 +12,41 @@
  * a count badge over a list that already says its count. The seed left with the mockup's stand-in: the mockup drew
  * this page from its sample (legacy-bridge/today-sample.ts), which is gone.
  */
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
+  DEFAULT_TIMEZONE,
+  NEED_YOU_WORDS,
   isPersonRow,
-  namesAPerson,
+  needYouSay,
   needsYouCount,
   verbForRoute,
   waitingRunsDoor,
   type AppointmentWord,
+  type AskMorningCard,
+  type GoogleReviewDto,
   type TodayQueueRowVM,
   type TodayVM,
-  type VisitWord,
 } from "@chanlytics/contracts";
-import { AttnRow } from "../../kit/attention/attn-row";
+import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { needsYouOnToday, useNeedsYouParts } from "../../needs-you";
-import { businessTrailFor } from "../../people/business-trail";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
+import { askMorningOverride } from "../ask-morning-surface";
 import { TODAY_HELPERS } from "../helpers";
-import { appNavigate, doorGlyph, surfaceFailed, useMoved, useToast } from "../shell";
+import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useDayVm } from "./day";
 import { liveClock, useLiveNow } from "./live-now";
 import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts";
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
-import { dueSteps, stepAct, stepDone, stepsLeft } from "./queue-steps";
-import { askedVisits, visitActs, visitSay, visitsLeft } from "./queue-visits";
-import { requestActs, requestAnswer } from "./queue-requests";
+import { dueSteps, stepDone, stepsLeft } from "./queue-steps";
+import { askedVisits, visitsLeft } from "./queue-visits";
+import { useDraftCounts, wantDrafts, type DraftWant } from "../need-you/drafts";
+import { ideaRows, needYouRows, reviewRows, type NeedYouExtrasCtx, type NeedYouRowsCtx } from "../need-you/people-rows";
+import { reviewsToAnswer } from "../need-you/reviews";
+import { draftWantOf } from "../need-you/rows";
 
 export const AgentCommand = () => {
   useMoved("today");
@@ -95,57 +101,6 @@ const LiveRail = ({ nav }: { nav: Nav }) => {
  */
 const CARD_MAX = 4;
 const PEOPLE_MAX = 3;
-
-/** What a row's verb does: which button it is (the page's one primary goes first), a step's Done and a visit's word. */
-interface RowActs {
-  kind: VerbKind;
-  done: (r: TodayQueueRowVM) => unknown;
-  say: (r: TodayQueueRowVM, status: VisitWord) => unknown;
-  /** A time a customer picked by text, answered: Booked it, or Can't (decision 0061). */
-  answer: (r: TodayQueueRowVM, booked: boolean) => unknown;
-}
-
-/**
- * The people the card draws, each with its one verb, as E3 does (Ruben, 1 Oct 2026: a second word on the row read as
- * clutter); snooze and resolve are the thread's, in the Inbox.
- */
-function personRows(rows: TodayQueueRowVM[], nav: Nav, acts: RowActs) {
-  const { done, say, answer } = acts;
-  const verb = { kind: acts.kind };
-  return rows.map((r) => {
-    // A visit to mark asks "Did they come?" with two verbs of its own, Kept and Missed, and its door is the visit on the Calendar.
-    // A time a customer picked by text asks Booked it or Can't, and its door is the thread (decision 0061).
-    const asks =
-      r.kind === "visit" ? visitActs(r, verb.kind(), say) : r.request ? requestActs(r, verb.kind(), answer) : null;
-    return (
-      <AttnRow
-        key={r.id}
-        // A person wears the one face (the kit's Face, by contracts' personFaceOf): a number's or an address's glyph,
-        // whichever wire they came on, else their initials. A search and the count of steps are not a person.
-        {...(namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials })}
-        name={r.who}
-        // The business they work at, dim after their name, from People's rows (0052).
-        trail={namesAPerson(r) ? businessTrailFor(r.person_id) : null}
-        meta={[r.channel, r.via, r.when].filter(Boolean).join(", ")}
-        sentence={r.sentence}
-        quoted={r.quoted}
-        status={r.status}
-        tone={r.tone}
-        // A step's one verb is Done, which the row's door (the person) is not; every other row's verb is its door.
-        cta={
-          r.kind === "step"
-            ? stepAct(r, verb.kind(), done)
-            : asks
-              ? asks.cta
-              : { label: r.cta.label, kind: verb.kind(), onClick: () => nav(r.cta.to) }
-        }
-        also={asks ? asks.also : null}
-        onOpen={() => nav(r.cta.to)}
-        testid={`queue-${r.kind}`}
-      />
-    );
-  });
-}
 
 /** What the head says and where its door goes: the count, and each part said in its own words. */
 interface QueueHeadFacts {
@@ -219,8 +174,9 @@ function queueList(
         />
       )}
       {/* What an empty queue means is a sentence about the wires, so contracts says it: a dark line, no line, a line
-          the receptionist does not answer (email), or the receptionist holding the floor. */}
-      {total === 0 && waiting === 0 && (
+          the receptionist does not answer (email), or the receptionist holding the floor. Not under Ask's ideas or a
+          review to answer: the card holds something, and the head says the queue is empty. */}
+      {total === 0 && waiting === 0 && drawn.length === 0 && (
         <EmptyState
           kind="line"
           glyph={vm.queue.empty.glyph}
@@ -245,7 +201,7 @@ function queueFoot(
   // The replies counting down have no row on the card: the Inbox holds them, and the foot says so (S7-1).
   const sends = TODAY_HELPERS.draftsSub(cut.sends);
   const parts = [
-    cut.rows > 0 ? `${cut.rows} more in the Inbox` : "",
+    cut.rows > 0 ? NEED_YOU_WORDS.more(cut.rows) : "",
     sends ? `${sends} in the Inbox` : "",
     // The runs the card had no room for wait in Needs you, the whole list (the Campaigns wiring review's rule D).
     cut.runs > 0 ? `${cut.runs} more run${cut.runs === 1 ? "" : "s"} in the Inbox` : "",
@@ -273,46 +229,144 @@ function queueFoot(
         )}
       </span>
       <button className="cl-attn-cta ghost" onClick={() => nav("inbox")}>
-        See all
+        {NEED_YOU_WORDS.seeAll}
       </button>
     </div>
   );
+}
+
+/** How often Ask's morning is read again while Ask writes it: a turn takes up to two minutes. */
+const MORNING_POLL_MS = 8_000;
+/** How many of Ask's ideas and reviews to answer the card draws after the people: the rest wait in Ask and on Reports. */
+const EXTRAS_MAX = 2;
+
+/** A row acted on this visit, and where it stood: it keeps its place on the card whatever the next read says. */
+type Kept = Record<string, { row: TodayQueueRowVM; at: number }>;
+
+/**
+ * The rows as read, with each one acted on this visit as it was kept (a held reply stopped reads "Held for you") and,
+ * where the read no longer has it, put back where it stood: its receipt and its undo stay there. A thread kept under one
+ * row stands for itself for the visit: the read's other row of it (a held reply stopped reads again as its closing window)
+ * is not drawn a second time.
+ */
+function withKept(rows: readonly TodayQueueRowVM[], kept: Kept): TodayQueueRowVM[] {
+  const threads = new Set(Object.values(kept).flatMap(({ row }) => (row.conversationId ? [row.conversationId] : [])));
+  const out = rows.flatMap((r) => {
+    const k = kept[r.id];
+    if (k) return [k.row];
+    return r.conversationId && threads.has(r.conversationId) ? [] : [r];
+  });
+  for (const { row, at } of Object.values(kept).sort((x, y) => x.at - y.at)) {
+    if (!out.some((r) => r.id === row.id)) out.splice(Math.min(at, out.length), 0, row);
+  }
+  return out;
+}
+
+/**
+ * Ask's one line over the rows (decision 0071): what it prepared for the rows drawn, then the one thing that cannot wait;
+ * its mark in the accent while it writes. Nothing where it prepared nothing.
+ */
+function AskSays({ wants, rows }: { wants: readonly DraftWant[]; rows: readonly TodayQueueRowVM[] }) {
+  const counts = useDraftCounts(wants);
+  const firstWindow = rows.find((r) => r.kind === "window")?.who ?? null;
+  const line = needYouSay({ ...counts, firstWindow, held: rows.filter((r) => r.kind === "held").length });
+  if (!line) return null;
+  const writing = counts.writing > 0 && counts.replies + counts.briefs === 0;
+  return (
+    <p className="ny-say" data-testid="today-queue-ask">
+      <span className="ny-three" data-live={writing || undefined} aria-hidden="true">
+        <Icon name="three" size={14} />
+      </span>
+      <span>{line}</span>
+    </p>
+  );
+}
+
+/** The extras as read, with each acted on this visit first and in its place: its receipt and its undo stay there. */
+function withKeptExtras<T>(read: readonly T[], kept: readonly T[], idOf: (t: T) => string): T[] {
+  return [...kept, ...read.filter((t) => !kept.some((k) => idOf(k) === idOf(t)))];
+}
+
+/**
+ * Ask's ideas from its morning, then the reviews to answer: after the people, a few, never in the count of who needs
+ * you. One approved, answered or set aside leaves its next read, so it is kept in its place for the visit.
+ */
+function useExtras(ctx: NeedYouRowsCtx): ReactElement[] {
+  const [keptIdeas, setKeptIdeas] = useState<readonly AskMorningCard[]>([]);
+  const [keptReviews, setKeptReviews] = useState<readonly GoogleReviewDto[]>([]);
+  const morning = surfaceValue("ask_morning")?.dto ?? null;
+  useMorningWait(morning?.state === "writing");
+  const ideas = withKeptExtras(morning?.offered ? morning.cards : [], keptIdeas, (k) => k.id).slice(0, EXTRAS_MAX);
+  const reviews = withKeptExtras(reviewsToAnswer(surfaceValue("google")), keptReviews, (r) => r.id).slice(
+    0,
+    Math.max(0, EXTRAS_MAX - ideas.length),
+  );
+  const c: NeedYouExtrasCtx = {
+    ...ctx,
+    kept: new Set([...ctx.kept, ...keptIdeas.map((k) => k.id), ...keptReviews.map((r) => `q-r-${r.id}`)]),
+    keepIdea: (card) => setKeptIdeas((was) => (was.some((k) => k.id === card.id) ? was : [...was, card])),
+    keepReview: (review) => setKeptReviews((was) => (was.some((r) => r.id === review.id) ? was : [...was, review])),
+  };
+  return [
+    ...ideaRows(ideas, { messageId: morning?.message_id ?? null, threadId: morning?.thread_id ?? null }, c),
+    ...reviewRows(reviews, c),
+  ];
+}
+
+/** Ask's morning read again every few seconds while it writes; the surface stops the wait when it lands. */
+function useMorningWait(writing: boolean) {
+  useEffect(() => {
+    if (!writing) return;
+    const id = setInterval(() => void refreshSurfaces([askMorningOverride]), MORNING_POLL_MS);
+    return () => clearInterval(id);
+  }, [writing]);
+}
+
+/** The drafts these rows want written ahead (rows.tsx draftWantOf): a reply, or a call back's brief. */
+const draftWantsOf = (rows: readonly TodayQueueRowVM[]) => rows.map(draftWantOf).filter((w): w is DraftWant => !!w);
+
+/** The drafts the drawn rows want, asked for once per set: kept ones read, missing ones written by a member who acts. */
+function useDraftsAhead(wants: readonly DraftWant[], may: boolean) {
+  const key = wants.map((w) => `${w.conversationId}:${w.kind}:${w.forMessageId ?? ""}`).join("|");
+  useEffect(() => {
+    if (wants.length) void wantDrafts(wants, may);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked for by its key: a row drawn again with the same threads and messages asks nothing
+  }, [key, may]);
 }
 
 const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // People too: a person's next step come due is a row (queue-steps.tsx), read from People's rows. The Calendar too: yesterday's
   // visits nobody has marked are rows (queue-visits.tsx), read from its blocks, which `useDayVm` hears as the day's card does. And
   // the replies to a reach-out: a reply read is its own row, not a plain one that needs you (contracts withReplies; the wiring's
-  // second audit, W-campaign-run-template-reachout-7). Today owns that read, so this redraws and reads nothing.
-  useMoved(["broadcasts", "people", "calendar", "reach_out_replies"]);
+  // second audit, W-campaign-run-template-reachout-7). Ask's morning and Google's reviews are rows too (decision 0071). Today
+  // owns those reads, so this redraws and reads nothing.
+  useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "ask_morning", "google"]);
   // What needs you, by its parts, as the badge counts them: null until the Inbox has been read (redrawn when a part moves).
   const live = useNeedsYouParts();
   const [toastNode, ppFlash] = useToast();
   // The steps marked done here, gone from the card at once while People is read again behind the verb.
   const [done, setDone] = useState<readonly string[]>([]);
-  // The visits marked here, gone from the card the same way while the Calendar is read again behind the verb.
-  const [marked, setMarked] = useState<readonly string[]>([]);
-  // The requests answered here, by their thread, gone from the card the same way while Today is read again.
-  const [answered, setAnswered] = useState<readonly string[]>([]);
+  // The rows acted on this visit (a reply sent, a thread snoozed, a visit marked), kept in their place; the rows opened.
+  const [kept, setKept] = useState<Kept>({});
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
   const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
+  const may = canDo("approve");
+  const tz = workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
   // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8); a person's
   // next step come due is a row of its own, after everyone waiting (contracts withSteps, 0007), and so is each of
   // yesterday's visits nobody has said whether they came to, after the steps (contracts withVisitsAsked, 0047).
   const steps = dueSteps();
-  const word = useDayVm()?.word ?? "appointment";
+  const word: AppointmentWord = useDayVm()?.word ?? "appointment";
   const visits = askedVisits(word);
-  const rows = TODAY_HELPERS.withVisitsAsked(
+  const read = TODAY_HELPERS.withVisitsAsked(
     TODAY_HELPERS.withSteps(TODAY_HELPERS.withReplies(vm.queue.rows), steps),
     visits,
-  ).filter(
-    (r) =>
-      !(r.step && done.includes(r.step.note_id)) &&
-      !(r.visit && marked.includes(r.visit.id)) &&
-      !(r.request && answered.includes(r.request.conversationId)),
   );
-  // One primary verb on the page: the first row's. Every other verb is drawn, quietly.
+  // A step marked done leaves the card at once, kept or not: its toast holds the Undo.
+  const rows = withKept(read, kept).filter((r) => !(r.step && done.includes(r.step.note_id)));
+  // One primary verb on the page: the first open row's. Every other verb is drawn, quietly.
   let primaryLeft = true;
   const verbKind: VerbKind = () => {
     const k = primaryLeft ? "primary" : "ghost";
@@ -322,17 +376,31 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // The run's seat, held only while a run wants it (CARD_MAX).
   const wants = runsPending();
   const peopleRoom = wants.waiting.length + wants.late.length > 0 ? PEOPLE_MAX : CARD_MAX;
-  const drawn = personRows(rows.slice(0, peopleRoom), nav, {
-    kind: verbKind,
-    done: (r) =>
-      stepDone(r, ppFlash, {
+  const shown = rows.slice(0, peopleRoom);
+  const ctx: NeedYouRowsCtx = {
+    nav,
+    verbKind,
+    may,
+    tz,
+    flash: ppFlash,
+    keep: (row) =>
+      setKept((was) => ({ ...was, [row.id]: { row, at: was[row.id]?.at ?? rows.findIndex((r) => r.id === row.id) } })),
+    kept: new Set(Object.keys(kept)),
+    expanded,
+    expand: (id) => setExpanded((was) => new Set([...was, id])),
+    word,
+    stepDone: (r) =>
+      void stepDone(r, ppFlash, {
         hide: (noteId) => setDone((was) => [...was, noteId]),
         show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
       }),
-    say: (r, status) => visitSay(r, status, { flash: ppFlash, hide: (markId) => setMarked((was) => [...was, markId]) }),
-    answer: (r, booked) =>
-      requestAnswer(r, booked, { flash: ppFlash, hide: (threadId) => setAnswered((was) => [...was, threadId]) }),
-  });
+  };
+  const drawn = needYouRows(shown, ctx);
+  // The drafts the drawn rows want, written ahead (asked for once per set, by their key).
+  useDraftsAhead(draftWantsOf(shown), may);
+  // Ask's line says what it prepared for the rows still open: one acted on this visit is said in its own row.
+  const open = shown.filter((r) => !kept[r.id]);
+  const extras = useExtras(ctx);
   // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
   const {
     drawn: runs,
@@ -346,9 +414,9 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // head's sentence already says those (the 2 Oct 2026 audit).
   const rowsCut = rows.slice(drawn.length).filter(isPersonRow).length + vm.queue.more_people;
   // The steps due the card did not draw are counted the same way, with their own door (People's Steps due).
-  const left = stepsLeft(steps, done, rows.slice(0, drawn.length));
+  const left = stepsLeft(steps, done, shown);
   // And the visits to mark the card did not draw, with the Calendar on yesterday as their door.
-  const toMark = visitsLeft(visits, marked, rows.slice(0, drawn.length));
+  const toMark = visitsLeft(visits, [], shown);
   const total = rows.length + runsCount + vm.queue.more;
   // The head's number is the one every surface says of what needs you (needs-you.ts): the Inbox's badge, the strip's tab, the
   // tab's title and the phone's. What waits on a person is a hold nobody has taken, a reply counting down and a run waiting for
@@ -360,7 +428,13 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // Where the door goes: the Inbox while a person waits, else, when only runs wait, the run (one), To send (every one
   // waiting waits for its owner to send its emails) or Needs you (contracts waitingRunsDoor).
   const doorTo = parts.holds + parts.sends === 0 && parts.runs > 0 ? waitingRunsDoor(wants.waiting) : "inbox";
-  const door = { to: doorTo, label: doorTo === "inbox" ? "Open Inbox" : (verbForRoute(doorTo) ?? "Open Inbox") };
+  const door = {
+    to: doorTo,
+    label: doorTo === "inbox" ? NEED_YOU_WORDS.door : (verbForRoute(doorTo) ?? NEED_YOU_WORDS.door),
+  };
+  // A reply counting down has a row now (decision 0071): the head's line says only those it does not draw. One stopped on
+  // this visit is kept in its place but counts down no more, so it is not taken from what the Inbox still counts.
+  const sendsUndrawn = Math.max(0, parts.sends - open.filter((r) => r.kind === "held").length);
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
@@ -369,14 +443,15 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
         steps: left.due,
         visits: toMark.due,
         word,
-        sends: parts.sends,
+        sends: sendsUndrawn,
         runs: { waiting: wants.waiting.length, late: wants.late.length },
         door,
       })}
+      <AskSays wants={draftWantsOf(open)} rows={open} />
       <LiveRail nav={nav} />
-      {queueList(vm, drawn, runs, { total, waiting })}
+      {queueList(vm, [...drawn, ...extras], runs, { total, waiting })}
       {queueFoot(
-        { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut, sends: parts.sends },
+        { rows: rowsCut, runs: runsCut, steps: left.cut, visits: toMark.cut, sends: sendsUndrawn },
         { steps: steps ? steps.to : null, visits: visits ? visits.to : null, word },
         nav,
       )}

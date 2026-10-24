@@ -33,6 +33,7 @@ export function nextStepOf(r, tz, nowMs) {
     due: day.due,
     forWho: forWords(r.step_for_me, r.step_for_user_id, r.step_for_name),
     forMe: !!r.step_for_me,
+    forUserId: r.step_for_user_id ?? null,
     dealId: r.step_deal_id ?? null
   };
 }

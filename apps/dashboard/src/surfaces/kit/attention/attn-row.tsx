@@ -14,7 +14,7 @@
  * `stateOf` and always says the tone.
  */
 import { stateOf } from "@chanlytics/contracts";
-import type { MouseEventHandler, ReactNode } from "react";
+import type { KeyboardEvent, MouseEventHandler, ReactNode } from "react";
 import { showTip } from "../../legacy-verbs";
 import { Face, type FacePerson } from "../face/face";
 import { Icon } from "../icon/icon";
@@ -49,6 +49,13 @@ interface AttnRowProps {
   onOpen?: () => void;
   /** A pointer or the keyboard has reached this row: whoever drew it may read ahead. */
   onHover?: (() => void) | null;
+  /**
+   * What the row offers to do in place, drawn under its words across the row (Today's Need you, decision 0071: a draft to
+   * send, a brief, the presses and what became of them). Its presses are its own: a press inside it opens nothing. A row
+   * with work is not one button, since a button's words would swallow the draft and every control in it: its words are the
+   * press that opens it, where `onOpen` opens anything.
+   */
+  work?: ReactNode;
   testid?: string;
   ctaTestid?: string;
 }
@@ -90,6 +97,16 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
   );
 }
 
+/** Who the row is about: a person's face, or the glyph or initials of what is not a person. Called, not drawn, as attnActs is. */
+function attnFace(person: FacePerson | undefined, glyph: string | null, initials: string | undefined) {
+  if (person) return <Face person={person} className="cl-attn-pic" />;
+  return (
+    <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
+      {glyph ? <Icon name={glyph} size={12} /> : initials}
+    </div>
+  );
+}
+
 export function AttnRow({
   person,
   initials,
@@ -104,36 +121,36 @@ export function AttnRow({
   tone = "answering",
   cta = null,
   also = null,
-  onOpen = () => undefined,
+  onOpen,
   onHover = null,
+  work = null,
   testid = "attention-row",
   ctaTestid = "attention-cta",
 }: AttnRowProps) {
+  const open = onOpen ?? (() => undefined);
+  // The press that opens the row: the whole row, or, with work of its own, its words alone (and none where it opens nothing).
+  const opener = {
+    role: "button",
+    tabIndex: 0,
+    onClick: open,
+    // Its own Enter and Space only: a key pressed on a button inside the row is that button's.
+    onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        open();
+      }
+    },
+  };
   return (
     <div
       className={`cl-attn-row tone-${attnTone(tone)}`}
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
+      {...(work ? {} : opener)}
       onPointerEnter={onHover || undefined}
       onFocus={onHover || undefined}
-      // Its own Enter and Space only: a key pressed on a button inside the row is that button's.
-      onKeyDown={(e) => {
-        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
       data-testid={testid}
     >
-      {person ? (
-        <Face person={person} className="cl-attn-pic" />
-      ) : (
-        <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
-          {glyph ? <Icon name={glyph} size={12} /> : initials}
-        </div>
-      )}
-      <div className="cl-attn-body">
+      {attnFace(person, glyph, initials)}
+      <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
         <div className="cl-attn-name">
           <span className="cl-attn-who">
             {name}
@@ -171,6 +188,16 @@ export function AttnRow({
         </div>
       </div>
       {(cta || also) && attnActs(cta, also, ctaTestid)}
+      {work ? (
+        <div
+          className="cl-attn-work"
+          role="presentation"
+          onClick={(e) => e.stopPropagation()}
+          data-testid={`${testid}-work`}
+        >
+          {work}
+        </div>
+      ) : null}
     </div>
   );
 }

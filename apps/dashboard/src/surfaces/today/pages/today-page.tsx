@@ -32,7 +32,6 @@ import { TodayAway } from "./away";
 import { TodayPins } from "./pins";
 import { TodaySetup } from "./setup-card";
 import { TodayStrip } from "./strip";
-import { TodayAsk } from "./ask-for-you";
 
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
 // No day pane: E3 folds the day into the strip's Next cell (Ruben, 1 October 2026); the Calendar has the rest.
@@ -44,7 +43,6 @@ export const DashboardA = () => (
       <TodaySetup />
       <TodayGoing />
       <AgentCommand />
-      <TodayAsk />
     </div>
     <div className="dash-a-v2-side">
       <TodayBriefPane />

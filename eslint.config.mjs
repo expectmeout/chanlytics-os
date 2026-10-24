@@ -336,6 +336,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/lines",
   "packages/contracts/src/logo",
   "packages/contracts/src/mobile",
+  "packages/contracts/src/need-you",
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",

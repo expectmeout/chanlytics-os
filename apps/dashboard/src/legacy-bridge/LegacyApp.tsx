@@ -261,7 +261,7 @@ const SURFACES = [
   calendarRunsOverride,
   // The counts of the lists pinned to Today, read where Today draws them (surfaces/today/pins-surface.ts; R10).
   todayPinsOverride,
-  // Ask's morning, read where Today draws Ask for you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
+  // Ask's morning, read where Today draws its ideas in Need you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
   askMorningOverride,
   askMemoryOverride,
   calendarOverride,

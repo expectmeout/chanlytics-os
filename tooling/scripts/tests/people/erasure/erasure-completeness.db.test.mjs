@@ -191,6 +191,14 @@ async function seed() {
     details: WORDS,
     state: "open",
   });
+  // Ask's reply drafted ahead on their thread (00475, decision 0071): its words go with the thread.
+  await insert("conversation_drafts", {
+    tenant_id: T,
+    conversation_id: conversation,
+    kind: "reply",
+    for_message_id: message,
+    words: { text: WORDS, subject: "", brief: null, asks: [] },
+  });
   // A note their thread's correction suggested (00448, decision 0063): keyed by the message, it goes with their messages.
   await insert("fact_suggestions", {
     tenant_id: T,

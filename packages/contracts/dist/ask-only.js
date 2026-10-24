@@ -1031,7 +1031,6 @@ function oneOrMany(calls) {
   const [only, ...rest] = calls;
   return only && rest.length === 0 ? only : calls;
 }
-var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
 var PEOPLE_CHANGED = { type: "surface:clients" };
 
 // src/ask-proposals/campaigns.ts
@@ -1476,110 +1475,7 @@ function leadsRoute(v) {
 }
 var leadQuestionRoute = (searchId) => leadsRoute({ searchId, cls: "excluded" });
 
-// src/ask/ask.ts
-var ASK_TURN_BUDGET_MS = 2 * MIN_MS;
-var ASK_VOICE_TOKEN_MIN_MS = 15 * MIN_MS;
-var ASK_VOICE_TIMING_MAX_MS = 10 * MIN_MS;
-var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
-var ASK_UNDO_MS = 10 * MIN_MS;
-
 // src/ask-proposals/inbox.ts
-var ASK_THREAD_ROUTES = {
-  take_over: "POST conversations/[id]/take-over",
-  hand_back: "POST conversations/[id]/hand-back",
-  snooze: "POST conversations/[id]/snooze",
-  wake: "POST conversations/[id]/wake",
-  archive: "POST conversations/[id]/archive"
-};
-var isRoutedVerb = (v) => Object.prototype.hasOwnProperty.call(ASK_THREAD_ROUTES, v);
-var INVERSE = {
-  take_over: "hand_back",
-  hand_back: "take_over",
-  snooze: "wake"
-};
-var UNDO_LABEL = {
-  take_over: "Hand back",
-  hand_back: "Take over again",
-  snooze: "Wake"
-};
-var RECEIPT = {
-  hand_back: "The receptionist has it again",
-  snooze: "Snoozed",
-  wake: "Back in the Inbox",
-  archive: "Archived",
-  resolve: "Resolved"
-};
-var threadCall = (verb, conversationId, until) => verb === "snooze" ? { route: ASK_THREAD_ROUTES.snooze, params: { id: asText(conversationId) }, body: { until: asText(until) } } : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
-var cardThreadRoute = ({ payload }) => {
-  const id = idIn(payload, "conversation_id");
-  return id ? `inbox/th-${id}` : null;
-};
-var replySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST conversations/[id]/reply",
-    params: { id: asText(p.payload.conversation_id) },
-    body: { text: asText(p.payload.text) },
-    idempotencyKey: p.id
-  }),
-  receipt: (p) => `On its way to ${asText(p.payload.who)} \u2014 sends in 15 seconds unless you cancel`,
-  undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
-    window: "cancelable",
-    record: (_p, data) => ({
-      message_id: rec(data).message_id,
-      cancelable_until: rec(data).cancelable_until,
-      decision_id: decisionOf(data)
-    }),
-    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
-    receipt: () => "Canceled before it sent"
-  },
-  open: () => null
-};
-var steerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => ({
-    route: "POST messages/[id]/steer",
-    params: { id: asText(p.payload.message_id) },
-    body: { text: asText(p.payload.instruction) }
-  }),
-  receipt: () => "Rewritten \u2014 the new draft waits its turn",
-  open: () => null
-};
-var threadVerbSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => {
-    const verb = asText(p.payload.verb);
-    if (!ASK_THREAD_VERBS.includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return verb === "resolve" ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } } : threadCall(verb, p.payload.conversation_id, p.payload.until);
-  },
-  receipt: (p) => {
-    const verb = asText(p.payload.verb);
-    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : ownEntry(RECEIPT, verb) ?? "Done";
-  },
-  undo: {
-    label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
-    window: "ten_minutes",
-    record: (p, data) => {
-      const inverse = ownEntry(INVERSE, asText(p.payload.verb));
-      return inverse ? {
-        verb: inverse,
-        conversation_id: p.payload.conversation_id,
-        until: p.payload.until ?? null,
-        decision_id: decisionOf(data)
-      } : null;
-    },
-    call: (u) => {
-      const verb = asText(u.verb);
-      return isRoutedVerb(verb) ? threadCall(verb, u.conversation_id, u.until) : refuseWith(PROPOSAL_WORDS.noUndo);
-    },
-    receipt: () => "Undone"
-  },
-  open: cardThreadRoute
-};
 var whisperSpec = {
   needs: "operator",
   gate: "approve",
@@ -2122,43 +2018,6 @@ var listDeleteSpec = {
   open: () => "clients"
 };
 
-// src/ask-proposals/people-verbs.ts
-var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-var personRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var threadMade = (data) => idIn(rec(data), "conversation_id");
-var personMessageSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => {
-    const pl = p.payload;
-    if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return {
-      route: "POST people/[id]/message",
-      params: { id: asText(pl.contact_id) },
-      body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
-      idempotencyKey: p.id,
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} \u2014 sends in 15 seconds unless you cancel`,
-  undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
-    window: "cancelable",
-    record: (_p, data) => ({
-      message_id: rec(data).message_id,
-      cancelable_until: rec(data).cancelable_until,
-      decision_id: decisionOf(data)
-    }),
-    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
-    receipt: () => "Canceled before it sent"
-  },
-  made: (_p, data) => threadMade(data),
-  open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
-};
-
 // src/ask-proposals/person.ts
 var cardPersonRoute = ({ payload }) => {
   const id = idIn(payload, "contact_id");
@@ -2263,10 +2122,7 @@ var inviteSpec = {
 
 // src/ask-proposals/ask-only.ts
 var ASK_ONLY_SPECS = {
-  // The Inbox's and Live's.
-  reply: replySpec,
-  steer: steerSpec,
-  thread_verb: threadVerbSpec,
+  // Live's (a reply, a held reply's rewrite and a thread's verbs are pressed on Today's Need you too: page-specs.ts).
   whisper: whisperSpec,
   call_hand_over: callHandOverSpec,
   // Settings'.
@@ -2279,7 +2135,6 @@ var ASK_ONLY_SPECS = {
   message: messageSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
-  person_message: personMessageSpec,
   list: listSpec,
   list_change: listChangeSpec,
   list_delete: listDeleteSpec,

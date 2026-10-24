@@ -1332,6 +1332,54 @@ type Database = {
                     }
                 ];
             };
+            conversation_drafts: {
+                Row: {
+                    conversation_id: string;
+                    for_message_id: string | null;
+                    id: string;
+                    kind: string;
+                    made_at: string;
+                    made_by: string | null;
+                    tenant_id: string;
+                    words: Json;
+                };
+                Insert: {
+                    conversation_id: string;
+                    for_message_id?: string | null;
+                    id?: string;
+                    kind: string;
+                    made_at?: string;
+                    made_by?: string | null;
+                    tenant_id: string;
+                    words?: Json;
+                };
+                Update: {
+                    conversation_id?: string;
+                    for_message_id?: string | null;
+                    id?: string;
+                    kind?: string;
+                    made_at?: string;
+                    made_by?: string | null;
+                    tenant_id?: string;
+                    words?: Json;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "conversation_drafts_conversation_same_workspace";
+                        columns: ["tenant_id", "conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "conversation_drafts_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             conversations: {
                 Row: {
                     assignee_user_id: string | null;
@@ -7384,6 +7432,16 @@ type Database = {
                 Args: {
                     p_contact_ids: string[];
                     p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            conversation_draft_keep: {
+                Args: {
+                    p_conversation_id: string;
+                    p_for_message_id?: string;
+                    p_kind: string;
+                    p_tenant_id: string;
+                    p_words: Json;
                 };
                 Returns: Json;
             };

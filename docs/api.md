@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-315 handlers in 51 domains.
+317 handlers in 51 domains.
 
 ## activity
 
@@ -728,6 +728,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | --- | --- | --- | --- |
 | `booked` | boolean | yes |  |
 
+### `POST /api/v1/conversations/[id]/draft`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_draft` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | one of `"reply"`, `"brief"` | yes |  |
+
 ### `GET /api/v1/conversations/[id]/export`
 
 Reads; for a member of the workspace the request names; counts against the `export` rate; spends nothing.
@@ -769,6 +777,14 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/wake/route.ts`).
+
+### `GET /api/v1/conversations/drafts`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ids` | string | yes | at least 1 characters |
 
 ## escalations
 

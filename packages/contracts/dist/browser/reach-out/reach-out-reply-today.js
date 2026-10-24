@@ -14,7 +14,10 @@ export function replyRowOf(row, r) {
     status: read ? ["Wrote back", REPLY_INTENT_WORDS[r.intent]] : ["Wrote back"],
     sentence: r.summary ?? row.sentence,
     quoted: false,
-    cta: { label: drafted(r) ? "Read the draft" : "Open and reply", to: row.cta.to }
+    cta: { label: drafted(r) ? "Read the draft" : "Open and reply", to: row.cta.to },
+    // The receptionist's draft for the reply, already written: Today's row offers it to send (decision 0071), and Ask
+    // writes none of its own over it.
+    prepared: drafted(r) ? r.draft : null
   };
 }
 function newestReadings(readings) {

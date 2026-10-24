@@ -15,10 +15,12 @@ export const ASK_MORNING_CARDS_MAX = 3;
 /**
  * What Ask asks itself each morning, as the member: their day, what happened and what it remembers, then at most three
  * cards. The leads' ideas are named so the tool search finds them; the answer's language is the member's, said to the
- * turn apart from these words.
+ * turn apart from these words. Since decision 0071 the people waiting are Today's rows, each with its reply or its call's
+ * brief drafted there, so the morning makes no card that only answers or rings one of them (its card stood under their
+ * row, saying it twice), says how the day stands rather than what it made, and words each card as its act and its why.
  */
 export const ASK_MORNING_QUESTION =
-  "Good morning. Look at my day: what needs me now, what is due, what happened since yesterday, and what you remember about the business, and the lead finder's ideas if Leads has any. Then give me at most three things to do first, each as a card I can approve, and say in one short sentence why each comes first. If nothing needs me, say so in one sentence and make no card.";
+  "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, so make no card that only answers or calls back someone who is waiting. Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.";
 
 /** A card the morning left waiting, as Today draws it: nothing has become of it yet, so it carries no outcome. */
 export type AskMorningCard = Omit<AskProposal, "outcome">;
@@ -42,17 +44,12 @@ export interface AskMorningDto {
   cards: AskMorningCard[];
 }
 
-/** The words Today's section says. */
+/**
+ * What the morning's cards say outside Today's rows (whose words are need-you-words.ts since decision 0071): what a card
+ * let go of is kept as on its turn, and the bell's line while they wait.
+ */
 export const ASK_MORNING_WORDS = {
-  title: "Ask for you",
-  sub: "What Ask would do first today",
-  writing: "Ask is looking at your day.",
-  failed: "Ask could not look at your day just now.",
-  open: "Open in Ask",
-  approve: "Approve",
-  notNow: "Not now",
   dismissed: "Let go",
-  quiet: "Nothing needs you first today.",
   /** The member's own bell line when the morning's cards wait (kind ask_cards). */
   bell: (cards: number) => ({
     title: cards === 1 ? "Ask has one thing for you today" : `Ask has ${cards} things for you today`,

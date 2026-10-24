@@ -59,7 +59,8 @@ export interface TodayQueueRowVM {
    * yesterday's nobody has marked, asking "Did they come?" with Kept and Missed, and `visits` the one row for the rest, to
    * the Calendar on yesterday (withVisitsAsked, 0047): the team's to-do as a step is, and no person waiting either.
    */
-  kind: "handoff" | "callback" | "window" | "call" | "search" | "reply" | "step" | "steps" | "visit" | "visits";
+  kind:
+    "handoff" | "callback" | "window" | "call" | "search" | "reply" | "step" | "steps" | "visit" | "visits" | "held";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -90,10 +91,11 @@ export interface TodayQueueRowVM {
   cta: { label: string; to: string };
   also: { label: string; verb: "snooze" | "resolve"; conversationId: string; escalationId: string } | null;
   /**
-   * On a `step` only: whose step it is and which note, and the deal it moves, so the row's button can mark it done (the
-   * person-notes verb the thread header uses). Its `cta.to` is the person, which the row opens; its `cta.label` is the verb.
+   * On a `step` only: whose step it is and which note, the deal it moves and the member it is for, so the row's button can
+   * mark it done (the person-notes verb the thread header uses) and Not now can move its day without changing whom it is
+   * for (decision 0071). Its `cta.to` is the person, which the row opens; its `cta.label` is the verb.
    */
-  step?: { person_id: string; note_id: string; deal_id: string | null };
+  step?: { person_id: string; note_id: string; deal_id: string | null; for_user_id: string | null };
   /**
    * On a `visit` only: the record's row for the visit, and the presses it is asked with (Kept, then Missed: visitLineOf's
    * `asks`), so the row's two buttons can say what became of it (POST calendar/visits/[id], the Calendar's own door). Its
@@ -105,6 +107,28 @@ export interface TodayQueueRowVM {
    * Booked it and Can't, answer it (POST conversations/[id]/booking-request). Its `cta.to` is the thread.
    */
   request?: { conversationId: string };
+  /**
+   * On a row a reply or a call answers (a handoff, a call-back, a closing window, a reach-out's reply read, a held reply;
+   * decision 0071): what Ask drafts it for and where it goes. `for_message_id` is their newest message, which a kept draft
+   * must answer (need-you/reply-drafts.ts); `wire` the words of the channel it goes by; `window_open` WhatsApp's free
+   * reply window, open or shut (null on another wire), and `window_closes` when it shuts, on the business's clock.
+   */
+  writes?: { for_message_id: string | null; wire: string; window_open: boolean | null; window_closes: string | null };
+  /**
+   * On a `held` row only (decision 0071, E5): the receptionist's reply counting down its veto window, which Stop holds
+   * (POST messages/[id]/cancel-send, the Inbox's Hold) and the row may then send as the member's own. `sends_at_ms` is
+   * the server's deadline (contracts draftSendsAtMs).
+   */
+  held?: { message_id: string; text: string; sends_at_ms: number };
+  /** On a call-back: the number to ring (tel:), from the thread or the call; null where neither holds one. */
+  phone?: string | null;
+  /**
+   * Words already written for the reply, which Ask drafts none over: a reach-out reply's draft the receptionist wrote
+   * (reach-out-reply-today.ts replyRowOf). Null or absent where none was.
+   */
+  prepared?: string | null;
+  /** Their reason for the hold in words (a handoff's, a call-back's), which a draft is written from; null for the rest. */
+  reason?: string | null;
   /** For the order: the longest wait first; a window by how soon it closes; a call last. */
   waitedMs: number;
 }

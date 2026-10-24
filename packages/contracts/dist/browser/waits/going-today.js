@@ -2,15 +2,14 @@ import { addressOf } from "../activity/record-address.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";
 import { clockTime, zoneDayKey } from "../shared/clock.js";
 import { HOUR_MS } from "../shared/time.js";
-import { clipAtWord, plural } from "../shared/words.js";
+import { plural } from "../shared/words.js";
 import { waitEndsWords } from "./wait-rules.js";
-const REPLY_QUOTE = 90;
 export const GOING_TODAY_WORDS = {
   title: "Going today",
-  /** Beside the count: what each row does, and how many past the rows drawn are in Sent and the Inbox. */
+  /** Beside the count: what each row does, and how many past the rows drawn are in Sent. */
   sub: (n, drawn) => [
     n === 1 ? "Goes on its own unless you stop it" : "Each goes on its own unless you stop it",
-    n > drawn ? `${n - drawn} more in Sent and the Inbox` : ""
+    n > drawn ? `${n - drawn} more in Sent` : ""
   ].filter(Boolean).join(" \xB7 "),
   stop: "Stop"
 };
@@ -40,20 +39,6 @@ export function goingTodayOf(input) {
       atMs,
       stop: { kind: "run", id: r.id },
       to: addressOf({ kind: "send", id: r.id })
-    });
-  }
-  for (const p of input.replies) {
-    if (!(p.endsAtMs > nowMs)) continue;
-    const g = goes("reply", p.endsAtMs, tz);
-    rows.push({
-      key: `reply-${p.messageId}`,
-      kind: "reply",
-      name: p.who,
-      meta: `Reply \xB7 goes ${g.at}`,
-      sentence: `\u201C${clipAtWord(p.draft, REPLY_QUOTE)}\u201D ${g.ends}.`,
-      atMs: p.endsAtMs,
-      stop: { kind: "reply", messageId: p.messageId, conversationId: p.conversationId },
-      to: addressOf({ kind: "conversation", id: p.conversationId })
     });
   }
   return rows.sort((a, b) => a.atMs - b.atMs);

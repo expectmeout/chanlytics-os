@@ -8,12 +8,27 @@
  * three at most and one row for the rest, after the steps due and before a call worth a listen. They are the team's to-do and
  * nobody waiting: counted in the head's sub-line and the foot, never in the number that says who needs you.
  *
- * Run on the queue drawn on the stub React over a Calendar surface holding yesterday, and on the verb with the door handed in.
+ * Since decision 0071 the two verbs are the row's own work (need-you/visit-work.tsx), and Missed goes on to the rebook Ask
+ * writes, sent from the row.
+ *
+ * Run on the queue drawn on the stub React over a Calendar surface holding yesterday, and on the row's work drawn alone with
+ * the Calendar's door answered by the tab's own fetch.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, all, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import {
+  installLegacyReact,
+  fresh,
+  again,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  settle,
+} from "../_legacy-react.mjs";
 import { NOW, ZONE, handoffDay } from "./_world.mjs";
 
 const went = [];
@@ -31,7 +46,7 @@ installLegacyReact({
 });
 const W = globalThis.window;
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { visitSay, visitActs } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue-visits.tsx");
+const { VisitWork } = await import("../../../../apps/dashboard/src/surfaces/today/need-you/visit-work.tsx");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const H = 3_600_000;
@@ -141,9 +156,13 @@ test("yesterday's unmarked visits are rows of the queue: the person, 'Did they c
     "Kept: Ana a",
     "several rows say Kept: a reader hears whose",
   );
-  assert.equal(all(first, (n) => classes(n).includes("cl-attn-cta")).length, 2, "the row's two verbs");
-  // The row opens the visit on the Calendar, on its day.
-  first.props.onClick();
+  assert.equal(
+    all(first, (n) => classes(n).includes("cl-attn-cta")).length,
+    0,
+    "the row's two verbs are its work's, under its words",
+  );
+  // The row opens the visit on the Calendar, on its day: its words do, since the row holds presses of its own.
+  find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
   // The head says them in its sub-line; its number is who is waiting on a person, and a visit to mark is nobody waiting.
   assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 person · 4 appointments to mark/);
@@ -202,65 +221,118 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
   assert.equal(rowsOf(draw()).length, 0, "the Calendar not read yet");
 });
 
+/* ------------------------------------------ the row's work, pressed ------------------------------------------ */
+
+/** What the Calendar's door was asked, and what it answers next. Reads behind a write fail here: not this file's. */
+const doors = [];
+let doorSays;
+W.fetch = async (url, init = {}) => {
+  if ((init.method ?? "GET") === "GET") return new Response("{}", { status: 503 });
+  doors.push([init.method, String(url).replace(/\?.*$/, ""), JSON.parse(init.body)]);
+  const { status, body } = await doorSays();
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+};
+after(() => delete W.fetch);
+const said = () => ({ status: 200, body: { ok: true, data: { ok: true } } });
+const kept = [];
+const visitRow = (over = {}) => ({
+  ...handoffDay().queue.rows[0],
+  id: "q-visit-r-a",
+  kind: "visit",
+  who: "Ana a",
+  person_id: "p-a",
+  when: "Yesterday, 2:00 PM",
+  visit: { id: "r-a", asks: ["kept", "missed"] },
+  ...over,
+});
+const work = (row = visitRow(), may = true) =>
+  W.React.createElement(VisitWork, {
+    row,
+    main: "primary",
+    may,
+    tz: ZONE,
+    flash: (f) => flashes.push(f),
+    keep: (r) => kept.push(r.id),
+    word: "appointment",
+  });
+/** Until the door has answered and the row has heard it. */
+async function until(done) {
+  for (let i = 0; i < 400 && !done(); i++) await settle();
+  assert.ok(done(), "the door answered");
+}
+const reset = () => {
+  doors.length = 0;
+  kept.length = 0;
+  flashes.length = 0;
+  doorSays = said;
+  fresh();
+};
+
 test("the verbs are Kept, then Missed, as the visit line asks them, each gated as the panel's are; a row asked for nothing has none", () => {
-  const rows = [];
-  const row = {
-    id: "q-visit-r-a",
-    kind: "visit",
-    who: "Ana a",
-    visit: { id: "r-a", asks: ["kept", "missed"] },
-  };
-  const acts = visitActs(row, "primary", (r, status) => rows.push([r.visit.id, status]));
+  reset();
+  const tree = work();
+  const [kept_, missed] = [buttons(tree, "Kept")[0], buttons(tree, "Missed")[0]];
   assert.deepEqual(
-    [acts.cta.label, acts.cta.kind, acts.also.label, acts.also.kind],
-    ["Kept", "primary", "Missed", "ghost"],
+    [kept_.props["data-testid"], missed.props["data-testid"]],
+    ["queue-visit-kept", "queue-visit-missed"],
   );
-  assert.equal(acts.cta.gate["aria-label"], "Kept: Ana a");
-  acts.cta.onClick();
-  acts.also.onClick();
-  assert.deepEqual(rows, [
-    ["r-a", "kept"],
-    ["r-a", "missed"],
-  ]);
-  assert.deepEqual(
-    visitActs({ ...row, visit: { id: "r-a", asks: [] } }, "ghost", () => {}),
-    { cta: null, also: null },
-  );
+  assert.equal(kept_.props["aria-label"], "Kept: Ana a", "several rows say Kept: a reader hears whose");
+  fresh();
+  assert.equal(buttons(work(visitRow({ visit: { id: "r-a", asks: [] } })), "Kept").length, 0);
 });
 
-test("a press says the word on the record's row through the Calendar's door, the row goes at once and the toast says it; the door's refusal is its own sentence and keeps the row; a second press while the first is on its way waits", async () => {
-  const row = { id: "q-visit-r-a", kind: "visit", who: "Ana a", visit: { id: "r-a", asks: ["kept", "missed"] } };
-  const said = [];
-  const hidden = [];
+test("a press says the word on the record's row through the Calendar's door and the row says it, with Change; a second press waits", async () => {
+  reset();
   let release;
-  const door = (id, status) =>
-    new Promise((resolve) => {
-      said.push([id, status]);
-      release = () => resolve({ ok: true });
-    });
-  const flash = (f) => flashes.push(f);
-  flashes.length = 0;
-  const page = { flash, hide: (id) => hidden.push(id) };
-  const first = visitSay(row, "kept", page, door);
-  const second = visitSay(row, "missed", page, door);
-  await second;
-  assert.deepEqual(said, [["r-a", "kept"]], "once: the record's row, and what was said of it");
+  doorSays = () => new Promise((resolve) => (release = () => resolve(said())));
+  press(buttons(work(), "Kept")[0]);
+  await until(() => doors.length === 1);
+  assert.deepEqual(doors, [["POST", "/api/v1/calendar/visits/r-a", { status: "kept" }]]);
+  assert.deepEqual(kept, ["q-visit-r-a"], "kept in its place on the card before the door answers");
+  const asking = again(() => work());
+  assert.equal(buttons(asking, "Kept")[0].props.disabled, true, "a second press waits for the first");
+  assert.equal(buttons(asking, "Missed")[0].props.disabled, true);
   release();
-  await first;
-  assert.deepEqual(hidden, ["r-a"], "the row goes at once");
-  assert.equal(textOf(flashes.at(-1).msg), "Kept: Ana a");
-  // Refused: the door's sentence, a danger toast, and the row stays.
-  flashes.length = 0;
-  hidden.length = 0;
-  await visitSay(row, "missed", page, async () => ({
-    ok: false,
-    message: "It hasn't begun yet: whether they came is said once it has.",
-  }));
+  await until(
+    () =>
+      buttons(
+        again(() => work()),
+        "Change",
+      ).length === 1,
+  );
+  assert.ok(textOf(again(() => work())).includes("Kept"));
+  assert.deepEqual(doors.length, 1, "said once");
+});
+
+test("the door's refusal is its own sentence and the row still asks; Missed goes on to the rebook, said in the row where nothing can carry it", async () => {
+  reset();
+  doorSays = () => ({
+    status: 409,
+    body: {
+      ok: false,
+      error: { code: "conflict", message: "It hasn't begun yet: whether they came is said once it has." },
+    },
+  });
+  press(buttons(work(), "Missed")[0]);
+  await until(() => flashes.length > 0);
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(textOf(flashes.at(-1).msg), "It hasn't begun yet: whether they came is said once it has.");
-  assert.deepEqual(hidden, []);
-  // And a row that asks nothing presses nothing.
-  said.length = 0;
-  await visitSay({ ...row, visit: undefined }, "kept", { flash, hide: () => {} }, door);
-  assert.deepEqual(said, []);
+  const still = again(() => work());
+  assert.equal(buttons(still, "Missed")[0].props.disabled, false, "refused: the row still asks");
+
+  // Missed: the rebook asks how they can be written to, which this file's reads refuse, so Missed stands, with why and
+  // Change, and nothing is offered to send.
+  reset();
+  press(buttons(work(), "Missed")[0]);
+  await until(
+    () =>
+      buttons(
+        again(() => work()),
+        "Change",
+      ).length === 1,
+  );
+  const missed = again(() => work());
+  assert.ok(textOf(missed).includes("Missed"), textOf(missed));
+  assert.equal(buttons(missed, "Send").length, 0);
+  assert.deepEqual(doors, [["POST", "/api/v1/calendar/visits/r-a", { status: "missed" }]]);
 });

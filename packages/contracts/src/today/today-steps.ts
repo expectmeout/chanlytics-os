@@ -24,6 +24,8 @@ export interface TodayStepVM {
   when: string;
   due: StepDue;
   forWho: string | null;
+  /** The member it is for, or null: Not now's move of its day sends it again (the edit sets it from what it is sent). */
+  forUserId: string | null;
   /** The deal it moves, when it names one: what the next step is set against. */
   dealId: string | null;
 }
@@ -73,6 +75,7 @@ export function todaySteps(
       when: step.day.words,
       due: step.due,
       forWho: step.forWho,
+      forUserId: step.forUserId,
       dealId: step.dealId,
     })),
     count: due.count,
@@ -109,7 +112,7 @@ function stepRow(s: TodayStepVM): TodayQueueRowVM {
     warn: s.due === "past",
     cta: { label: NOTE_WORDS.done, to: addressOf({ kind: "step", personId: s.personId }) },
     also: null,
-    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId },
+    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId, for_user_id: s.forUserId },
     waitedMs: Number.NEGATIVE_INFINITY,
   };
 }

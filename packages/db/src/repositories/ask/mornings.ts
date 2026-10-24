@@ -10,9 +10,9 @@ import type { Database, Json } from "../../database.types";
 type Db = SupabaseClient<Database>;
 
 /** One act of the morning's door, and what it answered. */
-export type AskMorningAct = { act: "claim" } | { act: "thread"; threadId: string } | { act: "answered"; cards: number };
+type AskMorningAct = { act: "claim" } | { act: "thread"; threadId: string } | { act: "answered"; cards: number };
 
-export interface AskMorningDoor {
+interface AskMorningDoor {
   /** claim: whether this call won the day. */
   claimed?: boolean;
   thread_id?: string | null;

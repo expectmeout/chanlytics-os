@@ -146,26 +146,24 @@ const run = (id, over = {}) => ({
   audience: { label: "Win-back" },
   ...over,
 });
-const going = (runs, replies = []) => goingTodayOf({ runs, replies, tz: TZ, nowMs: NOW });
+const going = (runs) => goingTodayOf({ runs, tz: TZ, nowMs: NOW });
 
-test("Going today: every run set to start later today and every reply counting down, soonest first, each with when it goes and how its wait ends", () => {
-  const rows = going(
-    [
-      run("b-batch"),
-      run("b-once", {
-        playbook_id: null,
-        title: "Saturday hours",
-        scheduled_for: iso(NOW + 10 * MIN),
-        recipient_count: 1,
-      }),
-      run("b-leads", { audience: { kind: "reach_out" }, title: "Movers", scheduled_for: iso(NOW + 3 * HOUR) }),
-    ],
-    [{ conversationId: "c1", who: "Ana Reyes", endsAtMs: NOW + 2 * MIN, messageId: "m1", draft: "Yes, 11 works." }],
-  );
+// A reply of the receptionist's counting down is no row here since decision 0071: it is Need you's own row, where it can be
+// stopped, changed and sent (tests/need-you/need-you-queue.test.mjs).
+test("Going today: every run set to start later today, soonest first, each with when it goes and how its wait ends", () => {
+  const rows = going([
+    run("b-batch"),
+    run("b-once", {
+      playbook_id: null,
+      title: "Saturday hours",
+      scheduled_for: iso(NOW + 10 * MIN),
+      recipient_count: 1,
+    }),
+    run("b-leads", { audience: { kind: "reach_out" }, title: "Movers", scheduled_for: iso(NOW + 3 * HOUR) }),
+  ]);
   assert.deepEqual(
     rows.map((r) => [r.kind, r.name]),
     [
-      ["reply", "Ana Reyes"],
       ["one_off", "Saturday hours"],
       ["batch", "Win-back"],
       ["batch", "Movers"],
@@ -173,27 +171,25 @@ test("Going today: every run set to start later today and every reply counting d
   );
   const at = (ms) => `at ${clockTime(ms, TZ)}`;
   assert.deepEqual(rows[0], {
-    key: "reply-m1",
-    kind: "reply",
-    name: "Ana Reyes",
-    meta: `Reply · goes ${at(NOW + 2 * MIN)}`,
-    sentence: `“Yes, 11 works.” ${waitEndsWords("reply", at(NOW + 2 * MIN))}.`,
-    atMs: NOW + 2 * MIN,
-    stop: { kind: "reply", messageId: "m1", conversationId: "c1" },
-    to: "inbox/th-c1",
+    key: "run-b-once",
+    kind: "one_off",
+    name: "Saturday hours",
+    meta: `Sent once · goes ${at(NOW + 10 * MIN)}`,
+    sentence: `1 person. ${waitEndsWords("one_off", at(NOW + 10 * MIN))}.`,
+    atMs: NOW + 10 * MIN,
+    stop: { kind: "run", id: "b-once" },
+    to: "campaigns/sequences/b-once/runs/b-once",
   });
-  assert.equal(rows[1].sentence, `1 person. ${waitEndsWords("one_off", at(NOW + 10 * MIN))}.`);
-  assert.equal(rows[1].meta, `Sent once · goes ${at(NOW + 10 * MIN)}`);
-  assert.equal(rows[2].sentence, `4 people. ${waitEndsWords("batch_hold", at(NOW + 30 * MIN))}.`);
+  assert.equal(rows[1].sentence, `4 people. ${waitEndsWords("batch_hold", at(NOW + 30 * MIN))}.`);
   assert.deepEqual(
-    [rows[2].stop, rows[2].to],
+    [rows[1].stop, rows[1].to],
     [{ kind: "run", id: "b-batch" }, "campaigns/sequences/b-batch/runs/b-batch"],
   );
-  assert.match(rows[3].sentence, /^4 businesses\. Goes at /);
-  assert.match(rows[3].meta, /^To leads · goes at /);
+  assert.match(rows[2].sentence, /^4 businesses\. Goes at /);
+  assert.match(rows[2].meta, /^To leads · goes at /);
 });
 
-test("Going today leaves out what is not today's to stop: a run sending, waiting for an OK or done, one set for a later day, a reply already gone; a run within the hour across midnight is today's", () => {
+test("Going today leaves out what is not today's to stop: a run sending, waiting for an OK or done, one set for a later day; a run within the hour across midnight is today's", () => {
   assert.deepEqual(
     going([
       run("sending", { state: "sending" }),
@@ -204,10 +200,6 @@ test("Going today leaves out what is not today's to stop: a run sending, waiting
     ]),
     [],
   );
-  assert.deepEqual(
-    going([], [{ conversationId: "c1", who: "Ana", endsAtMs: NOW - 1, messageId: "m1", draft: "x" }]),
-    [],
-  );
   // 11:50 PM in New York: a batch at 12:20 AM is tomorrow's day, and goes within the hour.
   const late = Date.parse("2026-10-20T03:50:00Z");
   const rows = goingTodayOf({
@@ -215,7 +207,6 @@ test("Going today leaves out what is not today's to stop: a run sending, waiting
       run("after-midnight", { scheduled_for: iso(late + 30 * MIN) }),
       run("morning", { scheduled_for: iso(late + 9 * HOUR) }),
     ],
-    replies: [],
     tz: TZ,
     nowMs: late,
   });
@@ -228,7 +219,7 @@ test("Going today leaves out what is not today's to stop: a run sending, waiting
 test("the band's head says what each row does, and how many it did not draw", () => {
   assert.equal(GOING_TODAY_WORDS.title, "Going today");
   assert.equal(GOING_TODAY_WORDS.sub(1, 1), "Goes on its own unless you stop it");
-  assert.equal(GOING_TODAY_WORDS.sub(6, 4), "Each goes on its own unless you stop it · 2 more in Sent and the Inbox");
+  assert.equal(GOING_TODAY_WORDS.sub(6, 4), "Each goes on its own unless you stop it · 2 more in Sent");
   assert.equal(GOING_TODAY_WORDS.stop, "Stop");
 });
 

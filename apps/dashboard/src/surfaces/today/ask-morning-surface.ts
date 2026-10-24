@@ -1,11 +1,11 @@
 /**
  * Ask's morning for this member (decision 0070; contracts ask-memory/morning.ts): what Ask would do first today, as Today
- * draws it in Ask for you. Read where Today is drawn (ROUTE_DRAWS names it), and again when what it holds has aged.
+ * draws it as rows of Need you (decision 0071). Read where Today is drawn (ROUTE_DRAWS names it), and again when what it holds has aged.
  *
  * The morning is asked for as the member arrives: a read that finds none due for a member who may have one asks for it
  * (POST ask/morning), as the Leads page asks for its ideas once its read says they are due. The day is claimed once a
  * member a day on the server, so a second tab, a return or a read a moment later asks for nothing; the turn runs after the
- * answer, and Ask for you reads again while it writes.
+ * answer, and Need you reads again while it writes.
  */
 import type { AskLanguage, AskMorningDto } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
@@ -29,7 +29,7 @@ export const askMorningOverride: SurfaceOverride = {
   isStale: () => readAged(surfaceValue("ask_morning")?.fetchedAt),
   events: ["surface:ask_morning"],
   // The member's own morning: no record of the workspace's, so the feed tells it nothing. Read where Today is drawn, and
-  // again when what it holds has aged, while Ask writes it (Ask for you's own wait) and after a card is pressed.
+  // again when what it holds has aged, while Ask writes it (Need you's own wait) and after a card is pressed.
   ...declareReads("ask_morning", { reads: [], fresh: { aged: ON_DEMAND_STALE_MIN } }),
   apply: async () => {
     const got = await read("GET ask/morning");

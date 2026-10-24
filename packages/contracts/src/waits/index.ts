@@ -31,4 +31,4 @@ export type { NoticeTone } from "./notice-tones";
 export { GOING_TODAY_WORDS, goingTodayOf } from "./going-today";
 export { WAIT_ROW_WORDS, waitRowsOf } from "./wait-rows";
 export type { WaitRowOf } from "./wait-rows";
-export type { GoingReply, GoingRun, GoingTodayRowVM } from "./going-today";
+export type { GoingRun, GoingTodayRowVM } from "./going-today";

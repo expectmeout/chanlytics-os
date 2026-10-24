@@ -152,16 +152,29 @@ test("a row carries its next step, as people_list's step columns say it, with wh
   });
   const s = toPersonRowVM(r, TZ, new Date(NOW)).nextStep;
   assert.deepEqual(
-    { id: s.id, words: s.words, due: s.due, said: s.day.words, forWho: s.forWho, dealId: s.dealId },
+    {
+      id: s.id,
+      words: s.words,
+      due: s.due,
+      said: s.day.words,
+      forWho: s.forWho,
+      forUserId: s.forUserId,
+      dealId: s.dealId,
+    },
     {
       id: "n1",
       words: "Call about the timeline",
       due: "past",
       said: "Overdue since yesterday",
       forWho: "For Sam",
+      // Whom it is for, which a change to the step sends again: the edit's door sets it from what it is sent (0071).
+      forUserId: "u-2",
       dealId: "d1",
     },
   );
+  // And Today's row of it carries the same, so Need you's Not now moves its day and leaves it Sam's.
+  const today = todaySteps([toPersonRowVM(r, TZ, new Date(NOW))], NOW, TZ);
+  assert.equal(today.items[0].forUserId, "u-2");
   assert.equal(nextStepOf({ ...r, step_for_me: true }, TZ, NOW).forWho, "For you");
   // No step, or a row read before the columns existed: nothing to say.
   assert.equal(toPersonRowVM(row("p2", "Ivo"), TZ, new Date(NOW)).nextStep, null);

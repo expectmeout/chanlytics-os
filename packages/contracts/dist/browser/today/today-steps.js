@@ -22,6 +22,7 @@ export function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
       when: step.day.words,
       due: step.due,
       forWho: step.forWho,
+      forUserId: step.forUserId,
       dealId: step.dealId
     })),
     count: due.count,
@@ -52,7 +53,7 @@ function stepRow(s) {
     warn: s.due === "past",
     cta: { label: NOTE_WORDS.done, to: addressOf({ kind: "step", personId: s.personId }) },
     also: null,
-    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId },
+    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId, for_user_id: s.forUserId },
     waitedMs: Number.NEGATIVE_INFINITY
   };
 }

@@ -51,7 +51,7 @@ doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
 tables with more than one writer     60   478 writers among them
-doors writing a record with no event   95   writing 110 tables (invariant 2)
+doors writing a record with no event   96   writing 111 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          31   in 11 files
 literal style values                813   in 22 stylesheets
@@ -64,7 +64,7 @@ lint warnings                       277   in 124 files, 33 of them exhaustive-de
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         71   18 of them with max-params waiting
+trees the lint's limits hold         72   18 of them with max-params waiting
 ```
 
 <!-- measured:end -->

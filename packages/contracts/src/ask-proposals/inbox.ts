@@ -67,7 +67,8 @@ export const replySpec: ProposalSpec = {
   commit: (p) => ({
     route: "POST conversations/[id]/reply",
     params: { id: asText(p.payload.conversation_id) },
-    body: { text: asText(p.payload.text) },
+    // An email's address, where the door asked for a yes to it (Refusal.confirmEmailTo): Today's row sends again naming it.
+    body: { text: asText(p.payload.text), ...(p.payload.email_to ? { email_to: asText(p.payload.email_to) } : {}) },
     idempotencyKey: p.id,
   }),
   receipt: (p) => `On its way to ${asText(p.payload.who)} — sends in 15 seconds unless you cancel`,

@@ -340,13 +340,15 @@ test("a page reads the verbs it presses at once, and the kinds only Ask's cards 
   const dist = (f) => import(pathToFileURL(path.join(ROOT, "packages/contracts/dist", f)).href);
   const page = await dist("browser/index.js");
   assert.ok(page.proposalSpec("answer") && page.proposalSpec("sequence_step"), "a page's verbs are in from the start");
-  assert.equal(page.proposalSpec("reply"), null);
+  // Today's Need you sends a reply and snoozes a thread from its rows, so those are a page's too (decision 0071).
+  assert.ok(page.proposalSpec("reply") && page.proposalSpec("thread_verb") && page.proposalSpec("person_message"));
+  assert.equal(page.proposalSpec("whisper"), null);
   assert.equal(page.PROPOSAL_GATE.lead_mark, undefined);
   assert.equal(page.cardOpenRoute({ kind: "lead_stage", payload: { lead_id: "l1" } }), null);
   const { ASK_ONLY_SPECS } = await dist("ask-only.js");
   for (const kind of Object.keys(ASK_ONLY_SPECS)) assert.equal(page.proposalSpec(kind), null, `${kind} is Ask's alone`);
   page.addProposalSpecs(ASK_ONLY_SPECS);
-  assert.ok(page.proposalSpec("reply") && page.verbSpec("follow_up"));
+  assert.ok(page.proposalSpec("whisper") && page.verbSpec("follow_up"));
   // Each reading takes them in: the gate (the same object window.PROPOSAL_GATE holds), the Open, and the undo's window.
   assert.equal(page.PROPOSAL_GATE.lead_mark, "find");
   assert.equal(page.cardOpenRoute({ kind: "thread_verb", payload: { conversation_id: "c1" } }), "inbox/th-c1");

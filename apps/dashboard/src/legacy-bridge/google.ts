@@ -134,9 +134,21 @@ function readNoticesOfReview(id: string): void {
   bellNow()?.readWhere((n) => n.kind === "review" && reviewNoticeIsAbout(n.about, review));
 }
 
-/** An answer to a review, on Google. Operators and owners. Answered, its notices are read. */
-export async function replyToReview(id: string, comment: string): Promise<{ ok: boolean; message: string }> {
-  const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment }, once: true });
+/**
+ * An answer to a review, on Google. Operators and owners. Answered, its notices are read. `asTabGoes`: sent as the tab
+ * closes and finished after it (Today's Need you posts a reply it still held that way).
+ */
+export async function replyToReview(
+  id: string,
+  comment: string,
+  asTabGoes = false,
+): Promise<{ ok: boolean; message: string }> {
+  const r = await api()("POST google/reviews/[id]/reply", {
+    params: { id },
+    body: { comment },
+    once: true,
+    ...(asTabGoes ? { keepalive: true } : {}),
+  });
   if (r.ok) readNoticesOfReview(id);
   return { ok: r.ok, message: r.ok ? "" : r.message };
 }

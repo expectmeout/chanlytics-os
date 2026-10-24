@@ -114,13 +114,12 @@ async function getToday(t: ToolContext): Promise<unknown> {
         ? null
         : goingTodayOf({
             runs: going.map((r) => ({ ...r, title: r.name })),
-            replies: [],
             tz: metrics.workspace.timezone,
             nowMs: t.now.getTime(),
           })
             .slice(0, 5)
             .map((r) => {
-              if (r.stop.kind === "run") noteRow(t, "broadcast", r.stop.id, r.name, r.to);
+              noteRow(t, "broadcast", r.stop.id, r.name, r.to);
               return { name: r.name, what: r.meta, sentence: r.sentence, route: r.to };
             }),
     searches_waiting: searchRows.map((r) => ({ name: r.who, question: r.sentence, route: r.cta.to })),
