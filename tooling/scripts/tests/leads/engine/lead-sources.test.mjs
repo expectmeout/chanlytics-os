@@ -4,8 +4,8 @@
  *
  * 23 Oct 2026: the Maps actor's pinned build was deleted by its provider, every Maps search was refused at its start,
  * and the refusal's words were kept nowhere. A refusal pages at once, in the provider's words; each health sweep reads
- * every pin's build by its id, and one the provider deleted pages, while a pin merely behind the latest says nothing;
- * Health says both in words.
+ * every pin's build by its id, all at once, and one the provider deleted pages, while a pin merely behind the latest
+ * says nothing; Health says both in words.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -82,6 +82,24 @@ function provider(numbers, latest = {}) {
     },
   };
 }
+
+/** The same provider, every answer held until `answer` lets it go, by the build id or actor it was asked for. */
+function heldProvider(numbers, latest = {}) {
+  const asked = [];
+  const held = new Map();
+  const hold = (key, value) => {
+    asked.push(key);
+    return new Promise((resolve) => held.set(key, () => resolve(value)));
+  };
+  return {
+    asked,
+    answer: (key) => held.get(key)(),
+    buildNumberOf: (id) => hold(id, numbers[id] ?? null),
+    latestBuild: (actor) => hold(actor, latest[actor] ?? null),
+  };
+}
+/** Every promise already answered runs on. */
+const drain = () => new Promise((resolve) => setImmediate(resolve));
 const STANDING = Object.fromEntries(leadPins().map((p) => [p.buildId, p.build]));
 
 test("a refused start pages the platform once a window, naming the actor, the build and the provider's words", async () => {
@@ -153,6 +171,41 @@ test("a build it cannot read skips that pin alone, and a deployment without the 
     [`[Chanlytics] A lead source's pinned build is gone: ${CHECKER}`],
     "the unreadable one is skipped and the others are still read",
   );
+});
+
+test("the pins are read together, and a pin in trouble asks its latest without waiting on the others", async () => {
+  // Read one after another, a provider that hangs would cost the sweep a timeout per pin, inside its 60 s.
+  const db = pagerMemory();
+  const m = mailbox();
+  const apify = heldProvider(
+    { ...STANDING, EH35UvIrsV0hnZG0Y: null, uw7qJdrXWOwYh9MUK: null },
+    { [MAPS]: "0.14.790", [CHECKER]: "0.1.18" },
+  );
+  const watching = watchLeadPins(db, apify, { send: m.send, now: () => FIVE_AM });
+  await drain();
+  assert.deepEqual(
+    apify.asked,
+    leadPins().map((p) => p.buildId),
+    "every build is asked before any answers",
+  );
+  apify.answer("EH35UvIrsV0hnZG0Y");
+  await drain();
+  assert.equal(apify.asked.at(-1), MAPS, "the gone pin's latest is asked while the other builds are still out");
+  for (const key of ["UJAtg4JwDdgEVD6iI", "uw7qJdrXWOwYh9MUK", MAPS, CHECKER]) {
+    apify.answer(key);
+    await drain();
+  }
+  assert.equal(await watching, 2);
+  assert.deepEqual(
+    m.sent.map((s) => s.subject),
+    [
+      `[Chanlytics] A lead source's pinned build is gone: ${MAPS}`,
+      `[Chanlytics] A lead source's pinned build is gone: ${CHECKER}`,
+    ],
+    "the pages go out in the pins' order, each naming its own latest",
+  );
+  assert.match(m.sent[0].body, /Probe the latest build, 0\.14\.790,/);
+  assert.match(m.sent[1].body, /Probe the latest build, 0\.1\.18,/);
 });
 
 test("Health says both pages in words, the actor after the colon", () => {

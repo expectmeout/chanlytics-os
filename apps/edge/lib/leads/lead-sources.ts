@@ -52,8 +52,10 @@ export function leadSourceClient(fetchImpl: typeof fetch = fetch): ApifyClient |
 
 /**
  * Each health sweep: every pinned build read by its id, and a pin the provider no longer has (or whose id names another
- * build) paged, with the provider's latest to probe. The reads are free and need no key. Answers how many were gone.
- * Never throws: a build that cannot be read is logged and that pin is skipped, so the sweep's other checks stand.
+ * build) paged, with the provider's latest to probe. A build's read is free and needs no key. The pins go out
+ * together, and a pin in trouble asks its latest as soon as its own build answers: a provider that hangs costs the
+ * sweep two of its timeouts at most (a build, then its latest), never two per pin. Answers how many were gone. Never
+ * throws: a build that cannot be read is logged and that pin is skipped, so the sweep's other checks stand.
  */
 export async function watchLeadPins(
   db: Db,
@@ -61,18 +63,25 @@ export async function watchLeadPins(
   pager: Omit<PagePorts, "db"> = {},
 ): Promise<number> {
   if (!apify) return 0;
+  // Each pin in trouble, with its latest; null for one that stands or cannot be read.
+  const troubles = await Promise.all(
+    leadPins().map(async (pin) => {
+      let number: string | null;
+      try {
+        number = await apify.buildNumberOf(pin.buildId);
+      } catch (e) {
+        logger({ sweep: "health" }).error("lead_pin_unreadable", { actor: pin.actor, error: errField(e) });
+        return null;
+      }
+      if (number === pin.build) return null;
+      return { pin, number, latest: await apify.latestBuild(pin.actor).catch(() => null) };
+    }),
+  );
   let gone = 0;
-  for (const pin of leadPins()) {
-    let number: string | null;
-    try {
-      number = await apify.buildNumberOf(pin.buildId);
-    } catch (e) {
-      logger({ sweep: "health" }).error("lead_pin_unreadable", { actor: pin.actor, error: errField(e) });
-      continue;
-    }
-    if (number === pin.build) continue;
+  for (const trouble of troubles) {
+    if (!trouble) continue;
+    const { pin, number, latest } = trouble;
     gone += 1;
-    const latest = await apify.latestBuild(pin.actor).catch(() => null);
     const [subject, what] =
       number === null
         ? [
