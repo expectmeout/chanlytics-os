@@ -9,7 +9,7 @@
  */
 import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
 import type { AskOnlyKind } from "./ask-only";
-import { bookingRequestSpec } from "./inbox";
+import { bookingRequestSpec, replySpec, steerSpec, threadVerbSpec } from "./inbox";
 import { factSuggestionSpec } from "./autonomy";
 import { reviewReplyStopSpec } from "./reviews";
 import { answerStyleSpec } from "./follow-up";
@@ -20,6 +20,7 @@ import {
   noteManySpec,
   personAddSpec,
   personMergeSpec,
+  personMessageSpec,
   personModeManySpec,
 } from "./people-verbs";
 import { dealSpec, noteSpec, personModeSpec } from "./person";
@@ -87,6 +88,12 @@ export const PAGE_SPECS = {
   playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
+  // Today's Need you (decision 0071): a reply sent from its row, a thread snoozed and woken or its hold resolved, the
+  // receptionist's held reply rewritten, and a first message to a person (a missed visit's rebook), each also Ask's card.
+  reply: replySpec,
+  thread_verb: threadVerbSpec,
+  steer: steerSpec,
+  person_message: personMessageSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
   // A reply the receptionist holds under a review, stopped before it posts, on Reports' Reviews (decision 0064).

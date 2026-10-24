@@ -91,7 +91,7 @@ const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? dr
 // What Ask remembers (settings/memory/surface.ts; decision 0070), where Settings › Memory is on screen: a line kept, changed or
 // forgotten there, or by a card's Undo in the Line. Elsewhere the pane reads it as it comes on screen, once it has aged.
 const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
-// Ask for you's morning (today/ask-morning-surface.ts; decision 0070), where Today is on screen: a card of the morning's turn
+// Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
 const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
 // The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
@@ -623,7 +623,9 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",
   "POST ask/morning":
-    "the member's morning asked for (decision 0070): Ask for you lays the answer on Today itself, and reads again while Ask writes",
+    "the member's morning asked for (decision 0070): Need you lays the answer on Today itself, and reads again while Ask writes",
+  "POST conversations/[id]/draft":
+    "Ask's draft written ahead for a thread waiting on a person (decision 0071): the row that asked lays the answer on itself (today/need-you/drafts.ts), and no surface holds drafts",
   "POST reach-outs/[id]/leads/check":
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   "POST sequences/[id]/leads/check":
@@ -631,6 +633,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
   "POST ask/quick": "a quick answer kept as a turn: the Line holds the answer it drew and the thread it landed in",
+  "POST ask/idea":
+    "an idea of Leads' first day kept as a card in a thread of its own (#1815): the Line opens that thread from the answer, and no page draws it",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
   "POST ask/warm/model": "the model's cache, written before a question; it changes nothing a page shows",
   "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",

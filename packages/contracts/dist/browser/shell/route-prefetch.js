@@ -89,7 +89,7 @@ export const PREFETCH_BESIDE = {
     "notifications",
     "google",
     "reach-out-replies",
-    // Ask for you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
+    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
     "ask/morning"
   ]
 };

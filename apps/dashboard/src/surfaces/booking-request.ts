@@ -7,7 +7,7 @@
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 
 /** What the door answered: the reply Booked it drafts (null for Can't) and the receipt, or its refusal in a sentence. */
-export type RequestAnswered = { ok: true; reply: string | null; receipt: string } | { ok: false; message: string };
+type RequestAnswered = { ok: true; reply: string | null; receipt: string } | { ok: false; message: string };
 
 export async function answerRequest(conversationId: string, booked: boolean, who: string): Promise<RequestAnswered> {
   const r = await commitVerb("booking_request", { conversation_id: conversationId, booked, who });

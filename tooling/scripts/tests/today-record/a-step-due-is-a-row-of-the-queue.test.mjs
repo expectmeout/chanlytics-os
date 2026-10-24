@@ -105,7 +105,8 @@ test("the steps due are rows of the queue's own shape: the person, the step's wo
       status: [want.when, "For Maria"],
       initials: "DI",
       cta: { label: NOTE_WORDS.done, to: "clients/d" },
-      step: { person_id: "d", note_id: "s-d", deal_id: null },
+      // Whom it is for rides with it: Need you's Not now moves its day and leaves it Maria's (decision 0071).
+      step: { person_id: "d", note_id: "s-d", deal_id: null, for_user_id: "u-Maria" },
       conversationId: null,
       callId: null,
       also: null,
@@ -261,11 +262,11 @@ test("Today's queue draws the steps due in the row every person wears: the row o
   );
   assert.equal(
     all(di, (n) => classes(n).includes("cl-attn-cta")).length,
-    1,
-    "one verb a row, as every row of the queue",
+    0,
+    "its verb is the row's work's (decision 0071), beside Not now, which moves the step's day",
   );
-  // The row opens the person.
-  di.props.onClick();
+  // The row opens the person: its words do, since the row holds presses of its own.
+  find(di, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "clients/d");
   // The head says them in its sub-line; its number is who is waiting on a person, as Ask, the Inbox's badge and the phone say it:
   // a step is the team's own to-do and nobody waiting.

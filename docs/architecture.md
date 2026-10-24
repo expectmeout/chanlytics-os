@@ -722,6 +722,7 @@ packages/contracts/src/
   lines/
   logo/
   mobile/
+  need-you/
   new-conversation/
   notes/
   notices/

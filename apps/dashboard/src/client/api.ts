@@ -63,6 +63,11 @@ interface Options<K extends RouteKey> {
   /** The caller's own way to end the request before its time: the Line's Stop. The timeout holds beside it. */
   signal?: AbortSignal;
   /**
+   * Sent as the tab goes and finished after it (fetch's keepalive): a press the tab still held when it closed, such as a
+   * review's reply waiting out its grace (surfaces/today/need-you/sends.ts). A small write only: the browser caps it.
+   */
+  keepalive?: boolean;
+  /**
    * After a 2xx: re-read the surfaces the map names, and answer once they have landed (the default); a bulk verb
    * passes false and re-reads once at its end. "behind" re-reads them all the same but answers when the server
    * accepts: for an act in a list somebody is working down, where the row has already shown what happened and the
@@ -302,6 +307,7 @@ function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
     method,
     headers,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+    ...(opts.keepalive ? { keepalive: true } : {}),
     signal: eitherSignal(
       AbortSignal.timeout(opts.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS)),
       opts.signal,

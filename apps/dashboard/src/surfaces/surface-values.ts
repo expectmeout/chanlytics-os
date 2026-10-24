@@ -78,7 +78,7 @@ export interface SurfaceValues {
   calendar_runs: CalendarRunsSurface;
   /** The counts of the lists pinned to Today, read where Today draws them (today/pins-surface.ts; R10). */
   today_pins: TodayPinsSurface;
-  /** Ask's morning for this member, read where Today draws Ask for you (today/ask-morning-surface.ts; decision 0070). */
+  /** Ask's morning for this member, read where Today draws its ideas as rows of Need you (today/ask-morning-surface.ts; decisions 0070 and 0071). */
   ask_morning: AskMorningSurface;
   /** What Ask remembers, read where Settings › Memory is drawn (settings/memory/surface.ts; decision 0070); null when it failed. */
   ask_memory: AskMemorySurface | null;

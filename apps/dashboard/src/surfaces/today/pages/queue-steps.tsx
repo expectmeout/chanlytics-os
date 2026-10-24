@@ -7,14 +7,15 @@
  *
  * Done is the Inbox thread header's verb, press for press (inbox/thread/header.tsx IxThreadStep): the person-notes courier's
  * `done`, an owner's or an operator's (the door's rule; the gate says so to anyone else), said as every page says it
- * (step-done.tsx): "Step done · its words", with an Undo that brings the row back.
+ * (step-done.tsx): "Step done · its words", with an Undo that brings the row back. The row's button is Need you's
+ * (need-you/call-work.tsx StepWork, decision 0071), beside Not now, which moves the step's day.
  */
-import { NOTE_WORDS, type TodayQueueRowVM, type TodayStepsVM } from "@chanlytics/contracts";
+import type { TodayQueueRowVM, TodayStepsVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "@/surfaces/people/surface";
 import { TODAY_HELPERS } from "../helpers";
 import { completeStep, type StepSay } from "../../step-done";
 import { refreshSurface } from "../../legacy-verbs";
-import { borrowed, gate, personNotes, workspaceClock } from "../shell";
+import { borrowed, personNotes, workspaceClock } from "../shell";
 
 /**
  * The steps due, from People's rows as the People surface holds them; null while People is unread or the workspace's zone is
@@ -38,19 +39,6 @@ export function stepsLeft(
   // The row for the rest stands for every step the named rows are not; with it drawn nothing is left out.
   const named = drawn.filter((r) => r.kind === "step").length;
   return { due, cut: drawn.some((r) => r.kind === "steps") ? 0 : due - named };
-}
-
-/**
- * A step's one verb, Done, for the row's button: a row's door is the person, so the button is the act. Several rows say Done, so
- * a reader hears whose, as the thread header's does (markDone); the role gate says so to anyone who may not mark a step.
- */
-export function stepAct(row: TodayQueueRowVM, kind: "primary" | "ghost", done: (row: TodayQueueRowVM) => unknown) {
-  return {
-    label: row.cta.label,
-    kind,
-    onClick: () => done(row),
-    gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(row.sentence) },
-  };
 }
 
 /**

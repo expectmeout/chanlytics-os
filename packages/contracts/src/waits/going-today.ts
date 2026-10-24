@@ -1,17 +1,19 @@
 /**
  * What goes on its own today (decision 0064, step 2): Today's "Going today", above what waits for an OK. A customer batch
- * held for a stop, a message sent once and set for later today, a reach-out's run, and a reply of the receptionist's
- * counting down to go in the owner's name: each goes at its time unless it is stopped, so each is a row with when it goes
- * and its Stop, soonest first. What waits for an OK is the queue's ("Need you"), and what already went is the day's card.
+ * held for a stop, a message sent once and set for later today, and a reach-out's run: each goes at its time unless it is
+ * stopped, so each is a row with when it goes and its Stop, soonest first. What waits for an OK is the queue's ("Need
+ * you"), and what already went is the day's card. A reply of the receptionist's counting down to go in the owner's name
+ * was a row here too; since decision 0071 it is Need you's own row, where it can be stopped, changed and sent
+ * (today/today-queue.ts heldRow), and Ask's read says it as needs_you's replies on their way.
  *
- * Pure: the page hands in the runs it holds, the replies counting down on the threads it holds, the business's zone and
- * the clock; every sentence is said here, from the wait rule's own words (wait-rules.ts waitEndsWords).
+ * Pure: the page hands in the runs it holds, the business's zone and the clock; every sentence is said here, from the
+ * wait rule's own words (wait-rules.ts waitEndsWords).
  */
 import { addressOf } from "../activity/record-address";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { clockTime, zoneDayKey } from "../shared/clock";
 import { HOUR_MS } from "../shared/time";
-import { clipAtWord, plural } from "../shared/words";
+import { plural } from "../shared/words";
 import { waitEndsWords, type WaitKind } from "./wait-rules";
 
 /** A run as the page holds it, as far as Going today reads it. */
@@ -26,42 +28,30 @@ export interface GoingRun {
   audience?: unknown;
 }
 
-/** A reply counting down on a thread the page holds: who it answers, when it goes, its message and its words. */
-export interface GoingReply {
-  conversationId: string;
-  who: string;
-  endsAtMs: number;
-  messageId: string;
-  draft: string;
-}
-
 /** One row of Going today: what goes, when, in a sentence, and what its Stop stops. */
 export interface GoingTodayRowVM {
   key: string;
-  kind: "batch" | "one_off" | "reply";
+  kind: "batch" | "one_off";
   name: string;
   /** What it is, as the row's line under its name says it: "Campaign · goes at 10:30 AM". */
   meta: string;
   /** Who it reaches and how its wait ends: "4 people. Goes at 10:30 AM unless you stop it." */
   sentence: string;
   atMs: number;
-  /** Its Stop: a run is canceled (Sent's own cancel), a reply withdrawn (the Inbox's own hold). */
-  stop: { kind: "run"; id: string } | { kind: "reply"; messageId: string; conversationId: string };
-  /** Where the row opens: the run, or the thread. */
+  /** Its Stop: the run, canceled (Sent's own cancel). */
+  stop: { kind: "run"; id: string };
+  /** Where the row opens: the run. */
   to: string;
 }
-
-/** How much of a held reply the row quotes. */
-const REPLY_QUOTE = 90;
 
 /** The words above Going today, and what it says when nothing goes on its own today. */
 export const GOING_TODAY_WORDS = {
   title: "Going today",
-  /** Beside the count: what each row does, and how many past the rows drawn are in Sent and the Inbox. */
+  /** Beside the count: what each row does, and how many past the rows drawn are in Sent. */
   sub: (n: number, drawn: number) =>
     [
       n === 1 ? "Goes on its own unless you stop it" : "Each goes on its own unless you stop it",
-      n > drawn ? `${n - drawn} more in Sent and the Inbox` : "",
+      n > drawn ? `${n - drawn} more in Sent` : "",
     ]
       .filter(Boolean)
       .join(" · "),
@@ -76,15 +66,10 @@ function goes(kind: WaitKind, atMs: number, tz: string): { at: string; ends: str
 
 /**
  * Today's rows of what goes on its own: every run scheduled to start later on the business's day, or within the hour across
- * its midnight (a batch held for a stop, a reach-out's run, a message sent once), and every reply counting down, soonest
- * first. A run already sending, or one set for a later day, is not today's to stop here.
+ * its midnight (a batch held for a stop, a reach-out's run, a message sent once), soonest first. A run already sending, or
+ * one set for a later day, is not today's to stop here.
  */
-export function goingTodayOf(input: {
-  runs: readonly GoingRun[];
-  replies: readonly GoingReply[];
-  tz: string;
-  nowMs: number;
-}): GoingTodayRowVM[] {
+export function goingTodayOf(input: { runs: readonly GoingRun[]; tz: string; nowMs: number }): GoingTodayRowVM[] {
   const { tz, nowMs } = input;
   const today = zoneDayKey(nowMs, tz);
   const rows: GoingTodayRowVM[] = [];
@@ -108,20 +93,6 @@ export function goingTodayOf(input: {
       atMs,
       stop: { kind: "run", id: r.id },
       to: addressOf({ kind: "send", id: r.id }),
-    });
-  }
-  for (const p of input.replies) {
-    if (!(p.endsAtMs > nowMs)) continue;
-    const g = goes("reply", p.endsAtMs, tz);
-    rows.push({
-      key: `reply-${p.messageId}`,
-      kind: "reply",
-      name: p.who,
-      meta: `Reply · goes ${g.at}`,
-      sentence: `“${clipAtWord(p.draft, REPLY_QUOTE)}” ${g.ends}.`,
-      atMs: p.endsAtMs,
-      stop: { kind: "reply", messageId: p.messageId, conversationId: p.conversationId },
-      to: addressOf({ kind: "conversation", id: p.conversationId }),
     });
   }
   return rows.sort((a, b) => a.atMs - b.atMs);

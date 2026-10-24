@@ -2411,6 +2411,11 @@
 .cl-attn-sentence.quoted { font-style: italic; color: var(--ink); }
 .cl-attn-status { font-size: 10.5px; color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-status .lead { color: var(--ink-muted); }
+/* What the row offers to do in place (Today's Need you, decision 0071): under its words, across the row, its own presses. */
+.cl-attn-work { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding-top: var(--space-2); cursor: default; }
+/* Such a row is not one button (attn-row.tsx): its words are the press that opens it, where it opens anything. */
+.cl-attn-row:has(> .cl-attn-work) { cursor: default; }
+.cl-attn-row:has(> .cl-attn-work) .cl-attn-body[role="button"] { cursor: pointer; }
 /* The lead takes the row's tone, one of contracts' six (tone.ts): amber where a
    person is needed, blue for in progress, green for healthy, the accent for right
    now, and red for the back office's workspace whose line failed or whose card

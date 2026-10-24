@@ -460,7 +460,11 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
   // their refusals are said there. The handoff row stands, with no second verb to refuse.
   const handoff = rows.find((p) => p.testid === "queue-handoff");
   assert.ok(handoff && !handoff.also, "the handoff row stands, with its one verb");
-  assert.deepEqual(wire, [], "nothing asked yet");
+  assert.deepEqual(
+    wire,
+    ["GET /api/v1/conversations/drafts"],
+    "nothing changed yet: the one ask is the read of the drafts kept for the rows drawn (decision 0071)",
+  );
   const run = rows.find((p) => p.testid === "brief-run-row");
   assert.ok(run, "the run waiting for approval");
   await run.cta.onClick();

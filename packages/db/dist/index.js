@@ -590,6 +590,9 @@ var ERASURE_STRATEGIES = {
     acquired_ref: NOT_PERSONAL
   },
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
+  // Ask's draft written ahead for a thread waiting on a person (00475): its key names the thread, so the row goes with it
+  // when erase_contact deletes their conversation (on delete cascade).
+  conversation_drafts: { words: withPerson("erase_contact") },
   deals: {
     ...all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
     // What was sold and in what currency, kept as its stage and amount are, as a visit keeps its service. The service is
@@ -7483,6 +7486,49 @@ async function askFirstAnswer(db, threadId) {
     failed: data.failed === true
   };
 }
+
+// src/repositories/ask/reply-drafts.ts
+async function conversationDraftsOf(db, tenantId, conversationIds) {
+  if (conversationIds.length === 0) return [];
+  const { data, error } = await db.from("conversation_drafts").select("conversation_id, kind, for_message_id, words, made_at").eq("tenant_id", tenantId).in("conversation_id", [...conversationIds]);
+  if (error) throw new Error(`conversation_drafts: ${error.message}`);
+  return data ?? [];
+}
+async function threadDraftFacts(db, tenantId, conversationId) {
+  const [msg, hold] = await Promise.all([
+    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "customer").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("escalations").select("reason, details").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open").order("created_at", { ascending: false }).limit(1).maybeSingle()
+  ]);
+  if (msg.error) throw new Error(`messages: ${msg.error.message}`);
+  if (hold.error) throw new Error(`escalations: ${hold.error.message}`);
+  const details = hold.data?.details;
+  return {
+    forMessageId: msg.data?.id ?? null,
+    reason: hold.data?.reason ?? null,
+    details: typeof details === "string" && details.trim() ? details.trim() : null
+  };
+}
+async function conversationDraftKeep(db, d) {
+  const { data, error } = await db.rpc("conversation_draft_keep", {
+    p_tenant_id: d.tenantId,
+    p_conversation_id: d.conversationId,
+    p_kind: d.kind,
+    p_words: d.words,
+    ...d.forMessageId ? { p_for_message_id: d.forMessageId } : {}
+  });
+  if (error) throw new Error(`conversation_draft_keep: ${error.message}`);
+  const r = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof r.error === "string") return { refused: r.error };
+  return {
+    kept: {
+      conversation_id: typeof r.conversation_id === "string" ? r.conversation_id : d.conversationId,
+      kind: typeof r.kind === "string" ? r.kind : d.kind,
+      for_message_id: typeof r.for_message_id === "string" ? r.for_message_id : null,
+      words: r.words ?? {},
+      made_at: typeof r.made_at === "string" ? r.made_at : (/* @__PURE__ */ new Date()).toISOString()
+    }
+  };
+}
 export {
   AnswerNotKept,
   CALL_CONTROL_S,
@@ -7573,6 +7619,8 @@ export {
   contactIdByEmail,
   contactIdByPhone,
   contactSeen,
+  conversationDraftKeep,
+  conversationDraftsOf,
   countBugReports,
   countSentToday,
   createList,
@@ -8044,6 +8092,7 @@ export {
   tenantZoneOf,
   textLineFacts,
   textReached,
+  threadDraftFacts,
   threadIdsWaitingOnYou,
   touchIndex,
   touchOfCall,

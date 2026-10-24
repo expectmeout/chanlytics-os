@@ -185,6 +185,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     acquired_ref: NOT_PERSONAL,
   },
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
+  // Ask's draft written ahead for a thread waiting on a person (00475): its key names the thread, so the row goes with it
+  // when erase_contact deletes their conversation (on delete cascade).
+  conversation_drafts: { words: withPerson("erase_contact") },
   deals: {
     ...all(scrubbedBy("deals_trigger"), "note", "evidence", "proposal_url"),
     // What was sold and in what currency, kept as its stage and amount are, as a visit keeps its service. The service is

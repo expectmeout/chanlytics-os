@@ -847,8 +847,13 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
     "the parts from contracts, the runs' count from contracts: a run that goes on its own is its row, and waits on no word",
   );
   const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));
+  // A row's one coral is its own verb, or, on a row worked in place (decision 0071), the kit's primary in its work.
   const primary = rows.filter((r) =>
-    find(r, (n) => classes(n).includes("cl-attn-cta") && classes(n).includes("primary")),
+    find(
+      r,
+      (n) =>
+        (classes(n).includes("cl-attn-cta") && classes(n).includes("primary")) || classes(n).includes("btn-primary"),
+    ),
   );
   assert.equal(primary.length, 1, "the first row carries the page's one primary verb");
   assert.equal(primary[0], rows[0]);
@@ -1692,9 +1697,10 @@ test("the page is its bands and nothing seeded", () => {
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   // What is left to set up sits above the queue in its column, never across the page (canvas R10).
   const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
-  // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064); what Ask would do
-  // first sits under it, since nothing Ask suggests outranks a person who has been waiting (decision 0070).
-  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand", "TodayAsk"]);
+  // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064). What Ask would do
+  // is in the queue itself since decision 0071 (Need you, with Ask): its ideas are rows after the people, so nothing it
+  // suggests outranks a person who has been waiting (decision 0070), and it has no band of its own.
+  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand"]);
   assert.equal(
     buttons(byTestId(tree, "today-card"), "Reports").length,
     1,

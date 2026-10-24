@@ -9846,6 +9846,7 @@ var REPLY_LIMITS = {
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+var SEND_GRACE_MS = 15e3;
 var CALL_HEARTBEAT_MS = 10 * MIN_MS;
 function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;
@@ -12697,6 +12698,7 @@ function nextStepOf(r2, tz, nowMs) {
     due: day.due,
     forWho: forWords(r2.step_for_me, r2.step_for_user_id, r2.step_for_name),
     forMe: !!r2.step_for_me,
+    forUserId: r2.step_for_user_id ?? null,
     dealId: r2.step_deal_id ?? null
   };
 }
@@ -21951,17 +21953,9 @@ function checkJournal(answer) {
 
 // src/ask-memory/morning.ts
 var ASK_MORNING_CARDS_MAX = 3;
-var ASK_MORNING_QUESTION = "Good morning. Look at my day: what needs me now, what is due, what happened since yesterday, and what you remember about the business, and the lead finder's ideas if Leads has any. Then give me at most three things to do first, each as a card I can approve, and say in one short sentence why each comes first. If nothing needs me, say so in one sentence and make no card.";
+var ASK_MORNING_QUESTION = "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, so make no card that only answers or calls back someone who is waiting. Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Begin with one sentence on how the day stands, never about the cards you made. If nothing else is worth doing, say so in one sentence and make no card.";
 var ASK_MORNING_WORDS = {
-  title: "Ask for you",
-  sub: "What Ask would do first today",
-  writing: "Ask is looking at your day.",
-  failed: "Ask could not look at your day just now.",
-  open: "Open in Ask",
-  approve: "Approve",
-  notNow: "Not now",
   dismissed: "Let go",
-  quiet: "Nothing needs you first today.",
   /** The member's own bell line when the morning's cards wait (kind ask_cards). */
   bell: (cards) => ({
     title: cards === 1 ? "Ask has one thing for you today" : `Ask has ${cards} things for you today`,
@@ -23328,7 +23322,8 @@ var replySpec = {
   commit: (p) => ({
     route: "POST conversations/[id]/reply",
     params: { id: asText(p.payload.conversation_id) },
-    body: { text: asText(p.payload.text) },
+    // An email's address, where the door asked for a yes to it (Refusal.confirmEmailTo): Today's row sends again naming it.
+    body: { text: asText(p.payload.text), ...p.payload.email_to ? { email_to: asText(p.payload.email_to) } : {} },
     idempotencyKey: p.id
   }),
   receipt: (p) => `On its way to ${asText(p.payload.who)} \u2014 sends in 15 seconds unless you cancel`,
@@ -25607,167 +25602,6 @@ function receptionistOf(r2, tz, nowMs, viewerId, names3 = null) {
   return { tone: "answering", label: "Answering" };
 }
 
-// src/ask-proposals/people-verbs.ts
-var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
-var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
-var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
-function answerSaidOf(purpose, consent) {
-  if (purpose === "marketing") {
-    if (consent === "opted_in") return "said yes to offers and news";
-    if (consent === "opted_out") return "said no to offers \u2014 other messages still reach them";
-    return "has not been asked about offers";
-  }
-  if (consent === "opted_in") return "said yes to messages";
-  if (consent === "opted_out") return "said stop \u2014 nothing goes out to them at all";
-  return 'is back to "not asked"';
-}
-function manySaid(data, verb) {
-  const d = rec(data);
-  const done = typeof d.done === "number" ? d.done : 0;
-  const failedRows = Array.isArray(d.failed) ? d.failed : [];
-  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
-  const failed = failedRows.length + skipped2.length;
-  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
-  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
-}
-function manyCalls(route, pl, fields2) {
-  const ids = uniqueIds(pl.ids);
-  if (!ids.length) return refuseWith("Pick at least one person.");
-  const rest = fieldsOf(pl, fields2);
-  const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
-  return oneOrMany(calls);
-}
-var ANSWER_DOOR = {
-  conversational: "PUT contacts/[id]/consent",
-  marketing: "PUT contacts/[id]/marketing-consent"
-};
-var ANSWER_MANY_DOOR = {
-  conversational: "PUT contacts/consent",
-  marketing: "PUT contacts/marketing-consent"
-};
-var personRoute = ({ payload }) => {
-  const id = idIn(payload, "contact_id");
-  return id ? `clients/${id}` : null;
-};
-var answerSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return {
-      route: ANSWER_DOOR[purpose],
-      params: { id: asText(pl.contact_id) },
-      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
-  open: personRoute
-};
-var answerManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const purpose = purposeOf(pl.purpose);
-    if (!purpose) return refuseWith("Say which question this answers.");
-    return manyCalls(ANSWER_MANY_DOOR[purpose], pl, ["consent", "source", "note"]);
-  },
-  gather: gatherCounts,
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
-    const answer = consentIn(pl.consent);
-    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personModeManySpec = {
-  needs: "owner",
-  doing: "change how the receptionist treats these people",
-  gate: "settings",
-  commit: ({ payload: pl }) => manyCalls("PUT contacts/receptionist", pl, ["mode"]),
-  gather: gatherCounts,
-  receipt: ({ payload: pl }, data) => {
-    const m = manySaid(data, "changed");
-    const mode = asText(pl.mode);
-    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var noteManySpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => manyCalls("PUT contacts/notes", pl, ["append"]),
-  gather: gatherCounts,
-  receipt: (_p, data) => {
-    const m = manySaid(data, "noted");
-    const head = `Note added for ${m.done}`;
-    return m.said ? `${head} \xB7 ${m.said}` : head;
-  },
-  open: () => "clients"
-};
-var personAddSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts",
-    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }, data) => {
-    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
-    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
-  },
-  made: (_p, data) => idIn(rec(data), "contact_id"),
-  open: () => "clients"
-};
-var personMergeSpec = {
-  needs: "owner",
-  doing: "merge two records of one person",
-  gate: "settings",
-  commit: ({ payload: pl }) => ({
-    route: "POST contacts/[id]/merge",
-    params: { id: asText(pl.contact_id) },
-    body: fieldsOf(pl, ["merge"]),
-    events: [PEOPLE_CHANGED]
-  }),
-  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
-  open: personRoute
-};
-var threadMade = (data) => idIn(rec(data), "conversation_id");
-var personMessageSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: (p) => {
-    const pl = p.payload;
-    if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return {
-      route: "POST people/[id]/message",
-      params: { id: asText(pl.contact_id) },
-      body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
-      idempotencyKey: p.id,
-      events: [PEOPLE_CHANGED]
-    };
-  },
-  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} \u2014 sends in 15 seconds unless you cancel`,
-  undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
-    window: "cancelable",
-    record: (_p, data) => ({
-      message_id: rec(data).message_id,
-      cancelable_until: rec(data).cancelable_until,
-      decision_id: decisionOf(data)
-    }),
-    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
-    receipt: () => "Canceled before it sent"
-  },
-  made: (_p, data) => threadMade(data),
-  open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
-};
-
 // src/notes/person-notes.ts
 var NOTE_MAX = 600;
 var NOTE_LINE_MAX = 200;
@@ -26302,10 +26136,7 @@ var inviteSpec = {
 
 // src/ask-proposals/ask-only.ts
 var ASK_ONLY_SPECS = {
-  // The Inbox's and Live's.
-  reply: replySpec,
-  steer: steerSpec,
-  thread_verb: threadVerbSpec,
+  // Live's (a reply, a held reply's rewrite and a thread's verbs are pressed on Today's Need you too: page-specs.ts).
   whisper: whisperSpec,
   call_hand_over: callHandOverSpec,
   // Settings'.
@@ -26318,7 +26149,6 @@ var ASK_ONLY_SPECS = {
   message: messageSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
-  person_message: personMessageSpec,
   list: listSpec,
   list_change: listChangeSpec,
   list_delete: listDeleteSpec,
@@ -26373,6 +26203,167 @@ var factSuggestionSpec = {
   }),
   receipt: (p) => p.payload.keep === true ? FACT_SUGGEST_WORDS.kept(asText(p.payload.title)) : FACT_SUGGEST_WORDS.dismissed,
   open: () => "admin/autonomy"
+};
+
+// src/ask-proposals/people-verbs.ts
+var purposeOf = (v) => v === "conversational" || v === "marketing" ? v : null;
+var consentIn = (v) => v === "opted_in" || v === "opted_out" ? v : "unknown";
+var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
+function answerSaidOf(purpose, consent) {
+  if (purpose === "marketing") {
+    if (consent === "opted_in") return "said yes to offers and news";
+    if (consent === "opted_out") return "said no to offers \u2014 other messages still reach them";
+    return "has not been asked about offers";
+  }
+  if (consent === "opted_in") return "said yes to messages";
+  if (consent === "opted_out") return "said stop \u2014 nothing goes out to them at all";
+  return 'is back to "not asked"';
+}
+function manySaid(data, verb) {
+  const d = rec(data);
+  const done = typeof d.done === "number" ? d.done : 0;
+  const failedRows = Array.isArray(d.failed) ? d.failed : [];
+  const skipped2 = Array.isArray(d.skipped) ? d.skipped : [];
+  const failed = failedRows.length + skipped2.length;
+  const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
+  return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
+}
+function manyCalls(route, pl, fields2) {
+  const ids = uniqueIds(pl.ids);
+  if (!ids.length) return refuseWith("Pick at least one person.");
+  const rest = fieldsOf(pl, fields2);
+  const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
+  return oneOrMany(calls);
+}
+var ANSWER_DOOR = {
+  conversational: "PUT contacts/[id]/consent",
+  marketing: "PUT contacts/[id]/marketing-consent"
+};
+var ANSWER_MANY_DOOR = {
+  conversational: "PUT contacts/consent",
+  marketing: "PUT contacts/marketing-consent"
+};
+var personRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var answerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return {
+      route: ANSWER_DOOR[purpose],
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["consent", "source", "note", "message_id"]),
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.who)} ${answerSaidOf(purposeOf(pl.purpose) ?? "conversational", consentIn(pl.consent))}`,
+  open: personRoute
+};
+var answerManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const purpose = purposeOf(pl.purpose);
+    if (!purpose) return refuseWith("Say which question this answers.");
+    return manyCalls(ANSWER_MANY_DOOR[purpose], pl, ["consent", "source", "note"]);
+  },
+  gather: gatherCounts,
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "recorded");
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
+    const answer = consentIn(pl.consent);
+    const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personModeManySpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats these people",
+  gate: "settings",
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/receptionist", pl, ["mode"]),
+  gather: gatherCounts,
+  receipt: ({ payload: pl }, data) => {
+    const m = manySaid(data, "changed");
+    const mode = asText(pl.mode);
+    const head = `Receptionist for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var noteManySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => manyCalls("PUT contacts/notes", pl, ["append"]),
+  gather: gatherCounts,
+  receipt: (_p, data) => {
+    const m = manySaid(data, "noted");
+    const head = `Note added for ${m.done}`;
+    return m.said ? `${head} \xB7 ${m.said}` : head;
+  },
+  open: () => "clients"
+};
+var personAddSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts",
+    body: fieldsOf(pl, ["phone", "email", "name", "source"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }, data) => {
+    const who = asText(pl.name).trim() || asText(pl.phone).trim() || asText(pl.email).trim();
+    return `${who} ${rec(data).existed === true ? "was already here \u2014 opened" : "added"}`;
+  },
+  made: (_p, data) => idIn(rec(data), "contact_id"),
+  open: () => "clients"
+};
+var personMergeSpec = {
+  needs: "owner",
+  doing: "merge two records of one person",
+  gate: "settings",
+  commit: ({ payload: pl }) => ({
+    route: "POST contacts/[id]/merge",
+    params: { id: asText(pl.contact_id) },
+    body: fieldsOf(pl, ["merge"]),
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
+  open: personRoute
+};
+var threadMade = (data) => idIn(rec(data), "conversation_id");
+var personMessageSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const pl = p.payload;
+    if (!idIn(pl, "contact_id") || !asText(pl.wire)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST people/[id]/message",
+      params: { id: asText(pl.contact_id) },
+      body: fieldsOf(pl, ["wire", "text", "subject", "template", "email_to", "then", "note"]),
+      idempotencyKey: p.id,
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} \u2014 sends in 15 seconds unless you cancel`,
+  undo: {
+    label: () => "Sends 15 seconds after you approve; cancel within them",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data)
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Canceled before it sent"
+  },
+  made: (_p, data) => threadMade(data),
+  open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
 };
 
 // src/reach-out/reach-out-dtos.ts
@@ -29285,6 +29276,12 @@ var PAGE_SPECS = {
   playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
+  // Today's Need you (decision 0071): a reply sent from its row, a thread snoozed and woken or its hold resolved, the
+  // receptionist's held reply rewritten, and a first message to a person (a missed visit's rebook), each also Ask's card.
+  reply: replySpec,
+  thread_verb: threadVerbSpec,
+  steer: steerSpec,
+  person_message: personMessageSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
   // A reply the receptionist holds under a review, stopped before it posts, on Reports' Reviews (decision 0064).
@@ -30434,8 +30431,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z36] = m;
-  if (z36) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z37] = m;
+  if (z37) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
@@ -46907,6 +46904,179 @@ function todaySendFailure(f) {
   };
 }
 
+// src/need-you/need-you-words.ts
+var MINUTE_S = 60;
+function leftWords(seconds2) {
+  if (seconds2 < MINUTE_S) return `${seconds2}s`;
+  return `${Math.floor(seconds2 / MINUTE_S)}:${String(seconds2 % MINUTE_S).padStart(2, "0")}`;
+}
+var NEED_YOU_WORDS = {
+  door: "Open Inbox",
+  drafted: "Ask drafted",
+  drafting: "Ask is writing\u2026",
+  couldNot: "Ask couldn't write this one.",
+  asks: (question) => `Ask needs to know: ${question}`,
+  edit: "Edit",
+  editDraft: (who) => `Ask's draft to ${who}. Press to change it.`,
+  yourWords: (who) => `Your words to ${who}`,
+  yours: "Your words",
+  writeItMyself: "Write it myself",
+  cancel: "Cancel",
+  send: "Send",
+  sendTo: (address) => `Send to ${address}`,
+  pickTemplate: "Choose a template",
+  notNow: "Not now",
+  notNowFor: (who) => `Not now: when ${who} comes back`,
+  sendingIn: (seconds2) => `Sending in ${leftWords(seconds2)}`,
+  sendingTo: (who, wire) => `to ${who} \xB7 ${wire}`,
+  undo: "Undo",
+  sent: "Sent",
+  open: "Open",
+  wake: "Wake",
+  canceled: "Not sent. Your words are kept.",
+  back: (when) => `back ${when}`,
+  backSooner: (who) => `Back sooner if ${who} writes again.`,
+  windowCloses: (clock3) => `Their WhatsApp window closes at ${clock3}; after it only a template reaches them.`,
+  windowClosed: "Their WhatsApp window has closed: only an approved template reaches them now. Your words go with you.",
+  viewer: "Only an owner or operator can send.",
+  openThread: "Open thread",
+  more: (n) => `${n} more in the Inbox`,
+  seeAll: "See all",
+  brief: { title: "Ask's brief for the call", say: "Say", ask: "Ask", avoid: "Leave out" },
+  call: {
+    call: "Call",
+    how: "How did it go?",
+    reached: "Reached them",
+    noAnswer: "No answer",
+    didNot: "Didn't call",
+    reachedDone: "Reached \xB7 off your list",
+    again: "Call again tomorrow \xB7 in your steps",
+    againStep: "Call them back again"
+  },
+  held: {
+    title: "Your receptionist's reply",
+    goesAlone: "Sends on its own",
+    sendsIn: (seconds2) => `Sends in ${leftWords(seconds2)}`,
+    by: (wire) => `Your receptionist \xB7 ${wire}`,
+    stop: "Stop",
+    held: "Held for you",
+    heldReply: "Your receptionist's reply, held",
+    change: "Change it with Ask",
+    changeLabel: "What should change",
+    changeHint: "Shorter, warmer, ask for a day\u2026",
+    rewrite: "Rewrite",
+    rewritten: "Rewritten. The new draft waits its turn.",
+    gone: "It went before it could be stopped."
+  },
+  booked: { confirmation: "Confirmation, drafted", dontSend: "Don't send" },
+  visit: {
+    rebook: "Ask drafted \xB7 the rebook",
+    rebookAbout: (word, when) => `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
+    rebookSent: "Missed \xB7 rebook sent",
+    noWay: (why) => `Nothing to send a rebook by. ${why}`,
+    change: "Change"
+  },
+  step: { moved: (day) => `Moved to ${day}`, moveFor: "Not now: move this step" },
+  review: {
+    draft: "Draft a reply",
+    drafted: "Ask drafted \xB7 public",
+    post: "Post",
+    postingIn: (seconds2) => `Posting in ${leftWords(seconds2)}`,
+    where: "public on Google",
+    posted: "Posted on Google",
+    toAnswer: "To answer",
+    stars: (n) => `${n} star${n === 1 ? "" : "s"}`
+  },
+  idea: { tag: "Ask's idea", notToday: "Not today", openInAsk: "Open in Ask", approve: "Approve", gone: "Not today" }
+};
+var AFTERNOON_HOUR = 14;
+var EVENING_HOUR = 18;
+var MORNING_HOUR = 9;
+function clockWords(tz, atMs) {
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(atMs);
+}
+function dayClockWords(tz, atMs) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(atMs);
+}
+function hourOn(tz, nowMs, days, hour) {
+  const d = dayPlusInZone(tz, nowMs, days);
+  return localToUtcMs(tz, d.y, d.m, d.d, hour, 0);
+}
+function daysToNextMonday(tz, nowMs) {
+  for (let days = 2; days <= 8; days++) if (dayPlusInZone(tz, nowMs, days).weekday === "mon") return days;
+  return 7;
+}
+function notNowChoices(tz, nowMs) {
+  const hour = clockInZone(tz, nowMs).hh;
+  const choices = [];
+  const inAnHour = nowMs + HOUR_MS;
+  choices.push({
+    key: "hour",
+    label: "In 1 hour",
+    until: new Date(inAnHour).toISOString(),
+    when: clockWords(tz, inAnHour),
+    back: `at ${clockWords(tz, inAnHour)}`
+  });
+  if (hour < AFTERNOON_HOUR - 1) {
+    const at3 = hourOn(tz, nowMs, 0, AFTERNOON_HOUR);
+    choices.push({
+      key: "afternoon",
+      label: "This afternoon",
+      until: new Date(at3).toISOString(),
+      when: clockWords(tz, at3),
+      back: `at ${clockWords(tz, at3)}`
+    });
+  } else if (hour < EVENING_HOUR - 1) {
+    const at3 = hourOn(tz, nowMs, 0, EVENING_HOUR);
+    choices.push({
+      key: "evening",
+      label: "This evening",
+      until: new Date(at3).toISOString(),
+      when: clockWords(tz, at3),
+      back: `at ${clockWords(tz, at3)}`
+    });
+  }
+  const tomorrow = hourOn(tz, nowMs, 1, MORNING_HOUR);
+  choices.push({
+    key: "tomorrow",
+    label: "Tomorrow",
+    until: new Date(tomorrow).toISOString(),
+    when: clockWords(tz, tomorrow),
+    back: `tomorrow at ${clockWords(tz, tomorrow)}`
+  });
+  const week = hourOn(tz, nowMs, daysToNextMonday(tz, nowMs), MORNING_HOUR);
+  choices.push({
+    key: "week",
+    label: "Next week",
+    until: new Date(week).toISOString(),
+    when: dayClockWords(tz, week),
+    back: `${dayClockWords(tz, week).replace(" ", " at ")}`
+  });
+  return choices;
+}
+var COUNTDOWN_SECOND_MS = 1e3;
+function sendCountdown(pressedMs, untilMs, nowMs) {
+  const whole2 = Math.max(1, untilMs - pressedMs);
+  const left = Math.max(0, untilMs - nowMs);
+  return { seconds: left > 0 ? Math.ceil(left / COUNTDOWN_SECOND_MS) : 0, share: Math.min(1, left / whole2) };
+}
+var oneOrCount = (n, one, many) => `${n === 1 ? "a" : n} ${n === 1 ? one : many}`;
+function needYouSay(f) {
+  const ready = [
+    f.replies ? oneOrCount(f.replies, "reply", "replies") : "",
+    f.briefs ? oneOrCount(f.briefs, "call brief", "call briefs") : ""
+  ].filter(Boolean);
+  const then = f.held ? ` Your receptionist sends ${f.held === 1 ? "one reply" : `${f.held} replies`} on its own unless you stop it.` : f.firstWindow ? ` ${f.firstWindow}'s window closes first.` : "";
+  if (ready.length) return `I drafted ${ready.join(" and ")}.${then}`;
+  if (f.writing) return NEED_YOU_WORDS.drafting;
+  return then ? then.trim() : null;
+}
+
 // src/today/today-clock.ts
 function tzClock(iso, tz, now) {
   const t = tzTime(iso, tz);
@@ -47235,7 +47405,49 @@ function namesAPerson(r2) {
   return r2.kind !== "search" && r2.kind !== "steps" && r2.kind !== "visits";
 }
 var SEARCH_WARN_MS = 12 * HOUR_MS;
-function callbackRow(r2) {
+function writesOf(conv, f) {
+  if (!conv) return void 0;
+  const last = [...conv.messages].reverse().find((x) => x.sender === "customer");
+  const wire = threadChannelWords(conv.messages);
+  const w = wire === "WhatsApp" ? waWindow(conv.last_wa_inbound_at, f.now) : null;
+  return {
+    for_message_id: last?.id ?? null,
+    wire,
+    window_open: w ? w.open : null,
+    window_closes: w?.open ? tzClock(w.closesAtIso, f.tz, f.now) : null
+  };
+}
+function heldRow2(c, f) {
+  const draft = heldDraftOf(c.messages);
+  if (!draft) return null;
+  const sendsAtMs = draftSendsAtMs(draft);
+  if (sendsAtMs <= f.now.getTime()) return null;
+  const last = [...c.messages].reverse().find((x) => x.sender === "customer");
+  const who = contactName(c);
+  return {
+    id: `q-h-${c.id}`,
+    kind: "held",
+    conversationId: c.id,
+    callId: null,
+    person_id: c.contact.id,
+    who,
+    initials: initialsOf(who),
+    channel: threadChannelWords(c.messages),
+    when: "",
+    sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "",
+    quoted: !!last,
+    status: [NEED_YOU_WORDS.held.goesAlone],
+    tone: "warn",
+    warn: false,
+    cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: c.id }) },
+    also: null,
+    writes: writesOf(c, f),
+    held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
+    // Before everyone waiting: it goes on its own in seconds.
+    waitedMs: Number.MAX_SAFE_INTEGER
+  };
+}
+function callbackRow(r2, f) {
   const e = r2.e;
   return {
     id: `q-${e.id}`,
@@ -47257,21 +47469,24 @@ function callbackRow(r2) {
       to: r2.call ? addressOf({ kind: "call", id: r2.call.id }) : addressOf({ kind: "hold", conversationId: e.conversation_id })
     },
     also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
+    writes: writesOf(r2.conv, f),
+    phone: r2.conv?.contact.phone_e164 ?? r2.call?.contact?.phone_e164 ?? null,
+    reason: say(e.details) || null,
     waitedMs: r2.waitedMs
   };
 }
-function handoffRow(r2) {
+function handoffRow(r2, f) {
   const e = r2.e;
   if (e.reason === "booking_request")
     return {
-      ...handoffOf(r2),
+      ...handoffOf(r2, f),
       sentence: say(e.details) || reasonLabelOf(e.reason),
       quoted: false,
       request: { conversationId: e.conversation_id }
     };
-  return handoffOf(r2);
+  return handoffOf(r2, f);
 }
-function handoffOf(r2) {
+function handoffOf(r2, f) {
   const e = r2.e;
   return {
     id: `q-${e.id}`,
@@ -47299,6 +47514,8 @@ function handoffOf(r2) {
       to: addressOf({ kind: "hold", conversationId: e.conversation_id })
     },
     also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
+    writes: writesOf(r2.conv, f),
+    reason: reasonLabelOf(e.reason),
     waitedMs: r2.waitedMs
   };
 }
@@ -47325,6 +47542,7 @@ function windowRow(c, f) {
     warn: leftMs < 2 * HOUR_MS,
     cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
+    writes: writesOf(c, f),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs
   };
@@ -47380,11 +47598,19 @@ function searchRow(s, now) {
 function todayQueue(f, callRows, empty) {
   const { escRecords, closingConvs, searches, now } = f;
   const queueAll = [];
+  const held = /* @__PURE__ */ new Set();
+  for (const c of f.conversations) {
+    if (f.escSet.has(c.id)) continue;
+    const row2 = heldRow2(c, f);
+    if (!row2) continue;
+    queueAll.push(row2);
+    held.add(c.id);
+  }
   for (const r2 of escRecords) {
-    queueAll.push(r2.e.reason === "callback" ? callbackRow(r2) : handoffRow(r2));
+    queueAll.push(r2.e.reason === "callback" ? callbackRow(r2, f) : handoffRow(r2, f));
   }
   for (const c of closingConvs) {
-    queueAll.push(windowRow(c, f));
+    if (!held.has(c.id)) queueAll.push(windowRow(c, f));
   }
   for (const r2 of callRows) {
     if (r2.to === "live") continue;
@@ -47433,6 +47659,35 @@ function todayWidgetSnapshot(vm, at3, needs2) {
     at: at3.toISOString()
   };
 }
+
+// src/need-you/reply-drafts.ts
+var REPLY_DRAFT_KINDS = ["reply", "brief"];
+var REPLY_DRAFTS_IDS_MAX = 20;
+function replyDraftAbout(kind, f) {
+  if (kind === "brief") {
+    return [
+      "Call them back.",
+      f.details ? `The phone receptionist left this for the call: ${f.details}` : null,
+      "Prepare what I should say and ask on the call."
+    ].filter(Boolean).join(" ");
+  }
+  return [
+    "Reply to what they wrote last. They are waiting on a person.",
+    f.reason ? `My receptionist handed it to me because: ${f.reason}.` : null,
+    "Answer it from the facts you have. Do not ask me anything: where a fact is missing, say I will find out and get back to them today."
+  ].filter(Boolean).join(" ");
+}
+function draftIsCurrent(d, forMessageId) {
+  return d.for_message_id === forMessageId;
+}
+function draftHasWords(d) {
+  return d.kind === "brief" ? d.words.brief !== null : d.words.text.trim().length > 0;
+}
+
+// src/need-you/reply-drafts-schema.ts
+import { z as z21 } from "zod";
+var ReplyDraftAskSchema = z21.object({ kind: z21.enum(REPLY_DRAFT_KINDS) }).strict();
+var ReplyDraftsQuerySchema = z21.object({ ids: z21.string().min(1) }).strict();
 
 // src/new-conversation/write-ways.ts
 var WRITE_HOLDS = [
@@ -48008,39 +48263,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z21 } from "zod";
-var PersonDraftInputSchema = z21.object({
-  how: z21.enum(DRAFT_HOWS),
-  wire: z21.enum(CONSENT_CHANNELS).optional(),
-  about: z21.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z21.array(
-    z21.object({
-      key: z21.string().min(1).max(40),
-      question: z21.string().max(200),
-      words: z21.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z22 } from "zod";
+var PersonDraftInputSchema = z22.object({
+  how: z22.enum(DRAFT_HOWS),
+  wire: z22.enum(CONSENT_CHANNELS).optional(),
+  about: z22.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z22.array(
+    z22.object({
+      key: z22.string().min(1).max(40),
+      question: z22.string().max(200),
+      words: z22.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z21.object({ text: z21.string().max(4e3), subject: z21.string().max(200).optional() }).strict().optional(),
-  tone: z21.enum(DRAFT_TONES).optional()
+  previous: z22.object({ text: z22.string().max(4e3), subject: z22.string().max(200).optional() }).strict().optional(),
+  tone: z22.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z21.object({
-  asks: z21.array(z21.object({ key: z21.string().trim().min(1).max(40), question: z21.string().trim().min(3).max(200) })).max(4),
-  text: z21.string().trim().max(4e3),
-  subject: z21.string().trim().max(200),
-  note: z21.string().trim().max(600),
-  opening: z21.string().trim().max(400),
-  points: z21.array(z21.string().trim().max(300)).max(6),
-  avoid: z21.array(z21.string().trim().max(300)).max(6),
-  ask: z21.string().trim().max(300)
+var PersonDraftAnswerSchema = z22.object({
+  asks: z22.array(z22.object({ key: z22.string().trim().min(1).max(40), question: z22.string().trim().min(3).max(200) })).max(4),
+  text: z22.string().trim().max(4e3),
+  subject: z22.string().trim().max(200),
+  note: z22.string().trim().max(600),
+  opening: z22.string().trim().max(400),
+  points: z22.array(z22.string().trim().max(300)).max(6),
+  avoid: z22.array(z22.string().trim().max(300)).max(6),
+  ask: z22.string().trim().max(300)
 });
-var PersonMessageBodySchema = z21.object({
-  wire: z21.enum(CONSENT_CHANNELS),
-  text: z21.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z21.string().trim().min(1).max(200).optional(),
-  template: z21.object({ name: z21.string().min(1).max(512), language: z21.string().min(2).max(15) }).strict().optional(),
-  email_to: z21.string().max(320).optional(),
-  then: z21.enum(["receptionist", "me"]),
-  note: z21.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z22.object({
+  wire: z22.enum(CONSENT_CHANNELS),
+  text: z22.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z22.string().trim().min(1).max(200).optional(),
+  template: z22.object({ name: z22.string().min(1).max(512), language: z22.string().min(2).max(15) }).strict().optional(),
+  email_to: z22.string().max(320).optional(),
+  then: z22.enum(["receptionist", "me"]),
+  note: z22.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -48749,7 +49004,7 @@ var DOUBT_WORDS = {
 };
 
 // src/people/lists/list-rules.ts
-import * as z22 from "zod/mini";
+import * as z23 from "zod/mini";
 var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
 var CHANNELS = ["whatsapp", "sms", "voice", "email"];
 var CAME_FROM = [
@@ -48762,37 +49017,37 @@ var CAME_FROM = [
   "import",
   "lead"
 ];
-var Days = { op: z22.enum(LIST_DAY_OPS), days: z22.optional(z22.int().check(z22.minimum(1), z22.maximum(3650))) };
-var YesNo = { op: z22.literal("is"), yes: z22.boolean() };
-var Count = { op: z22.enum(["at_least", "at_most"]), n: z22.int().check(z22.minimum(0), z22.maximum(1e4)) };
-var IsOrNot = z22.enum(["is", "is_not"]);
-var Token = z22.string().check(z22.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
-var fact = (shape) => z22.strictObject(shape);
-var ListFactSchema = z22.discriminatedUnion("field", [
-  fact({ field: z22.literal("last_visit"), ...Days }),
-  fact({ field: z22.literal("next_visit"), ...Days }),
-  fact({ field: z22.literal("missed_visit"), ...Days }),
-  fact({ field: z22.literal("booked"), ...YesNo }),
-  fact({ field: z22.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z22.literal("last_heard"), ...Days }),
-  fact({ field: z22.literal("first_contact"), ...Days }),
-  fact({ field: z22.literal("channel"), op: IsOrNot, channel: z22.enum(CHANNELS) }),
-  fact({ field: z22.literal("came_from"), op: IsOrNot, from: z22.enum(CAME_FROM) }),
-  fact({ field: z22.literal("calls"), ...Count }),
-  fact({ field: z22.literal("conversations"), ...Count }),
-  fact({ field: z22.literal("has_chat"), ...YesNo }),
-  fact({ field: z22.literal("said_yes"), ...YesNo, to: z22.enum(LIST_PURPOSES) }),
-  fact({ field: z22.literal("can_receive"), ...YesNo, to: z22.enum(LIST_PURPOSES) }),
-  fact({ field: z22.literal("stopped"), ...YesNo }),
-  fact({ field: z22.literal("standing"), op: IsOrNot, value: z22.enum(LIST_STANDINGS) }),
-  fact({ field: z22.literal("assigned"), op: IsOrNot, value: z22.enum(LIST_ASSIGNED) }),
-  fact({ field: z22.literal("deal_stage"), op: IsOrNot, value: z22.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z22.literal("consultation"), ...YesNo }),
-  fact({ field: z22.literal("step_due"), ...YesNo }),
-  fact({ field: z22.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z23.enum(LIST_DAY_OPS), days: z23.optional(z23.int().check(z23.minimum(1), z23.maximum(3650))) };
+var YesNo = { op: z23.literal("is"), yes: z23.boolean() };
+var Count = { op: z23.enum(["at_least", "at_most"]), n: z23.int().check(z23.minimum(0), z23.maximum(1e4)) };
+var IsOrNot = z23.enum(["is", "is_not"]);
+var Token = z23.string().check(z23.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
+var fact = (shape) => z23.strictObject(shape);
+var ListFactSchema = z23.discriminatedUnion("field", [
+  fact({ field: z23.literal("last_visit"), ...Days }),
+  fact({ field: z23.literal("next_visit"), ...Days }),
+  fact({ field: z23.literal("missed_visit"), ...Days }),
+  fact({ field: z23.literal("booked"), ...YesNo }),
+  fact({ field: z23.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z23.literal("last_heard"), ...Days }),
+  fact({ field: z23.literal("first_contact"), ...Days }),
+  fact({ field: z23.literal("channel"), op: IsOrNot, channel: z23.enum(CHANNELS) }),
+  fact({ field: z23.literal("came_from"), op: IsOrNot, from: z23.enum(CAME_FROM) }),
+  fact({ field: z23.literal("calls"), ...Count }),
+  fact({ field: z23.literal("conversations"), ...Count }),
+  fact({ field: z23.literal("has_chat"), ...YesNo }),
+  fact({ field: z23.literal("said_yes"), ...YesNo, to: z23.enum(LIST_PURPOSES) }),
+  fact({ field: z23.literal("can_receive"), ...YesNo, to: z23.enum(LIST_PURPOSES) }),
+  fact({ field: z23.literal("stopped"), ...YesNo }),
+  fact({ field: z23.literal("standing"), op: IsOrNot, value: z23.enum(LIST_STANDINGS) }),
+  fact({ field: z23.literal("assigned"), op: IsOrNot, value: z23.enum(LIST_ASSIGNED) }),
+  fact({ field: z23.literal("deal_stage"), op: IsOrNot, value: z23.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z23.literal("consultation"), ...YesNo }),
+  fact({ field: z23.literal("step_due"), ...YesNo }),
+  fact({ field: z23.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z22.strictObject({ any: z22.array(ListFactSchema).check(z22.minLength(2), z22.maxLength(LIST_ANY_MAX)) });
-var ListConditionSchema = z22.union([AnySchema, ListFactSchema]);
+var AnySchema = z23.strictObject({ any: z23.array(ListFactSchema).check(z23.minLength(2), z23.maxLength(LIST_ANY_MAX)) });
+var ListConditionSchema = z23.union([AnySchema, ListFactSchema]);
 var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
   if (!isDayFact(f)) return null;
@@ -48800,11 +49055,11 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
-var ListRuleSchema = z22.strictObject({
-  v: z22.optional(z22.literal(2)),
-  all: z22.array(ListConditionSchema).check(z22.minLength(1), z22.maxLength(LIST_RULE_MAX))
+var ListRuleSchema = z23.strictObject({
+  v: z23.optional(z23.literal(2)),
+  all: z23.array(ListConditionSchema).check(z23.minLength(1), z23.maxLength(LIST_RULE_MAX))
 }).check(
-  z22.superRefine((r2, ctx) => {
+  z23.superRefine((r2, ctx) => {
     for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
       const p = factProblem(f);
       if (p) ctx.addIssue({ code: "custom", message: p });
@@ -50825,14 +51080,14 @@ function heldDraftWaiting(messages, thread, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z23 } from "zod";
-var PeopleExportQuerySchema = z23.object({
-  list: z23.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z24 } from "zod";
+var PeopleExportQuerySchema = z24.object({
+  list: z24.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z23.object({
-  name: z23.string().trim().min(1).max(60),
-  cannot: z23.string().trim().max(200),
-  all: z23.array(z23.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z24.object({
+  name: z24.string().trim().min(1).max(60),
+  cannot: z24.string().trim().max(200),
+  all: z24.array(z24.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/lists.ts
@@ -51099,53 +51354,53 @@ function legacyLeadSuppressionHash(tenantId, value) {
 }
 
 // src/people/doors/person-bodies.ts
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z24.array(z24.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-var CONSENT = z24.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-var MODE = z24.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
-var ConsentAnswerBody = z24.object({
+var SOME_PEOPLE = z25.array(z25.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var CONSENT = z25.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
+var MODE = z25.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+var ConsentAnswerBody = z25.object({
   consent: CONSENT,
-  source: z24.string().optional(),
-  note: z24.string().optional(),
-  message_id: z24.uuid({ message: "Choose one of their messages." }).optional()
+  source: z25.string().optional(),
+  note: z25.string().optional(),
+  message_id: z25.uuid({ message: "Choose one of their messages." }).optional()
 });
-var ConsentManyBody = z24.object({
+var ConsentManyBody = z25.object({
   ids: SOME_PEOPLE,
   consent: CONSENT,
-  source: z24.string().optional(),
-  note: z24.string().optional()
+  source: z25.string().optional(),
+  note: z25.string().optional()
 });
-var ReceptionistModeBody = z24.object({ mode: MODE });
-var ReceptionistManyBody = z24.object({ ids: SOME_PEOPLE, mode: MODE });
-var NotesAppendManyBody = z24.object({
+var ReceptionistModeBody = z25.object({ mode: MODE });
+var ReceptionistManyBody = z25.object({ ids: SOME_PEOPLE, mode: MODE });
+var NotesAppendManyBody = z25.object({
   ids: SOME_PEOPLE,
-  append: z24.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
+  append: z25.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
 });
-var PersonMergeBody = z24.object({
-  merge: z24.uuid({ message: "Choose the record to merge into this one." })
+var PersonMergeBody = z25.object({
+  merge: z25.uuid({ message: "Choose the record to merge into this one." })
 });
-var PersonAddBody = z24.object({
-  phone: z24.string().optional(),
-  email: z24.string().optional(),
-  name: z24.string().optional(),
-  source: z24.string().optional()
+var PersonAddBody = z25.object({
+  phone: z25.string().optional(),
+  email: z25.string().optional(),
+  name: z25.string().optional(),
+  source: z25.string().optional()
 });
-var NoteWriteBody = z24.object({
-  body: z24.string().trim().min(1).max(NOTE_MAX),
+var NoteWriteBody = z25.object({
+  body: z25.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z24.uuid().nullable().optional(),
+  for_user_id: z25.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
-  team_only: z24.boolean().optional(),
+  team_only: z25.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z24.uuid().optional(),
-  version: z24.number().int().min(1).optional(),
+  note_id: z25.uuid().optional(),
+  version: z25.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
-  due_on: z24.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z25.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z24.uuid().nullable().optional(),
+  deal_id: z25.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
-  clear_due: z24.boolean().optional()
+  clear_due: z25.boolean().optional()
 }).strict();
 
 // src/people/doors/say-it.ts
@@ -51236,24 +51491,24 @@ function noteSheetFill(sheet, fill2) {
 }
 
 // src/people/doors/say-it-schema.ts
-import { z as z25 } from "zod";
-var SayItInputSchema = z25.object({
-  verb: z25.enum(SAY_IT_VERBS),
-  words: z25.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
+import { z as z26 } from "zod";
+var SayItInputSchema = z26.object({
+  verb: z26.enum(SAY_IT_VERBS),
+  words: z26.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
 }).strict();
-var SayItDealAnswerSchema = z25.object({
-  service: z25.string(),
-  value: z25.string(),
-  per: z25.string(),
-  link: z25.string(),
-  valid_until: z25.string(),
-  lost_reason: z25.string(),
-  note: z25.string()
+var SayItDealAnswerSchema = z26.object({
+  service: z26.string(),
+  value: z26.string(),
+  per: z26.string(),
+  link: z26.string(),
+  valid_until: z26.string(),
+  lost_reason: z26.string(),
+  note: z26.string()
 });
-var SayItNoteAnswerSchema = z25.object({
-  body: z25.string(),
-  day: z25.string(),
-  team_only: z25.boolean()
+var SayItNoteAnswerSchema = z26.object({
+  body: z26.string(),
+  day: z26.string(),
+  team_only: z26.boolean()
 });
 
 // src/person-page/head-state.ts
@@ -51515,26 +51770,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z26 } from "zod";
-var PersonNameActSchema = z26.discriminatedUnion("act", [
-  z26.object({ act: z26.literal("adopt"), message_id: z26.uuid({ message: "Name the reply whose signer to use." }) }),
-  z26.object({ act: z26.literal("undo") }),
-  z26.object({ act: z26.literal("decline"), message_id: z26.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z27 } from "zod";
+var PersonNameActSchema = z27.discriminatedUnion("act", [
+  z27.object({ act: z27.literal("adopt"), message_id: z27.uuid({ message: "Name the reply whose signer to use." }) }),
+  z27.object({ act: z27.literal("undo") }),
+  z27.object({ act: z27.literal("decline"), message_id: z27.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z26.object({
-  lead_id: z26.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z27.object({
+  lead_id: z27.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z26.object({
-  outcome: z26.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z26.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z27.object({
+  outcome: z27.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z27.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z26.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z27.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z26.boolean().optional(),
+  tell: z27.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z26.string().trim().max(80).optional(),
+  spoke_with: z27.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z26.boolean().optional()
+  closes_call_back: z27.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -52833,55 +53088,55 @@ function zoneOfRegion(region) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z27 } from "zod";
-var ReachOutRepliesQuerySchema = z27.object({
-  since: z27.string().datetime({ offset: true }).optional(),
-  conversation_id: z27.string().uuid().optional()
+import { z as z28 } from "zod";
+var ReachOutRepliesQuerySchema = z28.object({
+  since: z28.string().datetime({ offset: true }).optional(),
+  conversation_id: z28.string().uuid().optional()
 });
-var ReachOutStepSchema = z27.object({
+var ReachOutStepSchema = z28.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z27.string().uuid().nullable().optional(),
-  subject: z27.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z27.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z27.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z28.string().uuid().nullable().optional(),
+  subject: z28.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z28.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z28.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z27.object({ kind: z27.enum(HAND_KINDS), words: z27.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z28.object({ kind: z28.enum(HAND_KINDS), words: z28.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z27.object({
-  name: z27.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z27.string().uuid(),
-  include_unconfirmed: z27.boolean(),
+var ReachOutChainSchema = z28.object({
+  name: z28.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z28.string().uuid(),
+  include_unconfirmed: z28.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z27.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z28.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z27.array(z27.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z28.array(z28.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
-  owner_sends: z27.boolean().default(false),
-  signed_by: z27.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z27.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  owner_sends: z28.boolean().default(false),
+  signed_by: z28.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z28.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z27.object({
-  search_id: z27.string().uuid(),
-  index: z27.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z27.boolean(),
-  words: z27.object({
-    subject: z27.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z27.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z28.object({
+  search_id: z28.string().uuid(),
+  index: z28.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z28.boolean(),
+  words: z28.object({
+    subject: z28.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z28.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z27.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z27.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z28.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z28.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z27.object({ decision: z27.enum(REACH_OUT_DECISIONS) });
-var ReachOutSaidSchema = z27.object({ outcome: z27.enum(REACH_OUT_SAID_OUTCOMES) });
-var ReachOutReplySaidSchema = z27.object({
-  intent: z27.enum(OWNER_SAID_INTENTS),
-  day: z27.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  refer_to: z27.string().trim().max(120).nullable().optional()
+var ReachOutDecideSchema = z28.object({ decision: z28.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z28.object({ outcome: z28.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z28.object({
+  intent: z28.enum(OWNER_SAID_INTENTS),
+  day: z28.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z28.string().trim().max(120).nullable().optional()
 });
-var ReachOutAddSchema = z27.object({
-  lead_ids: z27.array(z27.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutAddSchema = z28.object({
+  lead_ids: z28.array(z28.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -53149,7 +53404,10 @@ function replyRowOf(row2, r2) {
     status: read ? ["Wrote back", REPLY_INTENT_WORDS[r2.intent]] : ["Wrote back"],
     sentence: r2.summary ?? row2.sentence,
     quoted: false,
-    cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to }
+    cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to },
+    // The receptionist's draft for the reply, already written: Today's row offers it to send (decision 0071), and Ask
+    // writes none of its own over it.
+    prepared: drafted(r2) ? r2.draft : null
   };
 }
 function newestReadings(readings) {
@@ -53952,36 +54210,36 @@ var NEW_DRAFT_JSON_SCHEMA = {
 };
 
 // src/sequences/new-draft-schema.ts
-import { z as z28 } from "zod";
-var LONG_WORDS = z28.string().max(2e3);
-var NewDraftAnswerSchema = z28.object({
-  kind: z28.enum(NEW_KINDS),
-  audience: z28.enum(NEW_AUDIENCES),
-  who: z28.string().trim().max(60),
-  name: z28.string().trim().max(120),
-  hour: z28.number().int(),
-  when: z28.string().trim().max(40),
-  steps: z28.array(
-    z28.object({
-      does: z28.enum(NEW_STEP_DOES),
-      after_days: z28.number().int(),
-      only_if: z28.array(z28.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
-      message: z28.string().trim().max(10),
-      texts: z28.array(z28.string().max(300)).max(10),
-      write: z28.object({
-        title: z28.string().trim().max(80),
-        offer: z28.boolean(),
+import { z as z29 } from "zod";
+var LONG_WORDS = z29.string().max(2e3);
+var NewDraftAnswerSchema = z29.object({
+  kind: z29.enum(NEW_KINDS),
+  audience: z29.enum(NEW_AUDIENCES),
+  who: z29.string().trim().max(60),
+  name: z29.string().trim().max(120),
+  hour: z29.number().int(),
+  when: z29.string().trim().max(40),
+  steps: z29.array(
+    z29.object({
+      does: z29.enum(NEW_STEP_DOES),
+      after_days: z29.number().int(),
+      only_if: z29.array(z29.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
+      message: z29.string().trim().max(10),
+      texts: z29.array(z29.string().max(300)).max(10),
+      write: z29.object({
+        title: z29.string().trim().max(80),
+        offer: z29.boolean(),
         whatsapp: LONG_WORDS,
-        email_subject: z28.string().max(200),
+        email_subject: z29.string().max(200),
         email_body: LONG_WORDS,
-        text: z28.string().max(600)
+        text: z29.string().max(600)
       }),
-      subject: z28.string().max(200),
+      subject: z29.string().max(200),
       body: LONG_WORDS,
-      words: z28.string().max(600)
+      words: z29.string().max(600)
     })
   ).max(8),
-  cannot: z28.string().trim().max(300)
+  cannot: z29.string().trim().max(300)
 });
 
 // src/sequences/new-words.ts
@@ -60044,6 +60302,7 @@ var SCHEMA_SETS = {
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "contacts.name_source": ["typed", "import", "calendar", "signature", "wire", "lead"],
+  "conversation_drafts.kind": ["reply", "brief"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],
   "deals.per": ["once", "month", "year"],
@@ -60445,6 +60704,7 @@ var ROUTE_KEYS = [
   "GET conversations",
   "GET conversations/[id]",
   "GET conversations/[id]/export",
+  "GET conversations/drafts",
   "GET escalations",
   "GET export",
   "GET google",
@@ -60564,6 +60824,7 @@ var ROUTE_KEYS = [
   "POST contacts/import",
   "POST conversations/[id]/archive",
   "POST conversations/[id]/booking-request",
+  "POST conversations/[id]/draft",
   "POST conversations/[id]/hand-back",
   "POST conversations/[id]/reply",
   "POST conversations/[id]/snooze",
@@ -60803,7 +61064,7 @@ var PREFETCH_BESIDE = {
     "notifications",
     "google",
     "reach-out-replies",
-    // Ask for you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
+    // Ask's ideas in Need you: the member's morning as it stands (decision 0070). Only read here; the page asks for one to be written.
     "ask/morning"
   ]
 };
@@ -60924,12 +61185,12 @@ var SEE_WORDS = {
 };
 
 // src/shell/vitals-schema.ts
-import { z as z29 } from "zod";
-var PageVitalsInput = z29.object({
-  page: z29.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  device: z29.enum(PAGE_DEVICES).optional(),
-  build: z29.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
-  vitals: z29.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
+import { z as z30 } from "zod";
+var PageVitalsInput = z30.object({
+  page: z30.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  device: z30.enum(PAGE_DEVICES).optional(),
+  build: z30.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z30.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
 
 // src/shell/page-speed.ts
@@ -61150,38 +61411,38 @@ function pageSpeedWords(speed) {
 }
 
 // src/shell/client-error-schema.ts
-import { z as z30 } from "zod";
-var ClientErrorInput = z30.object({
-  boundary: z30.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z30.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z30.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z30.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z30.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+import { z as z31 } from "zod";
+var ClientErrorInput = z31.object({
+  boundary: z31.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z31.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z31.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z31.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z31.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z30.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  digest: z31.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z30.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable(),
+  workspace: z31.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable(),
   /** The build that ran, and the device it ran on, as field data names them (00469); a page from before sends neither. */
-  build: z30.string().regex(PAGE_BUILD).nullable().optional(),
-  device: z30.enum(PAGE_DEVICES).nullable().optional()
+  build: z31.string().regex(PAGE_BUILD).nullable().optional(),
+  device: z31.enum(PAGE_DEVICES).nullable().optional()
 });
 
 // src/shell/report-problem-schema.ts
-import { z as z31 } from "zod";
-var ReportProblemInput = z31.object({
+import { z as z32 } from "zod";
+var ReportProblemInput = z32.object({
   /** What they need (decision 0067); a sheet from before the pick sends none, and the route infers it. */
-  kind: z31.enum(REPORT_KINDS).optional(),
-  words: z31.string().trim().min(1, "Say what you need first.").max(2e3, "At most 2,000 characters."),
+  kind: z32.enum(REPORT_KINDS).optional(),
+  words: z32.string().trim().min(1, "Say what you need first.").max(2e3, "At most 2,000 characters."),
   /** The route's first segment, as field data names a page; null on a page with none. */
-  page: z31.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  page: z32.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
   /** The last error the page hit, when it hit one. */
-  error: z31.object({
-    id: z31.string().regex(/^[0-9a-f]{1,8}$/),
-    name: z31.string().max(CLIENT_ERROR_LIMITS.name),
-    message: z31.string().max(CLIENT_ERROR_LIMITS.message)
+  error: z32.object({
+    id: z32.string().regex(/^[0-9a-f]{1,8}$/),
+    name: z32.string().max(CLIENT_ERROR_LIMITS.name),
+    message: z32.string().max(CLIENT_ERROR_LIMITS.message)
   }).strict().nullable(),
   /** The workspace the tab held: the route takes it only if the member belongs to it. */
-  workspace: z31.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z32.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 }).strict();
 
 // src/templates/message-version-slots.ts
@@ -62863,6 +63124,7 @@ function todaySteps(rows2, nowMs, tz, max = TODAY_STEPS_MAX) {
       when: step2.day.words,
       due: step2.due,
       forWho: step2.forWho,
+      forUserId: step2.forUserId,
       dealId: step2.dealId
     })),
     count: due.count,
@@ -62893,7 +63155,7 @@ function stepRow(s) {
     warn: s.due === "past",
     cta: { label: NOTE_WORDS.done, to: addressOf({ kind: "step", personId: s.personId }) },
     also: null,
-    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId },
+    step: { person_id: s.personId, note_id: s.noteId, deal_id: s.dealId, for_user_id: s.forUserId },
     waitedMs: Number.NEGATIVE_INFINITY
   };
 }
@@ -63461,13 +63723,12 @@ function bellFeed(input) {
 }
 
 // src/waits/going-today.ts
-var REPLY_QUOTE = 90;
 var GOING_TODAY_WORDS = {
   title: "Going today",
-  /** Beside the count: what each row does, and how many past the rows drawn are in Sent and the Inbox. */
+  /** Beside the count: what each row does, and how many past the rows drawn are in Sent. */
   sub: (n, drawn) => [
     n === 1 ? "Goes on its own unless you stop it" : "Each goes on its own unless you stop it",
-    n > drawn ? `${n - drawn} more in Sent and the Inbox` : ""
+    n > drawn ? `${n - drawn} more in Sent` : ""
   ].filter(Boolean).join(" \xB7 "),
   stop: "Stop"
 };
@@ -63497,20 +63758,6 @@ function goingTodayOf(input) {
       atMs,
       stop: { kind: "run", id: r2.id },
       to: addressOf({ kind: "send", id: r2.id })
-    });
-  }
-  for (const p of input.replies) {
-    if (!(p.endsAtMs > nowMs)) continue;
-    const g = goes("reply", p.endsAtMs, tz);
-    rows2.push({
-      key: `reply-${p.messageId}`,
-      kind: "reply",
-      name: p.who,
-      meta: `Reply \xB7 goes ${g.at}`,
-      sentence: `\u201C${clipAtWord(p.draft, REPLY_QUOTE)}\u201D ${g.ends}.`,
-      atMs: p.endsAtMs,
-      stop: { kind: "reply", messageId: p.messageId, conversationId: p.conversationId },
-      to: addressOf({ kind: "conversation", id: p.conversationId })
     });
   }
   return rows2.sort((a, b) => a.atMs - b.atMs);
@@ -64361,11 +64608,11 @@ function activityRowOfEvent(e) {
 }
 
 // src/workspace/signup-schema.ts
-import { z as z32 } from "zod";
-var InviteCodeSchema = z32.string().trim().max(80);
-var SignupSchema = z32.object({
-  name: z32.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z32.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+import { z as z33 } from "zod";
+var InviteCodeSchema = z33.string().trim().max(80);
+var SignupSchema = z33.object({
+  name: z33.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z33.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -64379,17 +64626,17 @@ var SignupSchema = z32.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z32.string().max(200).optional(),
+  password: z33.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z32.string().trim().min(1).max(64).optional(),
+  timezone: z33.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z32.object({
-  name: z32.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z33.object({
+  name: z33.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z32.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z33.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -64442,38 +64689,38 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner-schema.ts
-import { z as z33 } from "zod";
-var PartnerBecomeSchema = z33.object({
-  code: z33.string().trim().min(1).max(64),
-  terms: z33.literal(true, { message: "The terms have to be accepted." })
+import { z as z34 } from "zod";
+var PartnerBecomeSchema = z34.object({
+  code: z34.string().trim().min(1).max(64),
+  terms: z34.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z33.object({ letters: z33.boolean() }).strict();
-var letterCents = z33.coerce.number();
-var letterSum = z33.object({ currency: z33.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z33.object({
+var PartnerLettersSchema = z34.object({ letters: z34.boolean() }).strict();
+var letterCents = z34.coerce.number();
+var letterSum = z34.object({ currency: z34.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z34.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z33.array(z33.object({ kind: z33.string(), currency: z33.string(), count: z33.coerce.number(), cents: letterCents })).default([]),
+  written: z34.array(z34.object({ kind: z34.string(), currency: z34.string(), count: z34.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z33.array(letterSum).default([]),
+  matured: z34.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z33.array(letterSum).default([]),
-  paid: z33.array(z33.object({ currency: z33.string(), cents: letterCents, reference: z33.string(), sent_at: z33.string() })).default([]),
+  voided: z34.array(letterSum).default([]),
+  paid: z34.array(z34.object({ currency: z34.string(), cents: letterCents, reference: z34.string(), sent_at: z34.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z33.array(z33.object({ workspace: z33.string().nullable(), standing: z33.string(), why: z33.string().nullable() })).default([]),
+  standing: z34.array(z34.object({ workspace: z34.string().nullable(), standing: z34.string(), why: z34.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z33.array(z33.string().nullable()).default([]),
+  brought: z34.array(z34.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z33.array(z33.string().nullable()).default([]),
-  declined: z33.array(z33.string().nullable()).default([]),
+  accepted: z34.array(z34.string().nullable()).default([]),
+  declined: z34.array(z34.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z33.object({ status: z33.string(), why: z33.string().nullable() }).nullable().default(null),
-  balance: z33.array(
-    z33.object({
-      currency: z33.string(),
+  status: z34.object({ status: z34.string(), why: z34.string().nullable() }).nullable().default(null),
+  balance: z34.array(
+    z34.object({
+      currency: z34.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z33.string().nullable()
+      next_payable_at: z34.string().nullable()
     })
   ).default([])
 });
@@ -64556,14 +64803,14 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/handover-schema.ts
-import { z as z34 } from "zod";
-var ownerEmail = z34.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z34.object({
-  name: z34.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z34.string().trim().max(64).nullish(),
+import { z as z35 } from "zod";
+var ownerEmail = z35.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z35.object({
+  name: z35.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z35.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z34.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z35.object({ email: ownerEmail }).strict();
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -64738,9 +64985,9 @@ function partnerInviteEmail(i) {
 }
 
 // src/workspace/partner-invite-schema.ts
-import { z as z35 } from "zod";
-var PartnerInviteSchema = z35.object({
-  code: z35.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+import { z as z36 } from "zod";
+var PartnerInviteSchema = z36.object({
+  code: z36.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 
 // src/workspace/activation.ts
@@ -66150,6 +66397,7 @@ export {
   NAME_SOURCES,
   NEEDS_TITLE,
   NEEDS_YOU_WORD,
+  NEED_YOU_WORDS,
   NEW_AD,
   NEW_AUDIENCES,
   NEW_CONVERSATION_WORDS,
@@ -66490,6 +66738,8 @@ export {
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
+  REPLY_DRAFTS_IDS_MAX,
+  REPLY_DRAFT_KINDS,
   REPLY_INTENTS,
   REPLY_INTENT_WORDS,
   REPLY_LIMITS,
@@ -66569,6 +66819,8 @@ export {
   ReceptionistManyBody,
   ReceptionistModeBody,
   RenameLeadSearchSchema,
+  ReplyDraftAskSchema,
+  ReplyDraftsQuerySchema,
   ReportProblemInput,
   RequestFileSchema,
   RequestStepSchema,
@@ -66594,6 +66846,7 @@ export {
   SENDING_HOURS_WORDS,
   SENDING_NOW_WORDS,
   SEND_DAY_FRAME,
+  SEND_GRACE_MS,
   SEND_ONCE_STOP_MS,
   SEND_ONCE_STOP_WORDS,
   SEND_WHEN_WORDS,
@@ -67253,6 +67506,8 @@ export {
   doorNeeds,
   draftAd,
   draftExcerpt,
+  draftHasWords,
+  draftIsCurrent,
   draftListRule,
   draftRefusal,
   draftRefusalOf,
@@ -67932,6 +68187,7 @@ export {
   namesAPerson,
   namesMoney,
   navigateLabel,
+  needYouSay,
   needsAnswer,
   needsConsultation,
   needsCount,
@@ -67977,6 +68233,7 @@ export {
   normalizeLocalPart,
   normalizePhone,
   notFoundPageMetadata,
+  notNowChoices,
   notNowDayOf,
   notTakingSignUps,
   noteAsTold,
@@ -68410,6 +68667,7 @@ export {
   replyChipOf,
   replyChipStateOf,
   replyDelayMs,
+  replyDraftAbout,
   replyFromLineOf,
   replyHoldDtoOf,
   replyIntentQuestion,
@@ -68563,6 +68821,7 @@ export {
   seeRefOfRoute,
   seeValueOf,
   seenBy,
+  sendCountdown,
   sendFailureIsOurs,
   sendFailureWords,
   sendOnceRoute,

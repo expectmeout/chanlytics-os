@@ -209,6 +209,7 @@ export const REPLY_LIMITS = {
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+export const SEND_GRACE_MS = 15e3;
 export const CALL_HEARTBEAT_MS = 10 * MIN_MS;
 export function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;

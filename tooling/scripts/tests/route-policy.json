@@ -597,6 +597,20 @@
       "rate": "thread_state",
       "spend": false
     },
+    "POST conversations/[id]/draft": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_draft",
+      "spend": false
+    },
+    "GET conversations/drafts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET conversations/[id]/export": {
       "kind": "read",
       "scope": "workspace",

@@ -461,6 +461,36 @@
       }
     },
     {
+      "table": "conversation_drafts",
+      "name": "conversation_drafts_one_a_thread_and_kind",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "conversation_id"
+        },
+        {
+          "column": "kind"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "conversation_drafts",
+      "name": "conversation_drafts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "conversations",
       "name": "conversations_pkey",
       "primary": true,

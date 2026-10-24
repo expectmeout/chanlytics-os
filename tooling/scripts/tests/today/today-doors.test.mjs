@@ -145,7 +145,7 @@ installLegacyReact({
   appNavigate: (to) => went.push(to),
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  __clock: { dayKey: () => "2026-09-06", time: () => "9:00 AM" },
+  __clock: { zone: () => "America/Chicago", dayKey: () => "2026-09-06", time: () => "9:00 AM" },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

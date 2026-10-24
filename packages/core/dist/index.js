@@ -586,9 +586,9 @@ import {
   slotToWrite,
   TEMPLATE_WORDS_MAX,
   templateWords,
-  MIN_MS
+  MIN_MS,
+  SEND_GRACE_MS
 } from "../../contracts/dist/index.js";
-var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 var HOLD_EXPIRY_MS = 2 * MIN_MS;
 var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
