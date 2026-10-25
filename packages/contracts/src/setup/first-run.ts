@@ -499,7 +499,7 @@ const CARD_PUT_OFF = {
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  // What waiting on "The number you already have" costs, said with each of its Skips.
   keep: FORWARDING_WAIT_WORDS,
 } as const;
 
@@ -510,24 +510,25 @@ type CardRowId = (typeof SETUP_CARD_ORDER)[number];
 
 /**
  * Where a row is set up once it is off the card for good: the page its own button opens, or for the test call, the
- * number itself. "The number you already have" has none: it is never put off for good.
+ * number itself; the kept number's forwarding, On calls' row (settings/business/phone/kept-number.tsx).
  */
-const CARD_HOMES: Record<Exclude<CardRowId, typeof KEEP_ROW>, (r: SetupRowVM) => string> = {
+const CARD_HOMES: Record<CardRowId, (r: SetupRowVM) => string> = {
   try: () => "Call your number any time to hear it.",
   whatsapp: () => "It's in Settings › Connections.",
   calendar: () => "It's in Settings › Hours & booking.",
   team: (r) =>
     r.verb?.to === "admin/notifications" ? "It's in Settings › Notifications." : "It's in Settings › Team.",
   handoff: () => "It's in Settings › How it answers.",
+  keep: () => "It's in Settings › How it answers.",
   google: () => "It's in Settings › Connections.",
   email: () => "It's in Settings › Connections.",
   yes: () => "It's in People › Get their yes.",
 };
 
-/** What a row's Skip says once pressed: put off for a week, or for good with where it is set up from then. */
+/** What a row's Skip says once pressed: for a week, or for good with its home; the kept number's, with what it costs. */
 function skipSaid(id: CardRowId, r: SetupRowVM): string {
-  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
-  return putOffEnds(id, r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
+  const said = putOffEnds(r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
+  return id === KEEP_ROW ? `${said} ${CARD_PUT_OFF.keep}` : said;
 }
 
 /**
@@ -630,7 +631,7 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
   // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
   // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
   // the moment is not offered and core refuses it. Not once one runs: the routes refuse a second.
-  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remindGood = putOffEnds(vm.remindBack) === "good";
   const remind =
     vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn
       ? {
@@ -646,7 +647,7 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
       : null;
   // The reminder is a row of the card as drawn, so it is counted and hidden with Setup's; it is kept in Sequences.
   const drawn = [
-    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.id, r.back) === "good", said: r.said ?? "" })),
+    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.back) === "good", said: r.said ?? "" })),
     ...(remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []),
   ];
   return {

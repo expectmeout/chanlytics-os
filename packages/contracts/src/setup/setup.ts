@@ -745,12 +745,12 @@ export function setupPutOffEver(s: SetupPutOff, id: string): boolean {
 }
 
 /**
- * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. "The number you
- * already have" rests every time: its forwarding is set up on Setup's rows alone, so put off for good it would leave
- * calls to that number short of the receptionist with nothing anywhere to set it up from.
+ * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. Every row alike:
+ * "The number you already have" rested every week until its forwarding had a page of its own beside Setup's rows
+ * (Settings › How it answers › On calls, 25 Oct 2026).
  */
-export function putOffEnds(id: string, back: boolean): "week" | "good" {
-  return back && id !== KEEP_ROW ? "good" : "week";
+export function putOffEnds(back: boolean): "week" | "good" {
+  return back ? "good" : "week";
 }
 
 /**
@@ -781,7 +781,7 @@ export function setupPutOffNext(
       if (later.has(id)) later.delete(id);
       else rests.delete(id);
     } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
       else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
     }
   }
