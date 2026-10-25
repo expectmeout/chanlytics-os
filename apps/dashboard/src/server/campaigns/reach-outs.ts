@@ -315,16 +315,22 @@ export async function saveReachOutEmail(
   };
 }
 
-/** A chain that never wrote, removed whole (R16); one that did is refused, in words, to be paused instead. */
+/**
+ * A chain that never wrote, removed whole (R16); one that did is refused, in words, to be paused instead. A sequence to
+ * leads' Discard comes here too (DELETE sequences/:id, 0072).
+ */
 export async function removeChain(
   ctx: RouteContext,
-  member: Member,
+  tenantId: string,
   root: { id: string; name: string },
-): Promise<{ removed: true; id: string }> {
-  const { error } = await ctx.supabase.rpc("reach_out_remove", { p_tenant_id: member.tenantId, p_root_id: root.id });
+): Promise<{ removed: true; id: string; decision_id: string }> {
+  const { error } = await ctx.supabase.rpc("reach_out_remove", { p_tenant_id: tenantId, p_root_id: root.id });
   if (error) throw reachOutRefusal(error);
-  await recordDecision(ctx, member.tenantId, "playbook", root.id, "pause_playbook", { name: root.name, deleted: true });
-  return { removed: true, id: root.id };
+  const decisionId = await recordDecision(ctx, tenantId, "playbook", root.id, "pause_playbook", {
+    name: root.name,
+    deleted: true,
+  });
+  return { removed: true, id: root.id, decision_id: decisionId };
 }
 
 /** An owner's answer to one held (or planned) email: include, rewrite, skip, or not a fit, atomic (R18). */

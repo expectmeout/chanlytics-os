@@ -6,7 +6,8 @@
  * you most: on a desk above the tabs with its acts, on a phone in the dock at the foot (phoneFootOf): its line, its one
  * fact and at most two acts, the dock gone where nothing needs you. A question an act asks stands where the notice stood,
  * or in a phone's dock. Every press is a verb (verbs.ts `pressed`): the campaign's own for a state, a name and a run now,
- * the run's for a batch, the sequence's for a draft.
+ * the run's for a batch, the sequence's for a draft. What is offered is the judge's (contracts sequenceActsOf, decision
+ * 0072), the one Ask's cards ask too: an act it does not offer is not drawn.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -17,13 +18,12 @@ import {
   SEQUENCE_FLOW_WORDS as F,
   SEQUENCE_WORDS,
   leadDraftDockOf,
-  sequenceCancels,
+  sequenceActsOf,
   sequenceNotice,
   sequencePausedDock,
   sequenceRepliesRoute,
   sequenceResumeAsk,
   sequenceRoute,
-  sequenceRunsNow,
   sequenceTwinOf,
   sequenceWhoApprovesHint,
   sendOnceRoute,
@@ -83,6 +83,8 @@ export function useRecordActs(
   const waiting = notice?.kind === "waiting" ? notice.batchId : null;
   // A draft to leads with an email still to write: the dock asks for it before Start (the canvas's board A).
   const unwritten = leadDraftDockOf(row, rec.chain);
+  // Each act the head may draw, offered or not (decision 0072).
+  const acts = sequenceActsOf(rec, { tz: rec.timezone, nowMs: Date.now() });
   const unwrittenId = unwritten
     ? ([...(rec.chain?.steps ?? [])].sort((x, y) => x.n - y.n)[unwritten.place - 1]?.id ?? null)
     : null;
@@ -95,6 +97,7 @@ export function useRecordActs(
   return {
     rec,
     row,
+    acts,
     notice,
     twin,
     waiting,
@@ -166,15 +169,8 @@ export function useRecordActs(
 }
 type RecordActs = ReturnType<typeof useRecordActs>;
 
-/**
- * Whether End it is offered: a customer's sequence (a moment's or a list's) that runs or is paused. A draft is discarded
- * instead, a one-off ends with its day, and a sequence to leads is paused (its door refuses an end).
- */
-const ends = (row: RecordActs["row"]) =>
-  (row.starts === "moment" || row.starts === "list") && (row.state === "on" || row.state === "paused");
-
-/** Whether its state changes here: a sequence that runs on, never a one-off (decided on its notice) or one that ended. */
-const turns = (a: RecordActs) => a.row.starts !== "date" && (a.row.state === "on" || a.row.state === "paused");
+/** Whether its state changes here: Pause or Turn on, as the judge offers them. */
+const turns = (a: RecordActs) => a.acts.pause.ok || a.acts.turn_on.ok;
 
 /** What Ask is opened on: the campaign a moment's or a list's sequence runs as, else the sequence's own page. */
 const askScopeOf = (a: RecordActs): AskScope =>
@@ -190,7 +186,7 @@ function StateAct({ a }: { a: RecordActs }) {
         <Icon name="pencil" size={12} /> {a.unwritten.act}
       </Button>
     );
-  if (a.row.state === "draft")
+  if (a.acts.start.ok)
     return (
       <Button
         size="sm"
@@ -204,7 +200,7 @@ function StateAct({ a }: { a: RecordActs }) {
       </Button>
     );
   if (!turns(a)) return null;
-  const on = a.row.state === "on";
+  const on = a.acts.pause.ok;
   return (
     <Button
       size="sm"
@@ -218,13 +214,13 @@ function StateAct({ a }: { a: RecordActs }) {
   );
 }
 
-/** What a phone's More holds first: the state (Pause, Turn on…), Skip a batch waiting, Discard a draft. */
+/** What a phone's More holds first: the state (Pause, Turn on…), Skip a batch waiting, Discard one that never ran. */
 function phoneItems(a: RecordActs): MenuItem[] {
   const allowed = gate("approve");
   const items: MenuItem[] = [];
   if (turns(a))
     items.push(
-      a.row.state === "on"
+      a.acts.pause.ok
         ? {
             label: SEQUENCE_WORDS.pause,
             glyph: <Icon name="pause" size={13} />,
@@ -248,29 +244,32 @@ function phoneItems(a: RecordActs): MenuItem[] {
       gate: allowed,
       onSelect: () => a.setAsking("skip"),
     });
-  if (a.row.state === "draft")
-    items.push({
-      label: `${SEQUENCE_WORDS.discard}…`,
-      glyph: <Icon name="x" size={13} />,
-      tone: "danger",
-      disabled: a.busy,
-      gate: allowed,
-      onSelect: () => a.setAsking("discard"),
-    });
+  if (a.acts.discard.ok) items.push(discardItem(a));
   return items;
 }
 
+/** Discard, asked first: on a phone's More, and on a desk's for one that is on and never ran (a draft's is its notice's). */
+const discardItem = (a: RecordActs): MenuItem => ({
+  label: `${SEQUENCE_WORDS.discard}…`,
+  glyph: <Icon name="x" size={13} />,
+  tone: "danger",
+  disabled: a.busy,
+  gate: gate("approve"),
+  onSelect: () => a.setAsking("discard"),
+});
+
 /**
  * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Send it again, Run now, Rename, Who
- * approves (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it. On a desk it rides
- * the head's act as its caret (Ruben, 20 Oct 2026: no three dots where a pill can carry it), or is its own pill, its word
- * and a caret, where no act stands; a phone's head is the caret alone, its acts in the dock.
+ * approves (how, and the Autonomy row it is set on for the whole class), on a desk Discard for one that is on and never
+ * ran, End it, each asked first, and Ask about it. On a desk it rides the head's act as its caret (Ruben, 20 Oct 2026: no
+ * three dots where a pill can carry it), or is its own pill, its word and a caret, where no act stands; a phone's head is
+ * the caret alone, its acts in the dock.
  */
 function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph" | "caret" | "word" }) {
   const row = a.row;
   const allowed = gate("approve");
   const items: MenuItem[] = phone ? phoneItems(a) : [];
-  if (sequenceCancels(row))
+  if (a.acts.cancel_send.ok)
     items.push({
       label: F.cancelSend,
       glyph: <Icon name="ban" size={13} />,
@@ -279,7 +278,7 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
       gate: allowed,
       onSelect: () => a.setAsking("cancel"),
     });
-  if (row.starts === "date" && row.last)
+  if (a.acts.send_again.ok)
     items.push({
       label: A.sendAgain,
       glyph: <Icon name="send" size={13} />,
@@ -288,7 +287,7 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
       gate: gate("approve", "send a message"),
       onSelect: () => void a.sendAgain(),
     });
-  if (sequenceRunsNow(row, { tz: a.rec.timezone, nowMs: Date.now() }))
+  if (a.acts.run_now.ok)
     items.push({
       label: A.runNow,
       glyph: <Icon name="bolt" size={13} />,
@@ -297,7 +296,7 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
       gate: allowed,
       onSelect: () => void a.runNow(),
     });
-  if (row.starts !== "date" && row.state !== "ended")
+  if (a.acts.rename.ok)
     items.push({
       label: A.rename,
       glyph: <Icon name="pencil" size={13} />,
@@ -311,7 +310,8 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
       hint: sequenceWhoApprovesHint(row.mode),
       onSelect: a.openHow,
     });
-  if (ends(row))
+  if (!phone && a.acts.discard.ok && row.state !== "draft") items.push(discardItem(a));
+  if (a.acts.end.ok)
     items.push({
       label: `${SEQUENCE_WORDS.end}…`,
       glyph: <Icon name="ban" size={13} />,
@@ -370,9 +370,9 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
 }
 
 /** Whether a desk's head has its one act (StateAct): Write step N, Start, Pause or Turn on. */
-const hasStateAct = (a: RecordActs) => !!a.unwritten || a.row.state === "draft" || turns(a);
+const hasStateAct = (a: RecordActs) => !!a.unwritten || a.acts.start.ok || turns(a);
 /** Whether that act is the filled one (Write step N, Start), which its caret matches. */
-const stateActIsPrimary = (a: RecordActs) => !!a.unwritten || a.row.state === "draft";
+const stateActIsPrimary = (a: RecordActs) => !!a.unwritten || a.acts.start.ok;
 
 /**
  * The head's acts: a desk's one act with More as its caret, one split pill (the To send row's `Your mail app ⌄`), or More
@@ -590,15 +590,17 @@ export function RecordNotice({ a, tab }: { a: RecordActs; tab: SequenceTab }) {
           )
         }
         act={
-          <Button
-            size="sm"
-            variant="quiet"
-            onClick={() => a.setAsking("discard")}
-            data-testid="sq-discard-ask"
-            {...gate("approve")}
-          >
-            {SEQUENCE_WORDS.discard}
-          </Button>
+          a.acts.discard.ok ? (
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => a.setAsking("discard")}
+              data-testid="sq-discard-ask"
+              {...gate("approve")}
+            >
+              {SEQUENCE_WORDS.discard}
+            </Button>
+          ) : null
         }
       />
     );
@@ -682,15 +684,17 @@ export function phoneFootOf(a: RecordActs, tab: SequenceTab): ReactNode {
     return (
       <div className="sq-foot">
         <DockSaid line={SEQUENCE_WORDS.notStarted} fact={null} warn={false} />
-        <Button
-          variant="primary"
-          onClick={() => void a.start()}
-          disabled={a.busy}
-          data-testid="sq-start"
-          {...gate("approve")}
-        >
-          <Icon name="play" size={12} /> {SEQUENCE_WORDS.start}
-        </Button>
+        {a.acts.start.ok ? (
+          <Button
+            variant="primary"
+            onClick={() => void a.start()}
+            disabled={a.busy}
+            data-testid="sq-start"
+            {...gate("approve")}
+          >
+            <Icon name="play" size={12} /> {SEQUENCE_WORDS.start}
+          </Button>
+        ) : null}
       </div>
     );
   const n = a.notice;
@@ -730,7 +734,7 @@ export function phoneFootOf(a: RecordActs, tab: SequenceTab): ReactNode {
         <NoticeAct a={a} tab={tab} phone />
       </div>
     );
-  const paused = sequencePausedDock(a.row);
+  const paused = a.acts.turn_on.ok ? sequencePausedDock(a.row) : null;
   if (paused)
     return (
       <div className="sq-foot">

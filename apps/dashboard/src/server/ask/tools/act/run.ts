@@ -4,6 +4,8 @@ import {
   BROADCAST_STATE_LABELS,
   RUN_VERBS,
   SENDING_HOURS_WORDS,
+  SEQUENCE_ACT_WHY,
+  SEQUENCE_FLOW_WORDS,
   clockTime,
   fmtDay,
   isReachOutRun,
@@ -12,10 +14,12 @@ import {
   noteRows,
   plural,
   runApprovalRefusal,
+  sequenceActsOf,
   toApprovalVM,
   type ReachOutRunDto,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
+import { sequenceOverview } from "@chanlytics/db";
 import { broadcast as broadcastReader } from "../../../readers/broadcasts";
 import {
   UUID,
@@ -30,6 +34,31 @@ import {
 
 /** Where a waiting run's id is read, said as the model calls it. */
 const RUN_FROM = "sequences with action moments (a playbook's waiting) or action sent (waiting_on_you)";
+
+/** A broadcast that is neither a playbook's run nor a one-off of its own: nothing here waits on a person for it. */
+const NOT_A_RUN = "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip";
+
+/**
+ * A one-off's send cancelled (its record's Cancel this send, asked first): its sequence's row read by its batch's id (a
+ * one-off's batch is its sequence, 00440), the row its record draws, and offered where the judge offers it (contracts
+ * sequenceActsOf: one waiting for its day, never one already going, which would reach some of its people and not
+ * others), else refused in the judge's words. Null where it is no one-off.
+ */
+async function proposeOneOffCancel(
+  t: ToolContext,
+  run: { id: string; recipient_count: number },
+): Promise<ProposalOutcome | null> {
+  const [row] = await sequenceOverview(t.ctx.supabase, t.tenantId, run.id);
+  if (!row || row.starts !== "date") return null;
+  const offer = sequenceActsOf({ sequence: row }, { tz: t.timezone, nowMs: t.now.getTime() }).cancel_send;
+  if (!offer.ok) return refuse(`${row.name}: ${SEQUENCE_ACT_WHY[offer.because]}`);
+  return propose({
+    kind: "run",
+    title: `Cancel ${row.name}`,
+    summary: SEQUENCE_FLOW_WORDS.cancelDetail,
+    payload: { broadcast_id: run.id, verb: "skip", name: row.name, people: row.date?.people ?? run.recipient_count },
+  });
+}
 
 /**
  * A batch to leads waiting for an OK, approved or skipped: how many emails it holds, how many the check is still reading,
@@ -78,10 +107,12 @@ async function proposeRun(
   // (decision 0060: Ask runs every sequence; the record's notice presses the same route), the card saying what the check
   // has done so far, as People lays it out.
   if (isReachOutRun(run.audience)) return proposeLeadsBatch(input, run, read.data.reach_out ?? null);
-  if (!run.playbook_id)
-    return refuse(
-      "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip",
-    );
+  if (!run.playbook_id) {
+    // A one-off (a sequence on a date: its batch is its sequence, 0060) is cancelled as its page's Cancel this send
+    // cancels it, where the judge offers that (decision 0072): a skip is its cancel.
+    const once = input.verb === "skip" ? await proposeOneOffCancel(t, run) : null;
+    return once ?? refuse(NOT_A_RUN);
+  }
   if (run.state !== "pending_approval")
     return refuse(`that run is not waiting for approval: it is ${BROADCAST_STATE_LABELS[run.state]}`);
   // When an approval now sends it by the business's clock (approveRun's next open moment).
@@ -119,6 +150,6 @@ export const runAction = actAction({
   input: z.object({ broadcast_id: z.string(), verb: z.enum(RUN_VERBS) }),
   examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", verb: "approve" }],
   label: "Preparing a run's approval",
-  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve, which sends it now (asked outside the hours a message may go out in, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}), or skip, which ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped, and a batch to leads (cold email) is approved or skipped the same way, its card saying what the check held.`,
+  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve, which sends it now (asked outside the hours a message may go out in, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}), or skip, which ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped, and a batch to leads (cold email) is approved or skipped the same way, its card saying what the check held. A one-off waiting for its day is cancelled with verb skip, by its batch's id (its sequence's own): nobody gets it; one already going is not cancelled.`,
   build: proposeRun,
 });

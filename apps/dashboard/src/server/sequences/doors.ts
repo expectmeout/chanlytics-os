@@ -26,6 +26,7 @@ import {
 } from "@chanlytics/db";
 import { checkPlaybookInput } from "@/server/campaigns/playbooks";
 import { visitTwinRefusal } from "@/server/campaigns/playbook-row";
+import { removeChain } from "@/server/campaigns/reach-outs";
 import { requireUuid } from "@/server/request-guards";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
@@ -185,8 +186,25 @@ export async function moveToSequenceNow(ctx: RouteContext, seq: Sequence, input:
   return { ...r.data, sequence_id: r.data.from };
 }
 
-/** A sequence that never sent taken away whole: a draft let go. One that sent is refused in its own words (409). */
-export async function discardSequenceNow(ctx: RouteContext, seq: Sequence) {
+/**
+ * Discard, the one for every sequence (0072), chosen by the row its scope read: a sequence to leads goes by its own door,
+ * the reach-out's, while it has written nothing, and is refused in that door's words once it has, to be paused instead;
+ * any other by sequence_discard's (discardBySequenceDoor).
+ */
+export async function discardSequenceNow(
+  ctx: RouteContext,
+  seq: Sequence & { name: string; starts: string },
+): Promise<SequenceDoorAnswer> {
+  if (seq.starts !== "leads") return discardBySequenceDoor(ctx, seq);
+  const gone = await removeChain(ctx, seq.tenant_id, seq);
+  return { id: gone.id, decision_id: gone.decision_id };
+}
+
+/**
+ * A customer's sequence that never made a batch taken away whole, in any state, or a one-off kept as a draft (00442,
+ * 00465 sequence_discard); one that did is refused in its door's words (409), to be ended instead.
+ */
+export async function discardBySequenceDoor(ctx: RouteContext, seq: Sequence): Promise<SequenceDoorAnswer> {
   const r = await discardSequence(ctx.supabase, { tenantId: seq.tenant_id, sequenceId: seq.id, ...decided(ctx, {}) });
   if (r.error?.code === "P0001") throw dbRefusal(r.error, { code: "conflict", status: 409 });
   return doorAnswer(r);

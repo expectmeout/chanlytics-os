@@ -10,7 +10,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { PROPOSAL_SPECS, localDate, runDayPassed } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS, SEQUENCE_ACT_WHY, SEQUENCE_FLOW_WORDS, localDate, runDayPassed } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -40,6 +40,7 @@ const OLD = "88888888-8888-4888-8888-888888888882";
 const SENT = "88888888-8888-4888-8888-888888888883";
 const REACH = "88888888-8888-4888-8888-888888888884";
 const MINE = "88888888-8888-4888-8888-888888888885";
+const GOING = "88888888-8888-4888-8888-888888888886";
 const THEIRS = "88888888-8888-4888-8888-88888888888b";
 const PB1 = "99999999-9999-4999-8999-999999999991";
 const STEP1 = "99999999-9999-4999-8999-999999999992";
@@ -108,6 +109,7 @@ function world(role = "operator") {
         audience: { kind: "reach_out", root_id: STEP1, label: "Dentists in Austin" },
       }),
       bcRow(MINE, A, { name: "October offer", state: "scheduled", playbook_id: null, run_for: null }),
+      bcRow(GOING, A, { name: "October news", state: "sending", playbook_id: null, run_for: null }),
       bcRow(THEIRS, B, { name: `Recupera · ${TODAY}` }),
     ],
     broadcast_recipients: [enrolled(RUN, 1, "Ana"), enrolled(RUN, 2, "Lu"), enrolled(RUN, 3, "Rosa")],
@@ -121,9 +123,31 @@ function world(role = "operator") {
   };
 }
 
+/**
+ * The one-offs' rows as the sequences' overview answers them (00442 sequence_overview): a one-off's batch is its
+ * sequence (00440), so its id is the batch's, and its day's state is the batch's.
+ */
+const ONE_OFFS = [
+  [MINE, "October offer", "scheduled"],
+  [GOING, "October news", "sending"],
+].map(([id, name, state]) => ({
+  id,
+  name,
+  starts: "date",
+  state: "on",
+  mode: null,
+  first: null,
+  date: { batch_id: id, state, at: "2026-09-25T14:00:00.000Z", people: 3 },
+  needs: { waiting: 0, waiting_people: 0, held: 0, to_send: 0, replies: 0, oldest_at: null, batches: [] },
+  next: null,
+  last: null,
+  in_it: 0,
+}));
+const RPCS = { sequence_overview: (a) => ONE_OFFS.filter((r) => r.id === a.p_sequence_id) };
+
 /** One call the model makes, through the registry, over a fresh world: what it came to, what it read, the read set. */
 async function runCall(input, { role = "operator", now = NOW } = {}) {
-  const supabase = fakeDb(world(role), {}, {});
+  const supabase = fakeDb(world(role), {}, RPCS);
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, now);
   const out = await buildProposal(t, "propose_sequence", { action: "batch", ...input });
   const p = out.proposal;
@@ -214,8 +238,29 @@ const RUN_CALLS = [
     null,
   ],
   [
-    "a broadcast a person scheduled is no playbook's run",
+    "a one-off a person scheduled, skipped: its cancel, as its record's Cancel this send (0072)",
     { broadcast_id: MINE, verb: "skip" },
+    {},
+    {
+      kind: "run",
+      needs: "operator",
+      title: "Cancel October offer",
+      summary: SEQUENCE_FLOW_WORDS.cancelDetail,
+      payload: { broadcast_id: MINE, verb: "skip", name: "October offer", people: 3 },
+      undo: null,
+    },
+    [...RUN_READ, "rpc.sequence_overview"],
+  ],
+  [
+    "a one-off already going is not cancelled half way: the judge's words",
+    { broadcast_id: GOING, verb: "skip" },
+    {},
+    { error: `October news: ${SEQUENCE_ACT_WHY.not_scheduled}` },
+    [...RUN_READ, "rpc.sequence_overview"],
+  ],
+  [
+    "a broadcast a person scheduled is no playbook's run to approve",
+    { broadcast_id: MINE, verb: "approve" },
     {},
     { error: "that broadcast is not a playbook's run: only a playbook's run waits for a person to approve or skip" },
     RUN_READ,

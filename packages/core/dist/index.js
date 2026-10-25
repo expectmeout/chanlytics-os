@@ -3581,6 +3581,7 @@ function patchHeldOf(row) {
     mode: row.mode
   };
 }
+var reachOutTakes = (trigger, k) => k === "state" || k === "mode" || k === "name" && trigger === "lead_first";
 function holdsAlready(k, to, held) {
   if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
   return to === held;
@@ -3589,7 +3590,7 @@ async function checkPlaybookPatch(ports, row, asked2, when) {
   const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
   if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
-  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state" && k !== "mode"))
+  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => !reachOutTakes(row.trigger, k)))
     throw new AppError15("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   if (asked2.state !== void 0 && !isPlaybookState(asked2.state))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.state);

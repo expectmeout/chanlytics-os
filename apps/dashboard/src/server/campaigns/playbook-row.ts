@@ -244,7 +244,7 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * reach-out sheet's Pause. Judged against the playbook as the database holds it now (core checkPlaybookPatch: the six
  * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, its words held to its
  * message's slots, its end a day today or later by the business's clock, its sequence's mode one of the three (never
- * Send it to leads), a reach-out's step paused, resumed or given its mode and nothing else), then written with its line in the ledger in one transaction
+ * Send it to leads), a reach-out's step paused, resumed, given its mode or, its first, renamed, and nothing else), then written with its line in the ledger in one transaction
  * (the change_playbook door): the row locked, only what differs set, and what each field held answered as `was`, which
  * an undo puts back. An undo is a change naming the decision it undoes (ctx.undoOf, the x-undo-of header Ask's commit
  * runner sends): it restores the end and the mode the door recorded, the end past or not, where any other change names

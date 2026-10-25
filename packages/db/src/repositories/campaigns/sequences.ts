@@ -260,7 +260,7 @@ export async function sequenceOfPart(db: Db, tenantId: string, id: string): Prom
  * days before someone hears it again (a moment's gap), and the days between runs (the month's offer). Null where the step
  * is none of this workspace's. Under the caller's row security.
  */
-export async function firstStepFacts(
+async function firstStepFacts(
   db: Db,
   tenantId: string,
   stepId: string,
@@ -280,7 +280,7 @@ export async function firstStepFacts(
  * (core runPlaybook's record: no calendar, its list gone, its message not approved, the class set to Never, its last day
  * passed). Null where that run sent, found nobody or none is recorded. Under the caller's row security.
  */
-export async function lastRunSkipped(db: Db, tenantId: string, stepId: string): Promise<string | null> {
+async function lastRunSkipped(db: Db, tenantId: string, stepId: string): Promise<string | null> {
   const { data, error } = await db
     .from("events")
     .select("data")
@@ -296,6 +296,64 @@ export async function lastRunSkipped(db: Db, tenantId: string, stepId: string): 
   return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string"
     ? said.skipped
     : null;
+}
+
+/** The states of a lead's send that say its email was written: reach_out_remove's own, besides one skipped once drafted. */
+const WRITTEN_SEND_STATES = ["claimed", "queued", "sent", "failed", "drafted"];
+
+/**
+ * What a sequence has done that its head's acts turn on (0072), under the caller's row security. `ran`: whether it ever
+ * made a batch, the question its first step's going asks (sequence_steps_first_gone ends one that did and takes away one
+ * that never did) and sequence_discard asks (taking anyone in needs a batch). `wrote`: whether an email of it to a lead
+ * was ever written, the question reach_out_remove asks before it lets a sequence to leads go; never, of any other.
+ * Held to the three on a replayed stack (sequences/sequence-doors.db.test.mjs).
+ */
+async function sequenceHistoryFacts(
+  db: Db,
+  tenantId: string,
+  sequenceId: string,
+): Promise<{ ran: boolean; wrote: boolean }> {
+  const leadSends = () =>
+    db
+      .from("sequence_sends")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("sequence_id", sequenceId)
+      .not("lead_id", "is", null);
+  const [batch, written, draftedThenSkipped] = await Promise.all([
+    db.from("sequence_batches").select("id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).limit(1),
+    leadSends().in("state", WRITTEN_SEND_STATES).limit(1),
+    leadSends().eq("state", "skipped").not("drafted_at", "is", null).limit(1),
+  ]);
+  for (const r of [batch, written, draftedThenSkipped])
+    if (r.error) throw new Error(`cannot read what the sequence has done: ${r.error.message}`);
+  return {
+    ran: (batch.data ?? []).length > 0,
+    wrote: (written.data ?? []).length > 0 || (draftedThenSkipped.data ?? []).length > 0,
+  };
+}
+
+/**
+ * What GET sequences/:id says of a sequence beside its row and its steps, by its id (its first step's): its first step's
+ * run facts (firstStepFacts), why its last run did nothing (lastRunSkipped), and what it has done (sequenceHistoryFacts,
+ * 0072). Each is read on its own: one that fails is left out (undefined), and costs only the lines it feeds and the acts
+ * that turn on it.
+ */
+export async function sequenceRecordFacts(
+  db: Db,
+  tenantId: string,
+  sequenceId: string,
+): Promise<{
+  first: Awaited<ReturnType<typeof firstStepFacts>> | undefined;
+  lastRunOff: string | null | undefined;
+  history: { ran: boolean; wrote: boolean } | undefined;
+}> {
+  const [first, lastRunOff, history] = await Promise.all([
+    firstStepFacts(db, tenantId, sequenceId).catch(() => undefined),
+    lastRunSkipped(db, tenantId, sequenceId).catch(() => undefined),
+    sequenceHistoryFacts(db, tenantId, sequenceId).catch(() => undefined),
+  ]);
+  return { first, lastRunOff, history };
 }
 
 /**

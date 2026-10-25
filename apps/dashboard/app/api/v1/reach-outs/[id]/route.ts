@@ -35,5 +35,5 @@ export const DELETE = write({
   scope: reachOutScope,
   role: "operator",
   rate: "playbook",
-  handle: ({ ctx, member, row }) => removeChain(ctx, member, row),
+  handle: ({ ctx, member, row }) => removeChain(ctx, member.tenantId, row),
 });

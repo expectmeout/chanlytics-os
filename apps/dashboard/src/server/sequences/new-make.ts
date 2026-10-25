@@ -29,7 +29,7 @@ import { log } from "@/server/log";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 import type { NewMakeBody } from "./bodies";
-import { discardSequenceNow, makeSequenceNow } from "./doors";
+import { discardBySequenceDoor, makeSequenceNow } from "./doors";
 
 type Step = NewMakeBody["steps"][number];
 
@@ -96,7 +96,7 @@ export function onceChannelsOf(step: Step, channels: readonly ConsentChannel[]):
 async function letKeptGo(ctx: RouteContext, member: Member, id: string | undefined): Promise<void> {
   if (!id) return;
   try {
-    await discardSequenceNow(ctx, { id, tenant_id: member.tenantId });
+    await discardBySequenceDoor(ctx, { id, tenant_id: member.tenantId });
   } catch (e) {
     log.error("sequence_kept_draft_left", { tenant_id: member.tenantId, sequence_id: id, error: e });
   }

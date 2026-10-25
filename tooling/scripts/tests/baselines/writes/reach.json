@@ -177,17 +177,18 @@
       }
     },
     "DELETE sequences/[id]": {
-      "changes": "sequence_enrollments UPDATE · sequence_sends DELETE · sequence_steps DELETE · sequences DELETE UPDATE",
+      "changes": "notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequence_sends DELETE · sequence_steps DELETE UPDATE · sequences DELETE UPDATE · templates UPDATE",
+      "tells": "notifications · templates",
       "extra": {
-        "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start"
+        "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
-        "leads": "clients/leads, leads",
+        "notifications": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
+        "settings": "every page",
         "setup": "admin/integrations, start, today"
       }
     },

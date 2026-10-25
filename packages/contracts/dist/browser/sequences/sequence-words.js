@@ -331,7 +331,6 @@ export function sequenceWhoApprovesHint(mode) {
   const how = sequenceApprovalWords(mode);
   return how.charAt(0).toUpperCase() + how.slice(1);
 }
-export const sequenceCancels = (row) => row.starts === "date" && row.date?.state === "scheduled";
 const noticeOf = (n) => ({
   batchId: null,
   stepId: null,
