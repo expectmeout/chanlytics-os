@@ -16,7 +16,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toBroadcastVM, toTodayVM, stateOf, PLAYBOOK_TRIGGERS, campaignMessagesOf } from "@chanlytics/contracts";
+import {
+  toBroadcastVM,
+  toTodayVM,
+  stateOf,
+  PLAYBOOK_TRIGGERS,
+  campaignMessagesOf,
+  campaignReportRoute,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh as freshTree,
@@ -305,12 +312,12 @@ const page = (props) => {
 const again = (props) => drawAgain(() => screen(props));
 /* ------------------------------- a run's own door ------------------------------- */
 
-test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a screen of its own, as the canvas draws it, whether the read holds it or not", async () => {
+test("REGRESSION (C9): a link to a run opens it on its sheet -- a run still going with its report on a screen of its own, as the canvas draws it, whether the read holds it or not; a run that is done in its campaign's report in Reports (#1776)", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
-  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  answers.set("b-sending", [{ ok: true, data: detailOf(SENDING) }]);
   // A run is opened from its sequence's History, a bell row, Today or Ask's card, each a link to its home under its
   // sequence (contracts runRoute, the Campaigns wiring review's lane 2).
-  const listed = { initialRun: "b-sent" };
+  const listed = { initialRun: "b-sending" };
   page(listed);
   await settle();
   let tree = again(listed);
@@ -318,18 +325,18 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   assert.equal(details.length, 1);
   assert.equal(
     byTestId(tree, "bc-run-solo").props.id,
-    "bc-run-b-sent",
+    "bc-run-b-sending",
     "the screen a link lands on carries the run's anchor",
   );
   // The report is a pane (Sequences draws it beside its list at the run's home), its head (a CmPane's) saying the run's
   // name and state.
   const solo0 = byTestId(tree, "bc-run-solo");
-  assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
+  assert.equal(paneTitle(tree), "Offers · 2026-09-15", "the run's name is the pane's title");
   assert.ok(
-    find(solo0, (n) => n.props?.["data-state"] === "sent"),
+    find(solo0, (n) => n.props?.["data-state"] === "sending"),
     "with its state beside it",
   );
-  assert.ok(textOf(details[0]).includes("Rosa Díaz"), "and who got it");
+  assert.ok(textOf(details[0]).includes("Rosa Díaz"), "and who it goes to");
   press(byTestId(tree, "bc-detail-close"));
   assert.deepEqual(
     went.at(-1),
@@ -337,7 +344,15 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
     "closing is a link too, onto Sequences, so the address never names a run that is not open",
   );
 
-  answers.set("b-old", [{ ok: true, data: detailOf(dto({ id: "b-old", name: "Win-back · 2026-06-01" })) }]);
+  const soon = dto({
+    id: "b-old",
+    name: "Win-back · 2026-06-01",
+    state: "scheduled",
+    scheduled_for: iso(D),
+    started_at: null,
+    finished_at: null,
+  });
+  answers.set("b-old", [{ ok: true, data: detailOf(soon) }]);
   const older = { initialRun: "b-old" };
   page(older);
   await settle();
@@ -348,8 +363,23 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
     "a run past the newest fifty is read by its id and shown the same way",
   );
   assert.ok(
-    find(solo, (n) => n.props?.["data-state"] === "sent"),
+    find(solo, (n) => n.props?.["data-state"] === "scheduled"),
     "with its state",
+  );
+
+  // A run that is done is read in Reports (Ruben, 21 Oct 2026; #1776): its campaign narrowed to it, over the day it ran
+  // for, the run's address replaced by the report's; its pane says its name while it moves.
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto({ sequence_id: "q-winback" })) }]);
+  const done = { initialRun: "b-sent" };
+  page(done);
+  await settle();
+  tree = again(done);
+  assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "its name, while it moves");
+  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Opening its report"));
+  assert.equal(
+    went.at(-1),
+    campaignReportRoute({ from: "2026-09-10", to: "2026-09-10" }, { kind: "sequence", id: "q-winback" }),
+    "its campaign's report in Reports, over its day",
   );
 });
 
@@ -388,11 +418,12 @@ test("a run opened before opens at once from what the tab holds, and is read aga
 test("REGRESSION (C23): a detail that could not be read says so with a Retry, and a link to a broadcast that is not here says that instead", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   asked.length = 0;
-  answers.set("b-sent", [
+  // A run still going, whose report stands on its sheet (one that is done moves to Reports as it is read: C9).
+  answers.set("b-sending", [
     { ok: false, code: "network", status: 0, message: "offline" },
-    { ok: true, data: detailOf(dto()) },
+    { ok: true, data: detailOf(SENDING) },
   ]);
-  const props = { initialRun: "b-sent" };
+  const props = { initialRun: "b-sending" };
   page(props);
   await settle();
   let tree = again(props);
@@ -401,7 +432,7 @@ test("REGRESSION (C23): a detail that could not be read says so with a Retry, an
   again(props);
   await settle();
   tree = again(props);
-  assert.equal(asked.filter((id) => id === "b-sent").length, 2, "Retry reads it again");
+  assert.equal(asked.filter((id) => id === "b-sending").length, 2, "Retry reads it again");
   assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Rosa Díaz"), "and draws what it read");
 
   answers.set("b-elsewhere", [{ ok: false, code: "not_found", status: 404, message: "Run not found." }]);
