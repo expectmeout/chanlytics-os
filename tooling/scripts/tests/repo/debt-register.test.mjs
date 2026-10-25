@@ -104,6 +104,7 @@ function blockFrom(by, scanCounts) {
       total(by["workspaceless.json"]),
       `in ${keys(by["workspaceless.json"])} files`,
     ],
+    ["service-role reaches, dashboard", total(by["service-role.json"]), `in ${keys(by["service-role.json"])} files`],
     [
       "doors importing db or channels",
       total(by["route-doors.json"]),

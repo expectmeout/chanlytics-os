@@ -27,6 +27,8 @@ import {
   mediaPreludes,
   stringsIn,
   tablesWrittenIn,
+  rpcNames,
+  serviceRoleReaches,
 } from "../_ast.mjs";
 import {
   bankedSourceScan,
@@ -585,4 +587,33 @@ end $$;
   ].join(`
 `);
   assert.deepEqual(doorsWithoutEventsIn(sql), { "note_quiet()": 1, "notes_erase_on_contact()": 1 });
+});
+
+/* ---- The doors a module reaches ---- */
+
+test("a SQL function is counted by name whether the client's rpc is called on it or bound to a name first", () => {
+  const sf = source(`
+    await db.rpc("set_person_email", { p: 1 });
+    const rpc = ctx.supabase.rpc.bind(ctx.supabase);
+    await rpc("set_person_name", { p: 1 });
+    await rpc(name, {});
+    await other("set_person_notes");
+  `);
+  assert.equal(
+    rpcNames(sf),
+    2,
+    "the direct call and the bound one; a computed name and another function are not counted",
+  );
+});
+
+test("the service-role client is counted where it is taken, called or handed on, never where it is imported or made", () => {
+  const sf = source(`
+    import { serviceDb, serviceDbIfConfigured } from "@/server/service-db";
+    export function serviceDb() { return make(); }
+    const a = serviceDb();
+    const b = serviceDbIfConfigured();
+    await run({ db: serviceDb });
+    const c = ports.serviceDb;
+  `);
+  assert.equal(serviceRoleReaches(sf), 3);
 });

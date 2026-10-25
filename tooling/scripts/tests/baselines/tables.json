@@ -65,6 +65,7 @@
   "apps/dashboard/src/server/people/people-many.ts": 1,
   "apps/dashboard/src/server/people/people-many.ts::rpc": 1,
   "apps/dashboard/src/server/people/people.ts": 2,
+  "apps/dashboard/src/server/people/person-details.ts::rpc": 4,
   "apps/dashboard/src/server/people/person-notes.ts": 2,
   "apps/dashboard/src/server/people/person-notes.ts::rpc": 1,
   "apps/dashboard/src/server/platform/day-counts.ts::rpc": 1,
