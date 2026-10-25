@@ -407,7 +407,9 @@ const peekActsOf = (p: P, vm: LeadPeekVM) =>
 const sheetOf = (p: P, phone: boolean) => {
   const pile = p.pileSheet;
   const vm = pile ? (p.sheetRow ? peekVMFor(p.sheetRow.id) : null) : p.peek;
-  if (!vm && !pile) return null;
+  // A pile's end is drawn while the sheet is open: one the owner closed stays closed until the next lead comes up
+  // (pile/page-pile.tsx), and was drawn as "Nothing left to decide" over the leads still to decide.
+  if (!vm && (!pile || !p.sheetOpen)) return null;
   const on = vm ? peekActsOf(p, vm) : null;
   return (
     <LeadSheet

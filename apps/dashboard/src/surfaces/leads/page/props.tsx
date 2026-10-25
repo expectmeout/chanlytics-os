@@ -466,6 +466,8 @@ const sheetProps = (p: LeadsPage) => {
   const piled = !!p.pileSheet && !!p.peekId && (!p.pileUp || !shown || shown.id === p.pileUp.id);
   return {
     sheetRow: piled ? p.pileUp : shown,
+    /** Whether the sheet is open at all: closed (Esc, its Close), a pile on draws nothing, never its end. */
+    sheetOpen: !!p.peekId,
     aim: p.aim,
     sheetSearchId: p.openSearch ? p.openSearch.id : null,
     tz: p.leads.tz,

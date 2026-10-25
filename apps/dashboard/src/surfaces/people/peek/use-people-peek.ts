@@ -53,16 +53,20 @@ function usePeekAddress(f: PeekFacts, peekId: string | null, open: (id: string) 
     // A phone opens the person's page instead (usePeoplePeek): the address is not the peek's there.
     if (phone) return;
     const a = at.current;
+    // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
+    // Asked before whether the address moved: the list is held hidden under the person's page (people-route.tsx), so the
+    // address it comes back to is the one it last saw, and only its effects running again say it is back.
+    if (addrPeek && personDeletedHere(addrPeek)) {
+      Object.assign(a, { view: viewRoute, peek: null, asked: null, pushed: false });
+      if (peekId) close();
+      nav(viewRoute, { replace: true });
+      return;
+    }
     if (a.view !== viewRoute || a.peek !== addrPeek) {
       a.view = viewRoute;
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
-      // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
-      if (addrPeek && personDeletedHere(addrPeek)) {
-        nav(viewRoute, { replace: true });
-        return;
-      }
       // The person the address names takes the cursor too, or the cursor this tab kept would walk the peek off them.
       if (peekId !== addrPeek) {
         if (addrPeek) open(addrPeek);

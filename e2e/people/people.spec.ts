@@ -229,7 +229,13 @@ test.describe("People on a real workspace", () => {
       expect(recorded || refused).toBe(true);
     }).toPass();
     if ((await sheet.count()) === 0) {
+      // A page with tabs keeps its deals on Deals; each deal is a row that folds open on a press of its title, its link
+      // and facts inside (canvas A, people/deal/person-deal.tsx).
+      const dealsTab = page.getByTestId("person-tab-deals");
+      if ((await dealsTab.count()) > 0) await dealsTab.click();
       const card = page.getByTestId("person-deal-card").first();
+      if ((await card.getAttribute("data-open")) === null) await card.getByTestId("person-deal-title").click();
+      await expect(card).toHaveAttribute("data-open", "true");
       await expect(card.getByTestId("person-deal-link")).toHaveText("docs.example.com");
       await expect(card.getByTestId("person-deal-link")).toHaveAttribute("href", "https://docs.example.com/p/e2e-walk");
       await expect(card.getByTestId("person-deal-fact").first()).toHaveText("Not sent yet");
@@ -310,7 +316,8 @@ test.describe("People on a real workspace", () => {
       await expect(peek).toBeVisible();
       await expect(peek.getByTestId("pipeline-peek-name")).not.toBeEmpty();
       await expect(page.locator(".cl-prof-name"), "the Pipeline is still the page under the peek").toHaveCount(0);
-      await peek.getByTestId("pipeline-peek-page").click();
+      // Their face and name are the press to their page (pipeline/peek.tsx, the deal sheet's head since #1765).
+      await peek.getByTestId("pipeline-peek-opens").click();
       await expect(page.locator(".cl-prof-name")).toBeVisible();
     }
   });
@@ -358,10 +365,11 @@ test.describe("People on a real workspace", () => {
       await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline:v-proposals");
     }
 
-    // Away to People's list by its own tab and back to the Pipeline by the sidebar's People and the tab.
+    // Away to People's list by its own tab and back to the Pipeline by the sidebar's People and the tab. The scope left is
+    // kept, hidden, so it comes back as it was (people-route.tsx, the strips review of 18 Oct 2026).
     await page.getByTestId("scope-people").click();
     await expect.poll(() => routeOf(page.url())).toBe("clients");
-    await expect(page.getByTestId("pipeline")).toHaveCount(0);
+    await expect(page.getByTestId("pipeline")).toBeHidden();
     await page.getByTestId("scope-pipeline").click();
     await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await expect(page.getByTestId("pipeline")).toBeVisible();

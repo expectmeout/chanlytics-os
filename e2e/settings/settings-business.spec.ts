@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { apiGet } from "../workspace";
-import { expectFocusInside, expectNoSidewaysScroll } from "../signals";
+import { expectFocusInside, expectNoSidewaysScroll, sheetFloat } from "../signals";
 
 /**
  * The business's record on a real workspace, and the things only a browser can show about it: Settings › Details, Hours &
@@ -1262,7 +1262,11 @@ test.describe("Settings › Business on a real workspace", () => {
                       ? "a row's act"
                       : id.startsWith("rec-can-door-")
                         ? "missing"
-                        : null;
+                        : // A question asked as a row: its answer is the row's value, a menu of the answers
+                          // (business/choices/rows.tsx ChoiceRow, #1700: bookings, prices, the word for a booking).
+                          id.endsWith("-menu") && el.closest(".rec-row")
+                          ? "a row's answer"
+                          : null;
           out.push({ id, why });
         }
         return out;
@@ -1363,8 +1367,10 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(sheet, "the sheet itself does not hold focus").toBeFocused();
       await expect(box, "the field took focus as the sheet rose").not.toBeFocused();
       const rise = await boxOf(sheet, "the sheet");
-      expect(Math.round(rise.y + rise.h), "the sheet does not stand on the bottom of the screen").toBe(844);
-      expect(Math.round(rise.w), "the sheet is not the screen's width").toBe(390);
+      // It floats just clear of the screen's sides and foot, as every phone sheet does (#1789).
+      const float = await sheetFloat(page);
+      expect(Math.round(rise.y + rise.h), "the sheet does not stand just clear of the bottom").toBe(844 - float);
+      expect(Math.round(rise.w), "the sheet is not the screen's width less its float").toBe(390 - 2 * float);
 
       // Quiet, and made for a finger: nothing scrolls sideways, nothing loud is painted, every control is 44px.
       const inSheet = '[role="dialog"][data-testid="rec-fold-tone"]';
@@ -1458,21 +1464,32 @@ test.describe("Settings › Business on a real workspace", () => {
             .map((a) => a.finished.catch(() => null)),
         ),
       );
-      // And the pane's type: the sheet's buttons at the column's size, its times in figures that line up.
+      // And the pane's type: the sheet's buttons at the column's size, its times in figures that line up, and its foot's
+      // Save and Cancel at the base step, as every answer in a phone's foot reads (kit.css, #1729).
       const typed = await page.evaluate((sel) => {
         const sheet = document.querySelector(sel)!;
-        const probe = document.createElement("span");
-        probe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue("--text-sm").trim();
-        sheet.appendChild(probe);
-        const small = getComputedStyle(probe).fontSize;
-        probe.remove();
+        const sizeOf = (token: string) => {
+          const probe = document.createElement("span");
+          probe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+          sheet.appendChild(probe);
+          const size = getComputedStyle(probe).fontSize;
+          probe.remove();
+          return size;
+        };
+        const [small, base] = [sizeOf("--text-sm"), sizeOf("--text-base")];
+        const off = (bs: Element[], size: string) => bs.filter((b) => getComputedStyle(b).fontSize !== size).length;
         return {
-          buttons: [...sheet.querySelectorAll(".btn-sm")].filter((b) => getComputedStyle(b).fontSize !== small).length,
+          buttons: off(
+            [...sheet.querySelectorAll(".btn-sm")].filter((b) => !b.closest(".rec-sheet-foot")),
+            small,
+          ),
+          foot: off([...sheet.querySelectorAll(".rec-sheet-foot .rec-foot .btn")], base),
           figures: getComputedStyle(sheet.querySelector("#bt-hours-mon-0-open")!).fontVariantNumeric,
         };
       }, hours);
       expect(typed, "the hours' sheet reads in the Settings pane's type").toEqual({
         buttons: 0,
+        foot: 0,
         figures: "tabular-nums",
       });
       await expectNoSidewaysScroll(page, "the hours' sheet", [PANE, `${hours} .rec-sheet-body`]);
@@ -1502,9 +1519,15 @@ test.describe("Settings › Business on a real workspace", () => {
         const tone = '[role="dialog"][data-testid="rec-fold-tone"]';
         await expect(page.locator(tone)).toBeVisible();
         const rising = await motionsOn(page, tone);
+        // Its cut rises with it (kit.css --sheet-down, #1806): nothing of it stands lower than its rest as it comes up.
         if (reduced) expect(rising.flat(), `${where}: the sheet rises`).toEqual([]);
         else
-          expect(rising, "the sheet rises on --ease-out").toEqual([[{ prop: "transform", ms: 200, easing: EASE_OUT }]]);
+          expect(rising, "the sheet rises on --ease-out").toEqual([
+            [
+              { prop: "--sheet-down", ms: 200, easing: EASE_OUT },
+              { prop: "transform", ms: 200, easing: EASE_OUT },
+            ],
+          ]);
         await settled(page);
         expect(await still(), `${where}: the card behind the open sheet moved`).toBe(at);
         const leaving = await page.evaluate(async () => {
@@ -1532,7 +1555,8 @@ test.describe("Settings › Business on a real workspace", () => {
         expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
         if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
         else {
-          expect(leaving.copy, "the sheet goes down on --ease-in-out").toEqual([
+          expect(leaving.copy, "the sheet goes down on --ease-in-out, its cut with it").toEqual([
+            { prop: "--sheet-down", ms: 200, easing: EASE_IN_OUT },
             { prop: "transform", ms: 200, easing: EASE_IN_OUT },
           ]);
           expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "opacity", ms: 200, easing: EASE_IN_OUT }]);
