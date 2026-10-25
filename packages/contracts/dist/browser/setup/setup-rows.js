@@ -24,7 +24,10 @@ import {
   REMIND_SKIPPED,
   SETUP_STATE_WORDS,
   TRY_SKIPPED,
-  forwardedLineOf
+  forwardedLineOf,
+  setupBack,
+  setupOffNow,
+  setupPutOffEver
 } from "./setup.js";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone.js";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
@@ -454,9 +457,9 @@ const checkFactsOf = (i) => ({
   type: i.google?.type ?? null,
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
-const forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+const forwardingOwedOf = (i, off) => !!i.want && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 export function setupSteps(i, nowMs = Date.now()) {
-  const later = new Set(i.later ?? []);
+  const off = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
   const rows = [];
@@ -466,7 +469,8 @@ export function setupSteps(i, nowMs = Date.now()) {
       rows.push({
         ...r,
         stateWords: r.stateWords ?? SETUP_STATE_WORDS[r.state],
-        later: !r.required && later.has(r.id)
+        later: !r.required && setupOffNow(off, r.id, nowMs),
+        back: !r.required && setupBack(off, r.id, nowMs)
       });
   }
   const open = rows.filter((r) => r.state !== "ready" && !r.later);
@@ -492,10 +496,11 @@ export function setupSteps(i, nowMs = Date.now()) {
       whatsappLabel: waReady ? waNum : null
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
+    forwardingOwed: forwardingOwedOf(i, off),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };

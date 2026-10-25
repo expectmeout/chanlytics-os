@@ -575,7 +575,7 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
     const { tree } = await findOn();
     const before = receptionistAsked.length;
     await byTestId(tree, "fr-find-not").props.onClick();
-    assert.deepEqual(said, [["google", true]]);
+    assert.deepEqual(said, [["google", { on: true, why: "answer" }]], "an answer: for good at once");
     await tick();
     assert.equal(receptionistAsked.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
   } finally {
@@ -1298,10 +1298,14 @@ test("a number kept is the member's own choice, on any tab: the step is drawn fr
     flashes.length = 0;
     await off.props.onClick();
     await tick();
-    assert.deepEqual(later, [["keep", true]], "Setup's own Later, on the number kept");
+    assert.deepEqual(
+      later,
+      [["keep", { on: true, why: "rest" }]],
+      "Setup's own Later, on the number kept: a week, then back on Today",
+    );
     assert.equal(
       textOf(flashes.at(-1).msg),
-      "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+      "Put off for a week, then it's back on Today. Until it is set up, only calls to your receptionist's own number are answered.",
     );
     assert.equal(went.at(-1), "start/try", "and the first run goes on");
   } finally {
@@ -1339,7 +1343,7 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
       [
         ["want", { way: "keep", number: "+13055550100" }],
         // A number kept asks for its forwarding again, wherever a new number had put it off.
-        ["later", "keep", false],
+        ["later", "keep", { on: false }],
         ["checkout", "start"],
       ],
       "kept first: a save still out when checkout leaves would be dropped with the page",
@@ -1366,7 +1370,7 @@ test("the number kept is said to the member's saved view BEFORE checkout leaves 
     // A new number keeps none: the choice puts "The number you already have" off, so Today's card stops asking.
     assert.deepEqual(order, [
       ["want", null],
-      ["later", "keep", true],
+      ["later", "keep", { on: true, why: "answer" }],
     ]);
   } finally {
     setupVerbs.want = wasWant;
@@ -1525,7 +1529,11 @@ test("Try it (canvas R6): calls answered and none yet, the step listens for the 
   };
   await byTestId(tree, "fr-try-skip-go").props.onClick();
   await tick();
-  assert.deepEqual(asked.later, [["try-skipped", true]], "then the wait is put off for this member");
+  assert.deepEqual(
+    asked.later,
+    [["try-skipped", { on: true, why: "answer" }]],
+    "then the wait is put off for this member",
+  );
   assert.equal(replaced.at(-1), "start/try", "the bare address being left is named for its step");
   assert.equal(went.at(-1), "start/live", "and the first run goes on to Live, a new entry");
 });

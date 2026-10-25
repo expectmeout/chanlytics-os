@@ -4,6 +4,10 @@ export {
   lineRetryRefusal,
   textingWords,
   setupLaterOf,
+  setupRestsOf,
+  setupPutOffNext,
+  putOffEnds,
+  SETUP_REST_MS,
   setupPhoneWantOf,
   forwardedLineOf,
   keptPhoneKind,
@@ -36,6 +40,10 @@ export type {
   SetupVM,
   SetupRequestKind,
   SetupPhoneWant,
+  SetupRests,
+  SetupPutOff,
+  SetupPutOffWhy,
+  SetupPutOffChange,
 } from "./setup";
 export { capabilityStatus, CAPABILITY_KINDS } from "./capabilities";
 export type {
@@ -87,6 +95,7 @@ export type {
   FirstRunVM,
   FirstRunWho,
   SetupCardVM,
+  SetupCardRowVM,
   ReceptionistCardInputs,
   ReceptionistCardVM,
 } from "./first-run";
