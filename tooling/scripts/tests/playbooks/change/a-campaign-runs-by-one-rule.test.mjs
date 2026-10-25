@@ -159,6 +159,10 @@ const OTHER_STATES = {
     n: 1,
     why: "A lead search's round running, not a campaign.",
   },
+  "apps/dashboard/src/surfaces/console/health/background.tsx": {
+    n: 1,
+    why: "A Health clock's sweep (sweep_status), running or idle as it should be on the Console, not a campaign.",
+  },
 };
 
 /** Whether a node is the string "running". */
