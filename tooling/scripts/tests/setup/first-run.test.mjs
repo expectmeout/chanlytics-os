@@ -1110,9 +1110,9 @@ test("a number the owner chose to keep holds the phone step until its forwarding
   const back = setupSteps(live({ want, rests: { [KEEP_ROW]: ENDED } }), NOW);
   assert.equal(back.forwardingOwed, false);
   assert.equal(firstRunOf(back).current, "live");
-  const card = setupCardOf(back);
-  assert.equal(card.start, null);
-  assert.equal(card.rows.find((r) => r.id === KEEP_ROW).back, true);
+  const today = setupCardOf(back);
+  assert.equal(today.start, null);
+  assert.equal(today.rows.find((r) => r.id === KEEP_ROW).back, true);
 });
 
 test("the number kept or moved is read from the member's saved view: a way, a number in E.164, nothing else", () => {
