@@ -239,11 +239,12 @@ test("a WhatsApp send or a text started as late as a batch may start one still e
   }
 });
 
-test("an edge door's time limit is set in one place: vercel.json, never in the door too", () => {
+test("an edge door's time limit is set in one place: vercel.json, never in the door too, and every door has one", () => {
   // Twelve doors once said their limit twice (an `export const config` and a vercel.json entry), eight only in the
   // door, six only in vercel.json: two places that agreed only by care (Reach out Part 2.5). vercel.json is the one
-  // the tests above already read. A door with no entry takes the platform's default, which is not written down here,
-  // so a sweep or the job runner may not be one: each loops against a budget that is only safe under a known limit.
+  // the tests above already read. A door with no entry takes the platform's default, which is not written down here:
+  // a sweep or the job runner loops against a budget that is only safe under a known limit, and any door left to the
+  // default was one a hung provider could hold for as long as the platform allows (29 of 66 were, 25 Oct 2026).
   const functions = FUNCTIONS;
   const doors = execFileSync("git", ["ls-files", "apps/edge/api"], { cwd: ROOT, encoding: "utf8" })
     .split("\n")
@@ -257,8 +258,8 @@ test("an edge door's time limit is set in one place: vercel.json, never in the d
   }
   const looping = doors.filter((f) => /^apps\/edge\/api\/(cron|jobs)\//.test(f));
   assert.ok(looping.length > 10, "the sweeps and the job runner are listed");
-  for (const f of looping)
-    assert.ok(functions[f.slice("apps/edge/".length)], `${f}: a sweep's limit is written in apps/edge/vercel.json`);
+  const unlimited = doors.filter((f) => !functions[f.slice("apps/edge/".length)]);
+  assert.deepEqual(unlimited, [], "every door's limit is written in apps/edge/vercel.json, sized to its slowest path");
 });
 
 test("the mailboxes sweep and the providers' pushes start no read after their line, so what is in flight still ends inside each limit", () => {
