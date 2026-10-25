@@ -4531,6 +4531,48 @@ function keptPhoneKind(line) {
 var TRY_SKIPPED = "try-skipped";
 var REMIND_SKIPPED = "remind-skipped";
 var KEEP_ROW = "keep";
+var SETUP_REST_MS = 7 * DAY_MS;
+var SETUP_RESTS_MAX = 20;
+function setupRestsOf(view) {
+  const rests = view && typeof view === "object" ? view.rests : null;
+  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
+  const kept = Object.entries(rests).filter(
+    (e) => e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1]))
+  );
+  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
+}
+var restUntil = (s, id) => {
+  const until = new Map(Object.entries(s.rests)).get(id);
+  return until === void 0 ? null : Date.parse(until);
+};
+function setupOffNow(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return s.later.includes(id) || until !== null && until > nowMs;
+}
+function setupBack(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return !s.later.includes(id) && until !== null && until <= nowMs;
+}
+function setupPutOffEver(s, id) {
+  return s.later.includes(id) || restUntil(s, id) !== null;
+}
+function putOffEnds(id, back) {
+  return back && id !== KEEP_ROW ? "good" : "week";
+}
+function setupPutOffNext(s, ids, change, nowMs) {
+  const later = new Set(s.later);
+  const rests = new Map(Object.entries(s.rests));
+  for (const id of ids) {
+    if (!change.on) {
+      if (later.has(id)) later.delete(id);
+      else rests.delete(id);
+    } else if (!setupOffNow(s, id, nowMs)) {
+      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
+    }
+  }
+  return { later: [...later], rests: Object.fromEntries(rests) };
+}
 var SETUP_LATER_REFUSED = {
   reading: "Setting up is still being read. Try again in a moment.",
   unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
@@ -58162,9 +58204,9 @@ var checkFactsOf = (i) => ({
   type: i.google?.type ?? null,
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
-var forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
+var forwardingOwedOf = (i, off) => !!i.want && !forwardedLineOf(i.lines) && !setupPutOffEver(off, KEEP_ROW);
 function setupSteps2(i, nowMs = Date.now()) {
-  const later = new Set(i.later ?? []);
+  const off = { later: i.later ?? [], rests: i.rests ?? {} };
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice: voice2, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
   const rows2 = [];
@@ -58174,7 +58216,8 @@ function setupSteps2(i, nowMs = Date.now()) {
       rows2.push({
         ...r2,
         stateWords: r2.stateWords ?? SETUP_STATE_WORDS[r2.state],
-        later: !r2.required && later.has(r2.id)
+        later: !r2.required && setupOffNow(off, r2.id, nowMs),
+        back: !r2.required && setupBack(off, r2.id, nowMs)
       });
   }
   const open = rows2.filter((r2) => r2.state !== "ready" && !r2.later);
@@ -58200,10 +58243,11 @@ function setupSteps2(i, nowMs = Date.now()) {
       whatsappLabel: waReady ? waNum : null
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
-    trySkipped: later.has(TRY_SKIPPED),
-    remindSkipped: later.has(REMIND_SKIPPED),
+    trySkipped: setupOffNow(off, TRY_SKIPPED, nowMs),
+    remindSkipped: setupOffNow(off, REMIND_SKIPPED, nowMs),
+    remindBack: setupBack(off, REMIND_SKIPPED, nowMs),
     dayBeforeOn: i.reminders?.day_before === true,
-    forwardingOwed: forwardingOwedOf(i, later),
+    forwardingOwed: forwardingOwedOf(i, off),
     calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i)
   };
@@ -59167,6 +59211,7 @@ function forwardingCarrierOf(rings, company) {
   if (rings === "mobile") return company ?? null;
   return null;
 }
+var FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -59250,7 +59295,7 @@ var FIRST_RUN_PHONE_WORDS = {
   keepCode: "Keep what I have",
   /** The forwarding put off from the questions: what the link says, and what the page says once it is. */
   putOff: "Set up forwarding later",
-  putOffSaid: "Put off. Until it is set up, only calls to your receptionist's own number are answered.",
+  putOffSaid: `Put off for a week, then it's back on Today. ${FORWARDING_WAIT_WORDS}`,
   /** The code, or the number to forward to, copied for the phone it is typed on. */
   copy: "Copy",
   copied: "Copied",
@@ -59850,13 +59895,45 @@ function firstRunOf(vm, at3, who) {
     check
   };
 }
-var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+var CARD_PUT_OFF = {
+  put: "Skip",
+  hide: "Hide",
+  back: "Back after a week",
+  backShort: "Back",
+  week: "Put off for a week.",
+  good: "Off your list.",
+  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  keep: FORWARDING_WAIT_WORDS
+};
+var CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
+var CARD_HOMES = {
+  try: () => "Call your number any time to hear it.",
+  whatsapp: () => "It's in Settings \u203A Connections.",
+  calendar: () => "It's in Settings \u203A Hours & booking.",
+  team: (r2) => r2.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
+  handoff: () => "It's in Settings \u203A How it answers.",
+  google: () => "It's in Settings \u203A Connections.",
+  email: () => "It's in Settings \u203A Connections.",
+  yes: () => "It's in People \u203A Get their yes."
+};
+function skipSaid(id, r2) {
+  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
+  return putOffEnds(id, r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
+}
+function hideSaid(drawn) {
+  const [only] = drawn;
+  if (drawn.length === 1 && only) return only.said;
+  const good = drawn.filter((d) => d.good).length;
+  const week = drawn.length - good;
+  const head = good === 0 ? `All ${drawn.length} put off for a week.` : week === 0 ? `All ${drawn.length} off your list.` : `${week} put off for a week, ${good} off your list.`;
+  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
+}
 var CARD_REMIND = {
   id: REMIND_SKIPPED,
   name: "The day-before reminder",
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
-  said: "Put off. Turn it on any time in Sequences.",
+  home: "Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
@@ -59866,15 +59943,22 @@ var CARD_BILLING = { title: "Your plan", left: "Needs you" };
 function setupCardOf(vm) {
   const billing = rowOf(vm, "billing");
   if (billing && billing.state === "waiting_you" && billing.verb)
-    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
+    return {
+      ...CARD_BILLING,
+      start: null,
+      rows: [{ ...billing, said: null }],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
-    const left2 = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
     const def = FIRST_RUN_STEPS[next.number - 1];
     return {
       title: FINISH_SETTING_UP,
-      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
         // or calls are answered and a step is still open.
@@ -59891,20 +59975,33 @@ function setupCardOf(vm) {
       remind: null
     };
   }
-  const rows2 = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r2) => r2 !== null && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && !!r2.verb
-  );
+  const rows2 = SETUP_CARD_ORDER.flatMap((id) => {
+    const r2 = rowOf(vm, id);
+    return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && r2.verb ? [{ ...r2, said: skipSaid(id, r2) }] : [];
+  });
   if (!rows2.length) return null;
   const calendar = rowOf(vm, "calendar");
-  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
-  const left = rows2.length + (remind ? 1 : 0);
-  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
+  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
+    id: CARD_REMIND.id,
+    name: CARD_REMIND.name,
+    stateWords: CARD_REMIND.stateWords,
+    words: CARD_REMIND.words,
+    label: CARD_REMIND.label,
+    to: CARD_REMIND.to,
+    said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
+    back: vm.remindBack
+  } : null;
+  const drawn = [
+    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.id, r2.back) === "good", said: r2.said ?? "" })),
+    ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
+  ];
   return {
     title: FINISH_SETTING_UP,
-    left: `${left} left`,
+    left: `${drawn.length} left`,
     start: null,
     rows: rows2,
-    hide: { put: "Hide", said },
+    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
     skip: CARD_SKIP,
     remind
   };
@@ -66889,6 +66986,7 @@ export {
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
+  SETUP_REST_MS,
   SETUP_STATE_WORDS,
   SHADOW_CALL,
   SHADOW_CONFIDENT,
@@ -68562,6 +68660,7 @@ export {
   pushFor,
   pushOffOf,
   pushesFor,
+  putOffEnds,
   quantile,
   questionAfterProbe,
   quickAnswerOf,
@@ -68879,6 +68978,8 @@ export {
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
+  setupPutOffNext,
+  setupRestsOf,
   setupSteps2 as setupSteps,
   sha256Hex,
   shadowBodies,

@@ -1131,6 +1131,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .setup-card-dot[data-tone="danger"] { background: var(--danger); }
 .setup-card-body { display: grid; gap: 1px; min-width: 0; }
 .setup-card-name { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
+/* A row back from a week put off says so beside its name, quieter than it: a phone hides the sentence, never this. */
+.setup-back { font-weight: 400; color: var(--ink-dim); }
 .setup-card-said { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
 /* The count beside the first row's words was a phone's one row's; every width says it in the head now. */
 .setup-card-aside { display: none; }
