@@ -13,7 +13,9 @@ import {
   newReceptionistDefaults,
   PROFILE_CROSSING_WORDS,
   hasProfile,
+  setupSteps,
 } from "@chanlytics/contracts";
+import { importSrc } from "../../_source.mjs";
 import {
   again,
   unmount,
@@ -38,6 +40,7 @@ import {
   composed,
   dayOf,
   POLICIES,
+  SETUP,
   drawTab,
   escape,
   foldOf,
@@ -142,6 +145,71 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
   assert.equal(byTestId(none, "rec-row-phone_greeting"), null);
   assert.equal(byTestId(none, "rec-row-phone_voice"), null, "nor a voice: no call is answered in it");
   assert.match(textOf(byTestId(none, "rec-row-handoff_number")), /Takes a message instead/);
+});
+
+test("On calls holds the number the business keeps: Setup's own row, by its own name, its one home beside Today's card", async () => {
+  // Forwarding was set up on Setup's rows alone, so "The number you already have" could never be put off for good
+  // (25 Oct 2026). The row reads Setup's value on the seam, as the card does; the page's other cards read its mirror.
+  const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+  const at = Date.parse("2026-09-21T16:00:00Z");
+  const seamOf = (setup) =>
+    setSurfaceValue("setup", {
+      ...setup,
+      role: "owner",
+      later: [],
+      rests: {},
+      want: null,
+      vm: setupSteps({ ...setup.dto, later: [], rests: {} }, at),
+      fetchedAt: at,
+    });
+  try {
+    const setup = SETUP();
+    seamOf(setup);
+    const card = byTestId(drawTab({ profile: marisa, setup }), "rec-card-calls");
+    assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
+      "Greets every caller with",
+      "Voice",
+      "Pace",
+      "Transfer number",
+      "The number you already have",
+    ]);
+    const row = byTestId(card, "rec-row-kept_number");
+    assert.match(textOf(row), /Not forwarded/);
+    assert.match(textOf(row), /Keep the number your customers know: forward its calls to/, "Setup's own sentence");
+    assert.match(textOf(byTestId(row, "rec-row-act-kept_number")), /Set up forwarding/);
+
+    // A number saved: the number is the row's value, and its act is the next one Setup names.
+    const kept = {
+      ...setup.dto.lines.rows[0],
+      id: "ln-kept",
+      e164: "+13055550100",
+      kind: "forwarded",
+      provider: "carrier",
+      voice_state: "none",
+      whatsapp_state: "none",
+      forwarding_state: "instructed",
+      forwarding: {
+        carrier: "verizon",
+        mode: "unanswered",
+        destination_e164: "+13055550123",
+        test_until: null,
+        verified_at: null,
+      },
+    };
+    const saved = {
+      ...setup,
+      dto: { ...setup.dto, lines: { ...setup.dto.lines, rows: [...setup.dto.lines.rows, kept] } },
+    };
+    seamOf(saved);
+    const after = byTestId(
+      byTestId(drawTab({ profile: marisa, setup: saved }), "rec-card-calls"),
+      "rec-row-kept_number",
+    );
+    assert.match(textOf(after), /\+1 \(305\) 555-0100/);
+    assert.match(textOf(byTestId(after, "rec-row-act-kept_number")), /Test it/);
+  } finally {
+    setSurfaceValue("setup", undefined);
+  }
 });
 
 test("what the owner's corrections suggest is drawn after What it knows, where a note kept lands", () => {

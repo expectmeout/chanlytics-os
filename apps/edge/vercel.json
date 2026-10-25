@@ -136,6 +136,93 @@
           },
           "api/whatsapp.ts": {
             "maxDuration": 60
+          },
+          "api/health.ts": {
+            "maxDuration": 15
+          },
+          "api/version.ts": {
+            "maxDuration": 15
+          },
+          "api/admin/whatsapp/signup-config.ts": {
+            "maxDuration": 15
+          },
+          "api/diag.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/email/wire.ts": {
+            "maxDuration": 30
+          },
+          "api/retell-availability.ts": {
+            "maxDuration": 30
+          },
+          "api/retell-fn.ts": {
+            "maxDuration": 30
+          },
+          "api/retell-inbound.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/hand-over.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/stop-call.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/whisper.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/email/alert-test.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/email/test-to-self.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/handover-invite.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/partner-invite.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/setup-request.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/signup-notify.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/support/report.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/you-are-live.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/page.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/whatsapp/templates-create.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/whatsapp/templates-delete.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/whatsapp/templates-sync.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/steer.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/playbooks-run.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/voice/session.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/voice/speech.ts": {
+            "maxDuration": 60
+          },
+          "api/elevenlabs-webhook.ts": {
+            "maxDuration": 60
+          },
+          "api/admin/eval.ts": {
+            "maxDuration": 180
           }
         }
       }

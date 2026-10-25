@@ -46,6 +46,7 @@ import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtBookingTool } from "./open-bookings";
 import { greetingFold } from "./phone/greeting";
+import { BtKeptNumberRow } from "./phone/kept-number";
 import { BtVoiceRow } from "./phone/voice";
 import { BtAssistantNameRow, BtPaceRow } from "./phone/name-and-pace";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
@@ -140,7 +141,8 @@ const BtTalksCard = ({ brain, base = null, config = null, canEdit, flash, saver 
  * calls (decision 0051), and who a caller who insists on a person is put through to, in opening hours, else a message
  * (contracts handoffCallRow, which the hand-off says too; the sub says it, since a filled row draws no hint).
  * They were a row of How it talks, a fact on Who you are and a line of the hand-off on Autonomy. The line it answers on
- * and its forwarding stay Connections'.
+ * stays Connections'; the number the business keeps, and its forwarding, is a row here (phone/kept-number.tsx), its one
+ * home beside Setup's rows (25 Oct 2026).
  */
 const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
   const shared = { canEdit, flash, saver };
@@ -157,6 +159,8 @@ const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver 
       {/* How fast it speaks (decision 0073, R7), beside the voice and only where a line answers calls, as the voice. */}
       {a.calls ? <BtPaceRow brain={brain} {...shared} /> : null}
       <BtTransferNumberRow brain={brain} base={base} {...shared} />
+      {/* The number the business keeps, forwarded to the line: only where a line answers calls, as the greeting. */}
+      {a.calls ? <BtKeptNumberRow flash={flash} /> : null}
     </>,
   );
 };

@@ -58,7 +58,7 @@
   "settings/autonomy": "settings",
   "settings/billing": "billing",
   "settings/booking-tool": "",
-  "settings/business": "settings workspace",
+  "settings/business": "settings setup workspace",
   "settings/connections": "channels google setup",
   "settings/frame": "partner settings workspace",
   "settings/memory": "ask_memory",

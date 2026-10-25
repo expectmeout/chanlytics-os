@@ -390,6 +390,7 @@ export { firstRunTryOf, TRY_QUIET_AFTER_MS, FIRST_RUN_TRY_WORDS } from "./setup/
 export { lineStuckProvisioning, lineRetryRefusal, textingWords, setupPhoneWantOf, setupChoicesOf, forwardedLineOf, keptPhoneKind, PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, MOCK_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, BROKEN_CONFIG_WORDS, SETUP_REQUEST_KINDS } from "./setup/setup";
 export { setupLaterOf, setupRestsOf, setupPutOffNext, putOffEnds, SETUP_REST_MS, TRY_SKIPPED, RECEPTIONIST_MET, CHANNELS_SEEN, REHEARSE_SKIPPED, GOOGLE_CONNECT_LATER, REMIND_SKIPPED, KEEP_ROW, SETUP_LATER_REFUSED } from "./setup/setup-put-off";
 export { setupSteps } from "./setup/setup-rows";
+export { keptNumberRowOf } from "./setup/setup-rows-phone";
 export { utf8Bytes, hexOf } from "./shared/bytes";
 export { zoneDayKey, clockTime, clockHour, clockDate, clockDateYear, clockShort, clockStamp, clockWhen, localDaysBetween, inLocalWeek, clockNear, clockNearWhen, clockDayLabel, wallClockAt, tomorrowAtIn, zonedInputValue, fromZonedInput, callLength, mmss, durationWords } from "./shared/clock";
 export { EDGE_ERROR_CODES } from "./shared/edge-errors";

@@ -36,8 +36,8 @@ export function setupBack(s, id, nowMs) {
 export function setupPutOffEver(s, id) {
   return s.later.includes(id) || restUntil(s, id) !== null;
 }
-export function putOffEnds(id, back) {
-  return back && id !== KEEP_ROW ? "good" : "week";
+export function putOffEnds(back) {
+  return back ? "good" : "week";
 }
 export function setupPutOffNext(s, ids, change, nowMs) {
   const later = new Set(s.later);
@@ -47,7 +47,7 @@ export function setupPutOffNext(s, ids, change, nowMs) {
       if (later.has(id)) later.delete(id);
       else rests.delete(id);
     } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      if (change.why === "answer" || putOffEnds(setupBack(s, id, nowMs)) === "good") later.add(id);
       else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
     }
   }
