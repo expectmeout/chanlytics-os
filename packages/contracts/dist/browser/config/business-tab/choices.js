@@ -76,3 +76,17 @@ export const PRICE_CHOICE_WORDS = {
   },
   saved: (to) => `When someone asks a price: ${PRICE_CHOICE_WORDS.options[to].label.toLowerCase()}.`
 };
+export const WALK_INS_CHOICES = ["yes", "room", "no", "unset"];
+export const walkInsChoiceOf = (stored) => stored === "yes" || stored === "room" || stored === "no" ? stored : "unset";
+export const WALK_IN_WORDS = {
+  label: "Walk-ins",
+  ask: "Do you take walk-ins?",
+  options: {
+    yes: { label: "Yes", says: "It tells customers walk-ins are welcome in opening hours." },
+    room: { label: "When there's room", says: "Taken when there's room. It never promises one and suggests booking." },
+    no: { label: "No", says: "It tells customers to book ahead." },
+    unset: { label: "Not said", says: "It says nothing about walk-ins." }
+  },
+  gate: "say whether you take walk-ins",
+  saved: (to) => to === "unset" ? "Walk-ins: nothing said." : `Walk-ins: ${WALK_IN_WORDS.options[to].label.toLowerCase()}.`
+};

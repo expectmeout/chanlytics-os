@@ -432,7 +432,14 @@ export async function addPerson(body: {
  */
 export async function importPeople(body: {
   import_id: string;
-  rows: { name?: string; phone?: string; email?: string }[];
+  rows: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    facts?: { last_visit?: string; visits?: number; birthday?: string; notes?: string };
+  }[];
+  part?: { n: number; of: number };
+  via?: string;
 }): Promise<
   ApiResult<{
     added: number;

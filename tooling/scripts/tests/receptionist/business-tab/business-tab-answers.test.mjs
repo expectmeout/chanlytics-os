@@ -105,23 +105,29 @@ const notesOf = (n) =>
 
 /* ------------------------------------ the plan's three ------------------------------------ */
 
-test("the voice's box is the first row of How it answers, reading Not set on a record with no tone", () => {
-  // Marisa's record, with no tone on it.
+test("the voice's box follows its name at the head of How it answers, reading Not set on a record with no tone", () => {
+  // Marisa's record, with no tone on it, and no name: the name it goes by comes first (decision 0073).
   const tree = drawTab({ profile: without(marisa, "tone") });
   const card = cardOf(tree);
   const rows = all(card, (n) => classes(n).includes("rec-row"));
-  assert.match(textOf(rows[0]), /Its voice/);
-  assert.match(textOf(rows[0]), /Not set/);
+  assert.match(textOf(rows[0]), /^Its name/);
   assert.equal(rows[0].props["data-empty"], "true");
-  assert.equal(textOf(byTestId(rows[0], "rec-row-act-tone")).trim(), "Give it one", "the canvas's act for the gap");
+  assert.match(textOf(rows[1]), /Its voice/);
+  assert.match(textOf(rows[1]), /Not set/);
+  assert.equal(rows[1].props["data-empty"], "true");
+  assert.equal(textOf(byTestId(rows[1], "rec-row-act-tone")).trim(), "Give it one", "the canvas's act for the gap");
   // How it talks: the voice, then the languages, under its title and sub. What callers hear first is On calls' (18 Oct
   // 2026), What it knows holds the next three, and the rules it always keeps and how it hands you a customer are
   // limits, on Autonomy's Limits card (17 Oct 2026).
-  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["Its voice", "Languages"]);
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
+    "Its name",
+    "Its voice",
+    "Languages",
+  ]);
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "How it talks");
   assert.equal(
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
-    "Its voice, and the languages it speaks",
+    "Its name, its voice, and the languages it speaks",
   );
   const knows = byTestId(tree, "rec-card-knows");
   assert.deepEqual(all(knows, (n) => classes(n).includes("rec-row-key")).map(textOf), [
@@ -157,8 +163,8 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   const cards = [].concat(tail.at(-2).props.children).filter((c) => c != null && c !== false);
   assert.deepEqual(
     cards.map((c) => c.type.name),
-    ["BtTalksCard", "BtCallsCard", "BtKnowsCard", "LearnedFromYou", "BtCanCard", "BtPromptTold", "BtTryIt"],
-    "How it talks, On calls, What it knows and what the corrections suggest, What it can do, what it is told, and Try it, at rest, last",
+    ["BtTalksCard", "BtCallsCard", "BtKnowsCard", "LearnedFromYou", "BtCanCard", "BtPromptTold", "BtRehearse"],
+    "How it talks, On calls, What it knows and what the corrections suggest, What it can do, what it is told, and Rehearse (Try it's place, decision 0069), at rest, last",
   );
 });
 
@@ -255,10 +261,10 @@ test("a starting point fills the voice with its sentence, which is contracts', a
     items(tree).map((b) => textOf(b).trim()),
     TONE_PRESETS.map((p) => p.label),
   );
-  press(items(tree).find((b) => textOf(b).trim() === "Professional, no small talk"));
+  press(items(tree).find((b) => textOf(b).trim() === "Polished"));
   tree = redrawTab();
   assert.equal(items(tree).length, 0, "a pick closes the menu");
-  const tone = TONE_PRESETS.find((p) => p.label === "Professional, no small talk").tone;
+  const tone = TONE_PRESETS.find((p) => p.label === "Polished").tone;
   assert.equal(boxIn(tree, "tone").props.value, tone, "the press fills the box");
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [["Preview what it's told", `Tone: ${tone}`]]);
   saveFoldOf(tree, "tone");

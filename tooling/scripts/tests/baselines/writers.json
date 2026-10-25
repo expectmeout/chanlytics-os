@@ -6,8 +6,8 @@
   "billing_events": 2,
   "calls": 5,
   "contact_identities": 2,
-  "contacts": 29,
-  "conversations": 18,
+  "contacts": 30,
+  "conversations": 19,
   "deals": 3,
   "escalations": 8,
   "event_deliveries": 3,
@@ -32,7 +32,7 @@
   "mailbox_connections": 6,
   "mailboxes": 6,
   "memberships": 13,
-  "messages": 22,
+  "messages": 23,
   "notification_marks": 2,
   "notification_reads": 2,
   "notifications": 8,
@@ -57,6 +57,6 @@
   "sequences": 11,
   "templates": 10,
   "tenant_channels": 7,
-  "tenant_config": 4,
+  "tenant_config": 5,
   "tenants": 5
 }

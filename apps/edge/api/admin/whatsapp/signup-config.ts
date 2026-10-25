@@ -29,5 +29,7 @@ export const GET = adminDoor(async function GET(request: Request): Promise<Respo
     graph_version: GRAPH_VERSION,
     ready: reason === null,
     reason,
+    // Keeping the WhatsApp Business app (coexistence, decision 0073): only where the configuration is one that offers it.
+    keep_app: reason === null && env.META_ES_KEEP_APP === "1",
   });
 });

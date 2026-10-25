@@ -34,6 +34,8 @@ interface FindProps {
   done: string | null;
   go: (to: string) => void;
   make: () => void;
+  /** What Google found, for Your workspace, building beside Find: asked (null), the count, or no answer (undefined). */
+  onFound?: (n: number | null | undefined) => void;
 }
 
 /** A choice's words with what marks it beside them (the best match, the way most businesses take): a state's pill. */
@@ -83,15 +85,20 @@ function hitsOf(o: {
   );
 }
 
-/** What Find says above the candidates: reading, a failure with its retry, nothing found, or the owner's own words. */
+/**
+ * What Find says above the candidates: reading, a failure with its retry, nothing found, or the owner's own words. While
+ * Google is asked the pane its answer comes in stands already and says so, as tall as the answer usually is, so what is
+ * under it holds still when it lands (first-run.css .fr-find-looking).
+ */
 function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words: string | null) => void) {
   const hits = found ? found.candidates : [];
   return (
     <>
       {found === null ? (
-        <p className="fr-note" role="status" data-testid="fr-find-reading">
-          {W.reading}
-        </p>
+        <div className="panel fr-pane fr-find-looking" role="status" data-testid="fr-find-reading">
+          <span className="fr-pulse" aria-hidden="true" />
+          <span className="fr-note">{W.reading}</span>
+        </div>
       ) : null}
       {found && !found.ok ? (
         <p className="fr-note" role="alert" data-testid="fr-find-failed">
@@ -119,7 +126,7 @@ function findNotes(W: FindWords, found: Found | null, busy: boolean, ask: (words
   );
 }
 
-export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
+export const FrFind = ({ W, flash, done, go, make, onFound }: FindProps) => {
   // null while Google is asked; then what it said: the candidates, the words it was asked, whether they were the owner's.
   const [found, setFound] = useState<Found | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -130,8 +137,10 @@ export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
   const askGoogle = async (ownWords: string | null) => {
     const G = googleVerbs;
     setBusy(true);
+    onFound?.(null);
     const r = await G.find(ownWords || undefined);
     setBusy(false);
+    onFound?.(r.ok ? r.candidates.length : undefined);
     setFound(
       r.ok
         ? { ok: true, candidates: r.candidates, query: r.query, ownWords: !!ownWords, message: "" }
@@ -142,6 +151,7 @@ export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
   };
   useEffect(() => {
     void askGoogle(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: Google is asked by the name on file, then by the owner's words
   }, []);
   const searchWords = words.replace(/\s+/g, " ").trim();
   const search = (e: { preventDefault(): void }) => {
@@ -221,11 +231,11 @@ export const FrFind = ({ W, flash, done, go, make }: FindProps) => {
         <button type="button" className="link-btn" onClick={notOnGoogle} disabled={busy} data-testid="fr-find-not">
           {W.notOnGoogle}
         </button>
-        {hits.length > 0 ? (
+        {/* Drawn while Google is asked too, held, so the foot does not change as its answer lands. */}
+        {found === null || hits.length > 0 ? (
           <button
             type="button"
             className="btn btn-lg btn-primary fr-go"
-
             onClick={linkPicked}
             disabled={busy || !picked}
             aria-busy={busy || undefined}

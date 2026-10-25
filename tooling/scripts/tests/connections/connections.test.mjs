@@ -110,7 +110,7 @@ test("a workspace with nothing: every door honest, nothing pretends", () => {
       r.whatsapp.verb === null,
     "the missing piece is named, not hidden",
   );
-  assert.deepEqual(r.phone.verb, { label: "Ask for a line", to: "start/phone", who: "owner" });
+  assert.deepEqual(r.phone.verb, { label: "Ask for a line", to: "start/channels", who: "owner" });
   assert.equal(r.sms.group, "later");
   assert.equal(r.google_profile.group, "later");
   assert.equal(r.google_listing.group, "later");
@@ -270,7 +270,7 @@ test("the phone line's road: requested, being set up with the step and since, st
     `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here; we have been told.`,
   );
   const offer = by(connectionRows({ ...base(), lines: { rows: [], ready: true } }, NOW));
-  assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start/phone", who: "owner" });
+  assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start/channels", who: "owner" });
   const fwd = by(
     connectionRows(
       { ...base(), lines: { rows: [line({ provider: "carrier", voice_state: "none" })], ready: true } },

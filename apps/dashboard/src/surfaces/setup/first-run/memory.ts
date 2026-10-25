@@ -1,8 +1,9 @@
 /**
  * What the first run keeps in the tab (the loading standard's drafts, legacy-bridge/tab-memory.ts; moved from
- * legacy/pages/first-run.jsx, decision 0015): the owner's choice on the phone step, and when Try it opened.
+ * legacy/pages/first-run.jsx, decision 0015): the owner's choice of number (Where it answers, bought at Go live), and
+ * when Try it opened.
  *
- * The phone step's choice: Stripe's round trip reloads the page, and the choice has to be there when it comes back.
+ * The choice of number: Stripe's round trip reloads the page, and the choice has to be there when it comes back.
  * Nothing about it is stored anywhere else; a tab that lost it asks again. Besides contracts' PhoneChoice it carries
  * `sent`, when the buy went out from this tab, so a draw while the line is on its way to the page does not send it twice. A
  * buy answers in seconds and its line reaches Setup within a minute; a mark older than PHONE_SENT_MS is a buy that never
@@ -29,11 +30,24 @@ export const returnedFromStripe = (c: KeptPhoneChoice | null): boolean =>
   !!(c && c.pending && c.returnedAt && Date.now() - c.returnedAt < PHONE_RETURN_MS);
 
 /**
- * The choice a tab that holds none starts from: the number the member's saved Setup view says they keep or move
- * (surface.ts `want`), written as the app writes one, with nothing pressed and no answers yet. Null without one.
+ * The choice a tab that holds none starts from: the number the member's saved Setup view says they keep, move or got
+ * (surface.ts `want`, decision 0073), written as the app writes one, with nothing pressed; a new number as the pick, and
+ * a number kept with how its calls go and what rings, as Where it answers kept them. Null without one.
  */
-export const choiceFromWant = (want: SetupPhoneWant | null): KeptPhoneChoice | null =>
-  want ? { way: want.way, number: formatPhoneDisplay(want.number) ?? want.number, pick: null, pending: false } : null;
+export const choiceFromWant = (want: SetupPhoneWant | null): KeptPhoneChoice | null => {
+  if (!want) return null;
+  if (want.way === "new")
+    return { way: "new", number: null, pick: { e164: want.number, friendly: want.number }, pending: false };
+  return {
+    way: want.way,
+    number: formatPhoneDisplay(want.number) ?? want.number,
+    pick: null,
+    pending: false,
+    mode: want.mode ?? null,
+    rings: want.rings ?? null,
+    company: want.company ?? null,
+  };
+};
 
 export function phoneChoiceKept(): KeptPhoneChoice | null {
   try {

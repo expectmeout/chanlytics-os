@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  ASK_ANSWERS_PANE,
   ASK_ANSWERS_ROWS,
   AskSettingsChangeSchema,
   FALLBACK_DEFAULTS,
@@ -45,9 +46,12 @@ test("each card opens How it answers on the row it changes, and the rest of Sett
   const open = (change) => PROPOSAL_SPECS.settings.open({ payload: { change } }, null);
   for (const [op, row] of Object.entries(ASK_ANSWERS_ROWS)) {
     if (!row) continue;
-    assert.equal(paneOfRow(row), "receptionist", `${op}: ${row} is a row of How it answers`);
-    assert.equal(open({ op }), `admin/receptionist/${row}`, op);
+    // Walk-ins is a booking rule (decision 0073): Hours & booking's row, where its card opens.
+    const pane = ASK_ANSWERS_PANE[op] ?? "receptionist";
+    assert.equal(paneOfRow(row), pane, `${op}: ${row} is a row of ${pane}`);
+    assert.equal(open({ op }), `admin/${pane}/${row}`, op);
   }
+  assert.deepEqual(ASK_ANSWERS_PANE, { set_walk_ins: "hours" }, "every other row is How it answers' own");
   // The photo switch is a line of What it can do, which is no row: the page itself.
   assert.equal(open({ op: "set_photos", on: true }), "admin/receptionist");
   assert.equal(open({ op: "add_closure", date: "2026-12-24" }), "admin/workspace");
@@ -189,8 +193,11 @@ test("what a row refuses, its card refuses, in the row's words, before anything 
   refused({ op: "set_languages", languages: Array.from({ length: 9 }, (_, i) => `Language ${i}`) });
   refused({ op: "add_own_words", text: "   " });
   refused({ op: "set_message", which: "goodbye", text: "Bye" });
-  // And each of the eight passes as the tool sends it.
+  // And each of the eleven passes as the tool sends it.
   for (const change of [
+    { op: "set_assistant_name", name: "" },
+    { op: "set_phone_pace", pace: "a_bit_slower" },
+    { op: "set_walk_ins", walk_ins: "room" },
     { op: "set_tone", tone: "" },
     { op: "set_languages", languages: ["English"] },
     { op: "set_phone_greeting", greeting: "" },
@@ -203,13 +210,17 @@ test("what a row refuses, its card refuses, in the row's words, before anything 
     assert.equal(AskSettingsChangeSchema.safeParse(change).success, true, change.op);
   assert.deepEqual(Object.keys(ASK_ANSWERS_ROWS).sort(), [
     "add_own_words",
+    // Decision 0073: the name it goes by, how fast it speaks, and walk-ins.
+    "set_assistant_name",
     "set_languages",
     "set_message",
     "set_phone_greeting",
+    "set_phone_pace",
     "set_phone_voice",
     "set_photos",
     "set_tone",
     "set_transfer_number",
+    "set_walk_ins",
   ]);
 });
 

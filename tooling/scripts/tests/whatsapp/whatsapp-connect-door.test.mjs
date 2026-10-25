@@ -132,7 +132,7 @@ const held = (tenant_id, over = {}) => ({
   ...over,
 });
 /** The database the door will find, and the vault's memory of what it was handed. */
-function use(over = {}, faults = {}, { vault } = {}) {
+function use(over = {}, faults = {}, { vault, rpcs = {} } = {}) {
   const tables = { tenant_channels: [], events: [], ...over };
   const kept = [];
   const standings = [];
@@ -148,6 +148,7 @@ function use(over = {}, faults = {}, { vault } = {}) {
       standings.push(args);
       return "first";
     },
+    ...rpcs,
   });
   setPg(db);
   return { tables, db, kept, standings };
@@ -845,6 +846,66 @@ test("connect, registration belongs to the number: one already on Cloud API is n
   assert.equal(walled.tables.tenant_channels.length + walled.kept.length + walled.tables.events.length, 0);
 });
 
+test("connect, keeping the WhatsApp Business app (coexistence, decision 0073, R12, R21): Meta's own flow registered the number, so it is never registered again and no PIN of ours is kept; the row says the app is kept; and the app's contacts and chats are asked for: both rows of what came in queued, each source's ask now and its settling a day and two hours on", async () => {
+  const notes = [];
+  const w = use({ jobs: [] }, {}, { rpcs: { import_ledger_note: (args) => (notes.push(args), null) } });
+  const m = meta();
+  const log = quiet();
+  let status, body;
+  try {
+    [status, body] = await answer(await knock(signedUp({ keep_app: true })));
+  } finally {
+    log.restore();
+    m.restore();
+  }
+  assert.equal(status, 200, printed(body));
+  assert.ok(
+    !m.paths().includes(`POST /${PHONE}/register`),
+    "a PIN of ours would trip the app's own two-step verification",
+  );
+  assert.equal(body.registration, "coexistence");
+  assert.equal(w.kept[0].p_secret.pin, null);
+  const row = w.tables.tenant_channels[0];
+  assert.deepEqual([row.status, row.config.coexistence, row.config.registration], ["active", true, "coexistence"]);
+  assert.deepEqual(
+    notes.map((n) => [n.p_source, n.p_state, n.p_cursor.channel]),
+    [
+      ["whatsapp_contacts", "queued", row.id],
+      ["whatsapp_history", "queued", row.id],
+    ],
+  );
+  const parts = w.tables.jobs.map((j) => [
+    j.kind,
+    j.payload.source,
+    j.payload.seq.split(":")[1],
+    j.payload.connection_id,
+  ]);
+  assert.deepEqual(parts, [
+    ["history_import", "whatsapp_contacts", "1", row.id],
+    ["history_import", "whatsapp_contacts", "2", row.id],
+    ["history_import", "whatsapp_history", "1", row.id],
+    ["history_import", "whatsapp_history", "2", row.id],
+  ]);
+  const [ask, settle] = w.tables.jobs;
+  assert.equal(Date.parse(settle.due_at) - Date.parse(ask.due_at), 26 * 3_600_000, "settled a day and two hours on");
+
+  // A number of the business's own (no app kept): registered with a PIN we keep, and nothing asked of the app.
+  const plain = use(
+    { jobs: [] },
+    {},
+    { rpcs: { import_ledger_note: () => assert.fail("nothing is brought from an app not kept") } },
+  );
+  const m2 = meta();
+  try {
+    [, body] = await answer(await knock(signedUp()));
+  } finally {
+    m2.restore();
+  }
+  assert.equal(body.registration, "registered");
+  assert.equal(plain.tables.jobs.length, 0);
+  assert.equal(plain.tables.tenant_channels[0].config.coexistence, undefined);
+});
+
 test("connect, whose row it is: this workspace connecting its own number again updates its row in place; a row that appears between the read and the insert is refused when it is another workspace's and accepted when it is this one's own double-submit", async () => {
   // A re-connection: the workspace's own row already holds the number.
   const own = use({ tenant_channels: [held(A)] });
@@ -998,16 +1059,45 @@ test("signup-config: behind the same knock; the app id (the browser hands it to 
     await answer(await ask()),
     [
       200,
-      { ok: true, app_id: APP, config_id: null, graph_version: GRAPH_VERSION, ready: false, reason: "no_config_id" },
+      {
+        ok: true,
+        app_id: APP,
+        config_id: null,
+        graph_version: GRAPH_VERSION,
+        ready: false,
+        reason: "no_config_id",
+        keep_app: false,
+      },
     ],
     "the secret is set, the flow is not: the Integrations pane says so instead of drawing a button that would open nothing",
   );
   const ready = await withEnv({ META_ES_CONFIG_ID: "es-config-7" }, async () => answer(await ask()));
   assert.deepEqual(
     ready,
-    [200, { ok: true, app_id: APP, config_id: "es-config-7", graph_version: GRAPH_VERSION, ready: true, reason: null }],
+    [
+      200,
+      {
+        ok: true,
+        app_id: APP,
+        config_id: "es-config-7",
+        graph_version: GRAPH_VERSION,
+        ready: true,
+        reason: null,
+        keep_app: false,
+      },
+    ],
     "what the browser needs to start",
   );
+  // Keeping the WhatsApp Business app (coexistence, decision 0073, R12): offered only where the configuration made in
+  // Meta's dashboard offers it (META_ES_KEEP_APP), and never by a door that cannot start at all.
+  const keeps = await withEnv({ META_ES_CONFIG_ID: "es-config-7", META_ES_KEEP_APP: "1" }, async () =>
+    answer(await ask()),
+  );
+  assert.equal(keeps[1].keep_app, true);
+  const keepsNothing = await withEnv({ META_ES_CONFIG_ID: undefined, META_ES_KEEP_APP: "1" }, async () =>
+    answer(await ask()),
+  );
+  assert.deepEqual([keepsNothing[1].ready, keepsNothing[1].keep_app], [false, false]);
   const noSecret = await withEnv({ META_APP_SECRET: undefined, META_ES_CONFIG_ID: "es-config-7" }, async () =>
     answer(await ask()),
   );

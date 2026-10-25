@@ -357,6 +357,8 @@ test("the receptionist says a caller's visits as People does: one a member cance
     timezone: TZ,
     notifications: null,
     brain: null,
+    // What the runtime always carries beside the config (tenant-runtime.ts): here, nothing known.
+    known: { workspace: null, channels: [], listing: null },
   };
   const said = async (appointments) => {
     setPg(fakeDb({ appointments }));

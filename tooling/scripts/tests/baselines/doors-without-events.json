@@ -14,6 +14,7 @@
   "drop_mailbox_credentials()": 1,
   "email_marketing_on_erase()": 1,
   "fact_candidates()": 1,
+  "import_ledger_note()": 1,
   "lead_counter_take()": 1,
   "lead_member_move()": 3,
   "lead_release()": 1,

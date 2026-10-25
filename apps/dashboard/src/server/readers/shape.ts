@@ -1,5 +1,5 @@
 import "server-only";
-import { parseTenantConfig, type AppointmentWord, MIN_MS } from "@chanlytics/contracts";
+import { calendarFeedKeyOf, parseTenantConfig, type AppointmentWord, MIN_MS } from "@chanlytics/contracts";
 import { connectionFor } from "../connections/google";
 import { emailLineFor } from "../connections/email";
 import { playbookRows } from "../campaigns/playbooks";
@@ -60,7 +60,7 @@ export const shape: Reader<undefined, WorkspaceShape> = {
       timezone: f.timezone,
       has_deals: biz.hasDeals,
       appointment_word: biz.word,
-      calendar_feed: !!config?.calendar?.ical_url,
+      calendar_feed: !!calendarFeedKeyOf(config),
       booking_link: !!config?.brain?.booking_link,
       channels: [...new Set(chans.map((c) => c.kind))].sort(byText),
       mailbox: !!email.mailbox,

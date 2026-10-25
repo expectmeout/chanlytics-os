@@ -9,7 +9,13 @@
  * whose visit it no longer names (core broadcast-feed.ts, contracts feedStillNames).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BOOKING_DEFAULTS, feedNamesOf, parseTenantConfigResult, seasonHorizon } from "../packages/contracts.js";
+import {
+  BOOKING_DEFAULTS,
+  calendarFeedKeyOf,
+  feedNamesOf,
+  parseTenantConfigResult,
+  seasonHorizon,
+} from "../packages/contracts.js";
 import type { FeedNames } from "../packages/contracts.js";
 import { getTenantConfig, workspaceZoneOf, type Database } from "../packages/db.js";
 import { feedItemsFor } from "./availability.js";
@@ -28,7 +34,8 @@ export function feedNamesFor(db: SupabaseClient<Database>) {
     const [row, zone] = await Promise.all([getTenantConfig(db, tenantId), workspaceZoneOf(db, tenantId)]);
     const parsed = parseTenantConfigResult(row?.config);
     const config = parsed.ok ? parsed.config : null;
-    const url = config?.calendar?.ical_url ?? null;
+    // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+    const url = calendarFeedKeyOf(config);
     if (!url) return null;
     const daysAhead = config?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
     const items = await feedItemsFor(tenantId, url, zone || DEFAULT_ZONE, now, daysAhead);

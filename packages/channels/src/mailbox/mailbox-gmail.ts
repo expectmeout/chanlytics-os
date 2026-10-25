@@ -165,7 +165,13 @@ export function gmailNoMailbox(r: Pick<ProviderReply, "status" | "json">): boole
 
 /** What history said: the messages added since the cursor, with their threads, and the cursor to read from next. */
 export type GmailHistory =
-  | { ok: true; added: Array<{ id: string; threadId: string }>; next: string | null; nextPage: string | null }
+  | {
+      ok: true;
+      /** Each message added, with the labels it arrived under (SPAM, SENT, DRAFT…): what it is, before it is read. */
+      added: Array<{ id: string; threadId: string; labels: string[] }>;
+      next: string | null;
+      nextPage: string | null;
+    }
   | { ok: false; expired: boolean; reply: ProviderReply };
 
 /**
@@ -194,15 +200,17 @@ export async function gmailHistory(
   );
   if (r.outcome !== "ok") return { ok: false, expired: r.status === 404, reply: r };
   const j = r.json as {
-    history?: Array<{ messagesAdded?: Array<{ message?: { id?: unknown; threadId?: unknown } }> }>;
+    history?: Array<{ messagesAdded?: Array<{ message?: { id?: unknown; threadId?: unknown; labelIds?: unknown } }> }>;
     historyId?: unknown;
     nextPageToken?: unknown;
   } | null;
-  const added: Array<{ id: string; threadId: string }> = [];
+  const added: Array<{ id: string; threadId: string; labels: string[] }> = [];
   for (const h of j?.history ?? [])
     for (const a of h.messagesAdded ?? []) {
       const m = a.message;
-      if (typeof m?.id === "string" && typeof m.threadId === "string") added.push({ id: m.id, threadId: m.threadId });
+      const labels = Array.isArray(m?.labelIds) ? m.labelIds.filter((l): l is string => typeof l === "string") : [];
+      if (typeof m?.id === "string" && typeof m.threadId === "string")
+        added.push({ id: m.id, threadId: m.threadId, labels });
     }
   return {
     ok: true,

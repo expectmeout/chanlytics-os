@@ -63,7 +63,7 @@ interface OpenInvite {
  * the actor; each checks that the actor owns the workspace before it changes anything, and the last owner stays one
  * with the owners locked while they are counted.
  */
-type TeamCtx = { userId: string; via?: "ask"; undoOf?: string };
+type TeamCtx = { userId: string; via?: RouteContext["via"]; undoOf?: string };
 
 /** The database's refusal, as the owner reads it. */
 function teamRefusal(error: { code?: string; message: string }): Error {
@@ -136,7 +136,7 @@ export async function inviteMember(
   email: string,
   role: "operator" | "viewer",
   /** Where the request came from inside the app, when it says: a card, not a form. */
-  via?: "ask",
+  via?: RouteContext["via"],
   /** The privileged client, injected by a test; the platform's own otherwise, as the roster takes its client. */
   svc: SupabaseClient<Database> = serviceDb(),
 ) {

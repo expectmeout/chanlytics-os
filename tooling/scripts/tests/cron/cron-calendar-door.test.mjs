@@ -759,7 +759,8 @@ test("each read is kept as the workspace's appointments (decision 0002): every e
     assert.equal(k.p_tenant_id, "books");
     assert.equal(k.p_timezone, "America/New_York");
     const days = (Date.parse(k.p_to) - Date.parse(k.p_from)) / D;
-    assert.ok(days >= 179 && days <= 181, `the season the read covers, ninety days either side (${days})`);
+    // Six months back (decision 0073, R20) and ninety days ahead.
+    assert.ok(days >= 269 && days <= 271, `the season the read covers, six months back and ninety ahead (${days})`);
     const maria = w.tables.contacts.find((c) => c.phone_e164 === "+13055550142");
     assert.ok(maria, "the read put Maria in People first");
     assert.deepEqual(

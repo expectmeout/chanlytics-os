@@ -4,7 +4,8 @@
  * Stripe's success and cancel addresses are built on the edge (billing-door.test.mjs runs that half). The first run
  * starts the trial from its own step and must come back to it, not to Settings › Billing. Run here: the dashboard's
  * checkout route over a fake edge, with the production guard open, recording the body it sends -- a place on the
- * closed list rides along, anything else is refused before the edge is asked.
+ * closed list rides along, anything else is refused before the edge is asked. And the first run's Go live paying in the
+ * page (decision 0073, R16): `embedded` rides along, and the session's secret and key come back for the page to mount.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -28,12 +29,21 @@ beforeEach(() => setRateStore(memoryStore()));
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
 
-/** The edge's billing door: records every body, answers a Checkout address. */
+/**
+ * The edge's billing door: records every body, answers a Checkout address -- or, asked for the page while it holds a
+ * publishable key (`edgeKey`), the session's secret and the key.
+ */
 const asked = [];
+let edgeKey = "pk_test_made_up_for_this_file";
 globalThis.fetch = async (url, init) => {
   if (String(url).endsWith("/api/admin/billing")) {
-    asked.push(JSON.parse(String(init?.body ?? "{}")));
-    return new Response(JSON.stringify({ ok: true, url: "https://checkout.stripe.test/cs_1" }), {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    asked.push(body);
+    const made =
+      body.embedded && edgeKey
+        ? { ok: true, client_secret: "cs_e_secret_abc", publishable_key: edgeKey }
+        : { ok: true, url: "https://checkout.stripe.test/cs_1" };
+    return new Response(JSON.stringify(made), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -86,4 +96,27 @@ test("F4: a place that is not on the list is refused before the edge is asked", 
     asked.map((b) => b.return),
     [undefined],
   );
+});
+
+test("the first run pays in the page: embedded rides to the edge, and the session's secret and key come back for Stripe's form; an edge with no key answers the hosted page", async () => {
+  asked.length = 0;
+  assert.deepEqual(await checkout.POST.run(post({ return: "start", embedded: true }), ctx()), {
+    client_secret: "cs_e_secret_abc",
+    publishable_key: "pk_test_made_up_for_this_file",
+  });
+  assert.deepEqual(
+    asked.map((b) => [b.return, b.embedded]),
+    [["start", true]],
+  );
+  edgeKey = null;
+  try {
+    assert.deepEqual(
+      await checkout.POST.run(post({ return: "start", embedded: true }), ctx()),
+      { url: "https://checkout.stripe.test/cs_1" },
+      "the page goes to Stripe's own instead",
+    );
+  } finally {
+    edgeKey = "pk_test_made_up_for_this_file";
+  }
+  await assert.rejects(checkout.POST.run(post({ embedded: "yes" }), ctx()), (e) => e.code === "validation");
 });

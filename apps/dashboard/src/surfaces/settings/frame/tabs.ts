@@ -93,6 +93,8 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   booking_link: "hours",
   booking_rules: "hours",
   consult_first: "hours",
+  // Whether walk-ins are taken (decision 0073), on the Booking card with what happens when someone wants to book.
+  walk_ins: "hours",
   tone: "receptionist",
   phone_greeting: "receptionist",
   languages: "receptionist",
@@ -100,12 +102,15 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   extra_instructions: "receptionist",
   fallbacks: "receptionist",
   prompt: "receptionist",
-  // Try it (business/try/try-it.tsx): a message tried as a customer would, opened by `admin/receptionist/try`.
+  // Rehearse (business/rehearse/rehearse.tsx), which was Try it: the receptionist rehearsed, opened by `admin/receptionist/try`.
   try: "receptionist",
   // The transfer number, on How it answers' On calls with the greeting (the Settings wiring review, items 6-7).
   handoff_number: "receptionist",
   // The voice callers hear it in, on On calls (item 11), which Ask's card opens too (item 14).
   phone_voice: "receptionist",
+  // Its name (How it talks) and how fast it speaks (On calls), decision 0073, which Ask's card opens too.
+  assistant_name: "receptionist",
+  phone_pace: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
 };

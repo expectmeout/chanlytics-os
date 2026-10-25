@@ -363,7 +363,10 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
   // The pane is TSX now (moved from integrations-real.jsx): the row's test ids and the pane's verbs.
   const s = ["pane", "row"].map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`)).join(" ");
   assert.ok(
-    s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'),
+    s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') &&
+      s.includes('case "verb:whatsapp-connect":') &&
+      // Keeping the WhatsApp Business app (decision 0073, R12): the same press, Meta's own flow for business app users.
+      s.includes('case "verb:whatsapp-connect-keep": {'),
   );
   // The row itself runs (contracts' connectionRows) rather than being read.
   const NOW = Date.parse("2026-09-07T15:00:00Z");

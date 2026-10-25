@@ -171,11 +171,23 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     greeting: start.greetingSource,
     ms: Date.now() - t0,
   });
-  // The workspace's voice, for this call alone (Retell's agent_override): the saved agent is never changed for it.
+  // The workspace's voice, for this call alone (Retell's agent_override): the saved agent is never changed for it. And
+  // the settings version the facts were composed from, as the call's metadata, which every later delivery carries: the
+  // call webhook writes it on the row (decision 0069, R6).
   return json(200, {
     call_inbound: {
       dynamic_variables: start.variables,
-      ...(start.voiceId ? { agent_override: { agent: { voice_id: start.voiceId } } } : {}),
+      ...(start.voiceId || start.voiceSpeed !== null
+        ? {
+            agent_override: {
+              agent: {
+                ...(start.voiceId ? { voice_id: start.voiceId } : {}),
+                ...(start.voiceSpeed !== null ? { voice_speed: start.voiceSpeed } : {}),
+              },
+            },
+          }
+        : {}),
+      ...(start.configVersion !== null ? { metadata: { config_version: start.configVersion } } : {}),
     },
   });
 }

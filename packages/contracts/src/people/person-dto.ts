@@ -239,6 +239,15 @@ export interface PersonDecisionDto {
   payload: Record<string, unknown> | null;
 }
 
+/** contacts.before as the wire carries it: each key only where the file had it. Dates are "YYYY-MM-DD", a birthday
+ * with no year "--MM-DD". */
+export interface PersonBeforeDto {
+  via?: string;
+  last_visit?: string;
+  visits?: number;
+  birthday?: string;
+}
+
 export interface PersonDetailDto {
   row: PersonRowDto;
   identities: PersonIdentityDto[];
@@ -264,6 +273,12 @@ export interface PersonDetailDto {
   };
   /** The owner's notes on this person: the field 00157 superseded, still sent for a page loaded before it. */
   notes?: string | null;
+  /**
+   * What another system said of them before Chanlytics (decision 0073, R22; contacts.before, 00477): the tool, the last
+   * visit and the visits it counted, and their birthday. Shown as before Chanlytics; never counted as today's. Absent
+   * from a server before it.
+   */
+  before?: PersonBeforeDto | null;
   /** Their notes (0007), newest first; absent on a read before the table existed. */
   person_notes?: PersonNoteDto[];
   /** The team, for a note's "For": absent where the team could not be read. */

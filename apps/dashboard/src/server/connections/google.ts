@@ -204,8 +204,15 @@ export function stateSecret(): string | null {
  * the tab to the last workspace used, for a refusal made before the state proves itself (a declined consent, a state that is
  * malformed, expired or another person's), when no workspace is known to name.
  */
-export function afterGoogle(origin: string, outcome: string, why?: string, slug?: string | null): string {
-  return `${origin}${appLink(slug, "admin/integrations", { google: outcome, why: why || null })}`;
+export function afterGoogle(
+  origin: string,
+  outcome: string,
+  why?: string,
+  to: { slug?: string | null; backTo?: string | null } = {},
+): string {
+  // The first run's Your business asked (decision 0073, R17): back to it, the outcome said there.
+  const page = to.backTo === "start" ? "start/business" : "admin/integrations";
+  return `${origin}${appLink(to.slug, page, { google: outcome, why: why || null })}`;
 }
 
 /** The edge's word on the listing read that follows a link or a choice: what it found, or why it could not look. */

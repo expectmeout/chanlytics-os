@@ -159,6 +159,18 @@ const OTHER_STATES = {
     n: 1,
     why: "A lead search's round running, not a campaign.",
   },
+  "apps/dashboard/src/surfaces/console/health/background.tsx": {
+    n: 1,
+    why: "A clock's state on Health's background list (sweep_status): a sweep running, not a campaign.",
+  },
+  "packages/contracts/src/imports/ledger.ts": {
+    n: 3,
+    why: "The imports ledger's own run (decision 0073, R23): a connection's history coming in, and Meta's parts of it.",
+  },
+  "packages/contracts/src/setup/setup-rows.ts": {
+    n: 3,
+    why: "Setup's clients' file row: the imports ledger's run of the file, not a campaign.",
+  },
 };
 
 /** Whether a node is the string "running". */

@@ -7,7 +7,7 @@
  * makes; a test proves it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { keepVoiceAgent, voiceAgentOf, type Database } from "../packages/db.js";
 import {
   voiceLlmCreateBody,
   voiceAgentCreateBody,
@@ -143,9 +143,10 @@ export async function createVoiceAgent(
 }
 
 /**
- * The workspace's receptionist: the agent its active voice row already
- * names, else a new one. Throws in the saga's words when the provider
- * refuses, so the line row records the step and the reason.
+ * The workspace's receptionist: the agent its active voice row already names, else the one made before any number
+ * (voice_agents: a rehearsal made it, decision 0069), else a new one, kept there so the next asker finds it. A number
+ * bought after a rehearsal so answers in the agent the owner already heard. Throws in the saga's words when the
+ * provider refuses, so the line row records the step and the reason.
  */
 export async function ensureVoiceAgent(
   db: SupabaseClient<Database>,
@@ -175,8 +176,17 @@ export async function ensureVoiceAgent(
       pinned: a?.is_published === true,
     };
   }
+  const before = await voiceAgentOf(db, tenant.id);
+  if (before) {
+    const a = await getAgentRaw(cfg, before.agentId);
+    if (a) return { agentId: before.agentId, llmId: before.llmId, pinned: a.is_published === true };
+  }
   const r = await createVoiceAgent(cfg, secrets, { agentName: `${tenant.name} front desk` });
   if (!r.ok)
     throw new Error(`receptionist ${r.step}: HTTP ${r.status} ${JSON.stringify(r.detail ?? {}).slice(0, 200)}`);
-  return { agentId: r.agent.agentId, llmId: r.agent.llmId, pinned: r.agent.pinned };
+  // Kept before it is used: two asking at once keep the first, and the second's agent is left unused at the provider.
+  const kept = await keepVoiceAgent(db, { tenantId: tenant.id, agentId: r.agent.agentId, llmId: r.agent.llmId });
+  if (kept.agentId === r.agent.agentId) return { agentId: kept.agentId, llmId: kept.llmId, pinned: r.agent.pinned };
+  const first = await getAgentRaw(cfg, kept.agentId);
+  return { agentId: kept.agentId, llmId: kept.llmId, pinned: first?.is_published === true };
 }

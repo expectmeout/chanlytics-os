@@ -51,6 +51,7 @@ import {
   ownAddressesOf,
   numberHealthOfConfig,
   parseTenantConfig,
+  calendarFeedKeyOf,
   peopleVisitsOf,
   feedMarksOf,
   seasonHorizon,
@@ -306,7 +307,8 @@ export async function loadTenantRunContext(
   const tz = tenant?.timezone || "America/New_York";
   const rows = people ?? [];
   const cfgParsed = parseTenantConfig(cfgRow?.config ?? null);
-  const url = cfgParsed?.calendar?.ical_url ?? null;
+  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+  const url = calendarFeedKeyOf(cfgParsed);
   // The workspace's own horizon, the way the People sweep asks for it
   // (api/cron/calendar.ts). Left to the default, a workspace that books three
   // months out had its visit playbooks reading a fortnight of calendar.

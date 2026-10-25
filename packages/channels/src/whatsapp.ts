@@ -58,6 +58,149 @@ export interface WaChangeValue {
   messages?: WaRawMessage[];
   statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown; pricing?: unknown }>;
   message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
+  /** A chunk of the chat history the business shared as its app was kept (coexistence, the `history` field). */
+  history?: WaHistoryChunk[];
+  /** The app's contacts, as the business keeps them there (coexistence, the `smb_app_state_sync` field). */
+  state_sync?: WaStateSyncItem[];
+  errors?: WaGraphNotice[];
+}
+
+/** An error Meta puts in a webhook's value: its code and its words. */
+interface WaGraphNotice {
+  code?: number;
+  title?: string;
+  message?: string;
+}
+
+/* ----------------- what came before, as the kept app shares it (coexistence) ----------------- */
+
+/** One message of a shared chat: `to` only on what the business sent. A type-named object holds the contents. */
+interface WaHistoryMessage extends Partial<Omit<WaRawMessage, "from" | "id" | "type">> {
+  from?: string;
+  to?: string;
+  id?: string;
+  type?: string;
+  history_context?: { status?: string };
+}
+
+/**
+ * A chunk of the history (Meta's "Onboarding WhatsApp Business app users"): which of the three phases it belongs to
+ * (0 the day before the number connected, 1 back to 90 days, 2 back to 180), its place, how far the whole has come
+ * (100 is all of it), and the one-to-one chats in it. A business that turned sharing off is told as an error instead.
+ */
+export interface WaHistoryChunk {
+  metadata?: { phase?: number; chunk_order?: number; progress?: number };
+  threads?: Array<{ id?: string; messages?: WaHistoryMessage[] }>;
+  errors?: WaGraphNotice[];
+}
+
+/** One contact of the kept app: added or removed, with the names it is kept under (none on a removal). */
+export interface WaStateSyncItem {
+  type?: string;
+  contact?: { full_name?: string; first_name?: string; phone_number?: string };
+  action?: string;
+  metadata?: { timestamp?: string };
+}
+
+/** Meta's code for a history the business chose not to share, in the app's own prompt. */
+export const WA_HISTORY_NOT_SHARED = 2593109;
+
+/** A message of the history, as the edge keeps it: whose chat, which way it went, its words, and when. */
+export interface WaHistoryRead {
+  /** The chat's WhatsApp id: the customer's, as a message from them names them. */
+  thread: string;
+  messageId: string;
+  direction: "inbound" | "outbound";
+  type: "text" | "media";
+  body: string | null;
+  at: string;
+  rawType: string;
+  status: string | null;
+}
+
+/** What one delivery's history change says: its phase and progress, a refusal to share, and its messages in order. */
+export interface WaHistoryOf {
+  phase: number | null;
+  progress: number | null;
+  declined: boolean;
+  messages: WaHistoryRead[];
+}
+
+const digitsOf = (v: string | undefined): string => (v ?? "").replace(/\D/g, "");
+
+/** The words a message of any type carries: a text's body, an attachment's caption; none for the rest. */
+function historyWordsOf(m: WaHistoryMessage): string | null {
+  const t = m.type ?? "";
+  if (t === "text") return m.text?.body?.trim() || null;
+  const box = t ? (Reflect.get(m, t) as unknown) : null;
+  const caption = box && typeof box === "object" ? (Reflect.get(box, "caption") as unknown) : null;
+  return typeof caption === "string" && caption.trim() ? caption.trim() : null;
+}
+
+/** One message of a chat, or null for one with no id or no time (nothing to keep it once by, or to place it). */
+function historyMessageOf(m: WaHistoryMessage, thread: string, business: string): WaHistoryRead | null {
+  const secs = Number(m.timestamp);
+  if (!m.id || !Number.isFinite(secs) || secs <= 0) return null;
+  const outbound = !!m.to || (!!business && digitsOf(m.from) === business);
+  return {
+    thread,
+    messageId: m.id,
+    direction: outbound ? "outbound" : "inbound",
+    type: m.type === "text" ? "text" : "media",
+    body: historyWordsOf(m),
+    at: new Date(secs * 1000).toISOString(),
+    rawType: m.type ?? "unknown",
+    status: m.history_context?.status ?? null,
+  };
+}
+
+const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? (v as WaGraphNotice[]) : []);
+
+/**
+ * A `history` change read: every chunk's chats as messages, each named by its chat (a business-sent one by its `to`),
+ * the furthest phase and progress any chunk says, and whether the business declined to share (code 2593109, on the
+ * value or on a chunk). Group chats are never in it; what has no id or no time is left out.
+ */
+export function sharedHistoryOf(v: WaChangeValue): WaHistoryOf {
+  const business = digitsOf(v.metadata?.display_phone_number);
+  let phase: number | null = null;
+  let progress: number | null = null;
+  let declined = noticesOf(v.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED);
+  const messages: WaHistoryRead[] = [];
+  for (const chunk of v.history ?? []) {
+    if (noticesOf(chunk.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED)) declined = true;
+    const md = chunk.metadata ?? {};
+    if (typeof md.phase === "number") phase = Math.max(phase ?? 0, md.phase);
+    if (typeof md.progress === "number") progress = Math.max(progress ?? 0, md.progress);
+    for (const t of chunk.threads ?? []) {
+      const thread = digitsOf(t.id);
+      if (!thread) continue;
+      for (const m of t.messages ?? []) {
+        const read = historyMessageOf(m, thread, business);
+        if (read) messages.push(read);
+      }
+    }
+  }
+  return { phase, progress, declined, messages };
+}
+
+/** A contact the kept app shared: its number as dialled, and the name it is kept under. */
+export interface WaSyncedContact {
+  phone: string;
+  name: string | null;
+}
+
+/** The contacts a `smb_app_state_sync` change adds; a removal is the app's own business and changes nothing here. */
+export function contactsSyncedOf(v: WaChangeValue): WaSyncedContact[] {
+  const out: WaSyncedContact[] = [];
+  for (const s of v.state_sync ?? []) {
+    if ((s.type && s.type !== "contact") || s.action === "remove") continue;
+    const digits = digitsOf(s.contact?.phone_number);
+    if (digits.length < 7) continue;
+    const name = (s.contact?.full_name ?? s.contact?.first_name ?? "").trim();
+    out.push({ phone: `+${digits}`, name: name || null });
+  }
+  return out;
 }
 
 export interface WaMediaRef {

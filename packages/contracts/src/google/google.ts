@@ -287,6 +287,8 @@ export interface SetupGoogleFacts {
   ready: boolean;
   /** Listings can be found here (a Places key); absent means yes. */
   places?: boolean;
+  /** Business Profiles can be connected here (an OAuth client); absent means no (decision 0073, R17). */
+  profile?: boolean;
   listing: {
     name: string;
     rating: number | null;

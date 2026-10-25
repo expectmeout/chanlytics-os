@@ -11,7 +11,7 @@
  * call reports the API's own error message; nothing is retried blindly.
  */
 import { env } from "../env.js";
-import { providerFetch } from "../packages/channels.js";
+import { graphThrottled, providerFetch } from "../packages/channels.js";
 import type { NumberStanding } from "../packages/contracts.js";
 
 export const GRAPH_VERSION = "v25.0";
@@ -240,6 +240,32 @@ export async function numberStanding(
 /** Subscribe this app to the WABA's webhooks; without it, its messages never reach us. */
 export function subscribeWaba(token: string, wabaId: string): Promise<GraphResult<{ success?: boolean }>> {
   return graphCall(`/${encodeURIComponent(wabaId)}/subscribed_apps`, { method: "POST", token });
+}
+
+/**
+ * Whether a refusal is Meta busy or unreachable rather than its answer: no reply at all, a 5xx, or a throttle. What is
+ * asked again (the job ledger's retry); anything else is Meta's no.
+ */
+export function graphRetryable(r: { ok: boolean; status: number; code: number | null }): boolean {
+  return !r.ok && (r.status === 0 || r.status >= 500 || graphThrottled(r));
+}
+
+/**
+ * Ask Meta for what the kept WhatsApp Business app holds (coexistence, decision 0073, R21): its contacts
+ * (`smb_app_state_sync`) or its chats of the last six months (`history`). Each is asked once, within 24 hours of the
+ * number connecting; what was asked arrives on the webhook. Meta's answer is a request id, kept for support.
+ */
+export function smbAppData(
+  token: string,
+  phoneNumberId: string,
+  syncType: "smb_app_state_sync" | "history",
+): Promise<GraphResult<{ request_id?: string }>> {
+  return graphCall(`/${encodeURIComponent(phoneNumberId)}/smb_app_data`, {
+    method: "POST",
+    token,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", sync_type: syncType }),
+  });
 }
 
 /**

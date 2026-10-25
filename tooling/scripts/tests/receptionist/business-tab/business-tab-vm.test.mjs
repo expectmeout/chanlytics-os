@@ -1082,16 +1082,17 @@ test("the services search says how many rows it found, for a screen reader to he
 
 /* ---- How it answers ---- */
 
-test("the voice's three starting points are sentences the profile keeps, each named as the canvas names it", () => {
+test("the voice's four personalities are sentences the profile keeps, each named as the canvas names it", () => {
+  // Decision 0073 (canvas 2·e): four personalities where three starting points stood, each with a reply said in it.
   assert.deepEqual(
     TONE_PRESETS.map((p) => p.label),
-    ["Warm and brief", "Professional, no small talk", "Chatty, first names"],
+    ["Warm", "Polished", "Upbeat", "Calm"],
   );
   for (const p of TONE_PRESETS) {
     assert.ok(BusinessProfileSchema.safeParse({ tone: p.tone }).success, `${p.label} is a voice the save takes`);
     assert.match(p.tone, /^[A-Z].*\.$/, `${p.label} is a sentence`);
   }
-  assert.equal(new Set(TONE_PRESETS.map((p) => p.tone)).size, 3, "three different voices");
+  assert.equal(new Set(TONE_PRESETS.map((p) => p.tone)).size, 4, "four different voices");
 });
 
 test("the hand-off row at rest is one line: the reasons counted, and what a call does", () => {
@@ -1361,6 +1362,8 @@ test("every cap a fold offers up to is the schema's own, and each is stated once
   };
   assert.deepEqual(PROFILE_LIMITS, {
     tone: cap(p.tone.unwrap()),
+    // The name it goes by (decision 0073): a bad one is dropped, not refused (`.catch`), under its own cap.
+    assistantName: cap(p.assistant_name.def.innerType.unwrap()),
     services: cap(p.services.unwrap()),
     serviceName: cap(service.name),
     serviceMinutes: service.duration_min.unwrap().maxValue,

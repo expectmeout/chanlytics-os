@@ -83,6 +83,34 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
 }
 
 /**
+ * contacts.before as the page reads it (00477), off the person's own row (none when it was not read): each key only
+ * where it holds what the column's check allows, so a row written some other way is shown in part, never as a wrong day.
+ */
+function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
+  const raw = row?.before;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const b = raw as Record<string, unknown>;
+  const out: NonNullable<PersonDetailDto["before"]> = {};
+  if (typeof b.via === "string" && b.via) out.via = b.via;
+  if (typeof b.last_visit === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.last_visit)) out.last_visit = b.last_visit;
+  if (typeof b.visits === "number" && Number.isFinite(b.visits) && b.visits >= 0) out.visits = b.visits;
+  if (typeof b.birthday === "string" && /^(\d{4}|-)-\d{2}-\d{2}$/.test(b.birthday)) out.birthday = b.birthday;
+  return Object.keys(out).length ? out : null;
+}
+
+/** The person's own columns that people_list does not carry: the owner's notes, and what came before Chanlytics. */
+function ownColumnsOf(
+  row: { notes?: string | null; before?: unknown } | null,
+): Pick<PersonDetailDto, "notes" | "before"> {
+  return { notes: row?.notes ?? null, before: beforeOf(row) };
+}
+
+/** Their proposal's link (00154), off the same row: answered after the notes the team keeps, as the route always has. */
+const proposalLinkOf = (row: { proposal_url?: string | null } | null): Pick<PersonDetailDto, "proposal_url"> => ({
+  proposal_url: row?.proposal_url ?? null,
+});
+
+/**
  * What the workspace's config gives a person's page: the booking link, so the profile can text it in one step; the
  * services, the page's service picker; and the services that need a consultation first, so a proposal started after one
  * names the service it was for (0008).
@@ -279,8 +307,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .order("created_at")
         .limit(1)
         .maybeSingle(),
-      // The owner's notes and their proposal link (00154): the two columns people_list does not carry.
-      sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle(),
+      // The owner's notes, their proposal link (00154) and what came before Chanlytics (00477), not in people_list.
+      sb.from("contacts").select("notes, proposal_url, before").eq("id", id).maybeSingle(),
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
@@ -355,10 +383,10 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       receptionist_mode: personPol.data?.mode ?? null,
       workspace_reply_mode: wsPol.data?.mode ?? null,
       visits: visits ?? undefined,
-      notes: own.data?.notes ?? null,
+      ...ownColumnsOf(own.data),
       ...(notes.notes ? { person_notes: notes.notes } : {}),
       ...(notes.team ? { note_team: notes.team } : {}),
-      proposal_url: own.data?.proposal_url ?? null,
+      ...proposalLinkOf(own.data),
       booking_link: fromConfig.bookingLink,
       consent_history: (history.data ?? []).map(consentChangeOf),
       ...campaigns,

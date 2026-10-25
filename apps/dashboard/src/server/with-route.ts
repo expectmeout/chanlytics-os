@@ -63,9 +63,10 @@ export interface RouteContext {
   /**
    * Where the request came from inside the app, when it says. The Ask
    * palette commits through the same routes a button does; the one thing
-   * the ledger should keep is that a card, not a button, was tapped.
+   * the ledger should keep is that a card, not a button, was tapped. A fix kept from a rehearsal, or from a real call
+   * reviewed, says so on the settings history (decision 0069).
    */
-  via?: "ask";
+  via?: "ask" | "rehearsal" | "call_review";
   /**
    * The decision this request undoes, when it says so (the x-undo-of header,
    * a decision id). The ledger row the inverse verb records is linked to the

@@ -254,6 +254,8 @@ export interface InboundEmailFacts {
   rfcMessageId: string | null;
   references: string[];
   subject: string | null;
+  /** Its To and Cc, lower-cased: a mailbox the business connected among them answers it (decision 0073, R13). */
+  to: string[];
 }
 
 /**
@@ -280,12 +282,16 @@ export async function lastInboundEmail(
   if (!data) return null;
   const e = (data.meta as { email?: Record<string, unknown> } | null)?.email ?? {};
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+  const list = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((r): r is string => typeof r === "string").map((r) => r.toLowerCase()) : [];
   return {
     messageId: data.id,
     from: str(e.from),
     rfcMessageId: str(e.message_id),
     references: Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === "string") : [],
     subject: str(e.subject),
+    // Who it was written to: a mailbox the business connected among them answers it (decision 0073, R13).
+    to: [...list(e.to), ...list(e.cc)],
   };
 }
 

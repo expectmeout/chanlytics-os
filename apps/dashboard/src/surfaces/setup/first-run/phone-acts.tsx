@@ -1,8 +1,9 @@
 /**
- * What the phone step's presses do (moved from legacy/pages/first-run.jsx `FrPhone`, decision 0015): the buy that goes on
- * by itself once the workspace may spend, the area code's search, the forwarding saved from the two answers, "Do it with
- * me", and the step's one coral button. Each asks its door's own role first, as the doors do. Plain functions over what
- * the step holds (`PhoneActs`), so the step's component draws and these act.
+ * What the phone's presses do (moved from legacy/pages/first-run.jsx `FrPhone`, decision 0015): the area code's search
+ * (Where it answers), the buy that goes on by itself once the workspace may spend, the forwarding saved from the two
+ * answers, "Do it with me", and copying the code (Go live). Each asks its door's own role first, as the doors do. Plain
+ * functions over what the part holds (`PhoneActs`), so its component draws and these act. Go live's own press, which
+ * starts the plan or the buy, is its pay pane's (golive/pay.tsx).
  */
 import type { RefObject } from "react";
 import {
@@ -13,7 +14,6 @@ import {
   type FirstRunPhoneVM,
 } from "@chanlytics/contracts";
 import { canDo, refusalToast, type LegacyFlash } from "../../legacy-verbs";
-import { billingVerbs } from "../../settings/billing/surface";
 import { setupVerbs, type LineChoice } from "../surface";
 import type { KeptPhoneChoice } from "./memory";
 
@@ -111,7 +111,12 @@ async function forward(k: PhoneActs): Promise<void> {
     return;
   }
   k.setBusy(true);
-  const r = await setupVerbs.forwarding.set({ number: ph.forwardFrom, carrier, mode: "unanswered" });
+  // Which calls it sends on, as Where it answers chose (decision 0073): every call, or the ones nobody picks up.
+  const r = await setupVerbs.forwarding.set({
+    number: ph.forwardFrom,
+    carrier,
+    mode: c.mode === "always" ? "always" : "unanswered",
+  });
   if (!r.ok) {
     k.setBusy(false);
     k.flash(refusalToast(r, W.notForwarded));
@@ -137,22 +142,6 @@ export async function withMe(k: PhoneActs): Promise<void> {
 }
 
 /**
- * The number kept or moved, said to the member's saved view before the plan starts or the number is bought (surface.ts
- * `want`), so its forwarding is asked for from any tab: the choice was the tab's alone, and a reload or another tab read
- * the step as done once the receptionist's own number answered. A new number wants none, and keeps none: the choice
- * itself puts "The number you already have" off (Setup's own Later, its Undo on this step), which Today's card asked
- * for forever after; a number kept or moved takes it back, so its forwarding is asked for again. A save refused holds
- * nothing up: the tab still has the choice, as it always did. Both go through the view's one line of saves (surface.ts).
- */
-const keepWant = (k: PhoneActs): Promise<unknown> => {
-  const { way, number } = k.ph;
-  return Promise.all([
-    setupVerbs.want(way !== "new" && number ? { way, number } : null),
-    setupVerbs.later(KEEP_ROW, way === "new"),
-  ]);
-};
-
-/**
  * The code, or the number to forward to, copied for the phone it is typed on: an iPhone dials no code from a link, and a
  * desk has nothing to dial with. A browser that will not copy (no clipboard on an insecure page, or a refusal) says so.
  */
@@ -168,7 +157,7 @@ export async function copyCode(k: PhoneActs, text: string): Promise<void> {
 
 /**
  * The forwarding put off from the questions: Setup's own Later on the number kept, said with what it means, then on to
- * where the workspace is. The row stays on the phone step with its Undo.
+ * where the workspace is. The row stays on Go live with its Undo.
  */
 export async function putOff(k: PhoneActs): Promise<void> {
   if (k.busy) return;
@@ -183,45 +172,14 @@ export async function putOff(k: PhoneActs): Promise<void> {
   k.go("start");
 }
 
-/**
- * The step's one coral button. The number starts the plan (maySpend): by checkout, which takes no trial here, or, on a
- * free trial, by starting its plan now. Either way the choice waits in the tab, and the buy goes on once the plan lets it.
- */
+/** The forwarding's button: saves what the two answers choose (the only press the phone's parts draw). */
 export async function press(k: PhoneActs): Promise<void> {
-  const { ph, c } = k;
-  const cta = ph.cta;
-  if (!cta || cta.held || k.busy) return;
-  if (cta.act === "forward") return forward(k);
-  // Done: on to where the workspace is now, Try it.
-  if (cta.act === "onward") return k.go("start");
-  const next: KeptPhoneChoice = { ...c, way: ph.way, pending: true, sent: false, returnedAt: null };
-  if (cta.act === "plan" || cta.act === "startNow") {
-    const B = billingVerbs;
-    if (!canDo("billing")) return;
-    k.setChoice(next);
-    // The step's own address, so it stays on screen once its line answers.
-    k.go("start/phone");
-    k.setBusy(true);
-    // Before checkout, which leaves the page: a save still out would be dropped with it.
-    await keepWant(k);
-    const r = cta.act === "plan" ? await B.checkout("start") : await B.startNow();
-    k.setBusy(false);
-    if (!r.ok) {
-      k.setChoice({ ...next, pending: false });
-      k.flash({ tone: "danger", msg: <>{r.message}</> });
-    }
-    return;
-  }
-  if (!canDo("disconnect")) return;
-  k.setChoice(next);
-  void keepWant(k);
-  k.go("start/phone");
+  const cta = k.ph.cta;
+  if (!cta || cta.held || k.busy || cta.act !== "forward") return;
+  return forward(k);
 }
 
-/** Each act's gate on the step's button: the role it asks, and what pressing does. */
+/** Each act's gate on the forwarding's button: the role it asks, and what pressing does. */
 export const PHONE_GATES: Partial<Record<string, readonly [string, string]>> = {
-  plan: ["billing", "start the plan"],
-  startNow: ["billing", "start the plan"],
-  buy: ["disconnect", "get a number"],
   forward: ["disconnect", "set up forwarding"],
 };

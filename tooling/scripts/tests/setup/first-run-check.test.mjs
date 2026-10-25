@@ -23,7 +23,12 @@ Object.assign(W, {
 });
 // Setup's verbs are the module object the TSX calls; stubbed in place, and `window.__setup` is the same object.
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
-Object.assign(setupVerbs, { refresh: async () => {}, later: async () => ({ ok: true, message: "" }) });
+Object.assign(setupVerbs, {
+  refresh: async () => {},
+  later: async () => ({ ok: true, message: "" }),
+  // Rehearse it now asks for the workspace's agent ahead of the first call (decision 0073, R1): nothing to make here.
+  makeAgent: async () => ({ ok: true, message: "" }),
+});
 W.__setup = setupVerbs;
 // The seam the page reads Setup and the settings read from, and the kit's registry of open folds it asks before a move.
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -162,7 +167,7 @@ const courier = () => {
 
 test("Check draws the Business tab's own rows over the settings read's brain, and asks nothing of how customers buy", () => {
   const tree = draw();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist");
   for (const id of ["hours", "timezone", "address", "website", "booking_link", "guardrails", "services"]) {
     assert.ok(byTestId(tree, `rec-row-${id}`), `the tab's ${id} row`);
   }
@@ -201,41 +206,44 @@ test("a link on file is the row's value: nothing it stored is hidden", () => {
   assert.equal(byTestId(tree, "fr-check-quotes"), null);
 });
 
-test("Check stays on screen once its last fact lands, and Looks right goes on: the page does not move under the owner", async () => {
+test("Check stays on screen once its last fact lands, and Rehearse it now goes on: the step kept as met, then Rehearse", async () => {
   const sent = courier();
+  const met = [];
+  const realLater = setupVerbs.later;
+  setupVerbs.later = async (ids, on) => {
+    met.push([ids, on]);
+    return { ok: true, message: "" };
+  };
   try {
     let tree = draw();
     assert.equal(textOf(byTestId(tree, "fr-held")), "Still missing: services.");
-    // A service saved in the sheet: Setup reads again, and the business step is done.
+    // A service saved in the sheet: Setup reads again, and the facts are in.
     setSurfaceValue("setup", surface(dto({ services: 1 })));
     tree = redraw();
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found", "still Check, not the phone");
-    assert.equal(byTestId(tree, "fr-held"), null, "and Looks right is not held");
-    const before = replaced.length;
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist", "still Check");
+    assert.equal(byTestId(tree, "fr-held"), null, "and its onward is not held");
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
     assert.deepEqual(sent, [], "nothing of how customers buy is sent");
-    assert.equal(replaced.length, before + 1);
-    tree = redraw();
-    assert.equal(
-      textOf(byTestId(tree, "fr-heading")),
-      "Your phone",
-      "once the owner goes on, the first run is where the workspace is",
-    );
+    assert.deepEqual(met.at(-1), [FIRST_RUN_HELPERS.receptionistMet, true], "kept as met, the member's own mark");
+    assert.equal(replaced.at(-1), "start/receptionist", "the bare address being left is named for its step");
+    assert.equal(went.at(-1), "start/rehearse", "and the way on is a new entry: Rehearse");
   } finally {
+    setupVerbs.later = realLater;
     delete W.__workspace;
   }
 });
 
-test("a role that may not change the business goes on with Looks right and sends nothing it would be refused", () => {
+test("a role that may not change the business goes on with Rehearse it now and sends nothing it would be refused", async () => {
   const sent = courier();
   const was = W.canDo;
   W.canDo = (a) => a !== "settings";
   try {
-    const tree = draw({ setup: dto({ services: 2 }), at: "business" });
+    const tree = draw({ setup: dto({ services: 2 }), at: "receptionist" });
     byTestId(tree, "fr-onward").props.onClick();
+    await settle();
     assert.deepEqual(sent, [], "nothing sent to a door that would refuse it");
-    assert.equal(went.at(-1), "start/phone", "and the step goes on");
+    assert.equal(went.at(-1), "start/rehearse", "and the step goes on");
   } finally {
     W.canDo = was;
     delete W.__workspace;
@@ -272,7 +280,7 @@ test("(D) the step's heading takes focus when the step on screen changes -- so a
   }
 });
 
-test("(D) the heading takes focus when the step changes under ONE address: Looks right goes on from the bare address, where the button pressed is gone", () => {
+test("(D) the heading takes focus when the step changes under ONE address: Rehearse it now goes on from the bare address, where the button pressed is gone", async () => {
   const focused = [];
   const was = globalThis.document.getElementById;
   globalThis.document.getElementById = (id) => (id === "fr-heading" ? { focus: (o) => focused.push(o) } : null);
@@ -282,13 +290,20 @@ test("(D) the heading takes focus when the step changes under ONE address: Looks
     tree = redraw();
     setSurfaceValue("setup", surface(dto({ services: 2 })));
     tree = redraw();
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found", "Check stays while the owner is on it");
+    assert.equal(
+      textOf(byTestId(tree, "fr-heading")),
+      "Meet Harbor Moving's receptionist",
+      "Check stays while the owner is on it",
+    );
     assert.deepEqual(focused, [], "nothing on screen moved");
     byTestId(tree, "fr-onward").props.onClick();
-    assert.equal(replaced.at(-1), "start/business", "the bare address being left is named for its step");
-    assert.equal(went.at(-1), "start/phone", "and the way on is a new entry, named for the step it opens");
+    await settle();
+    assert.equal(replaced.at(-1), "start/receptionist", "the bare address being left is named for its step");
+    assert.equal(went.at(-1), "start/rehearse", "and the way on is a new entry, named for the step it opens");
+    // Setup says the step is met: the bare address now draws Rehearse in Check's place.
+    setSurfaceValue("setup", surface(dto({ services: 2 }), [FIRST_RUN_HELPERS.receptionistMet]));
     tree = redraw();
-    assert.equal(byTestId(tree, "first-run").props["data-step"], "phone", "the phone step, drawn in Check's place");
+    assert.equal(byTestId(tree, "first-run").props["data-step"], "rehearse", "Rehearse, drawn in Check's place");
     assert.deepEqual(focused, [{ preventScroll: true }], "the step changed under one address: the heading has focus");
   } finally {
     globalThis.document.getElementById = was;
@@ -296,11 +311,11 @@ test("(D) the heading takes focus when the step changes under ONE address: Looks
   }
 });
 
-test("(D) a move while a row holds typing never saved asks first: Stay keeps the typing, Yes goes -- and a save on its way is asked about in its own words", () => {
+test("(D) a move while a row holds typing never saved asks first: Stay keeps the typing, Yes goes -- and a save on its way is asked about in its own words", async () => {
   // The registry's own answer to "is a save out" (the page asks `recFolds.saving()`), stood in for where a save is on its way.
   const was = recFolds.saving;
   try {
-    let tree = draw({ setup: dto({ services: 2 }), at: "business" });
+    let tree = draw({ setup: dto({ services: 2 }), at: "receptionist" });
     press(byTestId(tree, "rec-row-act-website"));
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
@@ -309,7 +324,7 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     byTestId(tree, "fr-onward").props.onClick();
     tree = redraw();
     const words = FIRST_RUN_HELPERS.words.leave;
-    assert.equal(moves(), before, "nothing moved");
+    assert.equal(moves(), before, "nothing moved, and nothing was kept as met before the answer");
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.question.replace("?", "\\?")));
     assert.match(textOf(byTestId(tree, "fr-leave-confirm")), new RegExp(words.detail));
     press(byTestId(tree, "fr-leave-no"));
@@ -325,10 +340,11 @@ test("(D) a move while a row holds typing never saved asks first: Stay keeps the
     byTestId(tree, "fr-onward").props.onClick();
     tree = redraw();
     press(byTestId(tree, "fr-leave-yes"));
+    await settle();
     assert.equal(moves(), before + 1, "Yes: the move it asked about");
 
     // A save on its way is not "without saving": asked in other words, and never as a danger.
-    tree = draw({ setup: dto({ services: 2 }), at: "business" });
+    tree = draw({ setup: dto({ services: 2 }), at: "receptionist" });
     press(byTestId(tree, "rec-row-act-website"));
     tree = redraw();
     typeInto(tree, "website", "harbor-moving.example");
@@ -537,13 +553,20 @@ test("the services row opens the Business tab's own sheet over the first run", (
   assert.ok(byTestId(tree, "rec-sheet-services"));
 });
 
-test("not on Google, said, where Google can be searched: the basics are asked, and Find is one press away", () => {
+test("not on Google, said, where Google can be searched: Check says the basics' lead, and Find is one press away", () => {
   const tree = draw({ setup: dto({}, { listing: null }), later: ["google"] });
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Meet Harbor Moving's receptionist");
+  const lead = all(tree, (n) => n.props?.className === "fr-lead")[0];
+  assert.equal(
+    textOf(lead),
+    "Your receptionist answers from this. You can add more later in Settings.",
+    "nothing from Google: the basics' lead",
+  );
   const find = byTestId(tree, "fr-check-find");
   assert.equal(textOf(find), "On Google after all? Find it");
   find.props.onClick();
-  assert.equal(replaced.at(-1), "start/find");
+  assert.equal(went.at(-1), "start/find", "Find is Your business's: another step, a new entry");
+  assert.equal(replaced.at(-1), "start/receptionist", "the bare address being left is named for its step");
   assert.equal(byTestId(draw(), "fr-check-find"), null, "a listing linked: nothing to find");
 });
 
@@ -556,12 +579,12 @@ test("the days Google's hours could not be copied for are named under the hours"
   assert.equal(byTestId(draw(), "fr-check-unsure"), null, "and nothing when none");
 });
 
-test("Looks right is held with the facts row's own sentence until the step is done, and a press then sends nothing", () => {
+test("Rehearse it now is held with the facts row's own sentence until the facts are in, and a press then sends nothing", () => {
   const sent = courier();
   try {
     const tree = draw();
     const onward = byTestId(tree, "fr-onward");
-    assert.equal(textOf(onward), "Looks right");
+    assert.equal(textOf(onward), "Rehearse it now");
     assert.equal(onward.props["aria-disabled"], true);
     assert.equal(onward.props["aria-describedby"], "fr-held");
     assert.equal(textOf(byTestId(tree, "fr-held")), "Still missing: services.");
@@ -574,18 +597,18 @@ test("Looks right is held with the facts row's own sentence until the step is do
   }
 });
 
-test("Looks right, the step done, goes on at once and sends nothing: every row saved as it was changed", async () => {
+test("Rehearse it now, the facts in, goes on at once and sends nothing: every row saved as it was changed", async () => {
   const sent = courier();
   try {
     const done = dto({ services: 2 });
-    const tree = draw({ setup: done, at: "business" });
+    const tree = draw({ setup: done, at: "receptionist" });
     assert.equal(byTestId(tree, "fr-held"), null);
     const before = went.length;
     byTestId(tree, "fr-onward").props.onClick();
     await settle();
     assert.deepEqual(sent, [], "nothing of how customers buy is sent");
     assert.equal(went.length, before + 1);
-    assert.equal(went.at(-1), "start/phone", "on to the phone step, a new entry");
+    assert.equal(went.at(-1), "start/rehearse", "on to Rehearse, a new entry");
   } finally {
     delete W.__workspace;
   }

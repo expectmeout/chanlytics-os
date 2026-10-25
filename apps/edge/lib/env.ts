@@ -63,6 +63,14 @@ export const env = {
   get META_ES_CONFIG_ID() {
     return trimmedEnv(process.env.META_ES_CONFIG_ID);
   },
+  /**
+   * Switch: the Embedded Signup configuration above is a v4 one that offers keeping the WhatsApp Business app
+   * (coexistence, decision 0073, R12). "1" lets the first run offer it; empty, a business's WhatsApp moves to a number on
+   * Chanlytics, as before, and the screens say so.
+   */
+  get META_ES_KEEP_APP() {
+    return trimmedEnv(process.env.META_ES_KEEP_APP);
+  },
   /** Switch: limits who the environment's own pilot number answers; empty answers everyone. */
   get WHATSAPP_TEST_ALLOWLIST() {
     return trimmedEnv(process.env.WHATSAPP_TEST_ALLOWLIST);
@@ -308,6 +316,10 @@ export const env = {
   },
   get STRIPE_PRICE_ID() {
     return trimmedEnv(process.env.STRIPE_PRICE_ID);
+  },
+  /** Stripe's publishable key (pk_…), for the embedded Checkout the first run's Go live mounts (decision 0073, R16). */
+  get STRIPE_PUBLISHABLE_KEY() {
+    return trimmedEnv(process.env.STRIPE_PUBLISHABLE_KEY);
   },
   get BILLING_TRIAL_DAYS() {
     return trimmedEnv(process.env.BILLING_TRIAL_DAYS);

@@ -4,10 +4,11 @@
  * `connectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, type Database } from "../packages/db.js";
 import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
 import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
+import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
@@ -41,6 +42,19 @@ type SiteRead = "read" | "keep";
  * rating, the count and the day. Never throws for Google's sake — only for
  * the database's.
  */
+/**
+ * The workspace's listing row written with what a read of it says: the public listing's read here (its rating, its
+ * count, its facts), and the owner's own profile's details where they are connected (profile-details.ts). One writer.
+ */
+export async function keepListing(
+  db: Db,
+  tenantId: string,
+  patch: Database["public"]["Tables"]["google_listings"]["Update"],
+): Promise<void> {
+  const { error } = await db.from("google_listings").update(patch).eq("tenant_id", tenantId);
+  if (error) throw new Error(error.message);
+}
+
 export async function checkListing(
   db: Db,
   row: ListingRow,
@@ -82,6 +96,8 @@ export async function checkListing(
       ? await siteBookingPage(publicFetcher(), details.facts.website)
       : bookingPageKept(listingFactsOf(row.facts), details.facts.website);
   details = { ...details, facts: { ...details.facts, booking_page } };
+  // A listing just linked has its website read for Check too (decision 0073, R10): its services, prices and rules.
+  if (site === "read") await scheduleWebsiteRead(db, row.tenant_id, details.facts.website);
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);
@@ -101,8 +117,7 @@ export async function checkListing(
     { reviews: carriesReviews },
   );
 
-  const listing = await db.from("google_listings").update(plan.listing).eq("tenant_id", row.tenant_id);
-  if (listing.error) throw new Error(listing.error.message);
+  await keepListing(db, row.tenant_id, plan.listing);
   const day = await db
     .from("google_listing_days")
     .upsert({ tenant_id: row.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });

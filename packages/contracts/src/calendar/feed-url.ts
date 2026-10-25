@@ -196,12 +196,15 @@ export function offeringHorizon(now: Date, daysAhead: number): FeedHorizon {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
 }
 
-/** How far back a season reaches: every read of visits over the feed holds this many days, and a count of them says so. */
-export const SEASON_BACK_DAYS = 90;
+/**
+ * How far back a season reaches: every read of visits over the feed holds this many days, and a count of them says so.
+ * Six months (decision 0073, R20): what a calendar brings when it is connected is half a year of visits, link or grant.
+ */
+export const SEASON_BACK_DAYS = 180;
 
 /**
- * A season either side: ninety days back for "when were they last in", and
- * ninety forward — or the offering window when a workspace books further out
+ * A season either side: six months back for "when were they last in", and
+ * ninety days forward — or the offering window when a workspace books further out
  * than that, so the two never disagree about a day the receptionist can offer.
  */
 export function seasonHorizon(now: Date, daysAhead = 0): FeedHorizon {
@@ -218,4 +221,34 @@ export function seasonHorizon(now: Date, daysAhead = 0): FeedHorizon {
  */
 export function previewHorizon(now: Date): FeedHorizon {
   return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
+}
+
+/** What a grant's feed key starts with (calendarFeedKeyOf). */
+const MAILBOX_CALENDAR = "mailbox-calendar:";
+
+/**
+ * Where a workspace's calendar is read from, as every reader asks it (decision 0073, R20): the calendar of a connected
+ * mailbox where one is granted (it holds every calendar of the account), else the link, else none. A key, never stored:
+ * the link is its own address, and a grant reads as `mailbox-calendar:<provider>:<mailbox id>`, which the readers (the
+ * edge's availability, the dashboard's loadFeed) recognise before any fetch, and which no address rule would let
+ * through.
+ */
+export function calendarFeedKeyOf(
+  cfg:
+    | {
+        calendar?: { ical_url?: string | null } | null;
+        calendar_grant?: { mailbox_id?: string | null; provider?: string | null } | null;
+      }
+    | null
+    | undefined,
+): string | null {
+  const granted = cfg?.calendar_grant?.mailbox_id;
+  if (granted) return `${MAILBOX_CALENDAR}${cfg?.calendar_grant?.provider ?? "google"}:${granted}`;
+  return cfg?.calendar?.ical_url?.trim() || null;
+}
+
+/** The mailbox a feed key reads its calendar through, or null for a link. */
+export function mailboxCalendarOf(key: string | null | undefined): string | null {
+  if (!key?.startsWith(MAILBOX_CALENDAR)) return null;
+  return key.slice(key.lastIndexOf(":") + 1) || null;
 }

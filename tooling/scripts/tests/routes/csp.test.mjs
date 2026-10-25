@@ -28,13 +28,18 @@ const directives = (policy) =>
       }),
   );
 
-test("script-src is the app's own origin, Meta's SDK host and inline by name (the nonce does not reach the render on Vercel); production has no eval; the policy refuses framing, objects and a foreign base", () => {
+/** Stripe.js and embedded Checkout (decision 0073, R16: Go live pays in the page), the origins Stripe's CSP guide names. */
+const STRIPE_SCRIPT = ["https://js.stripe.com", "https://*.js.stripe.com", "https://checkout.stripe.com"];
+
+test("script-src is the app's own origin, Meta's SDK host, Stripe's and inline by name (the nonce does not reach the render on Vercel); production has no eval; the policy refuses framing, objects and a foreign base", () => {
   const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co" }));
-  assert.deepEqual(p["script-src"], ["'self'", "'unsafe-inline'", "https://connect.facebook.net"]);
+  assert.deepEqual(p["script-src"], ["'self'", "'unsafe-inline'", "https://connect.facebook.net", ...STRIPE_SCRIPT]);
   assert.ok(
     !p["script-src"].includes("'unsafe-eval'") &&
-      !p["script-src"].some((v) => /^https?:\/\//.test(v) && v !== "https://connect.facebook.net"),
-    "no eval, no foreign script origin",
+      !p["script-src"].some(
+        (v) => /^https?:\/\//.test(v) && v !== "https://connect.facebook.net" && !STRIPE_SCRIPT.includes(v),
+      ),
+    "no eval, no foreign script origin but Meta's SDK and Stripe's",
   );
   assert.ok(
     !p["script-src"].some((v) => v.startsWith("'nonce-")),
@@ -59,7 +64,7 @@ test("a local stack's Supabase over http is allowed over ws for Realtime, and na
   assert.deepEqual(p["connect-src"].slice(0, 3), ["'self'", "http://127.0.0.1:54321", "ws://127.0.0.1:54321"]);
 });
 
-test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); nothing else", () => {
+test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; the voice agent's socket and its WebRTC signalling (0026); a rehearsal's call at Retell and LiveKit (0069); Stripe's checkout in the page (0073); nothing else", () => {
   const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co/" }));
   assert.deepEqual(p["connect-src"], [
     "'self'",
@@ -73,6 +78,11 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "wss://api.elevenlabs.io",
     "https://*.elevenlabs.io",
     "wss://*.elevenlabs.io",
+    "https://api.retellai.com",
+    "https://*.livekit.cloud",
+    "wss://*.livekit.cloud",
+    "https://api.stripe.com",
+    "https://checkout.stripe.com",
   ]);
   assert.deepEqual(p["img-src"], [
     "'self'",
@@ -80,11 +90,19 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "blob:",
     "https://mwwy.supabase.co",
     "https://*.googleusercontent.com",
+    "https://*.stripe.com",
   ]);
   // The phone voices' samples are the provider's own recordings, on its public bucket: contracts names the one host.
   assert.deepEqual(p["media-src"], ["'self'", "blob:", "https://mwwy.supabase.co", PHONE_VOICE_SAMPLES_ORIGIN]);
   for (const v of PHONE_VOICES) assert.equal(new URL(v.sample).origin, PHONE_VOICE_SAMPLES_ORIGIN, v.id);
-  assert.deepEqual(p["frame-src"], ["https://www.facebook.com", "https://web.facebook.com"]);
+  assert.deepEqual(p["frame-src"], [
+    "https://www.facebook.com",
+    "https://web.facebook.com",
+    "https://js.stripe.com",
+    "https://*.js.stripe.com",
+    "https://hooks.stripe.com",
+    "https://checkout.stripe.com",
+  ]);
   // The mockup's inline styles: attributes, which no nonce can reach. Said in the policy, not smuggled.
   assert.deepEqual(p["style-src"], ["'self'", "'unsafe-inline'"]);
   // next/font self-hosts the fonts: no font host is named.

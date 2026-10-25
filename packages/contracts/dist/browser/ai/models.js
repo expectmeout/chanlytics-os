@@ -50,7 +50,10 @@ export const MODEL_PURPOSES = [
   "reply_read",
   "booking_read",
   "lead_suggest",
-  "ask_journal"
+  "ask_journal",
+  "receptionist_review",
+  "fix_route",
+  "website_read"
 ];
 export const MODEL_PORTS = ["anthropic", "typesafe"];
 const RECEPTIONIST_TRY_MS = 2e4;
@@ -60,6 +63,9 @@ const REVIEW_TRY_MS = 15e3;
 const JUDGE_TRY_MS = 28e3;
 const NOTE_TRY_MS = 2e4;
 const READ_TRY_MS = 8e3;
+const REVIEW_CONVERSATION_TRY_MS = 4e4;
+const FIX_ROUTE_TRY_MS = 12e3;
+const WEBSITE_READ_TRY_MS = 25e3;
 export const MODEL_ROUTES = {
   // Its intent, the class that intent falls under, and whether the customer asked to stop, are closed sets.
   receptionist: {
@@ -103,7 +109,20 @@ export const MODEL_ROUTES = {
   // Ask's journal (decision 0070): a workspace's day, written in a few sentences from its ledgers' lines, by the note
   // sweep inside its minute, asked at low effort (its thinking counts against the tokens). No retry: a day not written
   // in time is let go as failed, never asked twice.
-  ask_journal: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 0, maxTokens: 1500 }
+  ask_journal: { model: SONNET_5_5, fallback: SONNET_5, timeoutMs: NOTE_TRY_MS, retries: 0, maxTokens: 1500 },
+  // A rehearsal's review (decision 0069, D3): every answer of a conversation judged against what it was told, Sonnet
+  // 5.5 for the judgement; and the owner's correction routed to its field, the smallest model, its answer checked in code.
+  receptionist_review: {
+    model: SONNET_5_5,
+    fallback: SONNET_5,
+    timeoutMs: REVIEW_CONVERSATION_TRY_MS,
+    retries: 0,
+    maxTokens: 4e3
+  },
+  fix_route: { model: HAIKU_4_5, fallback: SONNET_5, timeoutMs: FIX_ROUTE_TRY_MS, retries: 1, maxTokens: 400 },
+  // The business's website read for Check (decision 0073, R10): a few pages into a fixed shape, the smallest model, its
+  // answer checked in code (contracts businessReadFactsOf) and every price confirmed by the owner's tap.
+  website_read: { model: HAIKU_5_5, fallback: SONNET_5, timeoutMs: WEBSITE_READ_TRY_MS, retries: 0, maxTokens: 2500 }
 };
 export function modelRoute(purpose) {
   return MODEL_ROUTES[purpose];

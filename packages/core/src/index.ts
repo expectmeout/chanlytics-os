@@ -46,5 +46,6 @@ export * from "./campaigns";
 export * from "./leads";
 export * from "./inbound";
 export { bookingPageLinkedFrom } from "./booking-page";
+export { sitePagesLinkedFrom } from "./site-pages";
 export { SUBSCRIBERS, toldFromItsEvent } from "./subscribers";
 export type { Subscriber, SubscriberPorts } from "./subscribers";

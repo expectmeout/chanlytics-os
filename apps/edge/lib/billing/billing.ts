@@ -16,6 +16,7 @@ import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
   CHECKOUT_RETURN_ROUTE,
+  FIRST_RUN_TRIAL_DAYS,
   planBilling,
   type BillingPlan,
   type CheckoutReturn,
@@ -32,6 +33,7 @@ import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { cardFingerprintOf, markCard } from "../partners/earnings.js";
+import { checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
@@ -376,7 +378,8 @@ export async function checkoutFor(
   email: string | null,
   slug: string | null,
   back: CheckoutReturn,
-): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
+  embedded = false,
+): Promise<CheckoutMade | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   const price = priceId();
   if (!s || !price || !billingReadiness().ready) return { ok: false, error: "not_ready" };
@@ -394,10 +397,11 @@ export async function checkoutFor(
     return { ok: false, error: "already_subscribed" };
   try {
     const customer = await customerFor(s, db, row, tenantName, email);
-    // The trial applies once: a workspace that already had a subscription starts again without one. And never from the
-    // first run (`start`): its checkout is the phone step's, and a number starts the plan, since a number is a cost on
-    // our account whether or not a trial ever pays (maySpend; Ruben, 25 Sep 2026).
-    const trial = row.stripe_subscription_id || back === "start" ? 0 : trialDays();
+    // The trial applies once. From the first run (`start`) it is the first run's own (contracts FIRST_RUN_TRIAL_DAYS,
+    // decision 0073: a number is a cost whether or not a trial pays, Ruben 25 Sep 2026), which every screen says.
+    const trial = row.stripe_subscription_id ? 0 : back === "start" ? FIRST_RUN_TRIAL_DAYS : trialDays();
+    const publishable = env.STRIPE_PUBLISHABLE_KEY;
+    const inPage = embedded && !!publishable;
     const session = await s.checkout.sessions.create({
       mode: "subscription",
       customer,
@@ -405,12 +409,10 @@ export async function checkoutFor(
       line_items: [{ price, quantity: 1 }],
       subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
       allow_promotion_codes: true,
-      success_url: billingReturnUrl(slug, "success", back),
-      cancel_url: billingReturnUrl(slug, "cancel", back),
+      ...sessionReturn(inPage, billingReturnUrl(slug, "success", back), billingReturnUrl(slug, "cancel", back)),
       metadata: { tenant_id: tenantId },
     });
-    if (!session.url) return { ok: false, error: "stripe_refused", detail: "no url on the session" };
-    return { ok: true, url: session.url };
+    return checkoutMadeOf(session, inPage ? publishable : null);
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
   }

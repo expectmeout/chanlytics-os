@@ -45,10 +45,11 @@ export function emailDomain(): string | null {
 
 /**
  * Where a person's answer on this thread goes out from (C15, N5; decision 0056): the mailbox the business connected
- * that the reach-out it answers left from, when it is still the workspace's and sends now; else the hosted mailbox, and
- * why. The freeze and the readings' read both ask this, so the composer never names an address the dashboard will not
- * freeze. `references` are the reply's References; the latest reach-out email on the thread answers when none of them
- * names one (db answeredReachOutEmail).
+ * that the reach-out it answers left from, when it is still the workspace's and sends now; else the connected mailbox
+ * the email it answers was written to (decision 0073, R13: the business's email is its mailbox), when that one sends
+ * now; else the hosted mailbox, and why. The freeze and the readings' read both ask this, so the composer never names an
+ * address the dashboard will not freeze. `references` are the reply's References; the latest reach-out email on the
+ * thread answers when none of them names one (db answeredReachOutEmail).
  */
 export async function replyIdentityOf(
   supabase: SupabaseClient<Database>,
@@ -58,14 +59,24 @@ export async function replyIdentityOf(
     references: string[];
     /** The workspace's connected mailboxes, when the caller already read them for many threads. */
     mailboxes?: MailboxConnectionDto[];
+    /** Who the email being answered was written to (its To and Cc), where the row kept them. */
+    addressedTo?: readonly string[];
   },
 ): Promise<{ from: "own"; address: string; mailbox: MailboxConnectionDto } | Extract<ReplyFrom, { from: "mailbox" }>> {
   const answered = await answeredReachOutEmail(supabase, p);
-  const own = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
-  if (!answered || !own) return { from: "mailbox", because: null };
-  const mailbox = (p.mailboxes ?? (await mailboxConnectionsFor(supabase, p.tenantId))).find(
-    (m) => m.address.toLowerCase() === own,
-  );
+  const fromReachOut = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
+  const boxes = () => p.mailboxes ?? mailboxConnectionsFor(supabase, p.tenantId);
+  if (!answered || !fromReachOut) {
+    // Not a reach-out's answer: an email that came to a connected mailbox is answered from it, while it sends (R13).
+    const to = new Set((p.addressedTo ?? []).map((a) => a.toLowerCase()));
+    if (!to.size) return { from: "mailbox", because: null };
+    const box = (await boxes()).find((m) => to.has(m.address.toLowerCase()));
+    if (!box) return { from: "mailbox", because: null };
+    if (!mailboxSendsNow(box, Date.now())) return { from: "mailbox", because: "own_not_sending", own: box.address };
+    return { from: "own", address: box.address, mailbox: box };
+  }
+  const own = fromReachOut;
+  const mailbox = (await boxes()).find((m) => m.address.toLowerCase() === own);
   if (!mailbox) return { from: "mailbox", because: "own_removed", own };
   if (!mailboxSendsNow(mailbox, Date.now())) return { from: "mailbox", because: "own_not_sending", own };
   return { from: "own", address: mailbox.address, mailbox };
@@ -122,6 +133,7 @@ export async function freezeReply(
     tenantId: i.tenantId,
     conversationId: i.conversationId,
     references: [...i.parent.references, ...(i.parent.rfcMessageId ? [i.parent.rfcMessageId] : [])],
+    addressedTo: i.parent.to ?? [],
   });
   const own = who.from === "own" ? frozen(connectedIdentity(who.mailbox)) : null;
   const request = mailbox && domain ? frozen(hostedIdentity(mailbox, domain)) : own;

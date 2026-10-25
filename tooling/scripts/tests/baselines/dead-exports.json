@@ -110,8 +110,6 @@
   "packages/contracts/src/reach-out/reach-out-timetable.ts": 1,
   "packages/contracts/src/reach-out/reach-out-words.ts": 6,
   "packages/contracts/src/reports/reports.ts": 2,
-  "packages/contracts/src/setup/first-run-phone.ts": 2,
-  "packages/contracts/src/setup/first-run.ts": 1,
   "packages/contracts/src/setup/setup.ts": 2,
   "packages/contracts/src/shared/time.ts": 1,
   "packages/contracts/src/shell/chrome.ts": 2,

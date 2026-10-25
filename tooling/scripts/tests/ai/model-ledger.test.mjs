@@ -156,6 +156,23 @@ test("a workspace paused, ended, over or unread spends nothing on what a person 
   assert.equal((await callModel({ purpose: "receptionist", body }, { tenantId: T })).outcome, "ok");
 });
 
+test("a rehearsal's review and the fix router are the owner's press: held for a paused workspace, asked for an active one (0069)", async () => {
+  for (const purpose of ["receptionist_review", "fix_route"]) {
+    for (const [over, may] of [
+      [{ status: "paused" }, false],
+      [{ ended: true }, false],
+      [{ billing: "active" }, true],
+    ]) {
+      const t = world(over);
+      const api = model(said("A reply."));
+      const r = await callModel({ purpose, body }, { tenantId: T });
+      assert.equal(r.outcome === "held", !may, `${purpose} ${JSON.stringify(over)}`);
+      assert.equal(api.calls.length, may ? 1 : 0, `${purpose} ${JSON.stringify(over)}`);
+      assert.equal(t.ai_usage.length, may ? 1 : 0);
+    }
+  }
+});
+
 test("no key asks nothing and writes nothing", async () => {
   const t = world();
   const api = model(said("x"));

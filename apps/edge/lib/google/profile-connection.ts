@@ -12,7 +12,7 @@
  * (`locationsFor` reads them again). A connect and a disconnect each write their event (google.connected,
  * google.disconnected).
  */
-import { emitEvent } from "../packages/db.js";
+import { emitEvent, linkedPlaceOf } from "../packages/db.js";
 import {
   tokenExchangeRequest,
   revokeRequest,
@@ -32,6 +32,7 @@ import { grantFrom, readCredentials, storeCredentials, tokenFor } from "./profil
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
+import { readProfileDetails } from "./profile-details.js";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -177,8 +178,12 @@ export async function connectProfile(
     on_maps: onMaps.length,
     by: userId,
   }).catch(() => {});
-  if (onMaps.length === 1) {
-    const bound = await bindLocation(db, saved.data, first, userId, tz, now, net);
+  // One location on Maps is the one; among several, the one the owner already said was theirs (the first run's "That's
+  // us", decision 0073 R17) is bound at once, and only otherwise does the owner choose.
+  const linked = onMaps.length > 1 ? await linkedPlaceOf(db, tenantId).catch(() => null) : null;
+  const pick = onMaps.length === 1 ? onMaps[0] : (onMaps.find((l) => !!linked && l.place_id === linked) ?? null);
+  if (pick) {
+    const bound = await bindLocation(db, saved.data, pick, userId, tz, now, net);
     if (!bound.ok) return { ok: false, error: bound.error, detail: bound.detail };
     return { ok: true, pending: false, connection: bound.connection, read: bound.read };
   }
@@ -270,6 +275,8 @@ export async function bindLocation(
     .single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
   const read = await syncProfile(db, saved.data, tz, now, net);
+  // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
+  await readProfileDetails(db, saved.data, now, net);
   const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
   return { ok: true, connection: after.data ?? saved.data, read };
 }

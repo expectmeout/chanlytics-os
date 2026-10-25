@@ -3545,6 +3545,13 @@ test("a row of chips caps itself, and says how many it cut in the words it was g
   // A page that caps its own list still passes its own words, as the services and the notes do.
   const given = draw(W.RecordChips, { chips: [{ label: "Balayage" }], more: "+31 more" });
   assert.deepEqual(all(given, (n) => classes(n).includes("rec-chip")).map(textOf), ["Balayage", "+31 more"]);
+  // Phrases (the rules it keeps) read as one line, a quiet dot between them (kit.css): the variant is the row's class.
+  const rowOf = (t) => find(t, (n) => classes(n).includes("rec-chips")).props.className;
+  assert.equal(
+    rowOf(draw(W.RecordChips, { chips: [{ label: five[1] }], phrases: true })),
+    "rec-chips rec-chips-phrases",
+  );
+  assert.equal(rowOf(given), "rec-chips", "names stay chips");
 });
 
 test("a sheet React lets go of leaves the way it came, with the wash that stood behind it", async () => {

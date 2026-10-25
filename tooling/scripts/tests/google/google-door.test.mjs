@@ -299,6 +299,20 @@ const LOCATIONS_URL = (account) => `https://mybusinessbusinessinformation.google
 /** One location read alone (locations.get), as a sync reads the bound one again for its review link. */
 const LOCATION_URL = (name) => `https://mybusinessbusinessinformation.googleapis.com/v1/${name}`;
 const REVIEWS_URL = (account, loc) => `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews`;
+/** One location's own details (decision 0073, R17): its hours, services and prices, days closed and words, for Check. */
+/** A listing's facts as the one writer keeps them (listing-check.ts keepListing): every key, none known. */
+const NO_FACTS = {
+  booking_page: null,
+  hours: null,
+  phone_display: null,
+  phone_e164: null,
+  primary_type: null,
+  primary_type_label: null,
+  service_area_only: false,
+  time_zone: null,
+  website: null,
+};
+const DETAILS_URL = (loc) => `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${loc}`;
 const REPLY_URL = (account, loc, id) =>
   `https://mybusiness.googleapis.com/v4/${account}/locations/${loc}/reviews/${id}/reply`;
 const PLACES_SEARCH = "https://places.googleapis.com/v1/places:searchText";
@@ -1058,8 +1072,9 @@ test("connect: the code from Google becomes the connection -- the token traded w
       ["GET", ACCOUNTS_URL],
       ["GET", LOCATIONS_URL("accounts/111")],
       ["GET", REVIEWS_URL("accounts/111", "222")],
+      ["GET", DETAILS_URL("222")],
     ],
-    "the code traded, then whose accounts, which locations, and every review of the one location -- no refresh: the token just granted is still good",
+    "the code traded, then whose accounts, which locations, every review of the one location and its details -- no refresh: the token just granted is still good",
   );
   const exchange = form(net.calls[0]);
   assert.deepEqual(
@@ -1098,7 +1113,11 @@ test("connect: the code from Google becomes the connection -- the token traded w
     vault.writes[0].secret.expires_at >= t0 + HOUR && vault.writes[0].secret.expires_at <= Date.now() + HOUR,
     "good for an hour, as Google said",
   );
-  assert.deepEqual(vault.reads, [A], "the sync read it back once and found it still good");
+  assert.deepEqual(
+    vault.reads,
+    [A, A],
+    "the sync read it back, then the details read (decision 0073, R17), and each found it still good",
+  );
 
   assert.equal(tables.google_connections.length, 1);
   const conn = tables.google_connections[0];
@@ -1142,7 +1161,7 @@ test("connect: the code from Google becomes the connection -- the token traded w
   );
   assert.deepEqual(
     listing.facts,
-    { phone_e164: "+17185550142", website: "https://harbormoving.example" },
+    { ...NO_FACTS, phone_e164: "+17185550142", website: "https://harbormoving.example" },
     "and keeps what its last read said",
   );
   assert.deepEqual(
@@ -1260,13 +1279,14 @@ test("connect with several locations on Maps waits for the owner's choice: the c
     [PLACE2, "Harbor Moving Warehouse", null, 4.7, 12],
   );
   assert.deepEqual(
-    net.asked().slice(-3),
+    net.asked().slice(-4),
     [
       ["GET", ACCOUNTS_URL],
       ["GET", LOCATIONS_URL("accounts/111")],
       ["GET", REVIEWS_URL("accounts/111", "333")],
+      ["GET", DETAILS_URL("333")],
     ],
-    "the list read again to prove the choice, then the chosen location's reviews",
+    "the list read again to prove the choice, then the chosen location's reviews and its details",
   );
   const listing = tables.google_listings[0];
   assert.deepEqual(
@@ -1279,7 +1299,7 @@ test("connect with several locations on Maps waits for the owner's choice: the c
       listing.facts,
       listing.new_review_uri,
     ],
-    [1, A, PLACE2, "Harbor Moving Warehouse", U, {}, null],
+    [1, A, PLACE2, "Harbor Moving Warehouse", U, NO_FACTS, null],
     "the chosen location's place on Maps becomes the listing, with the review link it has: none",
   );
   assert.ok(Date.parse(listing.linked_at) >= t0);

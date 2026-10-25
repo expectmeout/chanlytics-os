@@ -34,7 +34,7 @@ import type { RETENTION_DAYS } from "@chanlytics/contracts";
 /** The legs an erasure runs, each where it is written. */
 export const ERASURE_LEGS = {
   erase_contact:
-    "erase_contact: the person's calls, messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
+    "erase_contact: the person's calls (and a review of one, by its key: 00476), messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
   notes_trigger:
     "person_notes_erase_on_contact: their own notes deleted, the old notes field cleared, a note_for_you about them removed (00158)",
   events_trigger: "contact_events_on_erase: an event that named them cut to who did it and from where (00131)",
@@ -59,6 +59,8 @@ export const ERASURE_LEGS = {
     "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub:
     "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
+  before_trigger:
+    "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;
@@ -166,6 +168,13 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "analysis",
   ),
   contact_identities: all(withPerson("erase_contact"), "external_id", "raw"),
+  // A conversation rehearsed or a real call reviewed (decision 0069). A review of a real call holds that call's words and
+  // goes with the call (its key cascades, 00476); a rehearsal is the owner speaking or typing as a customer, which names
+  // nobody the workspace serves, and leaves with the workspace. The provider's ids and the end's word are nobody's.
+  rehearsals: {
+    ...all(withPerson("erase_contact"), "transcript", "instructions", "review", "fixes"),
+    ...all(NOT_PERSONAL, "retell_call_id", "agent_id", "end_reason"),
+  },
   contacts: {
     phone_e164: scrubbedBy("erase_contact"),
     display_name: scrubbedBy("erase_contact"),
@@ -183,7 +192,15 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     erased_email_hash: DIGEST,
     // The line or the ad a person came by, never the person (its column comment).
     acquired_ref: NOT_PERSONAL,
+    // What a client file said of them before Chanlytics (00477, decision 0073): cleared as the row is tombstoned.
+    before: scrubbedBy("before_trigger"),
   },
+  // What was brought in (00477, decision 0073): a source's counts, where its job stands (a mailbox's id, a provider's page
+  // token, Meta's request id), the tool it came from and our words for a stop. None of it names a person.
+  imports: all(NOT_PERSONAL, "counts", "job_cursor", "last_error", "via"),
+  // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
+  // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.
+  business_reads: all(NOT_PERSONAL, "facts", "read_from", "error"),
   conversations: all(withPerson("erase_contact"), "control_kind", "control_ref"),
   // Ask's draft written ahead for a thread waiting on a person (00475): its key names the thread, so the row goes with it
   // when erase_contact deletes their conversation (on delete cascade).
@@ -518,6 +535,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   // The workspace's channels: their configuration, its own numbers and the provider's ids.
   tenant_channels: all(NOT_PERSONAL, "config", "credentials_ref", "external_id", "number_e164", "waba_id"),
+  // The workspace's receptionist at the provider, made before its number (decision 0069): the provider's ids.
+  voice_agents: all(NOT_PERSONAL, "agent_id", "llm_id"),
   // The receptionist's configuration, which names the addresses the workspace is alerted at.
   tenant_config: { config: WITH_WORKSPACE },
 };

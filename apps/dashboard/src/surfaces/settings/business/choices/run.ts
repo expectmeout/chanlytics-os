@@ -3,7 +3,7 @@
  * policies door (legacy-bridge/inbox-verbs.ts setPolicy, PUT /policies), a key of the config through the Business
  * tab's one saver (save.tsx), one at a time, stopping at the first that does not go through. The order is what keeps a
  * failed second write coherent; this only keeps to it. An object the rows import, so a test stands the policies door in
- * (as Try it's verbs are, try/verbs.ts).
+ * (as Rehearse's verbs are, rehearse/verbs.ts).
  */
 import type { ChoiceWrite } from "@chanlytics/contracts";
 import { setPolicy } from "@/legacy-bridge/inbox-verbs";

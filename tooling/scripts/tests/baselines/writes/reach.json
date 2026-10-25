@@ -1,7 +1,7 @@
 {
-  "rows": 143,
+  "rows": 145,
   "same": 6,
-  "differ": 137,
+  "differ": 139,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -30,7 +30,7 @@
     },
     "DELETE google/connection": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -39,7 +39,7 @@
     },
     "DELETE google/link": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -94,7 +94,7 @@
     },
     "DELETE mailbox-connections/[id]": {
       "changes": "",
-      "doors": "mailbox_connections · notifications",
+      "doors": "imports · mailbox_connections · notifications · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -292,7 +292,7 @@
     },
     "PATCH mailbox-connections/[id]": {
       "changes": "",
-      "doors": "mailbox_connections · notifications",
+      "doors": "imports · mailbox_connections · notifications · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -375,6 +375,7 @@
     },
     "POST broadcasts": {
       "changes": "sequence_batches INSERT · sequence_enrollments INSERT UPDATE · sequence_sends INSERT UPDATE · sequence_steps UPDATE · sequences INSERT UPDATE",
+      "doors": "mailbox_connections · notifications",
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
@@ -460,11 +461,11 @@
     },
     "POST capabilities/[kind]": {
       "changes": "capability_activations INSERT UPDATE",
-      "doors": "billing_accounts · business_records · google_connections · google_listings · google_reviews · lines · mailbox_connections · notifications · tenant_channels · tenants"
+      "doors": "billing_accounts · business_reads · business_records · google_connections · google_listings · google_reviews · imports · lines · mailbox_connections · notifications · tenant_channels · tenant_config · tenants"
     },
     "POST channels/whatsapp/connect": {
       "changes": "",
-      "doors": "tenant_channels",
+      "doors": "imports · tenant_channels",
       "door": {
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
@@ -636,7 +637,7 @@
       }
     },
     "POST contacts/import": {
-      "changes": "contacts INSERT UPDATE · leads UPDATE · person_doubts INSERT",
+      "changes": "contacts INSERT UPDATE · imports INSERT UPDATE · leads UPDATE · person_doubts INSERT",
       "tells": "contacts",
       "extra": {
         "people": "clients/person"
@@ -868,7 +869,7 @@
     },
     "POST google/link": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -877,7 +878,7 @@
     },
     "POST google/locations": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -886,7 +887,7 @@
     },
     "POST google/refresh": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "google": "every page",
         "settings": "every page",
@@ -895,16 +896,23 @@
     },
     "POST google/reviews/[id]/reply": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "reports_reviews": "every page"
       }
     },
     "POST google/reviews/[id]/stop": {
       "changes": "",
-      "doors": "google_connections · google_listings · google_reviews · notifications",
+      "doors": "business_reads · google_connections · google_listings · google_reviews · imports · notifications",
       "door": {
         "reports_reviews": "every page"
+      }
+    },
+    "POST imports/again": {
+      "changes": "",
+      "doors": "imports",
+      "door": {
+        "setup": "every page"
       }
     },
     "POST lead-operations/[id]/undo": {
@@ -1298,21 +1306,21 @@
     },
     "POST mailbox-connections/[id]/check": {
       "changes": "",
-      "doors": "mailbox_connections · notifications",
+      "doors": "imports · mailbox_connections · notifications · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/resume": {
       "changes": "",
-      "doors": "mailbox_connections · notifications",
+      "doors": "imports · mailbox_connections · notifications · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/test": {
       "changes": "",
-      "doors": "mailbox_connections · notifications",
+      "doors": "imports · mailbox_connections · notifications · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -1464,7 +1472,7 @@
     },
     "POST playbooks/[id]/run": {
       "changes": "",
-      "doors": "notifications · person_notes · sequence_batches · sequence_enrollments · sequence_sends · sequence_steps · sequences",
+      "doors": "mailbox_connections · notifications · person_notes · sequence_batches · sequence_enrollments · sequence_sends · sequence_steps · sequences",
       "door": {
         "audiences": "broadcasts",
         "broadcasts": "every page",
@@ -1552,7 +1560,7 @@
     "POST reach-outs": {
       "changes": "lead_rounds INSERT UPDATE · lead_searches INSERT · notifications INSERT UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "lead_rounds · notifications · templates",
-      "doors": "person_notes",
+      "doors": "mailbox_connections · person_notes",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
@@ -1662,6 +1670,25 @@
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages, outbound, start",
         "setup": "admin/integrations, start, today",
         "today": "every page",
+        "today_pins": "today"
+      }
+    },
+    "POST receptionist/keep": {
+      "changes": "rehearsals UPDATE · tenant_config UPDATE",
+      "tells": "tenant_config",
+      "missing": {
+        "audiences": "broadcasts",
+        "broadcasts": "broadcasts",
+        "calendar": "every page",
+        "people": "clients, clients/get-yes, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns/sequences/new, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "setup": "admin/integrations, start, today",
         "today_pins": "today"
       }
     },
@@ -1784,6 +1811,7 @@
     "POST sequences/new": {
       "changes": "lead_rounds INSERT UPDATE · lead_search_members INSERT · lead_searches INSERT UPDATE · notifications INSERT UPDATE · sequence_batches INSERT UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE INSERT UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "lead_rounds · notifications · templates",
+      "doors": "mailbox_connections",
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "leads": "clients/leads, leads",
@@ -1905,7 +1933,7 @@
     "POST templates/versions": {
       "changes": "lead_rounds INSERT UPDATE · lead_searches INSERT · notifications INSERT UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "lead_rounds · notifications · templates",
-      "doors": "person_notes",
+      "doors": "mailbox_connections · person_notes",
       "missing": {
         "audiences": "broadcasts",
         "broadcasts": "every page",
@@ -2191,7 +2219,7 @@
     "PUT reach-outs/[id]": {
       "changes": "lead_rounds INSERT UPDATE · lead_searches INSERT · notifications INSERT UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "lead_rounds · notifications · templates",
-      "doors": "person_notes",
+      "doors": "mailbox_connections · person_notes",
       "missing": {
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
@@ -2221,7 +2249,7 @@
     "PUT sequences/[id]/chain": {
       "changes": "lead_rounds INSERT UPDATE · lead_searches INSERT · notifications INSERT UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "lead_rounds · notifications · templates",
-      "doors": "person_notes",
+      "doors": "mailbox_connections · person_notes",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },

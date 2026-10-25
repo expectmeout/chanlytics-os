@@ -30,7 +30,8 @@ interface ConnectedMailboxesApi {
    * To the provider's consent screen: the door is asked for the way there, and the browser leaves only when it gave
    * one, so a refusal comes back here to be said on the page. A Reconnect names its mailbox.
    */
-  connect(provider: MailboxProvider, mailboxId?: string): Promise<ApiResult<unknown>>;
+  /** `back: "start"` brings the owner back to the first run that asked (decision 0073), not to Connections. */
+  connect(provider: MailboxProvider, mailboxId?: string | null, back?: "start"): Promise<ApiResult<unknown>>;
   /** The link a Microsoft 365 admin opens to approve Chanlytics for their organisation, once. */
   adminLink(): Promise<ApiResult<{ url: string }>>;
   set(
@@ -54,9 +55,9 @@ interface ConnectedMailboxesApi {
 }
 
 export const connectedMailboxes: ConnectedMailboxesApi = {
-  connect: async (provider, mailboxId) => {
+  connect: async (provider, mailboxId, back) => {
     const r = await api()("GET mailbox-connections/connect", {
-      query: { provider, ...(mailboxId ? { mailbox_id: mailboxId } : {}) },
+      query: { provider, ...(mailboxId ? { mailbox_id: mailboxId } : {}), ...(back ? { back } : {}) },
     });
     if (r.ok) window.location.assign(r.data.url);
     return r;

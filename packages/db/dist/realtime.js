@@ -85,7 +85,14 @@ var WATCHED = [
   // The workspace paused or resumed (billing, the back office), renamed, its zone, its word for a booking or its logo
   // changed: the shell, the sidebar and Today's band repaint. Told when one of those moved (00431, 00458). The
   // receptionist's stamp reads the row.
-  { table: "tenants", events: UPDATES }
+  { table: "tenants", events: UPDATES },
+  // What a connection brought in, a part at a time (the mailbox's months, its people and calendar, WhatsApp's chats), and
+  // what the Business Profile and the website say: the first run's "Bringing it in", Found for you, Today's "Brought in"
+  // and Connections' sentences repaint (00480, decision 0073).
+  { table: "imports", events: EVERY },
+  { table: "business_reads", events: EVERY },
+  // A rehearsal made, heard and reviewed (decision 0069): the first run's Rehearse step and Today's card repaint (00480).
+  { table: "rehearsals", events: EVERY }
 ];
 var NARROWED_UPDATES = {
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.

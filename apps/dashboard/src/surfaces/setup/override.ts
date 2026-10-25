@@ -69,6 +69,10 @@ export const setupOverride: SurfaceOverride = {
       "deal",
       "conversation",
       "campaign",
+      // What is brought in and what the profile and the website say (decision 0073), and a rehearsal (0069): the first
+      // run's Bringing it in, Found for you and Rehearse, and Today's Brought in.
+      "brought",
+      "rehearsal",
     ],
     fresh: "its-page",
     always: ["channel", "billing", "review", "call", "team"],

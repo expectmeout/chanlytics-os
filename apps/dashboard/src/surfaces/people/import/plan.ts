@@ -6,9 +6,15 @@
 import { importCounts, importRowsOf, matchColumns, parseCsv } from "@chanlytics/contracts";
 import type { ImportHead } from "./frame";
 
-export const plImportPlan = (text: string) => {
-  const rows = parseCsv(text || "");
-  const { columns, header } = matchColumns(rows);
+export const plImportPlan = (text: string) => plImportPlanOf(parseCsv(text || ""));
+
+/**
+ * A file's rows as a plan, however they were read (a CSV's text, or an Excel sheet: xlsx.ts): its columns found, the
+ * four a client file carries beyond the name, the number and the address among them (decision 0073, R22), its people
+ * and their counts.
+ */
+export const plImportPlanOf = (rows: string[][]) => {
+  const { columns, header } = matchColumns(rows, { facts: true });
   const people = importRowsOf(rows, columns, header);
   return { rows, columns, header, headers: header ? rows[0] : [], people, counts: importCounts(people) };
 };
@@ -41,4 +47,24 @@ export const plImportColumnWords = (plan: ImportPlan): string => {
   if (!plan.header) return "No header row: the columns were told apart by what is in them.";
   const said = (i: number | null) => (i === null ? "not found" : `“${String(plan.headers?.[i] || "").trim()}”`);
   return `Columns: name ${said(plan.columns.name)}, mobile ${said(plan.columns.phone)}, email ${said(plan.columns.email)}.`;
+};
+
+/** The columns found, as the clients' sheet lists them (canvas 4·j): "Name · Mobile · Email · Last visit · Birthday". */
+export const plImportFoundWords = (plan: ImportPlan): string => {
+  const c = plan.columns;
+  return (
+    [
+      c.name !== null ? "Name" : null,
+      c.phone !== null ? "Mobile" : null,
+      c.email !== null ? "Email" : null,
+      // trade-word: the client file's own column names, as the booking tools write them
+      c.lastVisit != null ? "Last visit" : null,
+      // trade-word: the client file's own column names, as the booking tools write them
+      c.visits != null ? "Visits" : null,
+      c.birthday != null ? "Birthday" : null,
+      c.notes != null ? "Notes" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "None found"
+  );
 };

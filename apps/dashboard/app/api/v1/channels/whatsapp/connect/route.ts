@@ -9,7 +9,10 @@ import { connectWhatsApp } from "@/server/connections/whatsapp";
  *
  * Body: what Embedded Signup gave the browser — { code } and, where the
  * browser heard them, { phone_number_id, waba_id }; the edge reads an id the
- * browser did not hear from the token's own grant. Owner only, rate-limited
+ * browser did not hear from the token's own grant. { keep_app: true } when the
+ * business keeps its WhatsApp Business app (coexistence, decision 0073, R12):
+ * the number is not registered again, and its contacts and chats are asked
+ * for (R21). Owner only, rate-limited
  * with the other settings changes. The edge does the exchange, the
  * registration and the Vault write; this route proves who is asking, keeps
  * the ledger, and says what happened in the owner's words.
@@ -51,6 +54,7 @@ export const POST = write({
       code?: unknown;
       phone_number_id?: unknown;
       waba_id?: unknown;
+      keep_app?: unknown;
     } | null;
     const code = typeof body?.code === "string" ? body.code.trim() : "";
     const phoneNumberId = typeof body?.phone_number_id === "string" ? body.phone_number_id.trim() : "";
@@ -68,6 +72,7 @@ export const POST = write({
       code,
       ...(phoneNumberId ? { phone_number_id: phoneNumberId } : {}),
       ...(wabaId ? { waba_id: wabaId } : {}),
+      ...(body?.keep_app === true ? { keep_app: true as const } : {}),
     });
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The connection did not complete (${r.reason}).`;
@@ -85,6 +90,7 @@ export const POST = write({
       number_e164: r.numberE164,
       verified_name: r.verifiedName,
       registration: r.registration,
+      keep_app: body?.keep_app === true,
     });
     return {
       ok: true,

@@ -1,5 +1,10 @@
 import { lineCredentialFailure } from "../lines/line-failure.js";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
+import {
+  CARRIERS,
+  PHONE_RINGS,
+  PHONE_WAYS
+} from "../voice/forwarding.js";
 import { agoWords, MIN_MS } from "../shared/time.js";
 import { maySpend } from "../workspace/billing.js";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path.js";
@@ -140,13 +145,29 @@ export function setupLaterOf(view) {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+const isPhoneWay = (v) => PHONE_WAYS.includes(v);
+const isRings = (v) => PHONE_RINGS.includes(v);
+const isCompany = (v) => v !== "office" && CARRIERS.includes(v);
 export function setupPhoneWantOf(view) {
   const phone = view && typeof view === "object" ? view.phone : null;
   if (!phone || typeof phone !== "object") return null;
-  const { way, number } = phone;
-  if (way !== "keep" && way !== "move" || typeof number !== "string") return null;
+  const { way, number, mode, rings, company } = phone;
+  if (!isPhoneWay(way) || typeof number !== "string") return null;
   const e164 = normalizePhone(number);
-  return e164 ? { way, number: e164 } : null;
+  if (!e164) return null;
+  if (way === "new") return { way, number: e164 };
+  return {
+    way,
+    number: e164,
+    ...mode === "always" ? { mode } : {},
+    ...isRings(rings) ? { rings } : {},
+    ...isCompany(company) ? { company } : {}
+  };
+}
+const WHATSAPP_CHOICES = ["same", "own", "later"];
+export function setupChoicesOf(view) {
+  const wa = view && typeof view === "object" ? view.whatsapp : null;
+  return { whatsapp: WHATSAPP_CHOICES.includes(wa) ? wa : null };
 }
 export function forwardedLineOf(lines) {
   return lines?.rows.find((l) => l.kind === "forwarded" && l.forwarding_state !== "none") ?? null;
@@ -159,6 +180,10 @@ export function keptPhoneKind(line) {
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
 export const TRY_SKIPPED = "try-skipped";
+export const RECEPTIONIST_MET = "receptionist-met";
+export const REHEARSE_SKIPPED = "rehearse-skipped";
+export const CHANNELS_SEEN = "channels-seen";
+export const GOOGLE_CONNECT_LATER = "google-connect-later";
 export const REMIND_SKIPPED = "remind-skipped";
 export const KEEP_ROW = "keep";
 export const SETUP_LATER_REFUSED = {

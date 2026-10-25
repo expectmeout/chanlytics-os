@@ -1,7 +1,8 @@
 /**
- * Connections' two email rows (connections.ts folds them with the others): the hosted address customers write to, and
- * the mailboxes sequences to leads write from (decision 0056). Their own module because they read the same email line
- * of Setup (mailbox.ts) and nothing else of the page's facts.
+ * Connections' two email rows (connections.ts folds them with the others): the hosted address customers write to, kept
+ * only where a workspace already has one, and the business's own mailbox (decision 0056; decision 0073, R13: the
+ * business's email is its mailbox, the email people write to it comes into the Inbox, and sequences to leads write from
+ * it). Their own module because they read the same email line of Setup (mailbox.ts) and nothing else of the page's facts.
  */
 import { agoWords } from "../shared/time";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
@@ -37,23 +38,24 @@ export function emailRow(i: ConnectionInputs, { nowMs }: { nowMs: number }): Con
       body: "email_setup",
     };
   }
-  if (i.email?.ready) {
+  // No hosted address is made any more (R13): a workspace's email is its own mailbox, the row below. Where this
+  // deployment offers no mailbox to connect, that row is later, and so is this one.
+  const sending = i.email?.sending ?? null;
+  if (!sending?.mailboxes.length && !sending?.providers.length)
     return {
       ...base,
       detail: null,
-      state: "none",
-      stateWords: "Not set up",
-      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-      body: "email_setup",
+      state: "later",
+      stateWords: "Later",
+      sentence: "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
+      verb: null,
     };
-  }
   return {
     ...base,
     detail: null,
-    state: "later",
-    stateWords: "Later",
-    sentence: "An address customers write to, answered from your Inbox.",
+    state: "none",
+    stateWords: "Through your mailbox",
+    sentence: `Email from customers comes in through the mailbox you connect below. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
     verb: null,
   };
 }
@@ -65,7 +67,7 @@ export function emailRow(i: ConnectionInputs, { nowMs }: { nowMs: number }): Con
  * (each email is handed to the owner to send). One held or signed out is the row's attention, said once, here.
  */
 export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
-  const base = { kind: "mailbox" as const, icon: "send", title: "Mailboxes you write from" };
+  const base = { kind: "mailbox" as const, icon: "send", title: "Your mailbox" };
   const sending = i.email?.sending ?? null;
   const boxes = sending?.mailboxes ?? [];
   if (boxes.length > 0) {
@@ -76,7 +78,7 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
       detail: one ? (boxes[0]?.address ?? null) : `${boxes.length} mailboxes`,
       state: needs ? "attention" : "connected",
       stateWords: needs ? `${needs} to look at` : "On",
-      sentence: `Sequences to leads write from ${one ? "it" : "them"}, and replies come back to ${one ? "it" : "them"} and to your Inbox.`,
+      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, six months of it with it, and sequences to leads write from ${one ? "it" : "them"}.`,
       verb: null,
       body: "mailboxes",
     };
@@ -88,7 +90,7 @@ export function mailboxRow(i: ConnectionInputs): ConnectionDraft {
       state: "none",
       stateWords: "Not connected",
       sentence:
-        "Send sequences to leads from your own Google Workspace or Microsoft 365 mailbox; replies come back to it and to your Inbox.",
+        "Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, six months of it with it, and sequences to leads write from it.",
       verb: null,
       body: "mailboxes",
     };

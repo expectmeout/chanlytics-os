@@ -1,6 +1,6 @@
 /**
  * What the first run's page holds besides its steps (moved from legacy/pages/first-run.jsx `FirstRun`, decision 0015):
- * the heading's focus as the step changes, a redraw as the Business tab's saver and doors move, the phone step's choice
+ * the heading's focus as the step changes, a redraw as the Business tab's saver and doors move, the owner's choice of number
  * kept in the tab with Stripe's answer read once on arrival, the second's clock while Try it is on screen, the quiet
  * look a step that waits takes at its own pace, and the once-a-session landing.
  */
@@ -10,6 +10,7 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { scrollerOf } from "../../kit/motion/page-scroll";
 import { liveOverride } from "../../live/surface";
 import { billingVerbs } from "../../settings/billing/surface";
+import { waConnect } from "../../settings/connections/whatsapp";
 import { businessTabSave } from "../shell";
 import { setupVerbs } from "../surface";
 import { keepPhoneChoice, phoneChoiceKept, type KeptPhoneChoice } from "./memory";
@@ -97,11 +98,11 @@ export function usePhoneChoice(
   useEffect(() => {
     const out = billingVerbs.outcome();
     const kept = phoneChoiceKept();
-    // Back with a card: Stripe returns to the first run's bare address, and the step it left is the phone's, which stays
-    // on screen once its line answers (a number kept still has its forwarding to set).
+    // Back with a card: Stripe returns to the first run, and the step it left is Go live, which stays on screen once its
+    // line answers (a number kept still has its forwarding to set).
     if (out === "success" && kept && kept.pending) {
       setPhoneChoice({ ...kept, returnedAt: Date.now() });
-      if (param !== "phone") replace("start/phone");
+      if (param !== "live") replace("start/live");
     }
     if (out === "cancel") {
       if (kept) setPhoneChoice({ ...kept, pending: false, sent: false, returnedAt: null });
@@ -122,6 +123,28 @@ export function useTryClock(onTry: { current: boolean }, redraw: () => void): vo
     }, TRY_CLOCK_MS);
     return () => clearInterval(t);
   }, [onTry, redraw]);
+}
+
+/**
+ * Whether this deployment can connect WhatsApp keeping the business's WhatsApp Business app (coexistence, decision 0073,
+ * R12): the signup configuration's own answer, asked once where a step offers WhatsApp. False until it answers.
+ */
+export function useKeepAppReady(on: boolean): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!on) return undefined;
+    let gone = false;
+    waConnect
+      .config()
+      .then((c) => {
+        if (!gone) setReady(!!c && c.ready && c.keep_app === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      gone = true;
+    };
+  }, [on]);
+  return ready;
 }
 
 /** Being here is the landing: Today does not send this tab back again this session. */

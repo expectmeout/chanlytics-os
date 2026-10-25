@@ -181,8 +181,9 @@ export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
 export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string> = {
-  person:
-    "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
+  // Nothing sends an email on its own (decision 0073, R15): Need you drafts the reply in the owner's voice (decision
+  // 0071), and it leaves from their mailbox on their press.
+  person: "An email arrived. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
   automated:
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.

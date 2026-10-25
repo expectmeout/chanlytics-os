@@ -188,7 +188,9 @@ const JOB_WORK = {
   event_deliver: { stopped: "A change could not be passed on to what reads it", to: "admin/activity" },
   // A text the door kept and the receptionist could not answer. Not sent (packages/jobs TOLD_ELSEWHERE): the deadman
   // sweep flags the thread and tells the owner with the customer's words, so these are the words should it ever be.
-  inbound_answer: { stopped: "A text could not be answered", to: "inbox" }
+  inbound_answer: { stopped: "A text could not be answered", to: "inbox" },
+  history_import: { stopped: "Bringing your history in stopped partway", to: "admin/integrations" },
+  website_read: { stopped: "Your website could not be read", to: "admin/receptionist" }
 };
 const JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 export function jobNewsWords(jobKind, end, how) {

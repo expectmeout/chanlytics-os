@@ -1,9 +1,12 @@
 /**
- * A connected mailbox read back (decision 0056): what arrived in it since its cursor, under any label or folder (a
- * reply a rule filed away, or one taken for junk, is a reply all the same), and of that only what sits in a thread a
- * reach-out started (00424 mailbox_threads_known) or is a delivery report, so nothing else the business receives is
- * ever read. Gmail's reports are found by who wrote them (a report seldom joins the thread it is about); Graph names a
- * message's sender before it is read, and its Junk Email is asked since the last read, Graph keeping no delta of it.
+ * A connected mailbox read back (decision 0056, and 0073's R13: the business's email is its mailbox): what arrived in it
+ * since its cursor, under any label or folder (a reply a rule filed away, or one taken for junk, is a reply all the
+ * same). What sits in a thread a reach-out started (00424 mailbox_threads_known) is read whatever it is, a delivery
+ * report is applied, and anything else is read for what it claims to be (channels classifyReceived, the intake's own
+ * sorting): an email a person wrote is taken in, as the hosted mailbox takes one in, and the rest (lists, receipts,
+ * notifications, automatic replies) is left where it is and counted. Gmail's reports are found by who wrote them (a
+ * report seldom joins the thread it is about); Graph names a message's sender before it is read, and its Junk Email is
+ * asked since the last read, Graph keeping no delta of it.
  *
  *   a delivery report   applied by whose fault it is (channels bounceClassOf), as a receipt made of the report:
  *                       hard, the row fails and the address we wrote to is stopped and its lead marked; a server's
@@ -19,6 +22,7 @@
  * once per message, a receipt that finds its row failed already). Called by the push doors and by the sweep.
  */
 import {
+  classifyReceived,
   deliveryReportOf,
   gmailEmailOf,
   gmailHistory,
@@ -64,7 +68,15 @@ interface Arrived {
   from: string | null;
   /** Found among the delivery reports by who wrote them (Gmail's), whatever thread it sits in. */
   report?: boolean;
+  /** Taken for spam or thrown away (Graph's Junk Email; Gmail's SPAM or TRASH): read only inside a thread of ours. */
+  junk?: boolean;
+  /** The mailbox's own sending or drafting (Gmail's SENT or DRAFT): never read. */
+  mine?: boolean;
 }
+
+/** Gmail's labels that say a message is spam or thrown away, and the ones that say it is the mailbox's own. */
+const GMAIL_JUNK = new Set(["SPAM", "TRASH"]);
+const GMAIL_MINE = new Set(["SENT", "DRAFT"]);
 
 /**
  * How far before the last read the reads a cursor cannot carry reach. Graph's Junk Email: half an hour, since each one
@@ -92,7 +104,7 @@ async function withSideArrivals(
   const have = new Set(arrived.map((a) => a.id));
   if (row.provider === "microsoft") {
     const junk = await graphJunkSince(token, new Date(last - SIDE_OVERLAP_MS).toISOString());
-    return [...arrived, ...junk.filter((j) => !have.has(j.id))];
+    return [...arrived, ...junk.filter((j) => !have.has(j.id)).map((j) => ({ ...j, junk: true }))];
   }
   const reports = new Set((await gmailReports(token, (last - REPORTS_OVERLAP_MS) / 1000)).map((r) => r.id));
   const marked = arrived.map((a) => (reports.has(a.id) ? { ...a, report: true } : a));
@@ -104,15 +116,26 @@ async function withSideArrivals(
 interface SyncOutcome {
   /** later: its line came before its first read, so it reads next time, its cursor where it was. */
   outcome: "synced" | "busy" | "no_token" | "started" | "restarted" | "failed" | "later";
-  /** Messages fetched: in a thread of ours, or a report. */
+  /** Messages fetched and read: everything but the mailbox's own and spam outside a thread of ours (R13). */
   read: number;
   /** Reports applied as bounces. */
   bounced: number;
   /** Replies handed to the intake. */
   replies: number;
+  /** Emails a person wrote, outside a thread of ours, handed to the intake (R13). */
+  people: number;
+  /** Emails read and left where they are: a list, a receipt, a notification, an automatic reply. */
+  dropped: number;
 }
 
-const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({ outcome, read: 0, bounced: 0, replies: 0 });
+const none = (outcome: SyncOutcome["outcome"]): SyncOutcome => ({
+  outcome,
+  read: 0,
+  bounced: 0,
+  replies: 0,
+  people: 0,
+  dropped: 0,
+});
 
 /** A sender that writes delivery reports: what Graph names as a message's sender, read before the message is. */
 const REPORTER = /^(mailer-daemon|postmaster|microsoftexchange[0-9a-f]*)@/i;
@@ -146,7 +169,15 @@ async function gmailChanges(
       // Past the line, the profile waits for the next sync: its cursor is where it was, and expires again then.
       return Date.now() < until ? fromNow() : { ok: true, arrived, cursor, started: false };
     }
-    arrived.push(...h.added.map((a) => ({ id: a.id, threadId: a.threadId, from: null })));
+    arrived.push(
+      ...h.added.map((a) => ({
+        id: a.id,
+        threadId: a.threadId,
+        from: null,
+        junk: a.labels.some((l) => GMAIL_JUNK.has(l)),
+        mine: a.labels.some((l) => GMAIL_MINE.has(l)),
+      })),
+    );
     if (h.next) next = h.next;
     page = h.nextPage;
     if (!page) break;
@@ -195,7 +226,7 @@ async function graphChanges(
 }
 
 /** One message, in full, as the intake reads any email; null when the provider has it no longer. */
-async function fetchEmail(row: MailboxConnectionRow, token: string, id: string): Promise<MailboxEmail | null> {
+export async function fetchEmail(row: MailboxConnectionRow, token: string, id: string): Promise<MailboxEmail | null> {
   const r = row.provider === "microsoft" ? await graphMessage(token, id) : await gmailMessage(token, id);
   if (r.outcome !== "ok") {
     if (r.status === 404) return null;
@@ -271,6 +302,49 @@ async function reportReceipt(
   };
 }
 
+/** What one arrival came to: gone, read and left, a report applied, left where it is, or handed to the intake. */
+type ArrivalTaken = "gone" | "left" | "bounced" | "dropped" | "reply" | "person";
+
+/** The count each arrival adds to, where it adds to one beyond `read`. */
+const COUNTED: Partial<Record<ArrivalTaken, "bounced" | "dropped" | "replies" | "people">> = {
+  bounced: "bounced",
+  dropped: "dropped",
+  reply: "replies",
+  person: "people",
+};
+
+/**
+ * One arrival, read in full and taken: the mailbox's own send and a report that names nothing of ours are left; a
+ * report is applied as a receipt; inside a thread of ours anything is a reply; outside one, only what a person wrote is
+ * taken in (R13), and a report, a list, a receipt, a notification or an automatic reply is left where it is, counted.
+ */
+async function takeArrival(
+  db: Db,
+  p: { row: MailboxConnectionRow; token: string; ours: Set<string>; own: string; at: Date; now: number },
+  a: Arrived,
+): Promise<ArrivalTaken> {
+  const { row, ours, own, at } = p;
+  const e = await fetchEmail(row, p.token, a.id);
+  if (!e) return "gone";
+  if (e.from?.address.toLowerCase() === own) return "left";
+  const receipt = await reportReceipt(db, row, e, p.now);
+  if (receipt === "none") return "left";
+  if (receipt) {
+    await applyEmailReceipt(db, receipt, at.toISOString());
+    return "bounced";
+  }
+  const inOurs = (!!a.threadId && ours.has(a.threadId)) || (!!e.threadId && ours.has(e.threadId));
+  if (!inOurs && (a.report || (a.from !== null && REPORTER.test(a.from)) || classifyReceived(e) !== "person"))
+    return "dropped";
+  await scheduleJobOnce(db, {
+    tenantId: row.tenant_id,
+    kind: "email_ingest",
+    dueAt: at,
+    payload: { source: "mailbox", mailbox_id: row.id, received_id: e.id },
+  });
+  return inOurs ? "reply" : "person";
+}
+
 /**
  * Read the mailbox back from its cursor, once, if no other sync holds it. No provider read starts after `until` (the
  * caller's line, so the one in flight still ends inside its function's limit): what is left waits for the next sync.
@@ -321,23 +395,21 @@ export async function syncMailbox(
           log.warn("mailbox_sync_failed", { mailbox: row.id, stage: "side", error: errField(err) });
           return changes.arrived;
         });
-    // Only a thread of ours is read, and a report however it is threaded (Graph names its sender up front; Gmail's
-    // reports were found by who wrote them).
+    // Every arrival is read but the mailbox's own (its sends and drafts: Graph names the sender up front, Gmail labels
+    // them) and spam outside a thread of ours: a thread of ours whatever it is, a report however it is threaded, and
+    // anything else for what it claims to be (R13).
     const ours = await knownThreads(
       db,
       row.tenant_id,
       arrived.map((a) => a.threadId).filter((t): t is string => !!t),
     );
     const own = row.address.toLowerCase();
-    const wanted = arrived
-      .filter((a) => (a.threadId && ours.has(a.threadId)) || a.report || (a.from !== null && REPORTER.test(a.from)))
-      .filter((a) => a.from !== own);
+    const wanted = arrived.filter(
+      (a) => !a.mine && a.from !== own && (!a.junk || (!!a.threadId && ours.has(a.threadId))),
+    );
     const seen = new Set<string>();
     const result: SyncOutcome = {
-      outcome: changes.started ? (row.sync_cursor ? "restarted" : "started") : "synced",
-      read: 0,
-      bounced: 0,
-      replies: 0,
+      ...none(changes.started ? (row.sync_cursor ? "restarted" : "started") : "synced"),
     };
     for (const a of wanted) {
       if (Date.now() >= until) {
@@ -347,26 +419,10 @@ export async function syncMailbox(
       if (seen.has(a.id)) continue;
       seen.add(a.id);
       try {
-        const e = await fetchEmail(row, t.token, a.id);
-        if (!e) continue;
-        result.read++;
-        if (e.from?.address.toLowerCase() === own) continue;
-        const receipt = await reportReceipt(db, row, e, now);
-        if (receipt === "none") continue;
-        if (receipt) {
-          await applyEmailReceipt(db, receipt, at.toISOString());
-          result.bounced++;
-          continue;
-        }
-        // A report from a reporter outside a thread of ours that names no email of ours is not ours to read.
-        if (!(a.threadId && ours.has(a.threadId)) && !(e.threadId && ours.has(e.threadId))) continue;
-        await scheduleJobOnce(db, {
-          tenantId: row.tenant_id,
-          kind: "email_ingest",
-          dueAt: at,
-          payload: { source: "mailbox", mailbox_id: row.id, received_id: e.id },
-        });
-        result.replies++;
+        const got = await takeArrival(db, { row, token: t.token, ours, own, at, now }, a);
+        if (got !== "gone") result.read++;
+        const counted = COUNTED[got];
+        if (counted) result[counted]++;
       } catch (err) {
         behind = true;
         log.error("mailbox_sync_failed", { mailbox: row.id, stage: "message", message: a.id, error: errField(err) });

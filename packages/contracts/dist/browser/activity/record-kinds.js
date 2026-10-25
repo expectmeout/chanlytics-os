@@ -26,7 +26,11 @@ export const RECORD_KINDS = {
   team: ["memberships", "invitations"],
   workspace: ["tenants"],
   notification: ["notifications"],
-  billing: ["billing_accounts"]
+  billing: ["billing_accounts"],
+  /** What a connection brought in, and what the Business Profile and the website say (decision 0073). */
+  brought: ["imports", "business_reads"],
+  /** A conversation rehearsed, or a call reviewed (decision 0069). */
+  rehearsal: ["rehearsals"]
 };
 export function liveTablesOf(kinds) {
   const tables = [];

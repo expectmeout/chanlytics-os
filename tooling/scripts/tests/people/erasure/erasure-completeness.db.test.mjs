@@ -97,6 +97,8 @@ const SHAPED = {
   "contacts.email_suppressed_reason": "hard_bounce",
   "contacts.consent_channels": ["sms"],
   "contacts.marketing_channels": ["sms"],
+  // What a client file said of them before Chanlytics (00477): a tool's name, dates and a count, as its CHECK holds it.
+  "contacts.before": { via: "vagaro", last_visit: "2026-09-30", visits: 12, birthday: "--04-23" },
   "conversations.control_kind": "call",
   "leads.mark_path": `${"a".repeat(64)}.png`,
 };
@@ -148,6 +150,7 @@ async function seed() {
     marketing_channels: SHAPED["contacts.marketing_channels"],
     email_suppressed_at: new Date().toISOString(),
     email_suppressed_reason: SHAPED["contacts.email_suppressed_reason"],
+    before: SHAPED["contacts.before"],
     proposal_url: URL_WITH,
   });
   B = await insert("contacts", { tenant_id: T, phone_e164: "+16465550198", display_name: "Bo Kept" });
@@ -260,7 +263,7 @@ async function seed() {
     }),
     "model_turns, someone else's",
   );
-  await insert("calls", {
+  const call = await insert("calls", {
     tenant_id: T,
     retell_call_id: `call-${DIGITS}-${RUN}`,
     agent_id: WORDS,
@@ -286,6 +289,17 @@ async function seed() {
     follow_up: WORDS,
     caller_name: WORDS,
     analysis: { note: WORDS },
+  });
+  // Their call reviewed (00476, decision 0069): the review holds the call's words, and goes with the call by its key.
+  await insert("rehearsals", {
+    tenant_id: T,
+    kind: "call_review",
+    call_id: call,
+    instructions: WORDS,
+    transcript: [{ role: "user", content: WORDS }],
+    review: { note: WORDS },
+    reviewed_at: new Date().toISOString(),
+    fixes: [{ said: WORDS }],
   });
   await insert("deals", {
     tenant_id: T,
@@ -598,13 +612,14 @@ test(
     assert.deepEqual(needlesLeft(), [], "a needle left is a column the registry claims and no leg reaches");
 
     const [tomb] = query(
-      `select erased_at is not null as erased, email_suppressed_reason, consent_channels, marketing_channels
+      `select erased_at is not null as erased, email_suppressed_reason, consent_channels, marketing_channels, before
        from public.contacts where id = '${A}'`,
     );
     assert.equal(tomb.erased, true);
     assert.equal(tomb.email_suppressed_reason, null, "the suppression's reason went with the address");
     assert.equal(tomb.consent_channels, null, "the channels they said yes on went with the answer");
     assert.equal(tomb.marketing_channels, null);
+    assert.equal(tomb.before, null, "what another system said of them went with them");
     const [lead] = query(`select mark_path, business_name from public.leads where tenant_id = '${T}'`);
     assert.deepEqual([lead.mark_path, lead.business_name], [null, ""], "the lead is blanked, its mark with it");
     const [{ n: threads }] = query(`select count(*)::int as n from public.conversations where contact_id = '${A}'`);

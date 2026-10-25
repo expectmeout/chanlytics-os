@@ -7,11 +7,14 @@ import {
   AskSettingsChangeSchema,
   FALLBACK_ROWS,
   GREETING_TEMPLATE,
+  PHONE_PACES,
+  PHONE_PACE_WORDS,
   PHONE_VOICES,
+  WALK_INS_CHOICES,
+  WALK_IN_WORDS,
   answerStyleOf,
   describeSettingsChange,
   proposalBelowNeeds,
-  type AskSettingsChange,
 } from "@chanlytics/contracts";
 import {
   actAction,
@@ -28,8 +31,11 @@ import { autonomyAction } from "./policy";
 import { load } from "../../../readers";
 import { memberViews } from "../../../readers/notifications";
 
-/** Each change's card title, in the person's words. */
-const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
+/**
+ * Each change's card title, in the person's words: every change the card's schema carries. A rehearsal's fix
+ * (AskFixChange, decision 0069) is kept from its review, never proposed here, so it has no card and no title.
+ */
+const SETTINGS_TITLE: Record<z.infer<typeof AskSettingsChangeSchema>["op"], string> = {
   add_closure: "Close for a day",
   set_hours: "Change the hours",
   add_note: "Remember this",
@@ -44,6 +50,9 @@ const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
   set_message: "When it can't answer",
   set_photos: "Photos",
   set_booking_link: "Your booking link",
+  set_assistant_name: "Its name",
+  set_phone_pace: "How fast it speaks",
+  set_walk_ins: "Walk-ins",
 };
 
 /** What the model sent for what the receptionist knows, its fields copied as each op takes them. */
@@ -95,6 +104,12 @@ function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> 
       return { op: raw.op, which: raw.which, text: said("text") };
     case "set_photos":
       return { op: raw.op, on: raw.on };
+    case "set_assistant_name":
+      return { op: raw.op, name: said("name") };
+    case "set_phone_pace":
+      return { op: raw.op, pace: said("pace") };
+    case "set_walk_ins":
+      return { op: raw.op, walk_ins: said("walk_ins") };
     default:
       return { op: raw.op, text: said("text") };
   }
@@ -165,12 +180,19 @@ const ANSWERS_OPS = [
   "add_own_words",
   "set_message",
   "set_photos",
+  "set_assistant_name",
+  "set_phone_pace",
+  "set_walk_ins",
 ] as const satisfies readonly (keyof typeof ASK_ANSWERS_ROWS)[];
 
 /** The voices a line may speak in, as the model is told them: a name and what the provider says of it. */
 const VOICES_SAID = PHONE_VOICES.map((v) => `${v.name} (${v.says})`).join(", ");
 /** The three messages, by the key the model sends and when each goes out. */
 const MESSAGES_SAID = FALLBACK_ROWS.map((r) => `${r.key} (${r.label.toLowerCase()})`).join(", ");
+/** The paces, by the key the model sends and how the owner says each. */
+const PACES_SAID = PHONE_PACES.map((p) => `${p} (${PHONE_PACE_WORDS.options[p].toLowerCase()})`).join(", ");
+/** Walk-ins, by the key the model sends and what each tells customers. */
+const WALK_INS_SAID = WALK_INS_CHOICES.map((w) => `${w} (${WALK_IN_WORDS.options[w].label.toLowerCase()})`).join(", ");
 
 /**
  * A row of How it answers as a card (the Settings wiring review, item 14, 18 Oct 2026): every row the page has, through
@@ -189,15 +211,19 @@ const answersAction = actAction({
       text: z.string().optional(),
       which: z.enum(["error", "non_text", "greeting"]).optional(),
       on: z.boolean().optional(),
+      name: z.string().optional(),
+      pace: z.enum(PHONE_PACES).optional(),
+      walk_ins: z.enum(WALK_INS_CHOICES).optional(),
     }),
   }),
   examples: [
     { row: { op: "set_languages", languages: ["English", "Spanish"] } },
     { row: { op: "set_phone_voice", voice: "Claudia" } },
     { row: { op: "set_transfer_number", number: "+1 212 555 0143" } },
+    { row: { op: "set_phone_pace", pace: "a_bit_slower" } },
   ],
   label: "Preparing a change to how it answers",
-  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently. ${approvalWords("settings")}.`,
+  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp), set_assistant_name (name, the name it introduces itself by, at most 40 characters, said beside "the automated assistant", which always stays; empty for none), set_phone_pace (pace on calls, one of ${PACES_SAID}), set_walk_ins (walk_ins, one of ${WALK_INS_SAID}; unset says nothing of walk-ins). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently, be called something, speak faster or slower, or say whether walk-ins are taken. ${approvalWords("settings")}.`,
   build: (t, input) => proposeSettings(t, { change: input.row }),
 });
 
@@ -255,7 +281,7 @@ const answerStyleAction = actAction({
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, languages, what callers hear and who they reach, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, name, languages, what callers hear, how fast it speaks and who they reach, walk-ins, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,

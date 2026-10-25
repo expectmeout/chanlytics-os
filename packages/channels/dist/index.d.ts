@@ -412,7 +412,92 @@ interface WaChangeValue {
             body?: string;
         };
     }>;
+    /** A chunk of the chat history the business shared as its app was kept (coexistence, the `history` field). */
+    history?: WaHistoryChunk[];
+    /** The app's contacts, as the business keeps them there (coexistence, the `smb_app_state_sync` field). */
+    state_sync?: WaStateSyncItem[];
+    errors?: WaGraphNotice[];
 }
+/** An error Meta puts in a webhook's value: its code and its words. */
+interface WaGraphNotice {
+    code?: number;
+    title?: string;
+    message?: string;
+}
+/** One message of a shared chat: `to` only on what the business sent. A type-named object holds the contents. */
+interface WaHistoryMessage extends Partial<Omit<WaRawMessage, "from" | "id" | "type">> {
+    from?: string;
+    to?: string;
+    id?: string;
+    type?: string;
+    history_context?: {
+        status?: string;
+    };
+}
+/**
+ * A chunk of the history (Meta's "Onboarding WhatsApp Business app users"): which of the three phases it belongs to
+ * (0 the day before the number connected, 1 back to 90 days, 2 back to 180), its place, how far the whole has come
+ * (100 is all of it), and the one-to-one chats in it. A business that turned sharing off is told as an error instead.
+ */
+interface WaHistoryChunk {
+    metadata?: {
+        phase?: number;
+        chunk_order?: number;
+        progress?: number;
+    };
+    threads?: Array<{
+        id?: string;
+        messages?: WaHistoryMessage[];
+    }>;
+    errors?: WaGraphNotice[];
+}
+/** One contact of the kept app: added or removed, with the names it is kept under (none on a removal). */
+interface WaStateSyncItem {
+    type?: string;
+    contact?: {
+        full_name?: string;
+        first_name?: string;
+        phone_number?: string;
+    };
+    action?: string;
+    metadata?: {
+        timestamp?: string;
+    };
+}
+/** Meta's code for a history the business chose not to share, in the app's own prompt. */
+declare const WA_HISTORY_NOT_SHARED = 2593109;
+/** A message of the history, as the edge keeps it: whose chat, which way it went, its words, and when. */
+interface WaHistoryRead {
+    /** The chat's WhatsApp id: the customer's, as a message from them names them. */
+    thread: string;
+    messageId: string;
+    direction: "inbound" | "outbound";
+    type: "text" | "media";
+    body: string | null;
+    at: string;
+    rawType: string;
+    status: string | null;
+}
+/** What one delivery's history change says: its phase and progress, a refusal to share, and its messages in order. */
+interface WaHistoryOf {
+    phase: number | null;
+    progress: number | null;
+    declined: boolean;
+    messages: WaHistoryRead[];
+}
+/**
+ * A `history` change read: every chunk's chats as messages, each named by its chat (a business-sent one by its `to`),
+ * the furthest phase and progress any chunk says, and whether the business declined to share (code 2593109, on the
+ * value or on a chunk). Group chats are never in it; what has no id or no time is left out.
+ */
+declare function sharedHistoryOf(v: WaChangeValue): WaHistoryOf;
+/** A contact the kept app shared: its number as dialled, and the name it is kept under. */
+interface WaSyncedContact {
+    phone: string;
+    name: string | null;
+}
+/** The contacts a `smb_app_state_sync` change adds; a removal is the app's own business and changes nothing here. */
+declare function contactsSyncedOf(v: WaChangeValue): WaSyncedContact[];
 interface WaMediaRef {
     provider_media_id: string;
     mime_type: string | null;
@@ -603,6 +688,8 @@ interface RetellCall {
     call_cost?: unknown;
     latency?: unknown;
     telephony_identifier?: unknown;
+    /** What the call was made with (create-web-call, or the inbound webhook's answer): stored by the provider, never read by it. */
+    metadata?: Record<string, unknown>;
 }
 interface NormalizedCall {
     retellCallId: string;
@@ -764,6 +851,33 @@ declare function createAgentVersion(cfg: RetellConfig, agentId: string, baseVers
 declare function updateAgent(cfg: RetellConfig, agentId: string, patch: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /publish-agent-version — a number pinned to latest_published follows it. */
 declare function publishAgentVersion(cfg: RetellConfig, agentId: string, version: number, title: string): Promise<RetellWrite>;
+/** What a browser joins a web call with (POST /v3/create-web-call's answer): the call, its token, its transport. */
+interface WebCallMade {
+    call_id: string;
+    access_token: string;
+    transport: string | null;
+    ice_servers: unknown[];
+    /** When the token stops letting a browser join, epoch ms. */
+    expires_at: number | null;
+}
+/**
+ * A web call's request (decision 0069): the agent, the variables a real call's plan gives it (call-start.ts), the call's
+ * own voice and length (agent_override, the saved agent untouched), and what the call is in our records (metadata, the
+ * provider's to keep and ours to read back on every delivery and tool call). Pure, so a test reads what is sent.
+ */
+declare function webCallBody(o: {
+    agentId: string;
+    variables: Record<string, string>;
+    voiceId: string | null;
+    /** How fast the voice speaks (decision 0073, R7), as a call on the line hears it; null or absent for its own pace. */
+    voiceSpeed?: number | null;
+    maxMs: number;
+    metadata: Record<string, string | number>;
+}): Record<string, unknown>;
+/** The answer as a browser needs it, or null when it is not one: a call id and a token are the least a join needs. */
+declare function webCallMadeOf(body: Record<string, unknown> | null): WebCallMade | null;
+/** POST /v3/create-web-call — a call a browser joins with the token it answers; nothing is dialed. */
+declare function createWebCall(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /create-retell-llm — the shell as a new LLM (voice-provision.ts builds the body). */
 declare function createRetellLlm(cfg: RetellConfig, body: Record<string, unknown>): Promise<RetellWrite>;
 /** POST /create-agent — an agent over a Retell LLM, with the product's voice and webhook. */
@@ -1234,7 +1348,7 @@ interface ElevenLabsConfig {
     apiKey: string;
     agentId: string;
 }
-type Deps$4 = Parameters<typeof providerFetch>[3];
+type Deps$7 = Parameters<typeof providerFetch>[3];
 type ConversationMint = {
     outcome: "ok";
     token: string;
@@ -1249,7 +1363,7 @@ type ConversationMint = {
  * `GET /v1/convai/conversation/token?agent_id=…` with the key. The answer names the conversation too, which the
  * post-call webhook will name again.
  */
-declare function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps$4): Promise<ConversationMint>;
+declare function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps$7): Promise<ConversationMint>;
 type SpeechStream = {
     outcome: "ok";
     body: ReadableStream<Uint8Array>;
@@ -1276,9 +1390,9 @@ declare function speakText(cfg: Pick<ElevenLabsConfig, "apiKey">, input: {
     modelId: string;
     text: string;
     previousText?: string;
-}, deps?: Deps$4): Promise<SpeechStream>;
+}, deps?: Deps$7): Promise<SpeechStream>;
 /** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */
-declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps$4): Promise<{
+declare function deleteConversation(cfg: Pick<ElevenLabsConfig, "apiKey">, conversationId: string, deps?: Deps$7): Promise<{
     outcome: "ok" | "rejected" | "unreachable";
     status: number;
 }>;
@@ -1514,7 +1628,19 @@ declare const twilioUrls: {
     messagingServices: string;
     serviceNumbers: (serviceSid: string) => string;
     messages: (sid: string) => string;
+    lookup: (e164: string) => string;
 };
+/** What Twilio Lookup said of a number's line (line type intelligence): its type and its carrier, as Twilio words them. */
+interface LineTypeAnswer {
+    type: string | null;
+    carrier: string | null;
+}
+/**
+ * A number's line, by the carrier's own records (decision 0073, R11: Twilio Lookup v2, line_type_intelligence): mobile,
+ * landline, fixed or non-fixed VoIP and the rest, and the carrier. A few cents a number, asked once at step 4. Null when
+ * Twilio could not say (no answer, a refusal, or a number it has no record of); never throws.
+ */
+declare function lookupLineType(acct: ProviderAccount, e164: string): Promise<LineTypeAnswer | null>;
 /** A provider refusal as an error the saga records: status, Twilio's code, its message. */
 declare class TwilioError extends Error {
     readonly status: number;
@@ -2490,6 +2616,11 @@ interface OAuthState {
     m?: string;
     /** 1 when the way out is a Microsoft admin's consent for their organisation, not a member's sign-in. */
     a?: number;
+    /**
+     * Where the owner comes back to, when it is not the connection's own Settings page: `start`, the first run that asked
+     * (decision 0073: Where it answers' tiles, Your business's Connect Google).
+     */
+    b?: string;
 }
 declare function signState(secret: string, s: OAuthState): Promise<string>;
 /** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
@@ -2512,10 +2643,17 @@ declare function newNonce(): string;
  * Mail.Send and Mail.ReadWrite (a draft is made from the MIME, its Message-ID read, then sent), and offline_access for a
  * lasting grant. The state that rides the way out and back is google-oauth.ts's (signState, verifyState), with the
  * provider in it.
+ *
+ * Asked beside them, never required (decision 0073, R18 to R20): the owner's contacts and the people they wrote to, and
+ * their calendars, read-only, so what the mailbox connects brings its people and its visits too. The owner may untick
+ * either on Google's screen; the mailbox still connects, and what it holds is asked of the grant (grantHolds). Google's
+ * screen keeps what an earlier consent gave (include_granted_scopes), so one app files every scope once.
  */
 
 /** What each provider is asked for. */
 declare const MAILBOX_SCOPES: Record<MailboxProvider, readonly string[]>;
+/** What a grant may bring beside its mail, each read only where the owner left it ticked (grantHolds). */
+type MailboxReach = "contacts" | "other_contacts" | "calendar";
 interface MailboxOAuthClient {
     clientId: string;
     clientSecret: string;
@@ -2556,6 +2694,141 @@ declare function parseMailboxGrant(json: unknown): MailboxGrant;
 declare function grantScopesMissing(provider: MailboxProvider, granted: string): string[];
 /** The grant's scopes, as the row keeps them. */
 declare function grantScopes(granted: string): string[];
+/** Whether a grant (its scopes, as a string or as the row keeps them) reaches beyond the mail to this. */
+declare function grantHolds(provider: MailboxProvider, granted: string | readonly string[], reach: MailboxReach): boolean;
+
+/**
+ * A connected mailbox's past, listed through its own grant (decision 0073, R19): the messages newer than a moment, a page
+ * at a time, under every folder but spam and the bin, as ids with their threads (and, from Graph, who wrote each before it
+ * is read). The edge reads each one (gmailMessage, graphMessage), sorts it as the intake sorts any email (intake.ts
+ * classifyReceived) and keeps mail from people and booking notices as before Chanlytics. Every call returns what it came
+ * to and never throws (provider-fetch.ts); a token is the caller's to hold.
+ */
+
+type Deps$6 = Parameters<typeof providerFetch>[3];
+/** One message of the past, as the list names it: its id and thread, and (Graph's) its sender and when it came. */
+interface ListedMail {
+    id: string;
+    threadId: string | null;
+    /** The sender's address, lower-cased, where the list says it (Graph); null where it does not (Gmail's list is ids). */
+    from: string | null;
+}
+/** A page of the past: the messages on it, and where the next page starts (null at the last). */
+type MailPage = {
+    ok: true;
+    listed: ListedMail[];
+    next: string | null;
+} | {
+    ok: false;
+    reply: ProviderReply;
+};
+/** The span a history read covers: from its first moment, up to (not including) the moment the mailbox connected. */
+interface MailWindow {
+    from: string;
+    to: string;
+}
+/**
+ * Gmail's messages received inside the window, newest first, every label but spam and the bin (the list's default),
+ * mail sent from the mailbox among them: the owner's replies are half of a thread with a person.
+ */
+declare function gmailListSince(token: string, window: MailWindow, pageToken: string | null, deps?: Deps$6): Promise<MailPage>;
+/**
+ * Graph's messages received inside the window, newest first, in every folder (the inbox, its rules' folders and Sent
+ * Items alike), drafts left out; `link` is the page Graph named next. Junk and Deleted Items are listed too, and the
+ * sorting keeps what a person wrote.
+ */
+declare function graphListSince(token: string, window: MailWindow, link: string | null, deps?: Deps$6): Promise<MailPage>;
+
+/**
+ * The people a connected mailbox's grant knows (decision 0073, R19): the owner's contacts (Google's People API, Graph's
+ * contacts) and, at Google, the people the owner wrote to that Google keeps as "other contacts". Each a name, the
+ * addresses and the numbers as the provider holds them; the edge brings them into People as a client list's are, never
+ * a yes. A page at a time; every call returns what it came to and never throws (provider-fetch.ts).
+ */
+
+type Deps$5 = Parameters<typeof providerFetch>[3];
+/** One person a mailbox knows: what they are called, and every address and number the provider holds for them. */
+interface KnownPerson {
+    name: string | null;
+    emails: string[];
+    phones: string[];
+}
+/** A page of people, and where the next one starts (null at the last). */
+type PeoplePage = {
+    ok: true;
+    people: KnownPerson[];
+    next: string | null;
+} | {
+    ok: false;
+    reply: ProviderReply;
+};
+/** The owner's own Google contacts (contacts.readonly), a page at a time. */
+declare function googleContacts(token: string, pageToken: string | null, deps?: Deps$5): Promise<PeoplePage>;
+/** The people the owner wrote to that Google keeps as other contacts (contacts.other.readonly), a page at a time. */
+declare function googleOtherContacts(token: string, pageToken: string | null, deps?: Deps$5): Promise<PeoplePage>;
+/** The owner's Outlook contacts (Contacts.Read), a page at a time; `link` is the page Graph named next. */
+declare function graphContacts(token: string, link: string | null, deps?: Deps$5): Promise<PeoplePage>;
+
+type Deps$4 = Parameters<typeof providerFetch>[3];
+/** One event of the owner's calendar, as the feed writes it. */
+interface CalendarEvent {
+    uid: string;
+    /** Epoch ms; an all-day event's day as YYYY-MM-DD beside it. */
+    start: number;
+    end: number;
+    allDay: boolean;
+    startDay: string | null;
+    endDay: string | null;
+    title: string;
+    description: string | null;
+    location: string | null;
+    attendees: Array<{
+        name: string | null;
+        email: string | null;
+    }>;
+    organizer: string | null;
+    /** For one occurrence of a series, the instant it was due before it was moved (epoch ms); null for a single event. */
+    due: number | null;
+    /** Marked free on the calendar (Google's transparency, Graph's showAs free): no time is taken. */
+    free: boolean;
+}
+/** A page of events, and where the next starts (null at the last). */
+type EventsPage = {
+    ok: true;
+    events: CalendarEvent[];
+    next: string | null;
+} | {
+    ok: false;
+    reply: ProviderReply;
+};
+/** The calendars of an account, by id. */
+type CalendarIds = {
+    ok: true;
+    ids: string[];
+} | {
+    ok: false;
+    reply: ProviderReply;
+};
+/** Every calendar of a Google account the grant reads, but the ones Google makes for everyone. */
+declare function googleCalendarIds(token: string, deps?: Deps$4): Promise<CalendarIds>;
+/** One calendar's events between two instants, a page at a time, each occurrence of a series apart. */
+declare function googleEvents(token: string, calendarId: string, window: {
+    from: string;
+    to: string;
+}, pageToken: string | null, deps?: Deps$4): Promise<EventsPage>;
+/** Every calendar of a Microsoft 365 account the grant reads. */
+declare function graphCalendarIds(token: string, deps?: Deps$4): Promise<CalendarIds>;
+/** One calendar's events between two instants (its calendar view), a page at a time, each occurrence apart. */
+declare function graphEvents(token: string, calendarId: string, window: {
+    from: string;
+    to: string;
+}, link: string | null, deps?: Deps$4): Promise<EventsPage>;
+/**
+ * The events as one iCal feed, what the owner's calendar link would have said of them: each event's UID, its time (an
+ * all-day one by its days), its words, its guests and organizer, an occurrence's RECURRENCE-ID, and a free one marked
+ * transparent, so the feed's reader (contracts parseIcs) takes from it exactly what it takes from a link.
+ */
+declare function calendarIcs(events: readonly CalendarEvent[]): string;
 
 /** The Message-ID a mailbox's email is sent under: the row's id, on the mailbox's own host, so it is ours to find. */
 declare function mailboxMessageId(rowId: string, host: string): string;
@@ -2678,9 +2951,11 @@ declare function gmailNoMailbox(r: Pick<ProviderReply, "status" | "json">): bool
 /** What history said: the messages added since the cursor, with their threads, and the cursor to read from next. */
 type GmailHistory = {
     ok: true;
+    /** Each message added, with the labels it arrived under (SPAM, SENT, DRAFT…): what it is, before it is read. */
     added: Array<{
         id: string;
         threadId: string;
+        labels: string[];
     }>;
     next: string | null;
     nextPage: string | null;
@@ -3457,6 +3732,11 @@ declare const GBP_LOCATIONS_READ_MASK = "name,title,storefrontAddress,metadata";
 declare const GBP_REVIEWS_PAGE = 50;
 /** Pages of fifty read on one sync: a history of two hundred and fifty, then the newest page each day. */
 declare const GBP_REVIEWS_MAX_PAGES = 5;
+/**
+ * Pages read on a location's first sync (decision 0073, R17): every review it has, as far as one sync can read in its
+ * function's time, two thousand at most; reviews_complete says whether that was all of them.
+ */
+declare const GBP_REVIEWS_FIRST_PAGES = 40;
 declare function accountsRequest(token: string, pageToken?: string | null): PlacesRequest;
 declare function locationsRequest(token: string, accountName: string, pageToken?: string | null): PlacesRequest;
 /** The v4 review path: accounts/{a}/locations/{l}, from the account's name and the location's. */
@@ -3530,6 +3810,41 @@ declare function replyToReview(http: PlacesHttp, token: string, reviewName: stri
 /** A reply as Google accepts it: words, at most this many characters. */
 declare const GBP_REPLY_MAX = 4096;
 declare function cleanReply(text: unknown): string;
+/** One opening period, as the Places listing's week keeps one (day 0 is Sunday); no close is around the clock. */
+interface GbpPeriod {
+    open: {
+        day: number;
+        hour: number;
+        minute: number;
+    };
+    close: {
+        day: number;
+        hour: number;
+        minute: number;
+    } | null;
+}
+/** A location's details, as the first run's Check offers them (each kept only on the owner's tap). */
+interface GbpLocationDetails {
+    hours: GbpPeriod[] | null;
+    /** Days the location says it is closed, YYYY-MM-DD, each run of days with its last. */
+    closed: Array<{
+        date: string;
+        until: string | null;
+    }>;
+    phone: string | null;
+    website: string | null;
+    /** Its primary category's name ("Hair salon"), and the rest. */
+    category: string | null;
+    categories: string[];
+    description: string | null;
+    /** Its services as the profile lists them, each with its price where it gives one ("$65", "65 EUR"). */
+    services: Array<{
+        name: string;
+        price_note: string | null;
+    }>;
+}
+/** A connected location's details (locations.get with GBP_DETAILS_READ_MASK); throws a PlacesError when Google refuses. */
+declare function readLocationDetails(http: PlacesHttp, token: string, locationName: string): Promise<GbpLocationDetails>;
 
 /**
  * The check: what a fresh read of the listing changes, decided once, purely.
@@ -3930,4 +4245,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BounceClass, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, type CompanyJudgeAnswer, type ConversationMint, DKIM_SELECTORS, type DeliveryReport, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, type FoundSent, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, type GmailHistory, type GmailSent, type GraphDelta, type GraphSent, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MAILBOX_SCOPES, MESSAGING, type MailCapability, type MailDomainFacts, type MailboxEmail, type MailboxGrant, type MailboxOAuthClient, type MailboxRequest, type MailboxSendInput, type MailboxSendResult, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderCall, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, type PushTokenRefusal, REQUEST_ID_HEADER, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, SPF_INCLUDES, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, type TxtAnswer, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaMediaRef, type WaPricing, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandNameOf, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, buildMime, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, clientStateMatches, connectedIdentity, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, deliveryReportOf, desiredVoiceShell, dkimOf, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, formatRejected, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, gmailDayUsed, gmailEmailOf, gmailFindSent, gmailHistory, gmailMessage, gmailNoMailbox, gmailProfile, gmailPushOf, gmailReports, gmailSend, gmailSentIds, gmailSignedOut, gmailStop, gmailThreadOf, gmailWatch, grantHasScope, grantScopes, grantScopesMissing, graphDayUsed, graphDeleteMessage, graphDelta, graphEmailOf, graphFindSent, graphInbox, graphJunkSince, graphMe, graphMessage, graphNoMailbox, graphNotificationsOf, graphRenew, graphSend, graphSignedOut, graphSubscribe, graphThrottled, graphUnsubscribe, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, mailDomainsFrom, mailboxAdminConsentUrl, mailboxAuthorizeUrl, mailboxHeader, mailboxMessageId, mailboxRefreshRequest, mailboxRevokeRequest, mailboxTokenRequest, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, noteTouch, oneLine, oneTimeCodeOf, pageText, parseAccounts, parseLocations, parseMailboxGrant, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readLocation, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, requestTouches, resendLimitOf, resendWebhookSignature, resetBreakers, resetFastHolds, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, rowIdOfMessageId, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendFromMailbox, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsConnected, setPublicFetch, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, spfNamesProvider, spfRecordsOf, spfTermsOf, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyGooglePushToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, withCarrierConsent, withKey, withRequestId };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, BOT_USER_AGENT, type BounceClass, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CalendarEvent, type CalendarIds, type CampaignError, type CampaignFacts, type CarrierConsent, type CompanyJudgeAnswer, type ConversationMint, DKIM_SELECTORS, type DeliveryReport, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, ELEVENLABS_SIGNATURE_HEADER, ELEVENLABS_WEBHOOK_TOLERANCE_S, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type ElevenLabsConfig, type EmailCampaign, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, type EventsPage, FACTS_UNAVAILABLE, FRESH_SLACK_MS, type FoundSent, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_FIRST_PAGES, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpLocationDetails, type GbpPeriod, type GbpReview, type GbpReviewsPage, type GmailHistory, type GmailSent, type GraphDelta, type GraphSent, HANDOFF_VAR, type KnownPerson, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineTypeAnswer, type LineVoiceState, type ListCallsPage, type ListedMail, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, type LogFields, type LogLevel, type Logger, MAILBOX_SCOPES, MESSAGING, type MailCapability, type MailDomainFacts, type MailPage, type MailWindow, type MailboxEmail, type MailboxGrant, type MailboxOAuthClient, type MailboxReach, type MailboxRequest, type MailboxSendInput, type MailboxSendResult, type ModelAsk, type ModelBlock, type ModelDeps, type ModelMessage, type ModelOutcome, type ModelReply, type ModelStreamReply, type NormalizedCall, type NormalizedInbound, NotPublicError, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PeoplePage, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type Provider, type ProviderAccount, type ProviderCall, type ProviderReply, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, type PublicFetchDeps, type PushTokenRefusal, REQUEST_ID_HEADER, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type ReceivedText, type RecordingFetch, type RequestTiming, type ResendAnswer, type ResendConfig, type ResendLimit, type Resolve, type Resolved, type RetellAgentConfig, type RetellCall, type RetellCallRead, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_MIN_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, SPF_INCLUDES, STATE_TTL_MS, SYSTEM_ONE_URL, type SagaResult, type SendEmailOptions, type SendOutcome, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SpeechStream, type SvixHeaders, type SystemOneAsk, type SystemOneReply, TRUSTHUB, TWILIO_TIMEOUT_MS, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, type TxtAnswer, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WA_HISTORY_NOT_SHARED, WEBHOOK_TOLERANCE_S, WHATSAPP_SEND_TIMEOUT_MS, type WaChangeValue, type WaConfig, type WaHistoryChunk, type WaHistoryOf, type WaHistoryRead, type WaMediaRef, type WaPricing, type WaRawMessage, type WaStateSyncItem, type WaSyncedContact, type WebCallMade, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, answerObject, apifyClient, askModel, askSystemOne, assignRequest, authorizeUrl, availabilityUrl, b64url, brandNameOf, brandRequest, brandTypeFor, breakerOf, breakerStates, buildEmailRequest, buildMime, businessAttributes, businessEndUserRequest, calendarIcs, callSummaryLine, campaignRequest, campaignsIdentity, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, clientStateMatches, connectedIdentity, contactsSyncedOf, createAgent, createAgentVersion, createPhoneNumber, createRetellLlm, createWebCall, customerProfileRequest, deleteCampaignRequest, deleteConversation, deletePhoneNumber, deleteReplyRequest, deliveryReportOf, desiredVoiceShell, dkimOf, dmarcOf, dryProvider, edgeBodyMatches, elevenLabsWebhookSignature, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, errField, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, formatRejected, getAgent, getAgentRaw, getCall, getPhoneNumber, getPlace, getRetellLlm, gmailDayUsed, gmailEmailOf, gmailFindSent, gmailHistory, gmailListSince, gmailMessage, gmailNoMailbox, gmailProfile, gmailPushOf, gmailReports, gmailSend, gmailSentIds, gmailSignedOut, gmailStop, gmailThreadOf, gmailWatch, googleCalendarIds, googleContacts, googleEvents, googleOtherContacts, grantHasScope, grantHolds, grantScopes, grantScopesMissing, graphCalendarIds, graphContacts, graphDayUsed, graphDeleteMessage, graphDelta, graphEmailOf, graphEvents, graphFindSent, graphInbox, graphJunkSince, graphListSince, graphMe, graphMessage, graphNoMailbox, graphNotificationsOf, graphRenew, graphSend, graphSignedOut, graphSubscribe, graphThrottled, graphUnsubscribe, hostedAddress, hostedIdentity, idTokenClaims, imageBytes, importPhoneNumber, isAreaCode, isBrandNotReady, isEmailRequest, isPublicAddress, isValidSipPassword, keywordsFor, leadJudge, lineCodesFrom, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, logger, lookupLineType, mailDomainsFrom, mailboxAdminConsentUrl, mailboxAuthorizeUrl, mailboxHeader, mailboxMessageId, mailboxRefreshRequest, mailboxRevokeRequest, mailboxTokenRequest, mergeConsent, messageIdHeader, messageIdsIn, mintConversationToken, newDraftNote, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, noteTenant, noteTiming, noteTouch, oneLine, oneTimeCodeOf, pageText, parseAccounts, parseLocations, parseMailboxGrant, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerFetch, publicFetch, publicFetcher, publicLookup, publishAgentVersion, readLocation, readLocationDetails, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestId, requestIdOf, requestIdShaped, requestLeavesAs, requestTenant, requestTimings, requestTouches, resendLimitOf, resendWebhookSignature, resetBreakers, resetFastHolds, retellImportBody, retellLocalesFor, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, rowIdOfMessageId, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendFromMailbox, sendTemplate, sendText, senderAuthenticated, sendsAs, sendsAsCampaigns, sendsAsConnected, setPublicFetch, sharedHistoryOf, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, speakText, spfNamesProvider, spfRecordsOf, spfTermsOf, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, streamModel, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioRequest, twilioSignature, twilioSignedString, twilioUrls, unb64url, unpublishedLatestNote, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyElevenLabsWebhook, verifyGooglePushToken, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, waPricingOf, waStoppedMarketing, webCallBody, webCallMadeOf, withCarrierConsent, withKey, withRequestId };

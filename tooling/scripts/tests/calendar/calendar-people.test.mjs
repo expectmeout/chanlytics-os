@@ -1041,11 +1041,11 @@ test("one refused number costs one person, never everyone behind them", () => {
   assert.equal(afterPersonRefused(""), "stop");
 
   // The board no longer adds people (a read never writes: decision 0047, lane 6); the import door is the member's batch
-  // writer that asks the rule now, rather than deciding inline.
-  const svc = readCode("apps/dashboard/app/api/v1/contacts/import/route.ts");
+  // writer that asks the rule now, rather than deciding inline (its verb since decision 0073: server/people/import-people.ts).
+  const svc = readCode("apps/dashboard/src/server/people/import-people.ts");
   assert.ok(
-    svc.includes('if (afterPersonRefused(error.code) === "skip" || error.code === ERASED) {') &&
-      svc.includes("continue;"),
+    svc.includes('if (afterPersonRefused(person.code) === "skip" || person.code === ERASED) {') &&
+      svc.includes("out.skipped.push({ line, reason: person.message });"),
     "the batch must ASK the rule rather than deciding inline",
   );
 });
@@ -2656,6 +2656,8 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
     timezone: TZ,
     notifications: null,
     brain,
+    // What the runtime always carries beside the config (tenant-runtime.ts): here, nothing known.
+    known: { workspace: null, channels: [], listing: null },
   });
   const maria = { phone: PEOPLE[0].phone, name: null };
   try {

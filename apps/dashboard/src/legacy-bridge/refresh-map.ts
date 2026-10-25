@@ -492,6 +492,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // receptionist reads (Keep adds one, through the settings' own write) and the Autonomy pane's list of what waits (each
   // answer leaves it one shorter), so Settings reads again. A note is read by nothing else a page draws.
   "POST fact-suggestions/[id]": settings,
+  // A fix kept from a rehearsal or a call reviewed (decision 0069): a settings write, through the settings' own write, so
+  // Settings reads again; the rehearsal's count of what was fixed comes back in the answer the card draws.
+  "POST receptionist/keep": settings,
   // A line of what Ask remembers kept, changed or forgotten (decision 0070): the Memory pane's own read, where it is drawn.
   // Nothing else a page draws reads the memory: Ask reads it fresh with every question.
   "POST ask/memory": memoryIfDrawn,
@@ -576,6 +579,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lines/forwarding": () => [setupOverride, settingsOverride],
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
+  // A connection's history asked for again (decision 0073, R23): its ledger row starts over, which Setup carries to the first
+  // run's Bringing it in and Today's Brought in.
+  "POST imports/again": setup,
   "PUT business-record": setup,
   // Making the mailbox adds a line, so the count above the work changes with it, and opens the email channel to a campaign.
   // And the Calendar: its read carries the workspace's address, which the Booking tool row offers to make and then
@@ -677,6 +683,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST people/[id]/draft": "a draft of a message or of a call's brief, shown in the sheet that asked",
   "POST people/[id]/say": "a sheet's fields, filled from what was said; nothing is stored until the sheet's Save",
   "POST lines/search": "a search for numbers to buy",
+  "POST lines/lookup":
+    "a look at what a number is, by the carrier's records, drawn in the calls tile that asked; nothing is kept",
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",
   "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
@@ -703,6 +711,14 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST sequences/[id]/steps/[step]/test": "a test of a step's message to the member's own address; nothing moves",
   "POST receptionist/try":
     "a message tried on the receptionist from How it answers, drawn in its card; nothing is sent",
+  // A rehearsal (decision 0069) is the Rehearse card's own: no other page reads one.
+  "POST receptionist/rehearsals":
+    "a rehearsal's call started, which the Rehearse card reads itself while it runs; nothing else shows a rehearsal",
+  "POST receptionist/review":
+    "a conversation's review, drawn from the answer by the card or the call that asked for it",
+  "POST receptionist/fix": "where a fix would go, drawn in the card from the answer; nothing is kept until Keep",
+  "POST receptionist/agent":
+    "the rehearsal's agent made ahead of the first call (decision 0073), in the background; no page shows it",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",

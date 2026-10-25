@@ -14,7 +14,11 @@ import {
   setupSteps,
   setupLaterOf,
   setupPhoneWantOf,
+  setupChoicesOf,
   SETUP_LATER_REFUSED,
+  type ImportSource,
+  type LineLookupDto,
+  type SetupChoices,
   type SetupDto,
   type SetupPhoneWant,
   type SetupVM,
@@ -40,8 +44,10 @@ export interface SetupSurface {
   role: string;
   /** The rows this member put off: their saved Setup view (memberships.views.setup), the same on every device. */
   later: string[];
-  /** The number this member said they keep or move on the first run's phone step, from the same saved view. */
+  /** The number this member said they keep, move or get at the first run's Where it answers, from the same saved view. */
   want: SetupPhoneWant | null;
+  /** What else Where it answers chose (decision 0073: WhatsApp), from the same saved view. */
+  choices: SetupChoices;
   vm: SetupVM;
   fetchedAt: number;
 }
@@ -54,14 +60,26 @@ interface SetupApi {
    * beside the rows they put off, so the step asks for its forwarding from any tab. Nothing to say where it stands.
    */
   want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: string }>;
+  /** What else Where it answers chose (WhatsApp): saved to the same view, through the same one line of saves. */
+  choose(next: Partial<SetupChoices>): Promise<{ ok: boolean; message: string }>;
   /**
    * The receptionist from what is known: set up where there is none, from Google's listing when one is linked and the
    * name typed at sign-up otherwise; filled from Google where one states none of it. `wrote` is false when there was
    * nothing to add. Owners only; the route says so.
    */
   receptionist(): Promise<{ ok: boolean; wrote: boolean; message: string }>;
+  /**
+   * The workspace's receptionist made at the voice provider before any number (decision 0073, R1), as the first run's
+   * Your receptionist goes on to rehearse. Best effort: `made` false where the provider is not there.
+   */
+  makeAgent(): Promise<{ made: boolean }>;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
+  /**
+   * Bring a source's history in again where its run stopped (decision 0073, R23): the job for that source is asked to
+   * start where it left off. Owners and managers; the route says so.
+   */
+  importAgain(source: ImportSource): Promise<{ ok: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
   /** `firstRun`: the first run's Finish, whose first activation of calls emails the owner (the capability route). */
   activate(kind: string, opts?: { firstRun?: boolean }): Promise<{ ok: boolean; message: string }>;
@@ -80,6 +98,12 @@ interface SetupApi {
     search(areaCode: string): Promise<{ ok: boolean; numbers: LineChoice[]; message: string }>;
     buy(number: string, areaCode: string): Promise<{ ok: boolean; queued: boolean; message: string }>;
     retry(lineId: string): Promise<{ ok: boolean; queued: boolean; message: string }>;
+    /**
+     * What a number's line is, by the carrier's own records (decision 0073, R11): a mobile, a landline or an office
+     * phone system, and a mobile's company, so Go live's code is chosen with no question asked. Null where the lookup is
+     * not on this deployment or could not say.
+     */
+    lookup(number: string): Promise<LineLookupDto | null>;
   };
   /** Keep the number you have: save the carrier and the mode, then open the test window. Owners only; the route says so. */
   forwarding: {
@@ -108,14 +132,34 @@ export interface LineChoice {
   region: string | null;
 }
 
-function publish(dto: SetupDto, role: string, later: string[], want: SetupPhoneWant | null): void {
-  setSurfaceValue("setup", { dto, role, later, want, vm: setupSteps({ ...dto, later, want }), fetchedAt: Date.now() });
+const NO_CHOICES: SetupChoices = { whatsapp: null };
+
+/** Setup as the seam holds it: the read, the member's role, and their own saved view (put-offs, the number, choices). */
+function publish(
+  dto: SetupDto,
+  role: string,
+  view: { later: string[]; want: SetupPhoneWant | null; choices?: SetupChoices },
+): void {
+  const { later, want, choices = NO_CHOICES } = view;
+  setSurfaceValue("setup", {
+    dto,
+    role,
+    later,
+    want,
+    choices,
+    vm: setupSteps({ ...dto, later, want, choices }),
+    fetchedAt: Date.now(),
+  });
 }
 
 /** The member's Setup view as it stands on the page: a save replaces the whole of it, so every save sends all of it. */
 function viewNow(): Record<string, unknown> {
   const s = surfaceValue("setup");
-  return { later: s?.later ?? [], ...(s?.want ? { phone: s.want } : {}) };
+  return {
+    later: s?.later ?? [],
+    ...(s?.want ? { phone: s.want } : {}),
+    ...(s?.choices.whatsapp ? { whatsapp: s.choices.whatsapp } : {}),
+  };
 }
 
 /**
@@ -140,8 +184,9 @@ async function readSetup(): Promise<void> {
   const held = !!prior && (laterPending > 0 || !v);
   const later = held ? prior.later : v ? setupLaterOf(v.views.setup) : [];
   const want = held ? prior.want : v ? setupPhoneWantOf(v.views.setup) : null;
+  const choices = held ? prior.choices : v ? setupChoicesOf(v.views.setup) : NO_CHOICES;
   laterKnown = !!v || (laterKnown && !!prior);
-  publish(d.setup, d.role, later, want);
+  publish(d.setup, d.role, { later, want, choices });
 }
 
 /** The forwarding card's words and codes: contracts', with the number and the age as the app writes them. */
@@ -170,7 +215,7 @@ function later(ids: string | string[], on: boolean): Promise<{ ok: boolean; mess
     const now = surfaceValue("setup");
     if (!now) return;
     const next = off ? [...new Set([...now.later, ...changed])] : now.later.filter((x) => !changed.includes(x));
-    publish(now.dto, now.role, next, now.want);
+    publish(now.dto, now.role, { later: next, want: now.want, choices: now.choices });
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   move(on);
@@ -188,7 +233,14 @@ function later(ids: string | string[], on: boolean): Promise<{ ok: boolean; mess
 
 /** The same want, said twice: nothing to save. */
 const sameWant = (a: SetupPhoneWant | null, b: SetupPhoneWant | null): boolean =>
-  a === b || (!!a && !!b && a.way === b.way && a.number === b.number);
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.way === b.way &&
+    a.number === b.number &&
+    a.mode === b.mode &&
+    a.rings === b.rings &&
+    a.company === b.company);
 
 /**
  * The number kept or moved, or none: shown at once, saved through the put-off rows' one line of saves (the view is one
@@ -203,7 +255,7 @@ function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: stri
   const say = (w: SetupPhoneWant | null) => {
     const now = surfaceValue("setup");
     if (!now) return;
-    publish(now.dto, now.role, now.later, w);
+    publish(now.dto, now.role, { later: now.later, want: w, choices: now.choices });
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   say(next);
@@ -219,6 +271,35 @@ function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: stri
   return saved;
 }
 
+/**
+ * What else Where it answers chose: shown at once, saved through the same one line of saves as the rows and the want,
+ * and put back as it was where refused.
+ */
+function saveChoices(next: Partial<SetupChoices>): Promise<{ ok: boolean; message: string }> {
+  const s = surfaceValue("setup");
+  if (!s) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.reading });
+  if (!laterKnown) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.unread });
+  const before = s.choices;
+  const after: SetupChoices = { ...before, ...next };
+  if (after.whatsapp === before.whatsapp) return Promise.resolve({ ok: true, message: "" });
+  const say = (c: SetupChoices) => {
+    const now = surfaceValue("setup");
+    if (!now) return;
+    publish(now.dto, now.role, { later: now.later, want: now.want, choices: c });
+    window.dispatchEvent(new CustomEvent("surface:setup"));
+  };
+  say(after);
+  laterPending += 1;
+  const saved = laterSaving.then(async () => {
+    const r = await saveView("setup", viewNow());
+    laterPending -= 1;
+    if (!r.ok && surfaceValue("setup")?.choices.whatsapp === after.whatsapp) say(before);
+    return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+  });
+  laterSaving = saved;
+  return saved;
+}
+
 /** A quiet look still out: a second one waits for it. */
 let peeking = false;
 
@@ -226,9 +307,14 @@ let peeking = false;
 export const setupVerbs: SetupApi = {
   later,
   want,
+  choose: saveChoices,
   async receptionist() {
     const r = await api()("POST settings/receptionist", { body: {} });
     return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };
+  },
+  async makeAgent() {
+    const r = await api()("POST receptionist/agent", { body: {} });
+    return { made: r.ok ? r.data.made === true : false };
   },
   async activate(kind, opts) {
     const r = await api()("POST capabilities/[kind]", {
@@ -268,6 +354,10 @@ export const setupVerbs: SetupApi = {
       if (!r.ok) return { ok: false, queued: false, message: r.message };
       return { ok: r.data.ok, queued: r.data.queued, message: "" };
     },
+    async lookup(number) {
+      const r = await api()("POST lines/lookup", { body: { number } });
+      return r.ok ? (r.data.lookup as LineLookupDto | null) : null;
+    },
     async retry(lineId) {
       const r = await api()("POST lines/retry", { body: { line_id: lineId } });
       if (!r.ok) return { ok: false, queued: false, message: r.message };
@@ -287,6 +377,10 @@ export const setupVerbs: SetupApi = {
       const r = await api()("POST lines/forwarding/test", { body: { line_id: lineId }, once: true });
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
+  },
+  async importAgain(source) {
+    const r = await api()("POST imports/again", { body: { source } });
+    return { ok: r.ok, message: r.ok ? "" : r.message };
   },
   async request(what) {
     const r = await api()("POST setup/request", { body: { what }, once: true });

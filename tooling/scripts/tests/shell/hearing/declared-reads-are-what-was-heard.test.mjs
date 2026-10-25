@@ -289,6 +289,10 @@ const HEARD_BEFORE = {
     // A sequence turned on: Today's card stops offering the day-before reminder once one runs (SetupDto.reminders).
     "sequences",
     "sequence_steps",
+    // What is brought in, what the profile and the website say, and a rehearsal (00480, decision 0073).
+    "imports",
+    "business_reads",
+    "rehearsals",
   ],
   // And the rule that says whether the receptionist answers a review on its own (W-review-facts-rules-8).
   google: ["google_listings", "google_reviews", "google_connections", "policies"],
@@ -392,6 +396,10 @@ const ON_ITS_PAGE_BEFORE = {
     "conversations",
     "sequences",
     "sequence_steps",
+    // The first run's Bringing it in, Found for you and Rehearse, and Today's Brought in (00480, decision 0073).
+    "imports",
+    "business_reads",
+    "rehearsals",
   ],
 };
 
@@ -472,6 +480,8 @@ test("the kinds name every table the database tells a workspace of, each in exac
     "workspace",
     "notification",
     "billing",
+    "brought",
+    "rehearsal",
   ]);
 });
 

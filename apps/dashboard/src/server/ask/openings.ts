@@ -3,12 +3,14 @@ import {
   BOOKING_DEFAULTS,
   MIN_MS,
   bookingToolName,
+  calendarFeedKeyOf,
   describeOpenings,
   feedBodyProblem,
   feedUrlOk,
   fetchPublic,
   filterOpenings,
   freeWindows,
+  mailboxCalendarOf,
   offerFor,
   offerLead,
   offeringHorizon,
@@ -24,7 +26,27 @@ import {
 } from "@chanlytics/contracts";
 import { publicFetcher } from "@chanlytics/channels";
 import { fillerFeedFor } from "../calendar/filler-calendar";
+import { callEdge, edgeConfigured } from "../edge";
 import { log } from "@/server/log";
+
+/** How long the edge has to read a calendar through a mailbox's grant: a few pages of each calendar. */
+const GRANT_FEED_MS = 20_000;
+
+/**
+ * A calendar read through a connected mailbox's grant (decision 0073, R20), as iCal: the edge holds the grant
+ * (apps/edge/api/admin/calendar/feed.ts), so the dashboard asks it. Throws a refusal the cache keeps as a failed read.
+ */
+async function grantFeedText(tenantId: string): Promise<string> {
+  if (!edgeConfigured()) throw new FeedRefused("unreachable");
+  const a = await callEdge(
+    "/api/admin/calendar/feed",
+    { tenant_id: tenantId },
+    { workspace: tenantId, user: null, timeoutMs: GRANT_FEED_MS },
+  );
+  const b = a.body as { ok?: boolean; text?: unknown } | null;
+  if (a.status !== 200 || !b?.ok || typeof b.text !== "string") throw new FeedRefused("http", a.status);
+  return b.text;
+}
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way
@@ -144,6 +166,15 @@ export async function loadFeed(
 async function fetchInto(tenantId: string, url: string, hit: FeedEntry | undefined): Promise<FeedRead> {
   const now = Date.now();
   try {
+    // A calendar read through a mailbox's grant is the edge's to read (decision 0073, R20), and kept here as a link's.
+    if (mailboxCalendarOf(url)) {
+      const text = await grantFeedText(tenantId);
+      const problem = feedBodyProblem(text);
+      if (problem) throw new FeedRefused(problem);
+      const fresh: FeedEntry = { url, text, at: now, checkedAt: now, reason: null, status: null };
+      feeds.set(tenantId, fresh);
+      return asRead(fresh);
+    }
     const safe = feedUrlOk(url);
     if (!safe) throw new FeedRefused("address");
     let res: Response;
@@ -255,7 +286,8 @@ export async function openingsFor(
 ): Promise<OpeningsResult> {
   const timezone = known.timezone;
   const cfg = parseTenantConfig(known.config);
-  const url = cfg?.calendar?.ical_url;
+  // The grant's calendar where one is read, else the link (contracts calendarFeedKeyOf).
+  const url = calendarFeedKeyOf(cfg);
   const profile = cfg?.brain?.profile;
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
   const offer = offerFor(profile?.services, profile?.booking_rules, by.service);

@@ -20,6 +20,7 @@ import type {
   BookingRequestTerms,
   BrainMeta,
   CalendarConfig,
+  CalendarGrantConfig,
   FeaturesConfig,
   Handled,
   KnownFacts,
@@ -104,6 +105,8 @@ export interface InboundRuntime {
   notifications: NotificationsConfig | null;
   /** The calendar the receptionist may read for open times; null = none set. */
   calendar: CalendarConfig | null;
+  /** The calendar read through a connected mailbox (decision 0073, R20), taken before the link; absent = none. */
+  calendarGrant?: CalendarGrantConfig | null;
   /** Opt-in abilities (features.vision, …); null = none set. */
   features: FeaturesConfig | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */

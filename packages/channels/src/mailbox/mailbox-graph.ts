@@ -8,7 +8,7 @@ import { DAY_MS } from "@chanlytics/contracts";
 import { providerFetch, type ProviderReply, type SendOutcome } from "../provider-fetch";
 import { FIND_SENT_SLACK_MS, MAILBOX_READ_MS, type FoundSent } from "./mailbox-read";
 
-const GRAPH_API = "https://graph.microsoft.com/v1.0";
+export const GRAPH_API = "https://graph.microsoft.com/v1.0";
 /** A send's bound, for each of its two calls. */
 const GRAPH_SEND_MS = 15_000;
 /** A subscription on messages lives at most 10,080 minutes; it is renewed a day before it lapses. */

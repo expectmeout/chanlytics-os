@@ -1,4 +1,8 @@
-import { ASK_ANSWERS_ROWS, applySettingsChange } from "../ask/ask-settings-change.js";
+import {
+  ASK_ANSWERS_PANE,
+  ASK_ANSWERS_ROWS,
+  applySettingsChange
+} from "../ask/ask-settings-change.js";
 import { asText, rec, refuseWith } from "./spec.js";
 const policyBody = (cls, mode, confidence) => {
   const body = { class: cls };
@@ -64,8 +68,10 @@ export const settingsSpec = {
   open: (p) => {
     const op = p.payload.change?.op;
     if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
-    const row = ASK_ANSWERS_ROWS[op];
-    return row ? `admin/receptionist/${row}` : "admin/receptionist";
+    const key = op;
+    const row = ASK_ANSWERS_ROWS[key];
+    const pane = ASK_ANSWERS_PANE[key] ?? "receptionist";
+    return row ? `admin/${pane}/${row}` : `admin/${pane}`;
   }
 };
 export const inviteSpec = {

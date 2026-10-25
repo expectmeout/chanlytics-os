@@ -3883,6 +3883,11 @@ button.cl-prof-reach:focus-visible {
   color: var(--ink);
   text-wrap: pretty;
 }
+/* What another system said of them before Chanlytics (decision 0073, R22): quieter, under where they came from. */
+.cl-prof-before {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
 @media (max-width: 900px) {
   .cl-prof-rail-label {
     min-height: 44px;

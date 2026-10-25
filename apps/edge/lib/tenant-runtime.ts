@@ -8,11 +8,13 @@
  * message. The edge never queries the control-plane tables anywhere else, so
  * "what does the runtime consult?" has exactly one answer.
  */
-import type { CalendarConfig, FeaturesConfig } from "./packages/contracts.js";
+import type { CalendarConfig, CalendarGrantConfig, FeaturesConfig } from "./packages/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import {
+  bookingTemplate,
   parseTenantConfigResult,
+  type TenantConfig,
   type BrainConfig,
   type NotificationsConfig,
   type PolicyLimits,
@@ -20,6 +22,7 @@ import {
 } from "./packages/contracts.js";
 import {
   activeWhatsappNumbers,
+  templatesToSend,
   whatsappLineOf,
   workspaceNamed,
   type RoutedChannel,
@@ -50,6 +53,8 @@ export interface TenantRuntime {
   notifications: NotificationsConfig | null;
   /** The calendar the receptionist may read for open times; null = none set. */
   calendar: CalendarConfig | null;
+  /** The calendar read through a connected mailbox (decision 0073, R20), which the readers take before the link. */
+  calendarGrant?: CalendarGrantConfig | null;
   /** Opt-in abilities (features.vision, …); null = none set. */
   features: FeaturesConfig | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */
@@ -218,6 +223,25 @@ function workspaceRowFacts(
   return { slug: t?.slug ?? null, timezone: t?.timezone ?? null, paused: t?.status === "paused" };
 }
 
+/**
+ * Whether Meta approved the message a call sends the booking link in (decision 0073, R14): a call offers the link only
+ * with one. A read that fails is not known (null), which offers it as before; the tool says when there is none.
+ */
+const bookingMessageOf = (db: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> =>
+  templatesToSend(db, tenantId).then(
+    (rows) => bookingTemplate(rows) !== null,
+    () => null,
+  );
+
+/** The configuration's parts the runtime carries: none of them where the configuration did not parse. */
+const configParts = (parsed: TenantConfig | null) => ({
+  brain: parsed?.brain ?? null,
+  notifications: parsed?.notifications ?? null,
+  calendar: parsed?.calendar ?? null,
+  calendarGrant: parsed?.calendar_grant ?? null,
+  features: parsed?.features ?? null,
+});
+
 export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {
   const hit = cache.get(cacheKey(routed));
   if (hit && hit.exp > Date.now()) {
@@ -228,7 +252,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
   }
 
   try {
-    const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ] = await Promise.all([
+    const [cfgQ, polQ, credsQ, tzQ, stamp, chanQ, listQ, bookingMessage] = await Promise.all([
       db.from("tenant_config").select("config, version").eq("tenant_id", routed.tenantId).maybeSingle(),
       db.from("policies").select("class, mode, limits").eq("tenant_id", routed.tenantId).is("subject_type", null),
       // WhatsApp credentials belong to the tenant's WHATSAPP channel, not to
@@ -253,6 +277,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       // makes five, cached for the same ten minutes behind the same stamp.
       db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", routed.tenantId),
       db.from("google_listings").select("name, address").eq("tenant_id", routed.tenantId).maybeSingle(),
+      bookingMessageOf(db, routed.tenantId),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     if (polQ.error) throw new Error(polQ.error.message);
@@ -288,10 +313,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     const rt: TenantRuntime = {
       tenantId: routed.tenantId,
       ...workspaceRowFacts(tzQ.data),
-      brain: parsed?.brain ?? null,
-      notifications: parsed?.notifications ?? null,
-      calendar: parsed?.calendar ?? null,
-      features: parsed?.features ?? null,
+      ...configParts(parsed),
       policy,
       waCreds: credsQ.creds,
       envNumber: credsQ.envNumber,
@@ -303,6 +325,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         workspace: { name: tzQ.data?.name ?? null, timezone: tzQ.data?.timezone ?? null },
         channels: chanQ.error ? [] : (chanQ.data ?? []),
         listing: listQ.error ? null : (listQ.data ?? null),
+        booking_message: bookingMessage,
       },
       ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,
@@ -319,6 +342,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       brain: null,
       notifications: null,
       calendar: null,
+      calendarGrant: null,
       features: null,
       policy: {},
       waCreds: null,
@@ -362,6 +386,21 @@ export async function waCredentialsForTenant(
   if (!Array.isArray(numbers)) return numbers;
   const [oldest] = numbers;
   return oldest ? credentialsOfNumber(db, tenantId, oldest) : { outcome: "absent" };
+}
+
+/**
+ * One number's credentials, by its channel's id: what a coexistence sync asks Meta with (decision 0073, R21), for the
+ * number that just connected. Absent when the channel is not one of the workspace's active numbers.
+ */
+export async function waCredentialsForChannel(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  channelId: string,
+): Promise<WaCredentialsRead> {
+  const numbers = await numbersOf(db, tenantId);
+  if (!Array.isArray(numbers)) return numbers;
+  const row = numbers.find((n) => n.id === channelId);
+  return row ? credentialsOfNumber(db, tenantId, row) : { outcome: "absent" };
 }
 
 /** The workspace's active WhatsApp numbers, oldest first (packages/db activeWhatsappNumbers), or the read's failure. */

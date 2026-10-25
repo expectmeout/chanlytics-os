@@ -1,6 +1,6 @@
 /**
- * The first run (docs/superpowers/specs/2026-09-24-first-run-design.md): Setup's own rows, one step to a screen at
- * #/start, the owner's receptionist beside them, and what is left as one card on Today. Run here: the contracts that
+ * The first run (docs/superpowers/specs/2026-09-24-first-run-design.md; five steps since decision 0073): Setup's own rows, one
+ * step to a screen at #/start, the owner's receptionist beside them, and what is left as one card on Today. Run here: the contracts that
  * decide all of it, on Setup's own fixtures.
  */
 import { test } from "node:test";
@@ -20,6 +20,9 @@ import {
   setupCardOf,
   TRY_SKIPPED,
   REMIND_SKIPPED,
+  RECEPTIONIST_MET,
+  REHEARSE_SKIPPED,
+  CHANNELS_SEEN,
   receptionistCardOf,
   shouldLandOnFirstRun,
   setupLaterOf,
@@ -39,6 +42,9 @@ import {
   TenantConfigWriteSchema,
   unsureHoursWords,
   googleFillsOf,
+  soundsWords,
+  TONE_PRESETS,
+  PHONE_VOICES_NATIVE_TO,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -126,14 +132,15 @@ const live = (over = {}) =>
   });
 const ids = (rows) => rows.map((r) => r.id);
 
-test("a new workspace starts on its business: one step current, the rest ahead, and the step is Check", () => {
+test("a new workspace starts on its business: one step current, the rest ahead, and the step asks the basics", () => {
   const fr = firstRunOf(setupSteps(empty(), NOW));
   assert.deepEqual(
     fr.steps.map((s) => [s.key, s.state]),
     [
       ["business", "current"],
-      ["phone", "ahead"],
-      ["try", "ahead"],
+      ["receptionist", "ahead"],
+      ["rehearse", "ahead"],
+      ["channels", "ahead"],
       ["live", "ahead"],
     ],
   );
@@ -141,73 +148,105 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
   assert.equal(fr.complete, false);
   assert.equal(fr.shown.key, "business");
   assert.deepEqual(ids(fr.shown.rows), ["facts"], "Setup's facts row; no Google row on a deployment without it");
-  assert.equal(fr.primaryRow, null, "Check draws the Business tab's rows, not Setup's");
-  assert.equal(fr.heading, "Tell us the basics", "nothing on Google: the basics are asked");
-  assert.equal(fr.phoneLine, "Step 1 of 4 · Your business");
-  assert.equal(fr.progress, 25);
+  assert.equal(fr.primaryRow, null, "the step draws its own press, not Setup's");
+  assert.equal(fr.heading, "Build your receptionist", "nothing on Google: the heading says what its one press does");
+  assert.equal(fr.phoneLine, "1 of 5 · Your business");
+  assert.equal(fr.progress, 20);
   assert.equal(fr.back, null);
   assert.equal(fr.onward, null, "nothing to continue to while the step asks something");
+  assert.equal(fr.check?.make, null, "nobody is an owner unless the page says so");
+  const owner = { owner: true, receptionistName: null, workspaceName: "Harbor Moving" };
+  assert.ok(firstRunOf(setupSteps(empty(), NOW), null, owner).check?.make, "an owner's one press sets it up");
   assert.deepEqual(
     fr.steps.map((s) => s.to),
-    ["start", "start/phone", "start/try", "start/live"],
+    ["start", "start/receptionist", "start/rehearse", "start/channels", "start/live"],
     "the current step is the first run's own address, another step its own",
   );
   assert.deepEqual(
-    ids(fr.steps.find((s) => s.key === "phone").rows),
-    ["line", "keep"],
-    "no billing row without billing",
+    ids(fr.steps.find((s) => s.key === "channels").rows),
+    ["line", "keep", "whatsapp", "calendar"],
+    "Where it answers draws what it chooses; no billing row without billing",
   );
   assert.deepEqual(
-    ids(fr.steps.find((s) => s.key === "try").rows),
-    ["handoff"],
+    ids(fr.steps.find((s) => s.key === "live").rows),
+    ["line", "keep", "handoff", "whatsapp"],
     "Setup's Try it row arrives with calls answered: nothing to try before",
   );
 });
 
-test("the facts are in: the phone is current, the business can be looked at again, and a step ahead cannot", () => {
+test("set up: the receptionist is current, the business can be looked at again, and a step ahead cannot", () => {
   const vm = setupSteps(empty({ business: facts }), NOW);
   const fr = firstRunOf(vm);
   assert.deepEqual(
     fr.steps.map((s) => s.state),
-    ["done", "current", "ahead", "ahead"],
+    ["done", "current", "ahead", "ahead", "ahead"],
   );
-  assert.equal(fr.shown.key, "phone");
+  assert.equal(fr.shown.key, "receptionist");
+  assert.equal(fr.heading, "Meet your receptionist");
+  assert.deepEqual(
+    fr.onward,
+    { label: "Rehearse it now", to: "start", leaves: false, held: null },
+    "its onward is the next step, said",
+  );
   const back = firstRunOf(vm, "business");
   assert.equal(back.shown.key, "business", "a step already reached opens");
+  assert.equal(back.heading, "Your business", "set up, it is the step's own name over Setup's rows");
   assert.deepEqual(
     back.onward,
-    { label: "Looks right", to: "start", leaves: false, held: null },
-    "and Looks right goes on to where the workspace is, a step's own move",
+    { label: "Continue", to: "start", leaves: false, held: null },
+    "and Continue goes on to where the workspace is, a step's own move",
   );
   assert.equal(back.primaryRow, null, "one coral button a step: on a step done it is the onward");
-  assert.deepEqual(
-    firstRunOf(vm, "phone").onward,
-    null,
-    "the phone step asks something still: its rows carry the coral button",
+  assert.equal(
+    firstRunOf(vm, "rehearse").shown.key,
+    "receptionist",
+    "a step not reached yet shows where the workspace is",
   );
-  assert.deepEqual(
-    firstRunOf(setupSteps(empty({ business: facts, channels: live().channels }), NOW), "phone").onward,
-    { label: "Continue", to: "start", leaves: false, held: null },
-    "a step done that is not Check goes on with Continue",
+  assert.equal(firstRunOf(vm, "receptionist").back, "start/business", "Back opens the step before, at its own address");
+  // Going on from the receptionist is the member's own mark: Rehearse is then current.
+  const met = firstRunOf(setupSteps(empty({ business: facts, later: [RECEPTIONIST_MET] }), NOW));
+  assert.equal(met.current, "rehearse");
+  assert.equal(met.heading, "Talk to it as a customer would");
+  assert.equal(met.onward, null, "Rehearse goes on from a review, or its own skip");
+  assert.equal(
+    firstRunOf(setupSteps(empty({ business: facts, later: [RECEPTIONIST_MET, REHEARSE_SKIPPED] }), NOW)).current,
+    "channels",
   );
-  assert.equal(firstRunOf(vm, "try").shown.key, "phone", "a step not reached yet shows where the workspace is instead");
-  assert.equal(firstRunOf(vm, "phone").back, "start/business", "Back opens the step before, at its own address");
 });
 
-test("answering: Live is current, with what is left after, and Finish goes to Today", () => {
+test("Where it answers is a number chosen; with none to choose here, the member's going on -- and a mark kept from such a day never skips the choice", () => {
+  const LINES = (ready) => ({
+    rows: [],
+    ready,
+    provider: ready ? "twilio" : null,
+    costs: { local_number_month_usd: 1.15 },
+  });
+  const at = (ready, later = []) =>
+    firstRunOf(
+      setupSteps(
+        empty({ business: facts, lines: LINES(ready), later: [RECEPTIONIST_MET, REHEARSE_SKIPPED, ...later] }),
+        NOW,
+      ),
+    );
+  assert.equal(at(true).current, "channels", "numbers to buy: a number chosen is the step");
+  assert.equal(at(false).current, "channels", "none to buy: still the member's step to see, never done for them");
+  assert.equal(at(false, [CHANNELS_SEEN]).current, "live", "none to buy, and they went on: Go live");
+  assert.equal(at(true, [CHANNELS_SEEN]).current, "channels", "numbers back: the choice is asked, whatever was kept");
+});
+
+test("answering: Go live is current and done, with what is left after, and Open Today goes to Today", () => {
   const vm = setupSteps(live(), NOW);
   const fr = firstRunOf(vm);
   assert.equal(fr.complete, true);
   assert.equal(fr.current, "live");
   assert.deepEqual(
     fr.steps.map((s) => s.state),
-    ["done", "done", "done", "current"],
+    ["done", "done", "done", "done", "done"],
   );
   assert.equal(fr.heading, "Your receptionist is answering");
-  assert.equal(fr.lead, vm.readiness.sentence, "Setup's own sentence says what it answers on");
-  assert.deepEqual(ids(fr.shown.rows), ["whatsapp", "calendar", "team", "yes"]);
-  assert.equal(fr.primaryRow, null, "on Live the one action is Finish");
-  assert.deepEqual(fr.onward, { label: "Finish", to: "today", leaves: true, held: null }, "Finish is a way out");
+  assert.equal(fr.lead, "", "what answers where is Go live's own summary, said once");
+  assert.equal(fr.primaryRow, null, "the one action is Open Today");
+  assert.deepEqual(fr.onward, { label: "Open Today", to: "today", leaves: true, held: null }, "a way out");
   assert.equal(fr.progress, 100);
 });
 
@@ -280,29 +319,31 @@ test("Find says only what Google said, in the owner's words", () => {
 });
 
 test("the step line is one sentence wherever it is said", () => {
-  assert.equal(firstRunKicker("business"), "Step 1 of 4 · Your business");
-  assert.equal(firstRunKicker("live"), "Step 4 of 4 · Live");
+  assert.equal(firstRunKicker("business"), "1 of 5 · Your business");
+  assert.equal(firstRunKicker("live"), "5 of 5 · Go live");
   assert.equal(firstRunOf(setupSteps(empty(), NOW)).phoneLine, firstRunKicker("business"));
 });
 
-test("an address names a step or nothing", () => {
+test("an address names a step or nothing, and the four steps' old addresses open the step that took them over", () => {
   assert.deepEqual(
     FIRST_RUN_STEPS.map((s) => s.key),
-    ["business", "phone", "try", "live"],
+    ["business", "receptionist", "rehearse", "channels", "live"],
   );
-  assert.equal(firstRunStepOf("phone"), "phone");
+  assert.equal(firstRunStepOf("channels"), "channels");
+  assert.equal(firstRunStepOf("phone"), "live", "the number is bought at Go live now");
+  assert.equal(firstRunStepOf("try"), "live", "and the real call is Go live's Check my line");
   assert.equal(firstRunStepOf("setup"), null);
   assert.equal(firstRunStepOf(null), null);
-  assert.equal(firstRunStepRoute("phone"), "start/phone", "a door that names a row opens the step that draws it");
+  assert.equal(firstRunStepRoute("channels"), "start/channels", "a door that names a row opens the step that draws it");
 });
 
-test("Today's card: while nothing answers, one row that opens the first run; after, Setup's own rows in the order they help most, never one put off", () => {
+test("Today's card: while a step is open, one row back to where the owner left off; going live, the rows that are theirs; after, Setup's own rows in the order they help most, never one put off", () => {
   const before = setupCardOf(setupSteps(empty(), NOW));
   assert.equal(before.title, "Finish setting up");
-  assert.equal(before.left, "3 steps left");
+  assert.equal(before.left, "5 steps left");
   assert.deepEqual(before.start, {
-    name: "Your receptionist isn't answering yet",
-    sentence: "What your receptionist says about you: your name, when you're open, what you offer.",
+    name: "Not answering yet",
+    sentence: "We find you on Google and build a receptionist that answers as you.",
     status: "Next: your business",
     cta: "Continue setting up",
     ctaShort: "Continue",
@@ -316,13 +357,20 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
     setupSteps(empty({ business: facts, channels: { ...empty().channels, whatsapp: live().channels.whatsapp } }), NOW),
   );
   assert.equal(texting.start.name, "Calls aren't answered yet");
-  assert.equal(texting.start.status, "Next: your phone");
-  // Calls answered and a step still open (the facts, here): the row never says calls are not answered.
+  assert.equal(texting.start.status, "Next: where it answers");
+  // Calls answered and a step still open (the business, here): the row never says calls are not answered.
   const calls = setupCardOf(
     setupSteps(empty({ channels: { ...empty().channels, voice: live().channels.voice } }), NOW),
   );
-  assert.equal(calls.start.name, "Your receptionist is answering");
+  assert.equal(calls.start.name, "Answering");
   assert.equal(calls.start.status, "Next: your business");
+
+  // Paid and going live, the number kept still to forward: Go live's rows that are the owner's first (canvas T·c).
+  const going = setupCardOf(setupSteps(live({ want: { way: "keep", number: "+13055550100" } }), NOW));
+  assert.equal(going.title, "Finish going live");
+  assert.equal(going.left, "1 needs you");
+  assert.deepEqual(ids(going.rows), ["keep"]);
+  assert.equal(going.hide, null, "going live cannot be put off either");
 
   const after = setupCardOf(setupSteps(live(), NOW));
   assert.equal(after.start, null);
@@ -742,9 +790,10 @@ const harbor = (business = {}, google = {}) =>
 const OWNER = { owner: true, receptionistName: "Harbor Moving", workspaceName: "Harbor Moving" };
 const W = FIRST_RUN_WORDS.check;
 
-test("Check is the business step once Find is not shown: what Google found, in the Business tab's rows, and Looks right held until the step is done", () => {
+test("Check is Your receptionist's once the business is set up: what Google found, in the Business tab's rows, and its onward held until the facts are in", () => {
   const fr = firstRunOf(setupSteps(harbor(), NOW), null, OWNER);
   assert.equal(fr.find, false, "the listing is linked");
+  assert.equal(fr.shown.key, "receptionist", "set up from the listing, the business step is done");
   assert.deepEqual(fr.check, {
     made: true,
     make: null,
@@ -760,24 +809,24 @@ test("Check is the business step once Find is not shown: what Google found, in t
     found,
     "the booking page the website names, carried to Check to offer",
   );
-  assert.equal(fr.heading, "Here's what we found");
-  assert.equal(fr.lead, "Your receptionist answers from this. Fix anything that's off.");
-  assert.equal(fr.primaryRow, null, "the rows are the Business tab's; Looks right is the step's button");
+  assert.equal(fr.heading, "Meet Harbor Moving's receptionist");
+  assert.equal(fr.lead, "Built from your Google listing. Fix anything that's off.");
+  assert.equal(fr.primaryRow, null, "the rows are the Business tab's; the onward is the step's button");
   assert.deepEqual(
     fr.onward,
-    { label: "Looks right", to: "start", leaves: false, held: "Still missing: services." },
+    { label: "Rehearse it now", to: "start", leaves: false, held: "Still missing: services." },
     "held, with the facts row's own sentence",
   );
-  const done = firstRunOf(setupSteps(harbor({ services: 2 }), NOW), "business", OWNER);
-  assert.deepEqual(done.onward, { label: "Looks right", to: "start", leaves: false, held: null });
+  const done = firstRunOf(setupSteps(harbor({ services: 2 }), NOW), "receptionist", OWNER);
+  assert.deepEqual(done.onward, { label: "Rehearse it now", to: "start", leaves: false, held: null });
 });
 
-test("Check with nothing on Google asks for the basics, and offers Find again where Google can be searched", () => {
+test("Check with nothing on Google says the basics' lead, and offers Find again where Google can be searched", () => {
   // Google can be searched here and nothing is linked: "We're not on Google" put it off, and Find is gone.
   const putOff = setupSteps(empty({ ...harbor({}, { listing: null }), later: ["google"] }), NOW);
   const basics = firstRunOf(putOff, null, OWNER);
   assert.equal(basics.find, false, "not on Google, said");
-  assert.equal(basics.heading, "Tell us the basics");
+  assert.equal(basics.shown.key, "receptionist");
   assert.equal(basics.lead, "Your receptionist answers from this. You can add more later in Settings.");
   assert.deepEqual(basics.check.find, { label: "On Google after all? Find it", to: "start/find" });
   assert.equal(
@@ -789,15 +838,16 @@ test("Check with nothing on Google asks for the basics, and offers Find again wh
   assert.equal(firstRunOf(noGoogle, null, OWNER).check.find, null, "nothing to search on this deployment");
 });
 
-test("Check with no receptionist yet: an owner is offered the one press, from Google or from the name typed at sign-up; anyone else is told an owner does it", () => {
+test("no receptionist yet: an owner is offered the one press on Your business, from Google or from the name typed at sign-up; anyone else is told an owner does it", () => {
   const none = { name: null, hours: false, address: false, receptionist: "none" };
   const listed = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, receptionistName: null });
+  assert.equal(listed.shown.key, "business");
   assert.deepEqual(listed.check, {
     made: false,
     make: {
-      sentence: "Your receptionist starts from what your Google listing says, and you check it here.",
-      cta: "Set up your receptionist",
-      busy: "Setting up…",
+      sentence: "It starts from your Google listing, and you check every detail next.",
+      cta: "Build my receptionist",
+      busy: "Building…",
     },
     waiting: null,
     unsure: null,
@@ -806,12 +856,15 @@ test("Check with no receptionist yet: an owner is offered the one press, from Go
     bookingPage: null,
   });
   assert.equal(listed.onward, null, "the press is the step's one button");
+  assert.equal(FIRST_RUN_WORDS.check.found("Harbor Moving"), "Meet Harbor Moving's receptionist");
+  assert.equal(
+    FIRST_RUN_WORDS.check.found("Lantern Barbers"),
+    "Meet Lantern Barbers' receptionist",
+    "a name ending in s",
+  );
   const noGoogle = { ready: false, places: false, listing: null };
   const named = firstRunOf(setupSteps(harbor(none, noGoogle), NOW), null, { ...OWNER, receptionistName: null });
-  assert.equal(
-    named.check.make.sentence,
-    "Your receptionist starts with the name Harbor Moving, and you add the rest here.",
-  );
+  assert.equal(named.check.make.sentence, "It starts with the name Harbor Moving, and you add the rest next.");
   const viewer = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, owner: false, receptionistName: null });
   assert.equal(viewer.check.make, null);
   assert.equal(viewer.check.waiting, "An owner sets up the receptionist here.");
@@ -820,6 +873,7 @@ test("Check with no receptionist yet: an owner is offered the one press, from Go
 test("a config that cannot be read is no Check: Setup's facts row asks for the repair, as it does on Setup", () => {
   const fr = firstRunOf(setupSteps(harbor({ broken: true, receptionist: "broken" }), NOW), null, OWNER);
   assert.equal(fr.check, null);
+  assert.equal(fr.shown.key, "business", "nothing is set up from a configuration nobody can read");
   assert.equal(fr.heading, "Your business");
   assert.equal(fr.primaryRow, "facts");
   assert.equal(fr.shown.rows.find((r) => r.id === "facts").verb.to, "verb:request-repair");
@@ -836,7 +890,7 @@ test("the days Google gives hours for that the week cannot hold are named under 
     "Google's hours for every day could not be copied: add yours.",
   );
   assert.equal(unsureHoursWords([]), null);
-  assert.equal(W.found, "Here's what we found");
+  assert.equal(W.found("Harbor Moving"), "Meet Harbor Moving's receptionist");
 });
 
 test("the receptionist card says how a receptionist with no link is reached, for every business (0008, amended 18 Oct 2026)", () => {
@@ -860,7 +914,7 @@ test("the receptionist card says how a receptionist with no link is reached, for
   assert.deepEqual(card(null), { key: "books", label: "Books with", value: null }, "nothing read yet");
 });
 
-test("Try it waits for a call: Setup's row names the number to call, the skip lets the first run go on, and Today keeps the row", () => {
+test("Try it waits for a call at Go live: Setup's row names the number to call, the skip lets the first run finish, and Today keeps the row", () => {
   const untried = (over = {}) =>
     live({
       channels: {
@@ -875,23 +929,24 @@ test("Try it waits for a call: Setup's row names the number to call, the skip le
     [row.state, row.required, row.sentence],
     ["waiting_you", false, "Call +1 (305) 555-0124 from your cell."],
   );
-  assert.deepEqual(row.verb, { label: "Try it", to: firstRunStepRoute("try") }, "the first run's own step");
-  assert.equal(firstRunOf(vm).current, "try", "answering is not tried: the step waits for a call");
+  assert.deepEqual(row.verb, { label: "Check my line", to: firstRunStepRoute("live") }, "Go live's own check");
+  const fr = firstRunOf(vm);
+  assert.deepEqual([fr.current, fr.complete], ["live", false], "answering is not tried: Go live waits for a call");
   const card = setupCardOf(vm);
-  assert.equal(card.start, null, "only the test call left: Setup's rows, not a card that cannot be put away");
-  assert.equal(card.rows[0].id, "try");
-  assert.ok(card.hide, "and the card can be hidden");
+  assert.equal(card.title, "Finish going live");
+  assert.deepEqual(ids(card.rows), ["keep", "try"], "Go live's rows that are the owner's");
+  assert.equal(card.hide, null, "going live cannot be put away");
   const putOff = setupSteps(untried({ later: ["try"] }), NOW);
-  assert.equal(firstRunOf(putOff).current, "live", "Today's Skip on Try it is a skip too");
+  assert.equal(firstRunOf(putOff).complete, true, "Today's Skip on Try it is a skip too");
   assert.equal(TRY_SKIPPED, "try-skipped");
   const skipped = setupSteps(untried({ later: [TRY_SKIPPED] }), NOW);
   assert.equal(skipped.trySkipped, true);
-  assert.equal(firstRunOf(skipped).current, "live", "skipped: the first run goes on");
+  assert.equal(firstRunOf(skipped).complete, true, "skipped: the first run finishes");
   assert.equal(setupCardOf(skipped).rows[0].id, "try", "Today keeps Try it, first, until a call comes in");
   const tried = setupSteps(live(), NOW);
   assert.equal(tried.rows.find((r) => r.id === "try").state, "ready");
   assert.equal(tried.rows.find((r) => r.id === "try").verb, null);
-  assert.equal(firstRunOf(tried).current, "live");
+  assert.equal(firstRunOf(tried).complete, true);
   // Kept, the number to call is the one customers call, and nobody is to pick up.
   const kept = {
     id: "fw",
@@ -931,18 +986,19 @@ test("Try it waits for a call: Setup's row names the number to call, the skip le
   assert.equal(keptPhoneKind({ ...kept, forwarding: { carrier: "tmobile" } }), "mobile");
 });
 
-test("a number the owner chose to keep holds the phone step until its forwarding is saved, or put off by name", () => {
-  // The receptionist's own number answers, and was called: without the choice, the first run is on Live.
-  assert.equal(firstRunOf(setupSteps(live(), NOW)).current, "live");
+test("a number the owner chose to keep holds Go live until its forwarding is saved, or put off by name", () => {
+  // The receptionist's own number answers, and was called: without the choice, the first run is done.
+  assert.equal(firstRunOf(setupSteps(live(), NOW)).complete, true);
   const want = { way: "keep", number: "+13055550100" };
   const owed = setupSteps(live({ want }), NOW);
   assert.equal(owed.forwardingOwed, true);
   const fr = firstRunOf(owed);
-  assert.equal(fr.current, "phone", "the choice is the member's, read from their saved view: the step is not done");
+  assert.equal(fr.current, "live", "the choice is the member's, read from their saved view: Go live is not done");
   assert.equal(fr.complete, false);
-  assert.equal(fr.steps.find((s) => s.key === "phone").state, "current");
+  assert.equal(fr.steps.find((s) => s.key === "live").state, "current");
   const card = setupCardOf(owed);
-  assert.equal(card.start.status, "Next: your phone", "and Today's card opens the first run there");
+  assert.equal(card.title, "Finish going live", "and Today's card says what going live still needs");
+  assert.deepEqual(ids(card.rows), ["keep"]);
   // Saved: a forwarded line is on record, whatever its proof.
   const kept = {
     id: "fw",
@@ -963,11 +1019,11 @@ test("a number the owner chose to keep holds the phone step until its forwarding
   const lines = { rows: [kept], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } };
   const saved = setupSteps(live({ want, lines }), NOW);
   assert.equal(saved.forwardingOwed, false);
-  assert.equal(firstRunOf(saved).current, "live");
+  assert.equal(firstRunOf(saved).complete, true);
   // Put off: Setup's own Later on "The number you already have".
   const later = setupSteps(live({ want, later: [KEEP_ROW] }), NOW);
   assert.equal(later.forwardingOwed, false);
-  assert.equal(firstRunOf(later).current, "live");
+  assert.equal(firstRunOf(later).complete, true);
   assert.equal(KEEP_ROW, "keep");
 });
 
@@ -980,7 +1036,23 @@ test("the number kept or moved is read from the member's saved view: a way, a nu
     way: "move",
     number: "+13055550100",
   });
-  assert.equal(setupPhoneWantOf({ phone: { way: "new", number: "+13055550100" } }), null, "a new number wants none");
+  assert.deepEqual(
+    setupPhoneWantOf({ phone: { way: "new", number: "+13055550100", mode: "always" } }),
+    { way: "new", number: "+13055550100" },
+    "a new number picked is kept to buy at Go live (decision 0073), with nothing of forwarding",
+  );
+  assert.deepEqual(
+    setupPhoneWantOf({
+      phone: { way: "keep", number: "+13055550100", mode: "always", rings: "mobile", company: "att" },
+    }),
+    { way: "keep", number: "+13055550100", mode: "always", rings: "mobile", company: "att" },
+    "what rings at a number kept, and its company, as looked up or answered",
+  );
+  assert.deepEqual(
+    setupPhoneWantOf({ phone: { way: "keep", number: "+13055550100", rings: "pager", company: "acme" } }),
+    { way: "keep", number: "+13055550100" },
+    "anything else is left out",
+  );
   assert.equal(setupPhoneWantOf({ phone: { way: "keep", number: "nope" } }), null);
   assert.equal(setupPhoneWantOf({ phone: "keep" }), null);
   assert.equal(setupPhoneWantOf({ later: ["keep"] }), null);
@@ -997,4 +1069,18 @@ test("(D) the question before a move while typing is unsaved, and the other one 
   // And a zone is found by the cities it covers, beside its own name.
   assert.match(zoneSearchWords("America/New_York"), /^America\/New York .*Miami/);
   assert.equal(zoneSearchWords("Asia/Tokyo"), "Asia/Tokyo", "a zone with no list is its own name");
+});
+
+test("how it sounds, in one line: the voice, the personality where the tone is one of them, and the name where it has one", () => {
+  assert.equal(soundsWords(null), "Tamsin", "the product's voice, before anything is chosen");
+  assert.equal(
+    soundsWords({ phone_voice: "minimax-Grace", tone: TONE_PRESETS[0].tone, assistant_name: "  Ava " }),
+    "Grace · Warm · Ava",
+  );
+  assert.equal(soundsWords({ phone_voice: "retired-voice", tone: "Short and dry." }), "Tamsin · Your own words");
+  // The voices native to a language the business answers in first: each one is on the list.
+  for (const [language, ids] of Object.entries(PHONE_VOICES_NATIVE_TO)) {
+    for (const id of ids)
+      assert.notEqual(soundsWords({ phone_voice: id }), "Tamsin", `${language}: ${id} is a voice on the list`);
+  }
 });

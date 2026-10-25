@@ -9,8 +9,9 @@ import {
   type KnownFacts,
   type ResolvedFacts,
   type TenantConfig,
+  type RehearsalDto,
 } from "@chanlytics/contracts";
-import { reviewLinkOf } from "@chanlytics/db";
+import { rehearsalById, reviewLinkOf } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
 import { linesFor } from "../connections/lines";
@@ -171,5 +172,31 @@ export const settings: Reader<undefined, SettingsRead> = {
       rows: [],
       stamp: stamp(),
     };
+  },
+};
+
+/**
+ * One rehearsal of the workspace (decision 0069): its words so far or whole, its end, its review and the fixes kept from
+ * it, under the member's own session. The page reads it every two seconds while its call runs, and once at its end. No
+ * row a citation names: a rehearsal is the owner's own practice, never something Ask cites.
+ */
+export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
+  name: "rehearsal",
+  async read(rc, { id }) {
+    const r = await rehearsalById(rc.ctx.supabase, rc.tenantId, id);
+    if (!r) throw new AppError("not_found", "Rehearsal not found.");
+    const data: RehearsalDto = {
+      id: r.id,
+      kind: r.kind,
+      started_at: r.started_at,
+      ended_at: r.ended_at,
+      seconds: r.seconds,
+      end_reason: r.end_reason,
+      transcript: r.transcript,
+      config_version: r.config_version,
+      review: r.review,
+      fixes: r.fixes,
+    };
+    return { data, rows: [], stamp: stamp() };
   },
 };

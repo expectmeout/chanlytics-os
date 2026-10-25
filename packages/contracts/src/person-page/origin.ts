@@ -12,11 +12,13 @@ import { neverConnected, type CallDto } from "../conversations/call-dto";
 import { isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { CONSENT_CHANNEL_WORDS } from "../consent/consent-channels";
-import type { PersonDetailDto } from "../people/person-dto";
+import type { PersonBeforeDto, PersonDetailDto } from "../people/person-dto";
+import { viaWords } from "../imports/csv";
 import type { PersonCameFrom } from "../people/person-words";
 import { clockDate } from "../shared/clock";
+import { formatterOnUse } from "../shared/time";
 import { samePhone } from "../shared/phone";
-import { ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words";
+import { BEFORE_WORDS, ORIGIN_WORDS, REACH_SOURCE_WORDS } from "./words";
 
 /** What the sources and the origin are read from: the person read's own rows, narrowed. */
 interface ContactEvidence {
@@ -168,4 +170,25 @@ export function personOriginOf(e: ContactEvidence, tz: string, nowMs: number): s
   }
   const added = day(e.added?.ms ?? null) ?? (e.first.ts !== null ? firstLowered(e.first.label) : null);
   return added ? W[from](added) : null;
+}
+
+/** A birthday as its month and day ("Mar 14"): the year, where a file had one, is not the page's to say. */
+const MONTH_DAY = formatterOnUse("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/**
+ * What another system said of them before Chanlytics, in one line (BEFORE_WORDS), or null where it said nothing: the
+ * visits it counted, the last one, their birthday, and the file it came from. A file's day is a calendar day, read at
+ * noon UTC so no zone moves it.
+ */
+export function personBeforeOf(before: PersonBeforeDto | null | undefined, nowMs: number): string | null {
+  if (!before) return null;
+  const W = BEFORE_WORDS;
+  const [, mm, dd] = (before.birthday ? /(\d{2})-(\d{2})$/.exec(before.birthday) : null) ?? [];
+  const parts = [
+    before.visits !== undefined && before.visits > 0 ? W.visits(before.visits) : null,
+    before.last_visit ? W.last(clockDate(Date.parse(`${before.last_visit}T12:00:00Z`), "UTC", nowMs)) : null,
+    mm && dd ? W.birthday(MONTH_DAY.format(new Date(Date.UTC(2000, +mm - 1, +dd)))) : null,
+  ].filter((x): x is string => !!x);
+  if (!parts.length) return null;
+  return [W.label, ...parts, W.from(viaWords(before.via ?? null))].join(" · ");
 }

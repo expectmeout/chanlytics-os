@@ -18,6 +18,7 @@ import {
   samePhone,
   whyNotAHandoff,
   withStoredKeysKept,
+  type TenantConfig,
 } from "@chanlytics/contracts";
 import { filedNamesOf, putTenantConfig } from "@chanlytics/db";
 import { configRowOf } from "@/server/workspace/config-row";
@@ -59,16 +60,7 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
     const more = parsed.error.issues.length - said.length;
     throw new AppError("validation", `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
   }
-  // The transfer number, judged again here when it changes. The page asks the same question as the owner types;
-  // this is the door, so a number that would ring the receptionist straight back cannot be saved from anywhere.
-  // Only a CHANGED number is judged, so saving something else never trips over a number stored before this rule.
-  const nextHandoff = parsed.data.brain?.profile?.handoff_number ?? null;
-  const prevHandoff = parseTenantConfig(before?.config ?? null)?.brain?.profile?.handoff_number ?? null;
-  if (nextHandoff && !samePhone(nextHandoff, prevHandoff)) {
-    const facts = resolveFacts(parsed.data.brain ?? null, await knownFacts(ctx, member.tenantId));
-    const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
-    if (why) throw new AppError("validation", why);
-  }
+  await judgeChangedHandoff(ctx, member.tenantId, parsed.data, before?.config);
   // The whole column is written, so what the read left out of the stored row (a field a newer build wrote, at any
   // depth) is put back first: the page never saw it, so the page never meant to delete it.
   const next = withStoredKeysKept(parsed.data, before?.config);
@@ -82,6 +74,26 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
     version: result.row.version,
     ...(renamed ? { renamed } : {}),
   };
+}
+
+/**
+ * The transfer number, judged again when it changes. The page asks the same question as the owner types; this is the
+ * door, so a number that would ring the receptionist straight back cannot be saved from anywhere: the settings PUT, or
+ * a fix kept from a rehearsal (receptionist/rehearsal.ts, decision 0069). Only a CHANGED number is judged, so saving
+ * something else never trips over a number stored before this rule. `next` is the config as the write schema parsed it.
+ */
+export async function judgeChangedHandoff(
+  ctx: RouteContext,
+  tenantId: string,
+  next: Pick<TenantConfig, "brain">,
+  stored: unknown,
+): Promise<void> {
+  const nextHandoff = next.brain?.profile?.handoff_number ?? null;
+  const prevHandoff = parseTenantConfig(stored ?? null)?.brain?.profile?.handoff_number ?? null;
+  if (!nextHandoff || samePhone(nextHandoff, prevHandoff)) return;
+  const facts = resolveFacts(next.brain ?? null, await knownFacts(ctx, tenantId));
+  const why = whyNotAHandoff(nextHandoff, facts.voice_line.value, facts.kept_line.value);
+  if (why) throw new AppError("validation", why);
 }
 
 /** What a save that changed the business's name did to the workspace's: its answer's `renamed`. */

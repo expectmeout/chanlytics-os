@@ -40,6 +40,10 @@ export const RECORD_KINDS = {
   workspace: ["tenants"],
   notification: ["notifications"],
   billing: ["billing_accounts"],
+  /** What a connection brought in, and what the Business Profile and the website say (decision 0073). */
+  brought: ["imports", "business_reads"],
+  /** A conversation rehearsed, or a call reviewed (decision 0069). */
+  rehearsal: ["rehearsals"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** A kind of record a page can draw. */

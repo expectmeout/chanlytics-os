@@ -181,7 +181,9 @@ const JOB_WORDS = {
   reply_read: "Reading a lead's reply",
   booking_read: "Reading a booking notice",
   event_deliver: "Passing on a change",
-  inbound_answer: "Answering a text"
+  inbound_answer: "Answering a text",
+  history_import: "Bringing a connection's history in",
+  website_read: "Reading a business's website"
 };
 export function jobWords(kind) {
   return JOB_WORDS[kind] ?? kind.replace(/_/g, " ");

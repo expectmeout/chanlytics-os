@@ -1118,6 +1118,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    does not have: the form stood 48px inside the words. */
 .today-setup .setup-chooser { margin-left: 26px; margin-right: 0; }
 .setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+/* What came in before Chanlytics, for the first week (decision 0073, canvas T-today): a press opens it source by source. */
+.today-brought { padding: 14px 18px; }
+.today-brought-open { display: grid; gap: 4px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.today-brought-line { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-dim); }
+/* What the first run kept for the owner while a step is open (canvas T·a), and what is done going live (T·c). */
+.today-setup-ticks { display: grid; gap: 6px; padding: 4px 0 10px; }
+.today-setup-tick-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--text-sm); color: var(--ink-dim); }
+.today-setup-tick-list li { display: flex; align-items: center; gap: 6px; }
 .setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .setup-card-row {

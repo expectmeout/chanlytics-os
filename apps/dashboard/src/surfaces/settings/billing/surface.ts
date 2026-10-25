@@ -42,6 +42,14 @@ interface BillingApi {
    * asks (`"start"`). Owners only.
    */
   checkout(back?: CheckoutReturn): Promise<{ ok: boolean; message: string }>;
+  /**
+   * Checkout made in the page (the first run's Go live, decision 0073, R16): the session's client secret and Stripe's
+   * publishable key, for the embedded Checkout the page mounts; or, where the edge holds no key, the page's URL, which
+   * this goes to as `checkout` does. Owners only.
+   */
+  checkoutInPage(
+    back: CheckoutReturn,
+  ): Promise<{ ok: true; secret: string; key: string } | { ok: true; left: true } | { ok: false; message: string }>;
   /** The way to Stripe's portal. Owners only. */
   portal(): Promise<{ ok: boolean; message: string }>;
   invoices(): Promise<{ ok: boolean; invoices: BillingInvoiceDto[]; message: string }>;
@@ -103,6 +111,17 @@ export const billingVerbs: BillingApi = {
     if (!r.ok) return { ok: false, message: r.message };
     if (r.data.url) window.location.assign(r.data.url);
     return { ok: !!r.data.url, message: "" };
+  },
+  async checkoutInPage(back) {
+    const r = await api()("POST billing/checkout", { body: { return: back, embedded: true } });
+    if (!r.ok) return { ok: false, message: r.message };
+    const d = r.data as { url?: string; client_secret?: string; publishable_key?: string };
+    if (d.client_secret && d.publishable_key) return { ok: true, secret: d.client_secret, key: d.publishable_key };
+    if (d.url) {
+      window.location.assign(d.url);
+      return { ok: true, left: true };
+    }
+    return { ok: false, message: "Checkout could not be opened." };
   },
   async portal() {
     const r = await api()("POST billing/portal", { body: {} });

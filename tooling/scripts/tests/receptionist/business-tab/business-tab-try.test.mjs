@@ -1,13 +1,21 @@
 /**
- * Settings › How it answers, Try it (business/try/try-it.tsx, contracts business-tab/try-it.ts): a message written as
- * a customer would, answered by the receptionist as it stands, and why. What each answer says (tryItVM, over the eval
- * door's `then`), and the card on the page: one row and its act at rest, the box in a fold the act opens, the answer
- * and its reasons drawn under the message, a refusal under the box, six messages at most, Close letting the
- * conversation go, and nothing for a role that may not change the settings.
+ * Settings › How it answers, the typed try (contracts business-tab/try-it.ts), now Rehearse's Type
+ * (business/rehearse/rehearse.tsx, decision 0069): a message written as a customer would, answered by the receptionist
+ * as it stands, and why. What each answer says (tryItVM, over the eval door's `then`), and the card on the page: one
+ * row and its act at rest, the box in a fold the act opens on Talk, Type a press away, the answer and its reasons drawn
+ * under the message, a refusal under the box, six messages at most, Close letting the conversation go, and nothing for
+ * a role that may not change the settings.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { MIN_MS, REPLY_DELAY_DEFAULT_MS, TRY_IT_WORDS, TRY_IT_MAX_EXCHANGES, tryItVM } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  REHEARSE_WORDS,
+  REPLY_DELAY_DEFAULT_MS,
+  TRY_IT_WORDS,
+  TRY_IT_MAX_EXCHANGES,
+  tryItVM,
+} from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, press, settle, classes } from "../../_legacy-react.mjs";
 import { W, drawTab, redrawTab, foldOf, openFold, openFolds } from "../../_business-tab-harness.mjs";
 
@@ -16,7 +24,7 @@ after(() => unmount());
 // The card's door, as the page imports it: by the same path the app's modules are imported by (the parts harness says
 // why), so a stand-in assigned here is the one the card calls.
 const BIZ = "../../../../../apps/dashboard/src/surfaces/settings/business";
-const { tryVerbs } = await import(`${BIZ}/try/verbs.ts`);
+const { tryVerbs } = await import(`${BIZ}/rehearse/verbs.ts`);
 
 const META = {
   intent: "hours",
@@ -146,6 +154,9 @@ const standIn = (reply) => {
     return reply(text, history);
   };
 };
+/** Type: the card opens on Talk (a call in the browser), and the typed try is the other side of its capsule. */
+const toType = (tree) =>
+  find(foldOf(tree, "try"), (n) => typeof n.props?.onValueChange === "function").props.onValueChange("type");
 /** The box a customer's message is written in: the kit's field, inside the fold. */
 const boxOf = (tree) => find(foldOf(tree, "try"), (n) => n.type === "input" && classes(n).includes("rec-input"));
 const formOf = (tree) => find(foldOf(tree, "try"), (n) => n.type === "form");
@@ -155,17 +166,20 @@ const send = async (tree) => {
   await settle();
 };
 
-test("at rest Try it is one row and its act; the act opens the box under it, and an answer draws under the message with why", async () => {
-  standIn((text) => ({ ok: true, vm: tryItVM(answer({}, { text: `Re: ${text}` })) }));
+test("at rest Rehearse is one row and its act; the act opens it, Type draws the box, and an answer draws under the message with why", async () => {
+  standIn((text) => ({ ok: true, data: tryItVM(answer({}, { text: `Re: ${text}` })) }));
   let tree = drawTab({ part: "receptionist" });
   const card = byTestId(tree, "rec-card-try");
   assert.ok(card, "the last card of How it answers");
-  assert.equal(textOf(byTestId(card, "rec-row-try")).includes(TRY_IT_WORDS.row.value), true);
+  assert.equal(textOf(byTestId(card, "rec-row-try")).includes(REHEARSE_WORDS.row.value), true);
   assert.deepEqual(openFolds(tree), [], "nothing open at rest: the box is in a closed fold");
 
   openFold(tree, "try");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["try"]);
+  assert.equal(boxOf(tree), null, "it opens on Talk: no box until Type");
+  toType(tree);
+  tree = redrawTab();
   write(tree, "Are you open Saturday?");
   tree = redrawTab();
   await send(tree);
@@ -213,6 +227,8 @@ test("a refusal is said under the box and keeps what was written; six messages a
   let tree = drawTab({ part: "receptionist" });
   openFold(tree, "try");
   tree = redrawTab();
+  toType(tree);
+  tree = redrawTab();
   write(tree, "Hi");
   tree = redrawTab();
   await send(tree);
@@ -221,7 +237,7 @@ test("a refusal is said under the box and keeps what was written; six messages a
   assert.equal(problem.props.message, "It could not answer just now.");
   assert.equal(boxOf(tree).props.value, "Hi", "the words stay to send again");
 
-  standIn((text) => ({ ok: true, vm: tryItVM(answer({ text: `Re: ${text}` })) }));
+  standIn((text) => ({ ok: true, data: tryItVM(answer({ text: `Re: ${text}` })) }));
   for (let i = 0; i < TRY_IT_MAX_EXCHANGES; i++) {
     write(tree, `Message ${i}`);
     tree = redrawTab();
@@ -240,7 +256,7 @@ test("a refusal is said under the box and keeps what was written; six messages a
   assert.equal(byTestId(tree, "bt-try-turn-0"), null, "opened again, it starts empty: nothing of a try is kept");
 });
 
-test("a role that may not change the settings is offered no Try it at all", () => {
+test("a role that may not change the settings is offered no Rehearse at all", () => {
   const was = W.ST_STORE;
   try {
     W.ST_STORE = { can: () => false, myRole: () => "viewer" };

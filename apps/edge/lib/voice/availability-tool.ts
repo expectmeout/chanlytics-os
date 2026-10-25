@@ -19,8 +19,9 @@
 import { json } from "../http.js";
 import { pg } from "../pg.js";
 import { readDealForPhone, resolveChannel } from "../packages/db.js";
+import { rehearsalOfToolCall, rehearsalRouting } from "./rehearsal-call.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { linkOfferedOn, openingsData } from "../calendar/availability.js";
+import { feedKeyOf, linkOfferedOn, openingsData } from "../calendar/availability.js";
 import {
   bookingHeld,
   describeOpenings,
@@ -117,7 +118,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
   // while this door still reads one.
   if (!voiceDoorAuth("availability", request, raw).ok) return refusedOutLoud("availability", KNOCK_REFUSED);
   let body: {
-    call?: { call_id?: string; from_number?: string; agent_id?: string };
+    call?: { call_id?: string; from_number?: string; agent_id?: string; call_type?: string };
     args?: { day?: unknown; service?: unknown };
   } = {};
   try {
@@ -130,7 +131,14 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
 
   const db = pg();
-  const routed = db && call.agent_id ? await resolveChannel(db, "voice", call.agent_id) : null;
+  // A rehearsal's call reads its workspace's calendar as a call on the line does (decision 0069), found by its own row:
+  // its agent may have no line yet.
+  const rehearsal = db ? await rehearsalOfToolCall(db, call) : null;
+  const routed = rehearsal
+    ? rehearsalRouting(rehearsal.tenant_id)
+    : db && call.agent_id
+      ? await resolveChannel(db, "voice", call.agent_id)
+      : null;
   if (!db || !routed) {
     // Whose business this is is unknown, so nothing it could send is offered: only a call back.
     L.info("retell_availability_unrouted");
@@ -149,7 +157,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
   // The link a call can send: one WhatsApp can carry (linkOfferedOn), never one promised to a workspace without it.
   const hasBookingLink = linkOfferedOn("call", rt);
   const lane = !hasBookingLink ? "no_link" : held ? "held" : "link";
-  if (!rt.calendar?.ical_url) {
+  if (!feedKeyOf(rt)) {
     L.info("retell_availability_no_calendar", { tenant_id: routed.tenantId, held });
     return json(200, { result: WITHOUT_TIMES.no_calendar[lane] });
   }

@@ -382,6 +382,7 @@ const setupSurface = (over = {}) => {
       address: false,
       handoff: null,
       broken: false,
+      receptionist: "none",
     },
     channels: {
       whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
@@ -441,6 +442,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
         address: true,
         handoff: null,
         broken: false,
+        receptionist: "set",
       },
       channels: {
         whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
@@ -502,6 +504,7 @@ test("after the first run, with the calendar in, the card's last row is the door
       address: true,
       handoff: null,
       broken: false,
+      receptionist: "set",
     },
     channels: {
       whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
@@ -590,7 +593,7 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
     assert.ok(!said.includes("nothing can come in"), "email comes in");
     assert.ok(!said.includes("answering on its own"), "the receptionist does not answer email");
     assert.ok(!said.includes("nothing needs you"), `the heading does not reassure over a line nobody answers: ${said}`);
-    assert.match(said, /every email waits for you in the Inbox/);
+    assert.match(said, /each email waits in Need you/);
   } finally {
     feedSetup(undefined);
   }

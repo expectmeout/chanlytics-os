@@ -130,6 +130,14 @@ before(async () => {
     status: "queued",
   });
   await seed("calls", { tenant_id: A, retell_call_id: "call_tenancy_1" });
+  // The workspace's receptionist at Retell, kept before any number (00476, decision 0069): the service role's alone, and
+  // keyed by its workspace, so no id to pick. A typed rehearsal: members read their workspace's, and only the doors write.
+  await seed("voice_agents", { tenant_id: A, agent_id: "agent_tenancy1", llm_id: "llm_tenancy1" }, null);
+  await seed("rehearsals", { tenant_id: A, kind: "typed" });
+  // What was brought in, and what the profile and the website say (00477, 00479; decision 0073): members read theirs,
+  // and only the doors and the service role write.
+  await seed("imports", { tenant_id: A, source: "calendar", state: "done" }, null);
+  await seed("business_reads", { tenant_id: A, source: "website", facts: {} }, null);
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
   // Ask's reply drafted ahead on the thread (00475); the stranger's attempt is a brief, so one a thread and kind refuses
   // nothing on its own.
@@ -621,6 +629,13 @@ const TENANT_TABLES = {
     }),
   ],
   calls: ["member", () => ({ tenant_id: A, retell_call_id: "call_tenancy_2" })],
+  // A conversation rehearsed or a real call reviewed (00476, decision 0069): members read theirs, the doors write. The
+  // workspace's agent at Retell is the service role's alone.
+  rehearsals: ["member", () => ({ tenant_id: A, kind: "typed" })],
+  // What was brought in, one row a source, and what the profile and the website say, one row each (00477, 00479).
+  imports: ["member", () => ({ tenant_id: A, source: "mailbox", state: "queued" })],
+  business_reads: ["member", () => ({ tenant_id: A, source: "google_profile", facts: {} })],
+  voice_agents: ["none", () => ({ tenant_id: A, agent_id: "agent_stranger1" })],
   // The notes an owner's corrections suggest (00448): members read their workspace's, and only the doors write.
   fact_suggestions: [
     "member",

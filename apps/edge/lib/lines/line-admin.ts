@@ -8,6 +8,7 @@
  *
  *   { op: "status" }                                  → may this deployment get lines, and with which provider
  *   { op: "search", area_code }                       → local numbers to choose from, with the monthly cost
+ *   { op: "lookup", number }                          → what the number's line is, by the carrier's records (R11)
  *   { op: "buy", tenant_id, number }                  → the saga: subaccount → number → trunk → agent → import → row
  *   { op: "retry", tenant_id, line_id }               → resume a failed line at its step
  *   { op: "release", tenant_id, line_id }             → give the number back and forget the line (hygiene)
@@ -31,7 +32,15 @@ import { json, refuse } from "../http.js";
 import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../admin-door.js";
 import { businessOnRecordOf, emitEvent, type Database } from "../packages/db.js";
-import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../packages/contracts.js";
+import {
+  SPEND_NUMBER,
+  SPEND_TEXTING,
+  UUID,
+  lineLookupOf,
+  normalizePhone,
+  type SpendWords,
+} from "../packages/contracts.js";
+import { lookupLineType } from "../packages/channels.js";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { releaseLine } from "./line-release.js";
 import { registerLine } from "./a2p-register.js";
@@ -103,6 +112,18 @@ const WRITES: Record<WritingOp, (c: LineCall) => Promise<Response>> = {
   register,
   "registration-status": registrationStatus,
 };
+
+/**
+ * What a number's line is (decision 0073, R11): Twilio Lookup's line type intelligence on the master account, a few cents
+ * a number, read as step 4 says it (contracts lineLookupOf). Not a write: nothing is kept. The dry provider, and a number
+ * that is not one, answer no lookup; a lookup Twilio could not answer is none, and step 4 asks the owner instead.
+ */
+async function lookupNumber(choice: LineProviderChoice, body: LinesBody): Promise<Response> {
+  const e164 = normalizePhone(body.number ?? "");
+  if (!e164) return refuse(400, "bad_request", "number is a phone number");
+  if (choice.name !== "twilio") return json(200, { ok: true, lookup: null });
+  return json(200, { ok: true, lookup: lineLookupOf(await lookupLineType(choice.master, e164)) });
+}
 
 /** Local numbers to choose from, with the monthly cost: a question to the provider, not to the database. */
 async function searchNumbers(choice: LineProviderChoice, body: LinesBody): Promise<Response> {
@@ -418,6 +439,7 @@ export async function lineOp(auth: Admitted, body: Partial<LinesBody>): Promise<
   if (op === "status") return respond(lineStatus(choice));
   if (!choice) return respond(NO_LINE_PROVIDER);
   if (op === "search") return searchNumbers(choice, body);
+  if (op === "lookup") return lookupNumber(choice, body);
 
   const call = await writingCall(body, choice, personFor(auth, body.user_id));
   if (!call.ok) return call.response;

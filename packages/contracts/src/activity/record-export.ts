@@ -93,6 +93,18 @@ export const EXPORT_OF = {
       why: "The payment provider holds them; Settings › Billing opens them.",
     },
   },
+  brought: {
+    not_exported: {
+      what: "How far bringing your history in has come, and what your Business Profile and website said",
+      why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public.",
+    },
+  },
+  rehearsal: {
+    not_exported: {
+      what: "Your rehearsals with the receptionist",
+      why: "They are you playing a customer, not a customer's record; what you kept from them is in the file's business section.",
+    },
+  },
 } as const satisfies Record<RecordKind, ExportOf>;
 
 /** What the file leaves out that is no kind of record a page draws, each with why. */

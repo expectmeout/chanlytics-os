@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  MIN_MS,
+  SECOND_MS,
   NEW_CONVERSATION_WORDS as W,
   inboxTemplates,
   planNoteOf,
@@ -151,7 +151,6 @@ interface Queued {
   cancelable_until: string;
   note_id: string | null;
 }
-const SECOND_MS = MIN_MS / 60;
 
 /**
  * A message queued, said as a reply's is (thread/thread-verbs.tsx): for as long as it can still be stopped, with the

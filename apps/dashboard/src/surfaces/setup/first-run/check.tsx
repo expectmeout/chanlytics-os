@@ -32,6 +32,7 @@ import {
 } from "../shell";
 import { brainOf, type CardBrain } from "./inputs";
 import { FrChips } from "./chips";
+import { SteadyLabel } from "./parts";
 
 type CheckWords = (typeof FIRST_RUN_WORDS)["check"];
 
@@ -44,6 +45,13 @@ interface CheckProps {
   go: (to: string) => void;
   canEdit: boolean;
   settings: SettingsRecord | null;
+  /**
+   * The two things only the owner knows (decision 0073, canvas 2): walk-ins, drawn in a card of their own with the price
+   * row moved beside them out of the booking card. Absent, the price row stays with the booking link, as it was.
+   */
+  onlyYou?: ReactNode;
+  /** What the Business Profile and the website said (decision 0073, R10, R17), offered after what it offers. */
+  found?: ReactNode;
 }
 
 /** No brain read yet: the owner's press, who sets it up, the read on its way, or a read that failed and its retry. */
@@ -62,7 +70,7 @@ function noBrain(check: FirstRunCheckVM, W: CheckWords, make: () => void, making
           data-testid="fr-check-make-press"
           {...gate("settings", "set up the receptionist")}
         >
-          {making ? check.make.busy : check.make.cta}
+          <SteadyLabel busy={making} idle={check.make.cta} doing={check.make.busy} />
         </button>
       </div>
     );
@@ -139,7 +147,18 @@ function offerCard(o: {
   );
 }
 
-export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }: CheckProps) => {
+export const FrCheck = ({
+  check,
+  W,
+  flash,
+  make,
+  making,
+  go,
+  canEdit,
+  settings,
+  onlyYou = null,
+  found = null,
+}: CheckProps) => {
   const brain = brainOf(settings && settings.config);
   // The settings read's brain draws the rows. None there: the owner's press, who sets it up, or, set up and not read back
   // yet, the read on its way; and a read that failed, its retry.
@@ -185,10 +204,18 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }
               : null
           }
         />
-        <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
+        {onlyYou ? null : <BtPriceChoiceRow canEdit={canEdit} flash={flash} />}
         <BtRulesRow {...rows} config={settings.config} />
       </section>
       {offerCard({ W, brain, rows, canEdit, flash, saver, chips })}
+      {found}
+      {onlyYou ? (
+        <section className="rec-card fr-check-group fr-only-you" aria-label={W.onlyYou} data-testid="fr-only-you">
+          <h2 className="fr-sub">{W.onlyYou}</h2>
+          {onlyYou}
+          <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
+        </section>
+      ) : null}
       {find ? (
         <p className="fr-note">
           <button type="button" className="link-btn" onClick={() => go(find.to)} data-testid="fr-check-find">

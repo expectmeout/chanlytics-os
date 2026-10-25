@@ -38,6 +38,7 @@ import {
   pausedVoiceFacts,
   greetingOf,
   phoneVoiceOf,
+  phonePaceSpeed,
   type GreetingSource,
 } from "../packages/contracts.js";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/channels.js";
@@ -108,6 +109,16 @@ interface CallStart {
    * override it cannot honour, so nothing off the list is ever sent.
    */
   voiceId: string | null;
+  /**
+   * How fast that voice speaks (decision 0073, R7: contracts phonePaceSpeed), sent with it; null for the line's own pace.
+   */
+  voiceSpeed: number | null;
+  /**
+   * The settings version the facts were composed from (tenant_config.version, as the runtime read it): answered as the
+   * call's metadata, and written on its row by the call webhook (decision 0069, R6), so a review judges the call against
+   * what it knew. Null where nothing was composed.
+   */
+  configVersion: number | null;
   /**
    * Whose workspace the call belongs to, as soon as it routed: whatever the reads after the routing make of it. The door
    * keeps the delivery under it and proves a test of "keep my number" with it (inbound-call.ts), and a caller who
@@ -190,6 +201,8 @@ export async function planCallStartWithin(o: CallStartInput): Promise<CallStart 
     error: `the plan took longer than ${budget} ms`,
     conversationId: null,
     voiceId: null,
+    voiceSpeed: null,
+    configVersion: null,
     tenantId: null,
     late: true,
   };
@@ -218,9 +231,85 @@ function callVariables(v: { context: string; businessFacts: string; handoff: str
 const spokenLineOf = (rt: TenantRuntime) => ({
   businessName: rt.brain?.business_name ?? null,
   ownGreeting: rt.brain?.profile?.phone_greeting,
+  // The receptionist's own name, said in the standard greeting (decision 0073).
+  assistant: rt.brain?.profile?.assistant_name ?? null,
   handoff: rt.brain?.profile?.handoff_number ?? null,
   voiceId: phoneVoiceOf(rt.brain?.profile?.phone_voice)?.id ?? null,
+  voiceSpeed: phonePaceSpeed(rt.brain?.profile?.phone_pace),
 });
+
+/** How a call's line is spoken, before a runtime said: no name, the standard greeting, no hand-off, the line's voice. */
+type SpokenLine = ReturnType<typeof spokenLineOf>;
+const NO_LINE: SpokenLine = {
+  businessName: null,
+  ownGreeting: undefined,
+  assistant: null,
+  handoff: null,
+  voiceId: null,
+  voiceSpeed: null,
+};
+
+/**
+ * The facts a call is told: the SAME composition the WhatsApp receptionist is given, in its spoken form, then the clock
+ * and the open times. One place, so a rehearsal (planRehearsalStart) hears what a call on the line hears.
+ */
+function composedFacts(
+  rt: TenantRuntime,
+  brain: NonNullable<TenantRuntime["brain"]>,
+  now: Date,
+  openings: string | null,
+) {
+  return (
+    `${resolveSystemPrompt(brain, "voice", rt.timezone, now, rt.policy, rt.known)}\n\n` +
+    `${describeNow(rt.timezone, now, brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`
+  );
+}
+
+/** What a rehearsal's call is told, and what of it the page says (planRehearsalStart). */
+interface RehearsalStart {
+  variables: CallVariables;
+  voiceId: string | null;
+  voiceSpeed: number | null;
+  configVersion: number | null;
+  /** The line a real call puts a caller through to, which a rehearsal does not dial (D4); null where there is none. */
+  handoff: string | null;
+}
+
+/**
+ * What a rehearsal's call is told (decision 0069): the composition a call on the line gets -- the facts, the clock and
+ * the open times, the greeting, the voice -- for an owner playing a customer. No memory: they are nobody on file. And
+ * no line to put them through to, since a rehearsal dials nobody (D4): its facts are composed as a workspace's with no
+ * hand-off number, so the receptionist offers to take a message, and the page says what a real call would do instead.
+ * Null where nothing can be composed: a runtime that did not load, a paused workspace, no persona.
+ */
+export async function planRehearsalStart(
+  rt: TenantRuntime,
+  now: Date,
+  calendar: Calendar = CALL_CALENDAR,
+): Promise<RehearsalStart | null> {
+  if (rt.loadFailed || rt.paused || !rt.brain) return null;
+  const line = spokenLineOf(rt);
+  const brain = line.handoff ? { ...rt.brain, profile: { ...rt.brain.profile, handoff_number: undefined } } : rt.brain;
+  const openings = await inTime(CALENDAR_READ_MS, calendar.openings(rt, now));
+  const opening = greetingOf({
+    name: line.businessName,
+    stored: line.ownGreeting,
+    paused: false,
+    assistant: line.assistant,
+  });
+  return {
+    variables: callVariables({
+      context: "",
+      businessFacts: composedFacts(rt, brain, now, openings),
+      handoff: null,
+      greeting: opening.text,
+    }),
+    voiceId: line.voiceId,
+    voiceSpeed: line.voiceSpeed,
+    configVersion: rt.configVersion ?? null,
+    handoff: line.handoff,
+  };
+}
 
 async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = o.now ?? new Date();
@@ -232,11 +321,9 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
   let error: string | null = null;
   let businessFacts = "";
   let context = "";
-  let businessName: string | null = null;
-  let ownGreeting: string | undefined;
-  let handoff: string | null = null;
+  let line: SpokenLine = NO_LINE;
   let conversationId: string | null = null;
-  let voiceId: string | null = null;
+  let configVersion: number | null = null;
   let tenantId: string | null = null;
   const fail = (e: unknown) => {
     if (error === null) error = e instanceof Error ? e.message : String(e);
@@ -282,16 +369,16 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
           fail(rtR.reason);
         } else {
           rt = rtR.value;
-          ({ businessName, ownGreeting, handoff, voiceId } = spokenLineOf(rt));
+          line = spokenLineOf(rt);
           if (rt.loadFailed) {
             fail("the workspace's runtime could not be loaded");
           } else if (rt.paused) {
             // Billing stopped: the phone receptionist takes a message and
             // promises a call back, nothing more -- its whole prompt for the call.
             facts = "paused";
-            businessFacts = pausedVoiceFacts(businessName);
+            businessFacts = pausedVoiceFacts(line.businessName);
             // Nobody is put through while paused (the script says so): the transfer tool is given no number to dial.
-            handoff = null;
+            line = { ...line, handoff: null };
           } else if (rt.brain) {
             // The SAME composition the WhatsApp receptionist is given, asked
             // for in its spoken form. Not a copy of the hours kept in Retell's
@@ -305,10 +392,8 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
             // minutes long, the feed is cached for five, and the agent needs
             // the openings before the caller asks "when could I come in?".
             facts = "composed";
-            const openings = await calendar.openings(rt, now);
-            businessFacts =
-              `${resolveSystemPrompt(rt.brain, "voice", rt.timezone, now, rt.policy, rt.known)}\n\n` +
-              `${describeNow(rt.timezone, now, rt.brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`;
+            configVersion = rt.configVersion ?? null;
+            businessFacts = composedFacts(rt, rt.brain, now, await calendar.openings(rt, now));
           } else {
             facts = "missing";
             if (rt.configBroken) fail("the workspace's config does not parse");
@@ -348,7 +433,8 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
     fail(e);
   }
 
-  const opening = greetingOf({ name: businessName, stored: ownGreeting, paused: facts === "paused" });
+  const { businessName, ownGreeting, assistant, handoff } = line;
+  const opening = greetingOf({ name: businessName, stored: ownGreeting, paused: facts === "paused", assistant });
   return {
     variables: callVariables({ context, businessFacts, handoff, greeting: opening.text }),
     greetingSource: opening.source,
@@ -357,7 +443,9 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
     alert,
     error,
     conversationId,
-    voiceId,
+    voiceId: line.voiceId,
+    voiceSpeed: line.voiceSpeed,
+    configVersion,
     tenantId,
   };
 }

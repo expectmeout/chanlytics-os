@@ -738,6 +738,41 @@ export type Database = {
           },
         ]
       }
+      business_reads: {
+        Row: {
+          error: string | null
+          facts: Json
+          read_at: string
+          read_from: string | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          error?: string | null
+          facts?: Json
+          read_at?: string
+          read_from?: string | null
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          error?: string | null
+          facts?: Json
+          read_at?: string
+          read_from?: string | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_reads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_records: {
         Row: {
           about: string
@@ -833,6 +868,7 @@ export type Database = {
           call_type: string | null
           caller_name: string | null
           channel_id: string | null
+          config_version: number | null
           contact_id: string | null
           conversation_id: string | null
           cost: Json | null
@@ -874,6 +910,7 @@ export type Database = {
           call_type?: string | null
           caller_name?: string | null
           channel_id?: string | null
+          config_version?: number | null
           contact_id?: string | null
           conversation_id?: string | null
           cost?: Json | null
@@ -915,6 +952,7 @@ export type Database = {
           call_type?: string | null
           caller_name?: string | null
           channel_id?: string | null
+          config_version?: number | null
           contact_id?: string | null
           conversation_id?: string | null
           cost?: Json | null
@@ -1194,6 +1232,7 @@ export type Database = {
         Row: {
           acquired_ref: string | null
           acquired_via: string | null
+          before: Json | null
           consent: string
           consent_channels: string[] | null
           consent_source: string | null
@@ -1234,6 +1273,7 @@ export type Database = {
         Insert: {
           acquired_ref?: string | null
           acquired_via?: string | null
+          before?: Json | null
           consent?: string
           consent_channels?: string[] | null
           consent_source?: string | null
@@ -1274,6 +1314,7 @@ export type Database = {
         Update: {
           acquired_ref?: string | null
           acquired_via?: string | null
+          before?: Json | null
           consent?: string
           consent_channels?: string[] | null
           consent_source?: string | null
@@ -2850,6 +2891,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "idempotency_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imports: {
+        Row: {
+          counts: Json
+          created_at: string
+          finished_at: string | null
+          job_cursor: Json | null
+          last_error: string | null
+          oldest: string | null
+          parts_done: number
+          parts_total: number | null
+          source: string
+          started_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+          via: string | null
+        }
+        Insert: {
+          counts?: Json
+          created_at?: string
+          finished_at?: string | null
+          job_cursor?: Json | null
+          last_error?: string | null
+          oldest?: string | null
+          parts_done?: number
+          parts_total?: number | null
+          source: string
+          started_at?: string | null
+          state?: string
+          tenant_id: string
+          updated_at?: string
+          via?: string | null
+        }
+        Update: {
+          counts?: Json
+          created_at?: string
+          finished_at?: string | null
+          job_cursor?: Json | null
+          last_error?: string | null
+          oldest?: string | null
+          parts_done?: number
+          parts_total?: number | null
+          source?: string
+          started_at?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          via?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imports_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5633,6 +5733,87 @@ export type Database = {
           },
         ]
       }
+      rehearsals: {
+        Row: {
+          agent_id: string | null
+          call_id: string | null
+          config_version: number | null
+          created_at: string
+          created_by: string | null
+          end_reason: string | null
+          ended_at: string | null
+          fixes: Json
+          id: string
+          instructions: string | null
+          kind: string
+          retell_call_id: string | null
+          review: Json | null
+          reviewed_at: string | null
+          seconds: number | null
+          started_at: string | null
+          tenant_id: string
+          transcript: Json
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          call_id?: string | null
+          config_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          fixes?: Json
+          id?: string
+          instructions?: string | null
+          kind: string
+          retell_call_id?: string | null
+          review?: Json | null
+          reviewed_at?: string | null
+          seconds?: number | null
+          started_at?: string | null
+          tenant_id: string
+          transcript?: Json
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          call_id?: string | null
+          config_version?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          fixes?: Json
+          id?: string
+          instructions?: string | null
+          kind?: string
+          retell_call_id?: string | null
+          review?: Json | null
+          reviewed_at?: string | null
+          seconds?: number | null
+          started_at?: string | null
+          tenant_id?: string
+          transcript?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rehearsals_call_id_same_workspace"
+            columns: ["tenant_id", "call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "rehearsals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reply_turns: {
         Row: {
           claimed_at: string
@@ -6875,6 +7056,35 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_agents: {
+        Row: {
+          agent_id: string
+          created_at: string
+          llm_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          llm_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          llm_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_agents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waitlist: {
         Row: {
           business: string | null
@@ -7177,6 +7387,16 @@ export type Database = {
           p_words: string
         }
         Returns: Json
+      }
+      calendar_grant_note: {
+        Args: {
+          p_by?: string
+          p_mailbox_id: string
+          p_on: boolean
+          p_provider: string
+          p_tenant_id: string
+        }
+        Returns: boolean
       }
       calendars_due: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
@@ -7616,6 +7836,22 @@ export type Database = {
         Args: { p_conversation: string; p_message: string }
         Returns: boolean
       }
+      import_ledger_note: {
+        Args: {
+          p_add?: boolean
+          p_counts?: Json
+          p_cursor?: Json
+          p_error?: string
+          p_oldest?: string
+          p_parts_done?: number
+          p_parts_total?: number
+          p_source: string
+          p_state: string
+          p_tenant_id: string
+          p_via?: string
+        }
+        Returns: undefined
+      }
       import_person: {
         Args: {
           p_email: string
@@ -7624,6 +7860,23 @@ export type Database = {
           p_phone_digest?: string
           p_phone_e164: string
           p_tenant_id: string
+        }
+        Returns: Json
+      }
+      ingest_before: {
+        Args: {
+          p_body: string
+          p_channel: string
+          p_channel_ts: string
+          p_direction: string
+          p_email: string
+          p_external: string
+          p_message_external_id: string
+          p_meta?: Json
+          p_name: string
+          p_phone: string
+          p_tenant_id: string
+          p_type: string
         }
         Returns: Json
       }
@@ -8678,6 +8931,15 @@ export type Database = {
       people_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
+      }
+      person_before_note: {
+        Args: {
+          p_before?: Json
+          p_contact_id: string
+          p_notes?: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       person_call_logged: {
         Args: {

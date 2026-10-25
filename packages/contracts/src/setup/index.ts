@@ -5,6 +5,7 @@ export {
   textingWords,
   setupLaterOf,
   setupPhoneWantOf,
+  setupChoicesOf,
   forwardedLineOf,
   keptPhoneKind,
   PROVISIONING_DEADLINE_MS,
@@ -20,6 +21,10 @@ export {
   BROKEN_CONFIG_WORDS,
   SETUP_REQUEST_KINDS,
   TRY_SKIPPED,
+  RECEPTIONIST_MET,
+  CHANNELS_SEEN,
+  REHEARSE_SKIPPED,
+  GOOGLE_CONNECT_LATER,
   REMIND_SKIPPED,
   KEEP_ROW,
   SETUP_LATER_REFUSED,
@@ -36,6 +41,8 @@ export type {
   SetupVM,
   SetupRequestKind,
   SetupPhoneWant,
+  SetupChoices,
+  WhatsappChoice,
 } from "./setup";
 export { capabilityStatus, CAPABILITY_KINDS } from "./capabilities";
 export type {
@@ -63,47 +70,30 @@ export type {
   ConnectionInputs,
 } from "./connections";
 export {
-  businessNameOf,
   unsureHoursWords,
   firstRunKicker,
   firstRunOf,
-  setupCardOf,
-  receptionistCardOf,
   FIRST_RUN_ROUTE,
   firstRunStepRoute,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_STEPS,
-  SETUP_CARD_ORDER,
   FIRST_RUN_WORDS,
-  FIRST_RUN_HELPERS,
 } from "./first-run";
+export { setupCardOf, SETUP_CARD_WORDS } from "./first-run-card";
+export type { SetupCardVM, SetupCardWho } from "./first-run-card";
+export { businessNameOf, receptionistCardOf, soundsWords } from "./first-run-receptionist";
+export type { ReceptionistCardInputs, ReceptionistCardVM } from "./first-run-receptionist";
+export { FIRST_RUN_HELPERS } from "./first-run-helpers";
+export { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS, lineLookupOf } from "./first-run-channels";
+export type { ChannelsInput, FirstRunChannelsVM, LineLookupDto } from "./first-run-channels";
+export { firstRunGoLiveOf, FIRST_RUN_GOLIVE_WORDS } from "./first-run-golive";
+export type { FirstRunGoLiveVM, GoLiveInput, GoLiveItemVM, GoLiveStartVM } from "./first-run-golive";
 export { FIRST_RUN_TITLE, FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, shouldLandOnFirstRun } from "./first-run-door";
 export { firstRunStepOf } from "./first-run-route";
 export type { FirstRunStepKey } from "./first-run-route";
+export type { FirstRunStepState, FirstRunCheckVM, FirstRunStepVM, FirstRunVM, FirstRunWho } from "./first-run";
+export { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 export type {
-  FirstRunStepState,
-  FirstRunCheckVM,
-  FirstRunStepVM,
-  FirstRunVM,
-  FirstRunWho,
-  SetupCardVM,
-  ReceptionistCardInputs,
-  ReceptionistCardVM,
-} from "./first-run";
-export {
-  forwardingCarrierOf,
-  areaCodeOf,
-  firstRunPhoneOf,
-  PHONE_WAYS,
-  PHONE_RINGS,
-  FIRST_RUN_PHONE_WORDS,
-} from "./first-run-phone";
-export type {
-  PhoneWay,
-  PhonePick,
-  PhoneRings,
-  PhoneChoice,
-  PhoneCompany,
   FirstRunPhoneStage,
   FirstRunPhoneQuestion,
   FirstRunPhoneCodeVM,

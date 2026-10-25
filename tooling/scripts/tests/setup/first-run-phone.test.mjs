@@ -69,8 +69,9 @@ const lineOf = (over = {}) => ({
   created_at: new Date(NOW - 20_000).toISOString(),
   ...over,
 });
-const phone = (dto, choice = null, returned = false) =>
-  firstRunPhoneOf({ dto, vm: setupSteps(dto, NOW), choice, returned, nowMs: NOW });
+/** The phone's view model at a step: Go live's (where it spends) unless Where it answers is named (where it chooses). */
+const phone = (dto, choice = null, returned = false, at = undefined) =>
+  firstRunPhoneOf({ dto, vm: setupSteps(dto, NOW), choice, returned, nowMs: NOW, ...(at ? { at } : {}) });
 const trialing = { ...dtoOf().billing, status: "trialing", trial_end: "2026-10-08T15:00:00Z" };
 /** A workspace whose plan is paid: the one kind that may spend on our account (contracts maySpend). */
 const paying = { ...dtoOf().billing, status: "active", current_period_end: "2026-10-08T15:00:00Z" };
@@ -85,10 +86,10 @@ test("the area code a number is bought in: a US number's three digits, and nothi
   assert.equal(FIRST_RUN_HELPERS.phone, firstRunPhoneOf);
 });
 
-test("choosing (canvas R3): keeping the listing's number first and recommended, the plan the number starts at Stripe's price, the button named for the result", () => {
-  const vm = phone(dtoOf());
+test("choosing at Where it answers (canvas 4): keeping the listing's number first and recommended, and nothing bought; at Go live, the plan the number starts at Stripe's price and the button named for it", () => {
+  const vm = phone(dtoOf(), null, false, "channels");
   assert.equal(vm.stage, "choose");
-  assert.equal(vm.heading, "How should calls reach your receptionist?");
+  assert.equal(vm.heading, "Calls");
   assert.equal(vm.way, "keep", "keeping the number customers know is the default");
   assert.deepEqual(
     vm.ways.map((w) => [w.key, w.title, w.recommended]),
@@ -101,14 +102,18 @@ test("choosing (canvas R3): keeping the listing's number first and recommended, 
   assert.equal(vm.ways[0].sentence, W.keepListed, "the listing's number says where it came from");
   assert.deepEqual([vm.number, vm.listed, vm.area], [LISTED, LISTED, "305"]);
   assert.equal(vm.box, "+1 (305) 555-0100", "the box starts from the listing's number, as the app writes one");
-  // A number is a cost on our account whether or not a trial ever pays, so it starts the plan: no free days offered.
-  assert.deepEqual(vm.plan, {
+  assert.deepEqual([vm.plan, vm.cta], [null, null], "Where it answers buys nothing: it chooses");
+  // Go live spends: a number is a cost on our account whether or not a trial ever pays, so it starts the plan.
+  const go = phone(dtoOf());
+  assert.equal(go.stage, "go");
+  assert.equal(go.heading, "How should calls reach your receptionist?");
+  assert.deepEqual(go.plan, {
     offer: "$49.00 a month, starting today",
     note: "Your number is included. The first charge is today, and you can cancel anytime from Billing.",
   });
-  assert.doesNotMatch(`${vm.plan.offer} ${vm.plan.note}`, /free|trial|days/i);
-  assert.deepEqual(vm.cta, { label: "Start my plan", held: null, act: "plan" });
-  assert.equal(vm.status, null);
+  assert.doesNotMatch(`${go.plan.offer} ${go.plan.note}`, /free|trial|days/i);
+  assert.deepEqual(go.cta, { label: "Start my plan", held: null, act: "plan" });
+  assert.equal(go.status, null);
 });
 
 test("the plan says only what it knows: no price read, no price said; a deployment's trial days change nothing here", () => {
@@ -120,43 +125,36 @@ test("the plan says only what it knows: no price read, no price said; a deployme
   assert.deepEqual(noDays.plan, phone(dtoOf()).plan);
 });
 
-test("on a free trial: the trial covers no number, so the step starts the plan early -- said, and nothing is bought while it is still a trial", () => {
+test("on a free trial: the trial covers no number, so Go live starts the plan early -- said, and nothing is bought while it is still a trial", () => {
   const vm = phone(dtoOf({ billing: trialing }));
-  assert.equal(vm.stage, "choose");
+  assert.equal(vm.stage, "go");
   assert.deepEqual(vm.plan, {
     offer: "$49.00 a month, starting today",
     note: "Your free trial ends today and your plan starts, on the card you gave. Your number is included.",
   });
-  assert.deepEqual(vm.cta, { label: "Start my plan", held: null, act: "startNow" });
+  assert.deepEqual(vm.cta, { label: "Start my plan and go live", held: null, act: "startNow" });
   const picked = phone(dtoOf({ billing: trialing }), {
     way: "new",
     number: null,
     pick: { e164: "+13055550142", friendly: "(305) 555-0142" },
     pending: false,
   });
-  assert.deepEqual(picked.cta, { label: "Start my plan with +1 (305) 555-0142", held: null, act: "startNow" });
-  // Pressed, and still a trial (the start not yet taken): choosing, never buying.
+  assert.deepEqual(picked.cta, { label: "Start my plan and go live", held: null, act: "startNow" });
+  // Pressed, and still a trial (the start not yet taken): never buying.
   const pressed = phone(dtoOf({ billing: trialing }), { way: "keep", number: null, pick: null, pending: true });
-  assert.equal(pressed.stage, "choose", "no number is bought on a trial");
+  assert.equal(pressed.stage, "go", "no number is bought on a trial");
   assert.equal(pressed.cta.act, "startNow");
 });
 
-test("each way names its button, and holds it until there is a number to keep or one picked", () => {
+test("Go live's button is named for what it does, and held until there is a number to keep or one picked", () => {
   const pick = { e164: "+13055550142", friendly: "(305) 555-0142" };
   const trial = (choice) => {
     const { label, held } = phone(dtoOf(), { pick: null, number: null, pending: false, ...choice }).cta;
     return { label, held };
   };
   assert.deepEqual(trial({ way: "new" }), { label: "Start my plan", held: "Pick a number first." });
-  assert.deepEqual(
-    trial({ way: "new", pick }),
-    { label: "Start my plan with +1 (305) 555-0142", held: null },
-    "the app's own way of writing a number, never the carrier's",
-  );
-  assert.deepEqual(trial({ way: "move", number: LISTED }), {
-    label: "Start my plan and ask for the move",
-    held: null,
-  });
+  assert.deepEqual(trial({ way: "new", pick }), { label: "Start my plan", held: null }, "a number picked");
+  assert.deepEqual(trial({ way: "move", number: LISTED }), { label: "Start my plan", held: null });
   assert.deepEqual(
     trial({ way: "keep", number: "" }),
     { label: "Start my plan", held: "Type the number customers call." },
@@ -172,14 +170,16 @@ test("each way names its button, and holds it until there is a number to keep or
   assert.deepEqual([typed.number, typed.area, typed.ways[0].title], ["+17865550113", "786", "Keep +1 (786) 555-0113"]);
   assert.equal(typed.ways[0].sentence, W.keepTyped, "not the listing's, so not said to be");
 
-  // Already paying: the button buys.
-  const paying = (choice) =>
-    phone(dtoOf({ billing: paying }), { pick: null, number: LISTED, pending: false, ...choice }).cta.label;
-  assert.equal(paying({ way: "keep" }), "Keep this number");
-  assert.equal(paying({ way: "new", pick }), "Get +1 (305) 555-0142");
-  assert.equal(paying({ way: "move" }), "Ask for the move");
+  // Already paying: the button goes live, whichever way was chosen.
+  const paid = (choice) =>
+    phone(dtoOf({ billing: paying }), { pick: null, number: LISTED, pending: false, ...choice }).cta;
+  for (const way of ["keep", "new", "move"]) {
+    assert.deepEqual(paid({ way, pick }), { label: "Go live", held: null, act: "buy" }, way);
+  }
+  assert.equal(phone(dtoOf({ billing: paying })).plan, null, "already paying: no plan to start");
   const direct = phone(dtoOf({ billing: undefined }));
-  assert.deepEqual([direct.stage, direct.plan], ["choose", null], "a workspace that does not pay by card");
+  assert.deepEqual([direct.stage, direct.plan], ["go", null], "a workspace that does not pay by card");
+  assert.equal(phone(dtoOf({ billing: undefined }), null, false, "channels").stage, "choose");
 });
 
 test("(D) the number box's own problem: something typed that cannot be forwarded, said on the box -- nothing before anything is typed", () => {
@@ -233,10 +233,10 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
   const fresh = phone(dtoOf({ billing: paying }), { way: "new", number: null, pick, pending: true });
   assert.equal(fresh.status.sentence, "Getting +1 (305) 555-0142…");
   assert.equal(fresh.lead, W.readyLeadNew);
-  // Not pressed: still choosing, trial or none.
+  // Not pressed: Go live's press, still to make.
   assert.equal(
     phone(dtoOf({ billing: paying }), { way: "keep", number: null, pick: null, pending: false }).stage,
-    "choose",
+    "go",
   );
 });
 

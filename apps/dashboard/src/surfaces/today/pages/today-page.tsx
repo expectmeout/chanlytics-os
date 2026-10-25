@@ -11,7 +11,8 @@
  *   0064), then the queue, the    |
  *   steps due                     |
  *   among its rows                |
- *   (TodaySetup, only while something is left, in the queue's column: canvas R10)
+ *   (TodaySetup, only while something is left, in the queue's column: canvas R10; then what was brought in, for the
+ *   first week, decision 0073)
  *   the day's card                | Worth a look
  *   the lists this member pinned (a pane of figures, only when something is)
  *
@@ -31,6 +32,7 @@ import { TodayLeaks } from "./leaks";
 import { TodayAway } from "./away";
 import { TodayPins } from "./pins";
 import { TodaySetup } from "./setup-card";
+import { TodayBroughtIn } from "./brought-in";
 import { TodayStrip } from "./strip";
 
 // Canvas E3's bento: the strip, the queue's column beside the brief and the bell, the day's card beside Worth a look.
@@ -41,6 +43,7 @@ export const DashboardA = () => (
     <TodayStrip />
     <div className="dash-a-v2-work">
       <TodaySetup />
+      <TodayBroughtIn />
       <TodayGoing />
       <AgentCommand />
     </div>

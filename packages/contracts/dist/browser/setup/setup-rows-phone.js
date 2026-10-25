@@ -171,7 +171,8 @@ function lineToGetRow(i, ctx) {
         details: [
           priceWords(i.billing.price ?? null) ? `A local number, included in your plan \xB7 ${priceWords(i.billing.price ?? null)}, from the day you get it` : "A local number, included in your plan, from the day you get it"
         ],
-        verb: { label: "Get a number", to: "start/phone" }
+        // Where it answers chooses the number, Go live buys it (decision 0073).
+        verb: { label: "Get a number", to: "start/channels" }
       }
     ) : billingDoorOpen(i.billing) ? {
       id: "line",
@@ -309,8 +310,9 @@ export function tryRow(_i, ctx) {
       `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
     ) : `Call ${through} from your cell.`,
     details: [],
-    // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
-    verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
+    // The first run's Go live checks the line with this call (decision 0073; firstRunStepRoute("live")), spelled here:
+    // that file reads this one.
+    verb: voice.lastInboundAt ? null : { label: "Check my line", to: "start/live" }
   };
 }
 export function keepRow(_i, ctx) {

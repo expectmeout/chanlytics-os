@@ -55,7 +55,8 @@ export interface GoogleApi {
   /** Read it now: the profile when connected, the public listing otherwise. Operators and owners. */
   refresh(): Promise<{ ok: boolean; fresh: number; counted: number; message: string }>;
   /** The way to Google's consent screen: the browser leaves the app and comes back to Integrations. Owners only. */
-  connect(): void;
+  /** To Google's consent screen; `back: "start"` returns to the first run's Your business (decision 0073, R17). */
+  connect(o?: { back?: "start" }): void;
   /** The locations the connected account may choose among. Owners only. */
   locations(): Promise<{ ok: boolean; locations: GoogleLocationDto[]; message: string }>;
   /** This one. Owners only. */
@@ -223,8 +224,10 @@ export const googleVerbs: GoogleApi = {
     if (!r.ok) return { ok: false, fresh: 0, counted: 0, message: r.message };
     return { ok: true, fresh: r.data.fresh, counted: r.data.counted, message: "" };
   },
-  connect() {
-    window.location.assign(api().url("GET google/connect"));
+  connect(o) {
+    window.location.assign(
+      api().url("GET google/connect", { params: undefined, query: o?.back ? { back: o.back } : undefined }),
+    );
   },
   async locations() {
     const r = await api()("GET google/locations");

@@ -16,9 +16,10 @@ import type { ChangeEvent, ReactNode } from "react";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { importPeople } from "../people-detail";
-import { ImportFile, ImportSource, ImportTaste } from "./frame";
+import { CSV_OR_EXCEL_FILES, ImportFile, ImportSource, ImportTaste } from "./frame";
 import type { Flash } from "../types";
-import { plImportColumnWords, plImportHeads, plImportPlan, plImportReadWords } from "./plan";
+import { plImportColumnWords, plImportHeads, plImportPlan, plImportPlanOf, plImportReadWords } from "./plan";
+import { isOldXls, isXlsx, readXlsx, SheetUnreadable } from "./xlsx";
 import type { ImportPlan } from "./plan";
 
 const PL_IMPORT_PART = 50;
@@ -44,13 +45,17 @@ const plImportId = (): string =>
     ? window.crypto.randomUUID()
     : `${Date.now()}-${Math.random()}`.replace(/\./g, "");
 
-/** A part as the door takes it: only what each row has. */
+/** A part as the door takes it: only what each row has, and what the file says of them beyond that (decision 0073). */
 const plImportPartOf = (people: ImportRow[]) =>
   people.map((p) => ({
     ...(p.name ? { name: p.name } : {}),
     ...(p.phone ? { phone: p.phone } : {}),
     ...(p.email ? { email: p.email } : {}),
+    ...(p.facts ? { facts: p.facts } : {}),
   }));
+
+/** An Excel workbook that is the old binary kind, said where its rows would be. */
+const OLD_XLS = "That's an older Excel file. Open it in Excel and save it as .xlsx or CSV, then drop that.";
 
 const plImportPhone = (e164: string): string => formatPhoneDisplay(e164) || e164;
 
@@ -148,7 +153,7 @@ function summaryOf(result: Totals, left: number | null) {
 async function sendParts(
   plan: ImportPlan,
   readable: ImportRow[],
-  run: { from: number; importId: string; first: boolean },
+  run: { from: number; importId: string; first: boolean; via: string | null },
   progress: (p: { done: number; total: number }) => void,
 ): Promise<{ totals: Totals; sent: number; stopped: string | null; at: number }> {
   const totals: Totals = {
@@ -174,11 +179,15 @@ async function sendParts(
     totals.skipped.sort((a, b) => a.line - b.line);
     return { totals, sent, stopped, at };
   };
+  const parts = Math.ceil(readable.length / PL_IMPORT_PART);
   for (let i = run.from; i < readable.length; i += PL_IMPORT_PART) {
     progress({ done: i, total: readable.length });
     const r = await importPeople({
       import_id: run.importId,
       rows: plImportPartOf(readable.slice(i, i + PL_IMPORT_PART)),
+      // Which part this is, so the record of what was brought in counts the file once (decision 0073, R23).
+      part: { n: Math.floor(i / PL_IMPORT_PART) + 1, of: parts },
+      ...(run.via ? { via: run.via } : {}),
     });
     if (!r.ok) {
       const message = r.message || "The import could not go on.";
@@ -204,7 +213,7 @@ async function sendParts(
 }
 
 /** The import's own state: the rows read, the plan, the parts sent, what they came to, and where they stopped. */
-export function useImport({ flash }: { flash: Flash | null }) {
+export function useImport({ flash, via = null }: { flash: Flash | null; via?: string | null }) {
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [file, setFile] = useState<string | null>(null);
@@ -216,19 +225,35 @@ export function useImport({ flash }: { flash: Flash | null }) {
   const importId = useRef<string | null>(null);
   // The rows the door can take: a number or an address. The rest are skipped here and said with the door's.
   const readable = useMemo(() => (plan ? plan.people.filter((p) => p.phone || p.email) : []), [plan]);
-  const read = (t: string, fileName: string | null = null) => {
-    setPlan(plImportPlan(t));
+  const readPlan = (next: ImportPlan, fileName: string | null) => {
+    setPlan(next);
     setFile(fileName);
     setResult(null);
     setStopped(null);
     setError(null);
     importId.current = null;
   };
+  const read = (t: string, fileName: string | null = null) => readPlan(plImportPlan(t), fileName);
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files && e.target.files[0];
     // The same file chosen again after a Change is a choice too.
     e.target.value = "";
     if (!f) return;
+    if (isOldXls(f) && !isXlsx(f)) {
+      setError(OLD_XLS);
+      return;
+    }
+    // An Excel workbook is read as its first sheet (xlsx.ts), its rows then found as a CSV's are.
+    if (isXlsx(f)) {
+      void f
+        .arrayBuffer()
+        .then(readXlsx)
+        .then((rows) => readPlan(plImportPlanOf(rows), f.name))
+        .catch((err: unknown) =>
+          setError(err instanceof SheetUnreadable ? err.message : "That file couldn't be read. Try saving it as CSV."),
+        );
+      return;
+    }
     const r = new FileReader();
     r.onload = () => read(typeof r.result === "string" ? r.result : "", f.name);
     r.readAsText(f);
@@ -247,7 +272,7 @@ export function useImport({ flash }: { flash: Flash | null }) {
     const from = stopped ? stopped.at : 0;
     setBusy(true);
     setError(null);
-    const r = await sendParts(plan, readable, { from, importId: importId.current, first: !stopped }, setProgress);
+    const r = await sendParts(plan, readable, { from, importId: importId.current, first: !stopped, via }, setProgress);
     setProgress(null);
     setBusy(false);
     // Refused before any of this run went: the words on the line; the preview, or what went before, stays as it was.
@@ -325,7 +350,7 @@ function sourceFields(list: AddList): ReactNode {
     <ImportSource
       words={{
         file: "Choose a file",
-        fileHint: "A CSV from your booking app, or a spreadsheet",
+        fileHint: "A CSV or Excel file from your booking app",
         paste: "Or paste the rows",
         placeholder: "Name, Mobile, Email\nAna Ruiz, (646) 555-0101, ana@example.com",
         read: "Read",
@@ -335,6 +360,7 @@ function sourceFields(list: AddList): ReactNode {
       onFile={list.onFile}
       onText={list.setText}
       onRead={(t) => list.read(t)}
+      accept={CSV_OR_EXCEL_FILES}
       testid="import"
     />
   );
