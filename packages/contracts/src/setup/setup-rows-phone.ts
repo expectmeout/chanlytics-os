@@ -21,11 +21,14 @@ import {
   forwardedLineOf,
   keptPhoneKind,
   lineStuckProvisioning,
+  KEEP_ROW,
   LINE_STEP_WORDS,
   type LineDto,
+  type SetupDto,
   type SetupInputs,
   type SetupRowContext,
   type SetupRowDraft,
+  type SetupVM,
 } from "./setup";
 
 /**
@@ -481,5 +484,37 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
     sentence: `Keep the number your customers know: forward its calls to ${dest}.`,
     details: ["You keep your phone, your carrier and your texts"],
     verb: { label: "Set up forwarding", to: "verb:forwarding" },
+  };
+}
+
+/**
+ * "The number you already have" in Settings › How it answers › On calls, its home once the first run is done
+ * (settings/business/phone/kept-number.tsx): Setup's own row (keepRow, above), by its own name, so the page and Today's
+ * card say one thing, with the number kept as its value and the row's act opening the forwarding card. Forwarding was
+ * set up on Setup's rows alone, so the row could never be put off for good. Null while there is no line to forward to.
+ */
+export interface KeptNumberRowVM {
+  label: string;
+  /** The number kept, as the app writes one; null while none is saved. */
+  value: string | null;
+  empty: string;
+  /** Where it stands, in Setup's row's own sentence. */
+  hint: string;
+  /** The row's act: Setup's own verb words while the card is shut, `close` while it is open. */
+  act: string;
+  close: string;
+}
+
+export function keptNumberRowOf(vm: SetupVM, lines: SetupDto["lines"] | null | undefined): KeptNumberRowVM | null {
+  const row = vm.rows.find((r) => r.id === KEEP_ROW);
+  if (!row || !row.verb) return null;
+  const kept = lines?.rows.find((l) => l.kind === "forwarded")?.e164 ?? null;
+  return {
+    label: row.title,
+    value: kept ? (formatPhoneDisplay(kept) ?? kept) : null,
+    empty: "Not forwarded",
+    hint: row.sentence,
+    act: row.verb.label,
+    close: "Close",
   };
 }

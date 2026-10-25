@@ -269,7 +269,7 @@ const CARD_PUT_OFF = {
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  // What waiting on "The number you already have" costs, said with each of its Skips.
   keep: FORWARDING_WAIT_WORDS
 };
 const CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
@@ -279,13 +279,14 @@ const CARD_HOMES = {
   calendar: () => "It's in Settings \u203A Hours & booking.",
   team: (r) => r.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
   handoff: () => "It's in Settings \u203A How it answers.",
+  keep: () => "It's in Settings \u203A How it answers.",
   google: () => "It's in Settings \u203A Connections.",
   email: () => "It's in Settings \u203A Connections.",
   yes: () => "It's in People \u203A Get their yes."
 };
 function skipSaid(id, r) {
-  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
-  return putOffEnds(id, r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
+  const said = putOffEnds(r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
+  return id === KEEP_ROW ? `${said} ${CARD_PUT_OFF.keep}` : said;
 }
 function hideSaid(drawn) {
   const [only] = drawn;
@@ -348,7 +349,7 @@ export function setupCardOf(vm) {
   });
   if (!rows.length) return null;
   const calendar = rowOf(vm, "calendar");
-  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remindGood = putOffEnds(vm.remindBack) === "good";
   const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
     id: CARD_REMIND.id,
     name: CARD_REMIND.name,
@@ -360,7 +361,7 @@ export function setupCardOf(vm) {
     back: vm.remindBack
   } : null;
   const drawn = [
-    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.id, r.back) === "good", said: r.said ?? "" })),
+    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.back) === "good", said: r.said ?? "" })),
     ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
   ];
   return {

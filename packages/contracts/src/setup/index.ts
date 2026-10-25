@@ -30,6 +30,9 @@ export {
 } from "./setup";
 /** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */
 export { setupSteps } from "./setup-rows";
+/** The kept number's row in Settings › How it answers, from Setup's own (setup-rows-phone.ts keepRow). */
+export { keptNumberRowOf } from "./setup-rows-phone";
+export type { KeptNumberRowVM } from "./setup-rows-phone";
 export type {
   SetupDto,
   LineDto,

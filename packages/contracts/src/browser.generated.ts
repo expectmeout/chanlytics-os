@@ -379,6 +379,7 @@ export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE, firstRunStepO
 export { firstRunTryOf, TRY_QUIET_AFTER_MS, FIRST_RUN_TRY_WORDS } from "./setup/first-run-try";
 export { lineStuckProvisioning, lineRetryRefusal, textingWords, setupLaterOf, setupRestsOf, setupPutOffNext, putOffEnds, SETUP_REST_MS, setupPhoneWantOf, forwardedLineOf, keptPhoneKind, PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, SETUP_STATE_WORDS, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_TEXTING_SENTENCE, MOCK_TEXTING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE, TEXTING_NEEDS_RECORD_CLAUSE, BROKEN_CONFIG_WORDS, SETUP_REQUEST_KINDS, TRY_SKIPPED, REMIND_SKIPPED, KEEP_ROW, SETUP_LATER_REFUSED } from "./setup/setup";
 export { setupSteps } from "./setup/setup-rows";
+export { keptNumberRowOf } from "./setup/setup-rows-phone";
 export { utf8Bytes, hexOf } from "./shared/bytes";
 export { zoneDayKey, clockTime, clockHour, clockDate, clockDateYear, clockShort, clockStamp, clockWhen, localDaysBetween, inLocalWeek, clockNear, clockNearWhen, clockDayLabel, wallClockAt, tomorrowAtIn, zonedInputValue, fromZonedInput, callLength, mmss, durationWords } from "./shared/clock";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./shared/csv";

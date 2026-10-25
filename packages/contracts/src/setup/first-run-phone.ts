@@ -170,7 +170,7 @@ export interface FirstRunPhoneVM {
 
 /**
  * What waiting on a kept number's forwarding costs, said wherever it is put off: the phone step's "Set up forwarding
- * later" and Today's Skip of "The number you already have", which comes back every week (setup.ts putOffEnds).
+ * later" and Today's Skip of "The number you already have", for a week or for good (setup.ts putOffEnds).
  */
 export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
 
