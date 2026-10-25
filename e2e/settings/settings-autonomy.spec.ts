@@ -61,24 +61,29 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await expect(page.getByTestId("price_choice-menu")).toBeVisible();
     // Every row is one the receptionist consults now: nothing says "not enforced".
     await expect(rows.filter({ hasText: "not enforced yet" })).toHaveCount(0);
-    // The rows that run playbooks say what each mode does to a run -- behind the row's info mark, as every note is
-    // since #620 -- and their dots are live.
+    // The rows that start sequences say what each mode does to how one starts -- behind the row's info mark, as every
+    // note is since #620 -- and their dots are live. A sequence is approved once, then held (decision 0064): each keeps
+    // its own on its page (contracts policy-classes.ts).
     for (const label of ["Re-engage quiet customers", "Standing offers"]) {
       const row = rows.filter({ hasText: label });
-      await expect(row.locator(".rec-tip")).toHaveAttribute("data-tip", /ask leaves it waiting on Today/);
+      await expect(row.locator(".rec-tip")).toHaveAttribute("data-tip", /keeps its own on its page/);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
     }
 
-    // Reviews offer Auto, Ask and Never; Veto is a dash. The row exists on every workspace, so one mode is on.
+    // Reviews offer all four: Veto writes the reply and posts it later unless you stop it (contracts policy-classes.ts),
+    // so no mode is a dash. The row exists on every workspace, so one mode is on.
     const reviews = rows.filter({ hasText: "Google reviews" });
-    await expect(reviews.locator(".pol-dash")).toHaveCount(1);
-    await expect(reviews.locator(".pol-dot")).toHaveCount(3);
+    await expect(reviews.locator(".pol-dash")).toHaveCount(0);
+    await expect(reviews.locator(".pol-dot")).toHaveCount(4);
     await expect(reviews.locator(".pol-dot.on")).toHaveCount(1);
     await expect(reviews.locator(".pol-dot").first()).toBeEnabled();
 
     // The hard limits are the owner's dials now (S6): the reply cap and the pause after a person steps in, each a
     // control with a number the runtime actually uses -- they were two sentences -- and the day's budget beside them.
-    await expect(page.getByText("Day's model budget")).toBeVisible();
+    // The day's budget is said in the replies it buys, or in model tokens where those would read alike (contracts
+    // BUDGET_WORDS, #1709).
+    await expect(page.getByTestId("aut-budget")).toBeVisible();
+    await expect(page.getByText(/^(Replies in a day, in all|Model tokens in a day)$/)).toBeVisible();
     await expect(page.getByTestId("aut-reply-cap")).toBeVisible();
     await expect(page.getByTestId("aut-pause")).toBeVisible();
     // Each dial is a row of options with one chosen (the record kit's radios); the chosen one is the number the runtime uses.

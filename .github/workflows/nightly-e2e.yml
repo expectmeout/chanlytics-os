@@ -278,12 +278,14 @@ jobs:
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else
             echo "The nightly's node suite: $SUITE. Its specs against production: $SPECS. A cancelled half hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
-            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red --assignee "$OWNER"
           fi
         env:
           SUITE: ${{ needs.suite.result }}
           COVERAGE: ${{ needs.coverage.result }}
           SPECS: ${{ needs.e2e.result }}
+          # The red issue is the owner's: GitHub tells an assignee of every comment, and nobody else was told.
+          OWNER: ${{ github.repository_owner }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAGER_URL: ${{ secrets.PAGER_URL }}
           PAGER_KEY: ${{ secrets.PAGER_KEY }}

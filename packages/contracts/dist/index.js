@@ -23706,7 +23706,7 @@ function leadCheckWord(search, key, answer) {
   const plan = search?.plan;
   const cap3 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-  const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
+  const said = (yes, no2) => answer === "yes" ? yes : answer === "no" ? no2 : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
   if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
   const cr = plan?.criteria.find((c) => c.key === key);
   if (cr) return said(cap3(cr.text), `${cap3(cr.text)}: no`);
@@ -28588,7 +28588,6 @@ function sequenceWhoApprovesHint(mode) {
   const how = sequenceApprovalWords(mode);
   return how.charAt(0).toUpperCase() + how.slice(1);
 }
-var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
 var noticeOf = (n) => ({
   batchId: null,
   stepId: null,
@@ -29394,7 +29393,6 @@ var WHY = {
   made: "Ask makes a sequence with its own card, from the draft it wrote in the conversation; New's Keep and Start make the one the owner shaped on the page",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
   test: "it mails a step's message to the member who presses it, beside the step on its page",
-  end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps",
   add: "Ask adds leads to a sequence with a card of its own on the same door (reach_out_add); the page's Add, Move and pick are the lead sheet's presses, beside the lead and the search they act on",
   stop: "it stops a reply in the minutes before it posts, under the review on Reports, where the reply and its time are",
   memory: "it changes or forgets a line of what Ask remembers, which a member does on Settings \u203A Memory where every line is listed; Ask keeps a line with its own card and its Undo"
@@ -29513,8 +29511,7 @@ var ASK_GUIDE_PAGES = [
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
       { what: "Keep or start what New drafted", why: WHY.made },
-      { what: "Send yourself a test of a step's message", why: WHY.test },
-      { what: "End a sequence for good", why: WHY.end }
+      { what: "Send yourself a test of a step's message", why: WHY.test }
     ]
   },
   {
@@ -29553,7 +29550,6 @@ var ASK_PAGE_ONLY_VERBS = {
   sequence_new: WHY.made,
   fact_suggestion: WHY.learned,
   sequence_test: WHY.test,
-  sequence_end: WHY.end,
   sequence_add: WHY.add,
   sequence_move: WHY.add,
   lead_search_aim: WHY.add,
@@ -53809,46 +53805,6 @@ function historyDayWords(b, place) {
   };
 }
 
-// src/sequences/sequence-acts.ts
-var SEQUENCE_ACT_WORDS = {
-  more: (name) => `More for ${name}`,
-  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
-  moreWord: "More",
-  askAbout: "Ask about it",
-  runNow: "Run now",
-  runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
-  rename: "Rename",
-  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
-  sendAgain: "Send it again",
-  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
-  name: "Name",
-  save: "Save",
-  cancel: "Cancel",
-  resumeAsk: (name) => `Turn ${name} on?`,
-  resumeYes: "Yes, turn it on"
-};
-function sequenceRunsNow(row2, at3) {
-  const first = row2.first;
-  if (!first || row2.starts !== "moment" && row2.starts !== "list" || row2.needs.waiting > 0) return false;
-  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs) });
-}
-function sequenceResumeAsk(rec2, reach, at3) {
-  const W = LIFECYCLE_WORDS.ledger.resume;
-  const { name, starts, first, mode } = rec2.sequence;
-  const step2 = first && reach ? {
-    run_hour: first.run_hour,
-    last_run_for: rec2.last_run_for ?? null,
-    trigger: first.trigger,
-    until: first.until,
-    candidates: reach.candidates,
-    cap_per_run: reach.cap_per_run,
-    mode,
-    words_ok_at: first.words_ok_at
-  } : null;
-  const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
-  return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
-}
-
 // src/sequences/sequence-lead-build.ts
 var LEAD_BUILD_WORDS = {
   /** The Start row: who joins, then the line under it. */
@@ -54113,6 +54069,140 @@ function leadPreviewEmailOf(p) {
     blocked: blocked || null,
     instead: null
   };
+}
+
+// src/sequences/sequence-acts.ts
+var SEQUENCE_ACT_WORDS = {
+  more: (name) => `More for ${name}`,
+  /** The head's More where no act stands to carry it as a caret (Ruben, 20 Oct 2026: no three dots): its word. */
+  moreWord: "More",
+  askAbout: "Ask about it",
+  runNow: "Run now",
+  runNowTip: "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
+  rename: "Rename",
+  /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
+  sendAgain: "Send it again",
+  sendAgainTip: "A new one-off, filled with what this one sent: its message, who it went to and its values",
+  name: "Name",
+  save: "Save",
+  cancel: "Cancel",
+  resumeAsk: (name) => `Turn ${name} on?`,
+  resumeYes: "Yes, turn it on"
+};
+var SEQUENCE_ACTS = [
+  "start",
+  "pause",
+  "turn_on",
+  "end",
+  "discard",
+  "run_now",
+  "rename",
+  "cancel_send",
+  "send_again"
+];
+var SEQUENCE_ACT_REASONS = [
+  "one_off",
+  "not_a_one_off",
+  "to_leads",
+  "ended",
+  "not_a_draft",
+  "email_to_write",
+  "not_on",
+  "not_paused",
+  "never_ran",
+  "ran",
+  "wrote",
+  "unread",
+  "batch_waiting",
+  "not_today",
+  "not_scheduled",
+  "not_sent"
+];
+var SEQUENCE_ACT_WHY = {
+  one_off: "A one-off goes once, on its day.",
+  not_a_one_off: "Only a one-off is cancelled or sent again.",
+  to_leads: "A sequence to leads goes on its own days: it is paused, never ended or run by hand.",
+  ended: "It has ended.",
+  not_a_draft: "It has been on already.",
+  email_to_write: "An email of it is still to write.",
+  not_on: "It is not on.",
+  not_paused: "It is not paused.",
+  never_ran: "It never ran, so nothing of it would be kept.",
+  ran: "It has run, and what it sent stays in its History.",
+  wrote: "It has written to leads, and what it sent stays.",
+  unread: "What it has sent could not be read just now.",
+  batch_waiting: "A batch of it waits for your OK.",
+  not_today: "It runs nothing today.",
+  not_scheduled: "It is not waiting for its day any more.",
+  not_sent: "It has not gone yet."
+};
+var OK = { ok: true };
+var no = (because, instead) => instead ? { ok: false, because, instead } : { ok: false, because };
+function runsToday(row2, at3) {
+  return !!row2.first && campaignRunsOn(row2.first, { tz: at3.tz, now: new Date(at3.nowMs) });
+}
+function sequenceActsOf(rec2, at3) {
+  const row2 = rec2.sequence;
+  const draft = row2.state === "draft";
+  if (row2.starts === "date")
+    return {
+      start: no("one_off"),
+      pause: no("one_off"),
+      turn_on: no("one_off"),
+      end: no("one_off"),
+      discard: draft && row2.once ? OK : no("one_off"),
+      run_now: no("one_off"),
+      rename: no("one_off"),
+      cancel_send: row2.date?.state === "scheduled" ? OK : no("not_scheduled"),
+      send_again: row2.last ? OK : no("not_sent")
+    };
+  const leads = row2.starts === "leads";
+  const notOnce = no("not_a_one_off");
+  if (row2.state === "ended") {
+    const ended = no("ended");
+    return {
+      start: ended,
+      pause: ended,
+      turn_on: ended,
+      end: ended,
+      discard: ended,
+      run_now: ended,
+      rename: ended,
+      cancel_send: notOnce,
+      send_again: notOnce
+    };
+  }
+  const ran = draft ? false : rec2.ran;
+  const wrote = draft ? false : rec2.wrote;
+  const discard = leads ? wrote === void 0 ? no("unread") : wrote ? no("wrote", "pause") : OK : ran === void 0 ? no("unread") : ran ? no("ran", "end") : OK;
+  return {
+    start: !draft ? no("not_a_draft", row2.state === "paused" ? "turn_on" : void 0) : leadDraftDockOf(row2, rec2.chain) ? no("email_to_write") : OK,
+    pause: row2.state === "on" ? OK : no("not_on"),
+    turn_on: row2.state === "paused" ? OK : no("not_paused", draft ? "start" : void 0),
+    // One that never ran goes whole either way (its first step's trigger): it is offered as Discard, not End.
+    end: leads ? no("to_leads", "pause") : ran === false ? no("never_ran", "discard") : OK,
+    discard,
+    run_now: leads ? no("to_leads") : row2.needs.waiting > 0 ? no("batch_waiting") : runsToday(row2, at3) ? OK : no("not_today"),
+    rename: OK,
+    cancel_send: notOnce,
+    send_again: notOnce
+  };
+}
+function sequenceResumeAsk(rec2, reach, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const { name, starts, first, mode } = rec2.sequence;
+  const step2 = first && reach ? {
+    run_hour: first.run_hour,
+    last_run_for: rec2.last_run_for ?? null,
+    trigger: first.trigger,
+    until: first.until,
+    candidates: reach.candidates,
+    cap_per_run: reach.cap_per_run,
+    mode,
+    words_ok_at: first.words_ok_at
+  } : null;
+  const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
+  return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }
 
 // src/sequences/sequence-draft.ts
@@ -66964,6 +67054,9 @@ export {
   SEND_WINDOW_MARGIN_MIN,
   SENTENCE,
   SEQUENCES_ROUTE,
+  SEQUENCE_ACTS,
+  SEQUENCE_ACT_REASONS,
+  SEQUENCE_ACT_WHY,
   SEQUENCE_ACT_WORDS,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_EDIT_WORDS,
@@ -68949,7 +69042,7 @@ export {
   sentByWords,
   sentResultsOfSource,
   sentenceParts,
-  sequenceCancels,
+  sequenceActsOf,
   sequenceChannelsWords,
   sequenceGroupOf,
   sequenceHeadLine,
@@ -68966,7 +69059,6 @@ export {
   sequenceRouteBack,
   sequenceRowLine,
   sequenceRowState,
-  sequenceRunsNow,
   sequenceStartWords,
   sequenceStartsSentence,
   sequenceStateTone,

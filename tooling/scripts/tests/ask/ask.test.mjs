@@ -1521,6 +1521,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "decide",
           "sent_by_hand",
           "discard",
+          "end",
           "message",
           "cold_email",
           "leads",

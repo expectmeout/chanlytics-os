@@ -360,6 +360,14 @@ function patchHeldOf(row: PlaybookPatchRow): Required<PlaybookPatch> {
   };
 }
 
+/**
+ * What a change may name of a reach-out's step: a sequence to leads is changed on its own record (Reach out, Part 4;
+ * decision 0060), and here only paused or resumed, as its record's Pause asks, given its sequence's mode (decision 0064),
+ * or, on its first step, renamed, as every sequence's head renames it (0072). What any step sends, and when, is the record's.
+ */
+const reachOutTakes = (trigger: string, k: string): boolean =>
+  k === "state" || k === "mode" || (k === "name" && trigger === "lead_first");
+
 /** Whether a value a change names is what the row holds: its words as the specs they are. */
 function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean {
   if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
@@ -372,8 +380,8 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
  * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its sequence's
- * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state and its
- * mode alone (its sheet changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
+ * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state, its mode
+ * and, on its first step, its name (reachOutTakes; its record changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
  * back what the door recorded, so its end is restored past or not, its shape still judged. It answers only what differs from the row as it stands,
  * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
  * words and the route answers without a write.
@@ -387,9 +395,7 @@ export async function checkPlaybookPatch(
   const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
   if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
-  // A reach-out's step is changed on its own sheet (Reach out, Part 4); here it is paused or resumed, as the sheet's
-  // Pause asks, or its sequence's mode is set (decision 0064), and nothing else.
-  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state" && k !== "mode"))
+  if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => !reachOutTakes(row.trigger, k)))
     throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   if (asked.state !== undefined && !isPlaybookState(asked.state))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);

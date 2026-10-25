@@ -33,11 +33,11 @@ export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
  * anywhere, the bare assertion passed it. A QR you can see ten pixels of cannot
  * be scanned, so the image itself must be entirely in view.
  *
- * Since Glass the top bar holds the date and time where the crumbs stood, and the
- * frame head names what is open, its last crumb: Get their yes, a sheet over
- * People's list since the Campaigns wiring review (19 Oct 2026: a yes is about
- * people); the sheet's own title says it too. This read "Get their yes" off the
- * top bar until 7 Oct 2026, and "Sent" off the head until 16 Oct.
+ * Get their yes is a sheet over People's list since the Campaigns wiring review
+ * (19 Oct 2026: a yes is about people), so the frame's head names the page under
+ * it, People, and the sheet's own section says why the person is there. This read
+ * "Get their yes" off the top bar until 7 Oct 2026, "Sent" off the head until 16
+ * Oct, and "Get their yes" off the head until People's list said its own name there.
  */
 export async function expectQrInView(page: Page): Promise<void> {
   await expect.poll(() => routeOf(page.url())).toBe(GET_YES_ROUTE);
@@ -45,7 +45,7 @@ export async function expectQrInView(page: Page): Promise<void> {
   await expect(section).toBeVisible();
   await expect(section).toContainText("Get their yes");
   await expect(section.locator(".bc-optin-qr")).toBeInViewport({ ratio: 1 });
-  await expect(page.locator(".pg-head")).toContainText("Get their yes");
+  await expect(page.locator(".pg-head")).toContainText("People");
 }
 
 export interface LeakRow {
@@ -286,4 +286,29 @@ export async function expectNoSidewaysScroll(page: Page, where: string, scroller
     return out;
   }, scrollers);
   expect(found, `${where} scrolls sideways: ${found.join(", ")}`).toEqual([]);
+}
+
+/**
+ * How far a phone's sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, #1789, 21 Oct 2026:
+ * as iOS 26's own sheets do), read off the page, so a check of where a sheet stands follows the token, not a number.
+ */
+export async function sheetFloat(page: Page): Promise<number> {
+  return page.evaluate(
+    () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-float")) || 0,
+  );
+}
+
+/**
+ * Every motion that ends has ended: a page pushed over a list slides in with its presses off until it lands (kit
+ * motion), so what a thumb would press, or where a row stands, is read once the page has come to rest.
+ */
+export async function motionSettled(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null)),
+    ),
+  );
 }

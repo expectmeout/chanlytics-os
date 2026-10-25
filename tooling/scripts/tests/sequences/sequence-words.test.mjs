@@ -32,7 +32,6 @@ import {
   sequenceWaitWords,
   sequenceWaitsNow,
   stepsStopSentence,
-  sequenceCancels,
   sequenceChannelsWords,
   sequenceNextOf,
   sequenceNextWords,
@@ -434,7 +433,7 @@ test("what goes next: a made batch's day and size, else its first step's next ru
   assert.equal(sequenceNextOf(row({ state: "paused" }), "2026-10-14", TZ, NOW), null);
 });
 
-test("a paused sequence's dock, who approves in its More, a one-off's cancel, and where a follow-up is offered", () => {
+test("a paused sequence's dock, who approves in its More, and where a follow-up is offered (a one-off's cancel is the judge's: sequence-acts.test.mjs)", () => {
   assert.deepEqual(sequencePausedDock(row({ state: "paused", in_it: 4 })), {
     line: "Paused",
     fact: "4 people wait for it",
@@ -444,11 +443,6 @@ test("a paused sequence's dock, who approves in its More, a one-off's cancel, an
   assert.equal(sequenceWhoApprovesHint("auto"), "Sends on its own");
   assert.equal(sequenceWhoApprovesHint("veto"), "Holds each batch for you to stop");
   assert.equal(sequenceWhoApprovesHint(null), "Asks you before each batch");
-  const oneOff = (state) =>
-    row({ starts: "date", date: { batch_id: "b1", state, at: "2026-10-28T13:00:00Z", people: 5 } });
-  assert.equal(sequenceCancels(oneOff("scheduled")), true);
-  assert.equal(sequenceCancels(oneOff("sent")), false);
-  assert.equal(sequenceCancels(row()), false);
   assert.equal(takesFollowUps(row()), false, "a reminder is said once, the day before");
   assert.equal(takesFollowUps(row({ first: { ...FIRST, trigger: "quiet_30" } })), true);
   assert.equal(takesFollowUps(row({ starts: "leads" })), false);

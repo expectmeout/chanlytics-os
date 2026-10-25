@@ -28,12 +28,21 @@ test.describe("Today on a real workspace", () => {
     await expect(queue).toBeVisible();
     const rows = queue.locator(".tq-list .cl-attn-row");
     const n = await rows.count();
+    // Need you's rows (decision 0071, need-you/people-rows.tsx): a person's says where it stands; Ask's idea says what it
+    // is in its tag instead, and is worked in place. Every row offers a verb: its own, or its work's.
     for (const row of await rows.all()) {
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
-      expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
-      await expect(row.locator(".cl-attn-cta")).toHaveCount((await row.locator(".cl-attn-cta").count()) > 1 ? 2 : 1);
+      if ((await row.getAttribute("data-testid")) === "queue-idea")
+        await expect(row.locator(".cl-attn-meta")).toHaveText("Ask's idea");
+      else expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
+      const verbs = (await row.locator(".cl-attn-cta").count()) + (await row.locator(".cl-attn-work button").count());
+      expect(verbs, "a row with nothing to do").toBeGreaterThan(0);
+      expect(await row.locator(".cl-attn-cta").count()).toBeLessThanOrEqual(2);
     }
-    await expect(queue.locator(".tq-list .cl-attn-cta.primary")).toHaveCount(Math.min(1, n));
+    // The section's one coral is the first open row's act, whether its own verb or its work's (people-rows.tsx).
+    await expect(queue.locator(".tq-list :is(.cl-attn-cta.primary, .cl-attn-work .btn-primary)")).toHaveCount(
+      Math.min(1, n),
+    );
     await expect(queue.locator(".tq-head .tq-count")).toHaveCount(0);
     if (n === 0) await expect(queue.locator('[data-testid^="today-queue-empty-"]')).toBeVisible();
     await expect(page.getByText("Agent Command")).toHaveCount(0);

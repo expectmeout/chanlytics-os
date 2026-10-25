@@ -288,6 +288,16 @@ export interface SequenceRecordDto {
    */
   last_run_off?: string | null;
   /**
+   * Whether it ever made a batch (0072): End it ends one that did, and Discard takes away one that never did. Absent where
+   * it could not be read, and from a server before it, which then offers no Discard.
+   */
+  ran?: boolean;
+  /**
+   * A sequence to leads: whether an email of it was ever written (0072), after which it is paused, never let go of. False
+   * of any other sequence; absent where it could not be read, which offers no Discard either.
+   */
+  wrote?: boolean;
+  /**
    * How its first step's runs go, beyond its hour: the most one run sends, the days before someone hears it again (a
    * moment's), and the days between runs (the month's offer). What Start's Change opens with. Absent on a sequence to
    * leads and a one-off, and from a server before it.

@@ -56,7 +56,6 @@ export {
   sequenceNextWords,
   sequencePausedDock,
   sequenceWhoApprovesHint,
-  sequenceCancels,
   needsWords,
   sequenceStartWords,
   sequenceStateWords,
@@ -103,7 +102,14 @@ export type {
   SequenceNeedsVM,
   SequenceWroteBackVM,
 } from "./sequence-tab-words";
-export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
+export {
+  SEQUENCE_ACTS,
+  SEQUENCE_ACT_REASONS,
+  SEQUENCE_ACT_WHY,
+  SEQUENCE_ACT_WORDS,
+  sequenceActsOf,
+  sequenceResumeAsk,
+} from "./sequence-acts";
 export {
   PLACE_WORDS,
   PLACE_RAIL_WORDS,
@@ -125,7 +131,14 @@ export type {
   PlaceRailStepVM,
   PlaceRailVM,
 } from "./sequence-place";
-export type { SequenceResumeAsk } from "./sequence-acts";
+export type {
+  SequenceAct,
+  SequenceActReason,
+  SequenceActs,
+  SequenceActsInput,
+  SequenceOffer,
+  SequenceResumeAsk,
+} from "./sequence-acts";
 export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, leadStepTestMail, stepTestMail } from "./sequence-test";
 export {
   LEAD_BUILD_WORDS,

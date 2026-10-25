@@ -5074,6 +5074,13 @@ a.list-row {
   border-width: 0;
   box-shadow: var(--surface-pane-depth);
 }
+/* Each isolates its layers, so the pane after one paints over a menu opened in it (Settings › Autonomy's reply mode
+   opened under the policies card, its choices out of reach of a press). A menu is drawn only while it is open: the pane
+   that holds one stands over the panes beside it until it closes. */
+.panel:not(.panel-inset, .panel-pop):has(.more-menu),
+.rec-card:has(.more-menu) {
+  z-index: 1;
+}
 .panel:not(.panel-inset, .panel-pop)::after,
 .rec-card::after {
   content: "";

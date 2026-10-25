@@ -86,6 +86,33 @@ test("the old per-night issues fold into the newest, each counted as a red night
   assert.match(actions[2].comment, /Folded into #16/);
 });
 
+test("a red issue is its assignee's: opened assigned to them, and assigned again each red run", async () => {
+  const opened = planRollingIssue({ open: [], state: "red", title: TITLE, body: "red", today, assignee: "owner" });
+  assert.deepEqual(opened.actions[0].assignees, ["owner"]);
+  const again = planRollingIssue({
+    open: [{ number: 7, title: TITLE, body: opened.actions[0].body }],
+    state: "red",
+    title: TITLE,
+    body: "red",
+    today,
+    assignee: "owner",
+  });
+  assert.deepEqual(again.actions.find((a) => a.kind === "update").assignees, ["owner"]);
+  const wire = fakeWire();
+  await applyPlan(opened, { repo: "example/repo", token: "t", fetch: wire.fetch });
+  await applyPlan(again, { repo: "example/repo", token: "t", fetch: wire.fetch });
+  assert.deepEqual(
+    wire.calls.map((c) => [`${c.method} ${c.path}`, c.body?.assignees]),
+    [
+      ["POST /repos/example/repo/issues", ["owner"]],
+      ["POST /repos/example/repo/issues/7/comments", undefined],
+      ["PATCH /repos/example/repo/issues/7", ["owner"]],
+    ],
+  );
+  const unassigned = planRollingIssue({ open: [], state: "red", title: TITLE, body: "red", today });
+  assert.equal(unassigned.actions[0].assignees, undefined, "no assignee named, none set");
+});
+
 test("a green run closes every open one, and a green run with none open does nothing", () => {
   const open = [{ number: 9, title: TITLE, body: "<!-- red-runs: 3 -->" }];
   const { redRuns, actions } = planRollingIssue({ open, state: "green", title: TITLE, body: "", runUrl, today });

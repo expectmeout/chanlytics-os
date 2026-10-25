@@ -542,10 +542,15 @@ export const Inbox = ({
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
   );
   // On a phone the list stays where it was under an open thread, and is put back there as the thread goes, by any Back;
-  // the thread is pushed in over it as it opens.
-  useHeldList(full.phoneThreadOpen, () => root.current?.querySelector<HTMLElement>(":scope > .ix-list") ?? null, {
-    page: () => root.current?.querySelector<HTMLElement>(":scope > .ix-thread-pane") ?? null,
-    going: ixGoing,
-  });
+  // the thread is pushed in over it as it opens. A phone's alone, as Conversations' and Live's are: `phoneThreadOpen` is
+  // set on a desk too, where held it took the list off the screen and drew the thread in its column.
+  useHeldList(
+    full.phoneThreadOpen && ixOnPhone(),
+    () => root.current?.querySelector<HTMLElement>(":scope > .ix-list") ?? null,
+    {
+      page: () => root.current?.querySelector<HTMLElement>(":scope > .ix-thread-pane") ?? null,
+      going: ixGoing,
+    },
+  );
   return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen, root });
 };

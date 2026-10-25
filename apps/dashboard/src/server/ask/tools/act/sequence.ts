@@ -12,13 +12,17 @@ import {
   REACH_OUT_SAID_OUTCOMES,
   REACH_OUT_STEPS_MAX,
   ReachOutChainSchema,
+  SEQUENCE_ACT_WHY,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_MODE_WORDS,
+  SEQUENCE_WORDS,
   handTitleOf,
   isSequenceMode,
   plural,
+  sequenceActsOf,
   sequenceRoute,
-  sequenceRunsNow,
+  type SequenceAct,
+  type SequenceActReason,
   type SequenceRecordDto,
   AppError,
 } from "@chanlytics/contracts";
@@ -53,10 +57,12 @@ import { runAction } from "./run";
  * each action a card through its page's own door. A sequence's first step is a campaign's own (once: one message on a
  * date; moment: a standing rule at a moment of the journey or when someone joins a list), and a sequence made whole is
  * that first step and up to three after it (make); its steps are added, changed, taken away or given new words, a draft
- * started or let go, people taken out; a batch waiting for an OK is approved or skipped (batch), a sequence paused,
- * resumed, renamed or retimed (change) or sent by more or fewer channels (channels); a new message is written for the
- * Library (message); and to leads, a cold email sequence over a search or a list of chosen leads (cold_email), or leads
- * added to one fed by a list (leads). The actions that were propose_campaign's keep their handlers, under 0060's names.
+ * started, a sequence let go of (discard) or ended (end), people taken out; a batch waiting for an OK is approved or
+ * skipped (batch), a sequence paused, resumed, renamed or retimed (change) or sent by more or fewer channels (channels);
+ * a new message is written for the Library (message); and to leads, a cold email sequence over a search or a list of
+ * chosen leads (cold_email), or leads added to one fed by a list (leads). The actions that were propose_campaign's keep
+ * their handlers, under 0060's names. What a sequence's head offers is the one judge's (contracts sequenceActsOf,
+ * decision 0072): a card its page would not draw is refused in the judge's words.
  */
 
 /** A sequence's record as its page reads it, or the refusal in words. */
@@ -70,6 +76,37 @@ async function sequenceOnCard(t: ToolContext, sequenceId: string): Promise<Seque
 }
 const isRefusal = <T>(x: T | { refusal: string }): x is { refusal: string } =>
   !!x && typeof x === "object" && "refusal" in (x as object);
+
+/** The act offered in place of one refused, as this tool's actions name it, for the model. */
+const INSTEAD: Record<SequenceAct, string> = {
+  start: "start it with action start",
+  pause: "pause it with action change (state paused)",
+  turn_on: "turn it on with action change (state running)",
+  end: "end it with action end",
+  discard: "let it go with action discard",
+  run_now: "run it with action run_now",
+  rename: "rename it with action change (name)",
+  cancel_send: "cancel it with action batch (verb skip)",
+  send_again: "send it again with action once",
+};
+
+/** What the model is told to do where a refusal offers no act in its place. */
+const NEXT: Partial<Record<SequenceActReason, string>> = {
+  batch_waiting: "approve or skip that batch with action batch",
+  email_to_write: "its email is written on its page first: say so, and open it",
+  unread: "say so, and ask again in a moment",
+};
+
+/**
+ * One act of the record's head, as its page offers it (contracts sequenceActsOf, decision 0072: the page and every card
+ * ask the one judge), or its refusal: why, in a person's words, then what the model may do instead.
+ */
+function refusedAct(rec: SequenceRecordDto, act: SequenceAct, now: Date): string | null {
+  const offer = sequenceActsOf(rec, { tz: rec.timezone, nowMs: now.getTime() })[act];
+  if (offer.ok) return null;
+  const next = offer.instead ? INSTEAD[offer.instead] : NEXT[offer.because];
+  return `${rec.sequence.name}: ${SEQUENCE_ACT_WHY[offer.because]}${next ? ` (${next})` : ""}`;
+}
 
 /** A step after the first, by its id, in a sequence's record; or the refusal. The first step is the campaign's own. */
 function laterStep(rec: SequenceRecordDto, stepId: string) {
@@ -269,10 +306,8 @@ async function proposeStart(t: ToolContext, input: { sequence_id: string }): Pro
     });
   const rec = await sequenceOnCard(t, id);
   if (isRefusal(rec)) return refuse(rec.refusal);
-  if (rec.sequence.state !== "draft")
-    return refuse(
-      `${rec.sequence.name} is ${rec.sequence.state}, not a draft: a paused one is resumed with action change (state running)`,
-    );
+  const refused = refusedAct(rec, "start", t.now);
+  if (refused) return refuse(refused);
   return propose({
     kind: "sequence_start",
     title: `Start ${rec.sequence.name}`,
@@ -369,38 +404,55 @@ async function proposeSendSaid(
 
 /**
  * A sequence run now, at the member's request (the page's Run now, POST playbooks/:id/run): its first step's run, the
- * hourly sweep's own, which waits for an OK where its class asks. Only where it runs on the business's day and no batch
- * waits for an OK (contracts sequenceRunsNow, the page's own rule); a batch that waits is action batch's.
+ * hourly sweep's own, which waits for an OK where its class asks. Only where its page offers Run now (the judge: it runs
+ * on the business's day and no batch waits for an OK); a batch that waits is action batch's.
  */
 async function proposeRunNow(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
   const rec = await sequenceOnCard(t, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
+  const refused = refusedAct(rec, "run_now", t.now);
+  if (refused) return refuse(refused);
   const row = rec.sequence;
-  if (row.needs.waiting > 0)
-    return refuse(`${row.name} has a batch waiting for an OK: approve or skip it with action batch`);
-  if (!row.first || !sequenceRunsNow(row, { tz: t.timezone, nowMs: t.now.getTime() }))
-    return refuse(
-      `${row.name} runs nothing today: only a sequence that is on, on a moment or a list and before its last day, runs now`,
-    );
   return propose({
     kind: "playbook_run",
     title: `Run ${row.name} now`,
     summary:
       "Its first step runs now, as its hourly run would: it waits for an OK where its class asks, and outside the sending hours it goes when they open.",
-    payload: { playbook_id: row.first.id, name: row.name, timezone: t.timezone },
+    payload: { playbook_id: row.first?.id ?? row.id, name: row.name, timezone: t.timezone },
   });
 }
 
+/**
+ * A sequence that never ran taken away whole, in any state, or a sequence to leads that never wrote (its page's
+ * Discard, asked first: decision 0072); one that ran is ended, a sequence to leads paused. Nothing undoes it.
+ */
 async function proposeDiscard(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
   const rec = await sequenceOnCard(t, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
-  if (rec.sequence.state !== "draft" || rec.sequence.last)
-    return refuse(`${rec.sequence.name} has been on: it is paused with action change (state paused), never taken away`);
+  const refused = refusedAct(rec, "discard", t.now);
+  if (refused) return refuse(refused);
   return propose({
     kind: "sequence_discard",
     title: `Let go of ${rec.sequence.name}`,
-    summary: "A draft that never sent, taken away whole. Nothing undoes it.",
+    summary: "Nothing of it has gone; it is taken away whole, with its steps. Nothing undoes it.",
     payload: { sequence_id: rec.sequence.id },
+  });
+}
+
+/**
+ * A customer's sequence that ran, ended for good (its page's End it, asked first: decision 0072): it sends nothing more
+ * and nobody is added to it; its History stays. One that never ran is let go of, a sequence to leads paused.
+ */
+async function proposeEnd(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
+  const rec = await sequenceOnCard(t, input.sequence_id);
+  if (isRefusal(rec)) return refuse(rec.refusal);
+  const refused = refusedAct(rec, "end", t.now);
+  if (refused) return refuse(refused);
+  return propose({
+    kind: "sequence_end",
+    title: `End ${rec.sequence.name}`,
+    summary: `${SEQUENCE_WORDS.endDetail} Nothing undoes it.`,
+    payload: { sequence_id: rec.sequence.id, name: rec.sequence.name },
   });
 }
 
@@ -494,7 +546,7 @@ const STEP_ID = z.string().describe("A step's id, from sequences with action seq
 export const propose_sequence = defineActions({
   name: "propose_sequence",
   description:
-    "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a moment of the customer journey or on a list, a whole new sequence with its steps, a step added, changed, taken away or given new words, a draft started or let go, people taken out, a batch waiting for an OK approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
+    "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a moment of the customer journey or on a list, a whole new sequence with its steps, a step added, changed, taken away or given new words, a draft started, a sequence let go of or ended, people taken out, a batch waiting for an OK approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
   tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace does not hold yet is added at the card's Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.`,
   actions: {
     once: broadcastAction,
@@ -654,8 +706,18 @@ export const propose_sequence = defineActions({
       input: z.object({ sequence_id: SEQUENCE_ID }),
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing to let it go",
-      words: "Action discard takes away a draft that never sent; one that has been on is paused instead.",
+      words:
+        "Action discard takes away a sequence that never ran, whatever its state, or a sequence to leads that never wrote; one that ran is ended with action end, and a sequence to leads that wrote is paused with action change.",
       build: proposeDiscard,
+    }),
+    end: actAction({
+      kind: "sequence_end",
+      input: z.object({ sequence_id: SEQUENCE_ID }),
+      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      label: "Preparing the end",
+      words:
+        "Action end ends a customer's sequence that has run, for good: it sends nothing more and nobody is added to it; what it sent stays in its History. Nothing undoes it. One that never ran is let go of with action discard, and a sequence to leads is paused with action change.",
+      build: proposeEnd,
     }),
     message: messageAction,
     cold_email: actAction({
