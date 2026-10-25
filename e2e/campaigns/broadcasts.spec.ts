@@ -2,14 +2,15 @@ import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { openDraftedOnce } from "./new-draft";
+import { expectRunsReport } from "./run-report";
 import { apiGet } from "../workspace";
 
 /**
  * Campaigns' sends on a real workspace: New's Once, Get their yes and a run's report.
  *
  * Sent's list went to each sequence's History (decision 0060, D3), and its mount with the Campaigns wiring review (19 Oct
- * 2026): its addresses land where their pages went -- a run's report (`broadcasts/run:<id>/sheet`) at the run's home under
- * its sequence, and Get their yes (`broadcasts/get-yes`) on People's sheet (`clients/get-yes`). A message sent once is New's
+ * 2026): its addresses land where their pages went -- a run's report (`broadcasts/run:<id>/sheet`) in Reports, over its
+ * campaign and the day it went (#1776), and Get their yes (`broadcasts/get-yes`) on People's sheet (`clients/get-yes`). A message sent once is New's
  * Once (decision 0065; `campaigns/sequences/new:once`, where the composer's `campaigns/new` lands): one line to Ask and the
  * starts read from the workspace, then the draft, one sentence of who, when and how. Ask's answer is given here
  * (new-draft.ts, beside this) so a nightly asks no model. Sending is never done here -- the workspace keeps no test broadcast -- but
@@ -72,20 +73,14 @@ test.describe("Broadcasts on a real workspace", () => {
       expect((await qr.text()).startsWith("<svg")).toBe(true);
     }
 
-    // A run that went: its sheet's old address lands on its home under its sequence, its one screen beside Sequences' list,
-    // its people under its report; Close goes to its sequence's History, the days it is one of.
-    const went = (broadcasts as { id: string; state: string }[]).find((b) => b.state === "sent");
+    // A run that went: its sheet's old address lands on its campaign's report in Reports, over the day it went
+    // (run-report.ts), and nothing there is invented either.
+    const went = (broadcasts as { id: string; state: string; sequence_id: string }[]).find((b) => b.state === "sent");
     if (went) {
       await page.goto(`/#/broadcasts/run:${went.id}/sheet`);
-      await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/[^/]+/runs/${went.id}$`)));
-      const run = page.getByTestId("bc-run-solo");
-      await expect(run).toBeVisible();
-      await expect(run.getByTestId("bc-detail")).toBeVisible();
-      await expect(run.getByTestId("bc-touched")).toBeVisible();
-      const report = await run.innerText();
+      await expectRunsReport(page, went.sequence_id);
+      const report = await page.getByTestId("rpt-cmp-figures").innerText();
       for (const s of INVENTED) expect(report, `invented in a run's report: "${s}"`).not.toContain(s);
-      await run.getByTestId("bc-detail-close").click();
-      await expect(page).toHaveURL(atRoute(/^campaigns\/sequences(\/[^/]+\/history)?$/));
     }
   });
 

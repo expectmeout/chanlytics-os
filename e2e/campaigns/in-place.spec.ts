@@ -123,6 +123,9 @@ test.describe("Campaigns opens in place on a real workspace", () => {
   }) => {
     await page.goto("/#/clients");
     await expect(page).toHaveURL(atRoute(/^clients$/));
+    // The list drawn, not the address alone: `#/clients` names the route before the app has booted, and an address
+    // given while it boots is taken over by the one it booted on.
+    await expect(page.locator(".cl-table")).toBeVisible();
     await page.goto("/#/clients/get-yes");
     const yes = page.getByTestId("bc-optin");
     await expect(yes).toBeVisible();

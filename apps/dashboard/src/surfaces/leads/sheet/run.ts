@@ -11,6 +11,7 @@ import {
   routeOfPath,
   sequenceRoute,
   sequenceRouteBack,
+  type LeadNotAFitWhy,
   type LeadRowVM,
   type LeadSheetAct,
   type SequencePlaceDto,
@@ -147,12 +148,25 @@ async function notFitOne(r: SheetRun) {
   }
   const res = await setLeadStage(r.leadId, { kind: "not_a_fit", why: "other" });
   if (!res.ok) return r.flash(refusalToast(res, "That did not go through"));
-  const { op_id: op, version } = res.data;
+  // The act Undo takes back: the tap's, then the reason's. A reason is the tap taken back and made again with it, as the
+  // pile's is (use-pile.ts giveWhy): written over the tap, it moved the lead's version, and the tap's Undo was refused as
+  // changed, the lead left set aside (the nightly, 25 Oct 2026).
+  let last = { op: res.data.op_id, version: res.data.version };
+  const giveWhy = async (why: LeadNotAFitWhy) => {
+    if (last.op) {
+      const u = await undoLeadOperation(last.op, last.version);
+      if (!u.ok) return r.flash(refusalToast(u, "The reason was not kept"));
+    }
+    const again = await setLeadStage(r.leadId, { kind: "not_a_fit", why });
+    if (!again.ok) return r.flash(refusalToast(again, "The reason was not kept"));
+    last = { op: again.data.op_id, version: again.data.version };
+    r.moved();
+  };
   r.flash(
     notFitToast(
       r.name,
-      (why) => void setLeadStage(r.leadId, { kind: "not_a_fit", why }),
-      op ? () => void undoLeadOperation(op, version).then(r.moved) : null,
+      (why) => void giveWhy(why),
+      last.op ? () => void undoLeadOperation(last.op, last.version).then(r.moved) : null,
     ),
   );
   r.moved();

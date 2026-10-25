@@ -6,10 +6,13 @@
  * nobody was told outside GitHub (the scorecard's defect 15). Now a red run comments on the one open issue (opening
  * it the first time, and folding any older per-run issue whose title starts the same way into it), a green run
  * closes it, and the run that makes it `--page-after` red runs in a row also pages the platform through the edge's
- * pager door (apps/edge/api/admin/page.ts), when the workflow holds its address and key.
+ * pager door (apps/edge/api/admin/page.ts), when the workflow holds its address and key. A red issue is assigned to
+ * `--assignee` (the nightly names the repository's owner), opened so and kept so, because GitHub tells an assignee of
+ * every comment, and an issue nobody was assigned reached nobody: the nightly sat red for seventeen runs in October 2026
+ * while the pager had no address.
  *
  *   node tooling/scripts/ops/rolling-issue.mjs --state red --title "Nightly e2e is red" --match "Nightly e2e" \
- *     --body-file summary.md --page-after 2 --condition nightly_red
+ *     --body-file summary.md --page-after 2 --condition nightly_red --assignee <login>
  *   node tooling/scripts/ops/rolling-issue.mjs --state green --title "Nightly e2e is red" --match "Nightly e2e"
  *
  * Reads GITHUB_REPOSITORY and GH_TOKEN (or GITHUB_TOKEN), and the run's address from GITHUB_SERVER_URL and
@@ -42,8 +45,9 @@ const bodyBelowHead = (issue) => {
  * What a run does to the open issues whose titles start with its prefixes (`open`, newest first): the actions, in
  * order, and how many red runs in a row it makes. Red: the newest open one is the rolling issue, commented on and
  * counted, and the rest are folded into it (each was a red run); none open, one is opened. Green: every one is closed.
+ * With an `assignee`, the red issue is theirs: opened assigned to them, and assigned again each red run.
  */
-export function planRollingIssue({ open, state, title, body, pageAfter = 0, runUrl = "", today }) {
+export function planRollingIssue({ open, state, title, body, pageAfter = 0, runUrl = "", today, assignee = null }) {
   const run = runUrl ? ` Run: ${runUrl}` : "";
   if (state === "green") {
     return {
@@ -56,11 +60,18 @@ export function planRollingIssue({ open, state, title, body, pageAfter = 0, runU
     `<!-- red-runs: ${n} -->\n**Red ${n} run${n === 1 ? "" : "s"} in a row**, the last on ${today}.${run} ` +
     `Closed by the first green run; each red run comments below.\n${HEAD_END}`;
   const actions = [];
-  if (!open.length) actions.push({ kind: "create", title, body: `${head(1)}\n\n${body}` });
+  const theirs = assignee ? { assignees: [assignee] } : {};
+  if (!open.length) actions.push({ kind: "create", title, body: `${head(1)}\n\n${body}`, ...theirs });
   else {
     const [keep, ...older] = open;
     actions.push({ kind: "comment", number: keep.number, body: `Red on ${today}.${run}\n\n${body}` });
-    actions.push({ kind: "update", number: keep.number, title, body: `${head(redRuns)}\n\n${bodyBelowHead(keep)}` });
+    actions.push({
+      kind: "update",
+      number: keep.number,
+      title,
+      body: `${head(redRuns)}\n\n${bodyBelowHead(keep)}`,
+      ...theirs,
+    });
     for (const i of older)
       actions.push({
         kind: "close",
@@ -89,13 +100,20 @@ export async function applyPlan(plan, { repo, token, fetch: fetchImpl = fetch, p
   };
   const done = [];
   for (const a of plan.actions) {
-    if (a.kind === "create")
-      done.push(`opened #${(await api("POST", "/issues", { title: a.title, body: a.body })).number}`);
+    if (a.kind === "create") {
+      const assigned = a.assignees ? { assignees: a.assignees } : {};
+      done.push(`opened #${(await api("POST", "/issues", { title: a.title, body: a.body, ...assigned })).number}`);
+    }
     if (a.kind === "comment") {
       await api("POST", `/issues/${a.number}/comments`, { body: a.body });
       done.push(`commented on #${a.number}`);
     }
-    if (a.kind === "update") await api("PATCH", `/issues/${a.number}`, { title: a.title, body: a.body });
+    if (a.kind === "update")
+      await api("PATCH", `/issues/${a.number}`, {
+        title: a.title,
+        body: a.body,
+        ...(a.assignees ? { assignees: a.assignees } : {}),
+      });
     if (a.kind === "close") {
       await api("POST", `/issues/${a.number}/comments`, { body: a.comment });
       await api("PATCH", `/issues/${a.number}`, { state: "closed", state_reason: "completed" });
@@ -167,6 +185,7 @@ async function main() {
     pageAfter: Number(arg("page-after", "0")),
     runUrl,
     today: new Date().toISOString().slice(0, 10),
+    assignee: arg("assignee") || null,
   });
   const pager =
     process.env.PAGER_URL && process.env.PAGER_KEY ? { url: process.env.PAGER_URL, key: process.env.PAGER_KEY } : null;

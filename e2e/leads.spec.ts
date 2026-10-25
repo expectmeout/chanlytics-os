@@ -57,8 +57,8 @@ const SEEDED = [ZILKER, TRAVIS, MUELLER, KETTLEBELL, FITCORP, HYDE_PARK];
  * search's three left-out places count for nothing: two kept searches.
  */
 const STANDING = "3 leads · 2 ready · 2 searches";
-/** contracts LEAD_NOT_A_FIT_WORDS.chain: the why the peek offers first (§9.5). */
-const WHY_CHAIN = "A chain or franchise";
+/** contracts LEAD_NOT_A_FIT_ASK.short.chain: the why the Not a fit toast offers first. */
+const WHY_CHAIN_SHORT = "Chain";
 
 interface Sent {
   url: string;
@@ -218,19 +218,28 @@ test.describe("Leads on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const row = page.locator(".cl-table tbody tr", { hasText: HYDE_PARK });
     const before = await leadRowWords(row);
-    // Not a fit is the lead sheet's, not the row's: a row offers Call, Copy and
-    // the class's own three (LeadRowActions), and the five whys are asked in the
-    // rail's own place on the sheet that opened (§9.5). The words are contracts'
-    // LEAD_NOT_A_FIT_WORDS.
+    // Not a fit is the lead sheet's, not the row's, and one tap with the reason after (the lead-to-sequence canvas): the
+    // tap sets it aside as Something else, and the toast asks why with the short reasons, each optional, beside its Undo
+    // (sheet/run.ts notFitOne; the words are contracts' LEAD_NOT_A_FIT_ASK).
     await row.getByTestId("lead-name").click();
     const peek = page.getByTestId("lead-peek");
     await expect(peek).toBeVisible();
     await peek.getByTestId("lead-sheet-not_a_fit").click();
-    await peek.getByText(WHY_CHAIN, { exact: true }).click();
-    await expect.poll(() => sent.map((s) => s.body)).toEqual([{ kind: "not_a_fit", why: "chain" }]);
-    await page.getByRole("button", { name: "Undo" }).click();
+    const asked = page.getByRole("status").filter({ hasText: `${HYDE_PARK}: not a fit.` });
+    await expect(asked).toContainText("Why?");
+    await asked.getByRole("button", { name: WHY_CHAIN_SHORT, exact: true }).click();
+    await expect
+      .poll(() => sent.map((s) => s.body))
+      .toEqual([
+        { kind: "not_a_fit", why: "other" },
+        { kind: "not_a_fit", why: "chain" },
+      ]);
+    // The reason is the tap taken back and made again with it (sheet/run.ts notFitOne), so Undo takes back the lead's
+    // newest act: the tap's version, moved by a reason written over it, was refused as changed and left the lead aside.
     await expect.poll(() => undone.length).toBe(1);
-    expect(undone[0].body).toMatchObject({ version: expect.any(Number) });
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect.poll(() => undone.length).toBe(2);
+    for (const u of undone) expect(u.body).toMatchObject({ version: expect.any(Number) });
     await page.goto("/#/clients/leads:l-nurture");
     await expectRowUnchangedAfterUndo(page, HYDE_PARK, before);
     const after = await (await apiGet(page, "/api/v1/leads?list=nurture&sort=fit&dir=asc")).json();
@@ -292,8 +301,8 @@ test.describe("Leads on a real workspace", () => {
     // and no navigation for Playwright to read: what the nightly proves is that
     // the key reaches a lead with a number to dial, and that the peek shows it.
     // Stored canonical and dialled as stored, but drawn as the app writes numbers everywhere else (#770:
-    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the Contact tab's.
-    await peek.getByTestId("lead-sheet-tab-contact").click();
+    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the sheet's Contact
+    // section, one scroll with Fit, About and Sequence (sheet/panes.tsx).
     await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1 \(512\) 555-010\d$/);
     await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");

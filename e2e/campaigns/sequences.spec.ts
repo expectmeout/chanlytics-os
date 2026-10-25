@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
+import { expectRunsReport } from "./run-report";
 import { apiGet } from "../workspace";
 import {
   SEQUENCE_GROUPS,
@@ -133,16 +134,14 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     );
     const sent = historyFigures(historyIn(history.batches, since, list.timezone)).find((f) => f.id === "sent");
     await expect(record.getByTestId("sq-figure-sent")).toContainText(sent?.value ?? "0");
-    // A day is its run: pressed, the run's one screen opens at its home under the sequence (the Campaigns wiring review's
-    // lane 2), and its Close comes back to History.
+    // A day is its run: pressed, a run that went is read as its campaign's report over its day (run-report.ts, #1776).
     const day = history.batches.find((b) => b.state === "sent");
     if (!day) return;
     await record.getByTestId(`sq-batch-${day.id}`).click();
-    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/runs/${day.id}$`)));
-    await expect(page.getByTestId("bc-run-solo")).toBeVisible();
+    await expectRunsReport(page, s.id);
   });
 
-  test("a run's old address that went, as a bell row or Ask's card kept it, lands on the run's home under its sequence", async ({
+  test("a run's old address that went, as a bell row or Ask's card kept it, lands on its campaign's report over its day", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -150,8 +149,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     test.skip(!s?.last, "no sequence here has sent anything yet");
     if (!s?.last) return;
     await page.goto(`/#/broadcasts/run:${s.last.id}`);
-    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}/runs/${s.last.id}$`)));
-    await expect(page.getByTestId("bc-run-solo")).toBeVisible();
+    await expectRunsReport(page, s.id);
   });
 
   test("a run's old address still waiting for an OK lands on its home, where it is decided (the Campaigns wiring review's lane 2)", async ({
