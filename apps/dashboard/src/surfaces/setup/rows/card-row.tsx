@@ -3,7 +3,8 @@
  * as a dot (the word is the dot's name), its name and sentence, and its acts at the right: the next one coral, the others
  * outlined, putting it off a quiet link. Hookless; the acts are the caller's, gate spreads included. `left` is how many
  * are left, beside the words, for canvas P9's phone of one row with no head; every width now draws the head's count over
- * every row, and hides this.
+ * every row, and hides this. `note` rides beside the name, at every width, where a phone hides the sentence: a row back
+ * from a week put off says so there, since its next Skip is for good; its shorter words on a phone, as a button's.
  */
 import type { ReactNode } from "react";
 
@@ -22,6 +23,7 @@ interface SetupCardRowProps {
   tone: string;
   stateWords: string;
   name: ReactNode;
+  note?: { long: ReactNode; short: ReactNode } | null;
   sentence: ReactNode;
   left?: ReactNode;
   cta?: SetupCardAct | null;
@@ -34,6 +36,7 @@ export const SetupCardRow = ({
   tone,
   stateWords,
   name,
+  note = null,
   sentence,
   left = null,
   cta = null,
@@ -44,7 +47,16 @@ export const SetupCardRow = ({
   <div className="setup-card-row" data-testid={testid}>
     <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} title={stateWords} />
     <div className="setup-card-body">
-      <span className="setup-card-name">{name}</span>
+      <span className="setup-card-name">
+        {name}
+        {note ? (
+          <span className="setup-back" data-testid={testid ? `${testid}-back` : undefined}>
+            <span aria-hidden="true"> · </span>
+            <span className="setup-card-long">{note.long}</span>
+            <span className="setup-card-short">{note.short}</span>
+          </span>
+        ) : null}
+      </span>
       <span className="setup-card-said">
         <span className="setup-card-words">{sentence}</span>
         {left ? (

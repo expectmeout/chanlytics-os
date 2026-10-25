@@ -12,7 +12,7 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { lineCredentialFailure } from "../lines/line-failure";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import type { FactConflict } from "../config/facts";
-import { agoWords, MIN_MS } from "../shared/time";
+import { agoWords, DAY_MS, MIN_MS } from "../shared/time";
 import type { SetupGoogleFacts } from "../google/google";
 import { maySpend, type SetupBillingFacts } from "../workspace/billing";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path";
@@ -277,8 +277,10 @@ export const LINE_STEP_WORDS: Record<string, string> = {
 };
 
 export interface SetupInputs extends SetupDto {
-  /** Row ids this member put off: their saved Setup view (setupLaterOf), the same on every device. */
+  /** Row ids this member put off for good: their saved Setup view (setupLaterOf), the same on every device. */
   later: string[];
+  /** The rows this member put off for a week, each with when it comes back (setupRestsOf), from the same view. */
+  rests: SetupRests;
   /** The number this member said they keep or move (setupPhoneWantOf), from the same view; absent reads as none. */
   want?: SetupPhoneWant | null;
 }
@@ -312,7 +314,10 @@ export interface SetupRowVM {
   undo?: SetupVerb | null;
   /** Counts toward "answering"; cannot be put off for later. */
   required: boolean;
+  /** Put off just now: for good, or for a week that has not ended (setupOffNow). */
   later: boolean;
+  /** Put off for a week, and back since it ended: the next put-off is for good (setupBack, putOffEnds). */
+  back: boolean;
 }
 
 export interface SetupVM {
@@ -336,13 +341,16 @@ export interface SetupVM {
    * and Today's "Try it" row stays until a call comes in.
    */
   trySkipped: boolean;
-  /** The member skipped Today's offer of the day-before reminder (REMIND_SKIPPED in their put-off rows). */
+  /** The member skipped Today's offer of the day-before reminder (REMIND_SKIPPED in their put-off rows), just now. */
   remindSkipped: boolean;
+  /** The reminder's offer was put off for a week and is back: its next Skip is for good, as a row's is. */
+  remindBack: boolean;
   /** A day-before reminder already runs (SetupDto.reminders), so there is none to offer. */
   dayBeforeOn: boolean;
   /**
    * The member chose to keep or move a number (their saved view's `phone`), and no forwarding is saved for one yet,
-   * nor has "The number you already have" been put off: the first run's phone step is not done, whatever answers.
+   * nor has "The number you already have" ever been put off (a week that ended still said it can wait): the first
+   * run's phone step is not done, whatever answers.
    */
   forwardingOwed: boolean;
   /**
@@ -367,8 +375,11 @@ export interface SetupVM {
   };
 }
 
-/** A row as its builder states it: everything but what the fold adds — the state's words, and whether this member put it off. */
-export type SetupRowDraft = Omit<SetupRowVM, "later" | "stateWords"> & { stateWords?: string };
+/**
+ * A row as its builder states it: everything but what the fold adds — the state's words, and whether this member put it
+ * off or has it back.
+ */
+export type SetupRowDraft = Omit<SetupRowVM, "later" | "back" | "stateWords"> & { stateWords?: string };
 
 /**
  * What every row reads in common, computed once by setupSteps (rowContextOf): which channels answer, the numbers
@@ -600,8 +611,9 @@ export function rowContextOf(i: SetupInputs, nowMs: number): SetupRowContext {
 }
 
 /**
- * The rows a member put off, as their saved Setup view keeps them (`memberships.views.setup`, the door People's own
- * view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a throw.
+ * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
+ * People's own view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a
+ * throw. Every row put off before a put-off could rest (25 Oct 2026) is here, so it stays put off, as it always was.
  */
 export function setupLaterOf(view: unknown): string[] {
   const later = view && typeof view === "object" ? (view as { later?: unknown }).later : null;
@@ -672,6 +684,109 @@ export const REMIND_SKIPPED = "remind-skipped";
  * an owner who chose to keep a number says its forwarding can wait, and the first run's phone step lets them go on.
  */
 export const KEEP_ROW = "keep";
+
+/**
+ * How long a "not now" puts a row off the first time (Today's Skip and Hide, the first run's Later): a week, and then it
+ * is back where it was, and the next one is for good (putOffEnds). Skipped was for ever, and "It stays in Setting up"
+ * pointed at a page with no way to it once the first run was done.
+ */
+export const SETUP_REST_MS = 7 * DAY_MS;
+
+/** The rows a member put off for a week, by id, each with the moment it comes back (ISO): their saved view's `rests`. */
+export type SetupRests = Readonly<Record<string, string>>;
+
+/** At most this many rests are read: there are fewer rows than this, so more is a view somebody hand-edited. */
+const SETUP_RESTS_MAX = 20;
+
+/**
+ * The rows a member put off for a week, as their saved Setup view keeps them (`memberships.views.setup.rests`): a short
+ * id and a moment that reads as one. Anything else is no rest, never a throw.
+ */
+export function setupRestsOf(view: unknown): Record<string, string> {
+  const rests = view && typeof view === "object" ? (view as { rests?: unknown }).rests : null;
+  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
+  const kept = Object.entries(rests).filter(
+    (e): e is [string, string] =>
+      e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1])),
+  );
+  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
+}
+
+/** What a member has put off: for good (`later`) and for a week (`rests`), as their saved Setup view keeps both. */
+export interface SetupPutOff {
+  later: readonly string[];
+  rests: SetupRests;
+}
+
+/** When a row put off for a week comes back, epoch ms; null for one with no rest. */
+const restUntil = (s: SetupPutOff, id: string): number | null => {
+  const until = new Map(Object.entries(s.rests)).get(id);
+  return until === undefined ? null : Date.parse(until);
+};
+
+/** Off the card and the first run's open rows just now: put off for good, or for a week that has not ended. */
+export function setupOffNow(s: SetupPutOff, id: string, nowMs: number): boolean {
+  const until = restUntil(s, id);
+  return s.later.includes(id) || (until !== null && until > nowMs);
+}
+
+/** Put off for a week, and back since it ended: drawn again, and its next put-off is for good (putOffEnds). */
+export function setupBack(s: SetupPutOff, id: string, nowMs: number): boolean {
+  const until = restUntil(s, id);
+  return !s.later.includes(id) && until !== null && until <= nowMs;
+}
+
+/**
+ * Put off at all, for good or for a week, ended or not: the member said it can wait. The first run's phone step reads
+ * it, so a kept number's forwarding back on Today after its week does not open that step again.
+ */
+export function setupPutOffEver(s: SetupPutOff, id: string): boolean {
+  return s.later.includes(id) || restUntil(s, id) !== null;
+}
+
+/**
+ * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. "The number you
+ * already have" rests every time: its forwarding is set up on Setup's rows alone, so put off for good it would leave
+ * calls to that number short of the receptionist with nothing anywhere to set it up from.
+ */
+export function putOffEnds(id: string, back: boolean): "week" | "good" {
+  return back && id !== KEEP_ROW ? "good" : "week";
+}
+
+/**
+ * Why a row is put off: `rest`, a "not now" (Today's Skip and Hide, the first run's Later), which putOffEnds decides;
+ * `answer`, the member said it is not theirs (not on Google, a new number and none kept, the test call skipped), which
+ * is for good at once.
+ */
+export type SetupPutOffWhy = "rest" | "answer";
+
+/** A put-off asked for: rows put off, and why; or taken back. */
+export type SetupPutOffChange = { on: true; why: SetupPutOffWhy } | { on: false };
+
+/**
+ * The member's put-off rows once `ids` are put off, or taken back. Taking back undoes the last put-off: a row put off
+ * for good is back from its week where it had one, and a row resting is as if it had never been put off. A row already
+ * off stays as it is.
+ */
+export function setupPutOffNext(
+  s: SetupPutOff,
+  ids: readonly string[],
+  change: SetupPutOffChange,
+  nowMs: number,
+): SetupPutOff {
+  const later = new Set(s.later);
+  const rests = new Map(Object.entries(s.rests));
+  for (const id of ids) {
+    if (!change.on) {
+      if (later.has(id)) later.delete(id);
+      else rests.delete(id);
+    } else if (!setupOffNow(s, id, nowMs)) {
+      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
+    }
+  }
+  return { later: [...later], rests: Object.fromEntries(rests) };
+}
 
 /** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
 export const SETUP_LATER_REFUSED = {

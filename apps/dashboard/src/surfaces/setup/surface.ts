@@ -13,10 +13,14 @@
 import {
   setupSteps,
   setupLaterOf,
+  setupRestsOf,
+  setupPutOffNext,
   setupPhoneWantOf,
   SETUP_LATER_REFUSED,
   type SetupDto,
   type SetupPhoneWant,
+  type SetupPutOff,
+  type SetupPutOffChange,
   type SetupVM,
   type SetupRequestKind,
   forwardingCodes,
@@ -38,17 +42,27 @@ import { setSurfaceValue, surfaceValue } from "../surface-values";
 export interface SetupSurface {
   dto: SetupDto;
   role: string;
-  /** The rows this member put off: their saved Setup view (memberships.views.setup), the same on every device. */
+  /** The rows this member put off for good: their saved Setup view (memberships.views.setup), the same on every device. */
   later: string[];
+  /** The rows this member put off for a week, each with when it comes back: the same saved view's `rests`. */
+  rests: Record<string, string>;
   /** The number this member said they keep or move on the first run's phone step, from the same saved view. */
   want: SetupPhoneWant | null;
   vm: SetupVM;
   fetchedAt: number;
 }
 
+/** A put-off saved, with the undo that puts its rows back exactly as they stood; or refused, and why. */
+type SetupPutOffResult =
+  { ok: true; message: string; undo: () => Promise<SetupPutOffResult> } | { ok: false; message: string };
+
 interface SetupApi {
-  /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
-  later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }>;
+  /**
+   * Put optional rows off, or take them back: this member's, saved to their view, on every device. A "not now" (`rest`)
+   * puts a row off for a week, and once it is back from one, for good; an `answer` (not on Google, a new number, the
+   * test call skipped) is for good at once; taking back undoes the last put-off (contracts setupPutOffNext).
+   */
+  later(ids: string | string[], change: SetupPutOffChange): Promise<SetupPutOffResult>;
   /**
    * The number this member keeps or moves (the first run's phone step), or null for a new one: saved to their view
    * beside the rows they put off, so the step asks for its forwarding from any tab. Nothing to say where it stands.
@@ -108,14 +122,61 @@ export interface LineChoice {
   region: string | null;
 }
 
-function publish(dto: SetupDto, role: string, later: string[], want: SetupPhoneWant | null): void {
-  setSurfaceValue("setup", { dto, role, later, want, vm: setupSteps({ ...dto, later, want }), fetchedAt: Date.now() });
+function publish(
+  dto: SetupDto,
+  role: string,
+  off: { later: string[]; rests: Record<string, string> },
+  want: SetupPhoneWant | null,
+): void {
+  const { later, rests } = off;
+  setSurfaceValue("setup", {
+    dto,
+    role,
+    later,
+    rests,
+    want,
+    vm: setupSteps({ ...dto, later, rests, want }),
+    fetchedAt: Date.now(),
+  });
 }
 
 /** The member's Setup view as it stands on the page: a save replaces the whole of it, so every save sends all of it. */
 function viewNow(): Record<string, unknown> {
   const s = surfaceValue("setup");
-  return { later: s?.later ?? [], ...(s?.want ? { phone: s.want } : {}) };
+  return {
+    later: s?.later ?? [],
+    ...(s && Object.keys(s.rests).length ? { rests: s.rests } : {}),
+    ...(s?.want ? { phone: s.want } : {}),
+  };
+}
+
+/** One row's put-off as the view holds it: whether for good, and when its week ends (none without one). */
+interface PutOffEntry {
+  id: string;
+  good: boolean;
+  until: string | undefined;
+}
+
+const entryOf = (s: SetupPutOff, id: string): PutOffEntry => ({
+  id,
+  good: s.later.includes(id),
+  until: new Map(Object.entries(s.rests)).get(id),
+});
+
+/** The view's put-off rows with these rows' entries written over them, and every other row's as it is. */
+function withEntries(
+  s: SetupPutOff,
+  entries: readonly PutOffEntry[],
+): { later: string[]; rests: Record<string, string> } {
+  const later = new Set(s.later);
+  const rests = new Map(Object.entries(s.rests));
+  for (const e of entries) {
+    if (e.good) later.add(e.id);
+    else later.delete(e.id);
+    if (e.until === undefined) rests.delete(e.id);
+    else rests.set(e.id, e.until);
+  }
+  return { later: [...later], rests: Object.fromEntries(rests) };
 }
 
 /**
@@ -139,9 +200,10 @@ async function readSetup(): Promise<void> {
   // While a save of the view is out, or its read failed, what is on the page is newer than anything the read says.
   const held = !!prior && (laterPending > 0 || !v);
   const later = held ? prior.later : v ? setupLaterOf(v.views.setup) : [];
+  const rests = held ? prior.rests : v ? setupRestsOf(v.views.setup) : {};
   const want = held ? prior.want : v ? setupPhoneWantOf(v.views.setup) : null;
   laterKnown = !!v || (laterKnown && !!prior);
-  publish(d.setup, d.role, later, want);
+  publish(d.setup, d.role, { later, rests }, want);
 }
 
 /** The forwarding card's words and codes: contracts', with the number and the age as the app writes them. */
@@ -158,29 +220,45 @@ export const FORWARDING_WORDS: ForwardingWords = {
 };
 
 /** Put rows off, or take them back: shown at once, saved one at a time, and put back as they were where refused. */
-function later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }> {
+function later(ids: string | string[], change: SetupPutOffChange): Promise<SetupPutOffResult> {
   const s = surfaceValue("setup");
   if (!s) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.reading });
   if (!laterKnown) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.unread });
   const list = Array.isArray(ids) ? ids : [ids];
-  // This call's own change, so a refusal takes back only it, whatever else was put off or back meanwhile.
-  const changed = list.filter((x) => s.later.includes(x) !== on);
-  if (changed.length === 0) return Promise.resolve({ ok: true, message: "" });
-  const move = (off: boolean) => {
+  const next = setupPutOffNext(s, list, change, Date.now());
+  // This call's own rows, as they were and as they are now, so a refusal takes back only them, whatever else was put
+  // off or back meanwhile.
+  const moved = list
+    .map((id) => ({ was: entryOf(s, id), is: entryOf(next, id) }))
+    .filter((m) => m.was.good !== m.is.good || m.was.until !== m.is.until);
+  return writeEntries(
+    moved.map((m) => m.is),
+    moved.map((m) => m.was),
+  );
+}
+
+/**
+ * These rows' put-offs written over the member's view: shown at once, saved through the view's one line of saves, and
+ * put back as they were (`from`) where refused. Saved, it hands back its own undo, which writes `from` again exactly: a
+ * toast's Undo puts a row back as it stood, where taking one back undoes only the last put-off (setupPutOffNext).
+ */
+function writeEntries(to: readonly PutOffEntry[], from: readonly PutOffEntry[]): Promise<SetupPutOffResult> {
+  const undo = () => writeEntries(from, to);
+  if (to.length === 0) return Promise.resolve({ ok: true, message: "", undo });
+  const move = (entries: readonly PutOffEntry[]) => {
     const now = surfaceValue("setup");
     if (!now) return;
-    const next = off ? [...new Set([...now.later, ...changed])] : now.later.filter((x) => !changed.includes(x));
-    publish(now.dto, now.role, next, now.want);
+    publish(now.dto, now.role, withEntries(now, entries), now.want);
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
-  move(on);
+  move(to);
   laterPending += 1;
-  const saved = laterSaving.then(async () => {
+  const saved = laterSaving.then(async (): Promise<SetupPutOffResult> => {
     const r = await saveView("setup", viewNow());
     laterPending -= 1;
     // Not kept, so not put off (or back): this call's rows return as they were, and the caller says why.
-    if (!r.ok) move(!on);
-    return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+    if (!r.ok) move(from);
+    return r.ok ? { ok: true, message: "", undo } : { ok: false, message: r.message };
   });
   laterSaving = saved;
   return saved;
@@ -203,7 +281,7 @@ function want(next: SetupPhoneWant | null): Promise<{ ok: boolean; message: stri
   const say = (w: SetupPhoneWant | null) => {
     const now = surfaceValue("setup");
     if (!now) return;
-    publish(now.dto, now.role, now.later, w);
+    publish(now.dto, now.role, now, w);
     window.dispatchEvent(new CustomEvent("surface:setup"));
   };
   say(next);

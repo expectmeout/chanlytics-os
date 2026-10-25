@@ -8,11 +8,19 @@ import { checkChipsOf } from "./check-chips.js";
 import { bookingPageOffered } from "../google/google.js";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live.js";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try.js";
-import { areaCodeOf, firstRunPhoneOf, forwardingCarrierOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone.js";
 import {
+  areaCodeOf,
+  firstRunPhoneOf,
+  forwardingCarrierOf,
+  FIRST_RUN_PHONE_WORDS,
+  FORWARDING_WAIT_WORDS
+} from "./first-run-phone.js";
+import {
+  KEEP_ROW,
   REMIND_SKIPPED,
   SETUP_STATE_WORDS,
-  TRY_SKIPPED
+  TRY_SKIPPED,
+  putOffEnds
 } from "./setup.js";
 import {
   FIND_PARAM,
@@ -254,13 +262,45 @@ export function firstRunOf(vm, at, who) {
     check
   };
 }
-const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+const CARD_PUT_OFF = {
+  put: "Skip",
+  hide: "Hide",
+  back: "Back after a week",
+  backShort: "Back",
+  week: "Put off for a week.",
+  good: "Off your list.",
+  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  keep: FORWARDING_WAIT_WORDS
+};
+const CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
+const CARD_HOMES = {
+  try: () => "Call your number any time to hear it.",
+  whatsapp: () => "It's in Settings \u203A Connections.",
+  calendar: () => "It's in Settings \u203A Hours & booking.",
+  team: (r) => r.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
+  handoff: () => "It's in Settings \u203A How it answers.",
+  google: () => "It's in Settings \u203A Connections.",
+  email: () => "It's in Settings \u203A Connections.",
+  yes: () => "It's in People \u203A Get their yes."
+};
+function skipSaid(id, r) {
+  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
+  return putOffEnds(id, r.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r)}` : CARD_PUT_OFF.week;
+}
+function hideSaid(drawn) {
+  const [only] = drawn;
+  if (drawn.length === 1 && only) return only.said;
+  const good = drawn.filter((d) => d.good).length;
+  const week = drawn.length - good;
+  const head = good === 0 ? `All ${drawn.length} put off for a week.` : week === 0 ? `All ${drawn.length} off your list.` : `${week} put off for a week, ${good} off your list.`;
+  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
+}
 const CARD_REMIND = {
   id: REMIND_SKIPPED,
   name: "The day-before reminder",
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
-  said: "Put off. Turn it on any time in Sequences.",
+  home: "Turn it on any time in Sequences.",
   label: "Turn on",
   // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
@@ -270,15 +310,22 @@ const CARD_BILLING = { title: "Your plan", left: "Needs you" };
 export function setupCardOf(vm) {
   const billing = rowOf(vm, "billing");
   if (billing && billing.state === "waiting_you" && billing.verb)
-    return { ...CARD_BILLING, start: null, rows: [billing], hide: null, skip: CARD_SKIP, remind: null };
+    return {
+      ...CARD_BILLING,
+      start: null,
+      rows: [{ ...billing, said: null }],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
   const fr = firstRunOf(vm);
   if (!fr.complete && fr.current !== "try") {
-    const left2 = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
     const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
     const def = FIRST_RUN_STEPS[next.number - 1];
     return {
       title: FINISH_SETTING_UP,
-      left: `${left2} ${left2 === 1 ? "step" : "steps"} left`,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not (Setup's readiness counts either);
         // or calls are answered and a step is still open.
@@ -295,20 +342,33 @@ export function setupCardOf(vm) {
       remind: null
     };
   }
-  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r) => r !== null && r.state !== "ready" && r.state !== "waiting_them" && !r.later && !!r.verb
-  );
+  const rows = SETUP_CARD_ORDER.flatMap((id) => {
+    const r = rowOf(vm, id);
+    return r && r.state !== "ready" && r.state !== "waiting_them" && !r.later && r.verb ? [{ ...r, said: skipSaid(id, r) }] : [];
+  });
   if (!rows.length) return null;
   const calendar = rowOf(vm, "calendar");
-  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? { ...CARD_REMIND } : null;
-  const left = rows.length + (remind ? 1 : 0);
-  const said = left === 1 ? CARD_SKIP.said : remind ? `All ${left} put off. They stay in Setting up, and the reminder in Sequences.` : `All ${left} put off. They stay in Setting up for when you're ready.`;
+  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
+    id: CARD_REMIND.id,
+    name: CARD_REMIND.name,
+    stateWords: CARD_REMIND.stateWords,
+    words: CARD_REMIND.words,
+    label: CARD_REMIND.label,
+    to: CARD_REMIND.to,
+    said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
+    back: vm.remindBack
+  } : null;
+  const drawn = [
+    ...rows.map((r) => ({ id: r.id, good: putOffEnds(r.id, r.back) === "good", said: r.said ?? "" })),
+    ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
+  ];
   return {
     title: FINISH_SETTING_UP,
-    left: `${left} left`,
+    left: `${drawn.length} left`,
     start: null,
     rows,
-    hide: { put: "Hide", said },
+    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
     skip: CARD_SKIP,
     remind
   };

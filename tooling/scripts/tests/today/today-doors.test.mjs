@@ -394,7 +394,7 @@ const setupSurface = (over = {}) => {
     requests: { line: null },
     ...over,
   };
-  return { dto, role: "owner", later: [], vm: setupSteps({ ...dto, later: [] }, NOW.getTime()) };
+  return { dto, role: "owner", later: [], rests: {}, vm: setupSteps({ ...dto, later: [], rests: {} }, NOW.getTime()) };
 };
 /** Setup's value on the seam (what `useSurface("setup")` answers): the card reads it there, not off the window. */
 const feedSetup = (value) => setSurfaceValue("setup", value);
@@ -451,9 +451,10 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
   // The put-off is the surface's own verb (surface.ts setupVerbs.later), which the card and its rows both press: stood in
   // for here, on the one object they import, and given back after.
   const realLater = setupVerbs.later;
-  setupVerbs.later = async (ids, on) => {
-    put.push([ids, on]);
-    return { ok: true, message: "" };
+  setupVerbs.later = async (ids, change) => {
+    put.push([ids, change]);
+    // A put-off saved hands back its own undo, which puts its rows back as they stood (surface.ts writeEntries).
+    return { ok: true, message: "", undo: async () => (put.push([ids, "undo"]), { ok: true, message: "" }) };
   };
   try {
     const card = mountSetup();
@@ -476,16 +477,17 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     assert.ok(!aside(rows[1]), "and only there");
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
-    assert.equal(put.at(-1)[1], true);
+    assert.deepEqual(put.at(-1)[1], { on: true, why: "rest" }, "a 'not now': each row rests a week, or goes for good");
     const ids = rows.map((r) => r.props["data-testid"].slice("setup-row-".length));
     assert.deepEqual(put.at(-1)[0], ids, "Hide puts every row on the card off at once");
+    const waiting = " Until it is set up, only calls to your receptionist's own number are answered.";
     assert.equal(
       textOf(flashes.at(-1).msg),
-      `All ${ids.length} put off. They stay in Setting up for when you're ready.`,
-      "and says so",
+      `All ${ids.length} put off for a week.${ids.includes("keep") ? waiting : ""}`,
+      "and says so, never sending anyone to Setting up",
     );
     await flashes.at(-1).undo();
-    assert.deepEqual(put.at(-1), [ids, false], "its Undo takes them all back");
+    assert.deepEqual(put.at(-1), [ids, "undo"], "its Undo is the put-off's own: every row back as it stood");
   } finally {
     setupVerbs.later = realLater;
     feedSetup(undefined);
@@ -510,9 +512,9 @@ test("after the first run, with the calendar in, the card's last row is the door
   };
   const put = [];
   const realLater = setupVerbs.later;
-  setupVerbs.later = async (ids, on) => {
-    put.push([ids, on]);
-    return { ok: true, message: "" };
+  setupVerbs.later = async (ids, change) => {
+    put.push([ids, change]);
+    return { ok: true, message: "", undo: async () => ({ ok: true, message: "" }) };
   };
   try {
     feedSetup(setupSurface(answering));
@@ -547,7 +549,11 @@ test("after the first run, with the calendar in, the card's last row is the door
     assert.equal(went.at(-1), "campaigns/sequences/new:moment:visit_tomorrow");
     const skip = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-skip");
     await skip.props.onClick();
-    assert.deepEqual(put.at(-1), [["remind-skipped"], true], "Skip puts the reminder off, as a row is put off");
+    assert.deepEqual(
+      put.at(-1),
+      [["remind-skipped"], { on: true, why: "rest" }],
+      "Skip puts the reminder off, as a row is put off: a week, then for good",
+    );
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
     assert.ok(put.at(-1)[0].includes("remind-skipped"), "and Hide puts it off with the rows");
