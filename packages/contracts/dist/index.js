@@ -2449,6 +2449,10 @@ function formatPhoneDisplay(e164) {
   if (digits2.length < 7) return `+${digits2}`;
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
+function areaCodeOf(raw) {
+  const e164 = normalizePhone(raw);
+  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
+}
 
 // src/people/person-name.ts
 function personName(c) {
@@ -4634,11 +4638,6 @@ function rowContextOf(i, nowMs) {
     lineNum
   };
 }
-function setupLaterOf(view) {
-  const later = view && typeof view === "object" ? view.later : null;
-  if (!Array.isArray(later)) return [];
-  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
-}
 var isPhoneWay = (v) => PHONE_WAYS.includes(v);
 var isRings = (v) => PHONE_RINGS.includes(v);
 var isCompany = (v) => v !== "office" && CARRIERS.includes(v);
@@ -4673,59 +4672,6 @@ function keptPhoneKind(line) {
   if (carrier === "office") return "office";
   return carrier && MOBILE_CARRIERS.includes(carrier) ? "mobile" : "unknown";
 }
-var TRY_SKIPPED = "try-skipped";
-var RECEPTIONIST_MET = "receptionist-met";
-var REHEARSE_SKIPPED = "rehearse-skipped";
-var CHANNELS_SEEN = "channels-seen";
-var GOOGLE_CONNECT_LATER = "google-connect-later";
-var REMIND_SKIPPED = "remind-skipped";
-var KEEP_ROW = "keep";
-var SETUP_REST_MS = 7 * DAY_MS;
-var SETUP_RESTS_MAX = 20;
-function setupRestsOf(view) {
-  const rests = view && typeof view === "object" ? view.rests : null;
-  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
-  const kept = Object.entries(rests).filter(
-    (e) => e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1]))
-  );
-  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
-}
-var restUntil = (s, id) => {
-  const until = new Map(Object.entries(s.rests)).get(id);
-  return until === void 0 ? null : Date.parse(until);
-};
-function setupOffNow(s, id, nowMs) {
-  const until = restUntil(s, id);
-  return s.later.includes(id) || until !== null && until > nowMs;
-}
-function setupBack(s, id, nowMs) {
-  const until = restUntil(s, id);
-  return !s.later.includes(id) && until !== null && until <= nowMs;
-}
-function setupPutOffEver(s, id) {
-  return s.later.includes(id) || restUntil(s, id) !== null;
-}
-function putOffEnds(id, back) {
-  return back && id !== KEEP_ROW ? "good" : "week";
-}
-function setupPutOffNext(s, ids, change, nowMs) {
-  const later = new Set(s.later);
-  const rests = new Map(Object.entries(s.rests));
-  for (const id of ids) {
-    if (!change.on) {
-      if (later.has(id)) later.delete(id);
-      else rests.delete(id);
-    } else if (!setupOffNow(s, id, nowMs)) {
-      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
-      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
-    }
-  }
-  return { later: [...later], rests: Object.fromEntries(rests) };
-}
-var SETUP_LATER_REFUSED = {
-  reading: "Setting up is still being read. Try again in a moment.",
-  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
-};
 
 // src/setup/calendar-source.ts
 var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
@@ -58918,6 +58864,67 @@ function reachOutDayWords(n) {
   };
 }
 
+// src/setup/setup-put-off.ts
+function setupLaterOf(view) {
+  const later = view && typeof view === "object" ? view.later : null;
+  if (!Array.isArray(later)) return [];
+  return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
+}
+var TRY_SKIPPED = "try-skipped";
+var RECEPTIONIST_MET = "receptionist-met";
+var REHEARSE_SKIPPED = "rehearse-skipped";
+var CHANNELS_SEEN = "channels-seen";
+var GOOGLE_CONNECT_LATER = "google-connect-later";
+var REMIND_SKIPPED = "remind-skipped";
+var KEEP_ROW = "keep";
+var SETUP_REST_MS = 7 * DAY_MS;
+var SETUP_RESTS_MAX = 20;
+function setupRestsOf(view) {
+  const rests = view && typeof view === "object" ? view.rests : null;
+  if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
+  const kept = Object.entries(rests).filter(
+    (e) => e[0].length > 0 && e[0].length <= 40 && typeof e[1] === "string" && Number.isFinite(Date.parse(e[1]))
+  );
+  return Object.fromEntries(kept.slice(0, SETUP_RESTS_MAX));
+}
+var restUntil = (s, id) => {
+  const until = new Map(Object.entries(s.rests)).get(id);
+  return until === void 0 ? null : Date.parse(until);
+};
+function setupOffNow(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return s.later.includes(id) || until !== null && until > nowMs;
+}
+function setupBack(s, id, nowMs) {
+  const until = restUntil(s, id);
+  return !s.later.includes(id) && until !== null && until <= nowMs;
+}
+function setupPutOffEver(s, id) {
+  return s.later.includes(id) || restUntil(s, id) !== null;
+}
+function putOffEnds(id, back) {
+  return back && id !== KEEP_ROW ? "good" : "week";
+}
+function setupPutOffNext(s, ids, change, nowMs) {
+  const later = new Set(s.later);
+  const rests = new Map(Object.entries(s.rests));
+  for (const id of ids) {
+    if (!change.on) {
+      if (later.has(id)) later.delete(id);
+      else rests.delete(id);
+    } else if (!setupOffNow(s, id, nowMs)) {
+      if (change.why === "answer" || putOffEnds(id, setupBack(s, id, nowMs)) === "good") later.add(id);
+      else rests.set(id, new Date(nowMs + SETUP_REST_MS).toISOString());
+    }
+  }
+  return { later: [...later], rests: Object.fromEntries(rests) };
+}
+var FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
+var SETUP_LATER_REFUSED = {
+  reading: "Setting up is still being read. Try again in a moment.",
+  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
+};
+
 // src/setup/capabilities.ts
 var CAPABILITY_KINDS = ["voice", "whatsapp", "sms"];
 function activationOf(i, kind) {
@@ -58997,6 +59004,13 @@ function firstRunStepRoute(key) {
 }
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
+var FIRST_RUN_TITLE = "Setting up";
+var FINISH_SETTING_UP = "Finish setting up";
+var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
+function shouldLandOnFirstRun(role, answering, route, landed) {
+  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
+  return route === "" || route === "today";
+}
 
 // src/setup/setup-rows-phone.ts
 function lineRow(i, ctx) {
@@ -60482,15 +60496,6 @@ var CONNECTION_GROUP_WORDS = {
   later: { title: "Later", sub: () => "not yet: nothing here is connected" }
 };
 
-// src/setup/first-run-door.ts
-var FIRST_RUN_TITLE = "Setting up";
-var FINISH_SETTING_UP = "Finish setting up";
-var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
-  return route === "" || route === "today";
-}
-
 // src/setup/first-run-receptionist.ts
 function businessNameOf(receptionistName, workspaceName) {
   return (receptionistName ?? "").trim() || (workspaceName ?? "").trim() || null;
@@ -60969,8 +60974,328 @@ function firstRunOf(vm, at3, who) {
   };
 }
 
+// src/setup/first-run-card.ts
+var GO_LIVE = /* @__PURE__ */ firstRunStepDefOf("live");
+var SETUP_CARD_ORDER = [
+  "try",
+  "whatsapp",
+  "clients",
+  "calendar",
+  "team",
+  "handoff",
+  "keep",
+  "google",
+  "email",
+  "yes"
+];
+var CARD_PUT_OFF = {
+  put: "Skip",
+  hide: "Hide",
+  back: "Back after a week",
+  backShort: "Back",
+  week: "Put off for a week.",
+  good: "Off your list.",
+  // "The number you already have" rests every time (setup-put-off.ts putOffEnds): what waiting costs, said with each Skip.
+  keep: FORWARDING_WAIT_WORDS
+};
+var CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
+var CARD_HOMES = {
+  try: () => "Call your number any time to hear it.",
+  whatsapp: () => "It's in Settings \u203A Connections.",
+  clients: () => "It's in People \u203A Add people.",
+  calendar: () => "It's in Settings \u203A Hours & booking.",
+  team: (r2) => r2.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
+  handoff: () => "It's in Settings \u203A How it answers.",
+  google: () => "It's in Settings \u203A Connections.",
+  email: () => "It's in Settings \u203A Connections.",
+  yes: () => "It's in People \u203A Get their yes."
+};
+function skipSaid(id, r2) {
+  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
+  return putOffEnds(id, r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
+}
+function hideSaid(drawn) {
+  const [only] = drawn;
+  if (drawn.length === 1 && only) return only.said;
+  const good = drawn.filter((d) => d.good).length;
+  const week = drawn.length - good;
+  const head = good === 0 ? `All ${drawn.length} put off for a week.` : week === 0 ? `All ${drawn.length} off your list.` : `${week} put off for a week, ${good} off your list.`;
+  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
+}
+var CARD_REMIND = {
+  id: REMIND_SKIPPED,
+  name: "The day-before reminder",
+  stateWords: SETUP_STATE_WORDS.not_started,
+  words: "Your calendar is in. Remind each customer the day before.",
+  home: "Turn it on any time in Sequences.",
+  label: "Turn on",
+  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
+  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
+  to: "campaigns/sequences/new:moment:visit_tomorrow"
+};
+var CARD_BILLING = { title: "Your plan", left: "Needs you" };
+var SETUP_CARD_WORDS = {
+  startCta: "Continue setting up",
+  startShort: "Continue",
+  notAnswering: "Not answering yet",
+  answering: "Answering",
+  callsNotAnswered: "Calls aren't answered yet",
+  next: (name) => `Next: ${name.toLowerCase()}`,
+  keptTitle: "Kept for you",
+  goingLive: "Finish going live",
+  needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
+  doneTitle: "Already done",
+  /** What is kept, in the order the steps made it. */
+  kept: {
+    business: (name, listed) => listed ? `${name}, read from Google` : name,
+    sounds: (sounds) => `Your receptionist: ${sounds}`,
+    taught: (n) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
+    rehearsed: "Your rehearsal, reviewed",
+    keeping: (n) => `Keeping ${n}, when you go live`,
+    moving: (n) => `Moving ${n} to Chanlytics, when you go live`,
+    newNumber: (n) => `Its own number, ${n}, when you go live`
+  },
+  done: {
+    line: (n) => `Its number, ${n}`
+  }
+};
+var cardRowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
+function keptForYouOf(vm, who) {
+  const K2 = SETUP_CARD_WORDS.kept;
+  const n = vm.want ? formatPhoneDisplay(vm.want.number) ?? vm.want.number : null;
+  return [
+    who?.business && vm.check.receptionist === "set" ? K2.business(who.business, vm.check.listed) : null,
+    who?.sounds && vm.receptionistMet ? K2.sounds(who.sounds) : null,
+    vm.rehearsal.kept ? K2.taught(vm.rehearsal.kept) : null,
+    vm.rehearsal.reviewed ? K2.rehearsed : null,
+    vm.want && n ? vm.want.way === "keep" ? K2.keeping(n) : vm.want.way === "move" ? K2.moving(n) : K2.newNumber(n) : null
+  ].filter((x) => !!x);
+}
+var GOING_LIVE_ROWS = ["keep", "try", "whatsapp"];
+function setupCardOf(vm, who) {
+  const W = SETUP_CARD_WORDS;
+  const billing = cardRowOf(vm, "billing");
+  if (billing && billing.state === "waiting_you" && billing.verb)
+    return {
+      ...CARD_BILLING,
+      start: null,
+      kept: [],
+      rows: [{ ...billing, said: null }],
+      done: [],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
+  const fr = firstRunOf(vm);
+  const paid = !billing || billing.state === "ready";
+  if (!fr.complete && (fr.current !== "live" || !paid)) {
+    const left = fr.steps.filter((s) => s.state !== "done").length;
+    const def = firstRunStepDefOf(fr.current);
+    return {
+      title: FINISH_SETTING_UP,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      start: {
+        // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
+        name: !vm.readiness.answering ? W.notAnswering : vm.tryIt?.voice ? W.answering : W.callsNotAnswered,
+        sentence: def.lead,
+        status: W.next(def.name),
+        cta: W.startCta,
+        ctaShort: W.startShort,
+        to: FIRST_RUN_ROUTE
+      },
+      kept: keptForYouOf(vm, who),
+      rows: [],
+      done: [],
+      hide: null,
+      skip: CARD_SKIP,
+      remind: null
+    };
+  }
+  if (!fr.complete) {
+    const rows3 = GOING_LIVE_ROWS.flatMap((id) => {
+      const r2 = cardRowOf(vm, id);
+      return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && r2.verb ? [{ ...r2, said: null }] : [];
+    });
+    const line = vm.tryIt?.voiceLabel ?? null;
+    return {
+      title: W.goingLive,
+      left: rows3.length ? W.needYou(rows3.length) : W.next(GO_LIVE.name),
+      // Nothing of the owner's left on Go live (the number still on its way): the one row back to it.
+      start: rows3.length ? null : {
+        name: W.callsNotAnswered,
+        sentence: GO_LIVE.lead,
+        status: W.next(GO_LIVE.name),
+        cta: W.startCta,
+        ctaShort: W.startShort,
+        to: firstRunStepRoute("live")
+      },
+      kept: [],
+      rows: rows3,
+      done: line ? [W.done.line(line)] : [],
+      hide: null,
+      skip: null,
+      remind: null
+    };
+  }
+  const rows2 = SETUP_CARD_ORDER.flatMap((id) => {
+    const r2 = cardRowOf(vm, id);
+    return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && r2.verb ? [{ ...r2, said: skipSaid(id, r2) }] : [];
+  });
+  if (!rows2.length) return null;
+  const calendar = cardRowOf(vm, "calendar");
+  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
+  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
+    id: CARD_REMIND.id,
+    name: CARD_REMIND.name,
+    stateWords: CARD_REMIND.stateWords,
+    words: CARD_REMIND.words,
+    label: CARD_REMIND.label,
+    to: CARD_REMIND.to,
+    said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
+    back: vm.remindBack
+  } : null;
+  const drawn = [
+    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.id, r2.back) === "good", said: r2.said ?? "" })),
+    ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
+  ];
+  return {
+    title: FINISH_SETTING_UP,
+    left: `${drawn.length} left`,
+    start: null,
+    kept: [],
+    rows: rows2,
+    done: [],
+    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
+    skip: CARD_SKIP,
+    remind
+  };
+}
+
+// src/setup/check-chips.ts
+var SUGGESTIONS = {
+  hair_salon: [
+    "Haircut",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Color",
+    "Highlights",
+    "Balayage",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Blowout",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Keratin treatment",
+    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
+    "Extensions"
+  ],
+  barber_shop: [
+    "Haircut",
+    // trade-word: a barber's own service, suggested only where Google lists a barber shop
+    "Beard trim",
+    "Hot towel shave",
+    "Fade",
+    "Kids' cut",
+    "Line-up"
+  ],
+  beauty_salon: [
+    "Haircut",
+    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
+    "Color",
+    "Manicure",
+    "Pedicure",
+    "Facial",
+    "Waxing",
+    "Brow shaping",
+    "Makeup"
+  ],
+  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
+  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
+  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
+  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
+  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
+  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
+  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  // trade-word: a dentist's own service, suggested only where Google lists a dentist
+  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
+  physiotherapist: [
+    "Evaluation",
+    "Physical therapy session",
+    "Sports injury rehab",
+    "Post-surgery rehab",
+    "Dry needling"
+  ],
+  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  // trade-word: a doctor's own services, suggested only where Google lists a doctor
+  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
+  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
+  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  // trade-word: a vet's own service, suggested only where Google lists a vet
+  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
+  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
+  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
+  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
+  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
+  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
+  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
+  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
+  electrician: [
+    "Outlet installation",
+    "Panel upgrade",
+    "Lighting installation",
+    "EV charger installation",
+    "Troubleshooting",
+    "Inspection"
+  ],
+  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
+  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
+  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
+  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
+  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
+  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
+  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
+  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
+  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
+  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
+  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
+};
+var SAME_AS = {
+  hair_care: "hair_salon",
+  beautician: "beauty_salon",
+  massage: "spa",
+  massage_spa: "spa",
+  dental_clinic: "dentist",
+  medical_clinic: "doctor",
+  medical_center: "doctor",
+  gym: "fitness_center",
+  pet_boarding_service: "pet_care"
+};
+var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
+function serviceSuggestionsOf(type) {
+  const t = (type ?? "").trim();
+  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
+}
+function checkChipsOf(i) {
+  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
+  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
+  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
+  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
+  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
+  return {
+    services: set(
+      "services",
+      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
+      listed.length
+    ),
+    languages: set(
+      "languages",
+      [
+        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
+        ...besides.map((name) => ({ name, on: true }))
+      ],
+      chosen.length
+    )
+  };
+}
+
 // src/setup/first-run-phone.ts
-var FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   /** Where it answers' tile (canvas 4). */
@@ -61084,10 +61409,6 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-function areaCodeOf(raw) {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
 function firstRunPhoneOf(input) {
   const { dto } = input;
   const s = phoneStepOf(input);
@@ -61440,327 +61761,6 @@ function ctaHeldOf(s, boxProblem) {
 }
 function ctaLabelOf(act2) {
   return FIRST_RUN_PHONE_WORDS.cta[act2];
-}
-
-// src/setup/first-run-card.ts
-var GO_LIVE = /* @__PURE__ */ firstRunStepDefOf("live");
-var SETUP_CARD_ORDER = [
-  "try",
-  "whatsapp",
-  "clients",
-  "calendar",
-  "team",
-  "handoff",
-  "keep",
-  "google",
-  "email",
-  "yes"
-];
-var CARD_PUT_OFF = {
-  put: "Skip",
-  hide: "Hide",
-  back: "Back after a week",
-  backShort: "Back",
-  week: "Put off for a week.",
-  good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
-  keep: FORWARDING_WAIT_WORDS
-};
-var CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };
-var CARD_HOMES = {
-  try: () => "Call your number any time to hear it.",
-  whatsapp: () => "It's in Settings \u203A Connections.",
-  clients: () => "It's in People \u203A Add people.",
-  calendar: () => "It's in Settings \u203A Hours & booking.",
-  team: (r2) => r2.verb?.to === "admin/notifications" ? "It's in Settings \u203A Notifications." : "It's in Settings \u203A Team.",
-  handoff: () => "It's in Settings \u203A How it answers.",
-  google: () => "It's in Settings \u203A Connections.",
-  email: () => "It's in Settings \u203A Connections.",
-  yes: () => "It's in People \u203A Get their yes."
-};
-function skipSaid(id, r2) {
-  if (id === KEEP_ROW) return `${CARD_PUT_OFF.week} ${CARD_PUT_OFF.keep}`;
-  return putOffEnds(id, r2.back) === "good" ? `${CARD_PUT_OFF.good} ${CARD_HOMES[id](r2)}` : CARD_PUT_OFF.week;
-}
-function hideSaid(drawn) {
-  const [only] = drawn;
-  if (drawn.length === 1 && only) return only.said;
-  const good = drawn.filter((d) => d.good).length;
-  const week = drawn.length - good;
-  const head = good === 0 ? `All ${drawn.length} put off for a week.` : week === 0 ? `All ${drawn.length} off your list.` : `${week} put off for a week, ${good} off your list.`;
-  return drawn.some((d) => d.id === KEEP_ROW) ? `${head} ${CARD_PUT_OFF.keep}` : head;
-}
-var CARD_REMIND = {
-  id: REMIND_SKIPPED,
-  name: "The day-before reminder",
-  stateWords: SETUP_STATE_WORDS.not_started,
-  words: "Your calendar is in. Remind each customer the day before.",
-  home: "Turn it on any time in Sequences.",
-  label: "Turn on",
-  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
-  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
-  to: "campaigns/sequences/new:moment:visit_tomorrow"
-};
-var CARD_BILLING = { title: "Your plan", left: "Needs you" };
-var SETUP_CARD_WORDS = {
-  startCta: "Continue setting up",
-  startShort: "Continue",
-  notAnswering: "Not answering yet",
-  answering: "Answering",
-  callsNotAnswered: "Calls aren't answered yet",
-  next: (name) => `Next: ${name.toLowerCase()}`,
-  keptTitle: "Kept for you",
-  goingLive: "Finish going live",
-  needYou: (n) => `${n} need${n === 1 ? "s" : ""} you`,
-  doneTitle: "Already done",
-  /** What is kept, in the order the steps made it. */
-  kept: {
-    business: (name, listed) => listed ? `${name}, read from Google` : name,
-    sounds: (sounds) => `Your receptionist: ${sounds}`,
-    taught: (n) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
-    rehearsed: "Your rehearsal, reviewed",
-    keeping: (n) => `Keeping ${n}, when you go live`,
-    moving: (n) => `Moving ${n} to Chanlytics, when you go live`,
-    newNumber: (n) => `Its own number, ${n}, when you go live`
-  },
-  done: {
-    line: (n) => `Its number, ${n}`
-  }
-};
-var cardRowOf = (vm, id) => vm.rows.find((r2) => r2.id === id) ?? null;
-function keptForYouOf(vm, who) {
-  const K2 = SETUP_CARD_WORDS.kept;
-  const n = vm.want ? formatPhoneDisplay(vm.want.number) ?? vm.want.number : null;
-  return [
-    who?.business && vm.check.receptionist === "set" ? K2.business(who.business, vm.check.listed) : null,
-    who?.sounds && vm.receptionistMet ? K2.sounds(who.sounds) : null,
-    vm.rehearsal.kept ? K2.taught(vm.rehearsal.kept) : null,
-    vm.rehearsal.reviewed ? K2.rehearsed : null,
-    vm.want && n ? vm.want.way === "keep" ? K2.keeping(n) : vm.want.way === "move" ? K2.moving(n) : K2.newNumber(n) : null
-  ].filter((x) => !!x);
-}
-var GOING_LIVE_ROWS = ["keep", "try", "whatsapp"];
-function setupCardOf(vm, who) {
-  const W = SETUP_CARD_WORDS;
-  const billing = cardRowOf(vm, "billing");
-  if (billing && billing.state === "waiting_you" && billing.verb)
-    return {
-      ...CARD_BILLING,
-      start: null,
-      kept: [],
-      rows: [{ ...billing, said: null }],
-      done: [],
-      hide: null,
-      skip: CARD_SKIP,
-      remind: null
-    };
-  const fr = firstRunOf(vm);
-  const paid = !billing || billing.state === "ready";
-  if (!fr.complete && (fr.current !== "live" || !paid)) {
-    const left = fr.steps.filter((s) => s.state !== "done").length;
-    const def = firstRunStepDefOf(fr.current);
-    return {
-      title: FINISH_SETTING_UP,
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
-      start: {
-        // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
-        name: !vm.readiness.answering ? W.notAnswering : vm.tryIt?.voice ? W.answering : W.callsNotAnswered,
-        sentence: def.lead,
-        status: W.next(def.name),
-        cta: W.startCta,
-        ctaShort: W.startShort,
-        to: FIRST_RUN_ROUTE
-      },
-      kept: keptForYouOf(vm, who),
-      rows: [],
-      done: [],
-      hide: null,
-      skip: CARD_SKIP,
-      remind: null
-    };
-  }
-  if (!fr.complete) {
-    const rows3 = GOING_LIVE_ROWS.flatMap((id) => {
-      const r2 = cardRowOf(vm, id);
-      return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && r2.verb ? [{ ...r2, said: null }] : [];
-    });
-    const line = vm.tryIt?.voiceLabel ?? null;
-    return {
-      title: W.goingLive,
-      left: rows3.length ? W.needYou(rows3.length) : W.next(GO_LIVE.name),
-      // Nothing of the owner's left on Go live (the number still on its way): the one row back to it.
-      start: rows3.length ? null : {
-        name: W.callsNotAnswered,
-        sentence: GO_LIVE.lead,
-        status: W.next(GO_LIVE.name),
-        cta: W.startCta,
-        ctaShort: W.startShort,
-        to: firstRunStepRoute("live")
-      },
-      kept: [],
-      rows: rows3,
-      done: line ? [W.done.line(line)] : [],
-      hide: null,
-      skip: null,
-      remind: null
-    };
-  }
-  const rows2 = SETUP_CARD_ORDER.flatMap((id) => {
-    const r2 = cardRowOf(vm, id);
-    return r2 && r2.state !== "ready" && r2.state !== "waiting_them" && !r2.later && r2.verb ? [{ ...r2, said: skipSaid(id, r2) }] : [];
-  });
-  if (!rows2.length) return null;
-  const calendar = cardRowOf(vm, "calendar");
-  const remindGood = putOffEnds(REMIND_SKIPPED, vm.remindBack) === "good";
-  const remind = vm.calendarLinked && calendar?.state === "ready" && !vm.remindSkipped && !vm.dayBeforeOn ? {
-    id: CARD_REMIND.id,
-    name: CARD_REMIND.name,
-    stateWords: CARD_REMIND.stateWords,
-    words: CARD_REMIND.words,
-    label: CARD_REMIND.label,
-    to: CARD_REMIND.to,
-    said: remindGood ? `${CARD_PUT_OFF.good} ${CARD_REMIND.home}` : CARD_PUT_OFF.week,
-    back: vm.remindBack
-  } : null;
-  const drawn = [
-    ...rows2.map((r2) => ({ id: r2.id, good: putOffEnds(r2.id, r2.back) === "good", said: r2.said ?? "" })),
-    ...remind ? [{ id: remind.id, good: remindGood, said: remind.said }] : []
-  ];
-  return {
-    title: FINISH_SETTING_UP,
-    left: `${drawn.length} left`,
-    start: null,
-    kept: [],
-    rows: rows2,
-    done: [],
-    hide: { put: CARD_PUT_OFF.hide, said: hideSaid(drawn) },
-    skip: CARD_SKIP,
-    remind
-  };
-}
-
-// src/setup/check-chips.ts
-var SUGGESTIONS = {
-  hair_salon: [
-    "Haircut",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Color",
-    "Highlights",
-    "Balayage",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Blowout",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Keratin treatment",
-    // trade-word: a hair salon's own service, suggested only where Google lists a hair salon
-    "Extensions"
-  ],
-  barber_shop: [
-    "Haircut",
-    // trade-word: a barber's own service, suggested only where Google lists a barber shop
-    "Beard trim",
-    "Hot towel shave",
-    "Fade",
-    "Kids' cut",
-    "Line-up"
-  ],
-  beauty_salon: [
-    "Haircut",
-    // trade-word: a beauty salon's own service, suggested only where Google lists one or a beautician
-    "Color",
-    "Manicure",
-    "Pedicure",
-    "Facial",
-    "Waxing",
-    "Brow shaping",
-    "Makeup"
-  ],
-  nail_salon: ["Manicure", "Pedicure", "Gel manicure", "Acrylic set", "Dip powder", "Nail art", "Fill"],
-  spa: ["Massage", "Facial", "Body scrub", "Hot stone massage", "Couples massage", "Body wrap"],
-  skin_care_clinic: ["Facial", "Chemical peel", "Microneedling", "Dermaplaning", "Acne treatment", "Consultation"],
-  makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
-  tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
-  body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
-  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
-  // trade-word: a dentist's own service, suggested only where Google lists a dentist
-  chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
-  physiotherapist: [
-    "Evaluation",
-    "Physical therapy session",
-    "Sports injury rehab",
-    "Post-surgery rehab",
-    "Dry needling"
-  ],
-  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
-  // trade-word: a doctor's own services, suggested only where Google lists a doctor
-  foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
-  wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
-  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
-  // trade-word: a vet's own service, suggested only where Google lists a vet
-  pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
-  fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
-  yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],
-  car_repair: ["Oil change", "Brake service", "Diagnostics", "Tire rotation", "Inspection", "AC repair"],
-  car_wash: ["Exterior wash", "Full detail", "Interior cleaning", "Wax", "Monthly plan"],
-  tire_shop: ["Tire installation", "Rotation", "Balancing", "Alignment", "Flat repair"],
-  moving_company: ["Local move", "Long-distance move", "Packing", "Storage", "Piano move", "Office move"],
-  plumber: ["Leak repair", "Drain cleaning", "Water heater", "Toilet repair", "Emergency call-out", "Inspection"],
-  electrician: [
-    "Outlet installation",
-    "Panel upgrade",
-    "Lighting installation",
-    "EV charger installation",
-    "Troubleshooting",
-    "Inspection"
-  ],
-  roofing_contractor: ["Roof inspection", "Roof repair", "Roof replacement", "Gutter repair", "Estimate"],
-  painter: ["Interior painting", "Exterior painting", "Cabinet painting", "Drywall repair", "Estimate"],
-  locksmith: ["Lockout", "Rekey", "Lock installation", "Key cutting", "Car lockout"],
-  laundry: ["Wash and fold", "Dry cleaning", "Pickup and delivery", "Alterations"],
-  tailor: ["Alterations", "Hemming", "Suit tailoring", "Repairs", "Custom fitting"],
-  florist: ["Bouquet", "Wedding flowers", "Event flowers", "Sympathy flowers", "Delivery"],
-  lawyer: ["Consultation", "Contract review", "Estate planning", "Family law", "Business formation"],
-  insurance_agency: ["Quote", "Auto insurance", "Home insurance", "Life insurance", "Policy review"],
-  real_estate_agency: ["Home valuation", "Buyer consultation", "Listing appointment", "Showing", "Rental help"],
-  catering_service: ["Event catering", "Tasting", "Corporate lunch", "Wedding catering", "Drop-off catering"],
-  child_care_agency: ["Tour", "Full-time care", "Part-time care", "After-school care", "Drop-in care"]
-};
-var SAME_AS = {
-  hair_care: "hair_salon",
-  beautician: "beauty_salon",
-  massage: "spa",
-  massage_spa: "spa",
-  dental_clinic: "dentist",
-  medical_clinic: "doctor",
-  medical_center: "doctor",
-  gym: "fitness_center",
-  pet_boarding_service: "pet_care"
-};
-var SERVICE_SUGGESTION_TYPES = /* @__PURE__ */ (() => Object.keys(SUGGESTIONS))();
-function serviceSuggestionsOf(type) {
-  const t = (type ?? "").trim();
-  return SUGGESTIONS[SAME_AS[t] ?? t] ?? [];
-}
-function checkChipsOf(i) {
-  const listed = (Array.isArray(i.services) ? i.services : []).map((s) => s && typeof s.name === "string" ? s.name.trim() : "").filter(Boolean);
-  const chosen = (Array.isArray(i.languages) ? i.languages : []).filter((l) => typeof l === "string" && l.trim() !== "").map((l) => l.trim());
-  const has3 = (list2, name) => list2.some((x) => sameListed(x, name));
-  const besides = chosen.filter((l, k) => !has3(COMMON_LANGUAGES, l) && !has3(chosen.slice(0, k), l));
-  const set = (key, chips, count2) => count2 >= PROFILE_LIMITS[key] && chips.some((c) => !c.on) ? { chips: chips.filter((c) => c.on), full: profileRefusal(key) } : { chips, full: null };
-  return {
-    services: set(
-      "services",
-      serviceSuggestionsOf(i.type).map((name) => ({ name, on: has3(listed, name) })),
-      listed.length
-    ),
-    languages: set(
-      "languages",
-      [
-        ...COMMON_LANGUAGES.map((name) => ({ name, on: has3(chosen, name) })),
-        ...besides.map((name) => ({ name, on: true }))
-      ],
-      chosen.length
-    )
-  };
 }
 
 // src/setup/first-run-channels.ts

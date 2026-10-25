@@ -6,13 +6,14 @@
  * - Once paid and something on Go live waits on the owner (the code, the check of the line, WhatsApp's approval): those
  *   rows first, each opening its place, and what is already done (canvas T·c).
  * - After: Setup's own rows that wait on the owner, with Skip and Hide: a Skip puts a row off for a week, and once it
- *   is back, for good, with where it is set up from then (setup.ts setupPutOffNext).
+ *   is back, for good, with where it is set up from then (setup-put-off.ts setupPutOffNext).
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { KEEP_ROW, REMIND_SKIPPED, SETUP_STATE_WORDS, putOffEnds, type SetupRowVM, type SetupVM } from "./setup";
-import { FORWARDING_WAIT_WORDS } from "./first-run-phone";
+import { SETUP_STATE_WORDS, type SetupRowVM, type SetupVM } from "./setup";
+import { KEEP_ROW, REMIND_SKIPPED, putOffEnds } from "./setup-put-off";
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
 import { FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route";
-import { FINISH_SETTING_UP } from "./first-run-door";
+import { FINISH_SETTING_UP } from "./first-run-route";
 import { firstRunOf, firstRunStepDefOf } from "./first-run";
 
 /** Go live, the last step: what the card names while the owner goes live. */
@@ -105,7 +106,7 @@ const CARD_PUT_OFF = {
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  // "The number you already have" rests every time (setup-put-off.ts putOffEnds): what waiting costs, said with each Skip.
   keep: FORWARDING_WAIT_WORDS,
 } as const;
 

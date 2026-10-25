@@ -9,6 +9,7 @@ export type { ErrorCode } from "./errors";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";
 export {
+  areaCodeOf,
   normalizePhone,
   samePhone,
   shortCode,

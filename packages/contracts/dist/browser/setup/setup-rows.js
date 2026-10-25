@@ -21,19 +21,21 @@ import {
   activationWords,
   rowContextOf,
   BROKEN_CONFIG_WORDS,
+  SETUP_STATE_WORDS,
+  forwardedLineOf
+} from "./setup.js";
+import {
   KEEP_ROW,
   RECEPTIONIST_MET,
   CHANNELS_SEEN,
   REHEARSE_SKIPPED,
   GOOGLE_CONNECT_LATER,
   REMIND_SKIPPED,
-  SETUP_STATE_WORDS,
   TRY_SKIPPED,
-  forwardedLineOf,
   setupBack,
   setupOffNow,
   setupPutOffEver
-} from "./setup.js";
+} from "./setup-put-off.js";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone.js";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 function billingRow(i, ctx) {

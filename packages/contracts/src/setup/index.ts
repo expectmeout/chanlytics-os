@@ -3,11 +3,6 @@ export {
   lineStuckProvisioning,
   lineRetryRefusal,
   textingWords,
-  setupLaterOf,
-  setupRestsOf,
-  setupPutOffNext,
-  putOffEnds,
-  SETUP_REST_MS,
   setupPhoneWantOf,
   setupChoicesOf,
   forwardedLineOf,
@@ -24,6 +19,13 @@ export {
   TEXTING_NEEDS_RECORD_CLAUSE,
   BROKEN_CONFIG_WORDS,
   SETUP_REQUEST_KINDS,
+} from "./setup";
+export {
+  setupLaterOf,
+  setupRestsOf,
+  setupPutOffNext,
+  putOffEnds,
+  SETUP_REST_MS,
   TRY_SKIPPED,
   RECEPTIONIST_MET,
   CHANNELS_SEEN,
@@ -32,7 +34,7 @@ export {
   REMIND_SKIPPED,
   KEEP_ROW,
   SETUP_LATER_REFUSED,
-} from "./setup";
+} from "./setup-put-off";
 /** The fold over the rows' table lives with the table (setup-rows.ts); the name is the one the page has always read. */
 export { setupSteps } from "./setup-rows";
 export type {
@@ -47,11 +49,8 @@ export type {
   SetupPhoneWant,
   SetupChoices,
   WhatsappChoice,
-  SetupRests,
-  SetupPutOff,
-  SetupPutOffWhy,
-  SetupPutOffChange,
 } from "./setup";
+export type { SetupRests, SetupPutOff, SetupPutOffWhy, SetupPutOffChange } from "./setup-put-off";
 export { capabilityStatus, CAPABILITY_KINDS } from "./capabilities";
 export type {
   CapabilityKind,
@@ -96,11 +95,11 @@ export { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS, lineLookupOf } from "./fi
 export type { ChannelsInput, FirstRunChannelsVM, LineLookupDto } from "./first-run-channels";
 export { firstRunGoLiveOf, FIRST_RUN_GOLIVE_WORDS } from "./first-run-golive";
 export type { FirstRunGoLiveVM, GoLiveInput, GoLiveItemVM, GoLiveStartVM } from "./first-run-golive";
-export { FIRST_RUN_TITLE, FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, shouldLandOnFirstRun } from "./first-run-door";
+export { FIRST_RUN_TITLE, FINISH_SETTING_UP, FIRST_RUN_LANDED_KEY, shouldLandOnFirstRun } from "./first-run-route";
 export { firstRunStepOf } from "./first-run-route";
 export type { FirstRunStepKey } from "./first-run-route";
 export type { FirstRunStepState, FirstRunCheckVM, FirstRunStepVM, FirstRunVM, FirstRunWho } from "./first-run";
-export { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
+export { firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
 export type {
   FirstRunPhoneStage,
   FirstRunPhoneQuestion,

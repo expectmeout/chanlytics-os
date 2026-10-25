@@ -7,7 +7,7 @@
  * templates, the calendar feed, the team, the consent rows. Nothing stores a
  * "done" flag; a row is ready because the thing it names exists. "Later" is
  * the member's own (their saved view, on every device): it puts an optional
- * row off Today's card for a week, then for good (setup.ts setupPutOffNext),
+ * row off Today's card for a week, then for good (setup-put-off.ts setupPutOffNext),
  * and nothing else.
  */
 import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from "./calendar-source";
@@ -33,26 +33,28 @@ import {
   activationWords,
   rowContextOf,
   BROKEN_CONFIG_WORDS,
-  KEEP_ROW,
-  RECEPTIONIST_MET,
-  CHANNELS_SEEN,
-  REHEARSE_SKIPPED,
-  GOOGLE_CONNECT_LATER,
-  REMIND_SKIPPED,
   SETUP_STATE_WORDS,
-  TRY_SKIPPED,
   forwardedLineOf,
-  setupBack,
-  setupOffNow,
-  setupPutOffEver,
   type SetupInputs,
-  type SetupPutOff,
   type SetupRowBuilder,
   type SetupRowContext,
   type SetupRowDraft,
   type SetupRowVM,
   type SetupVM,
 } from "./setup";
+import {
+  KEEP_ROW,
+  RECEPTIONIST_MET,
+  CHANNELS_SEEN,
+  REHEARSE_SKIPPED,
+  GOOGLE_CONNECT_LATER,
+  REMIND_SKIPPED,
+  TRY_SKIPPED,
+  setupBack,
+  setupOffNow,
+  setupPutOffEver,
+  type SetupPutOff,
+} from "./setup-put-off";
 import { lineRow, receptionistRow, tryRow, keepRow } from "./setup-rows-phone";
 import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 

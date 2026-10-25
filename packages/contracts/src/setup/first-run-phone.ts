@@ -12,7 +12,7 @@
  * a line a person was asked for, a line that answers -- is `rows`, where Setup's own rows say it as they always have.
  */
 import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing";
-import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
+import { areaCodeOf, formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { agoWords, DAY_MS } from "../shared/time";
 import {
   CARRIER_WORDS,
@@ -37,6 +37,7 @@ import {
   type SetupState,
   type SetupVM,
 } from "./setup";
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off";
 
 /**
  * `choose` is Where it answers' (decision 0073): the ways, the number, nothing bought. `go` is Go live's press before the
@@ -143,12 +144,6 @@ export interface FirstRunPhoneVM {
   /** What is happening, while the number is on its way: the state (a pill, its word) and the sentence under it. */
   status: { state: SetupState; words: string; sentence: string; detail: string } | null;
 }
-
-/**
- * What waiting on a kept number's forwarding costs, said wherever it is put off: the phone step's "Set up forwarding
- * later" and Today's Skip of "The number you already have", which comes back every week (setup.ts putOffEnds).
- */
-export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
 
 export const FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -275,12 +270,6 @@ export const FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved",
 } as const;
-
-/** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
-export function areaCodeOf(raw: string | null | undefined): string | null {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
 
 export interface FirstRunPhoneInput {
   dto: SetupDto;

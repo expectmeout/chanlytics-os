@@ -1,5 +1,5 @@
 import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing.js";
-import { formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
+import { areaCodeOf, formatPhoneDisplay, normalizePhone } from "../shared/phone.js";
 import { agoWords, DAY_MS } from "../shared/time.js";
 import {
   CARRIER_WORDS,
@@ -13,7 +13,7 @@ import {
   lineStuckProvisioning,
   SETUP_STATE_WORDS
 } from "./setup.js";
-export const FORWARDING_WAIT_WORDS = "Until it is set up, only calls to your receptionist's own number are answered.";
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off.js";
 export const FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   /** Where it answers' tile (canvas 4). */
@@ -127,10 +127,6 @@ export const FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-export function areaCodeOf(raw) {
-  const e164 = normalizePhone(raw);
-  return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
-}
 export function firstRunPhoneOf(input) {
   const { dto } = input;
   const s = phoneStepOf(input);

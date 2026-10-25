@@ -1,8 +1,9 @@
 import { formatPhoneDisplay } from "../shared/phone.js";
-import { KEEP_ROW, REMIND_SKIPPED, SETUP_STATE_WORDS, putOffEnds } from "./setup.js";
-import { FORWARDING_WAIT_WORDS } from "./first-run-phone.js";
+import { SETUP_STATE_WORDS } from "./setup.js";
+import { KEEP_ROW, REMIND_SKIPPED, putOffEnds } from "./setup-put-off.js";
+import { FORWARDING_WAIT_WORDS } from "./setup-put-off.js";
 import { FIRST_RUN_ROUTE, firstRunStepRoute } from "./first-run-route.js";
-import { FINISH_SETTING_UP } from "./first-run-door.js";
+import { FINISH_SETTING_UP } from "./first-run-route.js";
 import { firstRunOf, firstRunStepDefOf } from "./first-run.js";
 const GO_LIVE = /* @__PURE__ */ firstRunStepDefOf("live");
 const SETUP_CARD_ORDER = [
@@ -24,7 +25,7 @@ const CARD_PUT_OFF = {
   backShort: "Back",
   week: "Put off for a week.",
   good: "Off your list.",
-  // "The number you already have" rests every time (setup.ts putOffEnds): what waiting costs, said with each Skip.
+  // "The number you already have" rests every time (setup-put-off.ts putOffEnds): what waiting costs, said with each Skip.
   keep: FORWARDING_WAIT_WORDS
 };
 const CARD_SKIP = { put: CARD_PUT_OFF.put, back: CARD_PUT_OFF.back, backShort: CARD_PUT_OFF.backShort };

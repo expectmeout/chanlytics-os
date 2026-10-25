@@ -10,15 +10,16 @@ import { checkChipsOf } from "./check-chips";
 import { firstRunOf, FIRST_RUN_WORDS } from "./first-run";
 import { setupCardOf } from "./first-run-card";
 import { receptionistCardOf, soundsWords } from "./first-run-receptionist";
-import { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
+import { firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone";
+import { areaCodeOf } from "../shared/phone";
 import { forwardingCarrierOf } from "../voice/forwarding";
 import { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS } from "./first-run-channels";
 import { firstRunGoLiveOf, FIRST_RUN_GOLIVE_WORDS } from "./first-run-golive";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live";
 import { importLinesOf, IMPORT_WORDS } from "../imports/ledger";
-import { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, RECEPTIONIST_MET, REHEARSE_SKIPPED, TRY_SKIPPED } from "./setup";
-import { FIRST_RUN_LANDED_KEY } from "./first-run-door";
+import { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, RECEPTIONIST_MET, REHEARSE_SKIPPED, TRY_SKIPPED } from "./setup-put-off";
+import { FIRST_RUN_LANDED_KEY } from "./first-run-route";
 
 export const FIRST_RUN_HELPERS = {
   of: firstRunOf,

@@ -10,7 +10,7 @@ import {
   firstRunStepOf,
   firstRunStepRoute
 } from "./first-run-route.js";
-import { FIRST_RUN_TITLE } from "./first-run-door.js";
+import { FIRST_RUN_TITLE } from "./first-run-route.js";
 import { businessNameOf } from "./first-run-receptionist.js";
 export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route.js";
 const STEP_DEFS = {

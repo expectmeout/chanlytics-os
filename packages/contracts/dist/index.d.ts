@@ -7583,6 +7583,93 @@ declare function broughtInCardOf(rows: readonly ImportRowDto[] | null | undefine
  */
 declare function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean;
 
+/**
+ * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
+ * People's own view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a
+ * throw. Every row put off before a put-off could rest (25 Oct 2026) is here, so it stays put off, as it always was.
+ */
+declare function setupLaterOf(view: unknown): string[];
+/**
+ * What skipping the first run's test call puts off (the member's own, as a row put off is): not the `try` row itself,
+ * which Today keeps showing until a call comes in, but the first run's wait for it.
+ */
+declare const TRY_SKIPPED = "try-skipped";
+/**
+ * Going on from the first run's Your receptionist ("Rehearse it now", decision 0073): the member's own, as a row put off
+ * is. The step is done with the facts it answers from AND this, so it is not left behind the moment its last fact lands.
+ */
+declare const RECEPTIONIST_MET = "receptionist-met";
+/** What skipping the first run's Rehearse puts off (decision 0073): its wait for a conversation reviewed. */
+declare const REHEARSE_SKIPPED = "rehearse-skipped";
+/**
+ * Going on from the first run's Where it answers with no number to choose (no lines provider here, decision 0073): the
+ * member's own, as a row put off is. With numbers to buy the step is the number chosen, whatever this mark says.
+ */
+declare const CHANNELS_SEEN = "channels-seen";
+/**
+ * "Not now" on the first run's Connect it to Google (decision 0073, R17): the member's own, as a row put off is. Your
+ * business goes on without it; Setup's Google row keeps Connect for later.
+ */
+declare const GOOGLE_CONNECT_LATER = "google-connect-later";
+/**
+ * What skipping Today's offer of the day-before reminder puts off (the member's own, as a row put off is). The offer is
+ * no row of Setup's, so it has no row id to put off: this names it in the same list.
+ */
+declare const REMIND_SKIPPED = "remind-skipped";
+/**
+ * Setup's row for the number the business keeps and forwards ("The number you already have"): putting it off is how
+ * an owner who chose to keep a number says its forwarding can wait, and the first run's phone step lets them go on.
+ */
+declare const KEEP_ROW = "keep";
+/**
+ * How long a "not now" puts a row off the first time (Today's Skip and Hide, the first run's Later): a week, and then it
+ * is back where it was, and the next one is for good (putOffEnds). Skipped was for ever, and "It stays in Setting up"
+ * pointed at a page with no way to it once the first run was done.
+ */
+declare const SETUP_REST_MS: number;
+/** The rows a member put off for a week, by id, each with the moment it comes back (ISO): their saved view's `rests`. */
+type SetupRests = Readonly<Record<string, string>>;
+/**
+ * The rows a member put off for a week, as their saved Setup view keeps them (`memberships.views.setup.rests`): a short
+ * id and a moment that reads as one. Anything else is no rest, never a throw.
+ */
+declare function setupRestsOf(view: unknown): Record<string, string>;
+/** What a member has put off: for good (`later`) and for a week (`rests`), as their saved Setup view keeps both. */
+interface SetupPutOff {
+    later: readonly string[];
+    rests: SetupRests;
+}
+/**
+ * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. "The number you
+ * already have" rests every time: its forwarding is set up on Setup's rows alone, so put off for good it would leave
+ * calls to that number short of the receptionist with nothing anywhere to set it up from.
+ */
+declare function putOffEnds(id: string, back: boolean): "week" | "good";
+/**
+ * Why a row is put off: `rest`, a "not now" (Today's Skip and Hide, the first run's Later), which putOffEnds decides;
+ * `answer`, the member said it is not theirs (not on Google, a new number and none kept, the test call skipped), which
+ * is for good at once.
+ */
+type SetupPutOffWhy = "rest" | "answer";
+/** A put-off asked for: rows put off, and why; or taken back. */
+type SetupPutOffChange = {
+    on: true;
+    why: SetupPutOffWhy;
+} | {
+    on: false;
+};
+/**
+ * The member's put-off rows once `ids` are put off, or taken back. Taking back undoes the last put-off: a row put off
+ * for good is back from its week where it had one, and a row resting is as if it had never been put off. A row already
+ * off stays as it is.
+ */
+declare function setupPutOffNext(s: SetupPutOff, ids: readonly string[], change: SetupPutOffChange, nowMs: number): SetupPutOff;
+/** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
+declare const SETUP_LATER_REFUSED: {
+    readonly reading: "Setting up is still being read. Try again in a moment.";
+    readonly unread: "What you put off could not be read just now, so nothing changed. Try again in a moment.";
+};
+
 declare const BUSINESS_READ_SOURCES: readonly ["google_profile", "website"];
 type BusinessReadSource = (typeof BUSINESS_READ_SOURCES)[number];
 /** What a source said, as the row keeps it (business_reads.facts). */
@@ -8227,12 +8314,6 @@ declare function textingWords(l: (Pick<LineDto, "sms_state" | "reg_mock" | "reg_
     done: boolean;
 };
 /**
- * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
- * People's own view goes through): short ids, each once, nothing else. A view somebody hand-edited is no rows, never a
- * throw. Every row put off before a put-off could rest (25 Oct 2026) is here, so it stays put off, as it always was.
- */
-declare function setupLaterOf(view: unknown): string[];
-/**
  * The number the owner said they keep, or are moving here, on the first run's phone step: the way and the number,
  * E.164. Kept in their saved Setup view beside the rows they put off (`memberships.views.setup.phone`), because the
  * choice was the tab's alone: a reload, another tab or a return from checkout lost it, the step read as done the
@@ -8282,86 +8363,6 @@ declare function forwardedLineOf(lines: SetupDto["lines"] | null | undefined): L
  * that would dial itself. The one test, for Setup's Try it row and the first run's step.
  */
 declare function keptPhoneKind(line: LineDto | null | undefined): "mobile" | "office" | "unknown" | null;
-/**
- * What skipping the first run's test call puts off (the member's own, as a row put off is): not the `try` row itself,
- * which Today keeps showing until a call comes in, but the first run's wait for it.
- */
-declare const TRY_SKIPPED = "try-skipped";
-/**
- * Going on from the first run's Your receptionist ("Rehearse it now", decision 0073): the member's own, as a row put off
- * is. The step is done with the facts it answers from AND this, so it is not left behind the moment its last fact lands.
- */
-declare const RECEPTIONIST_MET = "receptionist-met";
-/** What skipping the first run's Rehearse puts off (decision 0073): its wait for a conversation reviewed. */
-declare const REHEARSE_SKIPPED = "rehearse-skipped";
-/**
- * Going on from the first run's Where it answers with no number to choose (no lines provider here, decision 0073): the
- * member's own, as a row put off is. With numbers to buy the step is the number chosen, whatever this mark says.
- */
-declare const CHANNELS_SEEN = "channels-seen";
-/**
- * "Not now" on the first run's Connect it to Google (decision 0073, R17): the member's own, as a row put off is. Your
- * business goes on without it; Setup's Google row keeps Connect for later.
- */
-declare const GOOGLE_CONNECT_LATER = "google-connect-later";
-/**
- * What skipping Today's offer of the day-before reminder puts off (the member's own, as a row put off is). The offer is
- * no row of Setup's, so it has no row id to put off: this names it in the same list.
- */
-declare const REMIND_SKIPPED = "remind-skipped";
-/**
- * Setup's row for the number the business keeps and forwards ("The number you already have"): putting it off is how
- * an owner who chose to keep a number says its forwarding can wait, and the first run's phone step lets them go on.
- */
-declare const KEEP_ROW = "keep";
-/**
- * How long a "not now" puts a row off the first time (Today's Skip and Hide, the first run's Later): a week, and then it
- * is back where it was, and the next one is for good (putOffEnds). Skipped was for ever, and "It stays in Setting up"
- * pointed at a page with no way to it once the first run was done.
- */
-declare const SETUP_REST_MS: number;
-/** The rows a member put off for a week, by id, each with the moment it comes back (ISO): their saved view's `rests`. */
-type SetupRests = Readonly<Record<string, string>>;
-/**
- * The rows a member put off for a week, as their saved Setup view keeps them (`memberships.views.setup.rests`): a short
- * id and a moment that reads as one. Anything else is no rest, never a throw.
- */
-declare function setupRestsOf(view: unknown): Record<string, string>;
-/** What a member has put off: for good (`later`) and for a week (`rests`), as their saved Setup view keeps both. */
-interface SetupPutOff {
-    later: readonly string[];
-    rests: SetupRests;
-}
-/**
- * What a "not now" does to a row: rests it a week, or, once it is back from one, puts it off for good. "The number you
- * already have" rests every time: its forwarding is set up on Setup's rows alone, so put off for good it would leave
- * calls to that number short of the receptionist with nothing anywhere to set it up from.
- */
-declare function putOffEnds(id: string, back: boolean): "week" | "good";
-/**
- * Why a row is put off: `rest`, a "not now" (Today's Skip and Hide, the first run's Later), which putOffEnds decides;
- * `answer`, the member said it is not theirs (not on Google, a new number and none kept, the test call skipped), which
- * is for good at once.
- */
-type SetupPutOffWhy = "rest" | "answer";
-/** A put-off asked for: rows put off, and why; or taken back. */
-type SetupPutOffChange = {
-    on: true;
-    why: SetupPutOffWhy;
-} | {
-    on: false;
-};
-/**
- * The member's put-off rows once `ids` are put off, or taken back. Taking back undoes the last put-off: a row put off
- * for good is back from its week where it had one, and a row resting is as if it had never been put off. A row already
- * off stays as it is.
- */
-declare function setupPutOffNext(s: SetupPutOff, ids: readonly string[], change: SetupPutOffChange, nowMs: number): SetupPutOff;
-/** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
-declare const SETUP_LATER_REFUSED: {
-    readonly reading: "Setting up is still being read. Try again in a moment.";
-    readonly unread: "What you put off could not be read just now, so nothing changed. Try again in a moment.";
-};
 
 /**
  * What a workspace's capabilities are, computed from records.
@@ -50534,11 +50535,6 @@ declare const CONNECTION_GROUP_WORDS: Record<ConnectionGroup, {
 }>;
 
 /**
- * The first run's addresses, with nothing else: setup.ts reads Find's from here, not from first-run.ts, so the two
- * never import each other and no load order can find a constant not yet made. Moved whole from first-run.ts (Reach
- * out Part 2.5), which re-exports its public names.
- */
-/**
  * The first run's steps, in their order, by the word an address names each by: first-run.ts FIRST_RUN_STEPS is made
  * from it. Five since decision 0073: your business, your receptionist, a rehearsal, where it answers, and going live.
  */
@@ -50559,6 +50555,18 @@ declare function firstRunStepRoute(key: FirstRunStepKey): string;
  * for, even after the owner said they are not on Google, since pressing it says otherwise.
  */
 declare const FIRST_RUN_FIND_ROUTE = "start/find";
+/** The first run's name: the crumb its page stands under, and its words' title (FIRST_RUN_WORDS). */
+declare const FIRST_RUN_TITLE = "Setting up";
+/** What a door to the first run says, wherever it is: Connections, the bell, Today's card. */
+declare const FINISH_SETTING_UP = "Finish setting up";
+/** The tab's own memory that this session has landed on the first run once: Today does not send it back again. */
+declare const FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
+/**
+ * Whether this arrival lands on the first run: an owner, a receptionist that answers nowhere yet, a plain arrival
+ * (Today or nothing), and not already sent there this session. Everyone else gets Today. Setup's rule, moved with the
+ * page it lands on.
+ */
+declare function shouldLandOnFirstRun(role: string | null | undefined, answering: boolean, route: string, landed: boolean): boolean;
 
 interface FirstRunStepDef {
     key: FirstRunStepKey;
@@ -51327,8 +51335,6 @@ declare const FIRST_RUN_PHONE_WORDS: {
     readonly withMeSent: "We'll email you to find a time for a call.";
     readonly notForwarded: "Forwarding not saved";
 };
-/** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
-declare function areaCodeOf(raw: string | null | undefined): string | null;
 interface FirstRunPhoneInput {
     dto: SetupDto;
     vm: SetupVM;
@@ -51625,6 +51631,8 @@ declare function handoffE164(raw: string | null | undefined): string | null;
  */
 declare function phoneTail(raw: string | null | undefined): string | null;
 declare function formatPhoneDisplay(e164: string | null | undefined): string | null;
+/** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */
+declare function areaCodeOf(raw: string | null | undefined): string | null;
 
 /** The kinds with a list of their own, for the tests that hold every list to what a service can be. */
 declare const SERVICE_SUGGESTION_TYPES: readonly string[];
@@ -52736,19 +52744,6 @@ declare const FIRST_RUN_HELPERS: {
     };
     readonly landedKey: "chanlytics.setup.landed";
 };
-
-/** The first run's name: the crumb its page stands under, and its words' title (FIRST_RUN_WORDS). */
-declare const FIRST_RUN_TITLE = "Setting up";
-/** What a door to the first run says, wherever it is: Connections, the bell, Today's card. */
-declare const FINISH_SETTING_UP = "Finish setting up";
-/** The tab's own memory that this session has landed on the first run once: Today does not send it back again. */
-declare const FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
-/**
- * Whether this arrival lands on the first run: an owner, a receptionist that answers nowhere yet, a plain arrival
- * (Today or nothing), and not already sent there this session. Everyone else gets Today. Setup's rule, moved with the
- * page it lands on.
- */
-declare function shouldLandOnFirstRun(role: string | null | undefined, answering: boolean, route: string, landed: boolean): boolean;
 
 /** Closed error-code enum for the /api/v1 envelope (Blueprint §4). */
 declare const ERROR_CODES: readonly ["unauthorized", "forbidden", "not_found", "validation", "choose_workspace", "mfa_required", "conflict", "rate_limited", "payment_required", "window_closed", "upstream_meta", "upstream_retell", "upstream_anthropic", "upstream_email", "upstream_auth", "upstream_voice", "internal"];

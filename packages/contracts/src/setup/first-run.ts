@@ -29,7 +29,7 @@ import {
   firstRunStepRoute,
   type FirstRunStepKey,
 } from "./first-run-route";
-import { FIRST_RUN_TITLE } from "./first-run-door";
+import { FIRST_RUN_TITLE } from "./first-run-route";
 import { businessNameOf } from "./first-run-receptionist";
 export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 

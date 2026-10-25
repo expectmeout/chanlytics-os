@@ -4,15 +4,16 @@ import { checkChipsOf } from "./check-chips.js";
 import { firstRunOf, FIRST_RUN_WORDS } from "./first-run.js";
 import { setupCardOf } from "./first-run-card.js";
 import { receptionistCardOf, soundsWords } from "./first-run-receptionist.js";
-import { areaCodeOf, firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone.js";
+import { firstRunPhoneOf, FIRST_RUN_PHONE_WORDS } from "./first-run-phone.js";
+import { areaCodeOf } from "../shared/phone.js";
 import { forwardingCarrierOf } from "../voice/forwarding.js";
 import { firstRunChannelsOf, FIRST_RUN_CHANNELS_WORDS } from "./first-run-channels.js";
 import { firstRunGoLiveOf, FIRST_RUN_GOLIVE_WORDS } from "./first-run-golive.js";
 import { firstRunTryOf, FIRST_RUN_TRY_WORDS, TRY_QUIET_AFTER_MS } from "./first-run-try.js";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live.js";
 import { importLinesOf, IMPORT_WORDS } from "../imports/ledger.js";
-import { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, RECEPTIONIST_MET, REHEARSE_SKIPPED, TRY_SKIPPED } from "./setup.js";
-import { FIRST_RUN_LANDED_KEY } from "./first-run-door.js";
+import { CHANNELS_SEEN, GOOGLE_CONNECT_LATER, RECEPTIONIST_MET, REHEARSE_SKIPPED, TRY_SKIPPED } from "./setup-put-off.js";
+import { FIRST_RUN_LANDED_KEY } from "./first-run-route.js";
 export const FIRST_RUN_HELPERS = {
   of: firstRunOf,
   receptionist: receptionistCardOf,
