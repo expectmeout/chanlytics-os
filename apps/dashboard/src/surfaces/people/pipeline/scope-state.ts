@@ -459,16 +459,20 @@ export function usePipelineAddress(f: PipelineFrame, ui: PipelineUi, doors: Peek
   });
   useEffect(() => {
     const a = peekAddr.current;
+    // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
+    // Asked before whether the address moved: the scope is held hidden under the person's page (people-route.tsx), so the
+    // address it comes back to is the one it last saw, and only its effects running again say it is back.
+    if (addrPeek && personDeletedHere(addrPeek)) {
+      Object.assign(a, { view: viewRoute, peek: null, asked: null, pushed: false, opening: null });
+      if (peekId) setPeekId(null);
+      nav(viewRoute, { replace: true });
+      return;
+    }
     if (a.view !== viewRoute || a.peek !== addrPeek) {
       a.view = viewRoute;
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
-      // Someone deleted from their page, which Back left by this entry: the view, with nobody peeked at (personDeletedHere).
-      if (addrPeek && personDeletedHere(addrPeek)) {
-        nav(viewRoute, { replace: true });
-        return;
-      }
       // The person the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
       // otherwise walk the peek, and the address, off them on the next draw.
       if (peekId !== addrPeek) {

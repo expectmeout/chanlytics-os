@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
+import { motionSettled, sheetFloat } from "../signals";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -36,13 +37,19 @@ test.describe("Installable shell, no session", () => {
  */
 const controlsInsideTheScreen = async (page: Page, screen: Locator) => {
   const width = page.viewportSize()?.width ?? 390;
-  for (const el of await screen.getByRole("button").or(screen.getByRole("link")).all()) {
-    const box = await el.boundingBox();
-    if (!box) continue;
-    expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(
-      width + 1,
-    );
-  }
+  await page.waitForLoadState("networkidle");
+  // Read in one pass. Walked one by one, a screen whose starts were still arriving redrew under the walk: a control
+  // counted, then gone, and the walk waited the whole test out for it (New's starts, the nightly of 25 Oct 2026).
+  const off = await screen.evaluate(
+    (root, w) =>
+      [...root.querySelectorAll('button, a[href], [role="button"], [role="link"]')]
+        .filter((el) => getComputedStyle(el).visibility !== "hidden")
+        .map((el) => ({ r: el.getBoundingClientRect(), text: (el.textContent ?? "").trim() }))
+        .filter(({ r }) => r.width > 0 && r.height > 0 && r.right > w + 1)
+        .map(({ r, text }) => `${text} runs off a ${w}px screen, its right edge at ${Math.round(r.right)}px`),
+    width,
+  );
+  expect(off, "every control inside the screen").toEqual([]);
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
 };
@@ -441,7 +448,9 @@ test.describe("Phone shell on a real workspace", () => {
       const b = (await sheet.boundingBox())!;
       return Math.round(b.y + b.height);
     };
-    await expect.poll(foot, { message: "at rest on the bottom" }).toBe(tall);
+    // At rest it floats clear of the foot (#1789); on the keys it stands on them, the keys the higher of the two.
+    const float = await sheetFloat(page);
+    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - float);
     const keys = 300;
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
@@ -449,7 +458,7 @@ test.describe("Phone shell on a real workspace", () => {
     const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
-    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
+    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - float);
   });
   /**
    * A thumb pulls a sheet down to close it (the kit's Sheet, through kit/motion/swipe.ts touchSwipe, 5 Oct 2026): from its handle,
@@ -464,25 +473,21 @@ test.describe("Phone shell on a real workspace", () => {
     await add.click();
     const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
-    // Its handle where the sheet comes to rest: measured as it rose, the thumb landed below the handle.
-    let b = (await sheet.boundingBox())!;
-    await expect
-      .poll(async () => {
-        const was = b;
-        b = (await sheet.boundingBox())!;
-        return Math.round(b.y) === Math.round(was.y) && Math.round(b.height) === Math.round(was.height);
-      })
-      .toBe(true);
+    // Its handle where the sheet comes to rest: measured as it rose, the thumb landed below the handle. Two equal reads
+    // in a row were no rest, since a rise not yet begun reads the same twice; the rise's own end is (25 Oct 2026).
+    await motionSettled(page);
+    const b = (await sheet.boundingBox())!;
     await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);
     await expect(sheet, "pulled past a third, it closed").toHaveCount(0);
   });
   /**
-   * The switch holds three scopes (People, Leads and the Pipeline, every workspace's: 0008, amended 18 Oct 2026), and
-   * the bar holds them beside the list, search and the scope's last control at the narrowest phone we draw for: nothing
-   * past its edge, nothing scrolled sideways, and the Pipeline's own bar.
+   * The three scopes (People, Leads and the Pipeline, every workspace's: 0008, amended 18 Oct 2026) are the frame's strip
+   * of views over the page (#1378, surfaces/people/chrome.ts scopeViews), and each scope's bar holds its list, search and
+   * last control beneath them, at the narrowest phone we draw for: nothing past an edge, nothing scrolled sideways.
    */
-  test("at 375px the bar holds every scope it offers, with nothing past its edge", async ({ page }) => {
+  test("at 375px the scopes and each scope's bar fit, with nothing past an edge", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
+    const scopes = page.getByTestId("people-scope");
     const fits = async (testid: string) => {
       const bar = page.getByTestId(testid);
       await expect(bar).toBeVisible();
@@ -490,10 +495,11 @@ test.describe("Phone shell on a real workspace", () => {
         await bar.evaluate((el) => el.scrollWidth - el.clientWidth),
         `${testid}: nothing inside the bar runs past it`,
       ).toBeLessThanOrEqual(0);
-      for (const tab of await bar.getByRole("tab").all()) {
+      await expect(scopes.getByRole("link")).toHaveCount(3);
+      for (const tab of await scopes.getByRole("link").all()) {
         await expect(tab).toBeInViewport({ ratio: 1 });
-        // Each tab keeps the touch floor's 44px across: the bar's spacing gives way, never a tab.
-        expect((await tab.boundingBox())!.width, `${testid}: a tab a thumb can hit`).toBeGreaterThanOrEqual(44);
+        // Each scope keeps the touch floor's 44px across: the strip's spacing gives way, never a scope.
+        expect((await tab.boundingBox())!.width, `${testid}: a scope a thumb can hit`).toBeGreaterThanOrEqual(44);
       }
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
@@ -503,8 +509,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     await fits("people-phone-bar");
-    const pipeline = page.getByTestId("people-phone-bar").getByRole("tab", { name: "Pipeline" });
-    await pipeline.click();
+    await scopes.getByRole("link", { name: "Pipeline" }).click();
     await expect.poll(() => routeOf(page.url())).toBe("clients/pipeline");
     await fits("pipeline-phone-bar");
     await page.goto("/#/clients/leads");
@@ -983,7 +988,11 @@ test.describe("Phone shell on a real workspace", () => {
       const b = (await pop.boundingBox())!;
       return [Math.round(b.x), Math.round(b.x + b.width), Math.round(b.y + b.height)];
     };
-    await expect.poll(edges, { message: "edge to edge, on the bottom" }).toEqual([0, size.width, size.height]);
+    // Floating just clear of the screen's sides and foot, as every phone sheet does (#1789).
+    const float = await sheetFloat(page);
+    await expect
+      .poll(edges, { message: "side to side and on the bottom, clear by the float" })
+      .toEqual([float, size.width - float, size.height - float]);
     await expect(pop.locator(".tbn-handle")).toBeVisible();
     const y = Math.round((await pop.boundingBox())!.y) + 20;
     const cdp = await page.context().newCDPSession(page);
@@ -1170,8 +1179,8 @@ test.describe("Phone shell on a real workspace", () => {
    * were"): a row opened from a list scrolled down, its page carried back by a thumb, finds the list as it was left, the
    * row it was opened from where it stood and the same element, as iMessage does. An open thread took the window, whose
    * scroll fell to the top with nothing to put it back; a person's page took People down and built it again after a fade.
-   * Each row is drawn half the screen tall and the page given room under its list (a style the test adds), so a list of
-   * one row scrolls: the suite's workspace has three people and one conversation.
+   * Each row is drawn half the screen tall and given room under its list (a style the test adds), so a list of one row
+   * scrolls: the suite's workspace has three people and one conversation.
    */
   test("a row opened from a list scrolled down and carried back by a thumb finds the list as it was left, the row where it stood", async ({
     page,
@@ -1185,14 +1194,18 @@ test.describe("Phone shell on a real workspace", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
     const places: Record<string, string> = {};
-    for (const [hash, rowSel, opened] of [
-      ["conversations", ".cv-row", ".conversations .ix-thread-pane"],
-      ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name"],
+    // The room under the list is the list's own where the row's page is a thread: the window scrolls an open thread and
+    // opens it at its end (#1781), and room left on the body was that end, the thread scrolled out of sight above it.
+    for (const [hash, rowSel, opened, room] of [
+      ["conversations", ".cv-row", ".conversations .ix-thread-pane", ".conversations > .cv-list"],
+      ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name", "body"],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       if ((await page.locator(rowSel).count()) === 0) continue; // an empty list here proves nothing
-      await page.addStyleTag({ content: `${rowSel} { height: 420px !important; } body { padding-bottom: 1600px; }` });
+      await page.addStyleTag({
+        content: `${rowSel} { height: 420px !important; } ${room} { padding-bottom: 1600px; }`,
+      });
       await page.evaluate(() => window.scrollBy(0, 260));
       // The row a third of the way down the screen, marked so the one found after is the same element, and where it stands.
       const was = await page.evaluate((sel) => {
@@ -1204,8 +1217,12 @@ test.describe("Phone shell on a real workspace", () => {
       if (!was) throw new Error(`${hash}: no row stands a third of the way down the screen`);
       expect(was.scrolled, `${hash}: the list is scrolled down`).toBeGreaterThan(200);
       const row = page.locator(`${rowSel}[data-e2e-opened]`);
-      await row.click();
+      // A thumb taps it where it stands. A locator's click first scrolls a row the frame's head half covers wholly into
+      // view, so the list moved before the tap, and was put back where the tap found it, not where the test measured it.
+      await page.touchscreen.tap(195, 300);
       await expect(page.locator(opened)).toBeVisible();
+      // The row's page slides in with its presses off until it lands (#1811): a thumb carries a page at rest.
+      await motionSettled(page);
       await carryBack();
       await expect(page.locator(opened), `${hash}: the row's page has gone`).toBeHidden();
       await expect(row, `${hash}: the same row, kept: nothing was built again`).toBeVisible();
@@ -1421,6 +1438,8 @@ test.describe("Phone shell on a real workspace", () => {
     test.skip((await row.count()) === 0, "no thread on this workspace");
     await row.click();
     await expect(page.locator(".ix-th-head").first()).toBeVisible();
+    // The thread slides in over the list with its presses off until it lands (#1811): measured once it has.
+    await motionSettled(page);
     const who = page.getByTestId("ix-th-person").first();
     test.skip((await who.count()) === 0, "the first thread is with no one in People");
     await expect(who).toHaveAttribute("href", /\/people\/[\w-]+$/);
