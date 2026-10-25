@@ -134,7 +134,7 @@ test("a change is refused in the product's words: nothing named, a field it does
   await refusedWith(checkPlaybookPatch(LIVE, ROW, { cadence_days: 14 }), PLAYBOOK_PATCH_WORDS.cadenceOffer("Win-back"));
 });
 
-test("a resume on an archived list is refused in the port's words, a pause there is not; a reach-out's step is paused or resumed and nothing else", async () => {
+test("a resume on an archived list is refused in the port's words, a pause there is not; a sequence to leads' first step is paused, resumed or renamed (0072), and nothing else", async () => {
   const kept = "Its list, Regulars, is archived. Restore it on People, or move the campaign to another list.";
   const archived = { archivedList: async () => kept };
   const onList = { ...ROW, trigger: "saved_list", state: "paused" };
@@ -146,11 +146,23 @@ test("a resume on an archived list is refused in the port's words, a pause there
   );
   const step = { ...ROW, name: "Movers in Austin", trigger: "lead_first" };
   assert.deepEqual((await checkPlaybookPatch(LIVE, step, { state: "paused" })).set, { state: "paused" });
-  await assert.rejects(checkPlaybookPatch(LIVE, step, { name: "Renamed" }), (e) => {
+  // Its name is its sequence's, the one Rename every sequence's head offers, held to the same 80 (0072).
+  assert.deepEqual(await checkPlaybookPatch(LIVE, step, { name: "  Movers   in Dallas " }), {
+    set: { name: "Movers in Dallas" },
+    was: { name: "Movers in Austin" },
+  });
+  await refusedWith(checkPlaybookPatch(LIVE, step, { name: "x".repeat(81) }), PLAYBOOK_PATCH_WORDS.nameLong(80));
+  // What it sends, and when, are its record's: refused here, a rename beside them too.
+  const sheetOnly = (e) => {
     assert.equal(e.message, REACH_OUT_IS_NOT_A_MOMENT);
     assert.equal(e.status, 409);
     return true;
-  });
+  };
+  await assert.rejects(checkPlaybookPatch(LIVE, step, { run_hour: 9 }), sheetOnly);
+  await assert.rejects(checkPlaybookPatch(LIVE, step, { name: "Movers", run_hour: 9 }), sheetOnly);
+  // A step after its first is its record's to name.
+  const later = { ...ROW, name: "Movers, a nudge", trigger: "after_step" };
+  await assert.rejects(checkPlaybookPatch(LIVE, later, { name: "Renamed" }), sheetOnly);
 });
 
 test("a new playbook's moment, list and class are judged before its message is read: a reach-out's step and a retired moment are refused, a list keeps the class it names, a moment its own", async () => {

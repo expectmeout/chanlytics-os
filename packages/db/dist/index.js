@@ -1864,6 +1864,29 @@ async function lastRunSkipped(db, tenantId, stepId) {
   const said = data?.data;
   return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string" ? said.skipped : null;
 }
+var WRITTEN_SEND_STATES = ["claimed", "queued", "sent", "failed", "drafted"];
+async function sequenceHistoryFacts(db, tenantId, sequenceId) {
+  const leadSends2 = () => db.from("sequence_sends").select("id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).not("lead_id", "is", null);
+  const [batch, written, draftedThenSkipped] = await Promise.all([
+    db.from("sequence_batches").select("id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).limit(1),
+    leadSends2().in("state", WRITTEN_SEND_STATES).limit(1),
+    leadSends2().eq("state", "skipped").not("drafted_at", "is", null).limit(1)
+  ]);
+  for (const r of [batch, written, draftedThenSkipped])
+    if (r.error) throw new Error(`cannot read what the sequence has done: ${r.error.message}`);
+  return {
+    ran: (batch.data ?? []).length > 0,
+    wrote: (written.data ?? []).length > 0 || (draftedThenSkipped.data ?? []).length > 0
+  };
+}
+async function sequenceRecordFacts(db, tenantId, sequenceId) {
+  const [first, lastRunOff, history] = await Promise.all([
+    firstStepFacts(db, tenantId, sequenceId).catch(() => void 0),
+    lastRunSkipped(db, tenantId, sequenceId).catch(() => void 0),
+    sequenceHistoryFacts(db, tenantId, sequenceId).catch(() => void 0)
+  ]);
+  return { first, lastRunOff, history };
+}
 async function oneOffMessageOf(db, tenantId, batchId) {
   const [batch, ...by] = await Promise.all([
     db.from("sequence_batches").select("template_name, template_language, params").eq("tenant_id", tenantId).eq("id", batchId).maybeSingle(),
@@ -7680,7 +7703,6 @@ export {
   finishAct,
   finishableRuns,
   firstReplies,
-  firstStepFacts,
   followUpOnFile,
   followUpTouchesSince,
   followUpsDue,
@@ -7760,7 +7782,6 @@ export {
   lastClosedHolds,
   lastInboundEmail,
   lastOutboundEmailSubject,
-  lastRunSkipped,
   leadAddressBounced,
   leadAddresseeChoose,
   leadCardsLive,
@@ -8024,6 +8045,7 @@ export {
   sequencePlaceOf,
   sequencePlacesOf,
   sequenceReached,
+  sequenceRecordFacts,
   sequenceRow,
   sequenceStepsOf,
   sequencesOfPerson,

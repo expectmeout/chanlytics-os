@@ -29,7 +29,7 @@ import {
   scheduleStart,
   scheduleStepState,
   scheduleWait,
-  sequenceCancels,
+  sequenceActsOf,
   takesFollowUps,
   type NewStepDoes,
   type ScheduleCtx,
@@ -383,7 +383,7 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
       }
       end={end}
     >
-      {sequenceCancels(row) ? (
+      {sequenceActsOf(rec, { tz: rec.timezone, nowMs: Date.now() }).cancel_send.ok ? (
         <>
           <p className="sq-rail-note">
             <Icon name="info" size={13} />

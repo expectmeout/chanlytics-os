@@ -574,9 +574,9 @@ function supportWorld() {
         tenant_id: T2,
         kind: "setup.requested",
         data: { what: "line", by: OTHER },
-        // Five calendar days hold at least three business days, so the ask is past its promise whatever weekday the
-        // suite runs on; two days were not on a Sunday or a Monday, when the weekend sits between (supportDueAt).
-        created_at: ago(5 * DAY_MS),
+        // Four days: an ask is due 24 business hours after it came in (supportDueAt), at most three days on, so it is
+        // past its day whatever today is. Two days was not, on a Sunday (an ask of Friday is due on Monday).
+        created_at: ago(4 * DAY_MS),
       },
     ],
     tenants: [
@@ -610,7 +610,7 @@ test("Support's queue is the questions and asks, never a bug; each comes back as
     [[E1, "line", "atlas-plumbing"]],
   );
   assert.deepEqual(out.counts.views, { needs: 2, waiting: 0, done: 0 });
-  assert.equal(out.counts.late, 1, "the ask of five days is past its day");
+  assert.equal(out.counts.late, 1, "the ask of four days is past its day");
   assert.equal(out.to_health, 1, "and Support says one bug went to Health this week");
   assert.equal(out.more, false);
   assert.equal(out.inbox, null, "no inbox address here: the page copies the code instead");

@@ -310,7 +310,7 @@ export const settings: Provider = async (rc, ctx) => {
 export const start: Provider = async (rc, ctx) => {
   const { setup } = (await load(rc, connectionsReader, undefined)).data;
   // What the member put off rides on their own saved view, which the page reads apart: none is put off here.
-  const vm = setupSteps({ ...setup, later: [] }, rc.now.getTime());
+  const vm = setupSteps({ ...setup, later: [], rests: {} }, rc.now.getTime());
   return {
     rows: [],
     aggregate: aggregateOf([

@@ -140,15 +140,16 @@ export async function withMe(k: PhoneActs): Promise<void> {
  * The number kept or moved, said to the member's saved view before the plan starts or the number is bought (surface.ts
  * `want`), so its forwarding is asked for from any tab: the choice was the tab's alone, and a reload or another tab read
  * the step as done once the receptionist's own number answered. A new number wants none, and keeps none: the choice
- * itself puts "The number you already have" off (Setup's own Later, its Undo on this step), which Today's card asked
- * for forever after; a number kept or moved takes it back, so its forwarding is asked for again. A save refused holds
+ * itself puts "The number you already have" off for good, an answer and no "not now" (Setup's own Later, its Undo on
+ * this step), which Today's card asked for forever after; a number kept or moved takes it back, so its forwarding is
+ * asked for again. A save refused holds
  * nothing up: the tab still has the choice, as it always did. Both go through the view's one line of saves (surface.ts).
  */
 const keepWant = (k: PhoneActs): Promise<unknown> => {
   const { way, number } = k.ph;
   return Promise.all([
     setupVerbs.want(way !== "new" && number ? { way, number } : null),
-    setupVerbs.later(KEEP_ROW, way === "new"),
+    setupVerbs.later(KEEP_ROW, way === "new" ? { on: true, why: "answer" } : { on: false }),
   ]);
 };
 
@@ -173,7 +174,7 @@ export async function copyCode(k: PhoneActs, text: string): Promise<void> {
 export async function putOff(k: PhoneActs): Promise<void> {
   if (k.busy) return;
   k.setBusy(true);
-  const r = await setupVerbs.later(KEEP_ROW, true);
+  const r = await setupVerbs.later(KEEP_ROW, { on: true, why: "rest" });
   k.setBusy(false);
   if (!r.ok) {
     k.flash(refusalToast(r, k.W.notForwarded));

@@ -115,7 +115,7 @@ async function getConnections(t: ToolContext): Promise<unknown> {
   const read = await load(t.rc, connectionsReader, undefined);
   const setup = read.data.setup;
   const vm = setupSteps(
-    { ...setup, ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}), later: [] },
+    { ...setup, ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}), later: [], rests: {} },
     t.now.getTime(),
   );
   // Each mailbox it writes from is a row an answer may cite, opened on Connections: the reader's RowRefs.

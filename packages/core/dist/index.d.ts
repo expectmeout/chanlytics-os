@@ -2695,8 +2695,8 @@ declare function untilOf(ports: Pick<CheckPlaybookPatchPorts, "timezone">, v: un
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
  * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its sequence's
- * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state and its
- * mode alone (its sheet changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
+ * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state, its mode
+ * and, on its first step, its name (reachOutTakes; its record changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
  * back what the door recorded, so its end is restored past or not, its shape still judged. It answers only what differs from the row as it stands,
  * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
  * words and the route answers without a write.

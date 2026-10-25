@@ -4,7 +4,9 @@
  * behind its door's role (`setupGate`). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary`
  * names the row whose button is the one coral action; `later` is what a row's second button says, the caller's
  * (contracts): the first run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in
- * a toast with Undo (`said`). Holds the panels' state and the one verb on its way, so a second press waits for the first
+ * a toast with Undo (the row's own `said`, SetupCardRowVM), and a row back from a week put off says so by its name
+ * (`back`). Either puts a row off for a week, then for good (contracts setupPutOffNext). Holds the panels' state and the
+ * one verb on its way, so a second press waits for the first
  * (S23). The list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while
  * one is up -- Today's, when its last row is skipped. `look` is how a row is drawn: `row`, the attention row the first run
  * draws; `card`, Today's compact row (SetupCardRow), whose first carries `left`, the card's count.
@@ -20,16 +22,20 @@ import { ForwardingCard } from "./forwarding";
 import { setupGate, setupGated } from "./gates";
 import { LineChooser } from "./line-chooser";
 
-/** What a row's second button says: put it off, take it back, and the toast's words for a row taken off the card. */
+/** What a row's second button says: put it off, take it back, and what a row back from a week put off says. */
 interface SetupLaterWords {
   put: string;
   undo?: string;
-  said?: string;
+  back?: string;
+  backShort?: string;
 }
+
+/** A row as drawn: Setup's, with what its toast says once put off where the caller says one (Today's card). */
+type DrawnRow = SetupRowVM & { said?: string | null };
 
 interface SetupRowsProps {
   S: SetupSurface;
-  rows: readonly SetupRowVM[];
+  rows: readonly DrawnRow[];
   later: SetupLaterWords;
   look?: "row" | "card";
   primary?: string | null;
@@ -44,12 +50,12 @@ const setupTone = (state: string): string => stateOf("setup", state).tone;
 
 /** A row's two acts: its verb, and its undo or its Later (none for a required row, or one that is ready). */
 function rowActs(
-  r: SetupRowVM,
+  r: DrawnRow,
   o: {
     primary: string | null;
     pending: string | null;
     act: (v: SetupVerb | null | undefined) => void;
-    putOff: (r: SetupRowVM) => void;
+    putOff: (r: DrawnRow) => void;
     later: SetupLaterWords;
   },
 ): { cta: SetupCardAct | null; also: SetupCardAct | null } {
@@ -118,16 +124,20 @@ export const SetupRows = ({
     openForwarding: () => setForwarding(true),
   };
   const act = (verb: SetupVerb | null | undefined) => void pressVerb(verb, k);
-  // Put off, or taken back: this member's, saved to their view (surface.ts later), and said when it was not.
-  const takeBack = (id: string) =>
-    setupVerbs.later(id, false).then((res) => {
-      if (!res.ok) flash(refusalToast(res, "Not saved"));
-    });
-  const putOff = (r: SetupRowVM) =>
+  // Put off as a "not now" (a week, then for good), or taken back: this member's, saved to their view (surface.ts
+  // later), and said when it was not. A toast's Undo is the put-off's own, which puts the row back as it stood.
+  const putOff = (r: DrawnRow) =>
     void once(`later:${r.id}`, async () => {
-      const res = await setupVerbs.later(r.id, !r.later);
+      const res = await setupVerbs.later(r.id, r.later ? { on: false } : { on: true, why: "rest" });
       if (!res.ok) flash(refusalToast(res, "Not saved"));
-      else if (!r.later && later.said) flash({ msg: <>{later.said}</>, undo: () => takeBack(r.id) });
+      else if (!r.later && r.said)
+        flash({
+          msg: <>{r.said}</>,
+          undo: () =>
+            res.undo().then((u) => {
+              if (!u.ok) flash(refusalToast(u, "Not saved"));
+            }),
+        });
     });
   return (
     <div className="setup-rows" data-testid={testid}>
@@ -142,6 +152,7 @@ export const SetupRows = ({
                   tone={primary === r.id ? "warn" : setupTone(r.state)}
                   stateWords={r.stateWords}
                   name={r.title}
+                  note={r.back && later.back ? { long: later.back, short: later.backShort ?? later.back } : null}
                   sentence={r.sentence}
                   left={i === 0 ? left : null}
                   cta={cta}
